@@ -1368,14 +1368,16 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   bson_init(&opts);
 
   //
-  // limit=0 means "count only, no results"
+  // limit=0 means "count only, no results" - unless the caller asked for every
+  // match, which is a different thing entirely (see DbQueryFilter::unpaged).
   //
-  bool countOnly = (filterP != NULL && filterP->limit == 0 && filterP->count);
+  bool unpaged   = (filterP != NULL && filterP->unpaged);
+  bool countOnly = (filterP != NULL && filterP->limit == 0 && filterP->count && !unpaged);
 
-  if (filterP != NULL && filterP->limit > 0)
+  if (filterP != NULL && filterP->limit > 0 && !unpaged)
     BSON_APPEND_INT64(&opts, "limit", filterP->limit);
 
-  if (filterP != NULL && filterP->offset > 0)
+  if (filterP != NULL && filterP->offset > 0 && !unpaged)
     BSON_APPEND_INT64(&opts, "skip", filterP->offset);
 
   //

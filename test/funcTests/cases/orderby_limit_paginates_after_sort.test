@@ -1,0 +1,289 @@
+#
+# FILE            orderby_limit_paginates_after_sort.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.23 — a page of an orderBy query is the first N BY ORDERBY, not the first N
+# in creation order re-sorted.
+#
+# The store orders by createdAt/_id, the total order pagination needs, and
+# ldOrderSort re-orders what comes back. Push limit down as well and the store
+# picks the first N in CREATION order and the broker sorts THOSE - which is a
+# different set of entities, not merely a different order of the same ones.
+#
+# So the entities here are created in REVERSE name order: n06 first, n01 last.
+# Creation order and name order are exact opposites, which is what makes the two
+# behaviours distinguishable. With the limit pushed down, `orderBy=name&limit=2`
+# answered n05 n06 - the two OLDEST, sorted - the last page's content on the
+# first page, with a 200.
+#
+# The EntityMap steps are the same bug one layer up: the map is frozen from the
+# sorted array, so a map built from a store-side page held limit+1 ids and
+# paging it could never reach the rest of the result set.
+#
+--NAME--
+orderBy pages by orderBy, not by creation order (§ 4.23)
+
+--TAGS--
+orderBy query pagination entitymap
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed n06 n05 n04 n03 n02 n01 - creation order is the REVERSE of name order"
+echo "=============================================================================="
+for v in n06 n05 n04 n03 n02 n01; do
+  corCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:ngsi-ld:T:$v\",\"type\":\"T\",\"name\":{\"type\":\"Property\",\"value\":\"$v\"}}" | head -1
+done
+echo
+echo
+
+
+echo "02. orderBy=name&limit=2 - the first two BY NAME"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&options=keyValues'
+echo
+echo
+
+
+echo "03. orderBy=name&limit=2&offset=2 - the second page BY NAME"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&offset=2&options=keyValues'
+echo
+echo
+
+
+echo "04. orderBy=name;desc&limit=2 - the exact reverse"
+echo "================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&limit=2&options=keyValues'
+echo
+echo
+
+
+echo "05. No orderBy - creation order is untouched by the fix"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=2&options=keyValues'
+echo
+echo
+
+
+echo "06. orderBy with count - the count is the whole result set, not the page"
+echo "======================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&count=true&options=keyValues' | grep -i 'NGSILD-Results-Count'
+echo
+echo
+
+
+echo "07. limit=0 with count - still an empty array and a count (unpaged is NOT this)"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=0&count=true&options=keyValues' | grep -iE 'NGSILD-Results-Count|^\[\]'
+echo
+echo
+
+
+echo "08. offset past the end - the last element, § 6.4.7.2"
+echo "===================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&offset=99&options=keyValues'
+echo
+echo
+
+
+echo "09. EntityMap over an orderBy query - every page, in name order"
+echo "=============================================================="
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&entityMap=true' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+for off in 0 2 4; do
+  echo "    offset=$off:"
+  corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=2&offset=$off&options=keyValues" | grep -o '"name": "[^"]*"'
+done
+echo
+echo
+
+
+echo "10. FOLLOW the next links - the client behaviour the bug actually broke"
+echo "======================================================================"
+URL='/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&options=keyValues'
+PAGE=1
+while [ -n "$URL" ] && [ $PAGE -le 5 ]; do
+  echo "    page $PAGE:"
+  RESP=$(corCurl --url "$URL")
+  echo "$RESP" | grep -o '"name": "[^"]*"'
+  URL=$(echo "$RESP" | grep -i '^Link:' | tr ',' '\n' | grep 'rel="next"' | sed -E 's|.*<([^>]*)>.*|\1|' | tr -d '\r')
+  if [ -z "$URL" ]; then echo "    (no next link - the walk ends here)"; fi
+  PAGE=$((PAGE + 1))
+done
+echo
+echo
+
+
+--EXPECT--
+01. Seed n06 n05 n04 n03 n02 n01 - creation order is the REVERSE of name order
+==============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. orderBy=name&limit=2 - the first two BY NAME
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "id": "urn:ngsi-ld:T:n01",
+    "name": "n01",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:n02",
+    "name": "n02",
+    "type": "T"
+  }
+]
+
+
+
+03. orderBy=name&limit=2&offset=2 - the second page BY NAME
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=0>;rel="prev";type="application/json", </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=4>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "id": "urn:ngsi-ld:T:n03",
+    "name": "n03",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:n04",
+    "name": "n04",
+    "type": "T"
+  }
+]
+
+
+
+04. orderBy=name;desc&limit=2 - the exact reverse
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "id": "urn:ngsi-ld:T:n06",
+    "name": "n06",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:n05",
+    "name": "n05",
+    "type": "T"
+  }
+]
+
+
+
+05. No orderBy - creation order is untouched by the fix
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "id": "urn:ngsi-ld:T:n06",
+    "name": "n06",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:n05",
+    "name": "n05",
+    "type": "T"
+  }
+]
+
+
+
+06. orderBy with count - the count is the whole result set, not the page
+=======================================================================
+NGSILD-Results-Count: 6
+
+
+07. limit=0 with count - still an empty array and a count (unpaged is NOT this)
+==============================================================================
+NGSILD-Results-Count: 6
+[]
+
+
+08. offset past the end - the last element, § 6.4.7.2
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=97>;rel="prev";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 78
+
+[
+  {
+    "id": "urn:ngsi-ld:T:n06",
+    "name": "n06",
+    "type": "T"
+  }
+]
+
+
+
+09. EntityMap over an orderBy query - every page, in name order
+==============================================================
+    offset=0:
+"name": "n01"
+"name": "n02"
+    offset=2:
+"name": "n03"
+"name": "n04"
+    offset=4:
+"name": "n05"
+"name": "n06"
+
+
+10. FOLLOW the next links - the client behaviour the bug actually broke
+======================================================================
+    page 1:
+"name": "n01"
+"name": "n02"
+    page 2:
+"name": "n03"
+"name": "n04"
+    page 3:
+"name": "n05"
+"name": "n06"
+    (no next link - the walk ends here)
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

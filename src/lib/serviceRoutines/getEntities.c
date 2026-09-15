@@ -1219,6 +1219,46 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
 
 // -----------------------------------------------------------------------------
 //
+// orderBySkip - drop the first 'offset' entities of an orderBy result
+//
+// The offset half of what the DB was not allowed to do (see brokerPaginates).
+// ldPaginationTrim does the limit half; this is its partner and runs first.
+//
+// § 6.4.7.2: "If offset is set to a value larger than the result set, the
+// offset should be assumed to be equal to the size of the result set, i.e. only
+// the last element of the result set is to be returned if there are any
+// results." The DB-side path reaches that by re-querying at offset N-1; here
+// the whole set is already in hand, so it is the last child and no query.
+//
+static void orderBySkip(KjNode* arrayP, int offset)
+{
+  if ((arrayP == NULL) || (offset <= 0) || (arrayP->value.firstChildP == NULL))
+    return;
+
+  int count = 0;
+
+  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    ++count;
+
+  if (offset >= count)
+  {
+    // The overshoot of § 6.4.7.2 - the last element, not an empty page.
+    arrayP->value.firstChildP = arrayP->lastChild;
+    return;
+  }
+
+  KjNode* eP = arrayP->value.firstChildP;
+
+  for (int ix = 0; ix < offset; ix++)
+    eP = eP->next;
+
+  arrayP->value.firstChildP = eP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // entityMapPaginate - GET /entities?entityMap=<mapId> (§ 5.2.39 / § 5.7.2.4)
 //
 // Frozen-snapshot pagination: the map fixes "where each entity is" at
@@ -1606,9 +1646,34 @@ bool getEntities(void)
   filter.geometry    = corNgsild.geometry;
   filter.coordinates = corNgsild.coordinates;
   filter.geoproperty = corNgsild.geoproperty ? corNgsild.geoproperty : corLdExpand(corNgsild.contextP, "location", &corRest.kalloc, NULL, NULL);
-  filter.limit     = (corNgsild.limit > 0) ? corNgsild.limit + 1 : 0;
-  filter.offset   = corNgsild.offset;
-  filter.count    = corNgsild.count;
+  //
+  // orderBy and DB-side pagination are mutually exclusive (§ 4.23).
+  //
+  // The DB orders by createdAt/_id - the total order pagination needs - and
+  // ldOrderSort re-orders what comes back. Push limit down as well and the DB
+  // picks the first N IN CREATION ORDER and the broker then sorts THOSE, which
+  // is not the first N by orderBy. `?orderBy=name&limit=5` over 30 entities
+  // created in reverse alphabetical order returned the five OLDEST, sorted -
+  // the last page's worth of content on the first page, with a 200.
+  //
+  // So when orderBy is present the broker paginates: the DB returns every
+  // match, ldOrderSort orders it, orderBySkip applies the offset and
+  // ldPaginationTrim the limit. That costs materialising the whole matching
+  // set, which is the price of a correct page - there is no third option.
+  // Either the store orders and paginates, or whoever orders sees everything.
+  //
+  // count goes down as false in that case, and NOT because the count is
+  // unwanted: `limit == 0 && count` is how the mongoc plugin is told
+  // count-only-no-entities, so asking for both here would return a count and
+  // no entities. It is not needed either way - the broker is holding the
+  // complete result set and can count it (see brokerTotal below).
+  //
+  bool brokerPaginates = (corNgsild.orderByV != NULL) && (corNgsild.orderByCount > 0);
+
+  filter.unpaged  = brokerPaginates;
+  filter.limit    = brokerPaginates ? 0 : ((corNgsild.limit > 0) ? corNgsild.limit + 1 : 0);
+  filter.offset   = brokerPaginates ? 0 : corNgsild.offset;
+  filter.count    = brokerPaginates ? false : corNgsild.count;
 
   //
   // § 7.6.2.2 sort-by-distance: an orderBy "<geoprop>;dist-asc|dist-desc" term
@@ -2143,6 +2208,24 @@ bool getEntities(void)
     ldOrderSort(arrayP, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   //
+  // The DB was not asked to count (see brokerPaginates above), so count here -
+  // before the offset and the trim take anything away. This is the whole
+  // matching set, so the answer is exact rather than an estimate.
+  //
+  if (brokerPaginates && corNgsild.count)
+  {
+    int64_t brokerTotal = 0;
+
+    if (arrayP != NULL)
+    {
+      for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+        ++brokerTotal;
+    }
+
+    filter.totalCount = brokerTotal;
+  }
+
+  //
   // Entity map: if entityMap=true, freeze the sorted entity IDs into a map
   // for consistent pagination. The map is stored per-tenant and its location
   // is returned via the NGSILD-EntityMap response header.
@@ -2293,6 +2376,14 @@ bool getEntities(void)
   // still advance. Without this guard a query past the end of an empty result
   // set emitted a spurious rel="prev" to offset=0.
   //
+  //
+  // The offset the DB was not allowed to apply. After the EntityMap freeze
+  // above, which must see the whole sorted set, and before the trim below,
+  // which turns what is left into one page.
+  //
+  if (brokerPaginates)
+    orderBySkip(arrayP, corNgsild.offset);
+
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
   if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
