@@ -280,7 +280,24 @@ static bool pluginsLoad(int argC, char* argV[])
   bool startupError = false;
 
   //
-  // Peek at --db and --api before full parse (plugins may contribute args)
+  // Which plugins to load has to be known BEFORE kargsParse, because the plugins
+  // contribute options of their own to the table that parse then resolves. So
+  // each of the three is taken from the command line by kargsPeek, falling back
+  // to the variable behind the option.
+  //
+  // That fallback is not "the default" - kargsInit has already run (see main)
+  // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS into
+  // these variables, so it is "the environment, or failing that the default".
+  // kargsPeek itself reads argv and nothing else - it has no idea an
+  // environment exists.
+  //
+  // --apiPlugins had no fallback line, which is why it alone ignored its
+  // environment variable. dbName and troeName carry compiled-in defaults that
+  // made the omission invisible there ("mongoc"/"none" either way), while
+  // apiNames starts NULL, so the `if (apiPeek != NULL)` guard below skipped
+  // loading any API plugin at all. Found by a tutorial author configuring the
+  // container by environment - which is what container users do, and what no
+  // functest here does.
   //
   char* dbPeek = kargsPeek(argC, argV, kargV, "--database");
   if (dbPeek == NULL)
@@ -291,6 +308,8 @@ static bool pluginsLoad(int argC, char* argV[])
     troePeek = troeName;  // use default ("none")
 
   char* apiPeek = kargsPeek(argC, argV, kargV, "--apiPlugins");
+  if (apiPeek == NULL)
+    apiPeek = apiNames;  // CORAINE_APIPLUGINS - kargsInit ran above and has already resolved it
 
   //
   // Load DB plugin (dlopen + dbRegister, no DB connection yet)

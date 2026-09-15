@@ -1,0 +1,75 @@
+#
+# FILE            env_var_api_plugins.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Every option has an environment variable - CORAINE_<OPTION>, listed by
+# `coraine -U` - and CORAINE_APIPLUGINS was the one that did nothing.
+#
+# Which plugins to load must be decided BEFORE kargsParse, because plugins
+# contribute options that parse then resolves. pluginsLoad therefore takes each
+# of the three plugin-selecting options from the command line with kargsPeek,
+# falling back to the variable behind the option - which kargsInit has already
+# filled in from the environment. --database and --troe had that fallback;
+# --apiPlugins did not, and nothing noticed, because dbName and troeName carry
+# compiled-in defaults that hide a missing fallback while apiNames starts NULL.
+#
+# It went unnoticed here because EVERY OTHER TEST IN THIS SUITE CONFIGURES THE
+# BROKER BY COMMAND LINE. Container deployments configure by environment - which
+# is how it was found, by someone writing a tutorial.
+#
+# --INIT-- is one process, so exporting before coraineStart is what the broker
+# inherits. coraineStart does not pass --apiPlugins itself.
+#
+--NAME--
+CORAINE_APIPLUGINS loads the API plugin, with no --apiPlugins on the command line
+
+--TAGS--
+admin plugins env usage
+
+--INIT--
+corDbDrop
+export CORAINE_APIPLUGINS=admin
+coraineStart
+
+--RUN--
+
+echo "01. The admin API plugin loaded from the environment alone - no --apiPlugins flag"
+echo "=========================================================================="
+corCurl --url /build | grep '"alias": "admin"'
+echo
+echo
+
+
+echo "02. And its endpoints answer - /admin/health exists only if the plugin loaded"
+echo "============================================================================="
+corCurl --url /admin/health
+echo
+echo
+
+
+--EXPECT--
+01. The admin API plugin loaded from the environment alone - no --apiPlugins flag
+==========================================================================
+          "alias": "admin",
+
+
+02. And its endpoints answer - /admin/health exists only if the plugin loaded
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 21
+
+{
+  "status": "ok"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
