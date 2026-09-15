@@ -76,6 +76,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -113,6 +114,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -161,6 +163,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--apiPlugins/-api <admin>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
+                [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--corsOrigin/-corsOrigin <enable CORS with allowed origin ('__ALL' for any)>]
                 [--corsMaxAge/-corsMaxAge <preflight cache max age in seconds>]
@@ -198,6 +201,7 @@ Usage: coraine  [--usage/-u (usage)]
   --apiPlugins            (-api)             CORAINE_APIPLUGINS            Optional   String   Default Value  
   --pretty-print          (-pp)              CORAINE_PRETTY_PRINT          Optional   UInt     Default Value  
   --connectionPoolSize    (-cps)             CORAINE_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
+  --httpLoops             (-hl)              CORAINE_HTTPLOOPS             Optional   Int      Default Value  
   --notifyValueChangeOnly (-nvco)            CORAINE_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
   --corsOrigin            (-corsOrigin)      CORAINE_CORSORIGIN            Optional   String   Default Value  
   --corsMaxAge            (-corsMaxAge)      CORAINE_CORSMAXAGE            Optional   Int      Default Value  

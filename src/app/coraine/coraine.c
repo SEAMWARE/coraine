@@ -24,9 +24,11 @@
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
 #include "ktrace/kTrace.h"                        // KT_I, KT_V, KT_X
 #include "ktrace/ktGlobals.h"                      // ktInfo, ktVerbose, ktDebug
+#include "kbase/kCpuCount.h"                       // kCpuCount
 #include "kargs/kargs.h"                          // kargsInit, kargsParse, kargsPeek, KArg, KArgsStatus, kargsStatus, KARGS_END, kargsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
+#include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet
 #include "corRest/corRestClient.h"                  // corRestClientInit, CorRestClientRequest/Response
 #include "corJsonld/corJsonld.h"                    // corLdInit, CORJSONLD_VERSION
 #include "corJsonld/CorLdContext.h"                 // CorLdContext, CorLdContextKind
@@ -168,6 +170,7 @@ bool           notifyValueChangeOnly = false;
 bool           fg           = false;
 bool           versionOnly  = false;   // --version: handled before kargsInit; in the table so --usage lists it
 int            poolSize     = 32;
+int            httpLoops    = 0;   // 0: auto - see the kCpuCount call in main()
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          defaultUserContext  = NULL;
@@ -194,6 +197,7 @@ static KArg kargV[] =
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
+  { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
   { "--notifyValueChangeOnly", "-nvco",     KaBool,   _vp &notifyValueChangeOnly, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
@@ -1089,6 +1093,45 @@ int main(int argC, char* argV[])
   CorRestServiceSimplified* allServices = serviceBuild(&totalServices);
   if (allServices == NULL)
     KT_X(1, "serviceBuild failed (out of memory)");
+
+  //
+  // How many event loops the built-in server runs. A no-op on a libmicrohttpd
+  // build, which has a thread per connection and no loop of ours to multiply -
+  // the option is accepted either way so that a deployment does not have to
+  // know which server its binary carries.
+  //
+  // Four by default, measured on 8 cores with 319-byte responses:
+  //
+  //   loops   req/s     p99       cores
+  //     1     72 054    970 us     1.8
+  //     2    135 189    587 us     3.6
+  //     4    210 496    437 us     7.1
+  //     8    245 271    3.21 ms    8.0
+  //
+  // Eight buys 16% more throughput for SEVEN TIMES the tail, because at 245k
+  // the box is saturated and the queue is what is being measured. Four scales
+  // near-linearly, keeps the tail under half a millisecond and leaves headroom.
+  //
+  // So: one loop per core, capped at four. The cap is the table above; the
+  // per-core part is because four loops on one core is four loops competing
+  // for it, which measured SLOWER than one (6 211 req/s against 7 199). A
+  // container with --cpus=1 is a normal deployment and must not pay for that.
+  //
+  // kCpuCount() is what the process may actually run on: its CPU affinity
+  // intersected with any cgroup quota, not the host's core count, which is
+  // what every "nproc" in a container gets wrong.
+  //
+  // A deployment that wants the saturation peak, or one loop, says so with
+  // --httpLoops; only 0 asks us to decide.
+  //
+  if (httpLoops == 0)
+  {
+    httpLoops = kCpuCount();
+    if (httpLoops > 4)
+      httpLoops = 4;
+  }
+
+  corRestHttpLoopsSet(httpLoops);
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
     KT_X(1, "corRestInit failed on port %u", port);
