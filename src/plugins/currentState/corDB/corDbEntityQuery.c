@@ -110,10 +110,48 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   int     offset   = (filterP != NULL) ? filterP->offset : 0;
 
   //
-  // Count the store so the candidate array can be sized up front.
+  // needed - how many candidates can this request possibly use? 0 means "all".
+  //
+  // The store is in creation order and that is the order pagination runs in, so
+  // a plain page needs the first offset+limit matches and NOTHING after them.
+  // Walking the rest is work whose result is discarded: at 100 000 entities a
+  // `?type=X&limit=20` cost 1 008 req/s while MongoDB, which stops at the page,
+  // held 28 500.
+  //
+  // Four things make stopping early wrong, and each is a reason the whole set
+  // is genuinely used rather than merely scanned:
+  //
+  //   unpaged   the caller orders the result ITSELF and then paginates it (an
+  //             orderBy query, § 4.23) - the first N in store order are not the
+  //             first N it will keep
+  //   count     totalCount below is the size of the MATCHING set, which is not
+  //             known until the last entity has been judged
+  //   geoRel near / distGeoproperty
+  //             both qsort the candidates before paginating, so the page comes
+  //             from the distance order and every candidate can reach it
+  //   limit 0   count-only, or no bound at all
+  //
+  int needed = 0;
+
+  if ((limit > 0) && (!unpaged) && (filterP != NULL) &&
+      (!filterP->count) &&
+      (filterP->distGeoproperty == NULL) &&
+      ((filterP->geoRel == NULL) || (filterP->geoRel->rel != LdGeoNear)))
+    needed = offset + limit;
+
+  //
+  // Size the candidate array. When the answer is bounded this is the bound, and
+  // the walk that used to count the whole store to size it is not needed either
+  // - that walk was itself O(store) on every single query.
   //
   int total = 0;
-  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
+
+  if (needed == 0)
+  {
+    for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
+  }
+  else
+    total = needed;
 
   GeoCand* cands = (GeoCand*) kaAlloc(&corRest.kalloc, sizeof(GeoCand) * (total > 0 ? total : 1));
   int      nCand = 0;
@@ -238,6 +276,10 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     cands[nCand].eP   = eP;
     cands[nCand].dist = geoDistance;
     nCand++;
+
+    // Everything this request can use is in hand - see `needed` above.
+    if ((needed != 0) && (nCand >= needed))
+      break;
   }
 
   if (filterP != NULL && filterP->count)
