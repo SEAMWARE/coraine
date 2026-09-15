@@ -48,10 +48,25 @@ typedef struct DbQueryFilter
   char*      distFrom;         // reference Point coordinates (JSON array string)
   bool       distDesc;         // true → farthest first (dist-desc)
 
-  int     limit;      // max entities to return
+  int     limit;      // max entities to return; 0 = count only, no entities
   int     offset;     // entities to skip
   bool    count;      // whether to compute total count
   int64_t totalCount; // OUTPUT: total count (set by plugin when count==true)
+
+  //
+  // unpaged - return EVERY match; limit and offset do not apply
+  //
+  // Set when the caller cannot let the store paginate because it has to order
+  // the result itself first (orderBy, § 4.23: the store's order is
+  // createdAt/_id and the broker re-orders, so a store-side page is the wrong
+  // page - see getEntities.c::brokerPaginates).
+  //
+  // Its own field rather than a value of `limit`, because `limit` already
+  // carries two meanings - a page size, and 0 for count-only - and "give me
+  // everything" is a third concept, not a third value. A large sentinel would
+  // have been a cap pretending to be a promise.
+  //
+  bool    unpaged;
 
   // OUTPUT: error reporting from plugin → service routine.
   // The plugin fills these in when returning DB_BAD_INPUT or DB_ERR;

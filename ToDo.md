@@ -216,6 +216,117 @@ took a three-broker fixture nobody had written.
 Order: the k-lib workflows first (the tests exist, so it is configuration), then
 `corNgsild` unit tests, then the rest.
 
+## 12. A byte budget instead of a max entity count
+
+There is no ceiling on `limit` today. No cap in `ldUrlParams.c`, no constant
+anywhere: `?limit=999999999` is accepted and attempted. Orion-LD had a hard 1000
+with a default of 20, and that did not survive into this codebase.
+
+Putting the 1000 back would restore a ceiling that never bounded the right
+thing. **Entity count is the wrong unit.** A single entity with a large
+JsonProperty, a long languageMap or a hundred attributes can outweigh a thousand
+two-attribute ones, so a count-based cap lets a client ask for 1000 entities and
+receive half a gigabyte, while refusing 1001 tiny ones. What actually needs
+bounding is bytes - of the response, and of what the broker materialises to
+build it.
+
+Not a small change, because the budget has to be enforced where the bytes are
+produced rather than checked afterwards:
+
+- the DB plugins would need to stop mid-fetch when the budget is spent, which
+  means rendering size is known during the scan rather than after it;
+- the page that comes back is then a page the client did not ask for - shorter
+  than `limit` - so `Content-Range` / the `next` link have to describe where it
+  actually stopped, and a client must not read a short page as the last one;
+- `limit` keeps its meaning as an upper bound on entities, with the budget as a
+  second, independent bound. Whichever binds first ends the page. It is not a
+  replacement for `limit` and must not be expressed through it - `limit` already
+  means two things (a page size, and 0 for "empty array, just the count
+  header"), which is one too many already.
+
+Related, and the reason this moved up the list: the `orderBy` fix
+(`DbQueryFilter::unpaged`) makes the broker fetch every match so it can order
+before paginating. That is correct and it is genuinely unbounded - the one place
+in the broker that will materialise an arbitrary number of entities on a single
+request. Automatic EntityMap creation bounds *how often* that pass happens (once
+per result set, not once per page); a byte budget is what would bound the pass
+itself.
+
+---
+
+## 13. EntityMaps nobody has to ask for
+
+An EntityMap is how a paginated query stays consistent - the ordered id list is
+frozen once and the pages are served from it. In a distributed query there is no
+other way to paginate correctly at all, and locally it is what stops an `orderBy`
+query re-scanning and re-sorting the whole result set on every page. Orion-LD
+creates one automatically; coraine does not, and the client has to know to ask.
+
+Two things stand in the way, and the second blocks the first.
+
+**13.1 - Nothing ever creates a map by itself.**
+`corNgsild.entityMapCreate` is set in exactly two places: `?entityMap=true` in
+`ldUrlParams.c:459`, and the explicit `POST /entityMaps` service routine
+(`createEntityMap.c:38`). So a plain `GET /entities?type=X&orderBy=name&limit=20`
+- or any distributed query - paginates without one. The broker should decide
+that for itself: a map whenever the query is forwarded, and locally whenever
+`orderBy` or a non-zero `offset` is in play. The client should only ever have to
+follow the links it is given.
+
+**13.2 - The pagination links drop the client off the snapshot.**
+`ldPaginationLinkHeader` (`corNgsild/ldPagination.c`) rebuilds the query string
+from the original URI params and skips exactly two of them,
+`LD_PARAM_LIMIT | LD_PARAM_OFFSET`. Everything else is copied verbatim -
+including `entityMap=true`. So the `next` link of a map-creating request says
+`entityMap=true` as well, and following it creates a SECOND map: another full
+scan, another freeze, and a page taken from a different snapshot than the one
+before it. The link has to carry the id of the map that was just created, not
+the request that created it.
+
+That is a defect in the opt-in path as it stands today, not only an obstacle to
+13.1 - and it is why 13.1 cannot simply be switched on. Automatic creation
+without the link rewrite would create a fresh map on every single page.
+
+**Confirmed on a running broker**, 2026-09-15. A `?entityMap=true&limit=2`
+request answered:
+
+```
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:8d2d218788bf
+Link: <...&orderBy=name&entityMap=true&limit=2&offset=2>;rel="next"
+```
+
+The map has an id and the `next` link does not use it. 13.2 wants a functest
+that walks `next` from a map-creating request and asserts the map id never
+changes - see 14.
+
+---
+
+## 14. Functests that FOLLOW the pagination links
+
+Eleven tests assert a `rel="next"` / `rel="prev"` Link header. None of them
+follows one: nothing in `test/funcTests/cases` extracts a link and re-requests
+it.
+
+That is how 13.2 stayed hidden. A `next` link carrying `entityMap=true` reads as
+correct in an `--EXPECT--` block - it is the same parameter the client sent, and
+the header is well-formed RFC 8288. The defect only appears when something
+actually GETs the URL and notices it landed on a new snapshot. Asserting the
+text of a link tests that we can print a link.
+
+So: walk the links. From a query, follow `next` until it runs out, and assert the
+concatenation of the pages is the result set - in order, no repeats, no gaps.
+`orderby_limit_paginates_after_sort.test` step 10 does this for the plain
+`orderBy` path and is the pattern to copy. The cases that still need it:
+
+- the EntityMap path, which is where the bug is (this test will FAIL until 13.2
+  is fixed - write it with the fix);
+- `prev`, walked backwards to the first page;
+- distributed queries, where the pages come from more than one source;
+- a result set whose size is an exact multiple of `limit`, where the last page is
+  full and the `next` link must not appear.
+
+---
+
 ## Smaller, still open
 
 **Broker**

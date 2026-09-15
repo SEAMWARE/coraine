@@ -106,6 +106,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   KjNode* entities = corDbEntities(tenantP);
   KjNode* arrayP   = kjArray(corRest.kjsonP, NULL);
   int     limit    = (filterP != NULL) ? filterP->limit  : 0;
+  bool    unpaged  = (filterP != NULL) ? filterP->unpaged : false;
   int     offset   = (filterP != NULL) ? filterP->offset : 0;
 
   //
@@ -258,11 +259,12 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   }
 
   //
-  // Paginate (offset/limit) and render. limit == 0 means count-only.
+  // Paginate (offset/limit) and render. limit == 0 means count-only, and
+  // unpaged means every match - the caller orders and paginates it itself.
   //
-  if (limit > 0)
+  if ((limit > 0) || unpaged)
   {
-    for (int i = offset; i < nCand && (i - offset) < limit; i++)
+    for (int i = unpaged ? 0 : offset; i < nCand && (unpaged || (i - offset) < limit); i++)
     {
       KjNode* cloneP = kjClone(corRest.kjsonP, cands[i].eP);
 
