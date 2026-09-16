@@ -152,14 +152,14 @@ Content-Length: REGEX(\d+)
     "URL": "http://localhost:7080/jsonldContexts/ctxT",
     "createdAt": "REGEX(20[23]\d-.*Z)",
     "kind": "Cached",
-    "lastUsage": "REGEX(.*)",
+    "lastUsage": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "localId": "http://localhost:7080/jsonldContexts/ctxT"
   },
   {
     "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "createdAt": "REGEX(20[23]\d-.*Z)",
     "kind": "ImplicitlyCreated",
-    "lastUsage": "REGEX(.*)",
+    "lastUsage": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
   }
 ]

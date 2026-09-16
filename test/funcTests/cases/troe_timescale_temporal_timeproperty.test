@@ -162,7 +162,7 @@ Content-Length: REGEX(\d+)
 {
   "P1": [
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-06-15T12:00:00Z",
       "type": "Property",
       "value": 10
@@ -185,19 +185,19 @@ Content-Length: REGEX(\d+)
 {
   "P1": [
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-06-15T12:00:00Z",
       "type": "Property",
       "value": 10
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-03-15T12:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-09-15T12:00:00Z",
       "type": "Property",
       "value": 30
@@ -221,7 +221,7 @@ Content-Length: REGEX(\d+)
   {
     "P1": [
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-06-15T12:00:00Z",
         "type": "Property",
         "value": 10
@@ -233,7 +233,7 @@ Content-Length: REGEX(\d+)
   {
     "P1": [
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-04-10T12:00:00Z",
         "type": "Property",
         "value": 100
@@ -258,19 +258,19 @@ Content-Length: REGEX(\d+)
   {
     "P1": [
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-06-15T12:00:00Z",
         "type": "Property",
         "value": 10
       },
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-03-15T12:00:00Z",
         "type": "Property",
         "value": 20
       },
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-09-15T12:00:00Z",
         "type": "Property",
         "value": 30
@@ -282,7 +282,7 @@ Content-Length: REGEX(\d+)
   {
     "P1": [
       {
-        "instanceId": "REGEX(.*)",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
         "observedAt": "2024-04-10T12:00:00Z",
         "type": "Property",
         "value": 100
@@ -321,19 +321,19 @@ Content-Length: REGEX(\d+)
 {
   "P1": [
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-06-15T12:00:00Z",
       "type": "Property",
       "value": 10
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-03-15T12:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-09-15T12:00:00Z",
       "type": "Property",
       "value": 30
@@ -356,13 +356,13 @@ Content-Length: REGEX(\d+)
 {
   "P1": [
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-03-15T12:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "observedAt": "2024-06-15T12:00:00Z",
       "type": "Property",
       "value": 10

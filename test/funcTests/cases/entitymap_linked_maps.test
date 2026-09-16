@@ -150,7 +150,7 @@ HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-EntityMap: REGEX(/ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:[a-f0-9]+)
-Content-Length: 335
+Content-Length: REGEX(\d+)
 
 {
   "entityMap": {

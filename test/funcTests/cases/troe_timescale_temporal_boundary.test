@@ -87,8 +87,8 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "speed": [
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "Property",
       "value": 10
     }
@@ -110,14 +110,14 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "speed": [
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T11:00:00Z",
       "type": "Property",
       "value": 20
     },
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T12:00:00Z",
       "type": "Property",
       "value": 30
     }
@@ -139,14 +139,14 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "speed": [
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "Property",
       "value": 10
     },
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T11:00:00Z",
       "type": "Property",
       "value": 20
     }

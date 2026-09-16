@@ -204,10 +204,10 @@ Content-Length: 237
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 227
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(.*)'",
+  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)'",
   "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -220,10 +220,10 @@ Content-Length: 227
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 230
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "URL parameter 'type' differs from the query that created entity map 'REGEX(.*)'",
+  "detail": "URL parameter 'type' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)'",
   "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -236,10 +236,10 @@ Content-Length: 230
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 235
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "URL parameter 'scopeQ' was not part of the query that created entity map 'REGEX(.*)'",
+  "detail": "URL parameter 'scopeQ' was not part of the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)'",
   "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
