@@ -351,7 +351,24 @@ typedef struct DbDriver
   DbVersionInfoFunc       versionInfo;
   DbHaWatchStartFunc      haWatchStart;    // NULL-allowed (e.g. ramdb) — see the typedef
   LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
-  LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage match (§ 5.10.2.4 / dispatch)
+  LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage, CONSERVATIVE - for dispatch
+  //
+  // The same question asked two ways, and they are not interchangeable:
+  //
+  //   csrGeoMatchFunc       "could anything behind this CSR match?" - the
+  //                         registration's geo field is a superset of its
+  //                         entities' geometries (§ 5.2.9 "includes"), so the
+  //                         topological relations collapse to overlap and a
+  //                         pass means "worth asking", never "an answer".
+  //
+  //   csrGeoMatchExactFunc  "does this CSR's own geometry satisfy the georel?"
+  //                         - for GET /csourceRegistrations, where the query is
+  //                         about the registrations themselves.
+  //
+  // They differ most on `disjoint`, where the conservative filter must never
+  // prune and the exact one must actually mean disjoint.
+  //
+  LdCsrGeoMatchFunc    csrGeoMatchExactFunc;
 
   // JSON-LD context persistence — optional; NULL means no persistence
   // (e.g. ramdb). The reserved DB name ("coraine") is used internally.

@@ -256,6 +256,76 @@ static double haversineDistance(double lon1, double lat1, double lon2, double la
 //
 // geoMatch - check if an entity matches a geo-query filter
 //
+// -----------------------------------------------------------------------------
+//
+// csrDistanceMeters - metres between two geometries, or -1
+//
+// Two Points → exact haversine. Otherwise convert GEOS planar distance to
+// metres: longitude shrinks as cos(latitude), so a flat 111320 m/° factor
+// over-reports at high latitudes, which *underreports* matches near
+// maxDistance. Exact for Point-Point, conservative enough for the
+// non-point coverage a CSR declares.
+//
+// Shared by the dispatch filter and the exact matcher, which need the same
+// arithmetic and disagree only about the topological relations.
+//
+static double csrDistanceMeters(const GEOSGeometry* refGeom, const GEOSGeometry* csrGeom)
+{
+  double xRef, yRef, xCsr, yCsr;
+
+  if (GEOSGeomTypeId_r(geosCtx, refGeom) == GEOS_POINT &&
+      GEOSGeomTypeId_r(geosCtx, csrGeom) == GEOS_POINT &&
+      GEOSGeomGetX_r(geosCtx, refGeom, &xRef) == 1 &&
+      GEOSGeomGetY_r(geosCtx, refGeom, &yRef) == 1 &&
+      GEOSGeomGetX_r(geosCtx, csrGeom, &xCsr) == 1 &&
+      GEOSGeomGetY_r(geosCtx, csrGeom, &yCsr) == 1)
+    return haversineDistance(xRef, yRef, xCsr, yCsr);
+
+  double distanceDegrees = -1;
+  if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
+    return distanceDegrees * 111320.0;
+
+  return -1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoRelEval - the topological georels of § 7.2.4, evaluated exactly
+//
+// Factored out of geoMatch because TWO callers need the exact answer on a pair
+// of geometries: an Entity's GeoProperty against the query reference, and - for
+// CSR DISCOVERY - a registration's own geo field against it. Discovery asks
+// about the registration itself, so "disjoint" has to mean disjoint.
+//
+// Not to be confused with the dispatch filter below, which asks a different
+// question and must not use this.
+//
+static bool geoRelEval(LdGeoRelType rel, const GEOSGeometry* refGeom, const GEOSGeometry* targetGeom)
+{
+  switch (rel)
+  {
+  case LdGeoWithin:      return (GEOSContains_r(geosCtx, refGeom, targetGeom) == 1);
+  case LdGeoContains:    return (GEOSContains_r(geosCtx, targetGeom, refGeom) == 1);
+  case LdGeoIntersects:  return (GEOSIntersects_r(geosCtx, refGeom, targetGeom) == 1);
+  case LdGeoDisjoint:    return (GEOSDisjoint_r(geosCtx, refGeom, targetGeom) == 1);
+  case LdGeoOverlaps:
+    //
+    // § 7.2.4: "the target geometry shall overlap, as specified by [n.21]" —
+    // OGC 06-103r4 overlap, which GEOSOverlaps implements exactly: the two
+    // geometries must share the same dimension, their interiors must meet,
+    // and neither may contain the other. So a Point never overlaps a Polygon,
+    // and a geometry never overlaps one it is within, contains or equals.
+    //
+    return (GEOSOverlaps_r(geosCtx, refGeom, targetGeom) == 1);
+  case LdGeoEquals:      return (GEOSEquals_r(geosCtx, refGeom, targetGeom) == 1);
+  default:               return false;
+  }
+}
+
+
+
 bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
 {
   if (distanceP != NULL)
@@ -333,27 +403,7 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
     return false;
   }
 
-  bool match = false;
-
-  switch (rel)
-  {
-  case LdGeoWithin:      match = (GEOSContains_r(geosCtx, refGeom, entityGeom) == 1); break;
-  case LdGeoContains:    match = (GEOSContains_r(geosCtx, entityGeom, refGeom) == 1); break;
-  case LdGeoIntersects:  match = (GEOSIntersects_r(geosCtx, refGeom, entityGeom) == 1); break;
-  case LdGeoDisjoint:    match = (GEOSDisjoint_r(geosCtx, refGeom, entityGeom) == 1); break;
-  case LdGeoOverlaps:
-    //
-    // § 7.2.4: "the target geometry shall overlap, as specified by [n.21]" —
-    // OGC 06-103r4 overlap, which GEOSOverlaps implements exactly: the two
-    // geometries must share the same dimension, their interiors must meet,
-    // and neither may contain the other. So a Point never overlaps a Polygon,
-    // and a geometry never overlaps one it is within, contains or equals.
-    //
-    match = (GEOSOverlaps_r(geosCtx, refGeom, entityGeom) == 1);
-    break;
-  case LdGeoEquals:      match = (GEOSEquals_r(geosCtx, refGeom, entityGeom) == 1); break;
-  default:               break;
-  }
+  bool match = geoRelEval(rel, refGeom, entityGeom);
 
   GEOSGeom_destroy_r(geosCtx, entityGeom);
   GEOSGeom_destroy_r(geosCtx, refGeom);
@@ -424,38 +474,105 @@ bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry,
     }
     else
     {
-      // Two Points → exact haversine. Otherwise convert GEOS planar distance to metres with a per-axis correction:
-      // longitude shrinks as cos(avg-lat), so a flat 111320 m/° factor over-reports by up to a few-x at high latitudes and
-      // *underreports* matches near maxDistance. We measure the per-axis δ in GEOS-space and scale before sqrt — exact
-      // for Point-Point, conservative-enough for non-point CSR coverage.
-      double distanceMeters = -1;
-      double xRef, yRef, xCsr, yCsr;
-      if (GEOSGeomTypeId_r(geosCtx, refGeom) == GEOS_POINT &&
-          GEOSGeomTypeId_r(geosCtx, csrGeom) == GEOS_POINT &&
-          GEOSGeomGetX_r(geosCtx, refGeom, &xRef) == 1 &&
-          GEOSGeomGetY_r(geosCtx, refGeom, &yRef) == 1 &&
-          GEOSGeomGetX_r(geosCtx, csrGeom, &xCsr) == 1 &&
-          GEOSGeomGetY_r(geosCtx, csrGeom, &yCsr) == 1)
-      {
-        distanceMeters = haversineDistance(xRef, yRef, xCsr, yCsr);
-      }
-      else
-      {
-        double distanceDegrees = -1;
-        if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
-          distanceMeters = distanceDegrees * 111320.0;
-      }
+      double distanceMeters = csrDistanceMeters(refGeom, csrGeom);
       if (distanceMeters >= 0)
         match = (distanceMeters <= geoRel->maxDistance);
     }
   }
+  else if (geoRel->rel == LdGeoDisjoint)
+  {
+    //
+    // ⚠️ disjoint CANNOT be pruned, and collapsing it to "intersects" got it
+    // exactly backwards.
+    //
+    // The soundness argument for every other relation runs: the CSR field
+    // INCLUDES all its entities' geometries (§ 5.2.9), so entity ⊆ E, and a
+    // query asking for entities that touch R needs E to touch R. No overlap,
+    // no possible match, prune.
+    //
+    // For disjoint the argument inverts. An entity disjoint from R may sit
+    // anywhere outside R, so E touching R rules nothing out - and if E does
+    // NOT touch R, then every entity behind this CSR is disjoint from R and
+    // they ALL match. The old code pruned precisely that case, dropping the
+    // sources whose entities were guaranteed answers.
+    //
+    // The only prunable case would be E entirely inside R, and even that
+    // depends on boundary handling for a gain nobody will notice. So: never
+    // prune on disjoint.
+    //
+    match = true;
+  }
   else
   {
-    // Topological — every relation collapses to "intersects" for the
-    // dispatch filter. "directly matches" + "possibly contains" both end
-    // up wanting "the CSR's region overlaps the query's reference region".
+    //
+    // Everything else collapses to "intersects", which is the conservative
+    // direction: within / contains / equals / overlaps / intersects all
+    // require the entity's geometry to touch R, and the entity is inside E, so
+    // E must touch R too. A CSR that passes may still hold nothing - the
+    // envelope is a superset, not a union - so a pass here is a candidate to
+    // ASK, never an answer.
+    //
     match = (GEOSIntersects_r(geosCtx, refGeom, csrGeom) == 1);
   }
+
+  GEOSGeom_destroy_r(geosCtx, csrGeom);
+  GEOSGeom_destroy_r(geosCtx, refGeom);
+
+  return match;
+}
+
+
+// -----------------------------------------------------------------------------
+//
+// csrGeoMatchExact - see header
+//
+bool csrGeoMatchExact(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  if (geoRel == NULL || geometry == NULL || coordinates == NULL)
+    return true;                      // no geo constraint
+
+  //
+  // No geometry for the queried property. Same reasoning as the dispatch
+  // filter: these fields are restrictions, and an absent one restricts
+  // nothing - so the registration is returned.
+  //
+  // ⚠️ Except for disjoint, where "unrestricted" is what makes it match rather
+  // than an exemption from matching: a registration that covers everywhere
+  // covers the area outside R as well.
+  //
+  if (csrGeoP == NULL)
+    return true;
+
+  GEOSGeometry* refGeom = geojsonToGeos(geometry, coordinates);
+  if (refGeom == NULL)
+    return true;                      // unparseable query geometry - be permissive
+
+  GEOSGeometry* csrGeom = entityGeoToGeos(csrGeoP);
+  if (csrGeom == NULL)
+  {
+    //
+    // A CSR field that is a bare GeoJSON geometry rather than a GeoProperty
+    // object lands here, as does a malformed one. entityGeoToGeos expects the
+    // GeoProperty's "value" shape; the CSR stores the geometry directly.
+    //
+    GEOSGeom_destroy_r(geosCtx, refGeom);
+    return true;
+  }
+
+  bool match;
+
+  if (geoRel->rel == LdGeoNear)
+  {
+    if (geoRel->maxDistance < 0)
+      match = true;
+    else
+    {
+      double d = csrDistanceMeters(refGeom, csrGeom);
+      match = (d >= 0) && (d <= geoRel->maxDistance);
+    }
+  }
+  else
+    match = geoRelEval(geoRel->rel, refGeom, csrGeom);
 
   GEOSGeom_destroy_r(geosCtx, csrGeom);
   GEOSGeom_destroy_r(geosCtx, refGeom);

@@ -1,0 +1,445 @@
+#
+# FILE            csource_reg_discovery_georel.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Every georel of § 7.2.4, on /csourceRegistrations discovery.
+#
+# Discovery asks about the REGISTRATIONS THEMSELVES, so the georel means what it
+# says. That is a different question from the one the dispatcher asks - "could
+# anything behind this CSR match?" - and until now one function answered both by
+# collapsing the topological relations to "overlap". For five of the six that is
+# merely conservative. For `disjoint` it is BACKWARDS:
+#
+#   georel=disjoint, reference = Iberia   ->  urn:R:Madrid     (wrong: it is IN
+#                                                               Iberia)
+#                                         ->  urn:R:Sydney     (right)
+#
+# The same collapse is a false-negative risk in forwarding, where it prunes the
+# sources whose entities are GUARANTEED to match: if a CSR's coverage does not
+# touch the reference, every entity behind it is disjoint from the reference.
+#
+# Three registrations, one reference polygon over Iberia:
+#
+#   urn:R:Madrid       location inside the reference
+#   urn:R:Sydney       location far outside it
+#   urn:R:NoGeo        no location at all - unrestricted, so it covers this area
+#                      and every other one, and appears in EVERY answer below
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+CSourceRegistration Discovery — every georel means what it says
+
+--TAGS--
+registration discovery geo georel disjoint
+
+--INIT--
+corDbDrop
+coraineStart -dist
+
+--RUN--
+
+echo "01. Three CSRs: Madrid (in Iberia), Sydney (far), NoGeo (no location)"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:R:Madrid",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "City" } ] } ],
+  "endpoint": "http://localhost:9901",
+  "location": { "type": "Point", "coordinates": [-3.70, 40.41] }
+}'
+echo
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:R:Sydney",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "City" } ] } ],
+  "endpoint": "http://localhost:9902",
+  "location": { "type": "Point", "coordinates": [151.21, -33.87] }
+}'
+echo
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:R:NoGeo",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "City" } ] } ],
+  "endpoint": "http://localhost:9903"
+}'
+echo
+echo
+
+
+echo "02. georel=within → Madrid (inside) + NoGeo (unrestricted)"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=within&geometry=Polygon&coordinates=%5B%5B%5B-10%2C35%5D%2C%5B5%2C35%5D%2C%5B5%2C45%5D%2C%5B-10%2C45%5D%2C%5B-10%2C35%5D%5D%5D'
+echo
+echo
+
+
+echo "03. georel=intersects → Madrid + NoGeo"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=intersects&geometry=Polygon&coordinates=%5B%5B%5B-10%2C35%5D%2C%5B5%2C35%5D%2C%5B5%2C45%5D%2C%5B-10%2C45%5D%2C%5B-10%2C35%5D%5D%5D'
+echo
+echo
+
+
+echo "04. georel=disjoint → SYDNEY + NoGeo, and NOT Madrid"
+echo "===================================================="
+echo "    (this is the one the overlap collapse got backwards)"
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=disjoint&geometry=Polygon&coordinates=%5B%5B%5B-10%2C35%5D%2C%5B5%2C35%5D%2C%5B5%2C45%5D%2C%5B-10%2C45%5D%2C%5B-10%2C35%5D%5D%5D'
+echo
+echo
+
+
+echo "05. georel=equals → only NoGeo (a Point is not the polygon)"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=equals&geometry=Polygon&coordinates=%5B%5B%5B-10%2C35%5D%2C%5B5%2C35%5D%2C%5B5%2C45%5D%2C%5B-10%2C45%5D%2C%5B-10%2C35%5D%5D%5D'
+echo
+echo
+
+
+echo "06. georel=overlaps → only NoGeo (OGC: a Point never overlaps a Polygon)"
+echo "========================================================================"
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=overlaps&geometry=Polygon&coordinates=%5B%5B%5B-10%2C35%5D%2C%5B5%2C35%5D%2C%5B5%2C45%5D%2C%5B-10%2C45%5D%2C%5B-10%2C35%5D%5D%5D'
+echo
+echo
+
+
+echo "07. georel=near maxDistance 2000 km from Madrid → Madrid + NoGeo"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=near%3BmaxDistance==2000000&geometry=Point&coordinates=%5B-3.70%2C40.41%5D'
+echo
+echo
+
+
+echo "08. georel=near, same distance from Sydney → Sydney + NoGeo"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=City&georel=near%3BmaxDistance==2000000&geometry=Point&coordinates=%5B151.21%2C-33.87%5D'
+echo
+echo
+
+
+--EXPECT--
+01. Three CSRs: Madrid (in Iberia), Sydney (far), NoGeo (no location)
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:R:Madrid
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:R:Sydney
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:R:NoGeo
+Content-Length: 0
+
+
+
+
+02. georel=within → Madrid (inside) + NoGeo (unrestricted)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 611
+
+[
+  {
+    "endpoint": "http://localhost:9901",
+    "id": "urn:ngsi-ld:R:Madrid",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        -3.7,
+        40.41
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+03. georel=intersects → Madrid + NoGeo
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 611
+
+[
+  {
+    "endpoint": "http://localhost:9901",
+    "id": "urn:ngsi-ld:R:Madrid",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        -3.7,
+        40.41
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+04. georel=disjoint → SYDNEY + NoGeo, and NOT Madrid
+====================================================
+    (this is the one the overlap collapse got backwards)
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 614
+
+[
+  {
+    "endpoint": "http://localhost:9902",
+    "id": "urn:ngsi-ld:R:Sydney",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        151.21,
+        -33.87
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+05. georel=equals → only NoGeo (a Point is not the polygon)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 253
+
+[
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+06. georel=overlaps → only NoGeo (OGC: a Point never overlaps a Polygon)
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 253
+
+[
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+07. georel=near maxDistance 2000 km from Madrid → Madrid + NoGeo
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 611
+
+[
+  {
+    "endpoint": "http://localhost:9901",
+    "id": "urn:ngsi-ld:R:Madrid",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        -3.7,
+        40.41
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+08. georel=near, same distance from Sydney → Sydney + NoGeo
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 614
+
+[
+  {
+    "endpoint": "http://localhost:9902",
+    "id": "urn:ngsi-ld:R:Sydney",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        151.21,
+        -33.87
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9903",
+    "id": "urn:ngsi-ld:R:NoGeo",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "City"
+          }
+        ]
+      }
+    ],
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

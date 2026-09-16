@@ -13,7 +13,7 @@
 #include "corNgsild/LdSubCache.h"                       // LdSubCacheItem
 #include "db/DbDriver.h"                               // DbDriver
 #include "db/DbQueryFilter.h"                          // DbQueryFilter
-#include "shared/geoMatch.h"                           // csrGeoMatchOverlap
+#include "shared/geoMatch.h"                           // csrGeoMatchOverlap, csrGeoMatchExact
 
 #include "currentState/corDB/corDbGlobals.h"        // corDbArgV
 #include "currentState/corDB/corDbInit.h"           // corDbInit
@@ -67,17 +67,6 @@ static bool corDbGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geome
   filter.geoproperty   = (char*) geoproperty;
 
   return corDbGeoMatch(entityP, &filter, NULL);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// corDbCsrGeoMatchCb - geoQ ↔ CSR geo-coverage match (§ 5.10.2.4)
-//
-static bool corDbCsrGeoMatchCb(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
-{
-  return csrGeoMatchOverlap(csrGeoP, geoRel, geometry, coordinates);
 }
 
 
@@ -150,5 +139,6 @@ void dbRegister(DbDriver* driverP)
 #endif
   driverP->tenantSetup     = corDbTenantSetup;
   driverP->geoMatchFunc    = corDbGeoMatchCb;
-  driverP->csrGeoMatchFunc = corDbCsrGeoMatchCb;
+  driverP->csrGeoMatchFunc      = csrGeoMatchOverlap;
+  driverP->csrGeoMatchExactFunc = csrGeoMatchExact;
 }
