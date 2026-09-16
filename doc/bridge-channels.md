@@ -5,6 +5,18 @@ turns and the open questions, because those are what stop a settled decision
 from being re-argued. Draft 2026-05-22, revised 2026-05-25, 2026-08-26,
 2026-08-27, 2026-08-29. **Not implemented.**
 
+> **Revision 2026-09-16** — timing and status, which were never written down.
+> **coraine implements this design now; it is not waiting for ETSI.** The
+> concept goes to the TC DATA face-to-face in Athens, 20–22 October 2026, and
+> anything normative that follows will realistically be 2027. DDS is needed long
+> before that, so the Bridge and Channel objects below are **coraine's own**, to
+> be adapted to whatever TC DATA settles on rather than held back until it does.
+> That is the cheaper direction to be wrong in: an implementation can be
+> aligned, and a specification nobody has implemented cannot be validated. What
+> this means for readers of these notes: nothing below is standard NGSI-LD, the
+> names may change, and the endpoint-scheme convention is the part most likely
+> to survive.
+
 > **Revision 2026-05-25** — direction change. HTTP **stays inline** in
 > the broker, not in a plugin. The earlier "HTTP refactor first as a
 > no-op move into `http.so`" recipe is dropped. The bridge family is

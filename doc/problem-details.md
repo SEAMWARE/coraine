@@ -3,7 +3,39 @@
 Raw material for a **slide deck to open a discussion at Athens, October 2026**.
 Not a contribution and not a CR: the aim is to get TC DATA arguing about the
 right question, which is *what should an NGSI-LD error be able to say?* — and to
-have a menu on the table when they do. Draft 2026-09-11.
+have a menu on the table when they do. Draft 2026-09-11, revised 2026-09-16.
+
+> **Revision 2026-09-16** — the slot and the decisions, neither of which was
+> written down.
+>
+> **The slot.** TC DATA face-to-face, **Athens, 20–22 October 2026**. This is
+> one of two concepts going into that meeting; the other is
+> [Bridges and Channels](bridge-channels.md). Still an ice-breaker and still not
+> a CR — except for § 6.3.2's missing status code, which is a clean standalone
+> CR and should be filed as one regardless of how the discussion goes.
+>
+> **What was decided on 2026-09-13**, which narrows the menu in § 4 rather than
+> replacing it:
+>
+> - **Sub-error codes.** The mechanism is a second, finer code *beneath* the
+>   twelve error types of § 8.3.2, not a replacement for them and not a new
+>   top-level type per failure mode. That keeps § 8.3.2 stable — every existing
+>   client still switches on `type` and still gets the same value — while giving
+>   the finer answer somewhere to live. It is also the only shape that can be
+>   added without a breaking change, which matters for whether the room can say
+>   yes.
+> - **`invalid` is dropped as a top-level type.** A malformed request body is a
+>   **sub-code of `BadRequestData`**, not an error type of its own. A parse
+>   failure and a semantic violation are both "the request was bad", and the
+>   distinction belongs one level down.
+> - **Flat, not recursive** — confirming § 5's recommendation as the position to
+>   take into the room, not merely to offer. § 5 already has the argument; the
+>   decision is that we argue it rather than present it as an open choice.
+>
+> § 4 and § 5 below are the material from before those decisions. They are kept
+> because the menu is what makes the discussion possible — the point of an
+> ice-breaker is that the room chooses — but our own position is the three
+> bullets above.
 
 The one-line provocation for slide 1:
 

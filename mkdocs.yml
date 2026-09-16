@@ -8,6 +8,21 @@ markdown_extensions: [toc, fenced_code, tables, admonition, footnotes]
 use_directory_urls: false
 theme: readthedocs
 extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
+#
+# bridge-channels.md and problem-details.md are DELIBERATELY not in the nav, so
+# mkdocs reports them as "exist in the docs directory, but are not included in
+# the nav" on every build. That is expected, not an oversight.
+#
+# They are working design notes for concepts going to the ETSI TC DATA
+# face-to-face in Athens, 20-22 October 2026 - not implemented, and in the case
+# of Bridges and Channels not standard NGSI-LD either. Publishing them on Read
+# the Docs beside the user documentation would present proposals as product.
+# The material goes to Athens as slide decks instead.
+#
+# They stay in doc/ because roadmap.md links them and because the reasoning in
+# them is what stops settled decisions from being re-argued. If either is ever
+# implemented, that is the moment to add it here.
+#
 nav:
   - Home: index.md
   - Installation & Administration: installation.md

@@ -7,6 +7,8 @@
 [![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/technical-groups/data/)
 <br/>
 [![Release badge](https://img.shields.io/github/v/release/SEAMWARE/coraine?label=release)](https://github.com/SEAMWARE/coraine/releases)
+[![CI badge](https://github.com/SEAMWARE/coraine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SEAMWARE/coraine/actions/workflows/ci.yml)
+[![Nightly badge](https://github.com/SEAMWARE/coraine/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/SEAMWARE/coraine/actions/workflows/nightly.yml)
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
 ![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
 
@@ -270,6 +272,34 @@ curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&q=speed>50'
 Queries, the three representations (`normalized`, `concise`, `keyValues`), updates,
 subscriptions and notifications are walked through in
 [`doc/api-walkthrough.md`](doc/api-walkthrough.md).
+
+### API specification
+
+The API is not ours to define. coraine implements **ETSI GS CIM 009 v1.9.1**, and
+the normative definition is the ETSI deliverable itself — restating it here would
+only create a second copy to keep in sync, and the one that drifted would be ours.
+
+The machine-readable form is published by ETSI ISG CIM, **and it currently lags
+the specification**, which is worth knowing before generating a client from it:
+
+- **OpenAPI 3.0.3, bundled and self-contained** —
+  [`full_api.json`](https://forge.etsi.org/rep/cim/NGSI-LD/-/raw/master/spec/updated/generated/full_api.json)
+  on ETSI Forge, publicly readable with no account. It declares its version as
+  `latest` but was last updated in **April 2022**, so it describes roughly
+  v1.7.1–1.8.1 rather than the v1.9.1 implemented here. An ETSI Specialist Task
+  Force is producing a current one.
+- **The same definition split by resource** —
+  [`spec/updated`](https://forge.etsi.org/rep/cim/NGSI-LD/-/tree/master/spec/updated),
+  with `ngsi-ld-spec-open-api.json` as the root document.
+- **The companion deliverable** — ETSI GS CIM 047, *"Context Information
+  Management (CIM); OpenAPI Specification for NGSI-LD API"*.
+
+So for anything added since 1.8.1 — and that includes much of what this broker
+implements — the specification document is the authority, not the OpenAPI file.
+
+Where coraine deliberately differs from the specification, or where the
+specification is ambiguous and we had to choose, it is written down rather than
+left to be discovered: see [`doc/spec-coverage-gaps.md`](doc/spec-coverage-gaps.md).
 
 ---
 
