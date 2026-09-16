@@ -406,6 +406,67 @@ it just works": the log is unconditional, the selector decides what is
 records live. Compaction is where all three meet, and it is the only place that
 needs to understand them.
 
+### Two TRoE requirements that change the shape (KZ, 2026-09-16)
+
+**1. "Give me the Entity exactly as it was at time T."** Not the history list of
+attributes with their timestamps - a *current-state Entity*, at an instant in
+the past. Already decided at ETSI, so it is coming whether or not we plan for
+it.
+
+**2. The time axis is a parameter, not a constant.** `observedAt` (default),
+`modifiedAt` and `createdAt` all have to work - they do today, via
+`timeproperty`, and the suite covers all four including `deletedAt`. And
+eventually users define their own TemporalProperties with names of their
+choosing, and TRoE queries should work on those too.
+
+Those two together mean **this is bi-temporal**, and that is not a detail:
+
+| axis | what it means | is log order the same order? |
+|---|---|---|
+| `createdAt` / `modifiedAt` | **system time** - when the broker recorded it | **yes** |
+| `observedAt` | **valid time** - when it was true in the world | **no** |
+
+A device can deliver a late sample carrying an old `observedAt`. So:
+
+- **Reconstruction by system time is nearly free in this design.** "The Entity as
+  at T" is the log *prefix* up to T, applied over the newest snapshot at or
+  before T. Log order is system-time order, so there is nothing to search.
+- **Reconstruction by valid time is not a prefix.** It needs, per attribute, the
+  record with the greatest `observedAt` ≤ T - which is exactly the
+  `(entity, attribute, time)` index below, per axis. And the same question asked
+  again later can legitimately give a different answer, because late data
+  arrived. That has to be documented rather than discovered.
+
+⭐ This is a strong argument FOR the log, not against it. Point-in-time
+reconstruction is what an append log is naturally good at; on a row-per-change
+schema it is "the latest value of each attribute before T", which is a window
+function over the whole history table. If ETSI is adding this operation, the
+architecture that makes it cheap is the one to have.
+
+Consequences to build in from the first byte:
+
+- **A record carries every timestamp it has** - `createdAt`, `modifiedAt`,
+  `observedAt`, `deletedAt` - not one plus a convention. Cheap in the record,
+  impossible to retrofit.
+- **Snapshots serve double duty**: bounding recovery *and* bounding
+  point-in-time reconstruction. So keep a *chain* of them, not just the newest,
+  and make snapshot retention part of the retention policy.
+- **Tombstones are part of reconstruction.** An attribute deleted before T must
+  be absent from the Entity as at T, which means `deletedAt` records cannot be
+  compacted away while the history that needs them is retained.
+- **Which axes get indexed is a declaration, not a guess.** With user-named
+  TemporalProperties the axis is a *name*, so there cannot be one fixed column.
+  The history selector already says *what to record*; extend it to say *which
+  time axes to index*. The user knows what they will query by, and an index
+  nobody queries is pure cost.
+
+⚠️ **And the honest limitation, which follows from the selector being KZ's own
+requirement:** you cannot reconstruct what you did not record. If history was
+narrowed to three attributes, "the Entity as at T" can only answer for those
+three. That has to be visible in the response or the documentation - a
+reconstructed Entity that silently omits attributes nobody chose to keep is
+worse than an error.
+
 ### The part that is actually hard
 
 **Temporal queries need an index.** `timerel=between`, `lastN`, aggregation -
