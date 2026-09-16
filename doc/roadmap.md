@@ -21,55 +21,76 @@ work lands rather than at release boundaries.
 ## Short term
 
 The following features are planned to be addressed in the short term and
-incorporated in the next release of the product:
+incorporated in the next release of the product, in roughly this order:
+
+-   **DDS.** Speak DDS natively, so a robotics or industrial deployment can put
+    a context broker where it previously needed a gateway. DDS topics become
+    entity attributes in both directions: a sample published on `rt/pose` updates
+    `(urn:ngsi-ld:robot:1, pose)`, and a change to that attribute publishes a
+    sample.
+
+    This is first on the list, and it is the item that drags the transport seam
+    into existence: DDS is the first peer that is *not* an NGSI-LD broker and
+    *not* HTTP, so everything the broker assumes about request/response has to
+    be made explicit to accommodate it. The design is worked out in
+    [Bridges and Channels](bridge-channels.md) — a **Bridge** is the transport
+    instance (for DDS the participant: domain, QoS defaults, types directory), a
+    **Channel** ties one foreign endpoint to one entity attribute with a
+    direction and a retention.
+
+-   **`cor://` — a binary protocol for GE-to-GE traffic.** TLV-framed, beside
+    REST rather than instead of it, with no JSON parse on the hot path. It covers
+    broker-to-broker forwarding, which is where NGSI-LD currently pays for HTTP
+    and JSON on every hop of a federation.
+
+    Its serialisation is deliberately the same algorithm that persistence will
+    use, so the format is designed once for both. Doing it the other way round
+    produces two formats that diverge, and the second one arrives as "the other
+    serializer".
+
+-   **corDB: persistence, and temporal history for free.** corDB is already the
+    current-state store — entities in the process's own RAM, no database server,
+    and [measurably faster](performance.md) than going through MongoDB. Two
+    things finish it:
+
+    **Persistence.** Today a corDB deployment does not survive a restart, which
+    is the one place the "no servers" configuration is weaker than the MongoDB
+    one. Snapshot plus a write-ahead log, with group-commit `fsync` on a timer —
+    the durability MongoDB gives by default — keeps the write path as fast as it
+    is now.
+
+    **Automatic TRoE.** Temporal history in the same process and the same tree,
+    reached by a boolean rather than by loading a second plugin that keeps its
+    own copy of the store. Measured on eight shared cores, in-process history
+    costs nothing; the same history in PostgreSQL costs corDB 91% of its write
+    rate.
+
+-   **Bridges and Channels, generalised.** Once DDS has forced the seam into
+    existence, the same contract carries the rest: `cor://`, MQTT, OPC UA,
+    WebSockets. The protocol names the endpoint and the endpoint decides the
+    transport — a subscription or a registration asks for one by the scheme of
+    its endpoint, and HTTP stays inline rather than becoming a plugin, because
+    HTTP is also the NGSI-LD REST API and the broker can never ship without it.
 
 -   **Service Execution.** Actuation as a first-class citizen of the API, beyond
-    the suggested workflows of TS 104 175 Annex G.
-
--   **The endpoint decides the transport.** HTTP is built in and always present -
-    it is also the NGSI-LD REST API, so the broker can never ship without it. What
-    the *bridge* seam adds is the ability to use a different transport INSTEAD, when
-    a subscription or a registration asks for one by the scheme of its endpoint. The
-    protocol names the endpoint; `bridge` names the seam.
-
-    See [Bridges and Channels](bridge-channels.md) for the design notes: what a
-    **Bridge** and a **Channel** are, why the pair is a concept of its own rather
-    than a registration, and how the two relate to the plugin that carries them.
-
--   **Binary IPC protocol.** A TLV-framed transport beside REST, with no JSON
-    parse on the hot path.
+    the suggested workflows of TS 104 175 Annex G. DDS makes this concrete rather
+    than theoretical: DDS services and actions are in scope, so the broker needs
+    a way to express "do this" that is not a write to an attribute.
 
 -   **Packages, so nobody has to build it.** A Debian repository and
-    `apt-get install coraine`, with a `coraine-dev` that pulls the whole dependency
-    stack in one command. Building from source is currently the only route to a
-    machine that is not running the container image, and
-    [Building from source](building.md) is a long page for what should be one line.
+    `apt-get install coraine`, with a `coraine-dev` that pulls the whole
+    dependency stack in one command. Building from source is currently the only
+    route to a machine that is not running the container image, and
+    [Building from source](building.md) is a long page for what should be one
+    line.
 
--   **Finish conditional compilation.** Per-feature `#ifdef`s, so a deployment
-    compiles only the NGSI-LD it uses.
-
--   **A choice of HTTP implementation.** `corRest` is built on libmicrohttpd,
-    which supplies a great deal for nothing: TLS, a thread pool, epoll, the
-    connection lifecycle, header parsing and the HTTP/1.1 upgrade machinery. It
-    is also nine shared libraries and 7.3 MiB — GnuTLS and its tail come with it —
-    against a 963 KiB stripped broker, a price that matters exactly where the
-    broker is most interesting, on a device with little storage and less RAM.
-
-    So: conditional compilation, and `corRest` builds against either
-    libmicrohttpd or a lean in-house HTTP implementation — or, in principle, a
-    third library. An experimental implementation of the second already exists
-    and is tested. Only four of `corRest`'s thirty-six sources touch
-    libmicrohttpd today, so the seam is already close to where it needs to be.
-
-    **Decided by measurement, not preference.** Both builds get compared on
-    executable size and on throughput and latency under the same load, and the
-    numbers are published rather than asserted. Neither becomes the default
-    until that exists.
-
-    The trade to go in with eyes open: libmicrohttpd ships a WebSocket helper
-    alongside the upgrade support, so the lean build gives that up and has to
-    implement the upgrade handshake and framing itself. WebSockets are on the
-    medium-term list below, which makes these two decisions one decision.
+-   **Finish conditional compilation.** Per-feature `#ifdef`s so a deployment
+    compiles only the NGSI-LD it uses. The mechanism exists and the first slice
+    landed — `REGISTRATIONS` and `SUBSCRIPTIONS` compile out, and the HTTP server
+    is already a build choice — but most of the declared feature flags do not yet
+    reach the code they name. [Building from source](building.md) says exactly
+    which, because a flag that reports as off while the capability still works is
+    worse than no flag.
 
 -   **Subordinate subscriptions on registration change.** § 10.5.2.4 currently
     handles creation and deletion but not `PATCH`.
@@ -79,37 +100,37 @@ incorporated in the next release of the product:
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **DDS transport.** Speak DDS natively for robotics and industrial deployments,
-    addressed as `dds://` endpoints.
-
--   **OPC UA transport.** The same for industrial automation: variables as
-    attributes, monitored items as subscriptions, methods as Service Execution.
-
--   **WebSockets.** Notification delivery to consumers that cannot themselves be
-    HTTP servers — anything behind NAT, a firewall or a browser. How much of this
-    comes for free depends on the HTTP implementation chosen above: on
-    libmicrohttpd the upgrade handshake and framing are largely provided, and on
-    the lean build they are work.
-
--   **corDB.** An NGSI-LD-aware store with entities cached in RAM and persistence
-    behind it, replacing translation with representation.
-
--   **haaux.** High-availability cache synchronisation without a shared database,
-    single-digit milliseconds, interrupt driven.
-
--   **Speaking to devices directly.** A **south bridge**: the broker itself able
-    to talk to devices — MQTT, CoAP/LWM2M, OPC-UA, LoRaWAN, Sigfox, UltraLight,
-    JSON, ISOXML, CSV, Kafka — as plugins on the same contract the DDS bridge
-    introduces. The two-tier split of agent-then-broker becomes a deployment
-    choice rather than a requirement: a small edge build (**cor-agent**) beside a
-    central broker, or a single binary doing both, which is what a FIWARE@Home
-    installation on a Raspberry Pi actually wants. Same codebase either way,
-    selected by the conditional compilation above.
+-   **The IoT Agents, as cor-agent plugins.** Parity with the existing FIWARE
+    IoT Agents — UltraLight, JSON, LWM2M, LoRaWAN, Sigfox, OPC UA, ISOXML — but
+    as plugins on the bridge contract rather than as separate processes with
+    separate deployments. The same source code compiles to a reduced **cor-agent**
+    configuration, so the two-tier split of agent-then-broker becomes a deployment
+    choice: a small edge build beside a central broker, or one binary doing both,
+    which is what a FIWARE@Home installation on a Raspberry Pi actually wants.
 
     See [Speaking to devices directly](device-protocols.md) for the deployment
-    shapes, the transport × payload split that keeps the plugin count down, and
-    what parity with the existing FIWARE IoT Agents requires. Lands after the
-    binary IPC protocol and corDB.
+    shapes and the transport × payload split that keeps the plugin count down.
+
+-   **CorSec — a security Generic Enabler.** Authorisation in front of the
+    broker, as a plugin for [APISIX](https://apisix.apache.org/), so that a
+    FIWARE deployment gets policy enforcement without the broker pretending to
+    be an identity manager. NGSI-LD defines no authentication or authorisation,
+    and coraine implements the specification; this is the piece that belongs
+    beside it rather than inside it.
+
+-   **More cor-agent plugins**, driven by what deployments actually ask for
+    rather than by completing a matrix.
+
+-   **OPC UA.** Variables as attributes, monitored items as subscriptions,
+    methods as Service Execution.
+
+-   **WebSockets.** Notification delivery to consumers that cannot themselves be
+    HTTP servers — anything behind NAT, a firewall or a browser.
+
+-   **haaux.** High-availability cache synchronisation without a shared database:
+    brokers register with each other at startup, keep the connection, and sync
+    subscriptions, registrations and contexts interrupt-driven in single-digit
+    milliseconds. No polling.
 
 ## Long term
 
@@ -117,6 +138,20 @@ The following are proposals regarding the longer-term evolution of the product.
 Take into account that there is no commitment to deliver them in a specific
 timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
+
+-   **Authorisation inside the broker.** If CorSec in front of the broker proves
+    to be the bottleneck rather than the policy, attribute-based access control
+    evaluated in the broker is the most performant place to put it — the broker
+    already holds the entity and the request, so it is the only component that
+    can decide without a second round trip. This is listed as a possibility, not
+    a plan: putting policy inside a specification-complete broker is a decision
+    to take slowly.
+
+-   **An NGSI-LD-aware JSON parser.** The core terms are a closed set, so
+    `type`, `value`, `observedAt`, `Property`, `Relationship` and the rest can be
+    an enum rather than a string — smaller on the wire and on disk, and a compare
+    rather than a `strcmp` everywhere in the broker. Done once, gained always,
+    and it is the same decision as the `cor://` format above.
 
 -   **Our own string collation, replacing ICU.** § 7.6.2.1 makes ICU "root"
     collation the default order for `orderBy` on strings, and honouring it with
@@ -138,17 +173,16 @@ product is heading and may wish to get involved.
     that already exists: it is written to fail on a build that does not
     implement § 7.6.2.1, and it is what the MVP has to turn green without ICU.
 
--   **Array reduction in `corJsonld`.** A single JSON-LD normalisation applied once
-    at the input boundary rather than at each call site.
+-   **Array reduction in `corJsonld`.** A single JSON-LD normalisation applied
+    once at the input boundary rather than at each call site.
 
--   **Embedded deployment.** The broker is under 1 MiB, adds 4.3 MiB to a machine
-    and starts in 13 ms; running it on constrained hardware is a question of
-    build configuration, not redesign
-    — the per-feature `#ifdef`s and the choice of HTTP implementation are what
-    make that true rather than aspirational.
+-   **Embedded deployment.** The broker adds 4.3 MiB to a machine, holds 17 MiB
+    resident and answers 12 ms after `exec`; running it on constrained hardware
+    is a question of build configuration, not redesign — the per-feature
+    `#ifdef`s above are what make that true rather than aspirational.
 
--   **Continuous ETSI conformance.** Keeping the official test suite at 100% as the
-    specification evolves, and feeding test-side corrections upstream.
+-   **Continuous ETSI conformance.** Keeping the official test suite at 100% as
+    the specification evolves, and feeding test-side corrections upstream.
 
--   **Broader performance regression coverage.** Measured nightly and recorded, so
-    a regression is noticed by CI rather than by a user.
+-   **Broader performance regression coverage.** Measured nightly and recorded,
+    so a regression is noticed by CI rather than by a user.
