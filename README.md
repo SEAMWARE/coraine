@@ -116,45 +116,50 @@ and quoting the `main` would be the wrong number.
 Four builds, the two axes that change what a coraine process is made of — the
 HTTP server (`corHttp`, built in, or the external libmicrohttpd) and the
 current-state DB (`corDB`, entities in this process's RAM, or `mongoc`, entities
-in a MongoDB server). Broker pinned to **4 physical cores**, load generator kept
-off them:
+in a MongoDB server). **Every rate is per core**: the broker is pinned to one
+physical core and the load generator kept off it.
 
-| Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | p99 |
-|-------|-----------:|---------:|---------------------:|---------:|---------------:|----:|
-| `corHttp` + `corDB` | **4.3 MiB** | 17.5 MiB | 372 MiB | 12.8 ms | 4 937 | 9.0 ms |
-| `corHttp` + `mongoc` | 11.1 MiB | 24.0 MiB | 117 MiB *+ mongod* | 21.2 ms | 4 274 | 5.8 ms |
-| libmicrohttpd + `corDB` | 11.6 MiB | 13.1 MiB | 407 MiB | 10.3 ms | **6 483** | 25.6 ms |
-| libmicrohttpd + `mongoc` | 18.4 MiB | 19.6 MiB | 202 MiB *+ mongod* | 18.9 ms | 4 636 | **4.5 ms** |
+| Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | entities/s per core |
+|-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
+| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 5 901 | 118 020 |
+| `corHttp` + `mongoc` | 11.1 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
+| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **6 588** | **131 760** |
+| libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 4 904 | 98 080 |
 
 <sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
-`COR_FEATURE_ICU_COLLATION=OFF`. **Disk added** counts only what a bare
-`ubuntu:26.04` does not already carry. `mongod` adds 1.02–1.15 GiB resident;
-`corDB` adds nothing.</sub>
+`COR_FEATURE_ICU_COLLATION=OFF`. `GET /entities?type=Vehicle&limit=20`, 20
+entities per response. **Disk added** counts only what a bare `ubuntu:26.04`
+does not already carry. `mongod` adds 1.02–1.15 GiB resident and cores of its
+own; `corDB` adds nothing.</sub>
 
-Four things worth taking from that table:
+Five things worth taking from that table:
 
 - **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of files a
   machine did not already have — and three libraries, two of which are GEOS.**
   1.00 MiB of it is coraine, and the cor and k libraries are whole-archived into
   that binary, so it is not a `main` calling out to something else: `corNgsild`,
   `corRest`, `corJsonld`, `kjson`, `kalloc` and the rest are *in* the megabyte.
-- **`corDB` + `none` needs no other service at all.** One process, 18 MiB, one
-  socket. The comparison that matters is not coraine's libraries against another
-  broker's — it is one process against a broker plus a database server plus a
-  time-series database server.
-- **~6 000 requests/s per core**, which at 20 entities per response is ~126 000
-  entities/s per core. One core of a laptop CPU, through MongoDB, still serves
-  ~4 600 NGSI-LD queries a second.
-- **The two HTTP servers are not the same trade.** libmicrohttpd reaches a higher
-  peak and scales near-linearly (7.4× on 8 cores) with a long tail; `corHttp` is
-  faster on one core, holds p99 three to four times lower, needs nine fewer
-  libraries, and gives up throughput as cores are added (4.5× on 8). Pick the
-  peak or pick the tail.
+- **`corDB` + `ramdb` needs no other service at all** — and temporal history in
+  the same process is **free**: 40 257 req/s against 40 073 with history off,
+  123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of
+  its PATCH rate instead.
+- **The page size is the claim.** 6 588 requests/s per core at `limit=20` is
+  **131 760 entities/s per core**; at `limit=1` it is 37 743 of each; at
+  `limit=100` it is **158 300 entities/s**. A requests/s figure without the
+  response size beside it means nothing.
+- **Batching is worth three to four times per entity.** A `PATCH` one at a time
+  is 42 234 entities/s per core; twenty per request is 131 260. Creates:
+  31 362 against 113 640.
+- **The database is the bill.** One broker core doing batch updates through
+  MongoDB needs **four mongod cores behind it** before MongoDB stops being the
+  limit — five cores of machine to do what `corDB` does on one. On eight cores
+  shared by everything a configuration needs, `corDB` serves 40 073 req/s and
+  `mongoc` 23 185.
 
-📊 **[Performance and footprint](doc/performance.md)** has the rest: the core
-scaling curves, what is inside the megabyte, RAM per entity, what MongoDB and
-TimescaleDB cost beside the broker, why ICU is off, and how each number was
-measured.
+📊 **[Performance and footprint](doc/performance.md)** has the rest: what is
+inside the megabyte, the per-client latency curve, what MongoDB costs in cores
+and RAM, why ICU is off, an open question about `--connectionPoolSize`, and how
+every number was measured.
 
 ### Compiling out what you don't need
 

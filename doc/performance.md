@@ -1,6 +1,6 @@
 # Performance and footprint
 
-Every number on this page was measured on one machine on 2026-09-15, from
+Every number on this page was measured on one machine on 2026-09-16, from
 release builds of the commit it ships with, and each section says how. Nothing
 here is a vendor estimate or a figure carried over from an earlier version. The
 summary table is in the [README](https://github.com/SEAMWARE/coraine#footprint-and-speed);
@@ -28,7 +28,37 @@ process is made of:
 - **Current-state DB** — `--database corDB`, entities in this process's own RAM;
   or `--database mongoc`, entities in a MongoDB server.
 
-TRoE is `none` in every row, and the `admin` API plugin (23 KiB) is not loaded.
+TRoE is `none` unless a row says otherwise, and the `admin` API plugin (23 KiB)
+is not loaded.
+
+### Every rate here is per core
+
+A throughput figure with no core count beside it says more about the machine
+than about the broker, so the broker is pinned to a stated number of **physical**
+cores and the load generator runs on cores the broker was never given. Dividing
+a whole-machine total by the core count would be a different measurement — it
+assumes the scaling it would be claiming to show.
+
+SMT is the trap, and not a hypothetical: an early run put the load generator on
+the **siblings** of the broker's own cores, so the two fought over the same
+silicon and the scaling curve turned *down* at the top, which reads exactly like
+a broker that fails to scale. The CPU list is read from
+`/sys/devices/system/cpu` — one logical CPU per physical core — never assumed.
+
+Each figure is the median of three 5-second `wrk -t8 -c50` runs, and each whole
+run waits for the machine to go quiet (load average below 2) before it starts.
+Without that wait, a run measured in the wake of the previous one's load
+generator came out up to 13% low. Every scenario was measured twice, in
+independent passes; the spread between passes was 0.8–7.5%.
+
+The fixture is 100 five-attribute entities of ~550 bytes each, so a `limit=20`
+query returns about 11 KB — a realistic page rather than a toy.
+
+A rate measured over error responses is not a rate, so every `wrk` run is
+checked for non-2xx answers and the run stops if it finds any. That guard exists
+because a create scenario once reported 166 036 creates/s — faster than a
+PATCH, impossible — which turned out to be the speed of answering 409 to
+duplicate ids.
 
 ## Size on disk — what installing coraine adds
 
@@ -49,6 +79,19 @@ them.
 
 **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of things that
 were not on the machine before — and three of those libraries are not ours.**
+
+Those four rows all have TRoE off. Turning history on is the same measure, and
+it is the clearest single number on this page:
+
+| Configuration | coraine's own code | Added libraries | **Total added** |
+|---------------|-------------------:|----------------:|----------------:|
+| `corHttp` + `corDB` + **history in-process** | 1.02 MiB | 3.27 MiB (3) | **4.29 MiB** |
+| `corHttp` + `corDB` + history in PostgreSQL | 1.08 MiB | 5.57 MiB (13) | 6.65 MiB |
+| libmicrohttpd + `mongoc` + history in PostgreSQL | 1.12 MiB | 19.53 MiB (24) | **20.66 MiB** |
+
+`ramdb` — temporal history in this process — adds **no library and no
+measurable size**. The full conventional deployment is 24 libraries against 3,
+and 20.7 MiB against 4.3.
 
 What the three columns are made of:
 
@@ -79,158 +122,282 @@ What the three columns are made of:
 > buys it back; the ICU-free build sorts ASCII exactly as root collation does and
 > approximates the rest. Replacing it with a collation implementation of our own
 > — the common case first, tailorings added on demand — is on the roadmap.
-
 ## RAM
 
 Resident set of the broker process. *Private dirty* is the part no other process
 shares: what a second broker on the same machine actually costs.
 
-| Configuration | Idle RSS | Private dirty | Serving 50 connections | 100 000 entities | …and serving |
-|---------------|---------:|--------------:|-----------------------:|-----------------:|-------------:|
-| libmicrohttpd + `corDB` | 13.1 MiB | 3.9 MiB | 31.9 MiB | 407 MiB | 452 MiB |
-| libmicrohttpd + `mongoc` | 19.6 MiB | 5.0 MiB | 34.7 MiB | 202 MiB | 203 MiB |
-| `corHttp` + `corDB` | 17.5 MiB | 10.6 MiB | 36.2 MiB | 372 MiB | 413 MiB |
-| `corHttp` + `mongoc` | 24.0 MiB | 11.7 MiB | 39.2 MiB | 117 MiB | 115 MiB |
+| Configuration | Idle RSS | Private dirty | 100 000 entities | Per entity |
+|---------------|---------:|--------------:|-----------------:|-----------:|
+| libmicrohttpd + `corDB` | **13 MiB** | **3 MiB** | 358 MiB | 3.53 KiB |
+| `corHttp` + `corDB` | 17 MiB | 9 MiB | 354 MiB | 3.45 KiB |
+| libmicrohttpd + `mongoc` | 20 MiB | 4 MiB | 68 MiB *+ mongod* | — |
+| `corHttp` + `mongoc` | 24 MiB | 10 MiB | **45 MiB** *+ mongod* | — |
 
 The built-in server starts ~4 MiB heavier, and deliberately: it allocates its
-connection pool — 1024 slots, 16 KiB of buffer each — at start-up, so no request
-ever calls `malloc` for its own machinery. libmicrohttpd reserves far more than
-that, but virtually: thread-per-connection stacks put its `VmSize` at 2.7 GiB
-against corHttp's 498 MiB, almost none of it touched. The trade shows up again in
-the last two columns — loading 100 000 entities over MongoDB grows the
-libmicrohttpd build by 182 MiB and the pooled one by 78.
+connection pool at start-up, so no request ever calls `malloc` for its own
+machinery. libmicrohttpd reserves far more than that, but virtually —
+thread-per-connection stacks put its `VmSize` in the gigabytes, almost none of
+it touched.
 
 With **`corDB` an entity is RAM**, and that is the number to size a box with:
-**~3.5 KiB resident per five-attribute entity** (3.9 KiB on the libmicrohttpd
-build), so 100 000 entities is ~400 MiB and a million is ~3.5 GiB. With `mongoc`
-the entities are MongoDB's problem and the broker stays flat — but then MongoDB
-is on the machine, which is the next table.
+**~3.5 KiB resident per five-attribute entity**, so 100 000 entities is ~355 MiB
+and a million is ~3.5 GiB. With `mongoc` the entities are MongoDB's problem and
+the broker stays nearly flat — but then MongoDB is on the machine, which is the
+next two sections.
+
+> The `mongoc` figures here are lower than this page carried before (68 MiB
+> against 202) and the difference is the **measurement**, not the broker. The
+> entities used to be loaded one POST at a time; they are now loaded in batches
+> of 200, so the broker handles 500 requests instead of 100 000 and carries far
+> less request-arena footprint afterwards. Both are real numbers about real
+> deployments — the label has to say which.
 
 ## What else has to be running
 
 | `--database` / `--troe` | Also required | What that costs |
 |-------------------------|---------------|-----------------|
 | `corDB` / `none` | **nothing** | — |
-| `corDB` / `ramdb` | nothing | temporal history in the same process |
-| `mongoc` | a MongoDB server | 1.02–1.15 GiB resident here, and WiredTiger's default cache is half of (RAM − 1 GiB): on this 60 GiB host mongod is entitled to ~30 GiB. Image: `mongo:4.4` 594 MB, `mongo:8` 1.3 GB |
-| `timescale` (TRoE) | a PostgreSQL + TimescaleDB server | 35 MB of packages; 128 MiB of shared buffers by default, 313 MiB summed across its 10 processes here |
+| `corDB` / `ramdb` | **nothing** | temporal history in the same process, and it is free — see below |
+| `mongoc` | a MongoDB server | 1.02–1.15 GiB resident at rest, and WiredTiger's cache defaults to half of (RAM − 1 GiB): on this 60 GiB host mongod is entitled to ~30 GiB. Plus **cores** — see below. Image: `mongo:4.4` 594 MB, `mongo:8` 1.3 GB |
+| `timescale` (TRoE) | a PostgreSQL + TimescaleDB server | 35 MB of packages, 128 MiB of shared buffers by default, 313 MiB across its 10 processes here — and on the broker's own machine **2.3 MiB and 9–10 added libraries** for `libpq`, which drags in Kerberos, LDAP and SASL that a broker never calls. Nine rather than ten when `mongoc` has already brought `libsasl2` |
 
-Which is the point of the first row. A `corHttp` + `corDB` + `none` deployment is
-**one process, 18 MiB, 4.3 MiB of new files on disk, and no socket to anything
-else** — and the comparison that matters is not coraine's libraries against
-another broker's, it is one process against a broker plus a database server plus
-a time-series database server.
+Which is the point of the first two rows. A `corHttp` + `corDB` + `ramdb`
+deployment is **one process, 17 MiB, 4.3 MiB of new files on disk, and no socket
+to anything else** — with temporal history included.
 
 ## Start-up
 
-From `exec` to a served HTTP response, median of nine:
+From `exec` to a served HTTP response:
 
 | Configuration | Ready in |
 |---------------|---------:|
-| libmicrohttpd + `corDB` | **10.3 ms** |
-| `corHttp` + `corDB` | **12.8 ms** |
-| libmicrohttpd + `mongoc` | **18.9 ms** |
-| `corHttp` + `mongoc` | **21.2 ms** |
+| libmicrohttpd + `corDB` | **9 ms** |
+| `corHttp` + `corDB` | 12 ms |
+| libmicrohttpd + `mongoc` | 26 ms |
+| `corHttp` + `mongoc` | 31 ms |
 
-corHttp's extra 2.5 ms is the connection pool it allocates up front; mongoc's
-extra 8 ms is the handshake with the database server. All four are fast enough
+corHttp's extra 3 ms is the connection pool it allocates up front; mongoc's
+extra 17 ms is the handshake with the database server. All four are fast enough
 that the broker is not something you keep warm — it is something you start.
 Scale-to-zero, per-test instances, one broker per tenant on a gateway: all of
-them stop being awkward at 13 ms and 18 MiB.
+them stop being awkward at 12 ms and 17 MiB.
 
 ## Throughput — per core
 
-Throughput per core is the figure that transfers to other hardware; a total is
-mostly a statement about how many cores were in the machine. The broker is pinned
-to *n* physical cores, `wrk -t8 -c50` runs on physical cores the broker was never
-given, MongoDB (where used) on four more of its own. Fixture: 100 preloaded
-five-attribute entities (~550 B each), `GET /entities?type=Vehicle&limit=20`,
-~11 KB per response, best of three 5 s runs.
+**One physical core.** `GET /ngsi-ld/v1/entities?type=Vehicle&limit=N`.
 
-**Requests/s per broker core:**
+The page size is the whole story, and for months every throughput number
+quoted anywhere was the `limit=20` one — read by everybody as requests per
+second with the "of 20 entities" left off. Requests/s and entities/s are the
+same number only at `limit=1`:
 
-| Configuration | 1 core | 2 cores | 4 cores | 8 cores |
-|---------------|-------:|--------:|--------:|--------:|
-| libmicrohttpd + `corDB` | **6 300** | 6 047 | 6 483 | 5 841 |
-| `corHttp` + `corDB` | **6 623** | 5 366 | 4 937 | 3 760 |
-| libmicrohttpd + `mongoc` | **5 036** | 5 178 | 4 636 | — |
-| `corHttp` + `mongoc` | **4 680** | 4 547 | 4 274 | — |
+| Response | req/s per core | **entities/s per core** |
+|---|---:|---:|
+| 1 entity | **37 743** | 37 743 |
+| 20 entities | 6 588 | **131 760** |
+| 100 entities | 1 583 | **158 300** |
 
-At 20 entities per response, 6 300 req/s per core is **126 000 entities/s per
-core**. One core of a laptop CPU, going through MongoDB, still serves 5 000
-NGSI-LD queries a second.
+*(libmicrohttpd + `corDB`. The per-request cost is fixed, so the bigger the
+page the more of it is amortised — and the entities/s column is still climbing
+at 100.)*
 
-**The totals and the tail latency behind those figures:**
+**All four builds, `limit=20`:**
 
-| Configuration | 4 cores | p99 | 8 cores | p99 |
-|---------------|--------:|----:|--------:|----:|
-| libmicrohttpd + `corDB` | 25 935 | 25.6 ms | 46 729 | 10.5 ms |
-| `corHttp` + `corDB` | 19 751 | 9.0 ms | 30 082 | **2.6 ms** |
-| libmicrohttpd + `mongoc` | 18 546 | 4.5 ms | — | — |
-| `corHttp` + `mongoc` | 17 099 | 5.8 ms | — | — |
+| Configuration | req/s per core | entities/s per core |
+|---------------|---------------:|--------------------:|
+| libmicrohttpd + `corDB` | **6 588** | **131 760** |
+| `corHttp` + `corDB` | 5 901 | 118 020 |
+| libmicrohttpd + `mongoc` | 4 904 | 98 080 |
+| `corHttp` + `mongoc` | 4 634 | 92 680 |
 
-The two HTTP servers are not the same trade. libmicrohttpd's thread-per-
-connection reaches a higher peak and keeps scaling — 7.4× on 8 cores — but
-carries a long tail. corHttp is faster on one core, holds p99 three to four times
-lower at every width, and gives up throughput as cores are added: 4.5× on 8
-cores. Its accept loop is a single thread and past four cores that is what is
-being measured. Neither is "the fast one": pick the peak or pick the tail.
+One core of a laptop CPU, going through MongoDB, still serves ~4 900 NGSI-LD
+queries a second.
 
-> Numbers are from one machine and one shape of request — reproduce them on yours
-> before quoting them. What travels is the shape: sub-millisecond work per
-> request, ~6 000 requests per second per core, and a broker that saturates
-> cleanly rather than collapsing. The additional clients wait; they do not make
-> the broker slower at serving the ones already there.
+### Writes, and what batching is worth
 
-## Does it use the cores you give it?
+Half of what a context broker does is writes, and until 2026-09-15 this page
+had no write number on it at all. That was also the half that was broken:
+`corDB` had no locking whatsoever, and twenty concurrent PATCHes killed the
+broker every time. A read-only benchmark could never have noticed.
 
-Throughput per core says what a core is worth. This says whether buying more of
-them works, and the answer differs by HTTP server. Same query and fixture,
-`--database corDB` — deliberately, not for convenience. With `mongoc`, mongod
-takes cores of its own on the same machine, so the curve would describe *a broker
-and a database sharing one host* and would bend where MongoDB stopped scaling
-rather than where the broker did. Both are real questions. This one is "does the
-broker use the cores it is given", so the storage engine has to be out of the
-answer — an in-memory backend does that, and leaves request parsing, matching,
-rendering and the HTTP layer as the only things being measured.
+**Per core, `corDB`:**
 
-| Cores | libmicrohttpd | vs 1 core | `corHttp` | vs 1 core |
-|------:|--------------:|----------:|----------:|----------:|
-| 1 | 6 300 | — | 6 623 | — |
-| 2 | 12 095 | 1.92× | 10 732 | 1.62× |
-| 4 | 25 935 | 4.12× | 19 751 | 2.98× |
-| 8 | 46 729 | **7.42×** | 30 082 | 4.54× |
+| Operation | req/s | **entities/s** | vs one at a time |
+|---|---:|---:|---:|
+| `PATCH` one attribute, 50 clients | 42 234 | 42 234 | — |
+| `PATCH`, 1 client | 28 009 | 28 009 | — |
+| batch update, 20 per request | 6 563 | **131 260** | **3.1×** |
+| create one entity | 31 362 | 31 362 | — |
+| batch create, 20 per request | 5 682 | **113 640** | **3.6×** |
 
-Eight cores do 7.4 times the work of one on the libmicrohttpd build — a bigger
-box is worth buying, and a smaller one costs you only what you took away. (The
-4-core point is slightly superlinear; that is clock boost, not magic, and it is
-why the ratios are quoted rather than a headline efficiency.) The built-in server
-does not have that property yet and the table says so. Repeat runs vary by a few
-percent; the ratios do not.
+Batching is worth three to four times per entity, which is what batching is
+supposed to be for: one HTTP request, one URL-parameter parse, one `@context`
+resolution and one lock acquisition amortised over twenty instead of paid
+twenty times.
 
-> ⚠️ Two limits on that table, both from running `wrk` on the same machine. It
-> competes for cache and memory bandwidth, so the broker is if anything
-> understated. And it caps the sweep at half the cores: something has to drive
-> the load. A first attempt that ignored SMT — load generator on the *siblings*
-> of the broker's own cores — produced a neat regression at 16 cores that was
-> pure measurement artefact. Anything beyond that needs a second machine, and a
-> link faster than the ~4 Gbit/s these responses already push.
+It was not always. Until the commit that added the create benchmark, batch
+create walked the entire entity list for every incoming entity — with the id
+index sitting right there, maintained by the bottom of the same loop — and was
+**6× slower per entity than creating them one at a time**. A batch create is
+the one operation that grows the store it is scanning, so it got worse as it
+ran. Nothing measured it, so nothing caught it.
 
+### Clients piling onto one core
 
+Same core, same query, more clients:
 
----
+| Clients | libmicrohttpd | p99 | `corHttp` | p99 |
+|---:|---:|---:|---:|---:|
+| 10 | 6 239 | 3.43 ms | 5 359 | **1.79 ms** |
+| 50 | 6 030 | 106.8 ms | 5 834 | **42.9 ms** |
+| 200 | 6 147 | 206.0 ms | 4 821 | **75.8 ms** |
+| 1000 | 5 654 | 292.0 ms | 4 790 | 303.0 ms |
+
+Throughput is **flat across a hundredfold increase in clients** — 6 239 to
+5 654, down 9%. The additional clients wait; they do not make the broker slower
+at serving the ones already there. That is the property worth having, and it is
+a different claim from a peak.
+
+corHttp holds p99 two to three times lower up to 200 clients. Past that both
+servers are queueing and the tail is the queue, not the server.
+
+## What the database costs
+
+Every figure above pins the *broker* to one core and lets the database have the
+rest of the machine. That is the right way to measure a broker core, and it
+quietly assumes a database that is never the limit. Here is the price of that
+assumption.
+
+**Cores of *deployment* behind one saturated broker core** — measured CPU of
+both processes, not assumed:
+
+| | `corDB` | `mongoc` |
+|---|---:|---:|
+| query, `limit=20` | **1.00** | 1.65 |
+| `GET /entities/{id}` | **1.00** | 2.27 |
+| `PATCH` | **1.00** | 3.61 |
+| batch update | **1.00** | **5.06** |
+
+**And the sweep that answers "how much does MongoDB need in order not to be the
+bottleneck?"** — broker fixed at one core, mongod's core budget narrowed with
+the container's cpuset:
+
+| mongod cores | query | `PATCH` | batch-20 |
+|---:|---:|---:|---:|
+| 1 | 4 978 | 4 491 | 544 |
+| 2 | 4 862 | 7 776 | 959 |
+| 3 | 4 517 | **8 553** | 1 243 |
+| 4 | 4 486 | 8 265 | **1 392** |
+| 5 | 4 838 | 8 148 | 1 390 |
+| 6 | 4 604 | 8 290 | 1 426 |
+| 7 | 4 499 | 8 193 | 1 388 |
+
+**Reads need one mongod core. Writes need three, and batch writes four.** Five
+cores of machine to do what `corDB` does on one.
+
+### One machine, eight cores, shared by everything
+
+The tables above are per broker core. This one is the question somebody buying
+a machine actually asks: eight cores, and whatever the configuration needs
+running on them. The load generator is not in the budget — it stands in for
+clients, which are somebody else's machines.
+
+| Configuration | `limit=1` | `limit=20` | ent/s | `PATCH` | batch-20 | ent/s |
+|---|---:|---:|---:|---:|---:|---:|
+| `corDB` | **152 448** | **40 073** | **801 460** | **125 187** | 17 239 | **344 780** |
+| `corDB` + history in-process | 150 056 | 40 257 | 805 140 | 123 307 | 17 013 | 340 260 |
+| `corDB` + history in PostgreSQL | 147 654 | 39 806 | 796 120 | 11 099 | 1 055 | 21 100 |
+| `mongoc` | 60 527 | 23 185 | 463 700 | 19 961 | 1 994 | 39 880 |
+| `mongoc` + history in PostgreSQL | 59 754 | 22 947 | 458 940 | 8 251 | 753 | 15 060 |
+
+Three things fall out of that table.
+
+**Temporal history in-process is free.** `--troe ramdb` against `--troe none`:
+40 257 against 40 073 on queries, 123 307 against 125 187 on PATCH. Within the
+noise, on every shape. History in PostgreSQL costs `corDB` **91% of its PATCH
+rate and 94% of its batch rate** — not because PostgreSQL is slow, but because
+`corDB`'s writes are otherwise nearly free, so the database becomes all of the
+cost. On `mongoc`, where writes already cost something, TRoE takes a further
+59%.
+
+**Queries do not care.** Every configuration reads at the same speed with
+history on or off, which is what you would hope: nothing on the read path
+touches the history database.
+
+**Scaling to eight cores is 6.1×**, not 8: 6 588 req/s on one core against
+40 073 on eight. The missing 24% is the store's lock and the memory system,
+and it is measured rather than extrapolated.
+
+> ⚠️ The `limit=1` column may be partly **load-generator bound**. All three
+> `corDB` rows land at 147–152k, and at that rate `wrk` on eight physical cores
+> is doing ~19 000 requests/s per core of its own. Treat those as a floor.
+
+> ⚠️ `corDB` **does not persist yet**, so its rows are not like-for-like with
+> anything backed by a database server: one of them survives a restart. A
+> persisting `corDB` will cost something this page cannot yet quote. It will not
+> cost libraries — everything persistence needs is in libc.
+
+## An open question: `--connectionPoolSize`
+
+`corHttp` came out **slower than libmicrohttpd on one core** in the table above
+(5 901 against 6 588), and it used to be the other way round. The loop count is
+not the cause — `--httpLoops` resolves to 1 on one core, which is correct, and
+forcing 2 or 4 there makes it worse, as it should.
+
+The suspect is `--connectionPoolSize`, which defaults to 32. Swept on one core,
+built-in server:
+
+| `--connectionPoolSize` | req/s | p99 |
+|---:|---:|---:|
+| 2 | 6 469 | **9.97 ms** |
+| 4 | 6 459 | 20.2 ms |
+| 8 | **6 905** | 36.2 ms |
+| 16 | 5 082 | 50.8 ms |
+| 32 (default) | 5 562 | 44.0 ms |
+| 64 | 5 850 | 38.8 ms |
+
+There is something real in the low end — 2 and 8 both beat the default, and 2
+holds a tail four times shorter — but **this is not yet a number to act on**,
+because 16 measured worse than both 8 and 32 and a genuine trend does not do
+that. Either the run-to-run spread is larger than the effect, or something
+non-monotonic is going on.
+
+And the option cannot simply be re-defaulted, because it means three different
+things at once:
+
+| | libmicrohttpd | `corHttp` |
+|---|---|---|
+| `corRestBackendStart(poolSize)` | libmicrohttpd's **I/O thread count** | connection **slots**, `poolSize × 16` |
+| `corRestWorkerPoolStart(poolSize)` | request **worker threads** | request **worker threads** |
+
+So lowering it to 8 cuts libmicrohttpd's I/O threads fourfold — measured at 15%
+of its throughput — while for `corHttp` it lowers workers *and* connection
+capacity together, so the sweep above cannot say which of the two the gain came
+from. One knob, three concepts, and a default that was sized on a 16-core
+laptop.
+
+Separating them is the work: a worker count that is its own option, sized per
+CPU the way `--httpLoops` is, and a connection capacity that stays a capacity.
+Tracked in [ToDo § 17](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
 
 ## Reproducing this
 
-- **Throughput and core scaling** — [`test/perf/coreScale.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/coreScale.sh)
-  reads the CPU topology rather than assuming it, and pins the load generator off
-  the broker's own physical cores. [`test/perf/perfRun.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/perfRun.sh)
-  measures the fixed request shapes and prints one JSON object per run.
+- **Throughput, writes, page sizes** — [`test/perf/perfRun.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/perfRun.sh)
+  measures the fixed request shapes and prints one JSON object per run. Set
+  `PERF_BROKER_CORES=n` to pin the broker to *n* physical cores and the load
+  generator off them; `PERF_ENTITIES` sizes the store; `PERF_BROKER_ARGS` and
+  `PERF_BROKER_CMD` say what to start, so a documented number names its flags.
+- **Core scaling** — [`test/perf/coreScale.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/coreScale.sh)
+  reads the CPU topology rather than assuming it.
 - **Size** — a stripped release build, plus the transitive `ldd` closure of the
   binary and the loaded plugins, minus everything a bare `ubuntu:26.04` already
   carries.
-- **RAM** — `/proc/<pid>/smaps_rollup`, idle and under `wrk -t8 -c50`.
-- **Start-up** — `exec` to a served HTTP response, median of nine.
+- **RAM** — `/proc/<pid>/smaps_rollup`, idle and with the store loaded.
+- **Start-up** — `exec` to a served HTTP response.
+- **What the database costs** — `/proc/<pid>/stat` utime+stime for both
+  processes across a fixed run, and `docker update --cpuset-cpus` to narrow
+  mongod's core budget.
 
 The two build axes are `-DCOR_HTTP_SERVER=builtin|mhd` and `--database
 corDB|mongoc`; the reference build is ICU-free
