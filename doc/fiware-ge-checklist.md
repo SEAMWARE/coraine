@@ -27,7 +27,7 @@ Last verified against the repository: **2026-09-16**.
 | Requirement | State | Note |
 |-------------|-------|------|
 | Presented to the TSC for candidature, accepted into a Chapter | ⛔ | The chapter is **Core Context Management**; the badge is already on the README |
-| Show how it integrates within the overall FIWARE Architecture | ⚠️ | We have the chapter badge and nothing that says where coraine sits. See [Architecture fit](#architecture-fit) below — the text exists now, a diagram does not |
+| Show how it integrates within the overall FIWARE Architecture | ✅ | [Architecture fit](#architecture-fit) below — north/southbound, federation via registrations, and which pieces are optional, with a diagram. ⚠️ ASCII, so it renders anywhere; the TSC deck wants it drawn properly |
 | Signed harmonized [Entity CLA](https://fiware.github.io/contribution-requirements/entity-cla.pdf) | ⛔ | A PDF to sign, not a commit |
 | Codebase available on GitHub | ✅ | `github.com/SEAMWARE/coraine`, public |
 | Appropriate open-source licence | ✅ | Apache 2.0 — `LICENSE` at the root, detected by GitHub as `Apache-2.0`, SPDX header in every source file |
@@ -132,8 +132,59 @@ integrates" requirement:
   or stays in the process — so the historical-data chapter is an option rather
   than a prerequisite.
 
-⚠️ Still missing: a diagram. The text above is the substance; the TSC will want
-to see it drawn.
+```text
+                    applications · Wirecloud · Knowage · dashboards
+                                        │
+                                        │  NGSI-LD  (HTTP/HTTPS)
+                                        ▼
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                      c o r a i n e   (Core Context Management)           │
+  │                                                                          │
+  │   NGSI-LD API  ·  entities · subscriptions · registrations · temporal    │
+  │                   geo-queries · distributed operations                   │
+  │                                                                          │
+  │   ┌──────────────────┐   ┌──────────────────┐   ┌────────────────────┐   │
+  │   │ current state    │   │ temporal (TRoE)  │   │ API surfaces       │   │
+  │   │ ── plugin ──     │   │ ── plugin ──     │   │ ── plugins ──      │   │
+  │   │ corDB │ mongoc   │   │ corDB │ timescale│   │ admin · metrics    │   │
+  │   └────────┬─────────┘   └────────┬─────────┘   └────────────────────┘   │
+  └────────────┼──────────────────────┼───────────────────────────────────────┘
+       in this │ process              │ in this process
+               │   or                │    or
+               ▼                      ▼                     │            ▲
+          MongoDB                PostgreSQL +               │            │
+          (optional)             TimescaleDB                │            │
+                                 (optional)                 │            │
+                                                notifications│            │ context
+                                                 HTTP · MQTT │            │
+                                                             ▼            │
+                                              subscribers          IoT Agents,
+                                                                   devices, or
+                                                                   coraine itself
+                                                                   as "cor-agent"
+                          ┌───────────────────────────────────────────┐
+                          │  federation, via Context Source           │
+                          │  Registrations: coraine forwards to and   │
+                          │  aggregates from other NGSI-LD sources,   │
+                          │  and can be registered as one itself      │
+                          └───────────────────────────────────────────┘
+```
+
+Three things the diagram is meant to make obvious:
+
+- **The dashed boxes are plugins, and two of them can be nothing at all.** With
+  `--database corDB --troe corDB` the two optional servers below the line
+  disappear and the broker is one process. That is the same broker, the same
+  API, and the same conformance results — configured by a flag, not a different
+  product.
+- **The southbound arrow points both ways.** coraine accepts context from IoT
+  Agents like any NGSI-LD broker, and the same source code compiles to a
+  reduced agent configuration, so a small deployment need not run both.
+- **Federation is not a separate component.** Registrations make any coraine a
+  member of a federation of NGSI-LD sources, in either direction.
+
+⚠️ This is the text-and-ASCII version, which renders anywhere. For the TSC
+presentation it wants drawing properly.
 
 ## Incubated Generic Enabler — expected within months of acceptance
 
@@ -155,7 +206,7 @@ to see it drawn.
 | Requirement | State | Note |
 |-------------|-------|------|
 | All FIWARE **MUST** requirements fulfilled | ⚠️ | the gaps above, plus the two process requirements below |
-| OpenSSF Best Practices badge displayed **and passing** | ⚠️ | The project is not registered. Registering and answering the questionnaire is ours to do; most answers are already true of the repository |
+| OpenSSF Best Practices badge displayed **and passing** | ⚠️ | Not registered — that needs an account. The repository side is now in place: `SECURITY.md` with a vulnerability-reporting process, GitHub private vulnerability reporting **enabled**, secret scanning **enabled**, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, issue and pull-request templates, tests run automatically, and a documented release process |
 | Demonstrated real need, with adoption statistics presented to the TSC | ⛔ | needs users, not commits |
 | Stack Overflow tag registered | ⛔ | creating a tag needs reputation the maintainers do not have; support is documented as GitHub issues |
 | Public instance on FIWARE infrastructure (where suitable) | ⛔ | Foundation, and optional |
@@ -190,25 +241,51 @@ than technical:
 | GitHub Issues used for issue tracking | ✅ | enabled and in use |
 | README — description, table of contents, install, usage, API, licence | ✅ | |
 | README — badges: chapter, licence, container, release, docs, support | ✅ | six badges, all resolving |
-| README — CI build badge | ⚠️ | CI exists now; the badge was never added |
+| README — CI build badge | ✅ | two, in fact: the per-PR CI workflow and the nightly |
 | Documentation in Markdown | ✅ | no reStructuredText, no `<a>` anchor tags |
 | Repository description not blank | ✅ | set |
 | Mandatory GitHub topics | ✅ | `c`, `context-broker`, `etsi`, `fiware`, `iot`, `linked-data`, `ngsi-ld` |
 | Configurable through environment variables | ✅ | `CORAINE_<OPTION>` for every option |
 | No fixed ports in the image | ✅ | `--port`, nothing hard-wired |
 | No stale pull requests older than 90 days | ✅ | none open |
+| Security policy / vulnerability reporting | ✅ | `SECURITY.md`, and GitHub private vulnerability reporting is enabled — plus what is *not* a vulnerability (no auth in the broker, tenants are a namespace) so reports arrive about real things |
+| Contributing guide, code of conduct, changelog | ✅ | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant), `CHANGELOG.md` |
+| Issue and pull-request templates | ✅ | `.github/ISSUE_TEMPLATE`, `.github/PULL_REQUEST_TEMPLATE.md` — the PR template asks for the evidence that a fix's test fails without the fix |
+| Repository homepage set | ✅ | `coraine.readthedocs.io` |
+| Secret scanning | ✅ | enabled (detection). Push protection deliberately left off: the test fixtures contain token-shaped strings and a false positive that blocks a push costs more than it saves |
 | Tests, run automatically | ✅ | ~600 functional tests per database, ETSI conformance suite, valgrind, coverage |
-| Linter / automated code format | ⚠️ | style is enforced by review; nothing wired in |
+| Linter / automated code format | ⚠️ | Style is enforced by review; nothing wired in. Deliberate for now — a formatter imposed on this codebase would rewrite comment alignment that carries meaning, so it needs a configuration written for it rather than a default |
 | Tutorial provided | ✅ | [`doc/api-walkthrough.md`](api-walkthrough.md), and coraine is now a broker option in the FIWARE tutorials |
 
 ## What is ours to close, shortest first
 
-1. **The CI build badge** — one line in the README.
-2. **Read the Docs analytics** — a Google Analytics property, shared with the Foundation.
-3. **An architecture diagram** — the text is above; it needs drawing.
-4. **OpenSSF Best Practices registration** — a questionnaire, mostly already true.
+1. **Read the Docs analytics** — needs a Google Analytics property, created under
+   an account and shared with the Foundation. Nothing in the repository blocks it.
+2. **OpenSSF Best Practices registration** — needs a login. The repository side is
+   done, so this is filling in a questionnaire whose answers are already true.
+3. **The architecture diagram, drawn** — the ASCII one above is the substance;
+   the TSC deck deserves a real figure.
+4. **corDB persistence** — the only *code* left on this list, and the one that
+   matters most: see below.
 5. **How third-party approval should be evidenced** — a question for the TSC, not
    a code change.
+
+## The one that is not paperwork
+
+Everything above is a form, a badge or a figure. One item is engineering, and it
+is the item a reviewer will press on:
+
+> For a stateful component, the state **MUST** be persistable between
+> instantiations, additional manual set-up **MUST** not be required.
+
+`--database mongoc` satisfies this today, so the requirement is met and the
+checklist is honest. But the configuration coraine is *interesting* for — one
+process, no servers, 4.3 MiB — is the one that loses its data on restart, and
+that is the configuration the zero-dependency requirement rewards. Until corDB
+persists, the two requirements pull in opposite directions and we have to pick
+which one to lead with.
+
+Design and staging: [ToDo § 15](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
 
 Everything else on the ⛔ lines is an application to the FIWARE Foundation or a
 consequence of one.

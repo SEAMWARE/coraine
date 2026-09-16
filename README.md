@@ -7,6 +7,8 @@
 [![NGSI-LD badge](https://img.shields.io/badge/NGSI-LD-red.svg)](https://www.etsi.org/technical-groups/data/)
 <br/>
 [![Release badge](https://img.shields.io/github/v/release/SEAMWARE/coraine?label=release)](https://github.com/SEAMWARE/coraine/releases)
+[![CI badge](https://github.com/SEAMWARE/coraine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SEAMWARE/coraine/actions/workflows/ci.yml)
+[![Nightly badge](https://github.com/SEAMWARE/coraine/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/SEAMWARE/coraine/actions/workflows/nightly.yml)
 [![Documentation badge](https://img.shields.io/readthedocs/coraine.svg)](https://coraine.readthedocs.io/en/latest/?badge=latest)
 ![Status](https://fiware.github.io/catalogue/badges/statuses/status-incubating.svg)
 
