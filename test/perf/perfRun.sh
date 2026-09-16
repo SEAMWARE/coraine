@@ -23,6 +23,52 @@ ENTITIES=${PERF_ENTITIES:-100}
 DURATION=${PERF_DURATION:-5s}
 THREADS=${PERF_THREADS:-8}
 REPEATS=${PERF_REPEATS:-3}
+#
+# Extra broker arguments. The reason this exists: the broker's own defaults move
+# (--httpLoops became core-dependent), and a measurement that inherits a default
+# is a measurement of whatever the default was that week. A documented number
+# names its flags.
+#
+BROKER_ARGS=${PERF_BROKER_ARGS:-}
+#
+# PERF_BROKER_CORES - pin the broker to this many PHYSICAL cores and the load
+# generator to cores the broker was never given. Unset: no pinning at all, which
+# is what the nightly wants (it compares runs of itself on the same runner).
+#
+# Set it to 1 and the run answers "per core", which is the number worth
+# publishing: a throughput figure without a core count beside it says more about
+# the machine than about the broker.
+#
+# SMT is the trap, and not a hypothetical - it cost a whole afternoon in
+# coreScale.sh, where the load generator landed on the SIBLINGS of the broker's
+# own cores and the scaling curve turned DOWN at the top, which reads exactly
+# like a broker that fails to scale. So one logical CPU per physical core, read
+# from sysfs rather than assumed.
+#
+BROKER_CORES=${PERF_BROKER_CORES:-}
+brokerPin=() ; loadPin=()
+if [ -n "$BROKER_CORES" ]; then
+  mapfile -t physCpus < <(
+    for d in /sys/devices/system/cpu/cpu[0-9]*; do
+      id=${d##*/cpu}
+      sib=$(cut -d, -f1 < "$d/topology/thread_siblings_list" 2>/dev/null || echo "$id")
+      [ "$sib" = "$id" ] && echo "$id"
+    done | sort -n
+  )
+  physical=${#physCpus[@]}
+  if [ "$BROKER_CORES" -ge "$physical" ]; then
+    echo "perfRun.sh: PERF_BROKER_CORES=$BROKER_CORES leaves nothing to drive the load ($physical physical cores)" >&2
+    exit 1
+  fi
+  #
+  # The load generator gets every physical core the broker did not get. It runs
+  # on this same machine and competes for cache and memory bandwidth either way,
+  # so the broker is if anything understated - never flattered.
+  #
+  brokerPin=( taskset -c "$(IFS=,; echo "${physCpus[*]:0:BROKER_CORES}")" )
+  loadPin=(   taskset -c "$(IFS=,; echo "${physCpus[*]:BROKER_CORES}")" )
+  echo "perfRun.sh: broker on ${brokerPin[2]}, load generator on ${loadPin[2]}" >&2
+fi
 
 case "$DB" in
   mongoc) dbArgs="--database mongoc --dbHost $HOST --dbName corperf" ;;
@@ -75,7 +121,7 @@ stopBroker() {
 
 awaitPortFree
 
-coraine --port "$PORT" $dbArgs --troe none > /tmp/perf-broker.log 2>&1 &
+"${brokerPin[@]}" coraine --port "$PORT" $dbArgs --troe none $BROKER_ARGS > /tmp/perf-broker.log 2>&1 &
 brokerPid=$!
 trap stopBroker EXIT
 
@@ -107,14 +153,43 @@ for i in $(seq 1 "$ENTITIES"); do
          \"description\":{\"type\":\"Property\",\"value\":\"a five-attribute vehicle used for throughput measurement, padded to roughly five hundred bytes so the numbers mean something ------------------------------------------------\"}}"
 done
 
+#
+# wrk refuses -c below -t ("number of connections must be >= threads") and says
+# so on stdout with exit status 0, so the awk below simply found nothing and the
+# scenario printed as `"patch_c1":,` - invalid JSON, no error anywhere. Any
+# scenario with fewer connections than threads needs the thread count brought
+# down to meet it.
+#
+wrkThreads() {
+  local conns="$1"
+  [ "$conns" -lt "$THREADS" ] && echo "$conns" || echo "$THREADS"
+}
+
+#
+# And the reason that bug was invisible: a scenario that produces nothing still
+# prints, as an empty field in a JSON object nobody validates. Every number goes
+# through here, so a missing one stops the run where it happened.
+#
+median() {
+  local what="$1" rps; shift
+  rps=$(printf '%s\n' "$@" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}')
+  case "$rps" in
+    ''|*[!0-9]*) echo "perfRun.sh: no requests/s from: $what" >&2
+                 echo "perfRun.sh: the run collected [$*] - re-run that wrk by hand to see why" >&2
+                 return 1 ;;
+  esac
+  echo "$rps"
+}
+
 # median of REPEATS runs - a single wrk run on a shared runner is a rumour
 measure() {
-  local url="$1" conns="$2" rpsList=()
-  wrk -t"$THREADS" -c"$conns" -d2s "$url" > /dev/null 2>&1        # warmup
+  local url="$1" conns="$2" rpsList=() t
+  t=$(wrkThreads "$conns")
+  "${loadPin[@]}" wrk -t"$t" -c"$conns" -d2s "$url" > /dev/null 2>&1        # warmup
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(wrk -t"$THREADS" -c"$conns" -d"$DURATION" "$url" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
+    rpsList+=( "$("${loadPin[@]}" wrk -t"$t" -c"$conns" -d"$DURATION" "$url" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
   done
-  printf '%s\n' "${rpsList[@]}" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'
+  median "-t$t -c$conns $url" "${rpsList[@]}"
 }
 
 
@@ -125,17 +200,36 @@ measure() {
 # no way to say "PATCH, with this body".
 #
 measureScript() {
-  local script="$1" conns="$2" rpsList=()
-  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$THREADS" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null 2>&1
+  local script="$1" conns="$2" rpsList=() t
+  t=$(wrkThreads "$conns")
+  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" "${loadPin[@]}" wrk -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null 2>&1
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$THREADS" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
+    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" "${loadPin[@]}" wrk -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
   done
-  printf '%s\n' "${rpsList[@]}" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'
+  median "-t$t -c$conns -s $(basename "$script")" "${rpsList[@]}"
 }
 
 queryC50=$(measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50)
 queryC200=$(measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200)
 retrieve=$(measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50)
+
+#
+# THE PAGE SIZE, held at one concurrency so the three are comparable.
+#
+# query_c50 above is limit=20, and for months every throughput number quoted
+# anywhere was that one - read by everybody as "requests per second" with the
+# 20 left off. It is also 20 ENTITIES per second times twenty, which is a
+# different and much larger claim, and neither number is useful without the
+# other.
+#
+# So all three page sizes, and entities/s is rps x the page size:
+#
+#   limit=1     the worst case for us - all per-request cost, no amortisation
+#   limit=20    a realistic page
+#   limit=100   where per-entity serialisation dominates and the servers diverge
+#
+queryL1C50=$(measure   "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=1" 50)
+queryL100C50=$(measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100" 50)
 
 #
 # WRITES. Until 2026-09-15 this script measured three request shapes and every
@@ -166,5 +260,5 @@ patchC1=$(measureScript  "$SCRIPTDIR/patchAttr.lua" 1)
 #
 batch20C50=$(PERF_BATCH=20 measureScript "$SCRIPTDIR/batchUpdate.lua" 50)
 
-printf '{"db":"%s","query_c50":%s,"query_c200":%s,"retrieve_c50":%s,"patch_c50":%s,"patch_c1":%s,"batch20_c50":%s}\n' \
-       "$DB" "$queryC50" "$queryC200" "$retrieve" "$patchC50" "$patchC1" "$batch20C50"
+printf '{"db":"%s","query_c50":%s,"query_c200":%s,"query_l1_c50":%s,"query_l100_c50":%s,"retrieve_c50":%s,"patch_c50":%s,"patch_c1":%s,"batch20_c50":%s}\n' \
+       "$DB" "$queryC50" "$queryC200" "$queryL1C50" "$queryL100C50" "$retrieve" "$patchC50" "$patchC1" "$batch20C50"
