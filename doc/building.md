@@ -295,11 +295,23 @@ whether `libmicrohttpd` is on the link line at all, so `ldd coraine` is the
 check that it took. A running broker reports it as `build.httpServer` on
 `GET /build`.
 
-`builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on one
-edge-triggered epoll loop, depending on nothing but kalloc and libc. Requests
-still run on corRest's worker pool — the loop only does I/O — and the wire
+`builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on
+edge-triggered epoll loops, depending on nothing but kalloc and libc. Requests
+still run on corRest's worker pool — the loops only do I/O — and the wire
 format it emits is byte-for-byte the one libmicrohttpd produced, because several
 hundred functional tests compare captured responses line by line.
+
+It runs **several loops sharing one port**, each with its own `accept()` on its
+own `SO_REUSEPORT` socket and its own work queue, so the kernel spreads incoming
+connections across them and no loop hands work to another. `--httpLoops` sets
+how many; the default, `0`, means one per core capped at four. Capped, because
+past four the box saturates and the extra throughput is paid for in tail latency
+— on 8 cores, eight loops bought 16% over four and made p99 seven times worse.
+Per-core, because four loops on a single core are four loops competing for it,
+which measures slower than one. `--httpLoops` is accepted on a libmicrohttpd
+build too, and ignored there: that server has a thread per connection and no
+loop of ours to multiply, and a deployment should not have to know which server
+its binary carries in order to write a command line.
 
 Two things it does not do, and both are deliberate rather than pending:
 
