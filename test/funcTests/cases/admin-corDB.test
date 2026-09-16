@@ -213,10 +213,12 @@ Content-Length: REGEX(\d+)
   "corNgsild": "post-0.2.0",
   "corRest": "0.1.0",
   "coraine version": "REGEX(\d+\.\d+\.\d+)",
-  "kalloc": "0.10.1",
-  "kargs": "0.10.0",
+  "kalloc": "0.10.2",
+  "kargs": "0.10.1",
   "kbase": "0.11.0",
+  "khash": "0.10.0",
   "kjson": "0.14.0",
+  "kprom": "0.1.1",
   "ktrace": "0.10.0"
 }
 

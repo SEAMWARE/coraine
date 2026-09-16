@@ -14,8 +14,10 @@
 #include "kbase/version.h"                        // KBASE_VERSION
 #include "kalloc/version.h"                       // KALLOC_VERSION
 #include "ktrace/ktraceVersion.h"                  // KTRACE_VERSION
+#include "khash/version.h"                        // KHASH_VERSION
 #include "kjson/version.h"                        // KJSON_VERSION
 #include "kargs/kargsVersion.h"                   // KARGS_VERSION
+#include "kprom/version.h"                        // KPROM_VERSION
 #include "corRest/version.h"                       // CORREST_VERSION
 #include "corRest/CorRestState.h"                   // corRest
 #include "corJsonld/corJsonld.h"                    // CORJSONLD_VERSION
@@ -53,8 +55,10 @@ bool adminGetVersion(void)
   kjChildAdd(root, kjString(kjsonP, "kbase",            KBASE_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kalloc",           KALLOC_VERSION));
   kjChildAdd(root, kjString(kjsonP, "ktrace",           KTRACE_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "khash",            KHASH_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kjson",            KJSON_VERSION));
   kjChildAdd(root, kjString(kjsonP, "kargs",            KARGS_VERSION));
+  kjChildAdd(root, kjString(kjsonP, "kprom",            KPROM_VERSION));
   kjChildAdd(root, kjString(kjsonP, "corRest",           CORREST_VERSION));
   kjChildAdd(root, kjString(kjsonP, "corJsonld",         CORJSONLD_VERSION));
   kjChildAdd(root, kjString(kjsonP, "corNgsild",         CORNGSILD_VERSION));
