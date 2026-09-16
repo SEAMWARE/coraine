@@ -103,6 +103,8 @@ static int distCandCmp(const void* a, const void* b)
 //
 int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* entities = corDbEntities(tenantP);
   KjNode* arrayP   = kjArray(corRest.kjsonP, NULL);
   int     limit    = (filterP != NULL) ? filterP->limit  : 0;

@@ -25,6 +25,8 @@
 //
 int corDbSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
 
   for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)

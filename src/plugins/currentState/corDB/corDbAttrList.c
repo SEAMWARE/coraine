@@ -133,6 +133,8 @@ static void recordTypeNamesFromEntity(KjNode* typeNamesArr, KjNode* typeP)
 //
 int corDbAttrList(Tenant* tenantP, bool details, KjNode** arrayPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* result = kjArray(corRest.kjsonP, NULL);
   *arrayPP = result;
 

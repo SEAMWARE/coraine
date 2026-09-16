@@ -76,6 +76,8 @@ static KjNode* liveById(KjNode* entities, const char* id)
 //
 int corDbEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** targetsV)
 {
+  COR_DB_READ(tenantP);
+
   if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
     return DB_ERR;
 
@@ -122,6 +124,8 @@ int corDbEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
                                 KjNode** mergedTargetsV, LdMergeReport* reportsV,
                                 int* resultsV)
 {
+  COR_DB_WRITE(tenantP);
+
   if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
     return DB_ERR;
 

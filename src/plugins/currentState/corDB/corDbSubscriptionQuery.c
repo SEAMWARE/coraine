@@ -26,6 +26,8 @@
 //
 int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
   // Request-arena array (freed at request end / after cache-load), matching
   // mongoc — a NULL (malloc) array would leak its container on every load.

@@ -26,6 +26,8 @@
 //
 int corDbSubscriptionCreate(Tenant* tenantP, const char* subId, KjNode* subP)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
 
   //

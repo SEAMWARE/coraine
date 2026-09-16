@@ -134,6 +134,8 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
 //
 int corDbTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* result = kjArray(corRest.kjsonP, NULL);
   *arrayPP = result;
 

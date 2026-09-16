@@ -33,6 +33,8 @@
 //
 int corDbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* regP)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* registrations = corDbRegistrations(tenantP);
 
   for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)

@@ -22,6 +22,7 @@
 #include "kjson/kjLookup.h"                              // kjLookup
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexRemove
 #include "currentState/corDB/corDbStore.h"             // corDbEntities
 #include "currentState/corDB/corDbEntityBulkUpdate.h"  // Own interface
 
@@ -33,6 +34,8 @@
 //
 int corDbEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
 {
+  COR_DB_WRITE(tenantP);
+
   if (entitiesArr == NULL || entitiesArr->type != KjArray)
     return DB_ERR;
 
@@ -79,7 +82,14 @@ int corDbEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     // Replace in place so the entity keeps its store (creation-order) position
     // — a GET without orderBy stays stable and matches mongoc, which preserves
     // createdAt on update. kjChildReplace does not free the old node.
+    //
+    // The index points at `existing`, which kjFree is about to destroy. Drop it
+    // before the swap and add the replacement after, or every later lookup of
+    // this id returns a pointer into freed memory.
+    //
+    corDbIndexRemove(corDbStoreOf(tenantP), existing);
     kjChildReplace(entities, existing, cloneP);
+    corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
     kjFree(existing);
     resultsV[ix] = DB_OK;
     anyOk        = true;
