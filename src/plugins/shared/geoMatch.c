@@ -85,7 +85,21 @@ static GEOSGeometry* geojsonToGeos(const char* geometry, const char* coordinates
 // Entity layout:
 //   { "id": "...", "type": "...", "location": { "@none": { "type": "GeoProperty", "value": { ... } } } }
 //
-// The geoproperty name is the expanded IRI (e.g. "https://uri.etsi.org/ngsi-ld/location").
+// The geoproperty name arrives in the SAME form the attribute is stored under,
+// which is what ldExpandParams produced for the query parameter:
+//
+//   location, observationSpace, operationSpace   short - they are core context
+//                                                terms and core terms are NOT
+//                                                expanded
+//   anything user-defined                        the expanded IRI
+//
+// This comment used to say "the expanded IRI (e.g.
+// https://uri.etsi.org/ngsi-ld/location)", which is wrong for exactly the three
+// names that matter here. It cost an afternoon: a deliberate break written
+// against it - fall back to kjLookup(entityP, "https://uri.etsi.org/ngsi-ld/location")
+// - was inert, looked like the test failing to discriminate, and sent the
+// investigation at the test instead of at the comment.
+//
 // Returns the "value" node of the GeoProperty (which is a GeoJSON object).
 //
 static KjNode* entityGeoPropGet(KjNode* entityP, const char* geoproperty)
@@ -363,8 +377,30 @@ bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry,
 {
   if (geoRel == NULL || geometry == NULL || coordinates == NULL)
     return true;  // no geo constraint
+  //
+  // A CSR without the named geo field MATCHES, and that is the semantics rather
+  // than a fallback.
+  //
+  // A registration's location / observationSpace / operationSpace are
+  // RESTRICTIONS on what the source covers - § 5.2.9 defines each as the
+  // geographic area that "includes the ... spaces of all entities ... for which
+  // the Context Source may be able to provide information". No restriction means
+  // no limit: such a registration covers this area, and every other area on
+  // earth and beyond.
+  //
+  // Compare geoMatch() above, where a missing GeoProperty means the opposite and
+  // returns false. That is § 7.2.4 - "Entities which do not convey the target
+  // GeoProperty of the query shall be considered as non-matching" - and it is a
+  // different kind of absence: an Entity's GeoProperty is a FACT about where the
+  // Entity is, so not having one cannot match a geometry. A CSR's is a CONSTRAINT
+  // on what it serves, so not having one constrains nothing.
+  //
+  // Same NULL, opposite meaning. Worth stating, because "be permissive" would be
+  // the wrong reason to arrive at the right answer, and would not survive the
+  // next person tidying it up.
+  //
   if (csrGeoP == NULL)
-    return true;  // CSR didn't declare this geo field — match by default
+    return true;
 
   GEOSGeometry* refGeom = geojsonToGeos(geometry, coordinates);
   if (refGeom == NULL)
