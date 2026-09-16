@@ -325,50 +325,146 @@ concatenation of the pages is the result set - in order, no repeats, no gaps.
 - a result set whose size is an exact multiple of `limit`, where the last page is
   full and the `next` link must not appear.
 
-## 15. Persistence, the binary protocol, and one serializer for both
+## 15. Persistence: one log, and history as a retention policy on it
 
 corDB holds its entities in RAM. That is why it beats a broker on MongoDB by
 the margins in `doc/performance.md`, and it is also why those margins are not a
-like-for-like comparison: one of the two survives a restart.
+like-for-like comparison: one of the two survives a restart. It is also the one
+FIWARE requirement where the interesting configuration is the weaker answer -
+see `doc/fiware-ge-checklist.md`.
 
-The order of work matters here, and it is not the obvious one. **The binary
-protocol comes first.** `cor://` is on the roadmap for GE-to-GE traffic, and it
-needs exactly what persistence needs: a KjNode tree turned into bytes and back.
-Design the serialization once, for the wire, and persistence is the same
-algorithm pointed at a file. Design persistence first and we will have two
-formats, diverging, with the second one arriving as "the other serializer".
+### The shape
 
-The shape, as far as it is decided:
+**One append-only log is the whole mechanism.** Every mutation is appended with
+its timestamps. That single artefact does three jobs, which is the reason to
+build it this way rather than three:
 
-- **The disk is mapped, not read.** `mmap` the store file so a restart does not
-  parse anything: the tree is already there. That constrains the format far
-  more than a read-based one would - offsets rather than pointers, no
-  allocation during load - which is another reason to settle it before writing
-  either half.
-- **Size becomes a first-class concern**, in a way it has never been for the
-  in-RAM store. On disk it is the file; for the history database it is the file
-  multiplied by every change ever made. This is where the **NGSI-LD aware
-  parser** pays for itself: the core terms are a closed set, so `"type"`,
-  `"value"`, `"observedAt"`, `"Property"`, `"Relationship"` and the rest become
-  an enum rather than a string - smaller on disk, smaller in RAM, and a compare
-  rather than a `strcmp` everywhere in the broker. Do it once, gain always.
-- **No new libraries.** Everything this needs is in libc: `open`, `write`,
-  `fdatasync`, `rename`, `mmap`, `msync`, `ftruncate`. If we ever want
-  compression or a checksum, `libz`/`libzstd` are already in a bare
-  `ubuntu:26.04`, so even that adds nothing to install. The
-  `corDB` + `corDB` deployment stays at **3 added libraries** after
-  persistence - and both of those are optional features (GEOS, mosquitto)
-  rather than storage.
+1. **Durability** - replay it to recover.
+2. **History (TRoE)** - it *is*, by construction, every value that was ever
+   current. Nothing has to be written twice and nothing can disagree.
+3. **`cor://`** - the same records, framed for a socket instead of a file.
 
-What is NOT worth doing yet is measuring the cost. Snapshot-versus-log,
-fsync-per-write versus group commit, mapped versus written - these have wildly
-different prices, and pricing them before the format is chosen measures a
-guess. The number to have eventually is the honest caveat on every corDB
-performance claim we make.
+The in-RAM tree is then not a second copy of the truth; it is a **materialised
+view of the log's tail**, kept because reads want "the latest value of this
+attribute" in O(1) and a time-ordered log cannot give them that. The
+duplication buys the access pattern, which is what any index is for.
 
----
+**Snapshots bound recovery.** Periodically write the tree out; replay only the
+log after it. Under the per-tenant rwlock a snapshot can simply take the write
+lock - at ~350 MiB per 100 000 entities that is sub-second, and correct, which
+beats a copy-on-write scheme nobody can reason about.
 
-## 16. corDB history is a boolean, not a plugin choice
+**Group-commit `fsync`, on a timer.** Per-request `fsync` costs an order of
+magnitude on writes; a ~100 ms timer costs almost nothing and loses at most the
+last 100 ms on power loss - which is what MongoDB's journal does by default, so
+it is parity rather than a compromise we invented. Configurable for anyone who
+wants per-request durability and will pay for it.
+
+### What history stores is CONFIGURABLE, and that is not a detail
+
+Recording everything is the wrong default for size and the right default for
+surprise, so: **default everything, and let people narrow it.**
+
+The selector is shaped like a subscription, because that is the shape users
+already know and the semantics they already expect:
+
+- **entity selection** - type, id, idPattern, as `entities` in a subscription
+- **attribute selection** - a list, as `watchedAttributes`
+- **include or exclude** - with "everything" as the default, the first thing
+  anybody wants is "everything except this one enormous attribute", so an
+  exclusion list is not a later refinement
+- **CRUD at runtime**, and persisted itself so it survives a restart
+
+⚠️ **Subscription semantics in the one way that matters: it affects the
+future, not the past.** A selector is evaluated when the record is written, and
+the record carries the verdict. Changing the selector does not retroactively
+create history that was never recorded, and does not retroactively delete
+history that was. Anything else makes "what is in my history" unanswerable.
+
+This is implementation-defined - NGSI-LD says nothing about it - which means we
+also owe it clear documentation, because nobody can read the specification to
+find out how it behaves.
+
+**The selector sits ABOVE the plugin seam.** It is a broker-level concept, not
+a corDB one, so a deployment writing history to TimescaleDB gets the same size
+saving from the same configuration. Putting it inside corDB would mean writing
+it twice and having the two disagree.
+
+### So what does the TRoE boolean actually switch?
+
+Not whether the log is written - durability needs it regardless. It switches
+**retention**:
+
+| | keeps |
+|---|---|
+| history off | only back to the last snapshot; compaction discards the rest |
+| history on | history-eligible records for as long as the retention policy says |
+
+Which is the honest answer to "a boolean to the db init function and after that
+it just works": the log is unconditional, the selector decides what is
+*eligible*, and the boolean plus a retention window decide how long eligible
+records live. Compaction is where all three meet, and it is the only place that
+needs to understand them.
+
+### The part that is actually hard
+
+**Temporal queries need an index.** `timerel=between`, `lastN`, aggregation -
+over a raw append log every one of those is a full scan. TimescaleDB supplies
+that index today and an in-process history has to supply its own, keyed
+`(entity, attribute, time)`. This is larger than the logging and it is the item
+to be honest about in any estimate: the log is a week, the index is not.
+
+**Size.** History is unbounded where current state is not, so this is where the
+**NGSI-LD aware parser** pays for itself: the core terms are a closed set, so
+`"type"`, `"value"`, `"observedAt"`, `"Property"`, `"Relationship"` become an
+enum rather than a string - repeated once per historical sample rather than per
+sample per character. The selector is the other half of the same answer.
+
+**Deletion.** Tombstones in the log, and NGSI-LD's `deletedAt` semantics to
+honour - so a record carries createdAt/modifiedAt/deletedAt *and* observedAt,
+not just a value.
+
+### No new libraries, still
+
+Everything above needs `open`, `write`, `fdatasync`, `rename`, `ftruncate`.
+Compression or a checksum would want `libz`/`libzstd`, and both are already in
+a bare `ubuntu:26.04`. So the `corDB` + `corDB` deployment stays at **three
+added libraries** after persistence, and both of those are optional features
+(GEOS, mosquitto) rather than storage.
+
+### mmap
+
+Floated, and **not** on the critical path. Mapping the store file would make a
+restart free, but it forces offsets instead of pointers and no allocation
+during load, which is a different data structure rather than an edit to the
+current one - a kjson-level change. The log-and-snapshot design above does not
+foreclose it: if the record format is defined without pointer assumptions, a
+mapped load can be added later as an optimisation rather than a rewrite.
+
+### Order of work
+
+1. **The record format.** It is the gate: `cor://`, the log and the snapshot
+   all need it, and specifying it once is the difference between one serializer
+   and two that diverge.
+2. **Log + snapshot + recovery**, with group-commit `fsync`. This is what
+   closes the FIWARE requirement and the "toy" objection.
+3. **The selector**, with its documentation.
+4. **The temporal index**, which is what makes in-process history answer
+   queries rather than merely hold data.
+
+### Still open
+
+- **Retention policy shape** - a duration, a record count, a byte budget, or
+  all three? A byte budget is the one an operator can actually reason about on
+  a device, and it pairs with § 12.
+- **Should the selector support `q`?** "Record only while speed > 50" is
+  genuinely useful for anomaly history and genuinely awkward to evaluate per
+  write. Deferred, not rejected.
+- **One log per tenant, or one per broker?** Per tenant matches the lock and
+  the store, and makes a tenant drop a file delete. Per broker is one fsync
+  instead of N. Leaning per tenant.
+
+## 16. corDB history is intrinsic; timescale stays a plugin
 
 `--troe ramdb` selects a TRoE plugin that keeps temporal history in the
 process. Measured on eight shared cores, it costs **nothing**: 40 257 req/s
@@ -378,13 +474,24 @@ in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
 
 So the in-process option is the interesting one, and it should not be reached
 through the plugin mechanism at all. When the current-state store is corDB, its
-history is the same tree with the same lock and the same index - a boolean in
+history is the same log, the same lock and the same index - a boolean in
 `corDbInit()`, not a separate `.so` with its own copy of the store. `ramdb` as
 a plugin made sense while corDB was `corRamDB` and temporal was somebody
 else's problem; it stopped making sense when both halves became the same data
-structure.
+structure. See § 15 for what the boolean actually switches, which is retention.
 
----
+**The plugin seam itself stays**, and the symmetry is the point:
+
+| | current state | history |
+|---|---|---|
+| in this process | `corDB` | `corDB`, via the boolean |
+| an external server | `mongoc` plugin | `timescale` plugin |
+
+Four combinations, one seam, and no option whose meaning changes depending on
+the other axis. Somebody will legitimately want history in PostgreSQL so they
+can run SQL and BI over it - that is a different choice, not a worse one - so
+`timescale` remains exactly what `mongoc` is: the external-server answer on its
+axis.
 
 ## 17. Two performance questions the 2026-09-16 numbers raised
 
