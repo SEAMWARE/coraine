@@ -25,6 +25,8 @@
 //
 int corDbRegistrationDelete(Tenant* tenantP, const char* regId)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* registrations = corDbRegistrations(tenantP);
 
   for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)

@@ -22,6 +22,7 @@
 #include "kjson/kjLookup.h"                            // kjLookup
 
 #include "db/DbDriver.h"                               // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd
 #include "currentState/corDB/corDbStore.h"           // corDbEntities
 #include "currentState/corDB/corDbEntityBulkCreate.h"// Own interface
 
@@ -33,6 +34,8 @@
 //
 int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
 {
+  COR_DB_WRITE(tenantP);
+
   if (entitiesArr == NULL || entitiesArr->type != KjArray)
     return DB_ERR;
 
@@ -77,6 +80,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     }
 
     kjChildAdd(entities, cloneP);
+    corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
     resultsV[ix] = DB_OK;
     anyOk        = true;
   }

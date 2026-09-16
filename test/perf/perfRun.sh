@@ -117,9 +117,54 @@ measure() {
   printf '%s\n' "${rpsList[@]}" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'
 }
 
+
+#
+# measureScript - the same, for a request wrk cannot express as a URL
+#
+# Anything that is not a GET needs a Lua script, because wrk's command line has
+# no way to say "PATCH, with this body".
+#
+measureScript() {
+  local script="$1" conns="$2" rpsList=()
+  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$THREADS" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null 2>&1
+  for _ in $(seq 1 "$REPEATS"); do
+    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$THREADS" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
+  done
+  printf '%s\n' "${rpsList[@]}" | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'
+}
+
 queryC50=$(measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50)
 queryC200=$(measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200)
 retrieve=$(measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50)
 
-printf '{"db":"%s","query_c50":%s,"query_c200":%s,"retrieve_c50":%s}\n' \
-       "$DB" "$queryC50" "$queryC200" "$retrieve"
+#
+# WRITES. Until 2026-09-15 this script measured three request shapes and every
+# one of them was a read - so half of what a context broker does was unmeasured,
+# and it was the half that was broken: corDB had no locking at all and twenty
+# concurrent PATCHes killed the broker. Nothing here would ever have noticed.
+#
+# patch_c50 is the characteristic write - a device reporting a new value for an
+# entity that already exists - at the same concurrency as query_c50, so the two
+# are directly comparable.
+#
+# patch_c1 is the same write with ONE connection. The pair is the point: a
+# server that is fast alone and collapses in company says so in the ratio, and
+# that is exactly the shape the corDB bug had (30 433 req/s at c1, dead at c20).
+#
+SCRIPTDIR=$(cd "$(dirname "$0")" && pwd)
+patchC50=$(measureScript "$SCRIPTDIR/patchAttr.lua" 50)
+patchC1=$(measureScript  "$SCRIPTDIR/patchAttr.lua" 1)
+
+#
+# The same write, twenty at a time. Per ENTITY it should be far cheaper - one
+# HTTP request, one URL-param parse, one @context resolution and one lock
+# acquisition amortised over twenty instead of paid twenty times.
+#
+# batch20_c50 x 20 against patch_c50 is the ratio worth watching: it says what
+# batching is actually worth, and a ratio near 1 would say the per-request
+# overhead is not where the time goes.
+#
+batch20C50=$(PERF_BATCH=20 measureScript "$SCRIPTDIR/batchUpdate.lua" 50)
+
+printf '{"db":"%s","query_c50":%s,"query_c200":%s,"retrieve_c50":%s,"patch_c50":%s,"patch_c1":%s,"batch20_c50":%s}\n' \
+       "$DB" "$queryC50" "$queryC200" "$retrieve" "$patchC50" "$patchC1" "$batch20C50"

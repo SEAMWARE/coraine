@@ -25,6 +25,8 @@
 //
 int corDbRegistrationRetrieve(Tenant* tenantP, const char* regId, KjNode** regPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* registrations = corDbRegistrations(tenantP);
 
   for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)

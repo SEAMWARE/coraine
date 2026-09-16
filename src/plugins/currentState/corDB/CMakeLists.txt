@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 SET(SOURCES
   corDbGlobals.c
+  corDbIndex.c
   corDbStore.c
   corDbRegister.c
   corDbInit.c

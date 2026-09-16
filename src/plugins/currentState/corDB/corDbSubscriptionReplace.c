@@ -33,6 +33,8 @@
 //
 int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, KjNode* subP)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
 
   for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)

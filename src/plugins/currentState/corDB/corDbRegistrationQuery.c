@@ -25,6 +25,8 @@
 //
 int corDbRegistrationQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP)
 {
+  COR_DB_READ(tenantP);
+
   KjNode* registrations = corDbRegistrations(tenantP);
   // Request-arena array (freed after use), matching mongoc — a NULL (malloc)
   // array would leak its container on every cache-load.

@@ -1,0 +1,141 @@
+#
+# FILE            concurrent_writes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Simultaneous writes must not corrupt the store.
+#
+# This suite runs ONE REQUEST AT A TIME, and the performance tests only ever
+# read - so until this test existed, nothing anywhere had sent two simultaneous
+# writes to a broker. corDB had no locking at all and nobody knew: twenty
+# concurrent PATCHes killed it with `malloc(): unaligned tcache chunk detected`,
+# reproducibly, while one connection served 30 433 req/s happily. It was found
+# by accident, while measuring something else.
+#
+# Every write relinks pointers - in the entity ARRAY (create, delete) and in the
+# child list of the entity being changed (patch). So all three shapes are fired
+# here, because they corrupt different lists:
+#
+#   1. concurrent CREATE of distinct entities   -> the entity array
+#   2. concurrent PATCH of ONE entity           -> that entity's child list
+#   3. concurrent DELETE                        -> the entity array again
+#
+# The assertions are COUNTS, not values. Which of fifty racing values lands last
+# is timing and means nothing; that all fifty entities exist afterwards, that
+# the broker is alive, and that none of them vanished or doubled, is the claim.
+#
+# Runs on both DB plugins on purpose. The race is corDB's, but a test that only
+# ran where the bug was would not notice the same bug arriving in the other one.
+#
+--NAME--
+Simultaneous writes leave the store coherent (and the broker alive)
+
+--TAGS--
+concurrency write robustness
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Fifty entities created SIMULTANEOUSLY - the entity array under load"
+echo "======================================================================="
+#
+# PLAIN curl, not corCurl, and the pids are collected rather than a bare `wait`.
+#
+# corCurl is not safe to run fifty times in parallel - it interferes with itself
+# and the entities go missing. A first version of this test used it and baked
+# "9 of 50 created" into its expect, which would have been a test asserting a
+# race in the HARNESS. Fifty plain curls create fifty entities, every time.
+#
+pids=""
+for i in $(seq 1 50); do
+  curl -s -o /dev/null -X POST "http://localhost:$CB_PORT/ngsi-ld/v1/entities" \
+       -H 'Content-Type: application/json' \
+       -d "{\"id\":\"urn:ngsi-ld:C:$i\",\"type\":\"T\",\"n\":{\"type\":\"Property\",\"value\":$i}}" &
+  pids="$pids $!"
+done
+for p in $pids; do wait $p; done
+echo "All fifty present, none lost, none doubled:"
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=0&count=true' | grep -i 'NGSILD-Results-Count'
+echo
+echo
+
+
+echo "02. Forty simultaneous PATCHes of the SAME entity - one child list under load"
+echo "============================================================================"
+pids=""
+for i in $(seq 1 40); do
+  curl -s -o /dev/null -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:C:1/attrs" \
+       -H 'Content-Type: application/json' -d "{\"n\":{\"type\":\"Property\",\"value\":$i}}" &
+  pids="$pids $!"
+done
+for p in $pids; do wait $p; done
+echo "The broker is alive and the entity is still one well-formed entity:"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:C:1?options=keyValues' | grep -cE '"id"|"type"|"n"'
+echo "   ^ three members (id, type, n)"
+echo
+echo
+
+
+echo "03. Simultaneous PATCHes of FIFTY DIFFERENT entities"
+echo "==================================================="
+pids=""
+for i in $(seq 1 50); do
+  curl -s -o /dev/null -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:C:$i/attrs" \
+       -H 'Content-Type: application/json' -d '{"n":{"type":"Property","value":999}}' &
+  pids="$pids $!"
+done
+for p in $pids; do wait $p; done
+echo "Still fifty:"
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=0&count=true' | grep -i 'NGSILD-Results-Count'
+echo
+echo
+
+
+echo "04. Fifty simultaneous DELETEs - the entity array again, unlinking"
+echo "================================================================="
+pids=""
+for i in $(seq 1 50); do
+  curl -s -o /dev/null -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:C:$i" &
+  pids="$pids $!"
+done
+for p in $pids; do wait $p; done
+echo "All gone, and the broker still answers:"
+corCurl --url '/ngsi-ld/v1/entities?type=T&limit=0&count=true' | grep -i 'NGSILD-Results-Count'
+echo
+echo
+
+
+--EXPECT--
+01. Fifty entities created SIMULTANEOUSLY - the entity array under load
+=======================================================================
+All fifty present, none lost, none doubled:
+NGSILD-Results-Count: 50
+
+
+02. Forty simultaneous PATCHes of the SAME entity - one child list under load
+============================================================================
+The broker is alive and the entity is still one well-formed entity:
+3
+   ^ three members (id, type, n)
+
+
+03. Simultaneous PATCHes of FIFTY DIFFERENT entities
+===================================================
+Still fifty:
+NGSILD-Results-Count: 50
+
+
+04. Fifty simultaneous DELETEs - the entity array again, unlinking
+=================================================================
+All gone, and the broker still answers:
+NGSILD-Results-Count: 0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

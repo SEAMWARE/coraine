@@ -30,6 +30,8 @@
 //
 int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmentP)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
 
   //

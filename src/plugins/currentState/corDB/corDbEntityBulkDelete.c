@@ -23,6 +23,7 @@
 #include "corRest/CorRestState.h"                           // corRest (kjsonP arena)
 
 #include "db/DbDriver.h"                                  // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexRemove
 #include "currentState/corDB/corDbStore.h"              // corDbEntities
 #include "currentState/corDB/corDbEntityBulkDelete.h"   // Own interface
 
@@ -35,6 +36,8 @@
 int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
                           int* resultsV, KjNode** snapshotsV)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* entities = corDbEntities(tenantP);
   bool    anyOk    = false;
 
@@ -60,6 +63,7 @@ int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
     }
 
     snapshotsV[i] = kjClone(corRest.kjsonP, match);   // arena snapshot for notify
+    corDbIndexRemove(corDbStoreOf(tenantP), match);
     kjChildRemove(entities, match);
     kjFree(match);                                    // free the malloc store node
     resultsV[i] = DB_OK;

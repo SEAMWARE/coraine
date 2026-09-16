@@ -25,6 +25,8 @@
 //
 int corDbSubscriptionDelete(Tenant* tenantP, const char* subId)
 {
+  COR_DB_WRITE(tenantP);
+
   KjNode* subscriptions = corDbSubscriptions(tenantP);
 
   for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
