@@ -70,7 +70,6 @@ Content-Length: REGEX([0-9]+)
     "kbase": "REGEX([0-9a-f]{40})",
     "khash": "REGEX([0-9a-f]{40})",
     "kjson": "REGEX([0-9a-f]{40})",
-    "klog": "REGEX([0-9a-f]{40})",
     "kprom": "REGEX([0-9a-f]{40})",
     "ktrace": "REGEX([0-9a-f]{40})"
   },

@@ -190,7 +190,7 @@ is already in. A lib regression is discovered by the consumer, one merge too lat
 
 Where things stand:
 
-- **k-libs** — `kjson`, `kalloc`, `kbase`, `klog`, `ktrace`, `khash`, `kargs`,
+- **k-libs** — `kjson`, `kalloc`, `kbase`, `ktrace`, `khash`, `kargs`,
   `kprom` each already ship a test binary (`kallocTest`, `kTest`, `khashTest`, …).
   They are written and they are not run by anything. This is the cheap half: a
   workflow per repo that builds the lib and runs its existing binary.
