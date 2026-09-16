@@ -29,14 +29,23 @@ incorporated in the next release of the product, in roughly this order:
     `(urn:ngsi-ld:robot:1, pose)`, and a change to that attribute publishes a
     sample.
 
-    This is first on the list, and it is the item that drags the transport seam
-    into existence: DDS is the first peer that is *not* an NGSI-LD broker and
-    *not* HTTP, so everything the broker assumes about request/response has to
-    be made explicit to accommodate it. The design is worked out in
-    [Bridges and Channels](bridge-channels.md) — a **Bridge** is the transport
-    instance (for DDS the participant: domain, QoS defaults, types directory), a
-    **Channel** ties one foreign endpoint to one entity attribute with a
-    direction and a retention.
+    This is first on the list, and it does not wait for anybody. DDS is the
+    first peer that is *not* an NGSI-LD broker and *not* HTTP, so everything the
+    broker assumes about request/response has to be made explicit to
+    accommodate it — and that mechanism is ours to design and ship now. It is
+    worked out in [Bridges and Channels](bridge-channels.md): a **Bridge** is
+    the transport instance (for DDS the participant — domain, QoS defaults,
+    types directory), a **Channel** ties one foreign endpoint to one entity
+    attribute with a direction and a retention.
+
+    **Standardisation is a separate, slower track.** The same concept is being
+    taken to ETSI — presented at the TC DATA face-to-face in Athens, 20–22
+    October 2026 — and anything that becomes normative there will realistically
+    land in 2027. Waiting for it would mean no DDS for a year and a half. So
+    coraine implements its own Bridge and Channel objects now and adapts to
+    whatever TC DATA settles on, which is the cheaper direction to be wrong in:
+    an implementation that exists can be aligned, a specification nobody
+    implemented cannot be validated.
 
 -   **`cor://` — a binary protocol for GE-to-GE traffic.** TLV-framed, beside
     REST rather than instead of it, with no JSON parse on the hot path. It covers
@@ -71,6 +80,8 @@ incorporated in the next release of the product, in roughly this order:
     transport — a subscription or a registration asks for one by the scheme of
     its endpoint, and HTTP stays inline rather than becoming a plugin, because
     HTTP is also the NGSI-LD REST API and the broker can never ship without it.
+
+    This is our mechanism, not a standard. See the note under DDS above.
 
 -   **Service Execution.** Actuation as a first-class citizen of the API, beyond
     the suggested workflows of TS 104 175 Annex G. DDS makes this concrete rather
@@ -120,6 +131,14 @@ typically within the subsequent release(s) generated in the next **9 months**:
 
 -   **More cor-agent plugins**, driven by what deployments actually ask for
     rather than by completing a matrix.
+
+-   **Aligning Bridges and Channels with ETSI.** Expected in **2027**, on
+    whatever TC DATA standardises after the Athens face-to-face of October 2026.
+    Budgeted as adaptation work rather than as new capability: the objects, the
+    endpoint-scheme convention and the codec seam are likely to move, and the
+    transports carried over them are not. Listed here so that nobody reads
+    coraine's Bridge and Channel as already-standard NGSI-LD — they are not, and
+    the design notes say so on their first page.
 
 -   **OPC UA.** Variables as attributes, monitored items as subscriptions,
     methods as Service Execution.
