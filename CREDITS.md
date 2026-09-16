@@ -30,7 +30,7 @@ The last five are loaded only if you ask for them: a `corHttp` + `corDB` broker
 maps three libraries beyond what a bare `ubuntu:26.04` already has, and two of
 those three are GEOS.
 
-The **k-libs** (`kbase`, `kalloc`, `klog`, `khash`, `kjson`, `kargs`, `ktrace`,
+The **k-libs** (`kbase`, `kalloc`, `khash`, `kjson`, `kargs`, `ktrace`,
 `kprom`) and the **Cor-Libs** (`corRest`, `corNgsild`, `corJsonld`, `corPlugin`,
 `corTest`) are ours, developed alongside the broker and released separately.
 

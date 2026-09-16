@@ -57,7 +57,7 @@ make di            # debug build + install (binary + plugins → /opt/seamware, 
 
 ## Dependency stack
 
-- **k-libs** (gitlab.com/kzangeli): `kbase kalloc klog khash kjson kargs ktrace kprom`
+- **k-libs** (gitlab.com/kzangeli): `kbase kalloc khash kjson kargs ktrace kprom`
 - **Cor-Libs** (github.com/SEAMWARE): `corRest corNgsild corJsonld corPlugin`
 - **umbrella / test runner**: `corLibs`, `corTest`
 
