@@ -9,20 +9,33 @@ use_directory_urls: false
 theme: readthedocs
 extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 #
-# bridge-channels.md and problem-details.md are DELIBERATELY not in the nav, so
-# mkdocs reports them as "exist in the docs directory, but are not included in
-# the nav" on every build. That is expected, not an oversight.
+# bridge-channels.md and problem-details.md are EXCLUDED from the build, not
+# merely left out of the nav.
 #
-# They are working design notes for concepts going to the ETSI TC DATA
-# face-to-face in Athens, 20-22 October 2026 - not implemented, and in the case
-# of Bridges and Channels not standard NGSI-LD either. Publishing them on Read
-# the Docs beside the user documentation would present proposals as product.
-# The material goes to Athens as slide decks instead.
+# Leaving a page out of `nav` does not unpublish it: mkdocs builds every .md
+# under docs_dir regardless, so both were live and reachable by URL with no
+# sidebar and no context around them - which is the worst way for a reader to
+# arrive at an unimplemented proposal. `exclude_docs` is what actually keeps
+# them off the site.
 #
-# They stay in doc/ because roadmap.md links them and because the reasoning in
-# them is what stops settled decisions from being re-argued. If either is ever
-# implemented, that is the moment to add it here.
+# They are working design notes for the two concepts going to the ETSI TC DATA
+# face-to-face in Athens, 20-22 October 2026. Neither is implemented, and
+# Bridges and Channels is not standard NGSI-LD. The material goes to Athens as
+# slide decks; until then it is not something to publish beside the user
+# documentation.
 #
+# ⚠️ This governs the DOCUMENTATION SITE only. Both files are still in this
+# public repository and visible on GitHub. If they should not be public at all,
+# they have to leave the repository - and git history keeps them either way.
+#
+# They stay in doc/ for now because the reasoning in them is what stops a
+# settled decision from being re-argued. Implementation is the trigger for
+# publishing either.
+#
+exclude_docs: |
+  bridge-channels.md
+  problem-details.md
+
 nav:
   - Home: index.md
   - Installation & Administration: installation.md

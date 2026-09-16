@@ -10,7 +10,7 @@ have a menu on the table when they do. Draft 2026-09-11, revised 2026-09-16.
 >
 > **The slot.** TC DATA face-to-face, **Athens, 20–22 October 2026**. This is
 > one of two concepts going into that meeting; the other is
-> [Bridges and Channels](bridge-channels.md). Still an ice-breaker and still not
+> Bridges and Channels (`doc/bridge-channels.md`). Still an ice-breaker and still not
 > a CR — except for § 6.3.2's missing status code, which is a clean standalone
 > CR and should be filed as one regardless of how the discussion goes.
 >
