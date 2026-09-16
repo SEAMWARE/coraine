@@ -30,6 +30,45 @@ REPEATS=${PERF_REPEATS:-3}
 # names its flags.
 #
 BROKER_ARGS=${PERF_BROKER_ARGS:-}
+#
+# PERF_BROKER_CORES - pin the broker to this many PHYSICAL cores and the load
+# generator to cores the broker was never given. Unset: no pinning at all, which
+# is what the nightly wants (it compares runs of itself on the same runner).
+#
+# Set it to 1 and the run answers "per core", which is the number worth
+# publishing: a throughput figure without a core count beside it says more about
+# the machine than about the broker.
+#
+# SMT is the trap, and not a hypothetical - it cost a whole afternoon in
+# coreScale.sh, where the load generator landed on the SIBLINGS of the broker's
+# own cores and the scaling curve turned DOWN at the top, which reads exactly
+# like a broker that fails to scale. So one logical CPU per physical core, read
+# from sysfs rather than assumed.
+#
+BROKER_CORES=${PERF_BROKER_CORES:-}
+brokerPin=() ; loadPin=()
+if [ -n "$BROKER_CORES" ]; then
+  mapfile -t physCpus < <(
+    for d in /sys/devices/system/cpu/cpu[0-9]*; do
+      id=${d##*/cpu}
+      sib=$(cut -d, -f1 < "$d/topology/thread_siblings_list" 2>/dev/null || echo "$id")
+      [ "$sib" = "$id" ] && echo "$id"
+    done | sort -n
+  )
+  physical=${#physCpus[@]}
+  if [ "$BROKER_CORES" -ge "$physical" ]; then
+    echo "perfRun.sh: PERF_BROKER_CORES=$BROKER_CORES leaves nothing to drive the load ($physical physical cores)" >&2
+    exit 1
+  fi
+  #
+  # The load generator gets every physical core the broker did not get. It runs
+  # on this same machine and competes for cache and memory bandwidth either way,
+  # so the broker is if anything understated - never flattered.
+  #
+  brokerPin=( taskset -c "$(IFS=,; echo "${physCpus[*]:0:BROKER_CORES}")" )
+  loadPin=(   taskset -c "$(IFS=,; echo "${physCpus[*]:BROKER_CORES}")" )
+  echo "perfRun.sh: broker on ${brokerPin[2]}, load generator on ${loadPin[2]}" >&2
+fi
 
 case "$DB" in
   mongoc) dbArgs="--database mongoc --dbHost $HOST --dbName corperf" ;;
@@ -82,7 +121,7 @@ stopBroker() {
 
 awaitPortFree
 
-coraine --port "$PORT" $dbArgs --troe none $BROKER_ARGS > /tmp/perf-broker.log 2>&1 &
+"${brokerPin[@]}" coraine --port "$PORT" $dbArgs --troe none $BROKER_ARGS > /tmp/perf-broker.log 2>&1 &
 brokerPid=$!
 trap stopBroker EXIT
 
@@ -146,9 +185,9 @@ median() {
 measure() {
   local url="$1" conns="$2" rpsList=() t
   t=$(wrkThreads "$conns")
-  wrk -t"$t" -c"$conns" -d2s "$url" > /dev/null 2>&1        # warmup
+  "${loadPin[@]}" wrk -t"$t" -c"$conns" -d2s "$url" > /dev/null 2>&1        # warmup
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(wrk -t"$t" -c"$conns" -d"$DURATION" "$url" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
+    rpsList+=( "$("${loadPin[@]}" wrk -t"$t" -c"$conns" -d"$DURATION" "$url" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
   done
   median "-t$t -c$conns $url" "${rpsList[@]}"
 }
@@ -163,9 +202,9 @@ measure() {
 measureScript() {
   local script="$1" conns="$2" rpsList=() t
   t=$(wrkThreads "$conns")
-  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null 2>&1
+  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" "${loadPin[@]}" wrk -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null 2>&1
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrk -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
+    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" "${loadPin[@]}" wrk -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT" 2>/dev/null | awk '/Requests\/sec/{printf "%.0f", $2}')" )
   done
   median "-t$t -c$conns -s $(basename "$script")" "${rpsList[@]}"
 }
