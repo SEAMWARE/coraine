@@ -325,6 +325,110 @@ concatenation of the pages is the result set - in order, no repeats, no gaps.
 - a result set whose size is an exact multiple of `limit`, where the last page is
   full and the `next` link must not appear.
 
+## 15. Persistence, the binary protocol, and one serializer for both
+
+corDB holds its entities in RAM. That is why it beats a broker on MongoDB by
+the margins in `doc/performance.md`, and it is also why those margins are not a
+like-for-like comparison: one of the two survives a restart.
+
+The order of work matters here, and it is not the obvious one. **The binary
+protocol comes first.** `cor://` is on the roadmap for GE-to-GE traffic, and it
+needs exactly what persistence needs: a KjNode tree turned into bytes and back.
+Design the serialization once, for the wire, and persistence is the same
+algorithm pointed at a file. Design persistence first and we will have two
+formats, diverging, with the second one arriving as "the other serializer".
+
+The shape, as far as it is decided:
+
+- **The disk is mapped, not read.** `mmap` the store file so a restart does not
+  parse anything: the tree is already there. That constrains the format far
+  more than a read-based one would - offsets rather than pointers, no
+  allocation during load - which is another reason to settle it before writing
+  either half.
+- **Size becomes a first-class concern**, in a way it has never been for the
+  in-RAM store. On disk it is the file; for the history database it is the file
+  multiplied by every change ever made. This is where the **NGSI-LD aware
+  parser** pays for itself: the core terms are a closed set, so `"type"`,
+  `"value"`, `"observedAt"`, `"Property"`, `"Relationship"` and the rest become
+  an enum rather than a string - smaller on disk, smaller in RAM, and a compare
+  rather than a `strcmp` everywhere in the broker. Do it once, gain always.
+- **No new libraries.** Everything this needs is in libc: `open`, `write`,
+  `fdatasync`, `rename`, `mmap`, `msync`, `ftruncate`. If we ever want
+  compression or a checksum, `libz`/`libzstd` are already in a bare
+  `ubuntu:26.04`, so even that adds nothing to install. The
+  `corDB` + `corDB` deployment stays at **3 added libraries** after
+  persistence - and both of those are optional features (GEOS, mosquitto)
+  rather than storage.
+
+What is NOT worth doing yet is measuring the cost. Snapshot-versus-log,
+fsync-per-write versus group commit, mapped versus written - these have wildly
+different prices, and pricing them before the format is chosen measures a
+guess. The number to have eventually is the honest caveat on every corDB
+performance claim we make.
+
+---
+
+## 16. corDB history is a boolean, not a plugin choice
+
+`--troe ramdb` selects a TRoE plugin that keeps temporal history in the
+process. Measured on eight shared cores, it costs **nothing**: 40 257 req/s
+against 40 073 for `--troe none`, and 123 307 PATCH/s against 125 187. History
+in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
+(11 099) and **94% of its batch rate**.
+
+So the in-process option is the interesting one, and it should not be reached
+through the plugin mechanism at all. When the current-state store is corDB, its
+history is the same tree with the same lock and the same index - a boolean in
+`corDbInit()`, not a separate `.so` with its own copy of the store. `ramdb` as
+a plugin made sense while corDB was `corRamDB` and temporal was somebody
+else's problem; it stopped making sense when both halves became the same data
+structure.
+
+---
+
+## 17. Two performance questions the 2026-09-16 numbers raised
+
+Both are measured facts without explanations, which is the worst kind of
+performance result to leave lying around.
+
+**corHttp is now SLOWER than libmicrohttpd on one core, and
+`--connectionPoolSize` is why - but the fix is not a new default.** 5 901 req/s
+against 6 588; it used to be the other way round.
+
+Not the loop count: `--httpLoops` resolves to 1 on one core, which is right,
+and forcing 2 or 4 there is worse. Not the per-loop work queue either - the
+worker pool is deliberately separate from the loop so the loop never blocks,
+and that handoff predates the sharding.
+
+It is the pool size, swept on one core (builtin): 2 -> 6 469 (p99 9.97 ms),
+8 -> 6 905, 16 -> 5 082, 32 (default) -> 5 562, 64 -> 5 850. Something is there
+at the low end, but 16 beating neither of its neighbours says the spread is
+comparable to the effect, so it is not yet a number to act on.
+
+⚠️ And the option CANNOT just be re-defaulted, because it means three things:
+
+  corRestBackendStart(poolSize)     MHD: I/O thread count
+                                    builtin: connection slots, poolSize * 16
+  corRestWorkerPoolStart(poolSize)  both: request worker threads
+
+Lowering it to 8 costs libmicrohttpd 15% - four times fewer I/O threads - and
+for corHttp it moves workers and connection capacity together, so the sweep
+cannot say which produced the gain. This is the "never express a new concept
+through an existing mechanism" rule, arrived at from the performance side: the
+work is to SPLIT the option - a worker count of its own, sized per CPU the way
+--httpLoops is, and a connection capacity that stays a capacity - and only then
+to choose defaults. A default change on top of the current knob is how a 23%
+gain on one core becomes a 15% loss on another deployment.
+
+**Orion-LD is faster than coraine + mongoc at batch updates.** 2 392 req/s
+against 1 994 on eight shared cores, and 0.93x per broker core - two
+independent measurements agreeing, so it is not noise. It is also the only
+shape where coraine on MongoDB loses, which points at something specific in
+`mongocEntityBulkUpdate` rather than at the mongoc layer generally. Worth
+reading beside Orion-LD's batch path, which is public.
+
+---
+
 ---
 
 ## Smaller, still open
