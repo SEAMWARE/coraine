@@ -32,11 +32,12 @@ incorporated in the next release of the product, in roughly this order:
     This is first on the list, and it does not wait for anybody. DDS is the
     first peer that is *not* an NGSI-LD broker and *not* HTTP, so everything the
     broker assumes about request/response has to be made explicit to
-    accommodate it — and that mechanism is ours to design and ship now. It is
-    worked out in [Bridges and Channels](bridge-channels.md): a **Bridge** is
-    the transport instance (for DDS the participant — domain, QoS defaults,
-    types directory), a **Channel** ties one foreign endpoint to one entity
-    attribute with a direction and a retention.
+    accommodate it — and that mechanism is ours to design and ship now. A
+    **Bridge** is the transport instance (for DDS the participant — domain, QoS
+    defaults, types directory); a **Channel** ties one foreign endpoint to one
+    entity attribute with a direction and a retention. The design notes behind
+    that (`doc/bridge-channels.md`) are not published while the concept is in
+    front of ETSI.
 
     **Standardisation is a separate, slower track.** The same concept is being
     taken to ETSI — presented at the TC DATA face-to-face in Athens, 20–22
