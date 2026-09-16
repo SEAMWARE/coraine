@@ -45,4 +45,25 @@ extern bool geoEntityValidate(KjNode* entityP);
 //
 extern bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// csrGeoMatchExact - geoQ ↔ a CSR's OWN geometry, evaluated exactly
+//
+// For CSR DISCOVERY (GET /csourceRegistrations), where the geo-query is a
+// question about the registrations themselves rather than about what lies
+// behind them. So the georel means what it says - including `disjoint`.
+//
+// ⚠️ Not interchangeable with csrGeoMatchOverlap above. That one is the dispatch
+// filter and answers "could anything behind this CSR match?", which collapses
+// the topological relations to overlap on purpose. Using it for discovery
+// returned CSRs that INTERSECT the reference for a `disjoint` query - the exact
+// opposite set.
+//
+// NULL csrGeoP means the registration declares no restriction on the queried
+// property, so it is returned: it covers this area like any other.
+//
+extern bool csrGeoMatchExact(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
+
 #endif  // SHARED_GEOMATCH_H_

@@ -346,10 +346,20 @@ bool getCsourceRegistrations(void)
       passN = n;
     }
 
-    // § 5.10.2.4 geoQ: filter by overlap with the CSR's geo-coverage field
-    // (location / observationSpace / operationSpace) selected by the
-    // request's geoproperty (default: location).
-    if (corNgsild.geoRel != NULL && cacheP->csrGeoMatchFunc != NULL)
+    //
+    // § 5.10.2.4 geoQ: filter on the CSR's geo-coverage field
+    // (location / observationSpace / operationSpace) selected by the request's
+    // geoproperty (default: location).
+    //
+    // EXACT, not the dispatch filter. This request asks about the registrations
+    // themselves, so the georel means what it says. The dispatch filter answers
+    // a different question - "could anything behind this CSR match?" - by
+    // collapsing the topological relations to overlap, and using it here made
+    // `georel=disjoint` return the registrations that INTERSECT the reference:
+    // the exact opposite set. Two CSRs, Madrid and Sydney, reference polygon
+    // over Iberia, and disjoint answered Madrid.
+    //
+    if (corNgsild.geoRel != NULL && db.csrGeoMatchExactFunc != NULL)
     {
       const char* prop = corNgsild.geoproperty;
       bool isObs = (prop != NULL) && (strcmp(prop, "observationSpace") == 0 ||
@@ -363,7 +373,7 @@ bool getCsourceRegistrations(void)
         KjNode* csrGeoP = isObs ? matchV[i]->observationSpaceP
                           : isOp ? matchV[i]->operationSpaceP
                           : matchV[i]->locationP;
-        if (cacheP->csrGeoMatchFunc(csrGeoP, corNgsild.geoRel, corNgsild.geometry, corNgsild.coordinates))
+        if (db.csrGeoMatchExactFunc(csrGeoP, corNgsild.geoRel, corNgsild.geometry, corNgsild.coordinates))
           matchV[n++] = matchV[i];
       }
       passN = n;

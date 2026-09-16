@@ -1,0 +1,379 @@
+#
+# FILE            geoproperty_spaces_targeting.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# geoproperty selects the TARGET of a geo-query, and nothing is automatic about
+# it. TS 104 175 clause 7: "Target geometry, i.e. the target Entity's
+# GeoProperty to which the geoquery is to be applied, can be specified by an
+# extra parameter named geoproperty. ... If no geoproperty is specified, the
+# geoquery is applied to the default GeoProperty location". The spec's own
+# EXAMPLE 1 is "&geoproperty=observationSpace".
+#
+# Two levels use that one name at different granularities, and both are here:
+#
+#   ENTITY LEVEL   the Entity's own operationSpace - never its location, and no
+#                  fallback to location. § 7.2.4: "Entities which do not convey
+#                  the target GeoProperty of the query shall be considered as
+#                  non-matching."
+#
+#   REGISTRATION   the CSR's operationSpace, which § 5.2.9 defines as the area
+#     LEVEL        that "includes the operation spaces of all entities ... for
+#                  which the Context Source may be able to provide information".
+#
+# ⚠️ The two levels give OPPOSITE answers when the field is absent, and that is
+# correct rather than sloppy. An Entity's GeoProperty is a FACT about where the
+# Entity is, so no GeoProperty cannot match a geometry. A CSR's is a RESTRICTION
+# on what the source covers, so no restriction means it covers this area and
+# every other one. Steps 05 and 09 pin both down.
+#
+# Every step is written to DISCRIMINATE: each geoproperty is asked against a
+# fixture where the other target would give a different answer. A test that only
+# checked "operationSpace matches when it should" would pass just as well
+# against code that read location and ignored the parameter - which is the bug
+# this guards.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+geoproperty targets the named GeoProperty, on Entities and on CSRs
+
+--TAGS--
+geo geoproperty geoquery registration discovery observationSpace operationSpace
+
+--INIT--
+corDbDrop
+coraineStart -dist
+
+--RUN--
+
+echo "01. Two entities at the SAME point: E1 has operationSpace only, E2 location only"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Plant:E1",
+  "type": "Plant",
+  "operationSpace": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [-3.70, 40.41] } }
+}'
+echo
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Plant:E2",
+  "type": "Plant",
+  "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [-3.70, 40.41] } }
+}'
+echo
+echo
+
+
+echo "02. geoproperty omitted → defaults to location → E2 only"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Plant&georel=near%3BmaxDistance==5000&geometry=Point&coordinates=%5B-3.70%2C40.41%5D'
+echo
+echo
+
+
+echo "03. geoproperty=location → E2 only"
+echo "=================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Plant&georel=near%3BmaxDistance==5000&geometry=Point&coordinates=%5B-3.70%2C40.41%5D&geoproperty=location'
+echo
+echo
+
+
+echo "04. geoproperty=operationSpace → E1 only (NOT E2, no fallback to location)"
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Plant&georel=near%3BmaxDistance==5000&geometry=Point&coordinates=%5B-3.70%2C40.41%5D&geoproperty=operationSpace'
+echo
+echo
+
+
+echo "05. geoproperty=observationSpace → [] (neither entity conveys it, § 7.2.4)"
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Plant&georel=near%3BmaxDistance==5000&geometry=Point&coordinates=%5B-3.70%2C40.41%5D&geoproperty=observationSpace'
+echo
+echo
+
+
+echo "06. A CSR with location near Madrid and operationSpace near Barcelona"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:R:Split",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "Plant" } ] } ],
+  "endpoint": "http://localhost:9801",
+  "location":       { "type": "Point", "coordinates": [-3.70, 40.41] },
+  "operationSpace": { "type": "Point", "coordinates": [2.17, 41.39] }
+}'
+echo
+echo
+
+
+echo "07. Discovery near Barcelona, geoproperty=location → no match (location is Madrid)"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Plant&georel=near%3BmaxDistance==50000&geometry=Point&coordinates=%5B2.17%2C41.39%5D&geoproperty=location'
+echo
+echo
+
+
+echo "08. Same query, geoproperty=operationSpace → matches (operationSpace IS Barcelona)"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Plant&georel=near%3BmaxDistance==50000&geometry=Point&coordinates=%5B2.17%2C41.39%5D&geoproperty=operationSpace'
+echo
+echo
+
+
+echo "09. A CSR with NO operationSpace is unrestricted → matches anywhere"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:R:Unrestricted",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "Reactor" } ] } ],
+  "endpoint": "http://localhost:9802",
+  "location": { "type": "Point", "coordinates": [-3.70, 40.41] }
+}'
+echo
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Reactor&georel=near%3BmaxDistance==1&geometry=Point&coordinates=%5B144.96%2C-37.81%5D&geoproperty=operationSpace'
+echo
+echo
+
+
+echo "10. The same CSR under geoproperty=location IS restricted → Melbourne excludes it"
+echo "================================================================================="
+corCurl --url '/ngsi-ld/v1/csourceRegistrations?type=Reactor&georel=near%3BmaxDistance==1&geometry=Point&coordinates=%5B144.96%2C-37.81%5D&geoproperty=location'
+echo
+echo
+
+
+--EXPECT--
+01. Two entities at the SAME point: E1 has operationSpace only, E2 location only
+===============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Plant:E1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Plant:E2
+Content-Length: 0
+
+
+
+
+02. geoproperty omitted → defaults to location → E2 only
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 259
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:Plant:E2",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          -3.7,
+          40.41
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "Plant"
+  }
+]
+
+
+
+03. geoproperty=location → E2 only
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 259
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:Plant:E2",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          -3.7,
+          40.41
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "Plant"
+  }
+]
+
+
+
+04. geoproperty=operationSpace → E1 only (NOT E2, no fallback to location)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 265
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:Plant:E1",
+    "operationSpace": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          -3.7,
+          40.41
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "Plant"
+  }
+]
+
+
+
+05. geoproperty=observationSpace → [] (neither entity conveys it, § 7.2.4)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+06. A CSR with location near Madrid and operationSpace near Barcelona
+=====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:R:Split
+Content-Length: 0
+
+
+
+
+07. Discovery near Barcelona, geoproperty=location → no match (location is Madrid)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+08. Same query, geoproperty=operationSpace → matches (operationSpace IS Barcelona)
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 474
+
+[
+  {
+    "endpoint": "http://localhost:9801",
+    "id": "urn:ngsi-ld:R:Split",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Plant"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        -3.7,
+        40.41
+      ],
+      "type": "Point"
+    },
+    "operationSpace": {
+      "coordinates": [
+        2.17,
+        41.39
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+09. A CSR with NO operationSpace is unrestricted → matches anywhere
+===================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:R:Unrestricted
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 370
+
+[
+  {
+    "endpoint": "http://localhost:9802",
+    "id": "urn:ngsi-ld:R:Unrestricted",
+    "information": [
+      {
+        "entities": [
+          {
+            "type": "Reactor"
+          }
+        ]
+      }
+    ],
+    "location": {
+      "coordinates": [
+        -3.7,
+        40.41
+      ],
+      "type": "Point"
+    },
+    "type": "ContextSourceRegistration"
+  }
+]
+
+
+
+10. The same CSR under geoproperty=location IS restricted → Melbourne excludes it
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

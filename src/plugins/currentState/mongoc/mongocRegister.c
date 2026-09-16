@@ -12,7 +12,7 @@
 #include "corNgsild/LdSubCache.h"                       // LdSubCacheItem
 #include "db/DbDriver.h"                               // DbDriver
 #include "db/DbQueryFilter.h"                          // DbQueryFilter
-#include "shared/geoMatch.h"                           // geoMatch, geoMatchInit
+#include "shared/geoMatch.h"                           // geoMatch, geoMatchInit, csrGeoMatchOverlap, csrGeoMatchExact
 
 #include "currentState/mongoc/mongocGlobals.h"                      // mongocArgV
 #include "currentState/mongoc/mongocInit.h"                         // mongocInit
@@ -80,17 +80,6 @@ static bool mongocGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geom
 
 // -----------------------------------------------------------------------------
 //
-// mongocCsrGeoMatchCb - geoQ ↔ CSR geo-coverage match (§ 5.10.2.4)
-//
-static bool mongocCsrGeoMatchCb(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
-{
-  return csrGeoMatchOverlap(csrGeoP, geoRel, geometry, coordinates);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // dbRegister -
 //
 void dbRegister(DbDriver* driverP)
@@ -134,7 +123,8 @@ void dbRegister(DbDriver* driverP)
   driverP->subscriptionStatsFlush = mongocSubscriptionStatsFlush;
 #endif
   driverP->geoMatchFunc          = mongocGeoMatchCb;
-  driverP->csrGeoMatchFunc       = mongocCsrGeoMatchCb;
+  driverP->csrGeoMatchFunc       = csrGeoMatchOverlap;
+  driverP->csrGeoMatchExactFunc  = csrGeoMatchExact;
 
   //
   // With COR_FEATURE_REGISTRATIONS off these five sources leave the plugin build
