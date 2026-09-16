@@ -143,9 +143,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Two",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotLifetime": "PT2H",
   "snapshotPriority": 5,
   "snapshotQueries": [
@@ -185,9 +185,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Day",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotLifetime": "P1D",
   "snapshotPriority": 5,
   "snapshotQueries": [
@@ -227,9 +227,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Mix",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotLifetime": "PT1H30M",
   "snapshotPriority": 5,
   "snapshotQueries": [
@@ -269,9 +269,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Default",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotPriority": 5,
   "snapshotQueries": [
     {
@@ -335,9 +335,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Two",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotLifetime": "PT3H",
   "snapshotPriority": 5,
   "snapshotQueries": [
@@ -367,9 +367,9 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
-  "expiresAt": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "id": "urn:ngsi-ld:Snapshot:Two",
-  "lastUsedAt": "REGEX(.*)",
+  "lastUsedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "snapshotLifetime": "PT3H",
   "snapshotPriority": 5,
   "snapshotQueries": [

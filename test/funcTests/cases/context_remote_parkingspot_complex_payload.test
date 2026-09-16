@@ -108,7 +108,7 @@ Content-Length: REGEX(\d+)
     "value": "A-13"
   },
   "status": {
-    "observedAt": "REGEX(.*)",
+    "observedAt": "2018-09-21T12:00:00Z",
     "type": "Property",
     "value": "free"
   },

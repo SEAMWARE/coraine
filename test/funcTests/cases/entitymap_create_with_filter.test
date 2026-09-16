@@ -180,7 +180,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 230
+Content-Length: REGEX(\d+)
 
 {
   "entityMap": {
@@ -191,8 +191,8 @@ Content-Length: 230
       "@none"
     ]
   },
-  "expiresAt": "REGEX(.*)",
-  "id": "REGEX(.*)",
+  "expiresAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
@@ -236,10 +236,10 @@ Content-Length: 245
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 227
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(.*)'",
+  "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)'",
   "status": 400,
   "title": "Bad Request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

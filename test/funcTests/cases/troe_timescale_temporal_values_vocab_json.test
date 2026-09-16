@@ -80,14 +80,14 @@ Content-Length: REGEX(\d+)
 {
   "fuelType": [
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "VocabProperty",
       "vocab": "diesel"
     },
     {
-      "instanceId": "REGEX(.*)",
-      "observedAt": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "VocabProperty",
       "vocab": "petrol"
     }
@@ -95,21 +95,21 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "spec": [
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "json": {
         "doors": 5,
         "seats": 4
       },
-      "observedAt": "REGEX(.*)",
+      "observedAt": "2026-04-28T09:00:00Z",
       "type": "JsonProperty"
     },
     {
-      "instanceId": "REGEX(.*)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
       "json": {
         "doors": 3,
         "seats": 2
       },
-      "observedAt": "REGEX(.*)",
+      "observedAt": "2026-04-28T10:00:00Z",
       "type": "JsonProperty"
     }
   ],

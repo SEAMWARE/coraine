@@ -124,7 +124,7 @@ Content-Length: 0
 
 03. GET S1 → notification.status = "ok"
 ========================================
-    "lastSuccess": "REGEX(.*)",
+    "lastSuccess": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "status": "ok",
     "timesSent": 1
   "status": "active",
@@ -145,8 +145,8 @@ Date: REGEX(.*)
 
 06. GET S1 → notification.status = "failed" (lastFailure now newer than lastSuccess)
 ======================================================================================
-    "lastFailure": "REGEX(.*)",
-    "lastSuccess": "REGEX(.*)",
+    "lastFailure": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+    "lastSuccess": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "status": "failed",
     "timesFailed": 1,
     "timesSent": 2
@@ -163,8 +163,8 @@ Date: REGEX(.*)
 
 08. GET S1 → notification.status = "ok" again
 ==============================================
-    "lastFailure": "REGEX(.*)",
-    "lastSuccess": "REGEX(.*)",
+    "lastFailure": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+    "lastSuccess": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "status": "ok",
     "timesFailed": 1,
     "timesSent": 3
