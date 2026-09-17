@@ -1,0 +1,218 @@
+#
+# FILE            link_context_unreachable_504.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An @context NAMED in the Link header that cannot be retrieved is
+# 504 LdContextNotAvailable — on GET too, not only on write.
+#
+# The bug: ldContextResolve treated "download failed" and "no @context
+# supplied" identically (both leave contextP NULL), so a GET whose Link
+# header named an unreachable URL silently fell back to the CORE context.
+# The response was then compacted against core AND advertised core in its
+# own Link header — self-consistent, and wrong: every term whose meaning
+# differs between the two contexts was misread, with nothing to tell the
+# client its context had been ignored.
+#
+# POST already answered 504 through the parse hook. This is the GET half.
+#
+--NAME--
+Link-header @context that cannot be retrieved is 504 on GET (§ 8.2.3)
+
+--TAGS--
+context
+link-header
+error-handling
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+contextServerStart
+coraineStart
+
+contextServerPush /jsonldContexts/weights '{
+  "@context": {
+    "Animal": "urn:x:Animal",
+    "weight": "urn:x:weight"
+  }
+}'
+
+--RUN--
+
+#
+# 01-02. the control: a REACHABLE context still works, and is echoed
+# 03-06. the same URL unreachable — every GET shape must be 504
+# 07.    the other control: no Link header at all is still 200
+#
+
+echo "01. Seed an entity with no @context"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Animal:1","type":"Animal","weight":{"type":"Property","value":7}}'
+echo
+echo
+
+
+echo "02. GET it with a REACHABLE Link @context - 200, and the context is echoed"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Animal:1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/weights>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET the entity with an UNREACHABLE Link @context - 504"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Animal:1 \
+  -H 'Link: <http://127.0.0.1:1/nope.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET /entities?type=Animal with an unreachable Link @context - 504"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Animal' \
+  -H 'Link: <http://127.0.0.1:1/nope.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. GET /types with an unreachable Link @context - 504"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/types \
+  -H 'Link: <http://127.0.0.1:1/nope.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. GET /attributes with an unreachable Link @context - 504"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/attributes \
+  -H 'Link: <http://127.0.0.1:1/nope.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "07. GET the entity with NO Link header at all - still 200"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Animal:1
+echo
+echo
+
+
+--EXPECT--
+01. Seed an entity with no @context
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Animal:1
+Content-Length: 0
+
+
+
+
+02. GET it with a REACHABLE Link @context - 200, and the context is echoed
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/weights>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 161
+
+{
+  "id": "urn:ngsi-ld:Animal:1",
+  "ngsi-ld:default-context/weight": {
+    "type": "Property",
+    "value": 7
+  },
+  "type": "ngsi-ld:default-context/Animal"
+}
+
+
+
+03. GET the entity with an UNREACHABLE Link @context - 504
+==========================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/nope.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+04. GET /entities?type=Animal with an unreachable Link @context - 504
+=====================================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/nope.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+05. GET /types with an unreachable Link @context - 504
+=====================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/nope.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+06. GET /attributes with an unreachable Link @context - 504
+===========================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/nope.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+07. GET the entity with NO Link header at all - still 200
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 113
+
+{
+  "id": "urn:ngsi-ld:Animal:1",
+  "type": "Animal",
+  "weight": {
+    "type": "Property",
+    "value": 7
+  }
+}
+
+
+
+--TEARDOWN--
+contextServerStop

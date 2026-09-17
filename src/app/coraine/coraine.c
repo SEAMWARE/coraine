@@ -552,7 +552,59 @@ static bool brokerPreServiceHook(void)
   // Resolve @context unconditionally so service routines see corNgsild.contextP
   // populated whether the request had URL params, a body, or neither
   // (e.g. GET /types/Building with just a Link header).
-  ldContextResolve();
+  //
+  // It answers false when the request NAMED an @context that could not be
+  // retrieved. It does not raise the error itself - only here is it known
+  // whether the operation uses the context at all - so the 504 is raised here,
+  // for GET and HEAD, whose response body is compacted against it. Carrying on
+  // would compact against core and advertise core in the response Link header:
+  // self-consistent, wrong, and silent.
+  //
+  // Scope: GET and HEAD, whose response body is compacted against the context.
+  // A request that named a context we cannot fetch cannot be answered honestly
+  // there - and answering it against core instead, while advertising core, is
+  // what this fixes.
+  //
+  // ⚠️ Deliberately NOT wider, though wider is arguably more correct.
+  // entity_delete_with_unresolvable_context asserts that DELETE /entities/{id}
+  // with an undownloadable Link @context SUCCEEDS: no body either way and the id
+  // is already a full URI. That test cites no clause - it is a decision of ours,
+  // not a spec rule - and widening this would silently change it.
+  //
+  // ❓ OPEN, with ETSI TC DATA (asked 2026-09-17), because the spec does not say
+  // and TP 043_01 covers only the five CREATE cases - nothing for reads or
+  // deletes. Three positions: (a) silently ignore a context the operation cannot
+  // use, (c) 400 for naming one an endpoint never uses, (b) always fetch and
+  // fail. What the answer has to settle first is whether the requirement is a
+  // property of the ENDPOINT or of the REQUEST, because these all use the
+  // context invisibly and none of them is a GET:
+  //
+  //   DELETE /entities/{id}?type=T          - `type` is expanded (registration matching)
+  //   DELETE /entities/{id}/attrs/{attr}    - the attribute name is expanded
+  //   DELETE /entities (purge)              - carries many name-carrying params
+  //
+  // and one goes the other way: POST /entityOperations/delete is 504'd by the
+  // parse hook today, though its body is an array of ids with nothing to expand.
+  //
+  // A per-REQUEST rule (reject iff the context is really used) is precise and
+  // makes one endpoint's contract depend on which params came with the call. A
+  // per-ENDPOINT rule is predictable and over-rejects. Not guessing: the narrow
+  // fix lands, the rest waits for the answer.
+  //
+  // If corJsonld's error callback already named WHY (a cyclic @context, say),
+  // contextError is set and that answer stands - it is one the client can act
+  // on, where "unable to retrieve" is vaguer and wrong.
+  //
+  if (!ldContextResolve() && (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead))
+  {
+    if (corNgsild.contextError == false)
+    {
+      ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+              "unable to retrieve @context from '%s'", corNgsild.contextUnavailableUrl);
+      corNgsild.contextError = true;
+    }
+    return false;
+  }
 
   if (!ldUrlWildcardCheck())
     return false;
