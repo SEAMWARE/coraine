@@ -595,14 +595,30 @@ static bool brokerPreServiceHook(void)
   // contextError is set and that answer stands - it is one the client can act
   // on, where "unable to retrieve" is vaguer and wrong.
   //
-  if (!ldContextResolve() && (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead))
+  bool contextOk = ldContextResolve();
+
+  //
+  // An error corNgsild has already RAISED is unconditional, whatever the verb:
+  // a malformed Link header is a malformed request even for an operation that
+  // would never have used the @context, and a cyclic @context has already been
+  // named more precisely than anything decided here could name it.
+  //
+  // Checked explicitly rather than left to fall out of the 504 branch below.
+  // It did fall out - ldError sets the response error immediately, so the 400
+  // stood anyway - but only by accident, and an accident is not a rule.
+  //
+  if (corNgsild.contextError == true)
+    return false;
+
+  //
+  // Retrievability is the conditional half: the @context was named and could
+  // not be fetched, which only matters if this request uses it.
+  //
+  if (!contextOk && (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead))
   {
-    if (corNgsild.contextError == false)
-    {
-      ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
-              "unable to retrieve @context from '%s'", corNgsild.contextUnavailableUrl);
-      corNgsild.contextError = true;
-    }
+    ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+            "unable to retrieve @context from '%s'", corNgsild.contextUnavailableUrl);
+    corNgsild.contextError = true;
     return false;
   }
 

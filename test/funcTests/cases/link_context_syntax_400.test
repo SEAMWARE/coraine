@@ -1,0 +1,237 @@
+#
+# FILE            link_context_syntax_400.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Link header claiming to carry an @context is checked for SYNTAX, and a
+# malformed one is 400 InvalidRequest — whatever the verb, and whether or not
+# the operation would have used the @context.
+#
+# The bug: three of the five malformed forms were SILENTLY IGNORED. A GET then
+# answered against the core context and advertised core, so the client sent
+# something wrong, the broker quietly did something else, and the response
+# looked right. The other two came back 504, blaming availability for what is
+# a spelling mistake.
+#
+# RFC 8288 § 3 — the target is `<URI-Reference>`; the angle brackets are part
+# of the grammar. RFC 3986 § 2 — a URI has no space, control char, '<', '>'
+# or '"'.
+#
+# Unconditional, unlike the 504 for an unretrievable @context: a malformed
+# header is a malformed request even for an operation the context cannot
+# affect (see link_context_unreachable_504.test for that half).
+#
+--NAME--
+Malformed @context Link header is 400, for every verb (RFC 8288)
+
+--TAGS--
+context
+link-header
+error-handling
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+contextServerStart
+coraineStart
+
+contextServerPush /jsonldContexts/ok '{
+  "@context": {
+    "Animal": "urn:x:Animal"
+  }
+}'
+
+--RUN--
+
+echo "01. Seed two entities"
+echo "====================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Z:1","type":"Animal"}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Z:2","type":"Animal"}'
+echo
+echo
+
+
+echo "02. GET with no angle brackets - 400 (RFC 8288 requires them)"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: http://localhost:7080/jsonldContexts/ok; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. GET with a missing closing '>' - 400"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: <http://localhost:7080/jsonldContexts/ok; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET with an empty target - 400"
+echo "=================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: <>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. GET with spaces in the target - 400 (not a URI reference)"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: <not a url at all>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. The SAME malformed header on a bare DELETE - still 400"
+echo "=========================================================="
+echo "     (the unconditional half: an unretrievable @context is ignored here,"
+echo "      but a malformed one is a malformed request)"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:2 -X DELETE -H 'Link: <>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "07. A malformed target under a NON-context rel is ignored - 200"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: <not bracketed properly; rel="describedby"'
+echo
+echo
+
+
+echo "08. A well-formed, reachable @context still works - 200"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1 -H 'Link: <http://localhost:7080/jsonldContexts/ok>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. Seed two entities
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Z:2
+Content-Length: 0
+
+
+
+
+02. GET with no angle brackets - 400 (RFC 8288 requires them)
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 203
+
+{
+  "detail": "Link header @context target must be enclosed in angle brackets (RFC 8288)",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+03. GET with a missing closing '>' - 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 203
+
+{
+  "detail": "Link header @context target must be enclosed in angle brackets (RFC 8288)",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+04. GET with an empty target - 400
+==================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 166
+
+{
+  "detail": "Link header @context target is empty",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+05. GET with spaces in the target - 400 (not a URI reference)
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 186
+
+{
+  "detail": "Link header @context target is not a valid URI reference",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+06. The SAME malformed header on a bare DELETE - still 400
+==========================================================
+     (the unconditional half: an unretrievable @context is ignored here,
+      but a malformed one is a malformed request)
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 166
+
+{
+  "detail": "Link header @context target is empty",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+07. A malformed target under a NON-context rel is ignored - 200
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 50
+
+{
+  "id": "urn:ngsi-ld:Z:1",
+  "type": "Animal"
+}
+
+
+
+08. A well-formed, reachable @context still works - 200
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ok>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 74
+
+{
+  "id": "urn:ngsi-ld:Z:1",
+  "type": "ngsi-ld:default-context/Animal"
+}
+
+
+
+--TEARDOWN--
+contextServerStop
