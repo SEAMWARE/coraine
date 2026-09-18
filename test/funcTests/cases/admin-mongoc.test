@@ -217,7 +217,7 @@ Content-Length: REGEX(\d+)
   "kargs": "0.10.1",
   "kbase": "0.11.0",
   "khash": "0.10.0",
-  "kjson": "0.14.0",
+  "kjson": "0.14.1",
   "kprom": "0.1.1",
   "ktrace": "0.10.0",
   "mongoc driver": "2.2.2",
