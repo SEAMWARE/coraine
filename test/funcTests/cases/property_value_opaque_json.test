@@ -1,0 +1,565 @@
+#
+# FILE            property_value_opaque_json.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.2.5 - whatever JSON went into a Property's value comes back
+# out: implementations "shall preserve the representation of the content of the
+# values ... and return the original content".
+#
+# "Opaque" is not quite the word. A value is NOT untouched: it is JSON-LD
+# expanded on the way in and compacted on the way out, and it may be escaped and
+# unescaped at a storage boundary. What those have in common is that they are
+# round trips - the document that comes back is the document that went in. What
+# a value must never be is READ AS NGSI-LD STRUCTURE, because reinterpreting it
+# is not reversible: there is no way back from a renamed key.
+#
+# The trap is a value object that happens to carry a "type" member naming an
+# NGSI-LD attribute type - "VocabProperty", "LanguageProperty", "ListProperty",
+# "JsonProperty" - which is exactly what an IoT Agent writes when it copies its
+# own provisioning record into a value. Found running the FIWARE IoT-Agent
+# tutorial against coraine, where a Device came back with
+#   "category": { "type": "Property", "value": { "@type": "VocabProperty", ... } }
+#
+# The retrieval path restores each attribute's value key from its type ("value"
+# in the DB -> hasVocab / hasLanguageMap / ...) and then descends into every
+# child object carrying such a "type", to reach sub-attributes. A Property's
+# value node passed that test, so the USER's "value" key was renamed too.
+#
+# Property and Relationship hid it: their restored key compacts straight back to
+# "value" / "object". Only the types whose value key is spelled differently show
+# the damage, which is why steps 02-05 are the interesting ones and 06-08 are the
+# controls that must not change either.
+#
+--NAME--
+Property value is opaque JSON - an inner NGSI-LD "type" does not make it structure
+
+--TAGS--
+entity property value json opaque create retrieve
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create urn:V1 - value carries an inner { type: VocabProperty, value }
+# 02. GET urn:V1 - the inner "value" key is NOT renamed to "vocab"
+# 03. Create+GET urn:V2 - inner LanguageProperty, "value" not renamed to "languageMap"
+# 04. Create+GET urn:V3 - inner ListProperty, "value" not renamed to "valueList"
+# 05. Create+GET urn:V4 - inner JsonProperty, "value" not renamed to "json"
+# 06. Create+GET urn:V5 - inner Property (the control that always worked)
+# 07. Create+GET urn:V6 - inner Relationship with "object" (control)
+# 08. Create+GET urn:V7 - a real sub-attribute is still reached (the recursion
+#     that the fix narrows must keep working)
+# 09. Create+GET urn:V8 - the SECOND site: an integer the user called
+#     "observedAt" inside a value stayed an integer, not an ISO string
+# 10. Create+GET urn:V9 - a real sub-attribute's observedAt IS still converted
+# 11. Create urn:V10 with a sub-attribute NAMED "vocab" - 400. This is the
+#     control for the skip being by structural key name: those seven names are
+#     refused as attribute members at INPUT ("2 value keys"), so skipping them
+#     on OUTPUT cannot swallow a sub-attribute a user was allowed to create.
+#
+
+echo "01. Create urn:V1 - Property value holding an inner VocabProperty-shaped object"
+echo "=============================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Device",
+  "category": {
+    "type": "Property",
+    "value": {
+      "name": "category",
+      "type": "VocabProperty",
+      "value": "sensor"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET urn:V1 - the inner value key is untouched"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:V1
+echo
+echo
+
+
+echo "03. Create+GET urn:V2 - inner LanguageProperty shape"
+echo "==================================================="
+payload='{
+  "id": "urn:V2",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "LanguageProperty",
+      "value": "x"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V2
+echo
+echo
+
+
+echo "04. Create+GET urn:V3 - inner ListProperty shape"
+echo "==============================================="
+payload='{
+  "id": "urn:V3",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "ListProperty",
+      "value": [ "a" ]
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V3
+echo
+echo
+
+
+echo "05. Create+GET urn:V4 - inner JsonProperty shape"
+echo "==============================================="
+payload='{
+  "id": "urn:V4",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "JsonProperty",
+      "value": { "k": 1 }
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V4
+echo
+echo
+
+
+echo "06. Create+GET urn:V5 - inner Property shape (control)"
+echo "====================================================="
+payload='{
+  "id": "urn:V5",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "Property",
+      "value": "sensor"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V5
+echo
+echo
+
+
+echo "07. Create+GET urn:V6 - inner Relationship shape (control)"
+echo "========================================================="
+payload='{
+  "id": "urn:V6",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "Relationship",
+      "object": "urn:a"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V6
+echo
+echo
+
+
+echo "08. Create+GET urn:V7 - a real sub-attribute is still restored"
+echo "============================================================="
+payload='{
+  "id": "urn:V7",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": 1,
+    "sub": {
+      "type": "VocabProperty",
+      "vocab": "sensor"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V7
+echo
+echo
+
+
+echo "09. Create+GET urn:V8 - user timestamps inside a value are not converted"
+echo "======================================================================="
+payload='{
+  "id": "urn:V8",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "Property",
+      "observedAt": 1700000000,
+      "createdAt": 42
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V8
+echo
+echo
+
+
+echo "10. Create+GET urn:V9 - a real sub-attribute's observedAt still converts"
+echo "======================================================================="
+payload='{
+  "id": "urn:V9",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": 1,
+    "sub": {
+      "type": "Property",
+      "value": "x",
+      "observedAt": "2026-09-18T10:00:00Z"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V9
+echo
+echo
+
+
+echo "11. Create urn:V10 with a sub-attribute named vocab - refused at input"
+echo "======================================================================"
+payload='{
+  "id": "urn:V10",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": 1,
+    "vocab": {
+      "type": "Property",
+      "value": "kept",
+      "observedAt": "2026-09-18T10:00:00Z"
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V10
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:V1 - Property value holding an inner VocabProperty-shaped object
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. GET urn:V1 - the inner value key is untouched
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 188
+
+{
+  "category": {
+    "type": "Property",
+    "value": {
+      "name": "category",
+      "type": "VocabProperty",
+      "value": "sensor"
+    }
+  },
+  "id": "urn:V1",
+  "type": "Device"
+}
+
+
+
+03. Create+GET urn:V2 - inner LanguageProperty shape
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "LanguageProperty",
+      "value": "x"
+    }
+  },
+  "id": "urn:V2",
+  "type": "Device"
+}
+
+
+
+04. Create+GET urn:V3 - inner ListProperty shape
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V3
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 167
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "ListProperty",
+      "value": [
+        "a"
+      ]
+    }
+  },
+  "id": "urn:V3",
+  "type": "Device"
+}
+
+
+
+05. Create+GET urn:V4 - inner JsonProperty shape
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V4
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "JsonProperty",
+      "value": {
+        "k": 1
+      }
+    }
+  },
+  "id": "urn:V4",
+  "type": "Device"
+}
+
+
+
+06. Create+GET urn:V5 - inner Property shape (control)
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V5
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 150
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "type": "Property",
+      "value": "sensor"
+    }
+  },
+  "id": "urn:V5",
+  "type": "Device"
+}
+
+
+
+07. Create+GET urn:V6 - inner Relationship shape (control)
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V6
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 154
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "object": "urn:a",
+      "type": "Relationship"
+    }
+  },
+  "id": "urn:V6",
+  "type": "Device"
+}
+
+
+
+08. Create+GET urn:V7 - a real sub-attribute is still restored
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V7
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 169
+
+{
+  "P": {
+    "sub": {
+      "type": "VocabProperty",
+      "vocab": "sensor"
+    },
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:V7",
+  "type": "Device"
+}
+
+
+
+09. Create+GET urn:V8 - user timestamps inside a value are not converted
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V8
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 180
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "createdAt": 42,
+      "observedAt": 1700000000,
+      "type": "Property"
+    }
+  },
+  "id": "urn:V8",
+  "type": "Device"
+}
+
+
+
+10. Create+GET urn:V9 - a real sub-attribute's observedAt still converts
+=======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V9
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 203
+
+{
+  "P": {
+    "sub": {
+      "observedAt": "2026-09-18T10:00:00Z",
+      "type": "Property",
+      "value": "x"
+    },
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:V9",
+  "type": "Device"
+}
+
+
+
+11. Create urn:V10 with a sub-attribute named vocab - refused at input
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/P' has 2 value keys (only one allowed)",
+  "status": 400,
+  "title": "Conflicting Value Keys",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 152
+
+{
+  "detail": "entity 'urn:V10' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+corDbDrop
