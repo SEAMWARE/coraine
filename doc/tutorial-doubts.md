@@ -142,3 +142,45 @@ and rejects `id`-only — so that branch is unreachable on the GET path and its
 comment describes behaviour the broker does not have. Whichever way the spec
 question lands, the two should agree. (No behavioural split, though: the POST
 `/entityOperations/query` variant also refuses, demanding `type` in the body.)
+
+
+## D6. `Short-Term-History` and `Time-Series-Data` drive Mintaka, which cannot run on coraine
+
+**Where:** both tutorials' temporal sections.
+
+Mintaka is a separate temporal-query service that reads **another broker's TRoE
+Postgres schema directly**. coraine has its own TRoE and implements the temporal
+API itself, so Mintaka cannot be pointed at it — the schema is not shared. KZ:
+*"Mintaka can't run on coraine's DB, so forget about Mintaka."*
+
+Historical reason, per KZ: six months ago the other broker persisted temporal
+data but did not implement temporal QUERIES; Mintaka did that half. coraine does
+both, so the split does not apply to it.
+
+⭐ **Worth knowing before skipping these two outright.** Mintaka serves the same
+NGSI-LD temporal API, one base path down:
+
+    Mintaka   http://localhost:8080/temporal/entities/{id}?lastN=3&format=temporalValues
+    coraine   http://localhost:1026/ngsi-ld/v1/temporal/entities/{id}?lastN=3&format=temporalValues
+
+Short-Term-History has 10 steps at Mintaka and 1 at the broker, and the queries
+themselves — `lastN`, `pick`, `format=temporalValues`, `q` filtering, and the
+"without observedAt" section — are ordinary NGSI-LD temporal queries. Redirected
+at coraine's own temporal endpoint they would exercise a real-world set of
+temporal queries that only our own functests cover today.
+
+⇒ **DECIDED: test them, with the queries redirected at coraine.** KZ: *"must
+test but the history queries go to coraine, not mintaka"*, and *"it's all
+NGSI-LD, going from one broker to another should be quite painless"*. The runner
+rewrites the base path; `/info` is Mintaka's own health endpoint and is dropped.
+
+⭐ And the prerequisite is already in place: `Short-Term-History`'s
+`docker-compose/coraine.yml` configures `--troe timescale --troeHost
+timescale-db --troeName corh` with a `timescale-db` service of its own. The
+tutorial author set coraine up for temporal properly - only the query URLs were
+left pointing at Mintaka.
+
+⚠️ **QuantumLeap is a different case and should NOT be skipped with it.** Both
+tutorials also reference QuantumLeap, which receives NGSI **notifications**
+rather than reading a schema — so it works with any broker that notifies
+correctly, and testing it exercises coraine's subscription path.

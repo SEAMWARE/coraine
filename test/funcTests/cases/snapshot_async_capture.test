@@ -84,6 +84,18 @@ echo
 
 echo "05. ftClient dump — one notification fired by the worker thread"
 echo "==============================================================="
+#
+# ⚠️ WAIT for the notification, do not assume step 03 implies it has landed.
+#
+# Step 03 polls /snapshots/Bg until the STATUS is terminal, and the status going
+# terminal is a different event from the notification reaching ftClient. Dumping
+# straight after won the race on an idle machine and lost it on a loaded CI
+# runner, where the dump returned [] and every following step shifted by two
+# lines. ftClientWait polls the non-consuming /count endpoint with a deadline,
+# so it is deterministic - ftClientSettle would only be a 50 ms sleep, which is
+# the same bet at longer odds.
+#
+ftClientWait 1
 ftClientDump
 echo
 echo
