@@ -228,7 +228,7 @@ define install_from
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/currentState/corDB/corDB.so     $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
-	cp -p $(1)/src/plugins/temporal/ramdb/ramdb.so             $(PLUGIN_DIR)/troe/temporal/
+	cp -p $(1)/src/plugins/temporal/corDB/corDB.so            $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
 	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/

@@ -1,5 +1,5 @@
 #
-# FILE            troe_ramdb_replace_multiattr.test
+# FILE            troe_corDB_replace_multiattr.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -17,7 +17,7 @@ troe replace patch
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin --troeSync
+coraineStart --troe corDB --apiPlugins admin --troeSync
 
 --RUN--
 

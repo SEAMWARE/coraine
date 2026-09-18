@@ -1,12 +1,12 @@
 //
-// FILE            ramdbRegister.c
+// FILE            corDbRegister.c
 //
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// "ramdb" troe plugin — in-memory ring buffer for dev/test.
+// "corDB" troe plugin — in-memory ring buffer for dev/test.
 //
 // Captures the most recent N events. The ring is global to the broker
 // process (shared across worker threads); access is mutex-guarded so a
@@ -64,28 +64,28 @@ typedef struct
 
 // -----------------------------------------------------------------------------
 //
-// Ring state — protected by ramdbMutex.
+// Ring state — protected by corDbTroeMutex.
 //
 static CapturedEvent     ring[RING_SIZE];
 static int               ringHead  = 0;     // next slot to write
 static int               ringCount = 0;     // number of valid entries (0..RING_SIZE)
-static pthread_mutex_t   ramdbMutex = PTHREAD_MUTEX_INITIALIZER;
-static KAlloc            ramdbAlloc;
-static char              ramdbAllocBuf[64 * 1024];
+static pthread_mutex_t   corDbTroeMutex = PTHREAD_MUTEX_INITIALIZER;
+static KAlloc            corDbTroeAlloc;
+static char              corDbTroeAllocBuf[64 * 1024];
 
 
 
 // -----------------------------------------------------------------------------
 //
-// ramdbInit / ramdbClose -
+// corDbTroeInit / corDbTroeClose -
 //
-static int ramdbInit(void)
+static int corDbTroeInit(void)
 {
-  kaBufferInit(&ramdbAlloc, ramdbAllocBuf, sizeof(ramdbAllocBuf), 16 * 1024, NULL, "troeRamdb");
+  kaBufferInit(&corDbTroeAlloc, corDbTroeAllocBuf, sizeof(corDbTroeAllocBuf), 16 * 1024, NULL, "troeCorDb");
   return TROE_OK;
 }
 
-static void ramdbClose(void) { }
+static void corDbTroeClose(void) { }
 
 
 
@@ -95,7 +95,7 @@ static void ramdbClose(void) { }
 //
 static void captureEvent(const TroeEvent* evP)
 {
-  pthread_mutex_lock(&ramdbMutex);
+  pthread_mutex_lock(&corDbTroeMutex);
 
   CapturedEvent* slot = &ring[ringHead];
   memset(slot, 0, sizeof(*slot));
@@ -103,21 +103,21 @@ static void captureEvent(const TroeEvent* evP)
   slot->used         = true;
   slot->op           = evP->op;
   slot->modifiedAtNs = evP->modifiedAtNs;
-  slot->entityId     = (evP->entityId != NULL)   ? kaStrdup(&ramdbAlloc, evP->entityId)   : NULL;
-  slot->entityType   = (evP->entityType != NULL) ? kaStrdup(&ramdbAlloc, evP->entityType) : NULL;
-  slot->attrName     = (evP->attrName != NULL)   ? kaStrdup(&ramdbAlloc, evP->attrName)   : NULL;
-  slot->datasetId    = (evP->datasetId != NULL)  ? kaStrdup(&ramdbAlloc, evP->datasetId)  : NULL;
+  slot->entityId     = (evP->entityId != NULL)   ? kaStrdup(&corDbTroeAlloc, evP->entityId)   : NULL;
+  slot->entityType   = (evP->entityType != NULL) ? kaStrdup(&corDbTroeAlloc, evP->entityType) : NULL;
+  slot->attrName     = (evP->attrName != NULL)   ? kaStrdup(&corDbTroeAlloc, evP->attrName)   : NULL;
+  slot->datasetId    = (evP->datasetId != NULL)  ? kaStrdup(&corDbTroeAlloc, evP->datasetId)  : NULL;
 
   ringHead = (ringHead + 1) % RING_SIZE;
   if (ringCount < RING_SIZE) ringCount++;
 
-  pthread_mutex_unlock(&ramdbMutex);
+  pthread_mutex_unlock(&corDbTroeMutex);
 }
 
 
 
-static int ramdbEntityEvent(const TroeEvent* evP) { captureEvent(evP); return TROE_OK; }
-static int ramdbAttrEvent  (const TroeEvent* evP) { captureEvent(evP); return TROE_OK; }
+static int corDbTroeEntityEvent(const TroeEvent* evP) { captureEvent(evP); return TROE_OK; }
+static int corDbTroeAttrEvent  (const TroeEvent* evP) { captureEvent(evP); return TROE_OK; }
 
 
 
@@ -144,20 +144,20 @@ static const char* opName(TroeOp op)
 
 // -----------------------------------------------------------------------------
 //
-// ramdbDumpInfo - render the ring contents as a JSON array under root["events"].
+// corDbTroeDumpInfo - render the ring contents as a JSON array under root["events"].
 //
 // Walks the ring oldest→newest. Allocates onto allocP (the caller's
 // request arena), so nothing in the produced tree references the
 // plugin's own buffer.
 //
-static void ramdbDumpInfo(KAlloc* allocP, KjNode* root)
+static void corDbTroeDumpInfo(KAlloc* allocP, KjNode* root)
 {
   Kjson  kjsonLocal;
   Kjson* kjsonP = kjBufferCreate(&kjsonLocal, allocP);
 
   KjNode* arr = kjArray(kjsonP, "events");
 
-  pthread_mutex_lock(&ramdbMutex);
+  pthread_mutex_lock(&corDbTroeMutex);
 
   // Oldest entry is at (ringHead - ringCount), wrapping. ringCount==RING_SIZE
   // when full → start at ringHead. Otherwise start at 0.
@@ -180,7 +180,7 @@ static void ramdbDumpInfo(KAlloc* allocP, KjNode* root)
     kjChildAdd(arr, obj);
   }
 
-  pthread_mutex_unlock(&ramdbMutex);
+  pthread_mutex_unlock(&corDbTroeMutex);
 
   kjChildAdd(root, arr);
 }
@@ -193,18 +193,18 @@ static void ramdbDumpInfo(KAlloc* allocP, KjNode* root)
 //
 void troeRegister(TroeDriver* driverP)
 {
-  driverP->alias        = "ramdb";
+  driverP->alias        = "corDB";
   driverP->version      = PLUGIN_VERSION;
   driverP->args         = NULL;
-  driverP->init         = ramdbInit;
-  driverP->close        = ramdbClose;
+  driverP->init         = corDbTroeInit;
+  driverP->close        = corDbTroeClose;
   driverP->tenantSetup  = NULL;
   driverP->migrate      = NULL;
-  driverP->entityEvent  = ramdbEntityEvent;
-  driverP->attrEvent    = ramdbAttrEvent;
+  driverP->entityEvent  = corDbTroeEntityEvent;
+  driverP->attrEvent    = corDbTroeAttrEvent;
   driverP->eventList    = NULL;
   driverP->entityTemporalQuery    = NULL;
   driverP->entityTemporalRetrieve = NULL;
   driverP->versionInfo  = NULL;
-  driverP->dumpInfo     = ramdbDumpInfo;
+  driverP->dumpInfo     = corDbTroeDumpInfo;
 }

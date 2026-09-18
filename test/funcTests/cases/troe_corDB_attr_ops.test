@@ -1,5 +1,5 @@
 #
-# FILE            troe_ramdb_attr_ops.test
+# FILE            troe_corDB_attr_ops.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -17,7 +17,7 @@ troe patch delete
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin --troeSync
+coraineStart --troe corDB --apiPlugins admin --troeSync
 
 --RUN--
 

@@ -527,7 +527,7 @@ mapped load can be added later as an optimisation rather than a rewrite.
 
 ## 16. corDB history is intrinsic; timescale stays a plugin
 
-`--troe ramdb` selects a TRoE plugin that keeps temporal history in the
+`--troe corDB` selects a TRoE plugin that keeps temporal history in the
 process. Measured on eight shared cores, it costs **nothing**: 40 257 req/s
 against 40 073 for `--troe none`, and 123 307 PATCH/s against 125 187. History
 in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
@@ -536,10 +536,15 @@ in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
 So the in-process option is the interesting one, and it should not be reached
 through the plugin mechanism at all. When the current-state store is corDB, its
 history is the same log, the same lock and the same index - a boolean in
-`corDbInit()`, not a separate `.so` with its own copy of the store. `ramdb` as
-a plugin made sense while corDB was `corRamDB` and temporal was somebody
-else's problem; it stopped making sense when both halves became the same data
-structure. See § 15 for what the boolean actually switches, which is retention.
+`corDbInit()`, not a separate `.so` with its own copy of the store.
+
+The plugin was called `ramdb` until 2026-09-18, and the name is what made the
+duplication easy to miss - a separate name makes it look like a separate
+store. It never was one. That name made sense while corDB was `corRamDB` and
+temporal was somebody else's problem; it stopped making sense when both halves
+became the same data structure, so the plugin is now `corDB` on both axes.
+Folding it into the boolean is the step after this one. See § 15 for what the
+boolean actually switches, which is retention.
 
 **The plugin seam itself stays**, and the symmetry is the point:
 

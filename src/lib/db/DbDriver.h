@@ -50,7 +50,7 @@
                                    // A mongoc-only limit: its 2dsphere index is
                                    // per attribute PATH and collection-wide, so
                                    // one name cannot hold both kinds. Caller
-                                   // should respond 409 Conflict. (ramdb has no
+                                   // should respond 409 Conflict. (corDB has no
                                    // such index and accepts the mix.)
 
 
@@ -278,7 +278,7 @@ typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 //
 // DbTenantDropFunc - drop the entire per-tenant DB. Used by snapshot
 // cleanup (delete/purge) to reclaim the snap-tenant's storage. NULL
-// allowed for plugins that don't persist (ramdb): caller treats a
+// allowed for plugins that don't persist (corDB): caller treats a
 // NULL function pointer as a no-op.
 //
 typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
@@ -335,21 +335,21 @@ typedef struct DbDriver
   DbSubscriptionReplaceFunc  subscriptionReplace;  // full-document store (user PATCH; broker owns the merge)
   DbSubscriptionDeleteFunc   subscriptionDelete;
   DbSubscriptionListFunc     subscriptionList;
-  DbSubscriptionStatsFlushFunc subscriptionStatsFlush; // NULL-allowed (e.g. ramdb)
+  DbSubscriptionStatsFlushFunc subscriptionStatsFlush; // NULL-allowed (e.g. corDB)
   DbRegistrationCreateFunc   registrationCreate;
   DbRegistrationRetrieveFunc registrationRetrieve;
   DbRegistrationQueryFunc    registrationQuery;
   DbRegistrationUpdateFunc   registrationUpdate;
   DbRegistrationDeleteFunc   registrationDelete;
   DbRegistrationListFunc     registrationList;
-  DbSnapshotCreateFunc       snapshotCreate;       // NULL-allowed (ramdb)
+  DbSnapshotCreateFunc       snapshotCreate;       // NULL-allowed (corDB)
   DbSnapshotQueryFunc        snapshotQuery;        // NULL-allowed
   DbSnapshotUpdateFunc       snapshotUpdate;       // NULL-allowed
   DbSnapshotDeleteFunc       snapshotDelete;       // NULL-allowed
   DbTenantDropFunc           tenantDrop;           // NULL-allowed
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
-  DbHaWatchStartFunc      haWatchStart;    // NULL-allowed (e.g. ramdb) — see the typedef
+  DbHaWatchStartFunc      haWatchStart;    // NULL-allowed (e.g. corDB) — see the typedef
   LdGeoMatchFunc       geoMatchFunc;    // geo match callback for subscription notifications
   LdCsrGeoMatchFunc    csrGeoMatchFunc; // geoQ ↔ CSR geo-coverage, CONSERVATIVE - for dispatch
   //
@@ -371,7 +371,7 @@ typedef struct DbDriver
   LdCsrGeoMatchFunc    csrGeoMatchExactFunc;
 
   // JSON-LD context persistence — optional; NULL means no persistence
-  // (e.g. ramdb). The reserved DB name ("coraine") is used internally.
+  // (e.g. corDB). The reserved DB name ("coraine") is used internally.
   DbContextSaveFunc       contextSave;
   DbContextDeleteFunc     contextDelete;
   DbContextListFunc       contextList;

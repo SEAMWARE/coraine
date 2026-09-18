@@ -20,8 +20,8 @@ url-param distops query temporal
 --INIT--
 corDbDrop
 corDbDrop -role CP1
-coraineStart --troe ramdb -dist
-coraineStart -role CP1 --troe ramdb -dist
+coraineStart --troe corDB -dist
+coraineStart -role CP1 --troe corDB -dist
 
 --RUN--
 
@@ -212,7 +212,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "detail": "TRoE plugin 'corDB' does not implement 'temporal-entity retrieve'",
   "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
@@ -228,7 +228,7 @@ Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "TRoE plugin 'ramdb' does not implement 'temporal-entity retrieve'",
+  "detail": "TRoE plugin 'corDB' does not implement 'temporal-entity retrieve'",
   "status": 422,
   "title": "TRoE Not Available",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"

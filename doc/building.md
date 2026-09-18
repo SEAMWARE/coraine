@@ -21,7 +21,7 @@ coraine/
 │   │   └── metrics/         # Prometheus via kprom
 │   └── plugins/
 │       ├── currentState/    # mongoc, corDB   (DB plugins)
-│       ├── temporal/        # none, ramdb, timescale  (TRoE plugins)
+│       ├── temporal/        # none, corDB, timescale  (TRoE plugins)
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
 ├── test/funcTests/          # corTest functional tests

@@ -64,7 +64,7 @@ const CorainePlugin coraineBuiltPlugins[] =
   { "currentState", "mongoc"    },
 #endif
   { "temporal",     "none"      },
-  { "temporal",     "ramdb"     },
+  { "temporal",     "corDB"     },
   { "temporal",     "timescale" },
 #if COR_FEATURE_ADMIN_API
   { "api",          "admin"     },
