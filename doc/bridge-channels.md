@@ -11,7 +11,7 @@ from being re-argued. **Not implemented.**
 > endpoint-scheme convention is the part most likely to survive.
 >
 > ⭐ § 4.0 says which parts a standard would actually cover and which are
-> coraine's own. § 2a and § 2b are the argument; start there.
+> coraine's own. § 2a-§ 2c are the argument; start there.
 
 The draft history — six revisions between 2026-05-22 and 2026-09-16, including
 two direction changes — is at the **end**, under *Revision history*. It is kept
@@ -143,7 +143,143 @@ clocks of § 3 became visible on DDS first - but exactly one broker implements
 it, so it is a poor argument to lead with. Where a reader needs an example,
 MQTT is the one that everybody can check against their own code.
 
-### 2b. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
+### 2b. ⭐⭐ The strongest case: an IoT Agent IS a Bridge with Channels
+
+KZ, 2026-09-18: *"iot agents are all node.js. Quite slow. We'll reimplement all
+of them as plugins for coraine, with bridge/channel."*
+
+That is a better argument than either case above, because it does not
+standardise a service - it **removes** one. Read an IoT Agent against § 3 and
+the mapping is exact:
+
+| IoT Agent concept | this model |
+|---|---|
+| the agent process itself - UltraLight, JSON, LWM2M, OPC-UA, … | a **Capability**, one `.so` per protocol |
+| its southbound connection - the MQTT broker or HTTP endpoint it listens on, with its apikey and transport | a **Bridge** |
+| a provisioned **device** - `device_id` ↔ `entity_name`, its attribute mapping, its commands, its static attributes | a **Channel**, or a small set of them |
+| `/iot/devices` provisioning | Channel CRUD, in NGSI-LD, against the broker |
+
+⭐ § 3.8 already reached this conclusion from the other direction, before the
+motivation was clear: *"device provisioning turns out to be a shape of Channel
+rather than a layer above it."* This is that observation with a reason attached.
+
+**What it buys, concretely.** An agent today is a separate Node.js service with
+its own database, its own provisioning API, its own health, its own config
+file - and it talks to the broker over the network to do work the broker is
+already doing. Everything the phase-1 tutorial sweep tripped over on the IoT
+side was a property of that arrangement rather than of NGSI-LD:
+
+- the device entity came back as `{id, type}` because its attributes were behind
+  a registration pointing at a provider that returns nothing (T14). A Channel
+  has no registration in the middle - the value arrives and is written.
+- `/iot/devices` returns `attributes` on one version and `polling` on another
+  (T13). A Channel is an NGSI-LD object with a spec'd shape.
+- four tutorials never ran at all because a Node.js agent takes long enough to
+  start that a shipped wait loop gave up on it (T10). There is nothing to wait
+  for if the protocol is a plugin in the broker.
+- the agent wrote a value as `{"@type":"VocabProperty","@value":"sensor"}` (C1's
+  tell, settled in that entry) - a translation layer inventing its own JSON-LD.
+
+⚠️ And it sharpens § 4.0's line rather than blurring it. What ETSI would
+standardise is the **Channel** - *this device, this mapping, this direction* -
+which is what makes a provisioned device portable between brokers, and is
+exactly what `/iot/devices` is not. Whether coraine implements UltraLight in a
+`.so` while Scorpio keeps a Java agent is then an implementation choice, and
+both answer the same API.
+
+#### Two deployment shapes, and the edge one is where three threads meet
+
+KZ, 2026-09-18: *"For very small setups, one single coraine might replace the old
+broker and its iot-agents. But, if the agents need to run on the edge, instead
+of a full fledged coraine it will be a cond. compiled coraine w/o regs, subs,
+troe, etc, etc and the IPC will be the cor binary protocol, once ready."*
+
+**Small site - one process.** The broker and the agents collapse into the same
+binary: no agent service, no agent database, no provisioning API of its own, no
+network hop to do work the broker is already doing. The footprint for that is
+measured, not hoped for - `corHttp` + `corDB` adds **4.28 MiB and three
+libraries**, ~17 MiB idle RSS (see `performance.md`).
+
+**Edge - a conditionally compiled coraine.** Not a different program: the same
+source with features off.
+
+⚠️ **The mechanism is in place; the work is FAR from complete** (KZ,
+2026-09-18), and the doc should not read otherwise. Sixteen flags exist in
+`CMakeLists.txt`, emitted as `0`/`1` rather than defined/undefined so a
+misspelling is a compile error and the build reports its own feature set on
+`/version` - that part is sound. But only the first slice actually removes code:
+when the flags were measured, **nine of fifteen produced a byte-identical
+binary**. The flag existed and compiled nothing out.
+
+So an edge build is a direction, not a switch anyone can throw today. What it
+needs is the unglamorous half - going feature by feature and actually excluding
+the code, with a size measurement per flag to prove it. An edge build is roughly `SUBSCRIPTIONS=OFF REGISTRATIONS=OFF
+CONTEXT_HOSTING=OFF TENANTS=OFF MONGOC=OFF METRICS=OFF GEOQ=OFF`, TRoE simply
+not shipped (it is a plugin - `--troe none` costs nothing).
+
+⚠️ `REGISTRATIONS=OFF` needs care rather than being obvious, given the paragraph
+below: that flag governs *serving* § 12 CSR CRUD, which an edge node has no
+reason to do - it is the thing being registered, not a registrar. Creating a
+registration in the CENTRE is a client call and needs none of it. If it turns
+out an edge node must also register something upward, the flag goes back on;
+worth settling with a real edge use case rather than by assertion.
+
+⭐ `GEOQ=OFF` is the interesting one for a device: GEOS is **3.17 MiB**, larger
+than the broker itself, and an edge node translating a fieldbus does not run
+geo-queries.
+
+**Between the two brokers it is a REGISTRATION** - KZ, 2026-09-18: *"the broker
+and the smaller broker will have registrations between them, just like the old
+agents."* Which is the same relationship an IoT Agent has with a broker today,
+and it is worth being exact about what changes and what does not:
+
+| | today | with an edge coraine |
+|---|---|---|
+| the relationship | a registration, created by the agent | a registration, unchanged |
+| what is registered | a Node.js agent | a small coraine |
+| the endpoint's transport | HTTP | the `cor` binary protocol |
+| what the far end speaks | the agent's own translation of a fieldbus | NGSI-LD, natively |
+
+⭐ So the Bridge/Channel model does **not** replace the registration between
+brokers, and § 3.1a already said why - *pull IS a registration*. What a Bridge
+changes is the **scheme on the registration's endpoint**, which is exactly the
+shared URI-scheme registry of § 3.2: a registration pointing at `cor://edge-7`
+rather than `http://…`. The Channels live on the edge node, mapping its fieldbus
+to attributes; the centre sees a context source.
+
+The binary protocol itself is § 9's item 3, the `tlv` bridge, already first in
+the landing order because both ends are ours and it is the easiest thing to
+test. So the edge shape is not new work bolted on: the feature flags, the bridge
+family, the registration model and the footprint work all arrive at the same
+place.
+
+⭐ **The plugin contract must NOT change with conditional compilation**, and it
+does not today. I had this backwards and KZ corrected it: I wrote that a
+layout-changing feature would make an edge broker incompatible with its bridge
+`.so`, and proposed a build-configuration check. Wrong problem. Checked
+afterwards:
+
+- **no** `COR_FEATURE` appears in `DbDriver.h`, `TroeDriver.h` or `ApiPlugin.h`
+- **no** conditional of any kind appears inside those structs, include guards
+  aside
+
+So the vtable is the same shape in every build, and **a feature that is off is a
+NULL function pointer at run time** - which is already the established
+convention rather than a new idea: `DbDriver.h` carries seven `NULL-allowed`
+members today, `snapshotCreate` among them, NULL for corDB because corDB does
+not persist.
+
+That is the rule to keep, and it is what makes the edge shape cheap: an edge
+broker can load a plugin built against a full broker, because the contract does
+not know the flags exist. The broker compiles out its own CALL SITE, the plugin
+leaves the pointer NULL, and neither needs to know which the other did.
+
+⚠️ So the thing to guard is narrower than a configuration check: **never put a
+`#if` inside a driver struct.** A `version` mismatch (§ 4) catches a stale
+plugin; nothing catches a struct that quietly changed shape, which is exactly
+why the rule is "don't" rather than "detect".
+
+### 2c. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
 
 Both have been discussed in the group for years without landing, and the reason
 is worth writing down: it is the same reason in both cases, and it is what makes
@@ -1541,7 +1677,7 @@ Recommended order of landing:
    vtable, the `serveDistOp` call surface from a plugin thread, the
    `dlopen` load mechanism (`--bridges`, §4c), and the `bridgeThreadInit` upcall.
    First concrete usage of every part of the bridge family.
-⚠️ Items 4 and 5 are **binding-shaped**, not Bridge-shaped, and § 2b is why the
+⚠️ Items 4 and 5 are **binding-shaped**, not Bridge-shaped, and § 2c is why the
 distinction matters: carrying NGSI-LD itself over MQTT or WebSocket is the thing
 the group has been unable to finish, because it needs a home for every HTTP
 header. Doing it inside a bridge plugin is a coraine decision about where the
