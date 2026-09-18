@@ -35,6 +35,7 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 exclude_docs: |
   bridge-channels.md
   problem-details.md
+  tutorial-doubts.md
 
 nav:
   - Home: index.md
