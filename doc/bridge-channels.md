@@ -187,6 +187,82 @@ exactly what `/iot/devices` is not. Whether coraine implements UltraLight in a
 `.so` while Scorpio keeps a Java agent is then an implementation choice, and
 both answer the same API.
 
+#### Two deployment shapes, and the edge one is where three threads meet
+
+KZ, 2026-09-18: *"For very small setups, one single coraine might replace the old
+broker and its iot-agents. But, if the agents need to run on the edge, instead
+of a full fledged coraine it will be a cond. compiled coraine w/o regs, subs,
+troe, etc, etc and the IPC will be the cor binary protocol, once ready."*
+
+**Small site - one process.** The broker and the agents collapse into the same
+binary: no agent service, no agent database, no provisioning API of its own, no
+network hop to do work the broker is already doing. The footprint for that is
+measured, not hoped for - `corHttp` + `corDB` adds **4.28 MiB and three
+libraries**, ~17 MiB idle RSS (see `performance.md`).
+
+**Edge - a conditionally compiled coraine.** Not a different program: the same
+source with features off.
+
+⚠️ **The mechanism is in place; the work is FAR from complete** (KZ,
+2026-09-18), and the doc should not read otherwise. Sixteen flags exist in
+`CMakeLists.txt`, emitted as `0`/`1` rather than defined/undefined so a
+misspelling is a compile error and the build reports its own feature set on
+`/version` - that part is sound. But only the first slice actually removes code:
+when the flags were measured, **nine of fifteen produced a byte-identical
+binary**. The flag existed and compiled nothing out.
+
+So an edge build is a direction, not a switch anyone can throw today. What it
+needs is the unglamorous half - going feature by feature and actually excluding
+the code, with a size measurement per flag to prove it. An edge build is roughly `SUBSCRIPTIONS=OFF REGISTRATIONS=OFF
+CONTEXT_HOSTING=OFF TENANTS=OFF MONGOC=OFF METRICS=OFF GEOQ=OFF`, TRoE simply
+not shipped (it is a plugin - `--troe none` costs nothing).
+
+⚠️ `REGISTRATIONS=OFF` needs care rather than being obvious, given the paragraph
+below: that flag governs *serving* § 12 CSR CRUD, which an edge node has no
+reason to do - it is the thing being registered, not a registrar. Creating a
+registration in the CENTRE is a client call and needs none of it. If it turns
+out an edge node must also register something upward, the flag goes back on;
+worth settling with a real edge use case rather than by assertion.
+
+⭐ `GEOQ=OFF` is the interesting one for a device: GEOS is **3.17 MiB**, larger
+than the broker itself, and an edge node translating a fieldbus does not run
+geo-queries.
+
+**Between the two brokers it is a REGISTRATION** - KZ, 2026-09-18: *"the broker
+and the smaller broker will have registrations between them, just like the old
+agents."* Which is the same relationship an IoT Agent has with a broker today,
+and it is worth being exact about what changes and what does not:
+
+| | today | with an edge coraine |
+|---|---|---|
+| the relationship | a registration, created by the agent | a registration, unchanged |
+| what is registered | a Node.js agent | a small coraine |
+| the endpoint's transport | HTTP | the `cor` binary protocol |
+| what the far end speaks | the agent's own translation of a fieldbus | NGSI-LD, natively |
+
+⭐ So the Bridge/Channel model does **not** replace the registration between
+brokers, and § 3.1a already said why - *pull IS a registration*. What a Bridge
+changes is the **scheme on the registration's endpoint**, which is exactly the
+shared URI-scheme registry of § 3.2: a registration pointing at `cor://edge-7`
+rather than `http://…`. The Channels live on the edge node, mapping its fieldbus
+to attributes; the centre sees a context source.
+
+The binary protocol itself is § 9's item 3, the `tlv` bridge, already first in
+the landing order because both ends are ours and it is the easiest thing to
+test. So the edge shape is not new work bolted on: the feature flags, the bridge
+family, the registration model and the footprint work all arrive at the same
+place.
+
+⚠️ **One hazard to write down before anyone builds it.** A feature that changes
+a STRUCT LAYOUT changes the plugin ABI, so an edge broker and the bridge `.so`
+it loads must be built from the same feature set. Nine of the fifteen flags
+measured earlier were inert - byte-identical binaries - but the ones that are
+not are exactly the ones an edge build wants off. `BridgeDriver` already carries
+a `version` the broker refuses to load on a major mismatch (§ 4); that catches a
+stale plugin, not a same-version plugin compiled against a different feature
+set. Worth an explicit build-configuration check before the first edge
+deployment, not after.
+
 ### 2c. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
 
 Both have been discussed in the group for years without landing, and the reason
