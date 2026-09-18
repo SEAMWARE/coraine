@@ -350,6 +350,48 @@ same opacity question as C1 and C4.
 same name into one object.** That guard belongs lower down, and is worth having
 whatever is decided here.
 
+## C7. ⭐⭐ `coreContextRewriteToShort` has FOUR victims, not one - the destroyed core context
+
+KZ, 2026-09-18: *"We might need a second copy of the core context for this ... as
+we've deliberately 'destroyed' the real core context."* That is the right
+diagnosis, and by now there is enough evidence to size it.
+
+`coreContextRewriteToShort` sets `itemP->id = itemP->name` for every core term,
+so the expander returns short forms for core terms with zero per-call work. It
+also means **the core context no longer knows any of its own IRIs**, and four
+separate places need them:
+
+| consumer | symptom | state |
+|---|---|---|
+| reverse lookup on input (C5) | `valueCompare` reads `itemP->id` at LOOKUP time, so an IRI is compared against a short name and never matches - the long spelling of a core term was unrecognised | fixed with an ad-hoc snapshot, `coreIriHT` |
+| `corLdCompact` step 3 | same cause; the step is **dead code** for the core context, so a core IRI never compacts back | OPEN, deliberately untouched (changes wire shapes) |
+| `corLdPrefixExpand` | concatenates `prefixItemP->id` + suffix, which is now the prefix NAME. `ngsi-ld:speed` was stored as an attribute called **`ngsi-ldspeed`**, with a `201` | fixed by consulting `corLdCorePrefixes()` |
+| the prefix snapshot itself | exists ONLY because the rewrite destroys the data - `corePrefixV`, captured pre-rewrite | pre-existing workaround |
+
+So there are already **two ad-hoc pre-rewrite snapshots** (`corePrefixV` and my
+`coreIriHT`) plus one dead code path, all working around the same deliberate act.
+A third snapshot would be the wrong answer.
+
+⭐ **KZ's suggestion is the structural one**: keep a second, PRISTINE parse of the
+core context beside the rewritten one. The rewritten copy stays exactly as it is
+- it is a legitimate optimisation for the hot expand path - and anything needing
+a real IRI asks the pristine copy. That replaces both snapshots, revives
+`corLdCompact` step 3 as a normal lookup, and removes the trap that has now bitten
+three times in one file family.
+
+⚠️ Cost: one more parse of the core context at init (once, ~100 terms) and the
+memory for it. Nothing per-request. Against that, every future reader of
+`itemP->id` on the core context is a latent bug of exactly this shape.
+
+### Also found, and left alone
+
+`geojson:Point` as a geometry type inside a GeoProperty's value is still refused,
+while the fully-expanded `https://purl.org/geojson/vocab#Point` is accepted. That
+one is NOT a prefix bug - nothing prefix-expands inside a value, correctly,
+because a value is the user's. It is the same question C4 asks: a GeoProperty's
+value is broker-owned structure while a Property's is not. Whatever settles C4
+settles this.
+
 ## C6. ⛔ OPEN - an INVALID attribute type is accepted, and gets a second type bolted on
 
 Found by KZ asking the obvious question about C5: *"That longname is neither of

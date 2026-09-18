@@ -1,0 +1,261 @@
+#
+# FILE            compact_iri_core_prefix.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A compact IRI built on a CORE-context prefix. The core context defines two:
+#
+#   ngsi-ld  ->  https://uri.etsi.org/ngsi-ld/
+#   geojson  ->  https://purl.org/geojson/vocab#
+#
+# so `ngsi-ld:speed` is a perfectly ordinary JSON-LD spelling of
+# `https://uri.etsi.org/ngsi-ld/speed`, and TS 104-175 § 4.6.2 names the
+# `prefix:name` form explicitly.
+#
+# They were SILENTLY CORRUPTED. corLdPrefixExpand builds its result as
+# `prefixItemP->id` + suffix, and coreContextRewriteToShort has by then flattened
+# every core term's id to its own name - so the core prefix `ngsi-ld` held
+# "ngsi-ld" instead of the URL. The colon was eaten and the prefix NAME glued to
+# the suffix:
+#
+#   "ngsi-ld:speed": {...}      -> stored as attribute `ngsi-ldspeed`, 201
+#   "type": "ngsi-ld:Thing"     -> stored as entity type `ngsi-ldThing`, 201
+#   "type": "ngsi-ld:Property"  -> `ngsi-ldProperty`, 400 Invalid Attribute Type
+#
+# No error on the first two: wrong data, cheerfully accepted. Fixed by taking the
+# prefix IRI from corLdCorePrefixes(), the pre-rewrite snapshot that exists for
+# exactly this reason and that corLdCompact's prefix step already uses.
+#
+# Step 05 is the one that matters beyond the corruption: all three legal
+# spellings of an Attribute type must end up as ONE stored form.
+#
+--NAME--
+Compact IRIs on a core-context prefix (ngsi-ld:, geojson:)
+--TAGS--
+entity context validation create
+--INIT--
+corDbDrop
+coraineStart
+--RUN--
+
+#
+# 01. attribute NAME as a compact IRI
+# 02. entity TYPE as a compact IRI
+# 03. attribute TYPE as a compact IRI - canonicalized to the short name
+# 04. a compact IRI naming no attribute type is still 400
+# 05. all three spellings of Property agree
+#
+
+echo "01. attribute name ngsi-ld:speed"
+echo "================================"
+payload='{ "id": "urn:CI1", "type": "T", "ngsi-ld:speed": { "type": "Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:CI1
+echo
+echo
+
+
+echo "02. entity type ngsi-ld:Thing"
+echo "============================="
+payload='{ "id": "urn:CI2", "type": "ngsi-ld:Thing", "P": { "type": "Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:CI2
+echo
+echo
+
+
+echo "03. attribute type ngsi-ld:Property - short name stored"
+echo "======================================================="
+payload='{ "id": "urn:CI3", "type": "T", "P": { "type": "ngsi-ld:Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:CI3
+echo
+echo
+
+
+echo "04. ngsi-ld:Porpetry names no attribute type - 400"
+echo "=================================================="
+payload='{ "id": "urn:CI4", "type": "T", "P": { "type": "ngsi-ld:Porpetry", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. all three spellings of Property agree"
+echo "========================================="
+payload='{ "id": "urn:CI5", "type": "T", "A": { "type": "Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+payload='{ "id": "urn:CI6", "type": "T", "A": { "type": "https://uri.etsi.org/ngsi-ld/Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+payload='{ "id": "urn:CI7", "type": "T", "A": { "type": "ngsi-ld:Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:CI5
+corCurl --url /ngsi-ld/v1/entities/urn:CI6
+corCurl --url /ngsi-ld/v1/entities/urn:CI7
+echo
+echo
+
+
+--EXPECT--
+01. attribute name ngsi-ld:speed
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI1
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "https://uri.etsi.org/ngsi-ld/speed": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI1",
+  "type": "T"
+}
+
+
+
+02. entity type ngsi-ld:Thing
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI2
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "P": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI2",
+  "type": "https://uri.etsi.org/ngsi-ld/Thing"
+}
+
+
+
+03. attribute type ngsi-ld:Property - short name stored
+=======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI3
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "P": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI3",
+  "type": "T"
+}
+
+
+
+04. ngsi-ld:Porpetry names no attribute type - 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 269
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/P': 'https://uri.etsi.org/ngsi-ld/Porpetry' is not an NGSI-LD Attribute type",
+  "status": 400,
+  "title": "Invalid Attribute Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. all three spellings of Property agree
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI5
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI6
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:CI7
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "A": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI5",
+  "type": "T"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "A": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI6",
+  "type": "T"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "A": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:CI7",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+corDbDrop
