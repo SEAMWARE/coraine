@@ -1,11 +1,11 @@
 #
-# FILE            troe_ramdb_create.test
+# FILE            troe_corDB_create.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
-# TRoE: POST /entities defers an entityCreated event that the ramdb
+# TRoE: POST /entities defers an entityCreated event that the corDB
 # plugin captures. /admin/troe/dump exposes the captured ring.
 #
 --NAME--
@@ -16,7 +16,7 @@ troe create
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin --troeSync
+coraineStart --troe corDB --apiPlugins admin --troeSync
 
 --RUN--
 

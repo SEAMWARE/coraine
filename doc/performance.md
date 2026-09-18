@@ -89,7 +89,7 @@ it is the clearest single number on this page:
 | `corHttp` + `corDB` + history in PostgreSQL | 1.08 MiB | 5.57 MiB (13) | 6.65 MiB |
 | libmicrohttpd + `mongoc` + history in PostgreSQL | 1.12 MiB | 19.53 MiB (24) | **20.66 MiB** |
 
-`ramdb` — temporal history in this process — adds **no library and no
+`--troe corDB` — temporal history in this process — adds **no library and no
 measurable size**. The full conventional deployment is 24 libraries against 3,
 and 20.7 MiB against 4.3.
 
@@ -158,12 +158,12 @@ next two sections.
 | `--database` / `--troe` | Also required | What that costs |
 |-------------------------|---------------|-----------------|
 | `corDB` / `none` | **nothing** | — |
-| `corDB` / `ramdb` | **nothing** | temporal history in the same process, and it is free — see below |
+| `corDB` / `corDB` | **nothing** | temporal history in the same process, and it is free — see below |
 | `mongoc` | a MongoDB server | 1.02–1.15 GiB resident at rest, and WiredTiger's cache defaults to half of (RAM − 1 GiB): on this 60 GiB host mongod is entitled to ~30 GiB. Plus **cores** — see below. Image: `mongo:4.4` 594 MB, `mongo:8` 1.3 GB |
 | `timescale` (TRoE) | a PostgreSQL + TimescaleDB server | 35 MB of packages, 128 MiB of shared buffers by default, 313 MiB across its 10 processes here — and on the broker's own machine **2.3 MiB and 9–10 added libraries** for `libpq`, which drags in Kerberos, LDAP and SASL that a broker never calls. Nine rather than ten when `mongoc` has already brought `libsasl2` |
 
-Which is the point of the first two rows. A `corHttp` + `corDB` + `ramdb`
-deployment is **one process, 17 MiB, 4.3 MiB of new files on disk, and no socket
+Which is the point of the first two rows. A `corHttp` + `corDB` deployment with
+`--troe corDB` is **one process, 17 MiB, 4.3 MiB of new files on disk, and no socket
 to anything else** — with temporal history included.
 
 ## Start-up
@@ -313,7 +313,7 @@ clients, which are somebody else's machines.
 
 Three things fall out of that table.
 
-**Temporal history in-process is free.** `--troe ramdb` against `--troe none`:
+**Temporal history in-process is free.** `--troe corDB` against `--troe none`:
 40 257 against 40 073 on queries, 123 307 against 125 187 on PATCH. Within the
 noise, on every shape. History in PostgreSQL costs `corDB` **91% of its PATCH
 rate and 94% of its batch rate** — not because PostgreSQL is slow, but because

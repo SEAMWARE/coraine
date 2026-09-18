@@ -131,7 +131,7 @@ Content-Length: REGEX([0-9]+)
       },
       {
         "kind": "temporal",
-        "name": "ramdb"
+        "name": "corDB"
       },
       {
         "kind": "temporal",
@@ -216,7 +216,7 @@ Content-Length: REGEX([0-9]+)
       },
       {
         "kind": "temporal",
-        "name": "ramdb"
+        "name": "corDB"
       },
       {
         "kind": "temporal",

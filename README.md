@@ -141,9 +141,9 @@ Five things worth taking from that table:
   1.00 MiB of it is coraine, and the cor and k libraries are whole-archived into
   that binary, so it is not a `main` calling out to something else: `corNgsild`,
   `corRest`, `corJsonld`, `kjson`, `kalloc` and the rest are *in* the megabyte.
-- **`corDB` + `ramdb` needs no other service at all** — and temporal history in
-  the same process is **free**: 40 257 req/s against 40 073 with history off,
-  123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of
+- **`--database corDB --troe corDB` needs no other service at all** — and
+  temporal history in the same process is **free**: 40 257 req/s against
+  40 073 with history off, 123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of
   its PATCH rate instead.
 - **The page size is the claim.** 6 588 requests/s per core at `limit=20` is
   **131 760 entities/s per core**; at `limit=1` it is 37 743 of each; at
@@ -192,7 +192,7 @@ full list and the honest state of each.
 | Category | Selected with | Active at a time | Bundled |
 |----------|---------------|------------------|---------|
 | **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` |
-| **History DB (TRoE)** | `--troe` | one | `none` (default), `ramdb`, `timescale` |
+| **History DB (TRoE)** | `--troe` | one | `none` (default), `corDB`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Bridge** (outbound transport) | endpoint scheme | per scheme | HTTP/HTTPS built in; others *planned* |
 

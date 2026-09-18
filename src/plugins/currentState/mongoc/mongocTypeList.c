@@ -12,7 +12,7 @@
 //
 // Could be done server-side with $group, but building in memory keeps
 // the aggregation rules (type union handling, attribute-type detection
-// via ldAttrTypeDetect) identical to the ramdb plugin.
+// via ldAttrTypeDetect) identical to the corDB plugin.
 //
 
 #include <mongoc/mongoc.h>                              // mongoc_collection_*

@@ -19,7 +19,13 @@ There are **four** kinds of plugin:
   Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
   `<base>/troe/temporal/<name>.so`; register symbol `troeRegister`; fills the
   `TroeDriver` struct (`troe`). **One active at a time** (`none` disables history).
-  Bundled: `none` (default), `ramdb`, `timescale`.
+  Bundled: `none` (default), `corDB`, `timescale`.
+
+  `corDB` names the same store on both axes on purpose: `--database corDB
+  --troe corDB` is one process keeping current state and history, and the two
+  plugins are separate `.so` files only because the seam is per family. A
+  `--database mongoc --troe corDB` combination is legal too — that is what the
+  TRoE functests run under the mongoc suite.
 
 - **API services** — extra HTTP endpoints beyond the NGSI-LD core (ops, admin,
   health, …). Loaded via `--apiPlugins` / `-api`; resolves to `<base>/api/<name>.so`;
@@ -50,7 +56,7 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 │   └── corDB.so         # in-memory store
 ├── troe/temporal/
 │   ├── none.so            # no-op (temporal disabled)
-│   ├── ramdb.so           # in-memory history (dev/test)
+│   ├── corDB.so           # in-memory history (dev/test)
 │   └── timescale.so       # TimescaleDB/Postgres history
 └── api/
     └── admin.so           # health/version/log/tenants/plugins
@@ -125,7 +131,7 @@ the headers — read these before writing a plugin:
 | **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
 | **corDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
-| **ramdb** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
+| **corDB** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
 

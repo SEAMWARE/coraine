@@ -161,7 +161,7 @@ bool postJsonldContexts(void)
     corLdCacheInsert(contextP);
 
     //
-    // Persist (only mongoc plugin implements this; ramdb leaves it NULL).
+    // Persist (only mongoc plugin implements this; corDB leaves it NULL).
     //
     if (db.contextSave != NULL && contextP->body != NULL)
       db.contextSave(id, NULL, DB_CONTEXT_KIND_HOSTED, contextP->body);

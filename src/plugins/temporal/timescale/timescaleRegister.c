@@ -37,7 +37,7 @@ void troeRegister(TroeDriver* driverP)
   driverP->tenantDrop   = timescaleTenantDrop;
   driverP->migrate      = NULL;  // run inline by init; no per-tenant work yet
   // The per-event hooks are the fallback for a driver without a list hook
-  // (ramdb uses them). troeDispatch always prefers eventList, which puts the
+  // (corDB uses them). troeDispatch always prefers eventList, which puts the
   // whole request's events in ONE transaction — so timescale offers only that.
   driverP->entityEvent  = NULL;
   driverP->attrEvent    = NULL;

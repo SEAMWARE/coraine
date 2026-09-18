@@ -1,5 +1,5 @@
 #
-# FILE            troe_ramdb_full_lifecycle.test
+# FILE            troe_corDB_full_lifecycle.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -21,7 +21,7 @@ troe lifecycle
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin --troeSync
+coraineStart --troe corDB --apiPlugins admin --troeSync
 
 --RUN--
 

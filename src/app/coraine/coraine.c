@@ -439,7 +439,7 @@ static void apiPluginsInit(void)
 // Called by the pernot loop thread. Builds a DbQueryFilter from the
 // pernot item's entity selectors and calls db.entityQuery.
 //
-// db.entityQuery (mongoc, ramdb) allocates through corRest.kjsonP/kalloc.
+// db.entityQuery (mongoc, corDB) allocates through corRest.kjsonP/kalloc.
 // corRest is __thread; the pernot thread's copy is zero-initialised so we
 // bring it up to working state on first call. Between pernot cycles we
 // reset it — the produced entity array is cloned by the caller (through

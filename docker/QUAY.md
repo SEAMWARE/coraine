@@ -63,7 +63,7 @@ docker run --rm quay.io/seamware/coraine:0.4.0 \
 
 - `--port` / `-p` — TCP listen port (default 1026)
 - `--database` / `-db` — storage plugin: `mongoc` (default) or `corDB`
-- `--troe` / `-troe` — temporal history plugin: `none` (default), `ramdb`, `timescale`
+- `--troe` / `-troe` — temporal history plugin: `none` (default), `corDB`, `timescale`
 - `--apiPlugins` / `-api` — extra API plugins, comma-separated; `admin` adds ops endpoints
 - `--pretty-print` / `-pp` — JSON indentation (0 = compact)
 - `--distributed` / `-dist` — enable distributed operations (off by default; see below)

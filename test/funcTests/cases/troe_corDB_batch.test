@@ -1,5 +1,5 @@
 #
-# FILE            troe_ramdb_batch.test
+# FILE            troe_corDB_batch.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -18,7 +18,7 @@ troe batch
 
 --INIT--
 corDbDrop
-coraineStart --troe ramdb --apiPlugins admin --troeSync
+coraineStart --troe corDB --apiPlugins admin --troeSync
 
 --RUN--
 

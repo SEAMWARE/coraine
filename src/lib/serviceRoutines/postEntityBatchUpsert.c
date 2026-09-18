@@ -831,7 +831,7 @@ bool postEntityBatchUpsert(void)
 
       // TRoE: optimistic per-fragment events. For created entities,
       // emit one entityCreated; the per-attr breakdown comes from the
-      // ramdb plugin walking entitySnapshot at dispatch time. For
+      // corDB plugin walking entitySnapshot at dispatch time. For
       // update mode, emit per-attr events from the merge report.
       {
         KjNode* tn = kjLookup(finalP, "type");

@@ -287,7 +287,7 @@ typedef int  (*TroeEntityTemporalInstanceDeleteFunc)(Tenant* tenantP,
 typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
 
 //
-// Dev/test helper: dump recent events captured by the plugin (e.g. ramdb).
+// Dev/test helper: dump recent events captured by the plugin (e.g. corDB).
 // Production plugins (timescale, parquet) leave it NULL — admin route
 // returns 501. Allocates onto allocP, appends children to root.
 //

@@ -126,7 +126,7 @@ broker calls **into** the plugin.
 | Family | Direction | Cardinality | Examples |
 |---|---|---|---|
 | currentState DB | broker → plugin | one active | mongoc, corDB |
-| TRoE | broker → plugin | one active | timescale, ramdb, none |
+| TRoE | broker → plugin | one active | timescale, corDB, none |
 | API | HTTP → plugin handler | many | admin |
 | **bridge** (new) | **bidirectional** | **many, scheme-keyed (non-HTTP)** | tlv, ws, dds, opcua, … (HTTP is inline, not a plugin) |
 

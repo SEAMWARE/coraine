@@ -223,7 +223,7 @@ if (COR_FEATURE_REGISTRATIONS)
 endif()
 ADD_SUBDIRECTORY(src/plugins/currentState/corDB)
 ADD_SUBDIRECTORY(src/plugins/temporal/none)
-ADD_SUBDIRECTORY(src/plugins/temporal/ramdb)
+ADD_SUBDIRECTORY(src/plugins/temporal/corDB)
 ADD_SUBDIRECTORY(src/plugins/temporal/timescale)
 
 if (COR_FEATURE_MONGOC)
