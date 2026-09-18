@@ -156,11 +156,12 @@ topics / services / actions, each mapped to
 model either — but see §3.6, because we do have to keep reading that
 file.
 
-The model is two objects:
+The model is **three concepts, two of them objects**:
 
-| Object | What it is | How many | Lifecycle |
+| Concept | What it is | How many | Lifecycle |
 |---|---|---|---|
-| **Bridge** | A transport instance. For DDS: the participant — domain, QoS defaults, thread count, types directory. | Very few. | The *kind* is startup-fixed (`--bridges`); the *instance* is a stored object with full CRUD — §3.5a. |
+| **Capability** | What this deployment *can* speak — a plugin `.so`, named on `--bridges`. **Not an object**: no id, no CRUD, no endpoint. | One per protocol or codec built. | Fixed at startup. §3.5b. |
+| **Bridge** | A transport instance. For DDS: the participant — domain, QoS defaults, thread count, types directory. | Very few. | A stored object with full CRUD — §3.5a. Many Bridges may share one Capability. |
 | **Channel** | One foreign endpoint tied to one entity attribute: `dds://rt/pose` ↔ `(urn:ngsi-ld:robot:1, pose)`, plus direction, retention and kind. | More — one per topic per entity. | Created, patched and deleted at runtime. |
 
 **Three things change on three different clocks, and conflating them is what
@@ -168,7 +169,7 @@ made the lifecycle hard to pin down:**
 
 | | What it is | When it changes |
 |---|---|---|
-| The `.so` | Infrastructure. `--bridges dds,opcua` names which are loaded. | Startup. |
+| The **Capability** (the `.so`) | Infrastructure. `--bridges dds,opcua` names which are loaded. | Startup. |
 | The **Bridge** | Configuration. *A DDS participant on domain 7 with this QoS.* | Runtime, full CRUD. |
 | The **Channel** | *This topic ↔ this attribute.* | Runtime, full CRUD. |
 
@@ -456,7 +457,35 @@ difference should be documented rather than discovered.
 
 A Bridge is configuration; the `.so` is infrastructure. They are deployed by
 different people at different times, which is what makes this feel awkward —
-but it is an ordering fact, not a modelling problem. Three questions, and
+but it is an ordering fact, not a modelling problem.
+
+⭐ **The infrastructure tier has a name: a Capability.** A `dds.so` present and
+named on `--bridges` is a *Capability* — a statement of what this deployment
+**can** do. It is not an object: there is no `POST /capabilities`, no id, no
+CRUD. Naming it completes the family, because the three tiers are three
+different kinds of thing on three different clocks, and only two of them are
+API objects:
+
+| | what it is | changes at | over the API |
+|---|---|---|---|
+| **Capability** | *this deployment can speak DDS* — a `.so`, named on `--bridges` | startup | not an object |
+| **Bridge** | *a DDS participant on domain 7, these QoS, this types directory* | runtime, full CRUD | stored: `id` + `type` |
+| **Channel** | *this topic ↔ this attribute, this direction, this retention* | runtime, full CRUD | stored: `id` + `type` |
+
+⚠️ `Capability → Bridge` is **many-to-one**: two DDS participants on different
+domains are two Bridges over one Capability. An earlier draft had Bridge
+read-only over the API, which was this row's property mistakenly applied to the
+next one.
+
+⭐ Why *Capability* and not *Transport* or *Protocol*, both of which were
+considered: a Capability need not be a transport. The device-protocol work
+splits transports (HTTP, MQTT, CoAP, DDS…) from payload codecs (JSON,
+UltraLight, LWM2M…) precisely so the plugin count is a sum rather than a
+product, and a codec plugin has exactly this lifecycle without being a
+transport. Vendor stacks that do not decompose — LoRaWAN, Sigfox, which carry
+network semantics and not just a payload — are one Capability each. *Transport*
+also collides with Bridge, which this document defines as "a transport
+instance"; *Protocol* is the very word the two-axis split decomposes. Three questions, and
 the broker already answers all three for its other plugin families.
 
 **How does a Bridge name its plugin?** By **short name** — `"plugin": "dds"`
@@ -473,9 +502,9 @@ through a directory the operator controls, which is the whole point of the
 existing convention.
 
 ⛔ **And the broker does not auto-create a Bridge because it found a
-plugin.** The reason generalises: *the presence of a plugin is a capability;
-a Bridge is a decision, and a capability appearing must never enact a
-decision.* Installing `dds.so` would otherwise make the broker join a DDS
+plugin.** The reason generalises, and with the tier named it states itself:
+*a Capability is what the deployment can do; a Bridge is what it has been told
+to do. A Capability appearing must never enact a Decision.* Installing `dds.so` would otherwise make the broker join a DDS
 domain by itself — on which domain, with which QoS, against which types
 directory? Domain 0 is a guess that puts the broker on a network. It also
 inverts §3.5a: there a stored object must not dictate the boot; here a
@@ -767,6 +796,10 @@ forwarding to a peer that speaks NGSI-LD, a registration for a value fetched
 on demand (§3.1a), and a Channel for a value that flows.
 
 ## 4. Plugin contract
+
+> The `.so` this section specifies is a **Capability** (§ 3.5b): present or
+> absent at startup, never an API object. `BridgeDriver` below is the vtable it
+> populates — the contract, not the tier.
 
 Same shape as the existing families: a single registration symbol
 populates a vtable struct. Working name `BridgeDriver`.
@@ -1287,6 +1320,9 @@ that arrive with a single attribute sample rather than a full
 NGSI-LD operation.
 
 ## 8. Lifecycle
+
+> Three tiers, three clocks — **Capability** (startup, not an object),
+> **Bridge** and **Channel** (runtime, stored). Defined in § 3.5b.
 
 > Revised 2026-08-26 for the Bridge / Channel split of §3. Plugins are
 > no longer discovered from the schemes present in the registration

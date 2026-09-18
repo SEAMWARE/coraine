@@ -101,7 +101,7 @@ incorporated in the next release of the product, in roughly this order:
     landed — `REGISTRATIONS` and `SUBSCRIPTIONS` compile out, and the HTTP server
     is already a build choice — but most of the declared feature flags do not yet
     reach the code they name. [Building from source](building.md) says exactly
-    which, because a flag that reports as off while the capability still works is
+    which, because a flag that reports as off while the feature still works is
     worse than no flag.
 
 -   **Subordinate subscriptions on registration change.** § 10.5.2.4 currently
