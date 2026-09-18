@@ -34,14 +34,28 @@ echo
 echo
 
 
-echo "03. GET /entities?id=urn:V1 - 400 (id alone is too wide per § 5.7.2.4)"
+echo "03. GET /entities?id=urn:V1 - 200 OK (an explicit id is the narrowest query there is)"
 echo "======================================================================"
 corCurl --url '/ngsi-ld/v1/entities?id=urn:V1'
 echo
 echo
 
 
-echo "04. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')"
+echo "04. GET /entities?idPattern=... - 200 OK (a registration is matched on idPattern too)"
+echo "====================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?idPattern=urn:V.*'
+echo
+echo
+
+
+echo "05. GET /entities?pick=speed - 400 (pick PROJECTS, it selects nothing)"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/entities?pick=speed'
+echo
+echo
+
+
+echo "06. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')"
 echo "==================================================================================="
 corCurl --url '/ngsi-ld/v1/entities?local=true'
 echo
@@ -54,10 +68,10 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 317
 
 {
-  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "detail": "Query Entities requires at least one of 'id', 'idPattern', 'type', 'attrs', 'q', a GeoQuery, 'scopeQ' or 'local=true' - without one there is nothing to match registrations on (§ 5.7.2.4)",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -71,21 +85,45 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 3
 
 []
 
 
 
-03. GET /entities?id=urn:V1 - 400 (id alone is too wide per § 5.7.2.4)
+03. GET /entities?id=urn:V1 - 200 OK (an explicit id is the narrowest query there is)
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. GET /entities?idPattern=... - 200 OK (a registration is matched on idPattern too)
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+05. GET /entities?pick=speed - 400 (pick PROJECTS, it selects nothing)
 ======================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 317
 
 {
-  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "detail": "Query Entities requires at least one of 'id', 'idPattern', 'type', 'attrs', 'q', a GeoQuery, 'scopeQ' or 'local=true' - without one there is nothing to match registrations on (§ 5.7.2.4)",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -93,13 +131,13 @@ Content-Length: REGEX(\d+)
 
 
 
-04. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')
+06. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')
 ===================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
+Content-Length: 3
 
 []
 

@@ -218,10 +218,10 @@ HTTP/1.1 201 Created
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 279
+Content-Length: 317
 
 {
-  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery, 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)",
+  "detail": "Query Entities requires at least one of 'id', 'idPattern', 'type', 'attrs', 'q', a GeoQuery, 'scopeQ' or 'local=true' - without one there is nothing to match registrations on (§ 5.7.2.4)",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
