@@ -1,0 +1,221 @@
+#
+# FILE            q_expandvalues_value_list.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.3.4 / § 7.3 — `expandValues` applies to every string item of a q value
+# LIST, not only to a single-value right-hand side.
+#
+# The bug: the q tree walker that applies expandValues handled the LdQString
+# leaf and ignored LdQValueList, so `q=category=="barn"` matched a
+# VocabProperty while `q=category=="barn","farm_auxiliary"` matched nothing.
+#
+# ⭐ The case that names the defect is step 04: a list of two IDENTICAL values.
+# It fails too, which rules out "the wrong item was compared" and leaves only
+# "the list path never expanded at all".
+#
+# Found by the FIWARE Getting-Started tutorial, whose own README shows the
+# entity in the response.
+#
+--NAME--
+q expandValues applies to every item of a value list (§ 7.2.3.4)
+
+--TAGS--
+q expandValues vocab-property
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+contextServerStart
+coraineStart
+
+contextServerPush /jsonldContexts/vocab '{
+  "@context": {
+    "Building":       "urn:x:Building",
+    "category":       "urn:x:category",
+    "barn":           "urn:x:barn",
+    "farm":           "urn:x:farm",
+    "farm_auxiliary": "urn:x:farm_aux"
+  }
+}'
+
+--RUN--
+
+echo "01. Two buildings with a VocabProperty category (barn / farm)"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Building:barn1",
+  "type": "Building",
+  "category": { "type": "VocabProperty", "vocab": "barn" },
+  "@context": { "Building": "urn:x:Building", "category": "urn:x:category", "barn": "urn:x:barn", "farm": "urn:x:farm", "farm_auxiliary": "urn:x:farm_aux" }
+}' -H 'Content-Type: application/ld+json'
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Building:farm1",
+  "type": "Building",
+  "category": { "type": "VocabProperty", "vocab": "farm" },
+  "@context": { "Building": "urn:x:Building", "category": "urn:x:category", "barn": "urn:x:barn", "farm": "urn:x:farm", "farm_auxiliary": "urn:x:farm_aux" }
+}' -H 'Content-Type: application/ld+json'
+echo
+echo
+
+
+echo "02. SINGLE value + expandValues - the barn (this always worked)"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Building&q=category==%22barn%22&expandValues=category' -H 'Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "03. VALUE LIST + expandValues - the barn, via a two-item list"
+echo "============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Building&q=category==%22barn%22,%22farm_auxiliary%22&expandValues=category' -H 'Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. A list of two IDENTICAL values - the diagnostic case"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Building&q=category==%22barn%22,%22barn%22&expandValues=category' -H 'Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "05. A list matching BOTH entities"
+echo "================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Building&q=category==%22barn%22,%22farm%22&expandValues=category' -H 'Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. WITHOUT expandValues the list must NOT match - vocab holds an IRI"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Building&q=category==%22barn%22,%22farm%22' -H 'Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--EXPECT--
+01. Two buildings with a VocabProperty category (barn / farm)
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:barn1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Building:farm1
+Content-Length: 0
+
+
+
+
+02. SINGLE value + expandValues - the barn (this always worked)
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "barn"
+    },
+    "id": "urn:ngsi-ld:Building:barn1",
+    "type": "Building"
+  }
+]
+
+
+
+03. VALUE LIST + expandValues - the barn, via a two-item list
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "barn"
+    },
+    "id": "urn:ngsi-ld:Building:barn1",
+    "type": "Building"
+  }
+]
+
+
+
+04. A list of two IDENTICAL values - the diagnostic case
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 153
+
+[
+  {
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "barn"
+    },
+    "id": "urn:ngsi-ld:Building:barn1",
+    "type": "Building"
+  }
+]
+
+
+
+05. A list matching BOTH entities
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 303
+
+[
+  {
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "barn"
+    },
+    "id": "urn:ngsi-ld:Building:barn1",
+    "type": "Building"
+  },
+  {
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "farm"
+    },
+    "id": "urn:ngsi-ld:Building:farm1",
+    "type": "Building"
+  }
+]
+
+
+
+06. WITHOUT expandValues the list must NOT match - vocab holds an IRI
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/vocab>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+contextServerStop

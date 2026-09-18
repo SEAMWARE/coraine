@@ -447,4 +447,33 @@ di:         debug install_debug
 ci:         clean release install
 cdi:        clean debug install_debug
 
-.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild
+#
+# docker - build the image from the working tree, tagged coraine:local
+#
+# TWO steps, and the second fails without the first: the Dockerfile clones the
+# k-libs itself (at the refs corLibs/klib-pins names) but does NOT clone the
+# Cor-Libs - vendor-libs.sh exports each one's committed HEAD into
+# docker/vendor/, and the build aborts with "run ./docker/vendor-libs.sh first"
+# if that directory is not there. Easy to forget, and the reason this target
+# exists rather than a documented command.
+#
+# ⚠️ vendor-libs.sh stages each Cor-Lib's COMMITTED state, so uncommitted work
+# next door is NOT in the image - which is the right default for something
+# reproducible, but worth knowing when a change seems not to have taken.
+#
+# GIT_SHA / BUILD_AT are passed in because .git is not in the build context;
+# they are what the broker reports on /info/sourceIdentity, so a `docker`
+# build with them unset would ship an image that cannot say what it is.
+#
+DOCKER_TAG ?= coraine:local
+
+docker:
+	@./docker/vendor-libs.sh
+	@docker build -f docker/Dockerfile \
+	  --build-arg GIT_SHA=$$(git rev-parse --short HEAD) \
+	  --build-arg BUILD_AT=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	  -t $(DOCKER_TAG) .
+	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
+	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
+
+.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker

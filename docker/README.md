@@ -6,11 +6,25 @@ or against MongoDB (`--database mongoc`, the default).
 ## Build
 
 ```sh
+make docker                    # or: make docker DOCKER_TAG=coraine:mytag
+```
+
+That runs the two steps below. Doing them by hand works too, but the build
+aborts with `run ./docker/vendor-libs.sh first` if the staging step is skipped —
+the Dockerfile clones the k-libs itself, at the refs `corLibs/klib-pins` names,
+and does NOT clone the Cor-Libs.
+
+```sh
+./docker/vendor-libs.sh        # exports each Cor-Lib's COMMITTED HEAD -> docker/vendor/
 docker build -f docker/Dockerfile \
   --build-arg GIT_SHA=$(git rev-parse --short HEAD) \
   --build-arg BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
   -t coraine:local .
 ```
+
+⚠️ `vendor-libs.sh` stages each Cor-Lib's **committed** state, so uncommitted
+work in a sibling repo is not in the image. `make docker` warns when the coraine
+working tree is dirty for the same reason.
 
 `GIT_SHA` and `BUILD_AT` are stamped into the provenance the broker reports on
 `/info/sourceIdentity`. They are passed in because `.git` is not part of the build
