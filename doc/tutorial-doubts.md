@@ -913,16 +913,76 @@ It is still worth telling the author one thing: those temporal steps are written
 against Mintaka's API, not the NGSI-LD temporal API, so they are not portable to
 a broker that implements temporal itself.
 
-## ⛔ Still not running: `Big-Data-Spark`
+## ⭐⭐ T21. `Big-Data-Spark` puts its Docker network on PUBLIC address space
 
-Its stack starts — its own log ends with *"coraine is now running and exposed on
-localhost:1026"* — and its compose publishes `${EXPOSED_PORT:-1026}` intact, yet
-the broker does not answer there. Not diagnosed; it needs the stack up and a
-look at what is actually bound. The remaining unknown of the sweep, with
-`Verifiable-Credentials` deliberately out of scope (it pulls in the Data Space
-Connector, not a broker test).
+The reason it never ran, and the best find of the sweep.
 
-⇒ **14 of 16 tutorials have now been run.**
+```
+Big-Data-Spark/.env:  SUBNET=182.18.1.0/24
+```
+
+`182.18.1.0/24` is **public** address space, allocated to APNIC. Every other
+tutorial hardcodes `172.18.1.0/24` in `common.yml`; `Big-Data-Spark` is the only
+one that parameterises the subnet, and the value it parameterises it with is not
+private.
+
+**The symptom is confusing, which is why it took three attempts.** The stack
+starts, `./services coraine` exits 0, its own output says *"coraine is now
+running and exposed on localhost:1026"*, the container reports **healthy**, its
+log is empty, its arguments are right, and `docker ps` shows
+`0.0.0.0:1026->1026/tcp`. And yet:
+
+```
+curl localhost:1026/admin/health   ->  exit 28 (timeout), not connection refused
+container IP                       ->  182.18.1.8
+curl 182.18.1.8:1026/admin/health  ->  timeout
+```
+
+A bound port that accepts and never answers, because the container's address is
+a real internet host as far as the kernel's routing is concerned.
+
+⚠️ It also quietly hijacks 256 public addresses on any machine that runs it.
+
+**Fix for the author:** `SUBNET=172.18.1.0/24`, matching every other tutorial.
+With that one change the tutorial runs: 4 steps, no broker errors.
+
+⛔ I recorded this twice as "BROKER NOT ANSWERING after start" and once
+"blamed" my own health check for it - which was also true (that check WAS a
+single curl, fixed) but was not this. Two faults with one symptom, and fixing
+the visible one hid the real one for two more runs.
+
+## T20. `Short-Term-History` step 1 — the expected block is a different entity
+
+The step queries `temporal/entities/urn:ngsi-ld:Animal:cow002?lastN=3` and gets
+an Animal - `birthdate`, `fedWith`, `legalId`, `species`, `weight`. The README's
+expected output is a **Device**: `category`, `controlledAsset`,
+`controlledProperty`, `supportedProtocol`. Two different entities; the T7 family.
+
+⭐ Worth noting what this step proves rather than only what it flags: coraine's
+OWN temporal API answered `lastN=3` correctly, with per-attribute instance
+arrays and `instanceId`s. That is the path the Mintaka redirect (rig § 3) exists
+to exercise, and it works.
+
+## T22. Subscription listings omit three members the spec requires
+
+`Time-Series-Data` step 3 and `Big-Data-Spark` step 2 both expect
+
+```
+[description, entities, id, notification, throttling, type, watchedAttributes]
+```
+
+and get those plus **`jsonldContext`, `notificationTrigger`, `status`**. All
+three are legitimate: `notificationTrigger` and `status` are Subscription
+members in clause 5, and `status` is explicitly *"Read-only. Provided by the
+system when querying the details of a subscription"* - so returning it is not
+optional. `jsonldContext` is a core-context term.
+
+The READMEs predate them. T7 family again, and the same advice: the expected
+blocks want regenerating against a current broker.
+
+⇒ **15 of 16 tutorials have now been run.** Only `Verifiable-Credentials`
+remains, deliberately - it pulls in the Data Space Connector, which is an
+identity stack rather than a broker test.
 
 ## Driver corrections needed (mine, not the tutorials')
 
