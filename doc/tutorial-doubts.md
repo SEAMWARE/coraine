@@ -718,7 +718,15 @@ what actually demonstrates the escaping works.
   'urn:ngsi-ld:Animal:cow001'`. Expected for an exclusive registration over an
   entity the broker already holds, but the tutorial does not mention it.
 
-## T10. Five stacks hang provisioning devices, and it is NOT the broker
+## T10. ⚠️ SUPERSEDED by T15 — my diagnosis was wrong
+
+Phase 1 concluded "the IoT Agent never answered". The agent answers fine; the
+wait loop gives up too early, and `link-devices` dies on an unretried empty
+reply under `set -e` (T15, with the evidence). Three of the five now run.
+Original text below.
+
+### The original, wrong, note
+
 
 `Concise-Format`, `Short-Term-History`, `Time-Series-Data`,
 `Verifiable-Credentials` and `Big-Data-Spark` all reach
@@ -798,6 +806,111 @@ Flags stayed at 6 / 3 / 2 for `Context-Providers`, `IoT-Agent` and
 an abridged expected block, the agent's own `attributes` vs `polling` drift — so
 no coraine fix could have moved them, and none did. That they did not move is
 itself worth recording: it says the fixes were scoped to what they claimed.
+
+# Phase 6 — the three tutorials that had NEVER run
+
+`Concise-Format`, `Short-Term-History` and `Time-Series-Data` reached their
+first steps for the first time. Everything below is new ground: phase 1 never
+got past their seeding.
+
+## ⭐ T15. Why they never ran — `link-devices` under `set -e`, with no retry
+
+Two separate faults, and the second is the one that actually blocked them.
+
+**The agent wait exits too early.** Four tutorials use
+
+```bash
+while [ "$( … -w %{http_code} 'http://iot-agent:4041/version')" -eq 000 ]
+```
+
+which stops waiting the moment the port answers **anything** non-`000` —
+including the `503` a Node.js agent serves while still initialising.
+`IoT-Agent`, `IoT-Agent-JSON` and `Big-Data-Spark` instead wait on the container
+health status, and do not have the problem. The correlation is exact across all
+eight tutorials checked.
+
+**And `link-devices` has no retry.** It POSTs several ~30 KB device batches, and
+the agent **intermittently** closes the connection without replying — curl exit
+**52**, "empty reply from server", most often on the batch immediately following
+`provision-devices`. The script runs under `set -e`, so one empty reply kills it
+silently at the banner.
+
+⭐ Proven intermittent rather than inferred: the identical payload against the
+same agent gave **exit=52, then exit=0**, back to back. A single device is
+accepted with `201` throughout, and 31 KB is nowhere near the agent's 1 MB
+`expressLimit`, so it is not a size limit.
+
+**Fix for the author:** wait on health, and retry the batch (or drop `set -e`
+around it). With both worked around in the rig, all three tutorials run.
+
+## T16. `Concise-Format` — a doubled slash from a missing URL variable
+
+Step 14 requests `http://localhost:1026//ngsi-ld/v1/entities/`. coraine answers
+`400 Invalid URL Path: empty path segment in '//ngsi-ld/v1/entities' (likely a
+missing URL variable)`, which is exactly right and names the cause.
+
+## T17. `Concise-Format` — a malformed JSON payload
+
+Step 18, `POST /entityOperations/update?options=replace`: `400 request body is
+not valid JSON`. The parser points at it — *"expecting comma or end of object,
+Pos 349: `"observedAt": "2022-03-01T15:00:00.000Z"`"* — a missing comma in the
+README's own payload.
+
+## ⚖️ D18. `Concise-Format` step 15 — may a partial update change an Attribute's TYPE?
+
+Genuinely open, and a decision rather than a defect.
+
+An earlier step creates `category` in simplified form (`"category": "sensor"`),
+so it is a **Property**. Step 15 then does
+
+```
+PATCH /entities/urn:ngsi-ld:TemperatureSensor:001/attrs/category
+{ "vocab": [ "sensor" ] }
+```
+
+i.e. concise form whose value key implies **VocabProperty**. coraine refuses:
+*"Attribute '…/category' of type Property carries its value in 'value', not
+'vocab'"*.
+
+The tutorial plainly expects it to work — demonstrating VocabProperty is the
+point of the page. Against that, the HTTP binding is explicit that **a merge**
+leaves the type unchanged. Whether Update Attribute may re-type an existing
+Attribute is the question, and § 5.6 should be read properly before either side
+is called wrong.
+
+⚠️ Note coraine's concise inference is NOT at fault — verified directly, all six
+value keys infer their type correctly on a create (`value`→Property,
+`object`→Relationship, `vocab`→VocabProperty, `languageMap`, `json`,
+`valueList`), including under a user `@context` and via batch. The refusal is
+specifically about re-typing an attribute that already exists.
+
+## T19. `Short-Term-History` — a placeholder left in an executable step
+
+`timeAt is not a valid ISO 8601 DateTime: '<current_time>'`. The README's curl
+carries the literal placeholder `<current_time>`, so the step cannot be run as
+printed.
+
+## ⚠️ Not a finding: `pageSize` — caused by MY redirect
+
+Six `400 Unknown/unsupported URL parameter: pageSize`. That is rig modification
+§ 3 meeting Mintaka's own API: `pageSize` is Mintaka's paging parameter, NGSI-LD
+uses `limit`, and I redirect those queries to coraine. **Not reportable as a
+tutorial defect.**
+
+It is still worth telling the author one thing: those temporal steps are written
+against Mintaka's API, not the NGSI-LD temporal API, so they are not portable to
+a broker that implements temporal itself.
+
+## ⛔ Still not running: `Big-Data-Spark`
+
+Its stack starts — its own log ends with *"coraine is now running and exposed on
+localhost:1026"* — and its compose publishes `${EXPOSED_PORT:-1026}` intact, yet
+the broker does not answer there. Not diagnosed; it needs the stack up and a
+look at what is actually bound. The remaining unknown of the sweep, with
+`Verifiable-Credentials` deliberately out of scope (it pulls in the Data Space
+Connector, not a broker test).
+
+⇒ **14 of 16 tutorials have now been run.**
 
 ## Driver corrections needed (mine, not the tutorials')
 
