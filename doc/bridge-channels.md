@@ -2,74 +2,22 @@
 
 Working design notes, not a user manual: they carry the reasoning, the wrong
 turns and the open questions, because those are what stop a settled decision
-from being re-argued. Draft 2026-05-22, revised 2026-05-25, 2026-08-26,
-2026-08-27, 2026-08-29. **Not implemented.**
+from being re-argued. **Not implemented.**
 
-> **Revision 2026-09-16** — timing and status, which were never written down.
-> **coraine implements this design now; it is not waiting for ETSI.** The
-> concept goes to the TC DATA face-to-face in Athens, 20–22 October 2026, and
-> anything normative that follows will realistically be 2027. DDS is needed long
-> before that, so the Bridge and Channel objects below are **coraine's own**, to
-> be adapted to whatever TC DATA settles on rather than held back until it does.
-> That is the cheaper direction to be wrong in: an implementation can be
-> aligned, and a specification nobody has implemented cannot be validated. What
-> this means for readers of these notes: nothing below is standard NGSI-LD, the
-> names may change, and the endpoint-scheme convention is the part most likely
-> to survive.
+> **Where things stand.** coraine implements this design now; it is not waiting
+> for ETSI. The concept goes to the TC DATA face-to-face in Athens,
+> 20–22 October 2026, and anything normative that follows will realistically be
+> 2027. So nothing below is standard NGSI-LD, the names may change, and the
+> endpoint-scheme convention is the part most likely to survive.
+>
+> ⭐ § 4.0 says which parts a standard would actually cover and which are
+> coraine's own. § 2a and § 2b are the argument; start there.
 
-> **Revision 2026-05-25** — direction change. HTTP **stays inline** in
-> the broker, not in a plugin. The earlier "HTTP refactor first as a
-> no-op move into `http.so`" recipe is dropped. The bridge family is
-> now specifically for **non-HTTP** transports of broker-to-CSR
-> traffic. What the bridge work actually adds inside the broker is a
-> transport-neutral request/response shape (`BridgeRequest` /
-> `BridgeResponse`) and a single inbound entry point
-> (`serveDistOp(BridgeRequest)`) that both the HTTP listener and any
-> bridge plugin's inbound thread converge on. HTTP is then "the one
-> inline implementor of the bridge interface" — it's just not
-> packaged as a `.so`. See §1 and §9 for the updated framing.
-
-> **Revision 2026-08-26** — the CSR-based mapping convention of §3 is
-> **dropped**. Bridge endpoints are no longer Context Source
-> Registrations. The mapping becomes two objects of its own — a
-> **Bridge** (the transport instance) and a **Channel** (one
-> foreign endpoint tied to one entity attribute) — because a
-> registration makes a claim about the world that a bridge does not
-> make. The endpoint **URI scheme convention is still shared** across
-> registrations, subscriptions and bridges; only the object is not.
-> §9.1 also widens: DDS services and actions are in scope after all,
-> client-side only, and §10 changes from "defer them" to "adopt a
-> provisional convention and quarantine it". See §3, §9.1, §10.
-
-> **Revision 2026-08-27** — the model of §3 was derived from DDS, and DDS is
-> unusually well-behaved. Tested against the other protocols a south bridge
-> must carry, it holds for **addressed endpoints** (OPC-UA nodes, LWM2M
-> resources, Modbus registers) and **breaks for bundle sources** (UltraLight,
-> JSON, CSV, LoRaWAN, Sigfox, Kafka), where one arriving message sets many
-> attributes on an entity it names itself. Consequences: a Channel gains a
-> **codec**, device **provisioning turns out to be a shape of Channel** rather
-> than a layer above it, and a Bridge may be a listener as well as a client.
-> See §3.8. Also corrected: the Bridge resource is **not** read-only. The
-> bridge *kind* is startup-fixed; the *instance* is a stored object with full
-> CRUD, a 409 on a duplicate id, and an orphan case to answer — §3.5a. §3.5b
-> settles how a Bridge names its plugin (short name, never a path in the
-> payload), why the broker does not auto-create one from a plugin it finds,
-> that both objects carry an `id` and a `type` like every other stored body,
-> and that a **Channel names its Bridge explicitly** — the endpoint scheme
-> stops being a selector as soon as two Bridges of a kind exist.
-
-> **Revision 2026-08-29** — the object called a *Binding* is now a **Channel**.
-> "Binding" is taken in TC DATA at document-title level (TS 104 176 *"NGSI-LD
-> API Bindings"*, TS 104 243 *"MQTT Notification Binding"*), where it means how
-> API operations are conveyed over a protocol; ours means how a value is carried
-> to and from a foreign endpoint. The reasoning, and why *Map* is worse, is in
-> §3. Also settled: the **three clocks** that the lifecycle question kept
-> conflating (§3), a **`status`** on both objects so the degraded states are
-> observable rather than silent (§3.3a), **no runtime plugin loading** (§3.5c),
-> and the apparent contradiction between §4c's "fail loudly" and §3.5b's "boot
-> anyway", which are different cases (§4c). Source layout answered too: **one
-> library per bridge**, sibling to the other Cor-Libs, with the contract headers
-> in a small `corBridge` of their own (§4a).
+The draft history — six revisions between 2026-05-22 and 2026-09-16, including
+two direction changes — is at the **end**, under *Revision history*. It is kept
+because it records what was tried and rejected, which is what stops a settled
+question from being re-opened; it is at the end because nobody meeting this
+document for the first time needs it before § 1.
 
 ## 1. Goal
 
@@ -194,6 +142,54 @@ this document because it is the case that forced the concepts apart - the three
 clocks of § 3 became visible on DDS first - but exactly one broker implements
 it, so it is a poor argument to lead with. Where a reader needs an example,
 MQTT is the one that everybody can check against their own code.
+
+### 2b. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
+
+Both have been discussed in the group for years without landing, and the reason
+is worth writing down: it is the same reason in both cases, and it is what makes
+Bridge and Channel the cheaper thing to standardise.
+
+⚠️ First, they are **not alternatives to this proposal** - they answer a
+different question, and nothing here argues against them:
+
+| | Both ends speak | What travels | Needs |
+|---|---|---|---|
+| **A binding** (TS 104 176, TS 104 243) | NGSI-LD | API operations - a whole request with its metadata | a home for everything HTTP puts in a header |
+| **A Bridge + Channel** | only the broker | one value, to or from a named endpoint | a mapping, declared once, in an object |
+
+**Why a binding is hard: almost every difficult part is an HTTP header.** An
+NGSI-LD request carries its `@context` in a `Link` header, its tenant in
+`NGSILD-Tenant`, its negotiation in `Accept` / `Content-Type`, its result count
+in `NGSILD-Results-Count`, its pagination in another `Link`, and its
+authorization in `Authorization`. HTTP has a per-request metadata channel and
+NGSI-LD uses all of it.
+
+- **MQTT 3.1.1 has no metadata channel at all.** MQTT 5 has User Properties,
+  Response Topic, Correlation Data and Content Type - between them enough to
+  carry headers and to do request/response - so a binding is implementable
+  there and essentially not on 3.1.1. That split is already in the spec:
+  TS 104 243 carries `MQTT-Version` in `notifierInfo` precisely because the two
+  versions are not one protocol.
+- **WebSocket has headers exactly once**, at the HTTP upgrade. After that a
+  frame is bytes, so per-message metadata needs an envelope you define - and
+  defining that envelope is the normative work that never gets finished.
+
+Then the semantics that do not line up. A URL with a query string has no topic
+equivalent - NGSI-LD's own POST-body query form, `/entityOperations/query`,
+exists because URLs were already too small. At-least-once delivery turns one
+`POST /entities` into two, so a binding has to say something about idempotency
+that HTTP never had to. And MQTT authenticates a **connection** while NGSI-LD
+authorises a **request**, which puts tenancy and auth at a different scope than
+the API assumes.
+
+⭐ **None of that is in a Channel's way**, which is why the two belong side by
+side. A Channel does not convey an API operation: it says *this endpoint is this
+attribute, in this direction*, once, in a stored object. No `@context` per
+message, no `Accept`, no pagination, no status code needing a home. The mapping
+is the metadata, and it is declared rather than transmitted.
+
+So the two are complements - and Bridge/Channel is the one whose normative
+surface is small enough to finish.
 
 ## 3. Endpoint-mapping convention: Bridge and Channel
 
@@ -1545,6 +1541,15 @@ Recommended order of landing:
    vtable, the `serveDistOp` call surface from a plugin thread, the
    `dlopen` load mechanism (`--bridges`, §4c), and the `bridgeThreadInit` upcall.
    First concrete usage of every part of the bridge family.
+⚠️ Items 4 and 5 are **binding-shaped**, not Bridge-shaped, and § 2b is why the
+distinction matters: carrying NGSI-LD itself over MQTT or WebSocket is the thing
+the group has been unable to finish, because it needs a home for every HTTP
+header. Doing it inside a bridge plugin is a coraine decision about where the
+code lives; it does not make it standard, and it should not be presented as
+though the Bridge objects settle it. The Bridge-shaped MQTT case - a plain
+device publishing a temperature onto a topic - is § 2a's, and it needs none of
+that machinery.
+
 4. **`ws` (NGSI-LD peer)** — WebSocket. Four pieces: the HTTP upgrade
    handshake, a connection registry, message dispatch, and notification
    delivery over the open socket. The transport is well-understood and
@@ -1779,3 +1784,77 @@ here after it. Paths and identifiers now use the current names throughout —
 
 The wire format for the binary IPC plugin, and the original candidate analysis
 that preceded it, are in a separate working document not published here.
+
+---
+
+## Revision history
+
+Oldest first would be tidier, but these were written newest-first as they
+happened and renumbering them invites transcription errors. Read § 1–§ 4 first;
+this section answers "why is it like that" rather than "what is it".
+
+> **Revision 2026-09-16** — timing and status, which were never written down.
+> **coraine implements this design now; it is not waiting for ETSI.** The
+> concept goes to the TC DATA face-to-face in Athens, 20–22 October 2026, and
+> anything normative that follows will realistically be 2027. DDS is needed long
+> before that, so the Bridge and Channel objects below are **coraine's own**, to
+> be adapted to whatever TC DATA settles on rather than held back until it does.
+> That is the cheaper direction to be wrong in: an implementation can be
+> aligned, and a specification nobody has implemented cannot be validated. What
+> this means for readers of these notes: nothing below is standard NGSI-LD, the
+> names may change, and the endpoint-scheme convention is the part most likely
+> to survive.
+
+> **Revision 2026-05-25** — direction change. HTTP **stays inline** in
+> the broker, not in a plugin. The earlier "HTTP refactor first as a
+> no-op move into `http.so`" recipe is dropped. The bridge family is
+> now specifically for **non-HTTP** transports of broker-to-CSR
+> traffic. What the bridge work actually adds inside the broker is a
+> transport-neutral request/response shape (`BridgeRequest` /
+> `BridgeResponse`) and a single inbound entry point
+> (`serveDistOp(BridgeRequest)`) that both the HTTP listener and any
+> bridge plugin's inbound thread converge on. HTTP is then "the one
+> inline implementor of the bridge interface" — it's just not
+> packaged as a `.so`. See §1 and §9 for the updated framing.
+
+> **Revision 2026-08-26** — the CSR-based mapping convention of §3 is
+> **dropped**. Bridge endpoints are no longer Context Source
+> Registrations. The mapping becomes two objects of its own — a
+> **Bridge** (the transport instance) and a **Channel** (one
+> foreign endpoint tied to one entity attribute) — because a
+> registration makes a claim about the world that a bridge does not
+> make. The endpoint **URI scheme convention is still shared** across
+> registrations, subscriptions and bridges; only the object is not.
+> §9.1 also widens: DDS services and actions are in scope after all,
+> client-side only, and §10 changes from "defer them" to "adopt a
+> provisional convention and quarantine it". See §3, §9.1, §10.
+
+> **Revision 2026-08-27** — the model of §3 was derived from DDS, and DDS is
+> unusually well-behaved. Tested against the other protocols a south bridge
+> must carry, it holds for **addressed endpoints** (OPC-UA nodes, LWM2M
+> resources, Modbus registers) and **breaks for bundle sources** (UltraLight,
+> JSON, CSV, LoRaWAN, Sigfox, Kafka), where one arriving message sets many
+> attributes on an entity it names itself. Consequences: a Channel gains a
+> **codec**, device **provisioning turns out to be a shape of Channel** rather
+> than a layer above it, and a Bridge may be a listener as well as a client.
+> See §3.8. Also corrected: the Bridge resource is **not** read-only. The
+> bridge *kind* is startup-fixed; the *instance* is a stored object with full
+> CRUD, a 409 on a duplicate id, and an orphan case to answer — §3.5a. §3.5b
+> settles how a Bridge names its plugin (short name, never a path in the
+> payload), why the broker does not auto-create one from a plugin it finds,
+> that both objects carry an `id` and a `type` like every other stored body,
+> and that a **Channel names its Bridge explicitly** — the endpoint scheme
+> stops being a selector as soon as two Bridges of a kind exist.
+
+> **Revision 2026-08-29** — the object called a *Binding* is now a **Channel**.
+> "Binding" is taken in TC DATA at document-title level (TS 104 176 *"NGSI-LD
+> API Bindings"*, TS 104 243 *"MQTT Notification Binding"*), where it means how
+> API operations are conveyed over a protocol; ours means how a value is carried
+> to and from a foreign endpoint. The reasoning, and why *Map* is worse, is in
+> §3. Also settled: the **three clocks** that the lifecycle question kept
+> conflating (§3), a **`status`** on both objects so the degraded states are
+> observable rather than silent (§3.3a), **no runtime plugin loading** (§3.5c),
+> and the apparent contradiction between §4c's "fail loudly" and §3.5b's "boot
+> anyway", which are different cases (§4c). Source layout answered too: **one
+> library per bridge**, sibling to the other Cor-Libs, with the contract headers
+> in a small `corBridge` of their own (§4a).
