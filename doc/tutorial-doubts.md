@@ -856,9 +856,7 @@ not valid JSON`. The parser points at it — *"expecting comma or end of object,
 Pos 349: `"observedAt": "2022-03-01T15:00:00.000Z"`"* — a missing comma in the
 README's own payload.
 
-## ⚖️ D18. `Concise-Format` step 15 — may a partial update change an Attribute's TYPE?
-
-Genuinely open, and a decision rather than a defect.
+## T18. ✅ RESOLVED — `Concise-Format` step 15 tries to re-type an Attribute by PATCH
 
 An earlier step creates `category` in simplified form (`"category": "sensor"`),
 so it is a **Property**. Step 15 then does
@@ -872,17 +870,31 @@ i.e. concise form whose value key implies **VocabProperty**. coraine refuses:
 *"Attribute '…/category' of type Property carries its value in 'value', not
 'vocab'"*.
 
-The tutorial plainly expects it to work — demonstrating VocabProperty is the
-point of the page. Against that, the HTTP binding is explicit that **a merge**
-leaves the type unchanged. Whether Update Attribute may re-type an existing
-Attribute is the question, and § 5.6 should be read properly before either side
-is called wrong.
+**KZ, 2026-09-18: an Attribute's type changes only on a full replace** — PUT
+`/entities/{id}/attrs/{attrId}`, or a POST replace (`options=replace`). Every
+partial path leaves it alone. So coraine is right and the step is a **tutorial
+error**: demonstrating VocabProperty is the point of the page, but a PATCH is
+not the way to do it.
 
-⚠️ Note coraine's concise inference is NOT at fault — verified directly, all six
-value keys infer their type correctly on a create (`value`→Property,
+⚠️ **The spec does not say so in general**, which is worth separating from the
+verdict. Checked both documents: exactly one statement constrains re-typing, in
+TS 104-176 clause 7's `format` row for **Merge Entity with
+`format=simplified`** — *"the `type` field of the Attribute shall remain
+unchanged (any attempt to modify the `type` of an Attribute shall result in a
+`BadRequest` error)"*. § 10.2.5 Partial Attribute update does not mention `type`
+at all, and neither does Update Attributes.
+
+So our rule generalises the one explicit case rather than following stated text,
+and an implementer who read the silence as permission would behave differently.
+Raised as **spec-doubt #128** (`ngsild-specs/ts-104-175/spec-doubts-2.md`), with
+the fix wanted being to state it once in § 10.2.5 rather than inside a
+parameter's remarks.
+
+⚠️ coraine's concise inference is NOT at fault — verified directly, all six value
+keys infer their type correctly on a create (`value`→Property,
 `object`→Relationship, `vocab`→VocabProperty, `languageMap`, `json`,
 `valueList`), including under a user `@context` and via batch. The refusal is
-specifically about re-typing an attribute that already exists.
+specifically about re-typing something that already exists.
 
 ## T19. `Short-Term-History` — a placeholder left in an executable step
 
