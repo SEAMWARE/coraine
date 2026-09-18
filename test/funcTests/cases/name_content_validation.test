@@ -5,12 +5,30 @@
 #
 # Copyright 2026 Seamware
 #
-# § 4.6.2 — names (Type / Property / Relationship) shall match the
-# unicodeLetter (unicodeLetter | unicodeNumber | "_")* grammar, with
-# optional "prefix:name" form.
+# TS 104-175 § 5.2.2.3 (was CIM 009 § 4.6.2) — names (Type / Property /
+# Relationship) shall match the unicodeLetter (unicodeLetter | unicodeNumber |
+# "_")* grammar, with an optional "prefix:name" form.
 #
-# § 4.6.4 — string Property values shall not contain any of:
-#   <  >  "  '  =  ;  (  )
+# ⚠️ The VALUE half of this test is gone, and steps 07-12 now assert the
+# opposite of what they used to.
+#
+# § 5.2.2.5 "Supported content" lists < > " ' = ; ( ) as a hazard in the
+# content of VALUES and says implementations "should decide how to resolve" it -
+# while requiring, in the same paragraph, that they "shall preserve the
+# representation of the content of the values ... and return the original
+# content". Refusing with BadRequestData is one permitted resolution and we took
+# it. The cost: `Beany's Animal Collar` was not storable, and 81 rows of the
+# FIWARE tutorials' own seed data would not load.
+#
+# KZ 2026-09-18: the restrictions belong on NAMES. The name grammar excludes
+# every one of those characters by construction, so nothing is lost there, and
+# injection safety never depended on the value scan - every place a value can
+# become query TEXT escapes it at that boundary (jsonStrEscape for the mongoc
+# $expr JSON, mongocEscapeDotsInKey for field names, PQexecParams for timescale
+# writes, escapeSqlLit for the TRoE q-to-SQL). Nothing is stored escaped.
+#
+# So steps 07-12 are now the § 5.2.2.5 round-trip proof: all eight characters,
+# in a string, in an array element, in a sub-attribute, byte-identical out.
 #
 --NAME--
 Name regex (§ 4.6.2) + content sanitizer (§ 4.6.4) on entity payloads
@@ -31,12 +49,13 @@ coraineStart
 # 04. Attribute name has consecutive colons   → 201 (URI-style identifiers tolerated)
 # 05. Sub-attribute name with space           → 400 Invalid Attribute Name
 # 06. prefix:name form (valid)
-# 07. Property string value contains '<'      → 400 Forbidden Characters
-# 08. Property string value contains '"'      → 400 Forbidden Characters
-# 09. Property string value contains ';'      → 400 Forbidden Characters
-# 10. Property numeric value (sanitizer string-only)
-# 11. Forbidden char inside an array element  → 400 Forbidden Characters
-# 12. Forbidden char inside a sub-attribute   → 400 Forbidden Characters
+# 07. All eight characters in one string value - 201, byte-identical
+# 08. The tutorials' own case: "Beany's Animal Collar"
+# 09. A quote and a semicolon - 201
+# 10. Property numeric value
+# 11. All eight inside an array element - 201, byte-identical
+# 12. All eight inside a sub-attribute - 201, byte-identical
+# 13. A SQL-injection shaped value round-trips and matches on q
 #
 
 echo "01. Valid name + clean value"
@@ -88,23 +107,26 @@ echo
 echo
 
 
-echo "07. Property value contains '<'"
-echo "==============================="
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e7","type":"V","label":{"type":"Property","value":"hello <script>"}}'
+echo "07. All eight forbidden characters in one string value"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e7","type":"V","label":{"type":"Property","value":"a<b>c\"d'"'"'e=f;g(h)i"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e7
 echo
 echo
 
 
-echo "08. Property value contains a double-quote"
-echo "=========================================="
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e8","type":"V","label":{"type":"Property","value":"sa\"id"}}'
+echo "08. The tutorials' own case - an English possessive"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e8","type":"V","label":{"type":"Property","value":"Beany'"'"'s Animal Collar"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e8
 echo
 echo
 
 
-echo "09. Property value contains ';'"
-echo "==============================="
+echo "09. A quote and a semicolon"
+echo "==========================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e9","type":"V","label":{"type":"Property","value":"DROP TABLE; --"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e9
 echo
 echo
 
@@ -116,16 +138,27 @@ echo
 echo
 
 
-echo "11. Forbidden char inside an array value"
-echo "========================================"
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e11","type":"V","tags":{"type":"Property","value":["ok","bad=value"]}}'
+echo "11. All eight inside an array element"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e11","type":"V","tags":{"type":"Property","value":["ok","a<b>c\"d'"'"'e=f;g(h)i"]}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e11
 echo
 echo
 
 
-echo "12. Forbidden char inside a sub-attribute value"
-echo "==============================================="
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e12","type":"V","speed":{"type":"Property","value":42,"unitCode":{"type":"Property","value":"m/s"},"note":{"type":"Property","value":"a=b"}}}'
+echo "12. All eight inside a sub-attribute value"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e12","type":"V","speed":{"type":"Property","value":42,"note":{"type":"Property","value":"a<b>c\"d'"'"'e=f;g(h)i"}}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e12
+echo
+echo
+
+
+echo "13. An injection-shaped value round-trips AND is matchable by q"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:e13","type":"V","label":{"type":"Property","value":"x'"'"'; DROP TABLE troe_attrs; --"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:e13
+corCurl --url '/ngsi-ld/v1/entities?type=V&q=label==%22x%27;%20DROP%20TABLE%20troe_attrs;%20--%22'
 echo
 echo
 
@@ -146,7 +179,7 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 198
 
 {
   "detail": "attribute name '3Vehicle' must start with a letter (§ 4.6.2)",
@@ -162,7 +195,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 211
 
 {
   "detail": "attribute name 'spe!ed' contains a forbidden character (0x21) — § 4.6.2",
@@ -198,7 +231,7 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 213
 
 {
   "detail": "attribute name 'bad name' contains a forbidden character (0x20) — § 4.6.2",
@@ -219,50 +252,77 @@ Content-Length: 0
 
 
 
-07. Property value contains '<'
-===============================
-HTTP/1.1 400 Bad Request
+07. All eight forbidden characters in one string value
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e7
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 112
 
 {
-  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
-  "status": 400,
-  "title": "Forbidden Characters",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "id": "urn:e7",
+  "label": {
+    "type": "Property",
+    "value": "a<b>c\"d'e=f;g(h)i"
+  },
+  "type": "V"
 }
 
 
 
-08. Property value contains a double-quote
-==========================================
-HTTP/1.1 400 Bad Request
+08. The tutorials' own case - an English possessive
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e8
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
 
 {
-  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
-  "status": 400,
-  "title": "Forbidden Characters",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "id": "urn:e8",
+  "label": {
+    "type": "Property",
+    "value": "Beany's Animal Collar"
+  },
+  "type": "V"
 }
 
 
 
-09. Property value contains ';'
-===============================
-HTTP/1.1 400 Bad Request
+09. A quote and a semicolon
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e9
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 108
 
 {
-  "detail": "value of 'label' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
-  "status": 400,
-  "title": "Forbidden Characters",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "id": "urn:e9",
+  "label": {
+    "type": "Property",
+    "value": "DROP TABLE; --"
+  },
+  "type": "V"
 }
 
 
@@ -277,35 +337,102 @@ Content-Length: 0
 
 
 
-11. Forbidden char inside an array value
-========================================
-HTTP/1.1 400 Bad Request
+11. All eight inside an array element
+====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e11
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 138
 
 {
-  "detail": "value of 'tags' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
-  "status": 400,
-  "title": "Forbidden Characters",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "id": "urn:e11",
+  "tags": {
+    "type": "Property",
+    "value": [
+      "ok",
+      "a<b>c\"d'e=f;g(h)i"
+    ]
+  },
+  "type": "V"
 }
 
 
 
-12. Forbidden char inside a sub-attribute value
-===============================================
-HTTP/1.1 400 Bad Request
+12. All eight inside a sub-attribute value
+==========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e12
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 178
 
 {
-  "detail": "value of 'note' contains forbidden characters (< > \" ' = ; ( ) — § 4.6.4)",
-  "status": 400,
-  "title": "Forbidden Characters",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "id": "urn:e12",
+  "speed": {
+    "note": {
+      "type": "Property",
+      "value": "a<b>c\"d'e=f;g(h)i"
+    },
+    "type": "Property",
+    "value": 42
+  },
+  "type": "V"
 }
+
+
+
+13. An injection-shaped value round-trips AND is matchable by q
+==============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:e13
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "id": "urn:e13",
+  "label": {
+    "type": "Property",
+    "value": "x'; DROP TABLE troe_attrs; --"
+  },
+  "type": "V"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 144
+
+[
+  {
+    "id": "urn:e13",
+    "label": {
+      "type": "Property",
+      "value": "x'; DROP TABLE troe_attrs; --"
+    },
+    "type": "V"
+  }
+]
 
 
 

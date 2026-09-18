@@ -58,6 +58,11 @@ coraineStart
 # 09. Create+GET urn:V8 - the SECOND site: an integer the user called
 #     "observedAt" inside a value stayed an integer, not an ISO string
 # 10. Create+GET urn:V9 - a real sub-attribute's observedAt IS still converted
+# 12. A key inside a Property value that IS a default-context IRI comes back
+#     STRIPPED - and that is decided, not a bug. See the note on step 12.
+# 13. Same inside a JsonProperty's "json", where § 5.2.2.5's sibling clause is
+#     blunt: "Raw unexpandable JSON which shall not be interpreted as JSON-LD"
+#
 # 11. Create urn:V10 with a sub-attribute NAMED "vocab" - 400. This is the
 #     control for the skip being by structural key name: those seven names are
 #     refused as attribute members at INPUT ("2 value keys"), so skipping them
@@ -263,6 +268,51 @@ payload='{
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload"
 corCurl --url /ngsi-ld/v1/entities/urn:V10
+echo
+echo
+
+
+#
+# A Property's value reaches expansion in two shapes and only one is
+# recognisable there. In NORMALIZED input the `value` key is present and the
+# expander leaves the subtree alone; in SIMPLIFIED input the attribute IS the
+# value, nothing marks it as one, and its keys are @vocab-expanded like any
+# other term - so compaction has to undo that on the way out.
+#
+# Which means a key that is LITERALLY a default-context IRI is indistinguishable
+# on the way out from a short key that was expanded on the way in. It cannot be
+# preserved without knowing which it was, and the wire format does not say. So
+# this asserts the strip, deliberately. `json` (step 13) is the half the spec
+# settles - "shall not be interpreted as JSON-LD" - and there it survives.
+#
+echo "12. A default-context IRI key inside a Property value IS stripped"
+echo "================================================================="
+payload='{
+  "id": "urn:V11",
+  "type": "Device",
+  "P": {
+    "type": "Property",
+    "value": { "https://uri.etsi.org/ngsi-ld/default-context/foo": 1, "plain": 2 }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V11
+echo
+echo
+
+
+echo "13. ... but inside a JsonProperty it survives - the spec says shall not"
+echo "==============================================================="
+payload='{
+  "id": "urn:V12",
+  "type": "Device",
+  "P": {
+    "type": "JsonProperty",
+    "json": { "https://uri.etsi.org/ngsi-ld/default-context/foo": 1, "type": "Point" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:V12
 echo
 echo
 
@@ -557,6 +607,62 @@ Content-Length: 152
   "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+12. A default-context IRI key inside a Property value IS stripped
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V11
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "P": {
+    "type": "Property",
+    "value": {
+      "foo": 1,
+      "plain": 2
+    }
+  },
+  "id": "urn:V11",
+  "type": "Device"
+}
+
+
+
+13. ... but inside a JsonProperty it survives - the spec says shall not
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V12
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 187
+
+{
+  "P": {
+    "json": {
+      "https://uri.etsi.org/ngsi-ld/default-context/foo": 1,
+      "type": "Point"
+    },
+    "type": "JsonProperty"
+  },
+  "id": "urn:V12",
+  "type": "Device"
 }
 
 

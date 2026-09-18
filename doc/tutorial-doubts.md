@@ -372,8 +372,28 @@ So there are already **two ad-hoc pre-rewrite snapshots** (`corePrefixV` and my
 `coreIriHT`) plus one dead code path, all working around the same deliberate act.
 A third snapshot would be the wrong answer.
 
-⭐ **KZ's suggestion is the structural one**: keep a second, PRISTINE parse of the
-core context beside the rewritten one. The rewritten copy stays exactly as it is
+### ✅ DONE - the pristine second copy
+
+⭐ **KZ's suggestion is the structural one**, and it is implemented: a second,
+PRISTINE parse of the core context beside the rewritten one, built from the
+context's own `body` so one mechanism covers both the embedded and the
+downloaded init path. It deleted the `coreIriHT` table outright, turned
+`corLdPrefixExpand`'s lookup into an O(1) probe, made the prefix array an
+ordinary derived cache instead of a timing-sensitive pre-rewrite snapshot, and
+**revived `corLdCompact` step 3**, which had never once fired.
+
+⚠️ One trap, found by the suite rather than by reading: the pristine items are
+handed OUT - `corLdExpand` returns one as `*itemPP` and `corLdExpandTree` then
+ORs `itemP->flags` onto the node, which is how a structural member is told from
+a sub-attribute. `coreContextClassifyFlags` ran on the working copy only, so the
+pristine items ORed in ZERO and `observedAt` sent in its expanded spelling
+stopped being structural and was normalized into a Property
+(*"'observedAt' must be a string"*). Classifying both copies fixes it. Anything
+handing out items from a second parse has to classify it.
+
+The original reasoning follows.
+
+ The rewritten copy stays exactly as it is
 - it is a legitimate optimisation for the hot expand path - and anything needing
 a real IRI asks the pristine copy. That replaces both snapshots, revives
 `corLdCompact` step 3 as a normal lookup, and removes the trap that has now bitten
@@ -442,67 +462,53 @@ per-entity error inside a 207 rather than a request-level 400. `ldCheckAttribute
 will not catch it either: it treats `attrType == LdAttrNone` as a partial update
 and accepts it deliberately (§ 5.6.x fragments).
 
-## C4. OPEN - the compaction walk also rewrites keys inside a Property's value
+## C4. ✅/⚖️ RESOLVED, in two halves - one was a `shall not`, one is an ambiguity
 
-Found by probing KZ's question *"@type ... that's already a fully qualified name,
-right? Cause, you might expand that with @vocab"*. We do not expand there. We
-**strip** there, which is the mirror image and equally not a round trip:
+Chasing this down changed what it is. Both halves are settled now, but not the
+same way.
 
-| in, inside a Property `value` | out |
-|---|---|
-| `{"https://uri.etsi.org/ngsi-ld/default-context/foo": 1}` | `{"foo": 1}` |
-| `{"foo": 1}` | `{"foo": 1}` |
-| `{"observedAt": "x"}` | `{"observedAt": "x"}` |
-| `{"https://uri.etsi.org/ngsi-ld/observedAt": 1}` | unchanged |
-| `{"@type":"VocabProperty","@value":"sensor"}` | unchanged |
+### The `json` half: a `shall not`, fixed
 
-Keys inside a value are **not expanded on the way in** - `observedAt` stays
-short, it never becomes `ngsi-ld:observedAt` - but the `@vocab` prefix **is**
-stripped on the way out. Asymmetric, so § 5.2.2.5's *return the original
-content* is broken for any user key that happens to sit under the default-context
-prefix.
-
-**Where:** `corJsonld/corLdCompactTree.c`, `compactObject()` recurses into every
-sub-object, with an `opaqueKeys` escape only for `@container`-marked terms. A
-Property's value node is not one, so the walk compacts the user's own keys.
-
-⛔ **For a JsonProperty the spec removes the judgement.** Clause 5 defines `json`
-as *"Raw unexpandable JSON which **shall not be interpreted as JSON-LD** using
-the supplied @context"*. We do interpret it:
+Clause 5 defines a JsonProperty's `json` as *"Raw unexpandable JSON which **shall
+not be interpreted as JSON-LD** using the supplied @context"*. We interpreted it:
 
 ```
-in : "json": {"https://uri.etsi.org/ngsi-ld/default-context/foo": 1, "type": "Point"}
-out: "json": {"foo": 1, "type": "Point"}
+in : "json": { "https://uri.etsi.org/ngsi-ld/default-context/foo": 1 }
+out: "json": { "foo": 1 }
 ```
 
-So C4 has a hard case and a soft one: `json` breaches a `shall not` outright,
-while a Property `value` rests on § 5.2.2.5's *return the original content*. The
-`json` case also settles the layering argument in (b)'s favour - whatever marks a
-subtree unexpandable is NGSI-LD knowledge, and `json` is the member the spec
-itself names as carrying it.
+`corLdCompactTree`'s `compactObject` recursed into every sub-object with an
+`opaqueKeys` escape only for `@container` terms. It now also skips `KJF_VK_JSON`,
+matching what `corLdExpandTree` has always done on the way in.
 
-⛔ **Not a one-line fix, and the reason is worth recording.** Skipping the value
-node outright would break GeoProperty: `type: "Point"` is stored expanded to
-`https://purl.org/geojson/vocab#Point` (`LD_VOCAB_GEO_POINT`) and needs that
-same walk to come back as `Point`. A VocabProperty's `vocab` is stored
-`@vocab`-expanded too (`ldEntityMerge.c:347`). So opacity depends on the
-ATTRIBUTE TYPE - Property and JsonProperty values are the user's, GeoProperty
-values and `vocab` are the broker's own structure - and `compactObject` lives in
-**corJsonld**, which has no notion of a GeoProperty. It currently approximates
-with two special cases (`type` at level 0, `@container` terms).
+### The `value` half: an ambiguity the wire format cannot resolve
 
-Two shapes, KZ's call:
-- **(a)** an NGSI-LD-aware opacity rule inside the compactor - cheap, but pushes
-  NGSI-LD semantics into the JSON-LD layer that has so far stayed clear of it;
-- **(b)** corNgsild marks the opaque subtrees before calling it - keeps the
-  layering, and the marker generalises: it is the same thing C1's two walks
-  would have wanted.
+⚠️ **My first analysis was wrong, in both directions, and the suite caught it.**
 
-⭐ **It also settles the C1 caveat.** `{"@type":"VocabProperty","@value":"sensor"}`
-round-trips verbatim, so `IoT-Agent` step 7's output is what the AGENT SENT and
-coraine returned it faithfully - not C1, not a coraine bug. (`@type` and `@id`
-are the only two keyword aliases in the core context; `value` maps to
-`ngsi-ld:hasValue`, not `@value`.)
+I said the fix was to mirror the expansion side's full rule (`VK_VALUE |
+VK_JSON | VK_VALUELIST`). Doing that broke `create_entity_simplified`: `num`
+came back as `.../default-context/num`. The reason is that a Property's value
+reaches expansion in **two shapes**, and only one is recognisable there:
+
+| input shape | at expansion time | so the value's keys are |
+|---|---|---|
+| normalized - `"P": {"type":"Property","value":{…}}` | the `value` key is present and carries `KJF_VK_VALUE` | left alone |
+| simplified - `"P": {…}` | the attribute IS the value; nothing marks it as one | `@vocab`-expanded like any other term |
+
+Compaction has to undo the second case, so `value` cannot be opaque on the way
+out. And that leaves a genuine ambiguity rather than a defect: **a key that is
+literally a default-context IRI is indistinguishable, on the way out, from a
+short key that was expanded on the way in.** It cannot be preserved without
+knowing which it was, and nothing on the wire says.
+
+So `property_value_opaque_json` step 12 now asserts the strip **deliberately**,
+with the reasoning beside it, and step 13 asserts that `json` survives.
+
+⭐ I had also written that GeoProperty was the blocker here - that its value keys
+are stored expanded and need the walk. **That was wrong too:**
+`ldGeoValueUnexpand` strips the geojson prefix before the DB model is built,
+because a mongo 2dsphere index needs standard GeoJSON field names. Geo is stored
+SHORT, so there was never anything in a geo value for this walk to compact.
 
 ## C3. Found while fixing C1 - kjson chopped any integer of more than 15 digits
 
@@ -654,100 +660,47 @@ coraine answered.
 `IoT-Agent` step 7 (README shows one Device, coraine returns two) is the T7 shape
 again — the page shows one entry of a list.
 
-## D15. ⭐ 81 rows of the tutorials' own seed data are refused - and § 5.2.2.5 says we may
+## D15. ✅ DONE - the § 5.2.2.5 scan is gone; the restrictions are on NAMES
 
-Not visible in any step's output, and the most consequential thing in the sweep
-after C1. `Context-Providers` logs **nine** `400 Forbidden Characters` during
-SEEDING, before the README's first step runs:
-
-```
-value of 'description' contains forbidden characters (< > " ' = ; ( ) — § 4.6.4)
-```
-
-The offending values are ordinary English:
+`Context-Providers` logged **nine** `400 Forbidden Characters` during SEEDING,
+before the README's first step ran, on nothing worse than an apostrophe:
 
 | file | rows rejected | example |
 |---|---|---|
 | `data/device.csv` | **80** | `Beany's Animal Collar` |
 | `data/agri-pest.csv` | 1 | `The spinose ear tick, is a soft-bodied tick …` |
 
-The apostrophe is the whole problem.
+**KZ's ruling, 2026-09-18: the restrictions belong on NAMES.** And the two
+clauses do split that way in effect, even though the eight characters are listed
+in the values one:
 
-### What the spec actually says
+- **§ 5.2.2.3 "Supported names"** is a grammar - `name = unicodeLetter
+  *nameChar`, Letter / Number / `_`, optional `prefix:` - which excludes every
+  one of those characters by construction, along with all other punctuation.
+  Unchanged, and `ldIsValidName` still enforces it.
+- **§ 5.2.2.5 "Supported content"** lists them as a hazard in VALUES and forbids
+  nothing: implementations *"should decide how to resolve"* it, and *"in all
+  cases ... shall preserve the representation of the content of the values ...
+  and return the original content"*. Refusing was permitted; so is accepting.
 
-The two clauses split names from values, and they are not the same rule.
+⭐ **The scan turned out to be the only thing in its own walk.** Removing it
+removed `ldCheckNamesAndContent`, `checkEntity`, `checkAttribute`,
+`checkValueContent` and `isStructuralKey` entirely - the file's own comments
+already said names were validated elsewhere, during expansion - plus
+`ldStringHasForbiddenChars`, which had **zero callers**.
 
-⚠️ First, the citation itself is stale. `§ 4.6.2` / `§ 4.6.4` are **CIM 009
-v1.9.1** numbers; in the current **TS 104-175** they are **§ 5.2.2.3 "Supported
-names"** and **§ 5.2.2.5 "Supported content"**, word for word the same text. The
-error message and `name_content_validation.test` both still say 4.6.x. Worth a
-sweep of its own - `~/git/ngsild-specs/CIM009-v1.9.1_to_TS104_clause-map.tsv`
-is the mapping.
+**Injection safety never depended on it**, and that was checked rather than
+assumed: every place a value can become query TEXT escapes it at that boundary -
+`jsonStrEscape` for the mongoc `$expr` JSON, `mongocEscapeDotsInKey` for field
+names, `PQexecParams` for timescale writes, `escapeSqlLit` for the TRoE q-to-SQL,
+and the geo pipeline is a compile-time constant. Nothing is stored escaped, so
+the "was it already escaped?" question never arises.
 
-**§ 5.2.2.3 "Supported names"** is the NAME rule, and it is a grammar, not a
-character blacklist: `name = unicodeLetter *nameChar`, where `nameChar` is a
-Unicode Letter, Number or `_`, with an optional `prefix:` form. Every one of
-`< > " ' = ; ( )` is excluded by construction, along with everything else that
-is not a letter, a number or an underscore. On a violating name, implementations
-"should raise an error of type BadRequestData".
-
-**§ 5.2.2.5 "Supported content"** is the VALUE rule, and it forbids nothing. It
-lists those same eight characters and then says implementations "should decide
-how to resolve the possible security problems that may be generated by the
-data", adding that **"in all cases, implementations shall preserve the
-representation of the content of the values … and return the original content
-when replying to context consumption requests"**, and that "if implementations
-decide to raise an error, the error shall be BadRequestData".
-
-### So where does that leave coraine
-
-**Conformant.** Raising `400 BadRequestData` is one of the resolutions § 5.2.2.5
-explicitly allows, and that is exactly what coraine returns. The behaviour is
-deliberate and covered by `name_content_validation.test`. It is a **D**, not a
-bug, and nothing here is being changed on a tutorial's say-so.
-
-**But it is the strictest end of a "should", and it has a cost this sweep
-measured:** 81 rows of the FIWARE tutorials' own data, none of it hostile, none
-of it exotic - an English possessive. Any broker those tutorials work on has
-made the other choice. The clause's own "shall preserve … and return the
-original content" reads as a nudge towards accepting and defending at the point
-where a value could be read as structure, rather than at the door.
-
-### The injection defences are already at the boundaries
-
-Checked, because this is what the 400 is there to buy, and the answer decides
-whether dropping it costs anything. Every place a value can become *query text*
-escapes it at that point:
-
-| boundary | what already happens |
-|---|---|
-| mongoc write | BSON through the driver - typed, never text |
-| mongoc `$expr` (built as a JSON string) | `jsonStrEscape()` - `"`, `\`, `\n\r\t`, `\uXXXX` for controls |
-| mongoc field names | `mongocEscapeDotsInKey()` - `.` → U+FF0E |
-| timescale write | `PQexecParams` with `$1`…`$n` |
-| timescale q → SQL | `escapeSqlLit()` - `'` → `''` |
-| mongoc geo pipeline | a compile-time constant, nothing interpolated |
-
-⭐ The division of labour is the same one the two clauses draw. **Names** are
-safe to interpolate into query text because § 5.2.2.3's grammar has already
-excluded every dangerous character - which is why `attrPath` can go into the
-`$expr` JSON unescaped. **Values** are unconstrained by design, so they are
-escaped where they would otherwise be read as syntax.
-
-⚠️ And nothing is *stored* escaped, which is what keeps this simple: the escape
-lives inside one statement and dies with it, so "was this already escaped?"
-never has to be answered. Encoding at rest would ask exactly that question, and
-would need an escape-the-escape rule to answer it. Cost today is zero on the
-write path and confined to the query builders, which already pay it.
-
-So the 400 is not load-bearing for injection safety. What is missing is the
-*proof*: a functest that pushes `'; DROP …`, `<script>`, `"` and a backslash
-through both DB plugins and asserts the value returns byte-identical - which
-§ 5.2.2.5 requires regardless of which way the decision goes.
-
-⚠️ **KZ's call, not a defect report.** Recorded here because the tutorials are
-what made the cost concrete, and because it is a good Athens agenda item: a
-"should" that splits implementations is exactly what the interop session is for.
+`name_content_validation` steps 07-13 now assert the opposite of what they used
+to: all eight characters in a string, in an array element and in a
+sub-attribute, byte-identical out; `Beany's Animal Collar`; and an
+injection-shaped value that round-trips **and** is matchable by `q` - which is
+what actually demonstrates the escaping works.
 
 ## D16. Minor, seeding-time, unexplained
 
