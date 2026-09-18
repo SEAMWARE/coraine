@@ -144,39 +144,132 @@ This inverts the call direction. It requires a stable **broker API
 surface** that plugins call back into — something the existing families
 have never needed.
 
+### 2a. ⭐ Two of these already exist — one standardised, one not
+
+The strongest argument for the family is not a protocol nobody has yet. It is
+that **both directions are already in production in every broker, and only one
+of them is standardised.**
+
+**Outbound: MQTT notifications are the first Bridge, and the spec already
+carries it.** TS 104 243 binds notifications to MQTT, and a Subscription says
+how through `notification.endpoint`:
+
+```json
+"endpoint": {
+  "uri": "mqtt://mosquitto:1883/low-stock",
+  "accept": "application/json",
+  "notifierInfo": [
+    { "key": "MQTT-Version", "value": "mqtt5.0" },
+    { "key": "MQTT-QoS",     "value": "2" }
+  ]
+}
+```
+
+Read that against § 3: the URI scheme selects a **Capability** (an MQTT
+implementation the broker was built with), the connection it opens to
+`mosquitto:1883` — with its version, QoS and credentials — is a **Bridge**, and
+this subscription's use of it is a **Channel**. The three concepts are already
+there. What is missing is that the Bridge has no identity: it cannot be listed,
+inspected, shared between subscriptions, or found to be down. `notifierInfo` is
+a bag of key/value strings carried per subscription precisely because there is
+nowhere else to put it.
+
+⭐ So the model is not a new idea. It is a name, an identity and a CRUD surface
+for a thing the spec has already standardised the *use* of.
+
+**Inbound: entity injection, which every broker has and none of them shares.**
+Every implementation grew some way to take entities off a message bus - Kafka
+in practice - and write them in. They are all different, all
+configuration-file-shaped, and none of them is in the spec. A client cannot ask
+a broker what it is ingesting, cannot add a source, and cannot be told the
+source has stopped.
+
+That is the same gap in the other direction, and it is the one worth putting to
+the group: outbound got a binding, inbound got left to each vendor. A Channel
+with `direction: inbound` says *this Kafka topic feeds this attribute*, and it
+says it in the API rather than in a file only the operator can read.
+
+⚠️ **DDS is a third case, not the motivating one.** It is mentioned throughout
+this document because it is the case that forced the concepts apart - the three
+clocks of § 3 became visible on DDS first - but exactly one broker implements
+it, so it is a poor argument to lead with. Where a reader needs an example,
+MQTT is the one that everybody can check against their own code.
+
 ## 3. Endpoint-mapping convention: Bridge and Channel
 
 > Supersedes the CSR-based convention of the 2026-05-25 revision. That
 > version said "every bridge endpoint is a Context Source Registration
 > with a protocol-specific endpoint URI". It isn't, and §3.1 is why.
 
-Orion-LD configures DDS endpoints via a static JSON file listing
-topics / services / actions, each mapped to
-`(entityType, entityId, attribute)`. We are not adopting that as the
-model either — but see §3.6, because we do have to keep reading that
-file.
+The model is **three concepts, two of them objects**. In full, taking § 2a's
+MQTT case and giving the connection the identity it currently lacks:
 
-The model is **three concepts, two of them objects**:
+```json
+{
+  "id": "urn:ngsi-ld:Bridge:mqtt-plant",
+  "type": "Bridge",
+  "plugin": "mqtt",
+  "endpoint": "mqtt://mosquitto:1883",
+  "options": {
+    "version": "mqtt5.0",
+    "qos": 2,
+    "clientId": "coraine-plant-1"
+  },
+  "status": "connected"
+}
+```
 
-| Concept | What it is | How many | Lifecycle |
-|---|---|---|---|
-| **Capability** | What this deployment *can* speak — a plugin `.so`, named on `--bridges`. **Not an object**: no id, no CRUD, no endpoint. | One per protocol or codec built. | Fixed at startup. §3.5b. |
-| **Bridge** | A transport instance. For DDS: the participant — domain, QoS defaults, thread count, types directory. | Very few. | A stored object with full CRUD — §3.5a. Many Bridges may share one Capability. |
-| **Channel** | One foreign endpoint tied to one entity attribute: `dds://rt/pose` ↔ `(urn:ngsi-ld:robot:1, pose)`, plus direction, retention and kind. | More — one per topic per entity. | Created, patched and deleted at runtime. |
+```json
+{
+  "id": "urn:ngsi-ld:Channel:barn-fill",
+  "type": "Channel",
+  "bridge": "urn:ngsi-ld:Bridge:mqtt-plant",
+  "target": "plant/barn001/filling",
+  "entityId": "urn:ngsi-ld:FillingLevelSensor:001",
+  "attribute": "filling",
+  "direction": "inbound",
+  "retention": "last",
+  "status": "active"
+}
+```
+
+The **Capability** is the third concept and is deliberately absent from both
+documents: it is `mqtt.so`, named on `--bridges`, with no id and no CRUD.
+`"plugin": "mqtt"` above is a *reference* to one, not an object.
+
+Field by field:
+
+| Object | Field | Meaning |
+|---|---|---|
+| Bridge | `plugin` | which Capability carries it — must be one the broker was started with (§ 3.5b) |
+| Bridge | `endpoint` | the transport instance's own address. The scheme is the registry key (§ 3.2) |
+| Bridge | `options` | per-transport settings. This is `notifierInfo`'s content, given a home |
+| Bridge | `status` | observable, and the degraded states matter (§ 3.3a) |
+| Channel | `bridge` | which Bridge carries it — many Channels per Bridge |
+| Channel | `target` | the foreign endpoint: an MQTT topic, a Kafka topic, a DDS topic, an OPC-UA node |
+| Channel | `entityId` / `attribute` | the NGSI-LD side of the mapping |
+| Channel | `direction` | `inbound`, `outbound` or both. This is the line against a registration (§ 3.1) |
+| Channel | `retention` | what to keep. See § 3.3 |
+| Channel | `status` | active / degraded / failed (§ 3.3a) |
 
 **Three things change on three different clocks, and conflating them is what
 made the lifecycle hard to pin down:**
 
 | | What it is | When it changes |
 |---|---|---|
-| The **Capability** (the `.so`) | Infrastructure. `--bridges dds,opcua` names which are loaded. | Startup. |
-| The **Bridge** | Configuration. *A DDS participant on domain 7 with this QoS.* | Runtime, full CRUD. |
+| The **Capability** (the `.so`) | Infrastructure. `--bridges mqtt,kafka` names which are loaded. | Startup. |
+| The **Bridge** | Configuration. *This MQTT connection, v5, QoS 2.* | Runtime, full CRUD. |
 | The **Channel** | *This topic ↔ this attribute.* | Runtime, full CRUD. |
 
-The relationship between the first two is one-to-many: two DDS participants on
-different domains are two Bridges sharing one `dds.so`, both `"plugin": "dds"`.
-An earlier draft made the Bridge read-only because the *kind* is startup-fixed
-(§3.5a) — that was the first row's property applied to the second.
+The relationship between the first two is one-to-many: two MQTT connections to
+different brokers are two Bridges sharing one `mqtt.so`, both `"plugin": "mqtt"`
+— as two DDS participants on different domains would be. An earlier draft made
+the Bridge read-only because the *kind* is startup-fixed (§3.5a) — that was the
+first row's property applied to the second.
+
+⚠️ There is also a static JSON configuration file to keep reading, listing
+topics / services / actions each mapped to `(entityType, entityId, attribute)`.
+That is not the model, and § 3.6 is about why it survives anyway.
 
 #### Why "Channel" and not "Binding"
 
@@ -683,6 +776,12 @@ and nothing.
 
 ### 3.6 The config-file loader
 
+> ⚠️ **Scope: implementation, not proposal.** This subsection is about keeping an
+> existing static configuration file working. It concerns the two brokers that
+> would carry it and nothing in § 3's object model depends on it — a reader
+> looking for what ETSI would standardise can skip to § 3.7. See § 4.0 for the
+> same line drawn around the plugin contract.
+
 Orion-LD's DDS configuration file is not ours to change. `dds.ddsmodule`
 is eProsima's and is passed verbatim to the enabler; `dds.ngsild` is
 ours but is published and in use, so it is frozen in practice.
@@ -800,6 +899,38 @@ on demand (§3.1a), and a Channel for a value that flows.
 > The `.so` this section specifies is a **Capability** (§ 3.5b): present or
 > absent at startup, never an API object. `BridgeDriver` below is the vtable it
 > populates — the contract, not the tier.
+
+### ⚠️⭐ 4.0 This section is NOT part of what ETSI would standardise
+
+Scorpio is Java and Stellio is Kotlin. A C ABI is not a contract they can
+implement, and any proposal that hands them one is dead on arrival. So the split
+has to be stated before the header, not after:
+
+| | Standardised | Implementation's own business |
+|---|---|---|
+| The **Bridge** and **Channel** objects — fields, CRUD, status vocabulary (§ 3, § 3.3a) | ✅ | |
+| The **URI scheme registry** — which scheme means which transport (§ 3.2) | ✅ | |
+| The observable behaviour: what a Channel does to an entity, what a degraded Bridge reports | ✅ | |
+| **How a broker loads a bridge** — `.so` + vtable, a JVM service loader, a compiled-in switch | | ✅ |
+
+Everything below is how **coraine** does the last row. It is in this document
+because the design has to be shown to work somewhere concrete, not because a
+standard should mandate it. A JVM broker would use its own service-loader and
+implement the same objects; nothing in § 3 or § 5a assumes C.
+
+**Could a JVM broker reuse a C bridge through glue?** Technically yes — JNI,
+JNA, or the FFM API in Java 22+. Whether it is a good idea depends on which half:
+
+- a **codec** is worth sharing. The wire format is the hard part, it is identical
+  for everyone, and getting DDS type marshalling wrong is expensive. One
+  audited implementation behind a thin binding is a real win.
+- the **transport loop** is not. It means a native dependency inside a JVM
+  service, native threads calling back in, and a crash model nobody wants: a
+  segfault in the `.so` takes the JVM with it, where a Java exception would have
+  been caught and the Bridge marked `failed` (§ 3.3a).
+
+So the honest recommendation is: share codecs if it helps, write the transport in
+whatever the broker is written in, and let the standard be about the objects.
 
 Same shape as the existing families: a single registration symbol
 populates a vtable struct. Working name `BridgeDriver`.
@@ -1382,6 +1513,19 @@ Channels. Deleting a Channel never disturbs the transport.
 
 ## 9. Concrete bridges — roadmap
 
+⚠️ **Landing order is not argument order.** The list below is sequenced by
+engineering risk — neutral types first, then the transport we fully control —
+because that is the safe way to build it. The order to *present* it in is the
+opposite: § 2a's two cases, MQTT and Kafka, because both already exist in every
+broker and one of them is already standardised. A reader who meets `tlv` first
+concludes this is a private IPC scheme with ambitions.
+
+Two entries below therefore carry more weight than their position suggests:
+**`mqtt` (5)**, which is the existing standardised case and so the one that
+proves the objects describe something real rather than something new; and
+**`kafka`**, added as (5a) because entity injection is the unstandardised half
+and the clearest gap a Channel fills.
+
 Recommended order of landing:
 
 1. **Transport-neutral types + outbound refactor.** Define
@@ -1410,8 +1554,19 @@ Recommended order of landing:
    with new inbound MQTT support for distops over a request/reply
    topic convention. Semantics need pinning (see §11) but the
    library is already a broker dep, so the .so should be thin.
+5a. **`kafka` (ingest, foreign peer)** — inbound only for the first
+   cut, and the point of it is standardising something that already
+   exists everywhere in mutually incompatible forms (§ 2a). A Channel
+   with `direction: inbound` says *this topic feeds this attribute*; the
+   Bridge holds the broker list, consumer group and offset policy, and
+   `status` answers the question no current implementation can — is my
+   ingest still running. Outbound (publish on entity change) is a
+   second step and overlaps notifications, so it needs § 11's semantics
+   pinned first.
 6. **`dds` (translation, foreign peer)** — topics only for the
-   first cut. See §9.1 below.
+   first cut. See §9.1 below. ⚠️ Exactly one broker implements DDS
+   today, so it is a demonstration that the model reaches an
+   industrial fieldbus, not an argument that anyone needs it yet.
 7. **`opcua`, `modbus`, ...** — further industrial peers, each a
    separate commit, all using the same contract.
 
