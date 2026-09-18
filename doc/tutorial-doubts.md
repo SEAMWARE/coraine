@@ -350,6 +350,56 @@ same opacity question as C1 and C4.
 same name into one object.** That guard belongs lower down, and is worth having
 whatever is decided here.
 
+## C6. ⛔ OPEN - an INVALID attribute type is accepted, and gets a second type bolted on
+
+Found by KZ asking the obvious question about C5: *"That longname is neither of
+them, so it should have been an error. And even weirder, add another type field?
+What if we have another invalid attribute type? Say `"type": "Porpetry"`."* It
+does exactly that:
+
+| sent | response | stored |
+|---|---|---|
+| `"P":{"type":"Porpetry","value":1}` | **201** | `{"type":"Property","type":"Porpetry","value":1}` |
+| `"P":{"type":"Banana","value":1}` | **201** | `{"type":"Property","type":"Banana","value":1}` |
+| `"P":{"type":42,"value":1}` | **201** | `{"type":"Property","type":42,"value":1}` |
+
+Two members with the same name in one object - invalid JSON - and a silent
+`201` to a request that was wrong. C5's expanded IRI was one INSTANCE of this;
+fixing recognition (corNgsild #25) removes that instance and leaves the class.
+
+**Cause.** `normalizeAttr`'s Case 1 asks "is there a `type` naming a known
+attribute type?". On `false`, Case 2 fires because the object *has* a `value`
+key, infers `Property` and prepends it - never looking at the `type` already
+there. "Unrecognised" is treated as "absent".
+
+**Why it cannot simply reject.** Concise GeoProperty is legal and its `type` is
+legitimately not an attribute type:
+
+```
+"location": { "type": "Point",  "coordinates": [1,2] }   ->  GeoProperty   ✅
+"location": { "type": "Poinxt", "coordinates": [1,2] }   ->  400           ✅
+```
+
+Case 3 catches a misspelled GEOMETRY because it has `coordinates`. A misspelled
+ATTRIBUTE TYPE has none, so nothing trips.
+
+**The rule should be three-way, not two:**
+1. no `type` member → simplified/concise → infer
+2. `type` names an attribute type, either spelling → normalized
+3. `type` present but neither → legal only as the GeoJSON-geometry shape (Case 3
+   owns it, and already rejects a bad one); otherwise **400**
+
+⭐ Plus the invariant that would have made every one of C5 and C6 loud instead of
+silent: **`addTypeField` must never add a `type` to an object that already has
+one.** Nothing should be able to emit two members with the same name.
+
+⚠️ **Not a one-liner, which is why it is its own item.** `ldNormalizeInput`
+cannot currently fail - `void`, and not one `ldError` call in the file - and it
+has six callers, FOUR of them batch paths where a failure has to become a
+per-entity error inside a 207 rather than a request-level 400. `ldCheckAttribute`
+will not catch it either: it treats `attrType == LdAttrNone` as a partial update
+and accepts it deliberately (§ 5.6.x fragments).
+
 ## C4. OPEN - the compaction walk also rewrites keys inside a Property's value
 
 Found by probing KZ's question *"@type ... that's already a fully qualified name,
