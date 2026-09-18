@@ -1000,6 +1000,13 @@ Install path: `/opt/seamware/plugins/bridge/<name>.so`.
 `--database`, `--troe` and `--apiPlugins` already work. HTTP needs no
 loading (always inline).
 
+⚠️ The flag names **Capabilities**, not Bridges — `--bridges dds` makes the
+broker *able* to speak DDS; it creates no Bridge. Kept as `--bridges` anyway,
+because every other plugin flag names its family rather than the objects it
+enables (`--apiPlugins admin` loads a plugin, it does not create an API), and
+`--capabilities` would collide with the build-time features the broker also
+reports. Worth knowing on first reading, which is why it is written here.
+
 Named rather than inferred, for three reasons. A bridge brings up a
 transport at `init()` — a DDS participant joins a domain and starts
 discovering peers — and that is not something to do as a side effect of
