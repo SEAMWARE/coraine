@@ -253,15 +253,31 @@ test. So the edge shape is not new work bolted on: the feature flags, the bridge
 family, the registration model and the footprint work all arrive at the same
 place.
 
-⚠️ **One hazard to write down before anyone builds it.** A feature that changes
-a STRUCT LAYOUT changes the plugin ABI, so an edge broker and the bridge `.so`
-it loads must be built from the same feature set. Nine of the fifteen flags
-measured earlier were inert - byte-identical binaries - but the ones that are
-not are exactly the ones an edge build wants off. `BridgeDriver` already carries
-a `version` the broker refuses to load on a major mismatch (§ 4); that catches a
-stale plugin, not a same-version plugin compiled against a different feature
-set. Worth an explicit build-configuration check before the first edge
-deployment, not after.
+⭐ **The plugin contract must NOT change with conditional compilation**, and it
+does not today. I had this backwards and KZ corrected it: I wrote that a
+layout-changing feature would make an edge broker incompatible with its bridge
+`.so`, and proposed a build-configuration check. Wrong problem. Checked
+afterwards:
+
+- **no** `COR_FEATURE` appears in `DbDriver.h`, `TroeDriver.h` or `ApiPlugin.h`
+- **no** conditional of any kind appears inside those structs, include guards
+  aside
+
+So the vtable is the same shape in every build, and **a feature that is off is a
+NULL function pointer at run time** - which is already the established
+convention rather than a new idea: `DbDriver.h` carries seven `NULL-allowed`
+members today, `snapshotCreate` among them, NULL for corDB because corDB does
+not persist.
+
+That is the rule to keep, and it is what makes the edge shape cheap: an edge
+broker can load a plugin built against a full broker, because the contract does
+not know the flags exist. The broker compiles out its own CALL SITE, the plugin
+leaves the pointer NULL, and neither needs to know which the other did.
+
+⚠️ So the thing to guard is narrower than a configuration check: **never put a
+`#if` inside a driver struct.** A `version` mismatch (§ 4) catches a stale
+plugin; nothing catches a struct that quietly changed shape, which is exactly
+why the rule is "don't" rather than "detect".
 
 ### 2c. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
 
