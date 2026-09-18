@@ -121,7 +121,7 @@ registration-subscription and EntityMap service routines, the forwarding
 library, and both DB plugins' registration code — about 24 kB of `.text`.
 
 `-DCOR_FEATURE_ICU_COLLATION=OFF` is the odd one out: it removes no routes and
-no capability, it swaps the implementation behind one. `orderBy` on strings still
+no feature, it swaps the implementation behind one. `orderBy` on strings still
 works, but through a dependency-free approximation instead of libicu — which
 takes **three shared libraries and 39.2 MiB** off what the broker installs
 (`libicudata` alone is 31.6 MiB, nine times the size of the broker, for a
@@ -156,13 +156,13 @@ HTTP/1.1 501 Not Implemented
 ```
 
 deliberately **not** a 404. A 404 says the resource is not there and invites the
-client to fix its URL; this says the deployment declined the capability and the
+client to fix its URL; this says the deployment declined the feature and the
 client's move is a different deployment. A plugin's own routes answer the same
 way — the admin plugin's `subStats/flush` is compiled out with subscriptions and
 returns the same 501. The type URI is ours rather than an
 ETSI one because TS 104-176 § 6.3.2 registers no error type for a build-time
 omission — the one 501 in that table, `NoMultiTenantSupport`, is reserved for a
-single capability. See spec-doubt #124.
+single feature. See spec-doubt #124.
 
 Ask a binary what it carries, without starting it:
 
@@ -252,7 +252,7 @@ compiled binary is byte-for-byte the same as a full build. `-DCOR_FEATURE_TENANT
 produces a broker that builds, starts, reports `"TENANTS": false` on `GET /build`
 — and serves tenants exactly as before. This is the failure mode to watch for,
 because nothing about it looks like a failure. If you are switching one of these
-off to remove a capability, you have not removed it.
+off to remove a feature, you have not removed it.
 
 **⚠️ These three do not build:**
 
@@ -287,7 +287,7 @@ cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
 cmake -DCOR_HTTP_SERVER=builtin    # corHttp, no external HTTP dependency
 ```
 
-Not a `COR_FEATURE_*` boolean, because those answer "is this capability in the
+Not a `COR_FEATURE_*` boolean, because those answer "is this feature in the
 build" and the HTTP server is always in it — what varies is which one. The value
 reaches CMake **and** corRest's own make (the HTTP server lives in corRest,
 which builds with plain make and knows nothing of CMake options), and it decides
