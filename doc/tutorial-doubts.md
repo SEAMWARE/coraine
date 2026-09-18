@@ -104,3 +104,41 @@ will not drop one to match a tutorial — so this is a **D**, recorded so nobody
 
 Worth raising with the author only as a note: a tutorial offering four brokers
 may want to say that extra members can appear.
+
+
+## T5/D5. `CRUD-Operations` queries entities by `id` alone — which coraine rejects
+
+**Where:** `tutorials.CRUD-Operations`, "Read multiple attributes from multiple
+entities".
+
+```
+GET /ngsi-ld/v1/entities/?id=urn:ngsi-ld:TemperatureSensor:001,urn:ngsi-ld:TemperatureSensor:002
+    &format=simplified&pick=id,type,temperature
+```
+
+coraine answers **400 BadRequestData**:
+
+> Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery,
+> 'scopeQ', or 'local=true' (§ 5.7.2.4 — id / idPattern alone is too wide)
+
+That is deliberate and tested — `query_entities_too_wide.test` step 03 asserts
+`GET /entities?id=urn:V1` is 400, citing § 5.7.2.4.
+
+❓ **OPEN, and it is a spec question, not a tutorial one.** An explicit list of
+entity ids is the NARROWEST possible query — narrower than `type=`, which we do
+accept. Rejecting it as "too wide" reads oddly, and the tutorial (written against
+another broker) clearly expects it to work. If our reading of § 5.7.2.4 is wrong
+then this is a coraine bug and a fairly visible one, since querying a known set
+of ids is an ordinary thing to want.
+
+⚠️ coraine contradicts itself in writing on this. `getEntities.c:1583` says:
+
+> *"The spec lists type/attrs/q/georel/local; we additionally accept id and
+> idPattern since they bound the candidate set as tightly (an explicit URI list
+> is not a 'too wide' query)."*
+
+…and its check includes `hasId`. But `ldParamsValidate.c` runs first, for GET,
+and rejects `id`-only — so that branch is unreachable on the GET path and its
+comment describes behaviour the broker does not have. Whichever way the spec
+question lands, the two should agree. (No behavioural split, though: the POST
+`/entityOperations/query` variant also refuses, demanding `type` in the body.)
