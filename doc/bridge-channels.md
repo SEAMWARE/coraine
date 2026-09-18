@@ -11,7 +11,7 @@ from being re-argued. **Not implemented.**
 > endpoint-scheme convention is the part most likely to survive.
 >
 > ⭐ § 4.0 says which parts a standard would actually cover and which are
-> coraine's own. § 2a and § 2b are the argument; start there.
+> coraine's own. § 2a-§ 2c are the argument; start there.
 
 The draft history — six revisions between 2026-05-22 and 2026-09-16, including
 two direction changes — is at the **end**, under *Revision history*. It is kept
@@ -143,7 +143,51 @@ clocks of § 3 became visible on DDS first - but exactly one broker implements
 it, so it is a poor argument to lead with. Where a reader needs an example,
 MQTT is the one that everybody can check against their own code.
 
-### 2b. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
+### 2b. ⭐⭐ The strongest case: an IoT Agent IS a Bridge with Channels
+
+KZ, 2026-09-18: *"iot agents are all node.js. Quite slow. We'll reimplement all
+of them as plugins for coraine, with bridge/channel."*
+
+That is a better argument than either case above, because it does not
+standardise a service - it **removes** one. Read an IoT Agent against § 3 and
+the mapping is exact:
+
+| IoT Agent concept | this model |
+|---|---|
+| the agent process itself - UltraLight, JSON, LWM2M, OPC-UA, … | a **Capability**, one `.so` per protocol |
+| its southbound connection - the MQTT broker or HTTP endpoint it listens on, with its apikey and transport | a **Bridge** |
+| a provisioned **device** - `device_id` ↔ `entity_name`, its attribute mapping, its commands, its static attributes | a **Channel**, or a small set of them |
+| `/iot/devices` provisioning | Channel CRUD, in NGSI-LD, against the broker |
+
+⭐ § 3.8 already reached this conclusion from the other direction, before the
+motivation was clear: *"device provisioning turns out to be a shape of Channel
+rather than a layer above it."* This is that observation with a reason attached.
+
+**What it buys, concretely.** An agent today is a separate Node.js service with
+its own database, its own provisioning API, its own health, its own config
+file - and it talks to the broker over the network to do work the broker is
+already doing. Everything the phase-1 tutorial sweep tripped over on the IoT
+side was a property of that arrangement rather than of NGSI-LD:
+
+- the device entity came back as `{id, type}` because its attributes were behind
+  a registration pointing at a provider that returns nothing (T14). A Channel
+  has no registration in the middle - the value arrives and is written.
+- `/iot/devices` returns `attributes` on one version and `polling` on another
+  (T13). A Channel is an NGSI-LD object with a spec'd shape.
+- four tutorials never ran at all because a Node.js agent takes long enough to
+  start that a shipped wait loop gave up on it (T10). There is nothing to wait
+  for if the protocol is a plugin in the broker.
+- the agent wrote a value as `{"@type":"VocabProperty","@value":"sensor"}` (C1's
+  tell, settled in that entry) - a translation layer inventing its own JSON-LD.
+
+⚠️ And it sharpens § 4.0's line rather than blurring it. What ETSI would
+standardise is the **Channel** - *this device, this mapping, this direction* -
+which is what makes a provisioned device portable between brokers, and is
+exactly what `/iot/devices` is not. Whether coraine implements UltraLight in a
+`.so` while Scorpio keeps a Java agent is then an implementation choice, and
+both answer the same API.
+
+### 2c. ⭐ Why the MQTT and WebSocket *bindings* have been open for years
 
 Both have been discussed in the group for years without landing, and the reason
 is worth writing down: it is the same reason in both cases, and it is what makes
@@ -1541,7 +1585,7 @@ Recommended order of landing:
    vtable, the `serveDistOp` call surface from a plugin thread, the
    `dlopen` load mechanism (`--bridges`, §4c), and the `bridgeThreadInit` upcall.
    First concrete usage of every part of the bridge family.
-⚠️ Items 4 and 5 are **binding-shaped**, not Bridge-shaped, and § 2b is why the
+⚠️ Items 4 and 5 are **binding-shaped**, not Bridge-shaped, and § 2c is why the
 distinction matters: carrying NGSI-LD itself over MQTT or WebSocket is the thing
 the group has been unable to finish, because it needs a home for every HTTP
 header. Doing it inside a bridge plugin is a coraine decision about where the
