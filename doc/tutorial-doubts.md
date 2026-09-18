@@ -628,7 +628,7 @@ to carry `attributes` (and `explicitAttrs` in the JSON variant); the agent that
 ships in the compose file returns `polling` instead. An IoT-Agent version drift
 in the tutorial's own text.
 
-## T14. OPEN — `IoT-Agent` step 11, a command device with no attributes
+## T14. ✅ ANSWERED in phase 3 — `IoT-Agent` step 11, a command device with no attributes
 
 `GET /entities/urn:ngsi-ld:Device:water001` returns `{"id":…,"type":"Water"}` and
 nothing else; the README expects the static attributes and the command pairs
@@ -636,10 +636,16 @@ nothing else; the README expects the static attributes and the command pairs
 provisioning asks for — so the type is not the problem; the missing attributes
 are.
 
-Not concluded, but the broker log narrows it usefully: `IoT-Agent` logged
-**nothing at all** - zero `E:`/`X:` lines - so coraine refused nothing. Whatever
-is missing was either never sent, or was asked for through a registration whose
-forward came back empty.
+⭐ **Settled in phase 3, with traces on: the forward is made and the registered
+provider supplies nothing.** See the phase-3 section at the end - coraine sends
+`GET http://devices/…/water001` with the tenant and `Via` in place, and the
+merged answer is still `{id, type}`. So this is a **T**, and the open question
+is for the tutorial author: does the `devices` provider serve those attributes
+at all?
+
+The original note follows. The broker log narrowed it even while empty:
+`IoT-Agent` logged **nothing at all** - zero `E:`/`X:` lines - so coraine
+refused nothing.
 
 One candidate is already out: the tutorial's `coraine.yml` does
 pass `--distributed`, so this is not the "registered but never forwarded" shape.
@@ -775,6 +781,70 @@ moved `MONGO_DB_PORT` to dodge a host-port collision, and that variable also
 builds `IOTA_MONGO_URI`, so the agent could not reach mongo and died in a restart
 loop. That is fixed — the host PUBLICATION is commented out instead — and the
 current failure has some other cause.
+
+# Phase 3 — 2026-09-18, after the fixes
+
+Three tutorials re-run on an image built from `main` (`907980e`), not eleven:
+only the findings with a coraine-side change under them are worth re-running,
+and the rest of phase 1's are tutorial errors no fix moves. Scope and the
+`--traceLevels` rig change are in `.runner/RIG-MODIFICATIONS.md` § 4.
+
+⭐ The image was smoke-tested for the three fixes before spending an hour on the
+stacks — an apostrophe value accepted, `ngsi-ld:speed` expanding to the right
+IRI, `Porpetry` refused. `make docker` stages COMMITTED state, so a stale lib
+clone would otherwise have produced an hour of meaningless results.
+
+## ✅ D15 confirmed on real data
+
+`Context-Providers` broker errors: **12 → 3**. All nine
+`400 Forbidden Characters` are gone — the seeding failures that phase 1 found
+before the README's first step. That is 81 rows of the tutorials' own data that
+the broker was refusing on an apostrophe, now accepted.
+
+The remaining three are D16's, untouched and unexplained: one `kjParseValue`
+parse error, one `invalid value`, and the `registration overlaps with
+locally-stored entity 'urn:ngsi-ld:Animal:cow001'`.
+
+⚠️ Not claimed: that every row landed. Steps 1 and 3 still answer `[]` for
+`type=Animal`, but they legitimately do — they query before anything is
+registered, the README shows `[]` too, and the comparator does not flag them.
+What is demonstrated is that the refusals stopped.
+
+## ✅ T14 answered — coraine forwards; the provider supplies nothing
+
+Phase 1 left this open because `broker.log` was empty: a Device coming back as
+`{"id":…,"type":"Water"}` with no error anywhere to explain the missing static
+attributes and command pairs. With traces on, the log is 43 KB and says it
+plainly:
+
+```
+ldDistOp.c[591]: forward request: GET http://devices/ngsi-ld/v1/entities/urn:ngsi-ld:Device:water001
+ldDistOp.c[599]: forward request param: sysAttrs=true
+ldDistOp.c[606]: forward request header: Via: 1.1 172.18.1.8:1026:openiot
+ldDistOp.c[606]: forward request header: NGSILD-Tenant: openiot
+```
+
+So the registration matched, the forward was made, correctly addressed, with the
+tenant and the loop-avoidance `Via` in place — and the merged answer is still
+`{id, type}`. The commands are registered separately and forwarded too
+(`PATCH http://iot-agent:4041/…/water001/attrs/on`).
+
+⇒ **Not a coraine bug.** The attributes live behind a registration pointing at
+the tutorial's `devices` context provider, and that provider returns nothing for
+the entity. Zero broker errors, so nothing was refused or failed to parse.
+
+⚠️ What is still unknown, and needs the provider's own log rather than the
+broker's: whether `devices` 404s, answers an empty entity, or was never meant to
+serve those attributes and the agent registered them to the wrong place. That is
+a question for the tutorial author, and T14 becomes a **T**, not a **C**.
+
+## Unchanged, as expected
+
+Flags stayed at 6 / 3 / 2 for `Context-Providers`, `IoT-Agent` and
+`IoT-Agent-JSON`. Every one of them is a tutorial error — `-X` eating the URL,
+an abridged expected block, the agent's own `attributes` vs `polling` drift — so
+no coraine fix could have moved them, and none did. That they did not move is
+itself worth recording: it says the fixes were scoped to what they claimed.
 
 ## Driver corrections needed (mine, not the tutorials')
 
