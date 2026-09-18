@@ -1,0 +1,145 @@
+#
+# FILE            value_large_integer.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An integer Property value of more than 15 digits used to come back with its
+# digits CHOPPED - 9007199254740993 rendered as 900719925474099 - because
+# kjson's pushInt rendered into a 16-byte buffer and then clamped the copy
+# length to 15 to match what snprintf had already truncated.
+#
+# TS 104-175 § 5.2.2.4 admits all the JSON native types of RFC 8259; a
+# nanosecond timestamp is 19 digits and int64 goes to 20 with the sign. Needs
+# kjson >= 0.14.1.
+#
+# The interesting sizes are the boundary (15 digits, always worked), the first
+# broken one (16), and the extremes of int64 in both directions.
+#
+--NAME--
+Integer values above 15 digits keep all their digits (kjson pushInt)
+
+--TAGS--
+entity property value create retrieve
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create urn:I1 with six integer values spanning the boundary
+# 02. GET urn:I1 - every one of them comes back unchanged
+# 03. GET with format=simplified - the same numbers on the other render path
+#
+
+echo "01. Create urn:I1 - integers from 15 digits to the int64 extremes"
+echo "================================================================"
+payload='{
+  "id": "urn:I1",
+  "type": "T",
+  "fifteen":    { "type": "Property", "value": 999999999999999 },
+  "sixteen":    { "type": "Property", "value": 9007199254740993 },
+  "nineteen":   { "type": "Property", "value": 1700000000000000000 },
+  "int64Max":   { "type": "Property", "value": 9223372036854775807 },
+  "int64Min":   { "type": "Property", "value": -9223372036854775807 },
+  "nested":     { "type": "Property", "value": { "ns": 1700000000000000000 } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET urn:I1 - normalized"
+echo "==========================="
+corCurl --url /ngsi-ld/v1/entities/urn:I1
+echo
+echo
+
+
+echo "03. GET urn:I1 - simplified (the other render path)"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:I1?format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:I1 - integers from 15 digits to the int64 extremes
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:I1
+Content-Length: 0
+
+
+
+
+02. GET urn:I1 - normalized
+===========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 514
+
+{
+  "fifteen": {
+    "type": "Property",
+    "value": 999999999999999
+  },
+  "id": "urn:I1",
+  "int64Max": {
+    "type": "Property",
+    "value": 9223372036854775807
+  },
+  "int64Min": {
+    "type": "Property",
+    "value": -9223372036854775807
+  },
+  "nested": {
+    "type": "Property",
+    "value": {
+      "ns": 1700000000000000000
+    }
+  },
+  "nineteen": {
+    "type": "Property",
+    "value": 1700000000000000000
+  },
+  "sixteen": {
+    "type": "Property",
+    "value": 9007199254740993
+  },
+  "type": "T"
+}
+
+
+
+03. GET urn:I1 - simplified (the other render path)
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 252
+
+{
+  "fifteen": 999999999999999,
+  "id": "urn:I1",
+  "int64Max": 9223372036854775807,
+  "int64Min": -9223372036854775807,
+  "nested": {
+    "ns": 1700000000000000000
+  },
+  "nineteen": 1700000000000000000,
+  "sixteen": 9007199254740993,
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+corDbDrop
