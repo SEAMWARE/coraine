@@ -181,9 +181,14 @@ bool putEntityAttr(void)
   // instance whose type could be preserved, so a simplified scalar is a Property
   // per § 5.3.2.3.
   //
-  ldNormalizeInput(entityFrag, &corRest.kalloc, false, false);
-
-  if (ldCheckEntity(entityFrag, LdOpAppendAttrs, NULL, &corRest.kalloc) == false)
+  //
+  // Normalization can REFUSE now - an attribute whose "type" names no NGSI-LD
+  // Attribute type is an error, not something to infer a type for. It has
+  // already set the problem, so it joins the existing check: short-circuit
+  // means ldCheckEntity is skipped and the handling below reports it.
+  //
+  if (ldNormalizeInput(entityFrag, &corRest.kalloc, false, false) == false ||
+      ldCheckEntity(entityFrag, LdOpAppendAttrs, NULL, &corRest.kalloc) == false)
     return true;
   //
   // § 9.3.3 guard — a ?local=true write must not produce local data that an

@@ -1,0 +1,337 @@
+#
+# FILE            attribute_type_invalid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An Attribute's "type" has eight legal values (§ 5.2.5 and friends): Property,
+# Relationship, GeoProperty, LanguageProperty, VocabProperty, ListProperty,
+# ListRelationship, JsonProperty - each in either spelling, short or expanded.
+# Anything else is an error.
+#
+# It used to be a silent 201 with the broker inventing a type and keeping the
+# bogus one beside it:
+#
+#   "P": { "type": "Porpetry", "value": 1 }
+#     -> 201, {"type":"Property","type":"Porpetry","value":1}
+#
+# Two members with the same name in ONE object - invalid JSON on the wire. A
+# strict parser takes the last, so the client is told the type is "Porpetry";
+# others reject the whole document. "Banana" and a non-string 42 did the same.
+#
+# Cause: normalizeAttr's Case 1 asks "is there a type naming a known attribute
+# type?" and the caller read a false as "no type member at all", so Case 2 fired
+# on the "value" key, inferred Property and PREPENDED it. Unrecognised was
+# treated as absent. ldCheckAttribute does not catch it either - it treats
+# LdAttrNone as a partial-update fragment and accepts it deliberately.
+#
+# ⚠️ The reason it cannot simply reject any unrecognised "type" is steps 05-06:
+# a simplified GeoProperty's "type" is a GeoJSON geometry name, which is
+# legitimately not an Attribute type. That shape carries "coordinates", which is
+# what tells the two apart - and a misspelled GEOMETRY is caught by the geo
+# check, while a misspelled ATTRIBUTE TYPE has no coordinates to trip it.
+#
+--NAME--
+An Attribute type that names nothing is 400, not an invented Property
+
+--TAGS--
+entity validation create error-handling
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. "type": "Porpetry"  - 400, and NOT stored
+# 02. "type": "Banana"    - 400
+# 03. "type": 42          - 400, non-string
+# 04. invalid type on a SUB-attribute - 400
+# 05. GUARD: simplified GeoProperty (type is a geometry) still works
+# 06. GUARD: misspelled GEOMETRY still rejected, by the geo check
+# 07. GUARD: concise with no type at all still infers Property
+# 08. GUARD: batch create reports it per entity, and the good one survives
+#
+
+echo "01. type Porpetry - 400"
+echo "======================="
+payload='{ "id": "urn:AT1", "type": "T", "P": { "type": "Porpetry", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:AT1
+echo
+echo
+
+
+echo "02. type Banana - 400"
+echo "====================="
+payload='{ "id": "urn:AT2", "type": "T", "P": { "type": "Banana", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. type 42 - 400, not a string"
+echo "==============================="
+payload='{ "id": "urn:AT3", "type": "T", "P": { "type": 42, "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. invalid type on a sub-attribute - 400"
+echo "========================================="
+payload='{
+  "id": "urn:AT4",
+  "type": "T",
+  "P": {
+    "type": "Property",
+    "value": 1,
+    "sub": { "type": "Porpetry", "value": 2 }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "05. GUARD - simplified GeoProperty, type is a geometry"
+echo "======================================================"
+payload='{
+  "id": "urn:AT5",
+  "type": "T",
+  "location": { "type": "Point", "coordinates": [ 1, 2 ] }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:AT5
+echo
+echo
+
+
+echo "06. GUARD - misspelled geometry still rejected"
+echo "=============================================="
+payload='{
+  "id": "urn:AT6",
+  "type": "T",
+  "location": { "type": "Poinxt", "coordinates": [ 1, 2 ] }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. GUARD - concise with no type infers Property"
+echo "================================================"
+payload='{ "id": "urn:AT7", "type": "T", "P": { "value": 1, "unitCode": "CEL" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:AT7
+echo
+echo
+
+
+echo "08. GUARD - batch reports it per entity, the good one survives"
+echo "=============================================================="
+payload='[
+  { "id": "urn:AT8", "type": "T", "P": { "type": "Porpetry", "value": 1 } },
+  { "id": "urn:AT9", "type": "T", "P": { "type": "Property", "value": 2 } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+corCurl --url /ngsi-ld/v1/entities/urn:AT9
+echo
+echo
+
+
+--EXPECT--
+01. type Porpetry - 400
+=======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 285
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/P': 'https://uri.etsi.org/ngsi-ld/default-context/Porpetry' is not an NGSI-LD Attribute type",
+  "status": 400,
+  "title": "Invalid Attribute Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 152
+
+{
+  "detail": "entity 'urn:AT1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+02. type Banana - 400
+=====================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 283
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/P': 'https://uri.etsi.org/ngsi-ld/default-context/Banana' is not an NGSI-LD Attribute type",
+  "status": 400,
+  "title": "Invalid Attribute Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. type 42 - 400, not a string
+===============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 253
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/P': 'type' must be a string naming an NGSI-LD Attribute type",
+  "status": 400,
+  "title": "Invalid Attribute Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. invalid type on a sub-attribute - 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 287
+
+{
+  "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/sub': 'https://uri.etsi.org/ngsi-ld/default-context/Porpetry' is not an NGSI-LD Attribute type",
+  "status": 400,
+  "title": "Invalid Attribute Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. GUARD - simplified GeoProperty, type is a geometry
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:AT5
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 181
+
+{
+  "id": "urn:AT5",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        1,
+        2
+      ],
+      "type": "Point"
+    }
+  },
+  "type": "T"
+}
+
+
+
+06. GUARD - misspelled geometry still rejected
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 214
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Poinxt'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. GUARD - concise with no type infers Property
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:AT7
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 113
+
+{
+  "P": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 1
+  },
+  "id": "urn:AT7",
+  "type": "T"
+}
+
+
+
+08. GUARD - batch reports it per entity, the good one survives
+==============================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 419
+
+{
+  "errors": [
+    {
+      "entityId": "urn:AT8",
+      "error": {
+        "detail": "attribute 'https://uri.etsi.org/ngsi-ld/default-context/P': 'https://uri.etsi.org/ngsi-ld/default-context/Porpetry' is not an NGSI-LD Attribute type",
+        "status": 400,
+        "title": "Invalid Entity",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": [
+    "urn:AT9"
+  ]
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 90
+
+{
+  "P": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:AT9",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+corDbDrop

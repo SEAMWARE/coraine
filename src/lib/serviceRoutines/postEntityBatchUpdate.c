@@ -620,9 +620,14 @@ bool postEntityBatchUpdate(void)
       continue;
     }
 
-    ldNormalizeInput(inP, &corRest.kalloc, false, false);
-
-    if (ldCheckEntity(inP, LdOpUpdateAttrs, NULL, &corRest.kalloc) == false)
+    //
+    // Normalization can REFUSE now - an attribute whose "type" names no NGSI-LD
+    // Attribute type is an error, not something to infer a type for. It has
+    // already set the problem, so it joins the existing check: short-circuit
+    // means ldCheckEntity is skipped and the handling below reports it.
+    //
+    if (ldNormalizeInput(inP, &corRest.kalloc, false, false) == false ||
+        ldCheckEntity(inP, LdOpUpdateAttrs, NULL, &corRest.kalloc) == false)
     {
       const char* eid = "";
       KjNode* idP = kjLookup(inP, "id");
