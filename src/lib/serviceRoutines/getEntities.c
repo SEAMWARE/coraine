@@ -1579,10 +1579,11 @@ bool getEntities(void)
     return entityMapPaginate();
 
   //
-  // § 5.7.2.4: too-wide-query rejection. At least one filter must be
-  // supplied. The spec lists type/attrs/q/georel/local; we additionally
-  // accept id and idPattern since they bound the candidate set as
-  // tightly (an explicit URI list is not a "too wide" query). ?entityMap=
+  // § 10.4.3.4: too-wide-query rejection. At least one of the clause's
+  // CLOSED list must be supplied - type / attrs / q / GeoQuery / local.
+  // An explicit list of entity ids reads like the narrowest query there
+  // is, but the clause says in prose that identifiers alone are not
+  // enough, and ETSI 019_03_05 / 021_24 assert the 400. ?entityMap=
   // bypasses (paginating an already-bounded map).
   //
   if (corNgsild.entityMapId == NULL)
@@ -1592,11 +1593,10 @@ bool getEntities(void)
     bool hasQ      = (corNgsild.qExpr != NULL);
     bool hasGeo    = (corNgsild.georel != NULL);
     bool isLocal   = corNgsild.local;
-    bool hasId     = (corNgsild.idV != NULL || corNgsild.idPattern != NULL);
-    if (!hasType && !hasAttrs && !hasQ && !hasGeo && !isLocal && !hasId)
+    if (!hasType && !hasAttrs && !hasQ && !hasGeo && !isLocal)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
-              "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied");
+              "too wide query: at least one of type, attrs, q, georel, or local must be supplied (§ 10.4.3.4)");
       return true;
     }
   }
