@@ -218,4 +218,5 @@ Content-Length: 3
 
 
 --TEARDOWN--
+coraineStop
 contextServerStop
