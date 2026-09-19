@@ -595,14 +595,21 @@ tutorial works on a broker that percent-decodes `q` inside bodies. Coraine does
 not, deliberately — see the comment in `ldQParse.c`, where the HTTP layer owns
 percent-decoding and the q grammar never sees it.
 
-**Step 3 is a second, independent error**: `"format": "x-ngsiv2-normalized"` is
-an Orion-LD extension - the ability to send a notification in NGSIv2 format
-rather than NGSI-LD - so the tutorial is asking for something outside the API. § 5.2.12 allows `normalized`, `concise`,
+⚠️ **Withdrawn (2026-09-19): the `x-ngsiv2-normalized` half.** I wrote that the
+tutorial asks for an Orion-LD extension without saying so. It says so two lines
+below the list: *"It is also possible to request that the Orion-LD context
+broker pre-applies a compaction operation"*, and *"The set of available custom
+formats will vary between Context Brokers."* Correctly flagged all along; my
+reading was careless.
+
+(The list does misspell `x-nsgiv2` twice, which is in the PR.) § 5.2.12 allows `normalized`, `concise`,
 `simplified` and `keyValues`; coraine lists exactly those in its 400.
 
-**Step 7 is a 404 and should be** — it PATCHes
-`urn:ngsi-ld:Subscription:5fd228838b9b83697b855a72`, an id from the author's own
-machine that no step of the tutorial ever creates.
+⚠️ **Withdrawn too: the hardcoded subscription id.** That id sits in a *Delete a
+Subscription* example introduced by "This example deletes the Subscription with
+`id=…`" - an illustrative value a reader substitutes, which is ordinary
+documentation practice. My extractor ran it verbatim and the 404 is mine, not
+the tutorial's.
 
 ## T11. `Extended-Properties` step 11 — the README's IRI is not the one it ships
 
@@ -896,11 +903,13 @@ keys infer their type correctly on a create (`value`→Property,
 `valueList`), including under a user `@context` and via batch. The refusal is
 specifically about re-typing something that already exists.
 
-## T19. `Short-Term-History` — a placeholder left in an executable step
+## T19. ⚠️ WITHDRAWN — `<current_time>` is a documented placeholder
 
-`timeAt is not a valid ISO 8601 DateTime: '<current_time>'`. The README's curl
-carries the literal placeholder `<current_time>`, so the step cannot be run as
-printed.
+I recorded *"the README carries the literal placeholder `<current_time>`, so the
+step cannot be run as printed"*. It is documented as a placeholder two lines
+later: *"`timerel=before` and `timeAt=<current_time>` are required parameters.
+`<current_time>` is a date-time expressed in UTC…"*. A reader substitutes it.
+The 400 is my driver executing documentation verbatim.
 
 ## ⚠️ Not a finding: `pageSize` — caused by MY redirect
 
@@ -913,16 +922,116 @@ It is still worth telling the author one thing: those temporal steps are written
 against Mintaka's API, not the NGSI-LD temporal API, so they are not portable to
 a broker that implements temporal itself.
 
-## ⛔ Still not running: `Big-Data-Spark`
+## ⭐⭐ T21. `Big-Data-Spark` puts its Docker network on PUBLIC address space
 
-Its stack starts — its own log ends with *"coraine is now running and exposed on
-localhost:1026"* — and its compose publishes `${EXPOSED_PORT:-1026}` intact, yet
-the broker does not answer there. Not diagnosed; it needs the stack up and a
-look at what is actually bound. The remaining unknown of the sweep, with
-`Verifiable-Credentials` deliberately out of scope (it pulls in the Data Space
-Connector, not a broker test).
+The reason it never ran, and the best find of the sweep.
 
-⇒ **14 of 16 tutorials have now been run.**
+```
+Big-Data-Spark/.env:  SUBNET=182.18.1.0/24
+```
+
+`182.18.1.0/24` is **public** address space, allocated to APNIC. Every other
+tutorial hardcodes `172.18.1.0/24` in `common.yml`; `Big-Data-Spark` is the only
+one that parameterises the subnet, and the value it parameterises it with is not
+private.
+
+**The symptom is confusing, which is why it took three attempts.** The stack
+starts, `./services coraine` exits 0, its own output says *"coraine is now
+running and exposed on localhost:1026"*, the container reports **healthy**, its
+log is empty, its arguments are right, and `docker ps` shows
+`0.0.0.0:1026->1026/tcp`. And yet:
+
+```
+curl localhost:1026/admin/health   ->  exit 28 (timeout), not connection refused
+container IP                       ->  182.18.1.8
+curl 182.18.1.8:1026/admin/health  ->  timeout
+```
+
+A bound port that accepts and never answers, because the container's address is
+a real internet host as far as the kernel's routing is concerned.
+
+⚠️ It also quietly hijacks 256 public addresses on any machine that runs it.
+
+**Fix for the author:** `SUBNET=172.18.1.0/24`, matching every other tutorial.
+With that one change the tutorial runs: 4 steps, no broker errors.
+
+⛔ I recorded this twice as "BROKER NOT ANSWERING after start" and once
+"blamed" my own health check for it - which was also true (that check WAS a
+single curl, fixed) but was not this. Two faults with one symptom, and fixing
+the visible one hid the real one for two more runs.
+
+## T20. `Short-Term-History` step 1 — the expected block is a different entity
+
+The step queries `temporal/entities/urn:ngsi-ld:Animal:cow002?lastN=3` and gets
+an Animal - `birthdate`, `fedWith`, `legalId`, `species`, `weight`. The README's
+expected output is a **Device**: `category`, `controlledAsset`,
+`controlledProperty`, `supportedProtocol`. Two different entities; the T7 family.
+
+⭐ Worth noting what this step proves rather than only what it flags: coraine's
+OWN temporal API answered `lastN=3` correctly, with per-attribute instance
+arrays and `instanceId`s. That is the path the Mintaka redirect (rig § 3) exists
+to exercise, and it works.
+
+## T22. Subscription listings omit three members the spec requires
+
+`Time-Series-Data` step 3 and `Big-Data-Spark` step 2 both expect
+
+```
+[description, entities, id, notification, throttling, type, watchedAttributes]
+```
+
+and get those plus **`jsonldContext`, `notificationTrigger`, `status`**. All
+three are legitimate: `notificationTrigger` and `status` are Subscription
+members in clause 5, and `status` is explicitly *"Read-only. Provided by the
+system when querying the details of a subscription"* - so returning it is not
+optional. `jsonldContext` is a core-context term.
+
+The READMEs predate them. T7 family again, and the same advice: the expected
+blocks want regenerating against a current broker.
+
+⇒ **15 of 16 tutorials have now been run.** Only `Verifiable-Credentials`
+remains, deliberately - it pulls in the Data Space Connector, which is an
+identity stack rather than a broker test.
+
+# Upstream PRs — what was actually proposed, 2026-09-19
+
+Eight PRs against `FIWARE/tutorials.*`, base `NGSI-LD`, each from a FRESH clone
+so no rig modification could leak in (every diff checked for `RIG` / `coraine` /
+`traceLevels`):
+
+| repo | PR | fix |
+|---|---|---|
+| Big-Data-Spark | #12 | `SUBNET` off public address space (T21) |
+| Big-Data-Flink | #16 | blank line breaking a curl continuation (T12) |
+| Concise-Format | #2 | doubled slash, missing comma, agent readiness (T16, T17, T15) |
+| Context-Providers | #23 | `-X <url>` eats the URL, ×4 (T8) |
+| Extended-Properties | #1 | stale data-model IRIs, ×2 (T11) |
+| Subscriptions | #19 | `%22` in a JSON body ×4, `x-nsgiv2` typo ×2 (T9) |
+| Short-Term-History | #17 | agent readiness (T15) |
+| Time-Series-Data | #57 | agent readiness (T15) |
+
+⭐ **The retry fix was wrong on the first attempt.** `--retry 5 --retry-delay 5`
+still failed in a real `services` run - about 25 s of retrying is not enough
+while the agent is saturated straight after `provision-devices`.
+`--retry 10 --retry-delay 10` was then tested end to end (`services` exits 0,
+the tutorial runs) before being proposed. Worth the extra hour: the alternative
+was someone else finding it in review.
+
+## Findings deliberately NOT sent upstream
+
+- **T7, T13, T20, T22** — expected blocks that have drifted from what a current
+  broker returns: an abridged `pick` result, `attributes` vs `polling` from a
+  newer IoT Agent, a Device shown where an Animal is queried, subscriptions
+  missing `jsonldContext` / `notificationTrigger` / `status`. All real, but the
+  fix is regenerating example output against a current stack, which is the
+  author's call and a much larger diff than a defect fix.
+- **T14** — answered (the forward is made; the registered provider returns
+  nothing) but the remaining question is about the tutorial's own `devices`
+  provider, which wants asking rather than patching.
+- **T18** — coraine refuses to re-type an Attribute by PATCH and the tutorial
+  expects it to work. Our reading is defensible and the spec does not state the
+  general rule, so this went to ETSI as spec-doubt #128 instead of to the
+  author.
 
 ## Driver corrections needed (mine, not the tutorials')
 
