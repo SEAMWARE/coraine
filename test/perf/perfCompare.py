@@ -18,6 +18,26 @@ import json, sys, statistics
 
 WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 
+
+#
+# ⭐ Not every metric is "bigger is better".
+#
+# The throughput metrics are requests/second - up is good. The `_p99us` ones
+# are p99 LATENCY in microseconds - down is good. Comparing them the same way
+# gets the answer exactly backwards: a runner that happens to be fast raises
+# every throughput number AND lowers every p99, and the p99 rows then read as
+# a collapse. That is not hypothetical - it is why this job went red on
+# 2026-09-18 and 2026-09-19, on runs where the broker was 80-180% FASTER than
+# the median on every throughput metric.
+#
+# The dangerous half is the other direction: with the sign unhandled, a real
+# doubling of p99 latency reads as a +100% improvement and the gate stays
+# green. A perf gate that is loud when things improve and silent when they
+# rot is worse than no gate.
+#
+def lowerIsBetter(metric):
+    return metric.endswith("_p99us")
+
 historyFile, todayJson = sys.argv[1], sys.argv[2]
 today = json.loads(todayJson)
 db    = today["db"]
@@ -35,8 +55,8 @@ except FileNotFoundError:
 
 metrics = [k for k in today if k not in ("db", "date", "sha", "run")]
 print(f"### Performance — `{db}`\n")
-print("| metric | now | median of last %d | change |" % WINDOW)
-print("|---|---:|---:|---:|")
+print("| metric | now | median of last %d | change | | " % WINDOW)
+print("|---|---:|---:|---:|---|")
 
 worst, verdict = 0.0, 0
 for m in metrics:
@@ -47,10 +67,15 @@ for m in metrics:
         continue
     ref    = statistics.median(past)
     change = (now - ref) / ref * 100.0
-    mark   = "" if change >= -WARN_PCT else (" ⚠️" if change > -FAIL_PCT else " ❌")
-    print(f"| {m} | {now} | {ref:.0f} | {change:+.1f}%{mark} |")
-    worst = min(worst, change)
-    if change <= -FAIL_PCT:
+    # `delta` is the change expressed as "better or worse", whichever way the
+    # metric runs. Every threshold below is on delta; the table still prints
+    # the true change, so the numbers can be checked against the raw records.
+    delta  = -change if lowerIsBetter(m) else change
+    mark   = "" if delta >= -WARN_PCT else (" ⚠️" if delta > -FAIL_PCT else " ❌")
+    note   = "latency, lower is better" if lowerIsBetter(m) else ""
+    print(f"| {m} | {now} | {ref:.0f} | {change:+.1f}%{mark} | {note} |")
+    worst = min(worst, delta)
+    if delta <= -FAIL_PCT:
         verdict = 1
 
 print()
