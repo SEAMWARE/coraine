@@ -1052,3 +1052,164 @@ was someone else finding it in review.
   health check fired too early.
 - `IoT-Sensors` extracts **one** broker step of 22 fenced blocks. It is pure
   device simulation with no NGSI-LD requests, so there is nothing to test.
+
+---
+
+# Phase 7 — 2026-09-19, what the first nightly said
+
+The tutorials sweep merged on 09-18. The nightly that ran against it went red
+almost everywhere, and both causes trace straight back to this work.
+
+## ⭐⭐ C8. The § 10.4.3.4 selector list is CLOSED — reverting "id is enough"
+
+Two ETSI test purposes failed twice (so not flakes), on both HTTP backends:
+
+| TP | request | expected | got |
+|---|---|---|---|
+| `019_03_05` Query Entities Without Minimal Parameters | `GET /entities?id=urn:…:01,urn:…:02` | 400 | 200 |
+| `021_24` Query Temporal Evolution … Without Minimal Parameters | same, temporal | 400 | 200 |
+
+The cause is `corNgsild` `37a49f3` of 09-18, *"id and idPattern are enough - a
+named set of ids is not a 'too wide' query"* — raised because the
+`CRUD-Operations` tutorial reads two entities by id and got a 400.
+
+**The reasoning in that commit was wrong, and the spec is not ambiguous.**
+§ 10.4.3.4 (and § 11.3.3.4 for the temporal twin) names a CLOSED list:
+
+> a. selector of Entity Types; b. list of Attribute names, including at least
+> one non-system Attribute; c. NGSI-LD Query …; d. NGSI-LD GeoQuery; e. local
+> scope. **If none of the above is provided, then an error of type
+> BadRequestData shall be raised (too wide query).**
+
+and says the same thing in prose immediately above it:
+
+> In the general case, it is not possible to retrieve a set of entities by only
+> specifying desired Entity identifiers, without further specifying
+> restrictions on the entities' types or attributes.
+
+`id` and `idPattern` are on neither list. The commit's argument — that the rule
+exists to give the registry something to MATCH REGISTRATIONS on, and an
+explicit id list is the most precise thing there is — is a good argument for a
+*different* rule than the one the spec states. Not ours to reinterpret, and the
+conformance suite tests exactly this.
+
+⭐ **THE COST OF GETTING THE ORDER WRONG**: the change traded two conformance
+TPs for one tutorial page, and nothing caught it for a day, because the ETSI
+suite only runs in the nightly. A functest suite that is green says nothing
+about a clause a TP asserts.
+
+Reverted in three places, which is itself the finding — **the same rule was
+implemented three times and the three did not agree**:
+
+| where | reached by | before | after |
+|---|---|---|---|
+| `corNgsild/ldParamsValidate.c` | GET (parse hook, runs first) | type/attrs/q/geo/**scopeQ**/local/**id**/**idPattern** | type/attrs/q/geo/local |
+| `coraine getEntities.c` | POST `/entityOperations/query` | type/attrs/q/geo/local/**id** | type/attrs/q/geo/local |
+| `coraine getEntitiesTemporal.c` | GET temporal | **id**/**idPattern**/type/attrs/q/geo/local | type/attrs/q/geo/local |
+
+⚠️ `scopeQ` was in the hook's list and in no other. It never had any effect:
+`getEntities.c` rejected a `scopeQ`-only query anyway, so the only thing the
+hook's entry produced was **two different 400 messages for one rule**. Dropped,
+so a `scopeQ`-only query now gets the message that names the actual list.
+
+Functest `query_entities_too_wide` inverted back (03 and 04 are 400 again) and
+a step 07 added for `scopeQ`. Two other tests asserted the old message text.
+
+### The tutorial side — PRs, not a broker deviation
+
+⭐ KZ: *"now that we send PRs to the tutorials we can add local=true and be spec
+compliant"*. Three requests across two tutorials query by id alone:
+
+| tutorial | step | PR |
+|---|---|---|
+| CRUD-Operations | 13 Filter Data Entities by ID | #24 |
+| Concise-Format | 13 Filter Data Entities by ID | #3 |
+| Concise-Format | 14 Returning data as GeoJSON | #3 |
+
+⭐ **KZ spotted the provenance**: *"I'm guessing Jason changed attrs for pick
+and didn't remember pick is not an entity selector (attrs is)"*. Exactly right —
+`cc4f145` *"Update Requests to use pick and format"* replaced
+`attrs=temperature` with `pick=id,type,temperature` in four places. Three are
+single-entity retrievals, where no selector is needed. The fourth is the query,
+and `attrs` was the only thing making it legal.
+
+⚠️ **`attrs` cannot be restored**: it cannot be combined with `pick` — a broker
+answers `?attrs= cannot be combined with ?pick= or ?omit=`. Found by running
+the proposed fix before proposing it. So `local=true` (clause (e)) it is, which
+also preserves the page's own point that `type` is not required. All three
+amended requests were run against a broker and return exactly what the pages
+document, the GeoJSON `FeatureCollection` included.
+
+## ⭐ C9. Eight functests had no `coraineStop` — invisible until valgrind
+
+Every valgrind shard failed, both backends, on eight tests:
+
+```
+FAIL: valgrind: report INCOMPLETE — broker killed before finish, cannot trust
+```
+
+The `.vg` file is 508 bytes — valgrind's six header lines and nothing else. All
+eight tests PASSED functionally; only the memory verdict was missing.
+
+Cause: their `--TEARDOWN--` never calls `coraineStop`, so the harness kills the
+broker instead of letting it exit, and valgrind never writes its summary.
+Nothing in a normal run notices — the broker is killed either way and the
+assertions already passed.
+
+The eight are every test added on 09-17 and 09-18:
+`attribute_type_invalid`, `compact_iri_core_prefix`, `expanded_core_terms_input`,
+`property_value_opaque_json`, `value_large_integer`, `link_context_syntax_400`,
+`link_context_unreachable_504`, `q_expandvalues_value_list`.
+
+A scan of all 666 tests finds exactly three others without `coraineStop`, and
+all three are legitimate: `ftclient_smoke` and `usage` start no broker, and
+`feature_builds` starts its own outside the harness and kills them by pid file.
+
+⭐ **A green CI run does not prove a test is well-formed.** The teardown marker
+is mandatory and checked; its *contents* are not, so a test can be accepted,
+pass every day, and still be unable to produce the one artefact the nightly
+exists to collect. Worth a harness check: a test that called `coraineStart`
+and never calls `coraineStop` is malformed the same way a missing marker is.
+
+Verified the way the rule says: reverted the eight teardowns, ran one under
+`-vt`, watched it fail with the nightly's exact message, restored, ran all
+eight — green, no leaks.
+
+## ⭐⭐ C10. The perf gate had the sign wrong — loud on wins, silent on losses
+
+The third red. `performance` failed on 09-18 and 09-19 and on no nightly
+before that, which made it look like another consequence of the merges. It is
+not: **the broker was 80-180% FASTER than the median on every throughput
+metric in the run that went red.**
+
+`perfCompare.py` computes `change = (now - ref) / ref * 100` and fails at
+-50%. That is right for the throughput metrics (requests/second, up is good)
+and exactly backwards for the `_p99us` ones (p99 latency in microseconds, down
+is good). Replaying the failing run:
+
+| metric | now | median | change | verdict |
+|---|---:|---:|---:|---|
+| `query_c200` | 8103 | 4496 | **+80.2%** | — |
+| `query_c200_p99us` | 31170 | 62665 | **-50.3%** | ❌ |
+| `retrieve_c50` | 27037 | 12150 | **+122.5%** | — |
+| `retrieve_c50_p99us` | 3330 | 7450 | **-55.3%** | ❌ |
+
+Both rows of each pair say the same thing — this runner was fast. One of them
+is read as a collapse.
+
+⭐ **The dangerous half is the other direction.** With the sign unhandled, a
+p99 that TRIPLES scores `+200%` and the gate stays green. So the gate was
+noisy about improvements and blind to the exact regression it exists to catch.
+Verified both ways after the fix: the run that went red now exits 0 ("within
+noise"), and a synthetic run with p99 tripled and throughput unchanged exits 1.
+
+Why it started on 09-18 and not before: the `_p99us` metrics were added on
+09-16, and `WINDOW = 5` needs recorded history before a metric is compared at
+all. The first two nightlies with enough history are the two that failed. A
+shared runner moves ~2x between runs — the 09-18 file holds two records per DB
+that differ by that much — so this would have fired on roughly every other
+night from here on.
+
+⚠️ Lesson for any future metric: `perfCompare.py` now asks `lowerIsBetter()`,
+which keys off the `_p99us` suffix. A latency metric named anything else will
+reintroduce the bug silently.
