@@ -5,11 +5,17 @@
 #
 # Copyright 2026 Seamware
 #
-# § 5.7.2.4 too-wide-query rejection: GET /entities must include at least one
-# of type / attrs / q / georel / local. id/idPattern alone are not enough.
+# § 10.4.3.4 too-wide-query rejection: GET /entities must include at least one
+# of type / attrs / q / GeoQuery / local. The list is CLOSED, and id/idPattern
+# are not on it - the clause says so in prose too ("it is not possible to
+# retrieve a set of entities by only specifying desired Entity identifiers").
+#
+# They were briefly accepted, on the reasoning that an explicit list of ids is
+# the narrowest query there is and matches registrations precisely. True, and
+# not ours to decide: ETSI 019_03_05 and 021_24 both assert the 400.
 #
 --NAME--
-Query Entities - too wide query rejected (§ 5.7.2.4)
+Query Entities - too wide query rejected (§ 10.4.3.4)
 
 --TAGS--
 entity query error validation
@@ -34,15 +40,15 @@ echo
 echo
 
 
-echo "03. GET /entities?id=urn:V1 - 200 OK (an explicit id is the narrowest query there is)"
-echo "======================================================================"
+echo "03. GET /entities?id=urn:V1 - 400 (an id list is not on the clause's list)"
+echo "=========================================================================="
 corCurl --url '/ngsi-ld/v1/entities?id=urn:V1'
 echo
 echo
 
 
-echo "04. GET /entities?idPattern=... - 200 OK (a registration is matched on idPattern too)"
-echo "====================================================================================="
+echo "04. GET /entities?idPattern=... - 400 (nor is idPattern)"
+echo "========================================================"
 corCurl --url '/ngsi-ld/v1/entities?idPattern=urn:V.*'
 echo
 echo
@@ -55,9 +61,16 @@ echo
 echo
 
 
-echo "06. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')"
+echo "06. GET /entities?local=true - 200 OK (local=true is § 10.4.3.4 (e) 'local scope')"
 echo "==================================================================================="
 corCurl --url '/ngsi-ld/v1/entities?local=true'
+echo
+echo
+
+
+echo "07. GET /entities?scopeQ=/x - 400 (narrows the result, but is not on the list)"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?scopeQ=/x'
 echo
 echo
 
@@ -68,10 +81,10 @@ echo
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 317
+Content-Length: 285
 
 {
-  "detail": "Query Entities requires at least one of 'id', 'idPattern', 'type', 'attrs', 'q', a GeoQuery, 'scopeQ' or 'local=true' - without one there is nothing to match registrations on (§ 5.7.2.4)",
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery or 'local=true' - a list of entity ids is not enough (§ 10.4.3.4, too wide query)",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -91,27 +104,35 @@ Content-Length: 3
 
 
 
-03. GET /entities?id=urn:V1 - 200 OK (an explicit id is the narrowest query there is)
-======================================================================
-HTTP/1.1 200 OK
+03. GET /entities?id=urn:V1 - 400 (an id list is not on the clause's list)
+==========================================================================
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: 285
 
-[]
+{
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery or 'local=true' - a list of entity ids is not enough (§ 10.4.3.4, too wide query)",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
-04. GET /entities?idPattern=... - 200 OK (a registration is matched on idPattern too)
-=====================================================================================
-HTTP/1.1 200 OK
+04. GET /entities?idPattern=... - 400 (nor is idPattern)
+========================================================
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 3
+Content-Length: 285
 
-[]
+{
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery or 'local=true' - a list of entity ids is not enough (§ 10.4.3.4, too wide query)",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 
@@ -120,10 +141,10 @@ Content-Length: 3
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 317
+Content-Length: 285
 
 {
-  "detail": "Query Entities requires at least one of 'id', 'idPattern', 'type', 'attrs', 'q', a GeoQuery, 'scopeQ' or 'local=true' - without one there is nothing to match registrations on (§ 5.7.2.4)",
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery or 'local=true' - a list of entity ids is not enough (§ 10.4.3.4, too wide query)",
   "status": 400,
   "title": "Invalid request",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -131,7 +152,7 @@ Content-Length: 317
 
 
 
-06. GET /entities?local=true - 200 OK (local=true is § 5.7.2.4 (e) 'local scope')
+06. GET /entities?local=true - 200 OK (local=true is § 10.4.3.4 (e) 'local scope')
 ===================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
@@ -140,6 +161,22 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: 3
 
 []
+
+
+
+07. GET /entities?scopeQ=/x - 400 (narrows the result, but is not on the list)
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 285
+
+{
+  "detail": "Query Entities requires at least one of 'type', 'attrs', 'q', a GeoQuery or 'local=true' - a list of entity ids is not enough (§ 10.4.3.4, too wide query)",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
 

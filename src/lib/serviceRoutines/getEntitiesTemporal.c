@@ -494,16 +494,17 @@ bool getEntitiesTemporal(void)
     }
   }
 
-  // § 6.18.3.2: at least one of (id, idPattern, type, attrs, q, georel)
-  // must be present. Aligned with /entities (§ 5.7.2.4): local=true is
-  // also accepted as a sufficient selector — it scopes the query to the
-  // broker's local set, which is itself a hard bound.
-  if (corNgsild.idV == NULL && corNgsild.idPattern == NULL && corNgsild.typeV == NULL
+  // § 11.3.3.4: at least one of the clause's CLOSED list must be present -
+  // type / attrs / q / GeoQuery / local scope. Identical to § 10.4.3.4 for
+  // /entities, and identically NOT satisfied by a list of entity ids:
+  // "it is not possible to retrieve a set of entities by only specifying
+  // desired Entity identifiers". ETSI 021_24 asserts the 400.
+  if (corNgsild.typeV == NULL
       && corNgsild.attrsV == NULL && corNgsild.qExpr == NULL && corNgsild.georel == NULL
       && corNgsild.local == false)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Query Too Broad",
-            "at least one of 'id', 'idPattern', 'type', 'attrs', 'q', 'georel', or 'local' must be supplied");
+            "at least one of 'type', 'attrs', 'q', 'georel', or 'local' must be supplied - a list of entity ids is not enough");
     return true;
   }
 

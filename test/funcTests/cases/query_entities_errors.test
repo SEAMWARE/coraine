@@ -189,10 +189,10 @@ Content-Length: 180
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 226
+Content-Length: 225
 
 {
-  "detail": "too wide query: at least one of id, idPattern, type, attrs, q, georel, or local must be supplied",
+  "detail": "too wide query: at least one of type, attrs, q, georel, or local must be supplied (§ 10.4.3.4)",
   "status": 400,
   "title": "Query Too Broad",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
