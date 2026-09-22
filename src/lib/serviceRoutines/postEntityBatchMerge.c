@@ -64,6 +64,7 @@
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -785,6 +786,8 @@ bool postEntityBatchMerge(void)
           // Mark success on the unique-id slot
           for (int ui = 0; ui < uniqueIdN; ui++)
             if (strcmp(uniqueIdV[ui], eid) == 0) { anySuccessV[ui] = true; break; }
+
+          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k]);
 
           if (subCacheP != NULL && snapshotsV[k] != NULL)
             ldNotifyDefer(subCacheP, snapshotsV[k],

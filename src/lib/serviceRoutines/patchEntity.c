@@ -34,6 +34,7 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 
@@ -428,6 +429,9 @@ bool patchEntity(void)
       }
 
       anySucceeded = true;
+
+      // Every attribute the merge changed goes to whichever Channel carries it.
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
 
       // mergedEntity is the post-merge tree — feed notifications + TRoE directly.
       if (tenantP->subCacheP != NULL)

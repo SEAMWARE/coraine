@@ -37,6 +37,7 @@
 #include "corNgsild/LdSubCache.h"                      // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
@@ -432,6 +433,13 @@ bool replaceEntity(void)
       // mongoc's entityReplace renames "id" to "_id" in-place. Restore.
       if (bodyIdP != NULL && bodyIdP->name[0] == '_')
         bodyIdP->name = "id";
+
+      //
+      // The whole body, not the diff: a Replace makes every attribute in it
+      // true at once, and that is what a Channel's endpoint is owed. The
+      // attributes the replace REMOVED are not sent - see bridgeAttrsOut.h.
+      //
+      bridgeAttrsOutFromEntity(tenantP, entityId, entityP);
 
       if (tenantP->subCacheP != NULL)
       {
