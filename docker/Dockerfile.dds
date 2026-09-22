@@ -78,6 +78,27 @@ WORKDIR /dds
 # bridge has been built and tested against. It arrives with the vendored repos
 # below.
 #
+
+#
+# The k-libs the bridge INCLUDES: ktrace, kjson and kalloc. Headers only - it
+# links none of them, the broker resolves their symbols at dlopen - but a
+# header that is not there stops the compile all the same, which is exactly how
+# this stage first went red: `-I..` found corBridge, vendored beside it, and
+# nothing else.
+#
+# Cloned from klib-pins, the same single source of truth the broker's own image
+# reads, so the two cannot drift about which version a header comes from.
+#
+COPY docker/vendor/klib-pins /tmp/klib-pins
+RUN set -eux; \
+    test -f /tmp/klib-pins || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
+    sed 's/#.*//' /tmp/klib-pins | while read -r repo ref; do \
+      [ -n "${repo:-}" ] || continue; \
+      git clone --quiet --depth 1 --branch "${ref}" \
+        "https://gitlab.com/kzangeli/${repo}.git" "/root/git/${repo}"; \
+    done; \
+    ls -d /root/git/k*
+
 COPY docker/vendor/ /tmp/vendor/
 RUN set -eux; \
     test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
