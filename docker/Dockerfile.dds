@@ -134,6 +134,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY etc/dds-default.json /opt/seamware/etc/dds.json
 
 #
+# The two things a deployment supplies, and where it puts them.
+#
+# The MAPPING FILE is the user's: which DDS topic becomes which entity
+# attribute is something only the deployment knows. It is mounted straight over
+# the placeholder above -
+#
+#     volumes: [ ./dds.json:/opt/seamware/etc/dds.json:ro ]
+#
+# - so nothing on the command line has to change, which is how the same image
+# serves every deployment.
+#
+# The TYPES DIRECTORY is the broker's, and it is written to: types are
+# announced by the participants on the domain and kept so that a restarted
+# broker is not blind until each of them happens to announce itself again. A
+# VOLUME rather than a bind mount by default, because losing it costs only
+# rediscovery.
+#
+RUN mkdir -p /opt/seamware/etc/dds-types
+VOLUME ["/opt/seamware/etc/dds-types"]
+
+#
+# ⚠ AND ONE THING THE IMAGE CANNOT DO FOR ITSELF: ipc: host.
+#
+# Fast DDS reaches another participant on the same machine over SHARED MEMORY,
+# and a container gets its own IPC namespace by default - so a broker without
+# it sees nothing from a ROS 2 node beside it, with no error anywhere. It
+# simply never discovers a topic, which looks exactly like a mapping that is
+# wrong. See docker/docker-compose-dds.yml.
+#
+
+#
 # The entrypoint is inherited unchanged. The default command is not: an image
 # built to speak DDS that did not load the bridge would be a puzzle.
 #

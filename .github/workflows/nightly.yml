@@ -751,9 +751,16 @@ jobs:
           repository: SEAMWARE/corLibs
           path: stack/corLibs
 
+      #
+      # NOBUILD: clone the stack, do not build it. Nothing here needs built
+      # libraries - `make contract` compiles one file against headers, and the
+      # images build everything inside themselves. Building on the runner
+      # produced artifacts nothing would use and failed on a missing
+      # microhttpd.h, this job not being inside the CI image the others run in.
+      #
       - name: Clone the dependency stack
         working-directory: stack/corLibs
-        run: ./bootstrap.sh
+        run: NOBUILD=1 ./bootstrap.sh
 
       #
       # The contract first. It costs seconds and it distinguishes "our seam
@@ -764,9 +771,17 @@ jobs:
         working-directory: stack/corDdsBridge
         run: make contract
 
+      #
+      # BASE: the script defaults to ~/git, which is where these live on a
+      # workstation. On the runner they are siblings of the corLibs checkout.
+      #
       - name: Stage the vendored libs
         working-directory: stack/coraine
-        run: ./docker/vendor-libs.sh
+        env:
+          BASE: ${{ github.workspace }}/stack
+        run: |
+          ./docker/vendor-libs.sh
+          cat docker/vendor/MANIFEST.txt
 
       #
       # The ordinary image first: coraine-dds is built FROM it, which is the
