@@ -1,4 +1,4 @@
-# coraine-dds + MongoDB — the broker with the DDS bridge.
+# coraine + MongoDB — the broker with the DDS bridge loaded.
 #
 #   cp dds.json.example dds.json     # and edit it: the topics are yours
 #   CORAINE_TAG=<tag> docker compose -f docker/docker-compose-dds.yml up
@@ -18,7 +18,11 @@ services:
       start_period: 10s
 
   broker:
-    image: quay.io/seamware/coraine-dds:${CORAINE_TAG:?set CORAINE_TAG to a published tag}
+    #
+    # The ordinary image. There is no separate DDS one: the plugin ships in
+    # every coraine and is loaded by --bridges dds below, and not otherwise.
+    #
+    image: quay.io/seamware/coraine:${CORAINE_TAG:?set CORAINE_TAG to a published tag}
 
     #
     # ⭐ ipc: host is not optional, and it is the thing that is missed.

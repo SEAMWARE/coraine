@@ -17,6 +17,35 @@
 #
 # Copyright 2026 Seamware
 
+#
+# ⚠ BEFORE THE FIRST FROM, and it has to be: an ARG declared after a FROM
+# belongs to that stage, and a later FROM cannot see it - it resolves to blank
+# and the build fails with "base name should not be blank", naming a line that
+# looks perfectly correct.
+#
+#
+# ⚠ THIS TAG HAS TO CARRY /opt/dds. The CI image grew the eProsima stack in
+# corLibs' Dockerfile.ci section 3a, and a tag from before that builds the
+# broker fine and then fails on a missing /opt/dds/include. It moves together
+# with the `container:` image in .github/workflows/ci.yml - the same image,
+# used for the two things the stack is for.
+#
+ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-08-24-814ad08
+
+# --------------------------------------------------------------------------- #
+# Stage 0 — where the DDS stack comes from
+#
+# Nothing runs here. The CI image is the build environment for the whole Cor
+# stack, and it is where the eProsima stack is compiled - once, deliberately,
+# every few months - because that build is eight minutes and paying it on every
+# image build was the reason DDS lived in a separate image at all.
+#
+# /opt/dds/{lib,include} is that stack, staged by the CI image itself, so this
+# file does not have to know that there are nine libraries or what they are
+# called. See corLibs/docker/Dockerfile.ci, section 3a.
+# --------------------------------------------------------------------------- #
+FROM ${CI_IMAGE} AS ddsstack
+
 # --------------------------------------------------------------------------- #
 # Stage 1 — builder
 # --------------------------------------------------------------------------- #
@@ -35,7 +64,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake git pkg-config ca-certificates curl \
       libssl-dev libgeos-dev libmosquitto-dev libpq-dev \
       libsasl2-dev libzstd-dev zlib1g-dev \
+      nlohmann-json3-dev libyaml-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
+
+#
+# The DDS stack, so that the bridge plugin can be built against it.
+#
+# nlohmann-json3-dev and libyaml-cpp-dev above are part of this and are not
+# ours. They are TRANSITIVE BUILD dependencies: ddsenabler_participants/Writer.hpp
+# includes <nlohmann/json.hpp> and ddspipe_yaml/Yaml.hpp includes
+# <yaml-cpp/yaml.h>, so anything compiling against the Enabler needs both
+# present. Their absence is confusing rather than informative, because the
+# error names a file in /usr/local/include that we did not write:
+#
+#   /usr/local/include/ddspipe_yaml/Yaml.hpp:19:10: fatal error:
+#       yaml-cpp/yaml.h: No such file or directory
+#
+# The LIBRARIES are a different matter and come from /opt/dds/lib with the
+# rest, so that the version linked is the one Fast DDS was built against.
+#
+# corDdsBridge's makefile detects the Enabler and builds the plugin when it is
+# there (COR_BRIDGE_DDS=auto), so nothing below has to ask for it: the umbrella
+# `make -C corLibs di` walks corDdsBridge like every other lib and dds.so lands
+# in /opt/seamware/plugins/bridge, which stage 2 copies wholesale.
+#
+COPY --from=ddsstack /opt/dds/include/ /usr/local/include/
+COPY --from=ddsstack /opt/dds/lib/     /usr/local/lib/
+RUN ldconfig
 
 # libmicrohttpd — the HTTP server the REST layer sits on.
 RUN curl -fsSL "https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-${MHD_VERSION}.tar.gz" -o /tmp/mhd.tar.gz \
@@ -139,7 +194,24 @@ COPY --from=builder /opt/seamware/ /opt/seamware/
 COPY --from=builder /usr/local/lib/libmicrohttpd.so.12* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmongoc* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbson* /usr/local/lib/
-RUN ldconfig
+
+#
+# And the DDS stack, as a DIRECTORY.
+#
+# ⚠ Not as a glob. `COPY --from=<stage> /usr/local/lib/libfastdds.so*`
+# dereferences symlinks, and libfastdds.so, .so.3.6 and .so.3.6.2.0 are one
+# 16 MiB library and two links to it - so a globbed copy writes it three times.
+# Nine of them turned 21 MiB of libraries into 63 MiB of image, and it looked
+# exactly like the price of DDS.
+#
+COPY --from=ddsstack /opt/dds/lib/ /usr/local/lib/
+
+RUN ldconfig \
+    && if ldd /opt/seamware/plugins/bridge/dds.so | grep "not found"; then \
+         echo "dds.so has unresolved libraries - see above"; \
+         exit 1; \
+       fi \
+    && echo "dds bridge plugin present, and it resolves every library it needs"
 
 EXPOSE 1026
 

@@ -158,29 +158,21 @@ Whichever you pick, the broker can tell you what it is: `GET /version` reports
 its own version *and* the resolved commit of every library linked into it, which
 is most of the binary by volume.
 
-## coraine-dds
+## The DDS bridge
 
-The broker with the DDS bridge. Same broker, one more shared object — the
-difference is the eProsima stack it carries, which is 21.4 MiB across nine
-libraries against the broker's own 4.28 MiB over three.
+There is no `coraine-dds` image. There was one for a while, and the reason it
+existed was build time rather than size: the eProsima stack is a from-source
+build of Fast CDR, Fast DDS, ddspipe and the DDS Enabler, which is eight
+minutes nobody should spend on the way to an image.
 
-**Published by the nightly, not by a merge.** The image contains a from-source
-build of Fast CDR, Fast DDS, ddspipe and the DDS Enabler, which is twenty
-minutes that does not belong in front of a merge. So a `coraine-dds` tag
-appears each night rather than on each merge, and names the commit it was built
-from exactly as every other image does.
+That build now happens in the **CI image** instead — once, deliberately, every
+few months — and the broker image copies the result out of `/opt/dds`. So the
+bridge ships in every `coraine`, costs about 21 MiB of libraries, and is loaded
+only when a deployment says `--bridges dds`.
 
-On demand, when a night is too long to wait:
-
-```sh
-make docker-dds          # build locally
-make docker-dds-push     # build and push to quay
-```
-
-Both tag `<version>-<date>-<sha>` — the same scheme, so a `coraine-dds` can
-always be matched to the `coraine` inside it. The push refuses on a dirty tree:
-a tag naming a commit whose content is not what was built defeats the purpose
-of the tag.
+It was briefly 76 MB rather than 21 MiB, because `COPY --from=<stage>
+/usr/local/lib/libfastdds.so*` dereferences symlinks and wrote each library
+once per name. The nightly prints the image size for that reason.
 
 Running it needs two things the image cannot supply for itself — the topic
 mapping, which is the deployment's, and `ipc: host`, without which Fast DDS

@@ -191,7 +191,7 @@ the headers — read these before writing a plugin:
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
-| **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. **Not built or shipped by default**: the stack it links is 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the separate `coraine-dds` image. |
+| **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three — which is why it was a separate image for a while, and why it is not one any more: an image that carries it and never loads it costs that and nothing else. |
 
 ## Writing a new plugin (sketch)
 

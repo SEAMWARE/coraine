@@ -716,19 +716,20 @@ jobs:
   #
   # The DDS bridge, built for real.
   #
-  # Nightly and not per-PR because the expensive part is unavoidable: Fast CDR,
-  # Fast DDS, ddspipe and the Enabler are built from source with colcon, which
-  # is twenty minutes nobody should spend on the way to a merge. The cheap half
-  # - does the plugin still satisfy BridgeDriver.h - already runs on every PR as
-  # `make contract`, and needs no DDS at all.
+  # There is no coraine-dds image any more. The eProsima stack lives in the CI
+  # image - built once, deliberately, every few months - and the ordinary
+  # broker image copies it out of /opt/dds, so DDS is simply part of coraine
+  # and costs a deployment that never asks for it about 21 MiB and nothing else.
+  # The plugin is loaded on --bridges dds and not otherwise.
   #
-  # What this adds is the half that check cannot reach:
+  # So what is left to find out here is what the per-PR checks structurally
+  # cannot. `make contract` runs on every PR and answers "does the plugin still
+  # satisfy BridgeDriver.h" against headers alone; this answers:
   #
-  #   that corDdsBridge still compiles against the ACTUAL Enabler API, rather
-  #   than against our memory of it - eProsima's main moves, and the callback
-  #   signatures are theirs
+  #   that corDdsBridge still COMPILES against the actual Enabler API rather
+  #   than against our memory of it - the callback signatures are eProsima's
   #
-  #   that the coraine-dds image builds, which is the only way to find out
+  #   that the image carrying it starts, with the bridge up
   #
   # Building the image does both at once, so that is what this job does.
   #
@@ -736,8 +737,8 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "dds"]'), needs.gate.outputs.only)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    name: dds bridge + image
+    timeout-minutes: 30
+    name: dds bridge in the image
 
     steps:
       - name: Check out coraine
@@ -784,25 +785,21 @@ jobs:
           cat docker/vendor/MANIFEST.txt
 
       #
-      # The ordinary image first: coraine-dds is built FROM it, which is the
-      # point - it is the same broker plus one shared object.
+      # One image, and the bridge is in it. The CI image named by the
+      # Dockerfile's CI_IMAGE arg is where the eProsima stack comes from; the
+      # plugin is compiled here, against it.
       #
       - name: Build the coraine image
         working-directory: stack/coraine
         run: docker build -f docker/Dockerfile -t coraine:nightly .
 
-      - name: Build the coraine-dds image
-        working-directory: stack/coraine
-        run: docker build -f docker/Dockerfile.dds -t coraine-dds:nightly
-             --build-arg CORAINE_IMAGE=coraine:nightly .
-
       #
       # It has to start, and it has to have the bridge. An image that boots
-      # without loading its own reason for existing is the failure this catches.
+      # without loading a plugin it carries is the failure this catches.
       #
       - name: The image starts, with the bridge up
         run: |
-          docker run -d --name ddsnight -p 1026:1026 coraine-dds:nightly \
+          docker run -d --name ddsnight -p 1026:1026 coraine:nightly \
                      --database corDB --bridges dds \
                      --bridgeConfig /opt/seamware/etc/dds.json -v
           for i in $(seq 1 30); do
@@ -814,44 +811,12 @@ jobs:
           docker logs ddsnight 2>&1 | tail -20
           docker rm -f ddsnight
 
-      - name: Both image sizes, for the record
+      #
+      # What DDS costs the image, in the record, every night.
+      #
+      # It was 76 MB once, of which 55 was one library written three times by a
+      # globbed COPY that dereferenced its symlinks. A number nobody looks at
+      # is how that survived a review.
+      #
+      - name: What the image weighs
         run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"
-
-      #
-      # Publish, and only from here.
-      #
-      # A merge does not build this image - twenty minutes of Fast DDS does not
-      # belong in front of one - so the nightly is what puts a coraine-dds
-      # where a deployment can pin it. `make docker-dds-push` does the same
-      # thing on demand, for when a night is too long to wait.
-      #
-      # Same tag scheme as every other image, and the same reason: an image
-      # that moves under a deployment is an outage nobody can bisect. No
-      # `latest` is created here or anywhere.
-      #
-      # Only after the image has been shown to start with its bridge up. A
-      # published image that does not work is worse than no published image,
-      # because somebody will pin it.
-      #
-      - name: Compute the tag
-        id: ddstag
-        working-directory: stack/coraine
-        run: |
-          version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
-                    src/app/coraine/coraineVersion.h)
-          [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
-          echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to quay.io
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-
-      - name: Push coraine-dds
-        run: |
-          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine-dds:${{ steps.ddstag.outputs.value }}
-          docker tag coraine-dds:nightly "$img"
-          docker push "$img"
-          echo "$img" >> "$GITHUB_STEP_SUMMARY"

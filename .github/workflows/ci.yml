@@ -286,13 +286,12 @@ jobs:
       # and therefore the one that breaks the moment the contract changes -
       # compiles on a runner with no eProsima stack anywhere.
       #
-      # Without this the plugin rots invisibly. A change to BridgeDriver.h would
-      # build clean here, skip silently in corDdsBridge (no Enabler on a runner,
-      # so its build turns itself off) and be discovered by hand, later, by
-      # whoever next needed DDS.
-      #
-      # The plugin's FULL build, and the coraine-dds image, need the Enabler and
-      # belong in the nightly - not on the way to a merge.
+      # It runs FIRST because it names the failure precisely. The plugin's full
+      # build happens a few steps down as well now - the CI image carries the
+      # eProsima stack, so bootstrap.sh builds corDdsBridge like every other lib
+      # instead of turning itself off - but that build breaks on a moved
+      # BridgeDriver.h and on a moved Enabler API alike, and those are not the
+      # same problem. This step can only be the first of the two.
       #
       - name: Bridge contract check
         working-directory: stack/corDdsBridge
