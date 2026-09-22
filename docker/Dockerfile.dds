@@ -22,6 +22,16 @@
 #
 # Copyright 2026 Seamware
 
+#
+# ⚠ BEFORE THE FIRST FROM, and it has to be.
+#
+# An ARG declared after a FROM belongs to that stage, and a later FROM cannot
+# see it - it resolves to blank and the build fails with "base name should not
+# be blank", naming a line that looks perfectly correct. Only an ARG in the
+# global scope, above every FROM, is visible to a FROM.
+#
+ARG CORAINE_IMAGE=quay.io/seamware/coraine:latest
+
 # --------------------------------------------------------------------------- #
 # Stage 1 — the eProsima stack, and the bridge built against it
 #
@@ -98,7 +108,6 @@ RUN make -C /root/git/corDdsBridge COR_BRIDGE_DDS=ON
 # with one more shared object in the plugin directory and the libraries it
 # needs beside it.
 # --------------------------------------------------------------------------- #
-ARG CORAINE_IMAGE=quay.io/seamware/coraine:latest
 FROM ${CORAINE_IMAGE}
 
 LABEL org.opencontainers.image.title="coraine-dds" \
