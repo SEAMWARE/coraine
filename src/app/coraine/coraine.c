@@ -85,6 +85,7 @@
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
+#include "bridge/bridgeSampleIn.h"                // bridgeSampleIn
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -520,32 +521,6 @@ static void bridgeLogFunction(int severity, const char* fileName, int lineNo, co
   }
 
   ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// bridgeSampleIn - the broker's side of BridgeBroker::sampleIn
-//
-// ⚠⚠ CALLED FROM A PLUGIN THREAD - a DDS reader, an MQTT network loop. The
-// broker did not create this thread and its thread-locals are not initialised.
-// Everything that makes the call safe belongs HERE, on the broker's side of the
-// seam, and NOT in the plugin: per-request state, then the tenant lock, then
-// the write.
-//
-// Until the Channel registry exists there is nothing to resolve an endpoint to,
-// so this answers BRIDGE_NOT_FOUND - which is the ordinary answer for an
-// endpoint no Channel claims, and not an error.
-//
-static int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
-{
-  (void) json;
-  (void) publishTime;
-
-  KT_T(KtBridge, "sample on '%s' from bridge '%s' - no Channel claims it", endpoint, bridgeName);
-
-  return BRIDGE_NOT_FOUND;
 }
 
 

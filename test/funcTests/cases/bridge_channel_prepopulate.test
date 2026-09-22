@@ -1,0 +1,151 @@
+#
+# FILE            bridge_channel_prepopulate.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Channel names an entity and an attribute, and neither has to exist. The
+# configuration describes what a transport is going to publish, not what the
+# broker already holds, so on a fresh deployment the broker creates them, with
+# the value "uninitialized".
+#
+# The whole difficulty is in what happens on the SECOND start, and that is what
+# this test is about: pre-population runs on every start, so it must fill in
+# only what is missing and touch nothing else. A broker that reset live values
+# to a placeholder would lose data every time it came back.
+#
+# Three separate paths, and each one was broken at some point while being
+# written:
+#
+#   entity absent          -> create it, with all of its channel attributes
+#   entity there, attr not -> add that attribute only, leaving the rest alone
+#   both there             -> do nothing at all
+#
+# The middle one is the one that hides. It answers DB_OK whether or not it
+# wrote anything, so the only way to see it fail is to ask for the attribute
+# afterwards - which is steps 08 and 09 below.
+#
+# The loopback bridge is used because none of this is about a transport. Not
+# one sample is published here; every write is the broker acting on its own
+# configuration.
+#
+--NAME--
+Bridge channels: entities and attributes pre-populated from the config file, across restarts
+
+--TAGS--
+bridge channel plugins restart
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "ngsild": {
+      "topics": {
+        "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" },
+        "P2": { "entityId": "urn:ngsi-ld:arm:arm1",    "entityType": "Arm",    "attribute": "armReach" }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. Both entities were created at startup, from the config file alone"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1
+echo
+echo
+
+
+echo "02. And the second one, a different type and attribute"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1
+echo
+echo
+
+
+echo "03. Give shutterSpeed a real value, as a publisher eventually would"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1/attrs/shutterSpeed -X PATCH --payload '{
+  "type": "Property",
+  "value": 250
+}'
+echo
+echo
+
+
+echo "04. And delete armReach entirely, leaving its entity behind"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1/attrs/armReach -X DELETE
+echo
+echo
+
+
+echo "05. So: one real value, and one entity with no attributes"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1
+echo
+echo
+
+
+echo "06. Restart"
+echo "==========="
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+echo
+echo
+
+
+echo "07. shutterSpeed KEPT its value - a restart must not reset live data"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1
+echo
+echo
+
+
+echo "08. armReach came back as a placeholder - the entity was there, the attribute was not"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1
+echo
+echo
+
+
+echo "09. Delete the camera entity outright"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1 -X DELETE
+echo
+echo
+
+
+echo "10. Restart again"
+echo "================="
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+echo
+echo
+
+
+echo "11. The camera is back, placeholder again - neither entity nor attribute existed"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:camera:cam1
+echo
+echo
+
+
+echo "12. And the arm is untouched, both of its parts being present already"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--

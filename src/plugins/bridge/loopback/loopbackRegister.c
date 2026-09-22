@@ -20,10 +20,13 @@
 //
 
 #include <pthread.h>                                  // pthread_create, pthread_join, pthread_mutex_*
-#include <stdio.h>                                    // snprintf
+#include <stdio.h>                                    // snprintf, fopen, fread
+#include <ctype.h>                                    // isspace
 #include <stdlib.h>                                   // malloc, free
 #include <string.h>                                   // strcmp, strdup, memset
 #include <unistd.h>                                   // usleep
+
+#include "ktrace/kTrace.h"                            // KT_E
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, BridgeRegisterFunc
 #include "corBridge/BridgeBroker.h"                   // BridgeBroker, BRIDGE_*
@@ -144,9 +147,42 @@ static LoopbackChannel* loopbackChannelLookup(const char* endpoint)
 //
 // loopbackInit -
 //
+//
+// loopbackEmitFile - the file the bridge was given, kept for emitAtStart
+//
+static char loopbackConfigPath[512];
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackEmitAtStart - queue the samples named in the configuration
+//
+// The configuration may carry, beside the entity mapping the broker reads,
+//
+//   "loopback": { "emitAtStart": { "P1": "42", "P2": "{\"x\":1}" } }
+//
+// and each entry is delivered as though it had arrived on that endpoint - on
+// the delivery thread, like any other sample.
+//
+// This exists because loopback is an instrument, not a transport. Nothing
+// publishes on it unless something asks, and testing what the broker does with
+// an arriving value should not have to wait for a robot. The parsing is
+// deliberately crude - a flat object of string values, found by scanning - so
+// that a test bridge does not acquire a JSON dependency of its own.
+//
+static void loopbackEmitAtStart(void);
+
+
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
 {
-  (void) configFile;                                  // loopback has nothing to configure
+  if (configFile != NULL)
+  {
+    strncpy(loopbackConfigPath, configFile, sizeof(loopbackConfigPath) - 1);
+    loopbackConfigPath[sizeof(loopbackConfigPath) - 1] = 0;
+  }
+  else
+    loopbackConfigPath[0] = 0;
 
   if (_brokerP == NULL)
     return BRIDGE_ERR;
@@ -159,11 +195,138 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   if (pthread_create(&deliveryThread, NULL, loopbackDelivery, NULL) != 0)
   {
     deliveryRunning = false;
-    brokerP->logFunction(BRIDGE_LOG_ERROR, __FILE__, __LINE__, __FUNCTION__, "unable to start the loopback delivery thread");
+    //
+    // KT_E directly, not brokerP->logFunction. A plugin resolves the broker's
+    // symbols at dlopen, which is how mongoc and corDB log, and logFunction is
+    // for forwarding a TRANSPORT LIBRARY's own log sink - a callback handed
+    // file, line, function and severity that has to go somewhere.
+    //
+    KT_E("unable to start the loopback delivery thread");
     return BRIDGE_ERR;
   }
 
+  loopbackEmitAtStart();
+
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackQueue - put a sample on the delivery thread's queue
+//
+static bool loopbackQueue(const char* endpoint, const char* json)
+{
+  bool queued = false;
+
+  pthread_mutex_lock(&queueMutex);
+  if (queueCount < LOOPBACK_CHANNELS_MAX)
+  {
+    queue[queueCount].endpoint = strdup(endpoint);
+    queue[queueCount].json     = strdup(json);
+    queueCount++;
+    queued = true;
+  }
+  pthread_mutex_unlock(&queueMutex);
+
+  return queued;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackEmitAtStart -
+//
+static void loopbackEmitAtStart(void)
+{
+  if (loopbackConfigPath[0] == 0)
+    return;
+
+  FILE* fP = fopen(loopbackConfigPath, "r");
+  if (fP == NULL)
+    return;
+
+  static char buf[65536];
+  size_t      len = fread(buf, 1, sizeof(buf) - 1, fP);
+  fclose(fP);
+  buf[len] = 0;
+
+
+  char* emitP = strstr(buf, "\"emitAtStart\"");
+  if (emitP == NULL)
+  {
+    return;
+  }
+
+  char* p = strchr(emitP, '{');
+  if (p == NULL)
+    return;
+  ++p;
+
+  //
+  // "endpoint": <value> pairs until the closing brace. The value is taken
+  // verbatim, so a JSON object works as well as a number - it is handed to the
+  // broker as the sample's payload and parsed there.
+  //
+  while (*p != 0 && *p != '}')
+  {
+    while ((*p != 0) && (*p != '"') && (*p != '}'))
+      ++p;
+    if (*p != '"')
+      break;
+
+    char* keyP = ++p;
+    while ((*p != 0) && (*p != '"'))
+      ++p;
+    if (*p == 0)
+      break;
+    *p++ = 0;
+
+    while ((*p != 0) && (*p != ':'))
+      ++p;
+    if (*p == 0)
+      break;
+    ++p;
+    while (isspace((unsigned char) *p))
+      ++p;
+
+    char* valP = p;
+    int   depth = 0;
+
+    if (*p == '"')
+    {
+      valP = ++p;
+      while ((*p != 0) && (*p != '"'))
+        ++p;
+    }
+    else
+    {
+      while (*p != 0)
+      {
+        if ((*p == '{') || (*p == '['))
+          ++depth;
+        else if ((*p == '}') || (*p == ']'))
+        {
+          if (depth == 0)
+            break;
+          --depth;
+        }
+        else if ((*p == ',') && (depth == 0))
+          break;
+        ++p;
+      }
+    }
+
+    char saved = *p;
+    *p = 0;
+    loopbackQueue(keyP, valP);
+    *p = saved;
+
+    if (saved == '"')
+      ++p;
+  }
 }
 
 
@@ -295,19 +458,7 @@ static int loopbackPublish(const char* endpoint, const char* json)
   if (known == false)
     return BRIDGE_NOT_FOUND;
 
-  int rc = BRIDGE_ERR;
-
-  pthread_mutex_lock(&queueMutex);
-  if (queueCount < LOOPBACK_CHANNELS_MAX)
-  {
-    queue[queueCount].endpoint = strdup(endpoint);
-    queue[queueCount].json     = strdup(json);
-    queueCount++;
-    rc = BRIDGE_OK;
-  }
-  pthread_mutex_unlock(&queueMutex);
-
-  return rc;
+  return (loopbackQueue(endpoint, json) == true) ? BRIDGE_OK : BRIDGE_ERR;
 }
 
 

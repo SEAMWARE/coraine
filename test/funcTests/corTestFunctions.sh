@@ -1025,3 +1025,108 @@ contextServerReplace() {
     -H 'Content-Type: application/ld+json' \
     -d "$payload" > /dev/null
 }
+
+
+
+# -----------------------------------------------------------------------------
+#
+# bridgeConfig - write a bridge configuration file
+#
+# Usage:  bridgeConfig [-o <file>] [-b <bridge alias>]
+#                      [--topic "<endpoint>,<entityType>,<entityId>,<attribute>"] ...
+#                      [--emit  "<endpoint>=<json value>"] ...
+#                      [--raw   "<verbatim json member>"] ...
+#
+# Writes to /tmp/coraine_bridges.json unless -o says otherwise, and echoes the
+# path, so a test can say:
+#
+#   coraineStart --bridges loopback --bridgeConfig $(bridgeConfig \
+#       --topic "P1,Camera,urn:ngsi-ld:camera:cam1,shutterSpeed" \
+#       --topic "P2,Arm,urn:ngsi-ld:arm:arm1,armReach")
+#
+# The four fields of --topic are in the order the file itself reads in, so the
+# line can be checked against the JSON without translating it.
+#
+# --emit queues a sample on an endpoint at startup. Only the loopback bridge
+# honours it, that being the point of the loopback bridge: it makes an arriving
+# value testable without a transport, a publisher or a network.
+#
+# --raw drops a member into the bridge's object verbatim, for the transport's
+# own settings - which the broker never reads, and which a test therefore only
+# ever needs in order to prove they are ignored.
+#
+bridgeConfig() {
+  local outFile="/tmp/coraine_bridges.json"
+  local bridge="loopback"
+  local -a topics
+  local -a emits
+  local -a raws
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -o)       outFile="$2"; shift ;;
+      -b)       bridge="$2";  shift ;;
+      --topic)  topics+=("$2"); shift ;;
+      --emit)   emits+=("$2");  shift ;;
+      --raw)    raws+=("$2");   shift ;;
+      *)        echo "bridgeConfig: unknown option '$1'" >&2; return 1 ;;
+    esac
+    shift
+  done
+
+  {
+    echo "{"
+    echo "  \"$bridge\": {"
+
+    local r
+    for r in "${raws[@]}"; do
+      echo "    $r,"
+    done
+
+    if [ ${#emits[@]} -gt 0 ]; then
+      echo "    \"emitAtStart\": {"
+      local i=0
+      local e
+      for e in "${emits[@]}"; do
+        local endpoint="${e%%=*}"
+        local value="${e#*=}"
+        i=$((i + 1))
+        if [ $i -lt ${#emits[@]} ]; then
+          echo "      \"$endpoint\": $value,"
+        else
+          echo "      \"$endpoint\": $value"
+        fi
+      done
+      echo "    },"
+    fi
+
+    echo "    \"ngsild\": {"
+    echo "      \"topics\": {"
+
+    local i=0
+    local t
+    for t in "${topics[@]}"; do
+      local endpoint entityType entityId attribute
+      IFS=',' read -r endpoint entityType entityId attribute <<< "$t"
+      i=$((i + 1))
+      local comma=","
+      [ $i -eq ${#topics[@]} ] && comma=""
+      #
+      # An entry missing its attribute is written as given - a test that wants
+      # to prove a half-written entry is skipped has to be able to write one.
+      #
+      if [ -n "$attribute" ]; then
+        echo "        \"$endpoint\": { \"entityId\": \"$entityId\", \"entityType\": \"$entityType\", \"attribute\": \"$attribute\" }$comma"
+      else
+        echo "        \"$endpoint\": { \"entityId\": \"$entityId\", \"entityType\": \"$entityType\" }$comma"
+      fi
+    done
+
+    echo "      }"
+    echo "    }"
+    echo "  }"
+    echo "}"
+  } > "$outFile"
+
+  echo "$outFile"
+}

@@ -3,6 +3,7 @@ SET(SOURCES
   channelCache.c
   channelConfigLoad.c
   channelPrePopulate.c
+  bridgeSampleIn.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})

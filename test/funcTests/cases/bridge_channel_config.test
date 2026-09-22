@@ -1,0 +1,133 @@
+#
+# FILE            bridge_channel_config.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# What the bridge configuration file may contain that the broker does not read,
+# and what it does with entries it cannot use.
+#
+# The file is shared: a transport's own settings live beside the entity mapping,
+# under the same top-level key, and the broker must walk past everything that is
+# not its business without complaint. The top-level key is the bridge ALIAS,
+# which is what lets one file describe several transports - and means a section
+# naming a bridge that was never loaded is simply never looked at.
+#
+# Two kinds of unusable entry, treated differently on purpose:
+#
+#   incomplete  - warned about and skipped. Half-written entries have always
+#                 been ignored and there are files in the field carrying them.
+#   duplicate   - fatal, and the broker does not start. A repeated endpoint
+#                 means a second entry that could never be reached, and two
+#                 endpoints writing one attribute means two writers racing for
+#                 it. Neither has ever worked, so nothing can depend on either,
+#                 and silently running half a configuration is the failure that
+#                 costs days.
+#
+# JSON permits duplicate keys and kjson keeps them, correctly and deliberately,
+# so the duplicate-endpoint case below really does reach the broker from a file
+# that parses cleanly.
+#
+--NAME--
+Bridge channels: what the config file may carry, and which entries are fatal
+
+--TAGS--
+bridge channel plugins config
+
+--INIT--
+corDbDrop
+
+#
+# A transport's own section, an unloaded bridge's section, and one entry that
+# cannot be used - all in the file the broker is given.
+#
+cat > /tmp/coraine_bridges_cfg.json <<EOF
+{
+  "loopback": {
+    "transport": {
+      "domain": 0,
+      "allowlist": [ { "name": "*" } ],
+      "qos": { "durability": "TRANSIENT_LOCAL", "reliability": "RELIABLE" }
+    },
+    "ngsild": {
+      "topics": {
+        "P1":      { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" },
+        "P2":      { "entityId": "urn:ngsi-ld:arm:arm1",    "entityType": "Arm",    "attribute": "armReach" },
+        "PBROKEN": { "entityId": "urn:ngsi-ld:arm:arm1",    "entityType": "Arm" }
+      }
+    }
+  },
+  "opcua": {
+    "ngsild": {
+      "topics": {
+        "ns=2;s=Temp": { "entityId": "urn:ngsi-ld:sensor:s1", "entityType": "Sensor", "attribute": "temperature" }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges_cfg.json
+
+--RUN--
+
+echo "01. The two usable entries became channels, and their entities exist"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Camera,Arm&attrs=shutterSpeed,armReach'
+echo
+echo
+
+
+echo "02. The entry with no 'attribute' was skipped - arm1 has armReach and nothing else"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:arm:arm1
+echo
+echo
+
+
+echo "03. The opcua section was never looked at - that bridge is not loaded"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:sensor:s1
+echo
+echo
+
+
+echo "04. A repeated endpoint is fatal - the second entry could never be reached"
+echo "=========================================================================="
+cat > /tmp/coraine_bridges_dup.json <<EOF
+{ "loopback": { "ngsild": { "topics": {
+  "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" },
+  "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "aperture" }
+} } } }
+EOF
+$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_bridges_dup.json --foreground 2>&1 | grep -oE "endpoint 'P1' appears twice.*"
+echo
+echo
+
+
+echo "05. Two endpoints writing one attribute is fatal too - they would race"
+echo "======================================================================"
+cat > /tmp/coraine_bridges_race.json <<EOF
+{ "loopback": { "ngsild": { "topics": {
+  "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" },
+  "P2": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" }
+} } } }
+EOF
+$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_bridges_race.json --foreground 2>&1 | grep -oE "both write.*"
+echo
+echo
+
+
+echo "06. A file that is named and not there is fatal; one merely absent is not"
+echo "========================================================================="
+$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_no_such_file.json --foreground 2>&1 | grep -oE "cannot read.*"
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges_cfg.json /tmp/coraine_bridges_dup.json /tmp/coraine_bridges_race.json
+
+--EXPECT--
