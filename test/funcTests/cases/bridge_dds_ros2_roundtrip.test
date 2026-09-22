@@ -1,0 +1,158 @@
+#
+# FILE            bridge_dds_ros2_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The first test with a REAL DDS system on the other side of the bridge.
+#
+# Everything else about the bridge is tested through the loopback, which is the
+# right way to test what the BROKER does with a sample: a transport that
+# delivers to itself makes an arriving value testable without a network. What it
+# structurally cannot test is the transport, and not for lack of trying - a DDS
+# participant's topics are compiled into it, so nobody ever subscribes to a
+# topic the broker invents and two instances of our own plugin cannot bootstrap
+# each other. A publisher that is not ours is the only way.
+#
+# So this one runs against the ROS 2 demo nodes in eprosima/vulcanexus, the same
+# image the orion-ld DDS tests use. ROS 2's /chatter is DDS topic `rt/chatter`
+# (ROS prefixes topics with `rt/`) carrying std_msgs::msg::String_, and the
+# talker publishes "Hello World: <n>" once a second. The listener is the mirror,
+# and is how a sample the broker PUBLISHES is observed without a second broker.
+#
+# It found something on the first run, which is the argument for having it: the
+# Enabler does not hand over the sample, it hands over an envelope with the
+# sample inside it -
+#
+#   { "id": <writer GUID>,
+#     "rt/chatter": { "type": <ddsDataType>, "data": { <instance handle>: <message> } },
+#     "type": "fastdds" }
+#
+# - and the broker's side of the seam is "the sample IS the value", so the value
+# became a writer's GUID and a map keyed by an instance handle. corDdsBridge
+# strips the envelope now. The loopback had proved the shape and was right; what
+# it could not prove is that the transport delivers that shape, and it does not.
+#
+# REQUIRE_DDS: yes
+#
+# Not for a GitHub runner, and not by being on a list somewhere: -dds is
+# DETECTED (corTestParams.sh) from the two things that have to be present - the
+# dds.so plugin, which exists only where the eProsima stack is installed, and
+# the 6.5 GiB ROS 2 image, which is never pulled by a test. Where they are, this
+# runs; where they are not, it is not a candidate for the run at all.
+#
+--NAME--
+DDS bridge: a real ROS 2 talker's samples become an attribute, and an attribute becomes a real sample
+
+--TAGS--
+bridge dds plugins docker
+
+--INIT--
+corDbDrop
+ros2NodeStop
+
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --topic "rt/chatter,Talker,urn:ngsi-ld:Talker:1,message")
+
+#
+# The broker FIRST, and the talker only in step 02: the placeholder in step 01
+# is only stable while nobody is publishing. Started the other way round, the
+# first sample lands somewhere inside the broker's startup and step 01 asserts
+# on a race.
+#
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The entity is there before any sample, created from the configuration alone"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1
+echo
+echo
+
+
+echo "02. A real ROS 2 talker starts, and its samples become the attribute's value"
+echo "==========================================================================="
+ros2NodeStart talker
+corAwaitBody 30 /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1 "Hello World"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1
+echo
+echo
+
+
+echo "03. And the other way: the attribute is PATCHed, and a real ROS 2 listener hears it"
+echo "=================================================================================="
+#
+# ros2NodeStart waits for the node's first line, and the listener's first line
+# is a message it HEARD - so by the time this returns the talker's samples are
+# reaching it and the domain has finished discovering itself. A PATCH published
+# into a domain that has not is a sample nobody is subscribed to yet, which DDS
+# drops without a word (ROS 2 topics are VOLATILE).
+#
+ros2NodeStart listener
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1/attrs/message -X PATCH \
+        --payload '{ "type": "Property", "value": { "data": "FROM CORAINE" } }'
+echo
+ros2NodeWait listener "FROM CORAINE" 20
+ros2NodeHeard "I heard: \[FROM CORAINE\]"
+echo
+echo
+
+--TEARDOWN--
+ros2NodeStop
+coraineStop
+
+--EXPECT--
+01. The entity is there before any sample, created from the configuration alone
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 128
+
+{
+  "id": "urn:ngsi-ld:Talker:1",
+  "message": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Talker"
+}
+
+
+
+02. A real ROS 2 talker starts, and its samples become the attribute's value
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Talker:1",
+  "message": {
+    "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+    "type": "Property",
+    "value": {
+      "data": "REGEX(Hello World: \d+)"
+    }
+  },
+  "type": "Talker"
+}
+
+
+
+03. And the other way: the attribute is PATCHed, and a real ROS 2 listener hears it
+==================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+I heard: [FROM CORAINE]
+
+

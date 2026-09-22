@@ -109,3 +109,35 @@ corCliParamAdd "-httpServer" "COR_TEST_HTTP_SERVER" \
 # job with -buildTests yes.
 #
 corCliParamAdd "-buildTests" "COR_BUILD_TESTS" "no" "Compile-the-broker tests: yes|no" "BUILDTESTS"
+
+
+#
+# -dds: can this environment run the REAL DDS tests?
+#
+# Two things have to be here, and neither is a choice:
+#
+#   the bridge plugin     - dds.so is built only where the eProsima stack is
+#                           installed (make -C corDdsBridge COR_BRIDGE_DDS=ON),
+#                           which a GA runner has not got and will not get: the
+#                           stack is 21.4 MiB over nine libraries and builds
+#                           from source in about eight minutes.
+#   a real publisher      - the ROS 2 demo nodes in eprosima/vulcanexus, a 6.5
+#                           GiB image. Present or not; never pulled by a test.
+#
+# And a real publisher is the point. Two instances of our own plugin cannot
+# bootstrap each other - a DDS participant's topics are compiled into it, so
+# nobody subscribes to a topic the broker invents - which is why the loopback
+# bridge proves the SHAPE of a sample crossing and nothing about the transport.
+# It took a ROS 2 talker to show that the Enabler hands over an envelope rather
+# than the sample.
+#
+# Detected rather than defaulted, like -ha above and for the same reason: where
+# both are present the DDS tests simply run, and where they are not the tests
+# leave the run set rather than being reported as skipped. Nobody decided to
+# pass on them. Override with -dds yes|no.
+#
+corCliParamAdd "-dds" "COR_DDS" \
+              "$([ -f "${COR_PLUGIN_DIR:-/opt/seamware/plugins}/bridge/dds.so" ] \
+                 && docker image inspect "${COR_DDS_ROS2_IMAGE:-eprosima/vulcanexus:jazzy-desktop}" >/dev/null 2>&1 \
+                 && echo yes || echo no)" \
+              "Real DDS tests: yes|no (yes needs dds.so and the ROS 2 image)" "DDS"

@@ -1130,3 +1130,103 @@ bridgeConfig() {
 
   echo "$outFile"
 }
+
+
+# -----------------------------------------------------------------------------
+#
+# ros2NodeStart / ros2NodeStop / ros2NodeWait - a REAL DDS publisher, in a container
+#
+# The DDS tests need a participant that is not ours, and the reason is the whole
+# reason these helpers exist: a DDS participant's topics are compiled into it.
+# Nobody subscribes to a topic the broker invents, so two instances of our own
+# plugin can never bootstrap each other, and the loopback bridge can only ever
+# prove the SHAPE of a sample crossing.
+#
+# The publisher is the ROS 2 demo talker in eprosima/vulcanexus - the same image
+# and the same node the orion-ld DDS tests use. ROS 2's /chatter is DDS topic
+# `rt/chatter` (ROS prefixes topics with `rt/`) carrying std_msgs::msg::String_,
+# and the mirror is the demo listener, which is how an outbound sample is
+# observed without a second broker.
+#
+# ⚠ --ipc=host, and NOT --net=host.
+#
+# Fast DDS reaches a participant on the same machine over SHARED MEMORY, so the
+# container has to share /dev/shm with the broker - without it the broker
+# discovers nothing at all and no error is printed anywhere. With BOTH flags,
+# discovery gets confused and the topics never surface either. One, not two.
+#
+# The image is never pulled here. It is 6.5 GiB, and whether it is present is
+# what -dds detects (corTestParams.sh).
+#
+COR_DDS_ROS2_IMAGE="${COR_DDS_ROS2_IMAGE:-eprosima/vulcanexus:jazzy-desktop}"
+COR_DDS_DOMAIN="${COR_DDS_DOMAIN:-0}"
+
+
+# ros2NodeStart <talker|listener> - start a ROS 2 demo node on the DDS domain
+#
+ros2NodeStart() {
+  local node="$1"
+  local name="cor_ros2_$node"
+
+  docker rm -f "$name" > /dev/null 2>&1
+
+  docker run --rm -d --name "$name" --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" \
+         "$COR_DDS_ROS2_IMAGE" \
+         bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/demo_nodes_py/'"$node" > /dev/null 2>&1 \
+    || { echo "ros2NodeStart: could not start the ROS 2 $node" >&2; return 1; }
+
+  #
+  # A node that dies on startup leaves a container that is simply gone, and the
+  # test after it then waits for a sample nobody is publishing. Ask once.
+  #
+  ros2NodeWait "$node" "." 10 \
+    || { echo "ros2NodeStart: the ROS 2 $node printed nothing in 10s" >&2; return 1; }
+}
+
+
+# ros2NodeStop [<node> ...] - stop the nodes (default: both). Safe when not running.
+#
+ros2NodeStop() {
+  local nodes="$*"
+  local node
+
+  [ -z "$nodes" ] && nodes="talker listener"
+
+  for node in $nodes; do
+    docker rm -f "cor_ros2_$node" > /dev/null 2>&1
+  done
+
+  return 0
+}
+
+
+# ros2NodeWait <node> <extended regex> [seconds] - block until the node logs it
+#
+# Returns 1 and says what it waited for, rather than leaving the caller to
+# assert on an empty log and report the absence as a payload difference.
+#
+ros2NodeWait() {
+  local node="$1"
+  local pattern="$2"
+  local secs="${3:-10}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    docker logs "cor_ros2_$node" 2>&1 | grep -qE "$pattern" && return 0
+    sleep 0.1
+  done
+
+  echo "ros2NodeWait: the ROS 2 $node did not log '$pattern' in ${secs}s" >&2
+  return 1
+}
+
+
+# ros2NodeHeard <extended regex> - what the listener heard, matching lines only
+#
+# The listener's own lines carry a node timestamp ("[INFO] [1790095535.989...]
+# [listener]: I heard: [...]"), which is not the test's business and cannot be
+# asserted on - so only the matching part is printed.
+#
+ros2NodeHeard() {
+  docker logs cor_ros2_listener 2>&1 | grep -oE "$1"
+}
