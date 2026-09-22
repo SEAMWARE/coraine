@@ -82,6 +82,8 @@
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
 
+#include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
+#include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -169,6 +171,7 @@ char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
 char*          bridgeNames  = NULL;
+char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
@@ -200,6 +203,7 @@ static KArg kargV[] =
   { "--troeSync",           "-troeSync",    KaBool,   _vp &troeSync,    KaOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+  { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
@@ -568,6 +572,23 @@ static BridgeBroker bridgeBroker =
 //
 static void bridgesInit(void)
 {
+  if (bridgeCount == 0)
+    return;
+
+  if (channelCacheInit() != CHANNEL_OK)
+    KT_X(1, "unable to create the channel cache");
+
+  //
+  // Channels FIRST, transports second.
+  //
+  // The file is read before any transport is up, so that by the time one can
+  // deliver, every endpoint it might deliver on is already known. The reverse
+  // order has a window in which arriving samples are dropped as unclaimed, and
+  // the size of that window is however long a config file takes to parse -
+  // which is to say, unbounded on a slow disk and invisible when it bites.
+  //
+  int channels = channelConfigLoad(bridgeConfig, (bridgeConfig != NULL), &tenant0);
+
   for (int i = 0; i < bridgeCount; i++)
   {
     BridgeDriver* driverP = &bridges[i];
@@ -575,7 +596,7 @@ static void bridgesInit(void)
     if (driverP->init == NULL)
       continue;
 
-    if (driverP->init(NULL, &bridgeBroker) != BRIDGE_OK)
+    if (driverP->init(bridgeConfig, &bridgeBroker) != BRIDGE_OK)
       KT_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
 
     KT_I("bridge '%s' up%s%s",
@@ -583,6 +604,40 @@ static void bridgesInit(void)
          (driverP->versionInfo != NULL) ? ": " : "",
          (driverP->versionInfo != NULL) ? driverP->versionInfo() : "");
   }
+
+  //
+  // And only now is each Channel handed to its Bridge. A driver cannot
+  // subscribe before its transport exists, so this cannot move above init() -
+  // which is the whole reason the cache is filled first and the wire opened
+  // last.
+  //
+  for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
+  {
+    if (channelP->status != ChannelStatusAvailable)
+    {
+      KT_I("channel '%s' is dormant: %s", channelP->endpoint,
+           (channelP->statusReason != NULL) ? channelP->statusReason : "?");
+      continue;
+    }
+
+    for (int i = 0; i < bridgeCount; i++)
+    {
+      if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, channelP->bridgeName) != 0))
+        continue;
+
+      if (bridges[i].channelAdd == NULL)
+        break;
+
+      int r = bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
+      if (r != BRIDGE_OK)
+        KT_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
+
+      break;
+    }
+  }
+
+  if (channels > 0)
+    KT_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
 }
 
 

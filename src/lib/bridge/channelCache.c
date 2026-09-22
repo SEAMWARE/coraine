@@ -52,13 +52,18 @@ static int          channelCounter = 0;
 // Two Bridges of the same kind - two DDS participants on two domains - may both
 // carry a topic called 'rt/pose', and they are different Channels.
 //
-// The separator is a TAB because it cannot occur in either half: a bridge alias
-// is an identifier, and an endpoint that contained a tab could not be named on
-// any of the wires this speaks to.
+// The separator is a TAB, and channelCreate REFUSES an endpoint containing one
+// rather than assuming none does. Two different pairs colliding into one key
+// would be a Channel delivering another Channel's samples, and "no real wire
+// names a topic with a tab in it" is an assumption about every transport that
+// will ever be written, made in a comment, load-bearing, and unenforced. It
+// costs one strchr at configuration time to not have to be right about it.
 //
+#define CHANNEL_KEY_SEPARATOR '\t'
+
 static void channelKey(const char* bridgeName, const char* endpoint, char* keyOut, int keyOutSize)
 {
-  snprintf(keyOut, keyOutSize, "%s\t%s", bridgeName, endpoint);
+  snprintf(keyOut, keyOutSize, "%s%c%s", bridgeName, CHANNEL_KEY_SEPARATOR, endpoint);
 }
 
 
@@ -203,6 +208,13 @@ int channelCreate
     *clashPP = NULL;
 
   if ((bridgeName == NULL) || (endpoint == NULL) || (*endpoint == 0))
+    return CHANNEL_BAD_INPUT;
+
+  //
+  // See channelKey: the composite key would be ambiguous, and the collision
+  // would show up as one Channel receiving another's samples.
+  //
+  if ((strchr(endpoint, CHANNEL_KEY_SEPARATOR) != NULL) || (strchr(bridgeName, CHANNEL_KEY_SEPARATOR) != NULL))
     return CHANNEL_BAD_INPUT;
 
   if ((entityId == NULL) || (entityType == NULL) || (attrName == NULL))
