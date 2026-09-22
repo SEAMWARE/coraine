@@ -3,6 +3,16 @@
 #   cp dds.json.example dds.json     # and edit it: the topics are yours
 #   CORAINE_TAG=<tag> docker compose -f docker/docker-compose-dds.yml up
 #
+# With a real DDS system beside it — nothing of ours on the other side of the
+# bridge — the whole round trip is one command more:
+#
+#   CORAINE_TAG=<tag> docker compose -f docker/docker-compose-dds.yml --profile demo up
+#   curl localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1
+#   docker compose -f docker/docker-compose-dds.yml logs -f listener
+#
+# ⚠ The ROS 2 demo nodes are a 6.5 GiB image, which is why they are behind a
+# profile: a plain `up` is a broker and a mongo and pulls nothing of ROS 2.
+#
 # Copyright 2026 Seamware
 
 services:
@@ -65,7 +75,7 @@ services:
     command:
       - --database
       - mongoc
-      - --dbhost
+      - --dbHost
       - mongo
       - --apiPlugins
       - admin
@@ -73,6 +83,76 @@ services:
       - dds
       - --bridgeConfig
       - /opt/seamware/etc/dds.json
+
+  # ---------------------------------------------------------------------------
+  #
+  # The `demo` profile - a DDS system that is not ours, on the other side.
+  #
+  # The bridge can only really be shown against a publisher nobody here wrote: a
+  # DDS participant's topics are compiled into it, so no third party ever
+  # subscribes to a topic the broker invents, and two brokers cannot bootstrap
+  # each other. The ROS 2 demo nodes are that third party, and they are the same
+  # image and the same nodes the functional test uses
+  # (cases/bridge_dds_ros2_roundtrip.test).
+  #
+  # talker publishes "Hello World: <n>" on /chatter once a second - on the
+  # domain that is topic `rt/chatter`, because ROS 2 prefixes its topics with
+  # `rt/` - and dds.json.example maps it to urn:ngsi-ld:Talker:1.message.
+  # listener is the mirror: it prints what it hears, which is how a sample the
+  # broker PUBLISHES is observed without standing up a second broker. PATCH the
+  # attribute and the listener's log says so:
+  #
+  #   curl localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1/attrs/message \
+  #        -X PATCH -H 'Content-Type: application/json' \
+  #        -d '{ "type": "Property", "value": { "data": "FROM CORAINE" } }'
+  #
+  talker:
+    profiles: [demo]
+    image: ${ROS2_IMAGE:-eprosima/vulcanexus:jazzy-desktop}
+
+    #
+    # ⚠ ipc: host here too, and on both sides - shared memory is what carries
+    # discovery between two containers on one machine. And ipc only: with
+    # network_mode: host as well, discovery gets confused and the topics never
+    # surface at all. One, not two.
+    #
+    ipc: host
+
+    environment:
+      #
+      # ROS 2's domain is the DDS domain, so this has to be the same number as
+      # dds.ddsmodule.dds.domain in dds.json. Different domains do not fail;
+      # they simply never see each other.
+      #
+      ROS_DOMAIN_ID: "0"
+
+    #
+    # $$ROS_DISTRO, not $ROS_DISTRO: a single $ is substituted by compose
+    # itself, on the host, where that variable does not exist - the command
+    # would reach the container as an empty path.
+    #
+    command: bash -c 'exec python3 /opt/ros/$$ROS_DISTRO/lib/demo_nodes_py/talker'
+
+    #
+    # The broker first. Started the other way round, the first samples arrive
+    # during the broker's startup, and the placeholder entity that the mapping
+    # alone creates - the thing worth seeing before any sample - is already
+    # overwritten by the time anyone looks.
+    #
+    depends_on:
+      broker:
+        condition: service_healthy
+
+  listener:
+    profiles: [demo]
+    image: ${ROS2_IMAGE:-eprosima/vulcanexus:jazzy-desktop}
+    ipc: host
+    environment:
+      ROS_DOMAIN_ID: "0"
+    command: bash -c 'exec python3 /opt/ros/$$ROS_DISTRO/lib/demo_nodes_py/listener'
+    depends_on:
+      broker:
+        condition: service_healthy
 
 volumes:
   mongo-data:

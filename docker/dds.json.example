@@ -8,7 +8,23 @@
     "A topic must already exist in the DDS system. The broker is a participant",
     "in that system, not the author of it: topics and types are compiled into",
     "the applications on the domain, and a topic named here that nobody",
-    "publishes is simply a topic that never delivers."
+    "publishes is simply a topic that never delivers.",
+    "",
+    "The mapping below is the one the `demo` profile of docker-compose-dds.yml",
+    "publishes: the ROS 2 demo talker's /chatter, which on the domain is the",
+    "topic `rt/chatter`. Replace it with yours - the shape is one entry per",
+    "topic, and the entity is created from the entry alone, before any sample",
+    "has arrived:",
+    "",
+    "  \"rt/pose\": {",
+    "    \"entityId\":   \"urn:ngsi-ld:Robot:1\",",
+    "    \"entityType\": \"Robot\",",
+    "    \"attribute\":  \"pose\"",
+    "  }",
+    "",
+    "The mapping is read in both directions. A sample on the topic becomes the",
+    "attribute's value; a PATCH of the attribute is published as a sample on",
+    "the topic."
   ],
 
   "dds": {
@@ -21,15 +37,10 @@
       "typesDirectory": "/opt/seamware/etc/dds-types",
 
       "topics": {
-        "rt/pose": {
-          "entityId":   "urn:ngsi-ld:Robot:1",
-          "entityType": "Robot",
-          "attribute":  "pose"
-        },
-        "rt/battery": {
-          "entityId":   "urn:ngsi-ld:Robot:1",
-          "entityType": "Robot",
-          "attribute":  "batteryLevel"
+        "rt/chatter": {
+          "entityId":   "urn:ngsi-ld:Talker:1",
+          "entityType": "Talker",
+          "attribute":  "message"
         }
       }
     }
