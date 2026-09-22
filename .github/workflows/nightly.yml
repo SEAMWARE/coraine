@@ -816,3 +816,42 @@ jobs:
 
       - name: Both image sizes, for the record
         run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"
+
+      #
+      # Publish, and only from here.
+      #
+      # A merge does not build this image - twenty minutes of Fast DDS does not
+      # belong in front of one - so the nightly is what puts a coraine-dds
+      # where a deployment can pin it. `make docker-dds-push` does the same
+      # thing on demand, for when a night is too long to wait.
+      #
+      # Same tag scheme as every other image, and the same reason: an image
+      # that moves under a deployment is an outage nobody can bisect. No
+      # `latest` is created here or anywhere.
+      #
+      # Only after the image has been shown to start with its bridge up. A
+      # published image that does not work is worse than no published image,
+      # because somebody will pin it.
+      #
+      - name: Compute the tag
+        id: ddstag
+        working-directory: stack/coraine
+        run: |
+          version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
+                    src/app/coraine/coraineVersion.h)
+          [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
+          echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Push coraine-dds
+        run: |
+          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine-dds:${{ steps.ddstag.outputs.value }}
+          docker tag coraine-dds:nightly "$img"
+          docker push "$img"
+          echo "$img" >> "$GITHUB_STEP_SUMMARY"

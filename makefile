@@ -477,4 +477,51 @@ docker:
 	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
 	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
 
-.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker
+#
+# docker-dds / docker-dds-push - the DDS image, on demand
+#
+# coraine-dds is published by the nightly and not by a merge, because the image
+# carries a from-source build of Fast CDR, Fast DDS, ddspipe and the DDS
+# Enabler - twenty minutes that does not belong in front of a merge. These
+# targets are for when that is too long to wait: a fix to the bridge, a demo, a
+# plugtest.
+#
+# The image is built FROM the ordinary one and is the same broker plus one
+# shared object, so `docker` runs first and its result is what this builds on.
+# One tag for both, so a coraine-dds can always be matched to the coraine
+# inside it.
+#
+# QUAY_NAMESPACE and a `docker login quay.io` are the push's business; the
+# build needs neither.
+#
+QUAY_NAMESPACE ?= seamware
+
+#
+# The same scheme deploy.yml uses: the version the broker itself compiles in,
+# the date, and the commit. The version comes out of the header rather than
+# being written here, so a tag cannot disagree with what /admin/version says.
+#
+DDS_VERSION   = $(shell sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' src/app/coraine/coraineVersion.h)
+DDS_TAG      ?= $(DDS_VERSION)-$(shell date -u +%Y-%m-%d)-$(shell git rev-parse --short HEAD)
+DDS_IMAGE    ?= quay.io/$(QUAY_NAMESPACE)/coraine-dds:$(DDS_TAG)
+DDS_BASE     ?= coraine:dds-base-$(DDS_TAG)
+
+docker-dds:
+	@test -n "$(DDS_VERSION)" || { echo "no CORAINE_VERSION in src/app/coraine/coraineVersion.h"; exit 1; }
+	@$(MAKE) --no-print-directory docker DOCKER_TAG=$(DDS_BASE)
+	@docker build -f docker/Dockerfile.dds 	  --build-arg CORAINE_IMAGE=$(DDS_BASE) 	  -t $(DDS_IMAGE) .
+	@echo "Built $(DDS_IMAGE)"
+	@docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "coraine(-dds)?:.*$(DDS_TAG)" || true
+	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
+
+#
+# ⚠ A push is public and permanent. It refuses on a dirty tree, because a tag
+# naming a commit whose content was not what was built is worse than no tag -
+# the whole point of <version>-<date>-<sha> is that it can be gone back to.
+#
+docker-dds-push: docker-dds
+	@git diff --quiet || { echo "refusing to push: uncommitted changes, so $(DDS_TAG) would not name what is in the image"; exit 1; }
+	@docker push $(DDS_IMAGE)
+	@echo "Pushed $(DDS_IMAGE)"
+
+.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker docker-dds docker-dds-push

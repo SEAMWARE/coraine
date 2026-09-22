@@ -157,3 +157,32 @@ that expires turns a working `docker run` in someone's notes into a
 Whichever you pick, the broker can tell you what it is: `GET /version` reports
 its own version *and* the resolved commit of every library linked into it, which
 is most of the binary by volume.
+
+## coraine-dds
+
+The broker with the DDS bridge. Same broker, one more shared object — the
+difference is the eProsima stack it carries, which is 21.4 MiB across nine
+libraries against the broker's own 4.28 MiB over three.
+
+**Published by the nightly, not by a merge.** The image contains a from-source
+build of Fast CDR, Fast DDS, ddspipe and the DDS Enabler, which is twenty
+minutes that does not belong in front of a merge. So a `coraine-dds` tag
+appears each night rather than on each merge, and names the commit it was built
+from exactly as every other image does.
+
+On demand, when a night is too long to wait:
+
+```sh
+make docker-dds          # build locally
+make docker-dds-push     # build and push to quay
+```
+
+Both tag `<version>-<date>-<sha>` — the same scheme, so a `coraine-dds` can
+always be matched to the `coraine` inside it. The push refuses on a dirty tree:
+a tag naming a commit whose content is not what was built defeats the purpose
+of the tag.
+
+Running it needs two things the image cannot supply for itself — the topic
+mapping, which is the deployment's, and `ipc: host`, without which Fast DDS
+cannot reach a participant on the same machine over shared memory. Both are in
+`docker/docker-compose-dds.yml`.
