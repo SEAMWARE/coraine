@@ -1,0 +1,11 @@
+{
+  "dds": {
+    "ddsmodule": {
+      "dds": { "domain": 0 },
+      "specs": { "threads": 4, "logging": { "verbosity": "warning" } }
+    },
+    "ngsild": {
+      "topics": {}
+    }
+  }
+}

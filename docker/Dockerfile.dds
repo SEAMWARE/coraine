@@ -1,0 +1,141 @@
+# coraine-dds — the coraine broker with the DDS bridge
+#
+# The same broker as the ordinary image, plus one plugin. That is the whole
+# difference, and it is deliberately visible here: this file does not rebuild
+# coraine, it starts FROM it and adds a shared object.
+#
+# The reason there are two images at all is size. The eProsima stack is 21.4 MiB
+# across nine libraries - libfastdds alone is 16 MiB - against the broker's own
+# 4.28 MiB over three. So DDS is roughly five times the thing it plugs into, and
+# a deployment that does not speak DDS should not carry it. ARISE does; most do
+# not.
+#
+# Build from the REPO ROOT, having built or pulled the base image first:
+#   ./docker/vendor-libs.sh
+#   docker build -f docker/Dockerfile     -t coraine:local .
+#   docker build -f docker/Dockerfile.dds -t coraine-dds:local \
+#                --build-arg CORAINE_IMAGE=coraine:local .
+#
+# Run it:
+#   docker run --rm -p 1026:1026 -v /etc/dds.json:/etc/dds.json coraine-dds:local \
+#              --database corDB --bridges dds --bridgeConfig /etc/dds.json
+#
+# Copyright 2026 Seamware
+
+# --------------------------------------------------------------------------- #
+# Stage 1 — the eProsima stack, and the bridge built against it
+#
+# This is the expensive stage: Fast CDR, Fast DDS, ddspipe and the DDS Enabler
+# are built from source with colcon, which is where all the minutes go. It is
+# also the stage that almost never changes, so it caches well - pin the
+# branches below and a rebuild of the bridge costs seconds.
+# --------------------------------------------------------------------------- #
+FROM ubuntu:24.04 AS ddsbuilder
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TZ=Etc/UTC
+
+ARG FASTCDR_BRANCH=master
+ARG FASTDDS_BRANCH=master
+ARG DEVUTILS_BRANCH=main
+ARG DDSPIPE_BRANCH=main
+ARG DDSENABLER_BRANCH=main
+
+SHELL ["/bin/bash", "-c"]
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates cmake g++ git libasio-dev libssl-dev libtinyxml2-dev \
+      libyaml-cpp-dev make python3 python3-pip wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --break-system-packages colcon-common-extensions colcon-mixin vcstool
+
+#
+# The Enabler's own repos file is the source of truth for which repositories
+# make up the stack - following it rather than listing them here means this
+# does not drift from what eProsima ships.
+#
+WORKDIR /dds
+RUN git clone --depth 1 --branch "${DDSENABLER_BRANCH}" \
+      https://github.com/eProsima/FIWARE-DDS-Enabler.git enabler-src \
+    && cp enabler-src/ddsenabler.repos . \
+    && mkdir src && vcs import src < ddsenabler.repos \
+    && colcon build --packages-skip ddsenabler_docs \
+         --event-handlers console_direct+ \
+         --cmake-args -DCMAKE_INSTALL_PREFIX=/usr/local -DLOG_INFO=ON -DSECURITY=ON \
+    && cp -a install/*/lib/lib*.so* /usr/local/lib/ 2>/dev/null || true \
+    && cp -a install/*/include/* /usr/local/include/ 2>/dev/null || true \
+    && ldconfig
+
+#
+# The bridge itself. It links the stack above and resolves ktrace, kjson and the
+# rest from the broker at dlopen, so the broker's headers are all it needs from
+# coraine's side - never its libraries.
+#
+WORKDIR /root/git
+COPY docker/vendor/ /tmp/vendor/
+RUN set -eux; \
+    test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
+    tar -xf /tmp/vendor/corBridge.tar    -C /root/git; \
+    tar -xf /tmp/vendor/corDdsBridge.tar -C /root/git; \
+    rm -rf /tmp/vendor
+
+#
+# COR_BRIDGE_DDS=ON, not auto. In an image built for DDS a missing Enabler is an
+# error and not something to shrug at - auto's job is to let a developer without
+# the stack still get a working build, and that is not this.
+#
+RUN make -C /root/git/corDdsBridge COR_BRIDGE_DDS=ON
+
+
+# --------------------------------------------------------------------------- #
+# Stage 2 — the broker image, plus the bridge
+#
+# FROM the ordinary coraine image on purpose. coraine-dds is not a different
+# broker and must never become one: same binary, same plugins, same entrypoint,
+# with one more shared object in the plugin directory and the libraries it
+# needs beside it.
+# --------------------------------------------------------------------------- #
+ARG CORAINE_IMAGE=quay.io/seamware/coraine:latest
+FROM ${CORAINE_IMAGE}
+
+LABEL org.opencontainers.image.title="coraine-dds" \
+      org.opencontainers.image.description="coraine NGSI-LD Context Broker with the DDS bridge plugin"
+
+COPY --from=ddsbuilder /usr/local/lib/libfastdds.so*   /usr/local/lib/
+COPY --from=ddsbuilder /usr/local/lib/libfastcdr.so*   /usr/local/lib/
+COPY --from=ddsbuilder /usr/local/lib/libcpp_utils.so* /usr/local/lib/
+COPY --from=ddsbuilder /usr/local/lib/libddspipe*.so*  /usr/local/lib/
+COPY --from=ddsbuilder /usr/local/lib/libddsenabler*.so* /usr/local/lib/
+COPY --from=ddsbuilder /root/git/corDdsBridge/dds.so   /opt/seamware/plugins/bridge/
+
+#
+# libyaml-cpp, tinyxml2 and foonathan_memory come from the stack above rather
+# than from apt: the versions have to match what Fast DDS was built against.
+#
+COPY --from=ddsbuilder /usr/local/lib/libfoonathan_memory*.so* /usr/local/lib/
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libyaml-cpp0.8 libtinyxml2-10 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ldconfig
+
+#
+# A default configuration, so the image starts.
+#
+# The bridge needs a configuration file - the Enabler is handed a path and will
+# not come up without one - and a container started with --bridges dds and no
+# --bridgeConfig would therefore exit immediately. An image that cannot start is
+# worse than one that starts without DDS, so a minimal file ships with it:
+# domain 0, no topics. That joins the domain and carries nothing, which is the
+# honest default, and a deployment mounts its own over it.
+#
+COPY etc/dds-default.json /opt/seamware/etc/dds.json
+
+#
+# The entrypoint is inherited unchanged. The default command is not: an image
+# built to speak DDS that did not load the bridge would be a puzzle.
+#
+CMD ["--database", "mongoc", "--troe", "none", "--apiPlugins", "admin", \
+     "--bridges", "dds", "--bridgeConfig", "/opt/seamware/etc/dds.json"]

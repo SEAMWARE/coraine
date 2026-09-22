@@ -9,9 +9,10 @@
 
 #include <stdbool.h>                                  // bool
 #include <string.h>                                   // strcmp
+#include <stdio.h>                                    // fopen, fread, fclose
+#include <stdlib.h>                                   // malloc, free
 #include <unistd.h>                                   // access, R_OK
 
-#include "kbase/kFileRead.h"                          // kFileRead
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "kalloc/kaBufferInit.h"                      // kaBufferInit
 #include "kalloc/kaBufferReset.h"                     // kaBufferReset
@@ -199,11 +200,44 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     return 0;
   }
 
-  char* buf    = NULL;
-  int   bufLen = 0;
+  //
+  // fopen and not kFileRead: kFileRead takes a base and a relative path, and
+  // given an empty base it does not resolve a plain relative path - so
+  // --bridgeConfig etc/dds.json failed with "cannot read", one line after
+  // access() had just said it was readable. Two answers about one file is worse
+  // than either answer alone.
+  //
+  FILE* fP = fopen(path, "r");
 
-  if (kFileRead((char*) "", (char*) path, &buf, &bufLen) != 0)
+  if (fP == NULL)
     KT_X(1, "cannot read the bridge configuration '%s'", path);
+
+  fseek(fP, 0, SEEK_END);
+  long fileSize = ftell(fP);
+  fseek(fP, 0, SEEK_SET);
+
+  if ((fileSize <= 0) || (fileSize > 4 * 1024 * 1024))
+  {
+    fclose(fP);
+    KT_X(1, "the bridge configuration '%s' is empty or improbably large", path);
+  }
+
+  char* buf = (char*) malloc(fileSize + 1);
+
+  if (buf == NULL)
+  {
+    fclose(fP);
+    KT_X(1, "out of memory reading '%s'", path);
+  }
+
+  if (fread(buf, 1, (size_t) fileSize, fP) != (size_t) fileSize)
+  {
+    fclose(fP);
+    free(buf);
+    KT_X(1, "short read on the bridge configuration '%s'", path);
+  }
+  fclose(fP);
+  buf[fileSize] = 0;
 
   //
   // A buffer of its own. Everything the cache keeps is copied into the
@@ -227,6 +261,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   if (treeP == NULL)
   {
     kaBufferReset(&kalloc, true);
+    free(buf);
     KT_X(1, "the bridge configuration '%s' is not valid JSON", path);
   }
 
@@ -273,6 +308,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   }
 
   kaBufferReset(&kalloc, true);
+  free(buf);
 
   KT_T(KtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);
 
