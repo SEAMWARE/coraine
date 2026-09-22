@@ -949,6 +949,90 @@ compatibility path for exactly those deployments: the file stays frozen
 at today's expressiveness, the Channel API grows past it, and nothing
 breaks for the file to stop being the only way in.
 
+### 3.6a The catch-all entity — an endpoint no Channel claims
+
+The acceptance criterion above has one clause the object model does not
+cover, and it is worth naming because it is the one thing in the file
+format that is *not* a mapping: what happens to a sample on a topic the
+file never mentions.
+
+Dropping it is the defensible default, and it is what a Channel-only
+model implies — a transport that hands over everything it hears says a
+great deal the broker was never configured to want. But dropping it also
+makes the broker useless for the first question anyone asks of a system
+they have just connected to: **what does this thing publish?** Orion-LD
+answers it by storing every unclaimed topic in one entity,
+`urn:ngsi-ld:dds:default` of type `DDS`, under an attribute named after
+the topic. That is a good answer and we keep it, generalised:
+
+```
+"ngsild": { "defaultEntity": true }                                  ← the derived pair
+"ngsild": { "defaultEntity": { "id": "urn:...", "type": "Sensor" } } ← or say it exactly
+```
+
+The derived pair is `urn:ngsi-ld:<bridge>:default`, typed with the
+bridge's alias uppercased — a rule rather than a special case, which for
+the dds bridge gives exactly the pair already in use.
+
+⭐ **It is not a Channel, and must not become one.** A Channel names an
+entity, a type and an attribute, is unique on both of its keys, and
+carries values **both ways**. The catch-all names none of those — the
+endpoint decides the attribute — and it is **inbound only**: a PATCH of
+one of its attributes has nowhere to go, because nothing ever said which
+endpoint that attribute belongs to. Synthesising a Channel per arriving
+endpoint would make the two indistinguishable in the cache, and the
+reverse lookup would then start publishing to endpoints nobody
+configured. Same family of mistake as § 3.1: two concepts, one
+mechanism, and the damage shows up on the write path.
+
+⭐ **The endpoint is put under `@vocab` directly - not expanded, and not left
+alone either**, and the distinction is the whole of why this works.
+
+An attribute name must be an IRI after expansion, and `rt/chatter` is not one.
+Treating it as a long name and storing it as-is therefore produces a name that
+is not a URI. Expanding it properly is no better: expansion *validates* (the
+§ 4.6.2 NGSI-LD Name grammar refuses the slash, so every ROS 2 topic would be
+rejected - ROS prefixes its topics with `rt/`) and it *looks the name up* (a
+topic that happens to be called `location` would land on the core context's
+GeoProperty term, value checks and all, because of what somebody else named a
+topic).
+
+Concatenating `@vocab` with the endpoint does neither, and the result is a
+valid absolute IRI for free, because the endpoint lands in the URI's **path**,
+where a slash is the path separator rather than an illegal character:
+
+```
+rt/chatter   ->   https://uri.etsi.org/ngsi-ld/default-context/rt/chatter
+```
+
+It round-trips: compaction strips the `@vocab` prefix back to `rt/chatter`, and
+re-expanding that against the same `@vocab` gives the identical IRI. (With a
+default user context the `@vocab` is that context's, per the `-duc` rule - a
+user context may define its own.)
+
+⚠️ **Read it by its short name, write it by its IRI.** A client that sends
+`"rt/chatter"` as an attribute name gets a 400 from the name-grammar check,
+while `"https://uri.etsi.org/ngsi-ld/default-context/rt/chatter"` is accepted
+and writes the same attribute the samples do - the check only fires on the
+`@vocab` fallback, and an absolute IRI never reaches it. So the broker returns
+a name it will not accept back, which is a wart of that check rather than of
+this feature; a client using the deployment's own `@context` writes it under
+whatever term that context defines for the IRI, which is the intended path.
+
+⚠️ **Off unless asked**, which is the one deliberate difference. A broker
+that stores every endpoint it hears, unasked, is a different product from
+one that stores what it was configured to store — and on a busy domain it
+is an unbounded entity. A file that wants the old behaviour says so in
+one line.
+
+⚠️ It also costs the transport plugin something, and the plugin must not
+decide it: `dds.so` does not read the `ngsild` section and cannot know
+whether a catch-all exists. So an unclaimed topic is offered to the
+broker **once**; `BRIDGE_NOT_FOUND` comes back and the plugin stops
+offering that topic until a Channel claims it. A domain with a thousand
+unmapped topics costs a thousand calls in total, not a thousand per
+second.
+
 ### 3.7 What it costs
 
 - A collection, a cache, validation and lifecycle for Channels — the

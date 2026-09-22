@@ -6,6 +6,7 @@ SET(SOURCES
   bridgeSampleIn.c
   bridgeAttrOut.c
   bridgeAttrsOut.c
+  bridgeDefaultEntity.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})

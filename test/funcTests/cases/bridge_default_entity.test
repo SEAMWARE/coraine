@@ -1,0 +1,319 @@
+#
+# FILE            bridge_default_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Channel says which endpoint becomes which attribute, and a sample on an
+# endpoint no Channel claims is dropped. That is the right default - a
+# transport that hands over everything it hears says a great deal the broker
+# was never configured to want - but it is a poor way to FIND OUT what a system
+# publishes, which is the first thing anyone connecting to one wants to know.
+#
+# So a bridge can be given a catch-all: one entity, where an unclaimed endpoint
+# becomes an attribute named after itself. Point a broker at a live system with
+# no mapping at all and everything on it shows up.
+#
+# ⚠ It is OFF unless the configuration asks. A broker that stores every
+# endpoint it hears, unasked, is a different product - and on a busy domain an
+# unbounded entity.
+#
+# The samples come from the loopback bridge's emitAtStart, which is the only
+# way to produce an unclaimed sample without a foreign publisher: everything
+# else the loopback carries, it carries because a Channel asked it to.
+#
+# ⚠ mongoc, and for the same reason bridge_channel_prepopulate is: step 05
+# reads values written before a restart, which asks the BACKEND to outlive the
+# process. Under corDB they are gone for a reason that has nothing to do with
+# the catch-all.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Bridges: endpoints no Channel claims land in the catch-all entity, when one is configured
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+#
+# Only the bridge traces, so the grep in step 04 cannot match anything else.
+#
+export COR_TRACE_LEVELS=402
+
+#
+# One claimed endpoint and two nobody claims. All three are emitted at start.
+#
+BRIDGE_CONFIG=$(bridgeConfig \
+  --defaultEntity true \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --emit "P1=41" \
+  --emit "rt/chatter={ \"data\": \"Hello World: 7\" }" \
+  --emit "humidity=63")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+#
+# ⚠ Again, and not by oversight: --INIT-- and --RUN-- are separate PROCESSES,
+# so the export in --INIT-- reached the broker started there and nothing else.
+# The restarts below are started from here, and without this their logs come
+# out at the default trace levels - which is how step 06 first "passed" with
+# no evidence in the log at all.
+#
+export COR_TRACE_LEVELS=402
+
+echo "01. The claimed endpoint went where it always did"
+echo "================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 41
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+echo
+echo
+
+
+echo "02. And the other two are in the catch-all, named after their endpoints"
+echo "======================================================================="
+#
+# urn:ngsi-ld:loopback:default, of type LOOPBACK: the derived pair, which is
+# the bridge's alias and nothing else. For the dds bridge that rule gives
+# urn:ngsi-ld:dds:default of type DDS.
+#
+# Note rt/chatter: the endpoint becomes the attribute name as it is written,
+# slash included. Nothing mangles it - it is what the publisher calls the
+# thing, and the point of the catch-all is to show exactly that.
+#
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default humidity
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default chatter
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+echo
+echo
+
+
+echo "03. An attribute of the catch-all is NOT a Channel - it publishes nowhere"
+echo "========================================================================="
+#
+# A Channel carries both ways. The catch-all only carries in: nothing said
+# which endpoint an attribute of it belongs to, and inventing one would have
+# the broker publishing to endpoints nobody configured. So the PATCH is an
+# ordinary write and the trace below shows no publish for it.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/humidity -X PATCH --payload '{
+  "type": "Property",
+  "value": 99
+}'
+echo
+#
+# The same PATCH on the CLAIMED attribute, which does publish - without the
+# contrast, step 04 being empty would prove only that nothing was written.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1/attrs/temperature -X PATCH --payload '{
+  "type": "Property",
+  "value": 42
+}'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+echo
+echo
+
+
+echo "04. One publish, and it is the claimed endpoint's - not the catch-all's"
+echo "========================================================================"
+grep -oE "\-> '[^']+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+echo
+echo
+
+
+
+echo "05. Restart with no catch-all in the file - the default, and it drops"
+echo "====================================================================="
+#
+# The same bridge, a new endpoint nobody claims, and no defaultEntity. This is
+# what every deployment that does not ask for one gets, and it is the claim
+# most likely to be broken by accident later: a broker that quietly began
+# storing every endpoint it hears would pass every other step above.
+#
+BRIDGE_CONFIG2=$(bridgeConfig -o /tmp/coraine_bridges2.json \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --emit "pressure=7")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG2
+
+#
+# A fixed wait, deliberately: every other wait in this file is corAwaitBody on
+# something that must APPEAR, and this one is waiting for something not to -
+# which no condition can be polled for. A second is many times the delivery
+# thread's 1 ms tick.
+#
+sleep 1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+echo
+echo
+
+
+
+echo "06. A catch-all must not write an attribute a Channel already writes"
+echo "===================================================================="
+#
+# defaultEntity pointed at the entity the Channel writes, and an unclaimed
+# endpoint named exactly like the Channel's attribute. Both would write
+# Machine:1/temperature, and the value would then depend on which arrived
+# last - which is the collision channelCreate refuses when it can see it in
+# the file. It cannot see this one: nothing named the endpoint.
+#
+BRIDGE_CONFIG3=$(bridgeConfig -o /tmp/coraine_bridges3.json \
+  --defaultEntity "urn:ngsi-ld:Machine:1,Machine" \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --emit "temperature=1234")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG3
+sleep 1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+echo
+#
+# The value being untouched is the outcome; this is the REASON. Without it the
+# step passes just as well when the sample was never delivered at all.
+#
+grep -oE "which channel '[^']+' already writes - dropped" /tmp/coraine.CB.log
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json /tmp/coraine_bridges2.json /tmp/coraine_bridges3.json
+
+--EXPECT--
+01. The claimed endpoint went where it always did
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": {
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Machine"
+}
+
+
+
+02. And the other two are in the catch-all, named after their endpoints
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 225
+
+{
+  "humidity": {
+    "type": "Property",
+    "value": 63
+  },
+  "id": "urn:ngsi-ld:loopback:default",
+  "rt/chatter": {
+    "type": "Property",
+    "value": {
+      "data": "Hello World: 7"
+    }
+  },
+  "type": "LOOPBACK"
+}
+
+
+
+03. An attribute of the catch-all is NOT a Channel - it publishes nowhere
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 225
+
+{
+  "humidity": {
+    "type": "Property",
+    "value": 99
+  },
+  "id": "urn:ngsi-ld:loopback:default",
+  "rt/chatter": {
+    "type": "Property",
+    "value": {
+      "data": "Hello World: 7"
+    }
+  },
+  "type": "LOOPBACK"
+}
+
+
+
+04. One publish, and it is the claimed endpoint's - not the catch-all's
+========================================================================
+1 -> 'P1' on bridge 'loopback'
+
+
+05. Restart with no catch-all in the file - the default, and it drops
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 225
+
+{
+  "humidity": {
+    "type": "Property",
+    "value": 99
+  },
+  "id": "urn:ngsi-ld:loopback:default",
+  "rt/chatter": {
+    "type": "Property",
+    "value": {
+      "data": "Hello World: 7"
+    }
+  },
+  "type": "LOOPBACK"
+}
+
+
+
+06. A catch-all must not write an attribute a Channel already writes
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Machine"
+}
+
+
+which channel 'P1' already writes - dropped
+
+

@@ -8,6 +8,7 @@
 //
 
 #include <stdbool.h>                                  // bool
+#include <ctype.h>                                    // toupper
 #include <string.h>                                   // strcmp
 #include <stdio.h>                                    // fopen, fread, fclose
 #include <stdlib.h>                                   // malloc, free
@@ -30,6 +31,7 @@
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
+#include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/channelConfigLoad.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -179,6 +181,66 @@ static int topicsLoad(const char* alias, KjNode* topicsP, Tenant* tenantP, KAllo
 
 // -----------------------------------------------------------------------------
 //
+// defaultEntityLoad - one bridge's catch-all, if it asked for one
+//
+// "defaultEntity": true, or an object naming the id and/or the type. Anything
+// else in that member is a file saying something this broker does not
+// understand, which is warned about rather than guessed at.
+//
+static void defaultEntityLoad(const char* alias, KjNode* nodeP, Tenant* tenantP, KAlloc* kaP)
+{
+  const char* entityId   = NULL;
+  const char* entityType = NULL;
+
+  if (nodeP->type == KjBoolean)
+  {
+    if (nodeP->value.b == false)
+      return;
+  }
+  else if (nodeP->type == KjObject)
+  {
+    entityId   = stringMember(nodeP, "id");
+    entityType = stringMember(nodeP, "type");
+  }
+  else
+  {
+    KT_W("bridge '%s': 'defaultEntity' is neither true/false nor an object - ignored", alias);
+    return;
+  }
+
+  //
+  // The alias uppercased, when the file did not say. "dds" becomes DDS, which
+  // is the type the catch-all entity already carries elsewhere.
+  //
+  char derivedType[64];
+
+  if (entityType == NULL)
+  {
+    size_t i = 0;
+
+    for (; (alias[i] != 0) && (i < sizeof(derivedType) - 1); i++)
+      derivedType[i] = toupper((unsigned char) alias[i]);
+    derivedType[i] = 0;
+
+    entityType = derivedType;
+  }
+
+  char* typeExpanded = corLdExpand(corLdCoreContext(), entityType, kaP, NULL, NULL);
+
+  if (typeExpanded == NULL)
+  {
+    KT_W("bridge '%s': cannot expand the defaultEntity type '%s' - no catch-all", alias, entityType);
+    return;
+  }
+
+  if (bridgeDefaultEntitySet(alias, entityId, typeExpanded, tenantP) == false)
+    KT_W("bridge '%s': the defaultEntity could not be set up - unclaimed endpoints will be dropped", alias);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelConfigLoad -
 //
 int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
@@ -305,6 +367,14 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 
     if (kjLookup(ngsildP, "actions") != NULL)
       KT_W("bridge '%s': the 'actions' section is not carried yet and is being ignored", alias);
+
+    //
+    // And the catch-all, which is off unless the file asks for it.
+    //
+    KjNode* defaultEntityP = kjLookup(ngsildP, "defaultEntity");
+
+    if (defaultEntityP != NULL)
+      defaultEntityLoad(alias, defaultEntityP, tenantP, &kalloc);
   }
 
   kaBufferReset(&kalloc, true);

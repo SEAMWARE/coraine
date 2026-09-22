@@ -1058,6 +1058,7 @@ contextServerReplace() {
 bridgeConfig() {
   local outFile="/tmp/coraine_bridges.json"
   local bridge="loopback"
+  local defaultEntity=""
   local -a topics
   local -a emits
   local -a raws
@@ -1067,6 +1068,12 @@ bridgeConfig() {
       -o)       outFile="$2"; shift ;;
       -b)       bridge="$2";  shift ;;
       --topic)  topics+=("$2"); shift ;;
+      #
+      # The catch-all entity: "true" for the derived one, or "<id>,<type>" to
+      # name it. An endpoint no topic claims goes there instead of being
+      # dropped - which is off unless the file says so.
+      #
+      --defaultEntity) defaultEntity="$2"; shift ;;
       --emit)   emits+=("$2");  shift ;;
       --raw)    raws+=("$2");   shift ;;
       *)        echo "bridgeConfig: unknown option '$1'" >&2; return 1 ;;
@@ -1101,6 +1108,17 @@ bridgeConfig() {
     fi
 
     echo "    \"ngsild\": {"
+
+    if [ -n "$defaultEntity" ]; then
+      if [ "$defaultEntity" == "true" ]; then
+        echo "      \"defaultEntity\": true,"
+      else
+        local deId deType
+        IFS=',' read -r deId deType <<< "$defaultEntity"
+        echo "      \"defaultEntity\": { \"id\": \"$deId\", \"type\": \"$deType\" },"
+      fi
+    fi
+
     echo "      \"topics\": {"
 
     local i=0
