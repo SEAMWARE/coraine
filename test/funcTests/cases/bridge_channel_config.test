@@ -131,3 +131,82 @@ coraineStop
 rm -f /tmp/coraine_bridges_cfg.json /tmp/coraine_bridges_dup.json /tmp/coraine_bridges_race.json
 
 --EXPECT--
+01. The two usable entries became channels, and their entities exist
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 299
+
+[
+  {
+    "armReach": {
+      "type": "Property",
+      "value": "uninitialized"
+    },
+    "id": "urn:ngsi-ld:arm:arm1",
+    "type": "Arm"
+  },
+  {
+    "id": "urn:ngsi-ld:camera:cam1",
+    "shutterSpeed": {
+      "type": "Property",
+      "value": "uninitialized"
+    },
+    "type": "Camera"
+  }
+]
+
+
+
+02. The entry with no 'attribute' was skipped - arm1 has armReach and nothing else
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 126
+
+{
+  "armReach": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:ngsi-ld:arm:arm1",
+  "type": "Arm"
+}
+
+
+
+03. The opcua section was never looked at - that bridge is not loaded
+=====================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 166
+
+{
+  "detail": "entity 'urn:ngsi-ld:sensor:s1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. A repeated endpoint is fatal - the second entry could never be reached
+==========================================================================
+endpoint 'P1' appears twice in the configuration - the second entry (urn:ngsi-ld:camera:cam1/aperture) could never be reached, the first already claims it
+
+
+05. Two endpoints writing one attribute is fatal too - they would race
+======================================================================
+both write urn:ngsi-ld:camera:cam1/shutterSpeed - they would race, and the value would depend on which arrived last
+
+
+06. A file that is named and not there is fatal; one merely absent is not
+=========================================================================
+cannot read '/tmp/coraine_no_such_file.json'
+
+

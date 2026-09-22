@@ -39,20 +39,11 @@ bridge channel plugins restart
 --INIT--
 corDbDrop
 
-cat > /tmp/coraine_bridges.json <<EOF
-{
-  "loopback": {
-    "ngsild": {
-      "topics": {
-        "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" },
-        "P2": { "entityId": "urn:ngsi-ld:arm:arm1",    "entityType": "Arm",    "attribute": "armReach" }
-      }
-    }
-  }
-}
-EOF
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Camera,urn:ngsi-ld:camera:cam1,shutterSpeed" \
+  --topic "P2,Arm,urn:ngsi-ld:arm:arm1,armReach")
 
-coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
@@ -149,3 +140,179 @@ coraineStop
 rm -f /tmp/coraine_bridges.json
 
 --EXPECT--
+01. Both entities were created at startup, from the config file alone
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 136
+
+{
+  "id": "urn:ngsi-ld:camera:cam1",
+  "shutterSpeed": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Camera"
+}
+
+
+
+02. And the second one, a different type and attribute
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 126
+
+{
+  "armReach": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:ngsi-ld:arm:arm1",
+  "type": "Arm"
+}
+
+
+
+03. Give shutterSpeed a real value, as a publisher eventually would
+===================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. And delete armReach entirely, leaving its entity behind
+===========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. So: one real value, and one entity with no attributes
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "id": "urn:ngsi-ld:camera:cam1",
+  "shutterSpeed": {
+    "type": "Property",
+    "value": 250
+  },
+  "type": "Camera"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 52
+
+{
+  "id": "urn:ngsi-ld:arm:arm1",
+  "type": "Arm"
+}
+
+
+
+06. Restart
+===========
+
+
+07. shutterSpeed KEPT its value - a restart must not reset live data
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "id": "urn:ngsi-ld:camera:cam1",
+  "shutterSpeed": {
+    "type": "Property",
+    "value": 250
+  },
+  "type": "Camera"
+}
+
+
+
+08. armReach came back as a placeholder - the entity was there, the attribute was not
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 126
+
+{
+  "armReach": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:ngsi-ld:arm:arm1",
+  "type": "Arm"
+}
+
+
+
+09. Delete the camera entity outright
+=====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+10. Restart again
+=================
+
+
+11. The camera is back, placeholder again - neither entity nor attribute existed
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 136
+
+{
+  "id": "urn:ngsi-ld:camera:cam1",
+  "shutterSpeed": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Camera"
+}
+
+
+
+12. And the arm is untouched, both of its parts being present already
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 126
+
+{
+  "armReach": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:ngsi-ld:arm:arm1",
+  "type": "Arm"
+}
+
+
+
