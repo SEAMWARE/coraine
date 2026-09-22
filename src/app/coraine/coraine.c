@@ -84,6 +84,7 @@
 
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
+#include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -570,7 +571,22 @@ static BridgeBroker bridgeBroker =
 // arrive on threads of its own, and they must have somewhere to land. The DB is
 // open, the caches are loaded and the hooks are set by the time this runs.
 //
-static void bridgesInit(void)
+// -----------------------------------------------------------------------------
+//
+// bridgeChannelsInit - build the Channels, and the entities they write into
+//
+// ⚠ RUNS WHILE THE STARTUP ALLOCATOR IS STILL ALIVE, and that is why it is not
+// part of bridgesInit below. The DB plugins allocate what they read through
+// corRest.kalloc, and the startup buffer is torn down - kaBufferReset with
+// reuse false, which frees every block and leaves allocList pointing at them -
+// once the caches are loaded. Touching the database after that point means
+// allocating from an arena that has been freed.
+//
+// Splitting it this way is also the right shape on its own terms: every
+// endpoint and every entity exists before a single transport is opened, so
+// there is no window in which arriving samples are dropped as unclaimed.
+//
+static void bridgeChannelsInit(void)
 {
   if (bridgeCount == 0)
     return;
@@ -578,16 +594,34 @@ static void bridgesInit(void)
   if (channelCacheInit() != CHANNEL_OK)
     KT_X(1, "unable to create the channel cache");
 
-  //
-  // Channels FIRST, transports second.
-  //
-  // The file is read before any transport is up, so that by the time one can
-  // deliver, every endpoint it might deliver on is already known. The reverse
-  // order has a window in which arriving samples are dropped as unclaimed, and
-  // the size of that window is however long a config file takes to parse -
-  // which is to say, unbounded on a slow disk and invisible when it bites.
-  //
   int channels = channelConfigLoad(bridgeConfig, (bridgeConfig != NULL), &tenant0);
+
+  if (channels > 0)
+  {
+    int attrs = channelPrePopulate(&tenant0);
+
+    if (attrs > 0)
+      KT_I("%d channel attribute%s created as placeholders", attrs, (attrs == 1) ? "" : "s");
+  }
+
+  if (channels > 0)
+    KT_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesInit - open the transports, and hand each Channel to its Bridge
+//
+// LAST in startup: from here on, samples arrive on threads of the transports'
+// own making, and everything one needs - the store, the caches, the hooks, and
+// the Channels themselves - is already up.
+//
+static void bridgesInit(void)
+{
+  if (bridgeCount == 0)
+    return;
 
   for (int i = 0; i < bridgeCount; i++)
   {
@@ -635,9 +669,6 @@ static void bridgesInit(void)
       break;
     }
   }
-
-  if (channels > 0)
-    KT_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
 }
 
 
@@ -1336,6 +1367,22 @@ int main(int argC, char* argV[])
   static char startupKallocBuf[16384];
   kaBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+
+  //
+  // "Now", for anything written before the first request arrives.
+  //
+  // corRest.requestStartTime is what stamps createdAt/modifiedAt, and the HTTP
+  // backends set it as each request lands. Nothing sets it before that, so
+  // every write the broker performs during startup - pre-populated channel
+  // entities today, whatever else later - is stamped zero and reads back as
+  // 1970 for the life of the deployment. Startup is a perfectly good moment to
+  // know what time it is.
+  //
+  {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    corRest.requestStartTime = (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
+  }
   //
   // --ha: from here on, what another broker instance writes reaches our caches
   // too. BEFORE the reload below, not after - see haInit.h: listening only after
@@ -1353,6 +1400,13 @@ int main(int argC, char* argV[])
   haApplyEnable();
 
   contextSourceExtrasLoad(contextSourceExtras);
+
+  //
+  // Channels and their placeholder entities, while corRest.kalloc is still a
+  // live arena - see bridgeChannelsInit. The transports themselves come up much
+  // later, once everything else is running.
+  //
+  bridgeChannelsInit();
 
   kaBufferReset(&corRest.kalloc, false);
 
@@ -1385,11 +1439,6 @@ int main(int argC, char* argV[])
   // regardless.
   ldStatsFlushLoopStart(subStatsFlushInterval, subStatsFlushAll);
 
-  //
-  // Bridges last: from here on, samples arrive on threads of the transports'
-  // own making, and everything one needs - the store, the caches, the hooks -
-  // is up.
-  //
   bridgesInit();
 
   //

@@ -2,6 +2,7 @@
 SET(SOURCES
   channelCache.c
   channelConfigLoad.c
+  channelPrePopulate.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})
