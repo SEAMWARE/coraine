@@ -45,10 +45,11 @@ FROM ubuntu:24.04 AS ddsbuilder
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TZ=Etc/UTC
 
-ARG FASTCDR_BRANCH=master
-ARG FASTDDS_BRANCH=master
-ARG DEVUTILS_BRANCH=main
-ARG DDSPIPE_BRANCH=main
+#
+# Only the Enabler's branch is a knob here. Which Fast CDR, Fast DDS, ddspipe
+# and devutils go with it is stated by that branch's own ddsenabler.repos, and
+# pinning them separately would mean asserting a combination eProsima has not.
+#
 ARG DDSENABLER_BRANCH=main
 
 SHELL ["/bin/bash", "-c"]
@@ -56,7 +57,7 @@ SHELL ["/bin/bash", "-c"]
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates cmake g++ git libasio-dev libssl-dev libtinyxml2-dev \
+      ca-certificates cmake curl g++ git libasio-dev libssl-dev libtinyxml2-dev \
       libyaml-cpp-dev make python3 python3-pip wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -68,16 +69,45 @@ RUN pip3 install --break-system-packages colcon-common-extensions colcon-mixin v
 # does not drift from what eProsima ships.
 #
 WORKDIR /dds
-RUN git clone --depth 1 --branch "${DDSENABLER_BRANCH}" \
-      https://github.com/eProsima/FIWARE-DDS-Enabler.git enabler-src \
-    && cp enabler-src/ddsenabler.repos . \
-    && mkdir src && vcs import src < ddsenabler.repos \
-    && colcon build --packages-skip ddsenabler_docs \
-         --event-handlers console_direct+ \
-         --cmake-args -DCMAKE_INSTALL_PREFIX=/usr/local -DLOG_INFO=ON -DSECURITY=ON \
-    && cp -a install/*/lib/lib*.so* /usr/local/lib/ 2>/dev/null || true \
-    && cp -a install/*/include/* /usr/local/include/ 2>/dev/null || true \
+
+#
+# Only the repos FILE, fetched - not the repository it lives in.
+#
+# Cloning the Enabler here and then importing its repos into src/ puts the same
+# packages under two roots, and colcon crawls recursively: "Duplicate package
+# names not supported", which is how the first attempt failed.
+#
+RUN curl -fsSL "https://raw.githubusercontent.com/eProsima/FIWARE-DDS-Enabler/${DDSENABLER_BRANCH}/ddsenabler.repos" \
+      -o ddsenabler.repos \
+    && mkdir src \
+    && vcs import src < ddsenabler.repos
+
+#
+# --merge-install puts everything under one install/lib and install/include
+# instead of install/<pkg>/..., which makes the copy below a copy rather than a
+# glob that has to be right about colcon's layout.
+#
+# Its own RUN, so that a build failure is a build failure. Chained after a `cp
+# ... || true` it was not: the || caught colcon's failure, the chain carried on,
+# and the first sign of trouble was a missing header two steps later.
+#
+RUN colcon build --merge-install --packages-skip ddsenabler_docs \
+      --event-handlers console_direct+ \
+      --cmake-args -DLOG_INFO=ON -DSECURITY=ON
+
+RUN cp -a /dds/install/lib/. /usr/local/lib/ \
+    && cp -a /dds/install/include/. /usr/local/include/ \
     && ldconfig
+
+#
+# And say so out loud. A copy that lands in the wrong place is otherwise
+# discovered by the NEXT stage, as "the DDS Enabler must be installed", which
+# points at the innocent party.
+#
+RUN test -f /usr/local/include/ddsenabler/DDSEnabler.hpp \
+    && test -f /usr/local/lib/libddsenabler.so \
+    && echo "DDS Enabler installed:" \
+    && ls /usr/local/lib/libfastdds.so* /usr/local/lib/libddsenabler*.so*
 
 #
 # The bridge itself. It links the stack above and resolves ktrace, kjson and the
