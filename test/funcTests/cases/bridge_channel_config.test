@@ -29,6 +29,18 @@
 # so the duplicate-endpoint case below really does reach the broker from a file
 # that parses cleanly.
 #
+# ⚠ The three fatal cases start a broker of their own, and every one of them
+# says --database corDB. Not because the case is about corDB - none of them
+# ever serves a request - but because WITHOUT it the broker takes the default
+# backend and goes looking for mongo on localhost. That is right on a
+# workstation and wrong in CI, where mongo is a service container reached as
+# `mongo`: the broker then spends its time failing to resolve a host and never
+# reaches channelConfigLoad at all, so the grep matches nothing and the case
+# fails on three empty lines having taken 25 seconds each to produce them. An
+# in-memory backend needs nothing to be running anywhere, which is the property
+# this wants. coraineStart, used for the broker above, is given the harness's
+# own --dbHost and is not affected.
+#
 --NAME--
 Bridge channels: what the config file may carry, and which entries are fatal
 
@@ -101,7 +113,7 @@ cat > /tmp/coraine_bridges_dup.json <<EOF
   "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "aperture" }
 } } } }
 EOF
-$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_bridges_dup.json --foreground 2>&1 | grep -oE "endpoint 'P1' appears twice.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_dup.json --foreground 2>&1 | grep -oE "endpoint 'P1' appears twice.*"
 echo
 echo
 
@@ -114,14 +126,14 @@ cat > /tmp/coraine_bridges_race.json <<EOF
   "P2": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" }
 } } } }
 EOF
-$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_bridges_race.json --foreground 2>&1 | grep -oE "both write.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_race.json --foreground 2>&1 | grep -oE "both write.*"
 echo
 echo
 
 
 echo "06. A file that is named and not there is fatal; one merely absent is not"
 echo "========================================================================="
-$COR_BROKER --port 9987 --bridges loopback --bridgeConfig /tmp/coraine_no_such_file.json --foreground 2>&1 | grep -oE "cannot read.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_no_such_file.json --foreground 2>&1 | grep -oE "cannot read.*"
 echo
 echo
 

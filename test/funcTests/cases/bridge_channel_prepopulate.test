@@ -30,6 +30,15 @@
 # one sample is published here; every write is the broker acting on its own
 # configuration.
 #
+# ⚠ mongoc, and it cannot be otherwise: step 07 asserts that a value written
+# before a restart is still there after it, which asks the BACKEND to outlive
+# the process. corDB is in-memory, so under it that value is gone for a reason
+# that has nothing to do with pre-population - the placeholder in step 07 would
+# be correct behaviour, and the case would be asserting the opposite of what it
+# was written to catch. The restriction is the backend's, not the bridge's.
+#
+# REQUIRE_DB: mongoc
+#
 --NAME--
 Bridge channels: entities and attributes pre-populated from the config file, across restarts
 
