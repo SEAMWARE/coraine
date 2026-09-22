@@ -1,0 +1,312 @@
+#
+# FILE            bridge_all_write_endpoints.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Every endpoint that can change an attribute has to tell the bridges, and for
+# a long time two of them did: PATCH and PUT of a single attribute. A value
+# written by a create, an entity-level merge, a replace or any of the five
+# batch operations was stored and went no further - the Channel carried it in
+# one direction only, and nothing said so. A publisher on the other end of a
+# topic simply never heard about it.
+#
+# So this case is a coverage claim, one step per endpoint, and it is written
+# to fail the moment a write path is added that forgets the bridge.
+#
+# ⭐ THE ORACLE IS THE TRACE, and that is not laziness.
+#
+# The loopback bridge hands back in what it puts out, so an attribute written
+# through a Channel ends up holding the value it was written with - which is
+# also what it would hold if the bridge had never been reached. The stored
+# state cannot tell the two apart. What can is the broker saying it published,
+# which is why the last step counts the publish lines: one per endpoint, and
+# exactly one, which is also the assertion that an arriving sample does not
+# bounce back out again.
+#
+# ⚠ Traces are narrowed to 402 (KtBridge) for the same reason: the grep at the
+# end must not be able to match anything else.
+#
+--NAME--
+Bridges: every entity write endpoint publishes, and a delete does not
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
+  --topic "P3,Machine,urn:ngsi-ld:Machine:3,temperature" \
+  --topic "P4,Machine,urn:ngsi-ld:Machine:4,temperature" \
+  --topic "P5,Machine,urn:ngsi-ld:Machine:5,temperature" \
+  --topic "P6,Machine,urn:ngsi-ld:Machine:6,temperature" \
+  --topic "P7,Machine,urn:ngsi-ld:Machine:7,temperature" \
+  --topic "P8,Machine,urn:ngsi-ld:Machine:8,temperature" \
+  --topic "P9,Machine,urn:ngsi-ld:Machine:9,temperature")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The two entities the create paths need have to be absent first"
+echo "=================================================================="
+#
+# Every Channel's entity is pre-created at startup from the configuration, so
+# a create would be a 409. Deleting them here is also the first half of the
+# claim in step 11: a delete publishes NOTHING.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:6 -X DELETE
+echo
+echo
+
+
+echo "02. POST /entities - a create"
+echo "============================="
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{
+  "id": "urn:ngsi-ld:Machine:1",
+  "type": "Machine",
+  "temperature": { "type": "Property", "value": 1 }
+}'
+echo
+echo
+
+
+echo "03. POST /entities/{id}/attrs - an append"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2/attrs -X POST --payload '{
+  "temperature": { "type": "Property", "value": 2 }
+}'
+echo
+echo
+
+
+echo "04. PATCH /entities/{id}/attrs - an update"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3/attrs -X PATCH --payload '{
+  "temperature": { "type": "Property", "value": 3 }
+}'
+echo
+echo
+
+
+echo "05. PATCH /entities/{id} - an entity-level merge"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:4 -X PATCH --payload '{
+  "temperature": { "type": "Property", "value": 4 }
+}'
+echo
+echo
+
+
+echo "06. PUT /entities/{id} - a replace"
+echo "=================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5 -X PUT --payload '{
+  "id": "urn:ngsi-ld:Machine:5",
+  "type": "Machine",
+  "temperature": { "type": "Property", "value": 5 }
+}'
+echo
+echo
+
+
+echo "07. POST /entityOperations/create"
+echo "================================="
+corCurl --url /ngsi-ld/v1/entityOperations/create -X POST --payload '[
+  {
+    "id": "urn:ngsi-ld:Machine:6",
+    "type": "Machine",
+    "temperature": { "type": "Property", "value": 6 }
+  }
+]'
+echo
+echo
+
+
+echo "08. POST /entityOperations/update"
+echo "================================="
+corCurl --url /ngsi-ld/v1/entityOperations/update -X POST --payload '[
+  {
+    "id": "urn:ngsi-ld:Machine:7",
+    "type": "Machine",
+    "temperature": { "type": "Property", "value": 7 }
+  }
+]'
+echo
+echo
+
+
+echo "09. POST /entityOperations/upsert"
+echo "================================="
+corCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload '[
+  {
+    "id": "urn:ngsi-ld:Machine:8",
+    "type": "Machine",
+    "temperature": { "type": "Property", "value": 8 }
+  }
+]'
+echo
+echo
+
+
+echo "10. POST /entityOperations/merge"
+echo "================================"
+corCurl --url /ngsi-ld/v1/entityOperations/merge -X POST --payload '[
+  {
+    "id": "urn:ngsi-ld:Machine:9",
+    "type": "Machine",
+    "temperature": { "type": "Property", "value": 9 }
+  }
+]'
+echo
+echo
+
+
+echo "11. DELETE the attribute - a transport has no way to carry a deletion"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3/attrs/temperature -X DELETE
+echo
+echo
+
+
+echo "12. One publish per endpoint, and exactly one"
+echo "============================================="
+#
+# Nine writes, nine topics. The count is the second half of the claim: a
+# sample handed back in by the loopback is stored by bridgeSampleIn, which
+# never enters a service routine, so it cannot come back out - a 2 on any
+# line would be the echo loop.
+#
+for i in $(seq 1 50); do
+  n=$(grep -c "on bridge 'loopback'" /tmp/coraine.CB.log 2>/dev/null)
+  [ "${n:-0}" -ge 9 ] && break
+  sleep 0.2
+done
+grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--
+01. The two entities the create paths need have to be absent first
+==================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+02. POST /entities - a create
+=============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+Content-Length: 0
+
+
+
+
+03. POST /entities/{id}/attrs - an append
+=========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. PATCH /entities/{id}/attrs - an update
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. PATCH /entities/{id} - an entity-level merge
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. PUT /entities/{id} - a replace
+==================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. POST /entityOperations/create
+=================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 30
+
+[
+  "urn:ngsi-ld:Machine:6"
+]
+
+
+
+08. POST /entityOperations/update
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. POST /entityOperations/upsert
+=================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+10. POST /entityOperations/merge
+================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. DELETE the attribute - a transport has no way to carry a deletion
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+12. One publish per endpoint, and exactly one
+=============================================
+1 -> 'P1' on bridge 'loopback'
+1 -> 'P2' on bridge 'loopback'
+1 -> 'P3' on bridge 'loopback'
+1 -> 'P4' on bridge 'loopback'
+1 -> 'P5' on bridge 'loopback'
+1 -> 'P6' on bridge 'loopback'
+1 -> 'P7' on bridge 'loopback'
+1 -> 'P8' on bridge 'loopback'
+1 -> 'P9' on bridge 'loopback'
+
+

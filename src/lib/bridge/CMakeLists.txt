@@ -5,6 +5,7 @@ SET(SOURCES
   channelPrePopulate.c
   bridgeSampleIn.c
   bridgeAttrOut.c
+  bridgeAttrsOut.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})

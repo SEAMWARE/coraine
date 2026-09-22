@@ -62,6 +62,7 @@
 
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -847,6 +848,11 @@ bool postEntityBatchCreate(void)
       {
         case DB_OK:
           anySuccessV[origIdx] = true;
+
+          // Created, so every attribute in it is new - the whole entity.
+          if (entP != NULL)
+            bridgeAttrsOutFromEntity(tenantP, eid, entP);
+
           if (subCacheP != NULL && entP != NULL)
             ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);
 

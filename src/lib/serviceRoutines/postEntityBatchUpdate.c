@@ -74,6 +74,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -911,6 +912,16 @@ bool postEntityBatchUpdate(void)
       ldEntityAttrsSet(existingDb, fragP, true /* overwriteScope */,
                        corRest.requestStartTime, &report, corRest.kjsonP);
       anyMerge = true;
+
+      //
+      // Here rather than in pass 4, for the same reason the notification and
+      // the TRoE events are here: this is where the per-fragment merge report
+      // exists, and pass 4 knows only that an entity was written, not which of
+      // its attributes this batch touched. It is optimistic in exactly the way
+      // those two already are - a bulk write that fails afterwards has been
+      // announced to a subscriber as well as to a Channel.
+      //
+      bridgeAttrsOutFromMerge(tenantP, g->id, existingDb, &report);
 
       if (subCacheP != NULL)
       {

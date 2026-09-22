@@ -71,6 +71,7 @@
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity, bridgeAttrsOutFromMerge
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -826,6 +827,16 @@ bool postEntityBatchUpsert(void)
       }
 
       anyLocal = true;
+
+      //
+      // The two modes of an upsert are two different statements, and the
+      // bridge has to make the same distinction the notification does: a
+      // created entity is entirely new, an updated one has a merge report.
+      //
+      if (notifyOp == LdNotifyEntityCreate)
+        bridgeAttrsOutFromEntity(tenantP, g->id, finalP);
+      else
+        bridgeAttrsOutFromMerge(tenantP, g->id, finalP, &report);
 
       if (subCacheP != NULL)
       {
