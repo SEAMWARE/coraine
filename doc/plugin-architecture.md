@@ -6,9 +6,9 @@
 > non-NGSI-LD admin/ops endpoints — are dynamically loaded shared objects. You
 > choose them at startup; you can write your own without touching the core.
 
-## The four plugin categories
+## The five plugin categories
 
-There are **four** kinds of plugin:
+There are **five** kinds of plugin:
 
 - **Current-state DB** — where entities, subscriptions and registrations live.
   Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
@@ -39,8 +39,51 @@ There are **four** kinds of plugin:
   the architecture is designed around it, but there is no `protocol` register
   symbol or driver struct yet.
 
-So today three of the four are live; the communication-protocol category is the
-next plugin axis to land.
+- **Bridges** — the transports over which the broker speaks to something that is
+  **not** an NGSI-LD client: a DDS topic, an MQTT broker, an OPC-UA server.
+  Loaded via `--bridges` / `-br`; resolves to `<base>/bridge/<name>.so`;
+  register symbol `bridgeRegister`; fills a `BridgeDriver`. **Any number** active
+  (comma-separated, up to `BRIDGES_MAX = 8`). Bundled: `loopback`. External:
+  [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge).
+
+  ⭐ This is a *different axis* from the communication protocols above, and the
+  two are easy to confuse. A communication protocol is how a **client reaches
+  the broker**. A bridge is how the **broker reaches a wire**. Both will exist,
+  and neither replaces the other.
+
+  The contract lives in its own library,
+  [`corBridge`](https://github.com/SEAMWARE/corBridge), rather than here —
+  `corPlugin` is the precedent: one is the *mechanism* for loading a `.so`, the
+  other the *contract* one kind of `.so` must satisfy.
+
+So today four of the five are live; the communication-protocol category is the
+remaining plugin axis to land.
+
+## What crosses a bridge, and what does not
+
+Two properties, and everything else about bridges follows from them.
+
+**A bridge knows nothing about entities.** It carries bytes to and from an
+*endpoint*. Which entity attribute an endpoint corresponds to is a **Channel**,
+and Channels live in the broker. So the seam speaks `(endpoint, json, time)` in
+both directions and nothing else: inbound through `BridgeBroker::sampleIn`,
+outbound through `BridgeDriver::publish`.
+
+**Everything crossing it is plain data** — `const char*`, `int64_t`. No
+`KjNode`, no `KAlloc`, no NGSI-LD type. That is not a style preference:
+
+- a bridge plugin need not be a C program. The DDS one *cannot* be: the DDS
+  Enabler's API takes `std::string` and `std::shared_ptr`, which no amount of
+  declaring mangled symbols reaches from C. It is C++, compiled separately, and
+  the broker — still `PROJECT(coraine C)` — `dlopen`s it and never sees a C++
+  token.
+- calls arrive on **threads the broker did not create**. Handing a kalloc buffer
+  across that line would be a bug the day it was written.
+
+⭐ There is also no loop, and not because of a guard: an arriving sample is
+stored by a path that writes through the DB driver and never enters a service
+routine, while the outbound hook is *in* the service routines. A value that came
+in from a transport structurally cannot reach the code that sends values out.
 
 ## Where plugins are loaded from
 
@@ -58,8 +101,11 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 │   ├── none.so            # no-op (temporal disabled)
 │   ├── corDB.so           # in-memory history (dev/test)
 │   └── timescale.so       # TimescaleDB/Postgres history
-└── api/
-    └── admin.so           # health/version/log/tenants/plugins
+├── api/
+│   └── admin.so           # health/version/log/tenants/plugins
+└── bridge/
+    ├── loopback.so        # a transport that goes nowhere - test instrument
+    └── dds.so             # DDS, from corDdsBridge (not built by default)
 ```
 
 A plugin can also be given as a **full path** (any argument containing a `/`),
@@ -77,7 +123,8 @@ coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corDB/corDB.so
 1. `corPluginResolve(base, category, subcategory, name, path, …)` → builds the `.so`
    path (skipped when `name` already looks like a path).
 2. `corPluginOpen(path, "<symbol>", …)` → `dlopen` + `dlsym` for the register symbol
-   (`dbRegister` / `troeRegister` / `apiRegister`). Handles are tracked for
+   (`dbRegister` / `troeRegister` / `apiRegister` / `bridgeRegister`). Handles are
+   tracked for
    `corPluginCloseAll()` at shutdown.
 3. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
@@ -91,7 +138,8 @@ broker at `dlopen` time. Keep that in mind: a plugin must be built against the
 
 A plugin can publish its own command-line options. It sets `driverP->args`
 (a `KArg*` array) in its register function; the broker **peeks** at
-`--database`/`--troe`/`--apiPlugins` *before* the main parse, loads the plugins,
+`--database`/`--troe`/`--apiPlugins`/`--bridges` *before* the main parse, loads the
+plugins,
 then splices each plugin's `args` into the global arg table so they show up in
 `--help` and parse normally. This is why `coraine --help` shows different options
 depending on which DB/TRoE plugin you selected.
@@ -123,6 +171,14 @@ the headers — read these before writing a plugin:
 - **`src/lib/plugin/ApiPlugin.h`** — extra endpoints. A flat
   `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
   optional `args`, and `init`/`close`/`versionInfo` hooks.
+- **`corBridge/BridgeDriver.h`** — what a bridge `.so` fills in: `init`, `close`,
+  `channelAdd`, `channelDel`, `publish`. And **`corBridge/BridgeBroker.h`** — what
+  the broker hands back: `sampleIn`, `logFunction`. Error codes: `BRIDGE_OK`,
+  `BRIDGE_NOT_FOUND`, `BRIDGE_UNSUPPORTED`, `BRIDGE_BAD_INPUT`, `BRIDGE_ERR`.
+  These live outside the broker because the plugins are external; the structs
+  are **append-only** and carry `BRIDGE_ABI_VERSION`, and a mismatch is logged
+  rather than refused — an older plugin simply leaves the newer slots NULL,
+  which is already how "unsupported" is spelled.
 
 ## Bundled plugins
 
@@ -134,6 +190,8 @@ the headers — read these before writing a plugin:
 | **corDB** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
+| **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
+| **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three — which is why it was a separate image for a while, and why it is not one any more: an image that carries it and never loads it costs that and nothing else. |
 
 ## Writing a new plugin (sketch)
 

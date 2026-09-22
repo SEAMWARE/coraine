@@ -37,6 +37,14 @@
 #include "kalloc/kalloc.h"
 #include "kalloc/kaAlloc.h"
 #include "ktrace/kTrace.h"
+#include "kbase/kFileRead.h"                       // kFileRead
+#include "kjson/kjParse.h"                        // kjParse
+#include "kalloc/kaBufferInit.h"                  // kaBufferInit
+#include "kalloc/kaBufferReset.h"                 // kaBufferReset
+#include "kjson/kjBufferCreate.h"                 // kjBufferCreate
+#include "corPlugin/corPlugin.h"                  // corPluginSetBaseDir, corPluginResolve, corPluginOpen
+#include "corBridge/BridgeDriver.h"                // BridgeDriver, BridgeRegisterFunc, BRIDGES_MAX
+#include "corBridge/BridgeBroker.h"                // BridgeBroker, BRIDGE_*
 #include "corRest/corRest.h"
 
 
@@ -128,6 +136,31 @@ bool           ftMqttTls    = false;   // subscribe over TLS (mqtts), insecure
 char*          ftHttpsKey   = NULL;    // path to a PEM private key  (enables TLS when both set)
 char*          ftHttpsCert  = NULL;    // path to a PEM certificate  (enables TLS when both set)
 
+//
+// Bridge hosting.
+//
+// ftClient loads the SAME plugin the broker loads, rather than speaking a
+// transport of its own. Two reasons, and the second is the better one:
+//
+//   the plugin is C++ and links 21 MiB of transport libraries, and ftClient is
+//   built inside PROJECT(coraine C) - linking that here would put a C++
+//   compiler and the whole eProsima stack into coraine's own build tree, which
+//   is exactly what the plugin architecture exists to avoid.
+//
+//   and a test that drives the broker's actual plugin proves the broker's
+//   actual plugin works. A second, independently written client can be wrong
+//   in its own way and agree with nothing.
+//
+// So ftClient is a bridge HOST: it supplies its own BridgeBroker, whose
+// sampleIn records into the dump instead of writing an entity.
+//
+char*         ftBridges      = NULL;   // comma-separated bridge plugins to load
+char*         ftBridgeConfig = NULL;   // the shared bridge configuration file
+
+static BridgeDriver  ftBridgeV[BRIDGES_MAX];
+static int           ftBridgeCount = 0;
+
+
 static KArg ftArgV[] =
 {
   { "--port",            "-p",  KaUShort, _vp &ftPort,       KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
@@ -141,6 +174,8 @@ static KArg ftArgV[] =
   { "--mqttTls",         NULL,  KaBool,   _vp &ftMqttTls,    KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "subscribe over TLS (mqtts), accept self-signed" },
   { "--httpsKey",        "-k",  KaString, _vp &ftHttpsKey,   KaOpt, NULL,      NULL,  NULL,      "PEM private key file (serve HTTPS; needs --httpsCertificate)" },
   { "--httpsCertificate","-c",  KaString, _vp &ftHttpsCert,  KaOpt, NULL,      NULL,  NULL,      "PEM certificate file (serve HTTPS; needs --httpsKey)" },
+  { "--bridges",         "-br", KaString, _vp &ftBridges,    KaOpt, NULL,      NULL,  NULL,      "bridge plugins to host (comma-separated)" },
+  { "--bridgeConfig",    "-brc",KaString, _vp &ftBridgeConfig, KaOpt, NULL,    NULL,  NULL,      "bridge configuration file (the broker's own)" },
   KARGS_END
 };
 
@@ -176,6 +211,260 @@ static void dumpDrain(void)
 
   dumpArray = kjArray(NULL, NULL);
   dumpCount = 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgeSampleIn - a sample arrived on a transport
+//
+// ⚠ A PLUGIN THREAD. The entry is built with the malloc allocator, like every
+// other dump entry, so it outlives whatever the transport is about to reuse.
+//
+// This is the whole of ftClient's side of the seam: the broker's
+// implementation stores an attribute, this one writes down that the value
+// arrived. Same contract, different job, which is the point of the contract
+// being about endpoints and bytes rather than entities.
+//
+static int ftBridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
+{
+  KjNode* entry = kjObject(NULL, NULL);
+
+  kjChildAdd(entry, kjString(NULL, "bridge",   (bridgeName != NULL) ? bridgeName : "?"));
+  kjChildAdd(entry, kjString(NULL, "endpoint", (endpoint   != NULL) ? endpoint   : "?"));
+  kjChildAdd(entry, kjString(NULL, "payload",  (json       != NULL) ? json       : ""));
+
+  if (publishTime > 0)
+    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+
+  //
+  // dumpMutex, like every other path that touches dumpArray - and this one is
+  // reached from a transport thread, which is the case it exists for.
+  //
+  pthread_mutex_lock(&dumpMutex);
+  if (dumpArray == NULL)
+    dumpArray = kjArray(NULL, NULL);
+  kjChildAdd(dumpArray, entry);
+  ++dumpCount;
+  pthread_mutex_unlock(&dumpMutex);
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgeLog - the transport library's own log messages
+//
+static void ftBridgeLog(int severity, const char* fileName, int lineNo, const char* funcName, const char* msg)
+{
+  char sev;
+
+  switch (severity)
+  {
+  case BRIDGE_LOG_ERROR:    sev = 'E';  break;
+  case BRIDGE_LOG_WARNING:  sev = 'W';  break;
+  case BRIDGE_LOG_INFO:     sev = 'I';  break;
+  default:                  sev = 'T';  break;
+  }
+
+  ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
+}
+
+
+
+static BridgeBroker ftBridgeBroker =
+{
+  BRIDGE_ABI_VERSION,
+  ftBridgeSampleIn,
+  ftBridgeLog
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgeDriverLookup - which loaded plugin answers to this name
+//
+static BridgeDriver* ftBridgeDriverLookup(const char* alias)
+{
+  for (int i = 0; i < ftBridgeCount; i++)
+  {
+    if ((ftBridgeV[i].alias != NULL) && (strcmp(ftBridgeV[i].alias, alias) == 0))
+      return &ftBridgeV[i];
+  }
+
+  return (ftBridgeCount > 0) ? &ftBridgeV[0] : NULL;   // one bridge is the common case
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgeTopicsCarry - subscribe to every endpoint named in the config file
+//
+// The same file the broker reads. ftClient has no Channels and does not want
+// any - it is the peer on the other end of the wire, not a second broker - but
+// it does need to know which endpoints to listen on, and the file already says.
+//
+static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
+{
+  char*  buf    = NULL;
+  int    bufLen = 0;
+
+  if ((driverP->channelAdd == NULL) || (configFile == NULL))
+    return;
+
+  if (kFileRead((char*) "", (char*) configFile, &buf, &bufLen) != 0)
+    return;
+
+  //
+  // Its own buffer. This runs BEFORE corRestInit, so corRest.kjsonP is still
+  // NULL - parsing into it takes the process down before it serves anything,
+  // which is a confusing way to be told the order is wrong.
+  //
+  char    kallocBuffer[8192];
+  KAlloc  kalloc;
+  Kjson   kjson;
+
+  kaBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "ftBridge");
+
+  Kjson*  kjP   = kjBufferCreate(&kjson, &kalloc);
+  KjNode* treeP = kjParse(kjP, buf);
+
+  if (treeP == NULL)
+  {
+    kaBufferReset(&kalloc, KTRUE);
+    return;
+  }
+
+  KjNode* bridgeP = kjLookup(treeP, (driverP->alias != NULL) ? driverP->alias : "dds");
+  KjNode* ngsildP = (bridgeP != NULL) ? kjLookup(bridgeP, "ngsild") : NULL;
+  KjNode* topicsP = (ngsildP != NULL) ? kjLookup(ngsildP, "topics") : NULL;
+
+  for (KjNode* entryP = (topicsP != NULL) ? topicsP->value.firstChildP : NULL; entryP != NULL; entryP = entryP->next)
+  {
+    //
+    // BOTH directions: ftClient stands in for whatever is at the far end, and
+    // the far end both publishes and listens.
+    //
+    if (driverP->channelAdd(entryP->name, BridgeChannelTopic, BridgeDirectionBoth) != BRIDGE_OK)
+      KT_W("ftClient: bridge '%s' would not carry '%s'", driverP->alias, entryP->name);
+  }
+
+  kaBufferReset(&kalloc, KTRUE);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgesLoad - dlopen each named plugin and bring its transport up
+//
+static void ftBridgesLoad(void)
+{
+  if (ftBridges == NULL)
+    return;
+
+  corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
+
+  char buf[512];
+  strncpy(buf, ftBridges, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = 0;
+
+  char* saveptr = NULL;
+  char* token   = strtok_r(buf, ",", &saveptr);
+
+  while ((token != NULL) && (ftBridgeCount < BRIDGES_MAX))
+  {
+    char path[512];
+    char openErr[512];
+
+    corPluginResolve(corPluginBaseDir(), "bridge", NULL, token, path, sizeof(path));
+
+    BridgeRegisterFunc registerFunc = (BridgeRegisterFunc) corPluginOpen(path, "bridgeRegister", openErr, sizeof(openErr));
+
+    if (registerFunc == NULL)
+    {
+      KT_X(1, "ftClient: bridge plugin '%s' (%s): %s", token, path, openErr);
+      return;
+    }
+
+    BridgeDriver* driverP = &ftBridgeV[ftBridgeCount];
+
+    memset(driverP, 0, sizeof(BridgeDriver));
+    registerFunc(driverP);
+    ++ftBridgeCount;
+
+    if ((driverP->init != NULL) && (driverP->init(ftBridgeConfig, &ftBridgeBroker) != BRIDGE_OK))
+      KT_X(1, "ftClient: init failed for bridge '%s'", token);
+
+    ftBridgeTopicsCarry(driverP, ftBridgeConfig);
+
+    KT_I("ftClient: hosting bridge '%s'", (driverP->alias != NULL) ? driverP->alias : token);
+
+    token = strtok_r(NULL, ",", &saveptr);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// postBridgePublish - POST /bridge/publish
+//
+// Body: { "endpoint": "rt/pose", "payload": <any json> }
+//
+// Puts a value on a transport, which is how a test plays the far end: the
+// broker is then supposed to store it, and the test asks the broker.
+//
+static bool postBridgePublish(void)
+{
+  KjNode* bodyP = corRest.in.requestTree;
+
+  if ((ftBridgeCount == 0) || (bodyP == NULL))
+  {
+    corRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  KjNode* endpointP = kjLookup(bodyP, "endpoint");
+  KjNode* payloadP  = kjLookup(bodyP, "payload");
+
+  if ((endpointP == NULL) || (endpointP->type != KjString) || (payloadP == NULL))
+  {
+    corRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  //
+  // The payload goes on the wire as the application's own JSON, so the member
+  // name and the sibling link come off for the render - see bridgeAttrOut in
+  // the broker, where the same two things bit.
+  //
+  static char   rendered[16384];
+  char*         savedName = payloadP->name;
+  KjNode*       savedNext = payloadP->next;
+
+  payloadP->name = NULL;
+  payloadP->next = NULL;
+  kjFastRender(payloadP, rendered);
+  payloadP->name = savedName;
+  payloadP->next = savedNext;
+
+  BridgeDriver* driverP = ftBridgeDriverLookup("dds");
+
+  if ((driverP == NULL) || (driverP->publish == NULL))
+  {
+    corRest.out.httpStatusCode = 501;
+    return true;
+  }
+
+  corRest.out.httpStatusCode = (driverP->publish(endpointP->value.s, rendered) == BRIDGE_OK) ? 204 : 502;
+
+  return true;
 }
 
 
@@ -754,6 +1043,7 @@ static CorRestServiceSimplified ftServices[] =
   { CorVerbGet,    "/die",   getDie,          0,                       0 },
   // Programmable response stubs (mock-reply API).
   { CorVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
+  { CorVerbPost,   "/bridge/publish", postBridgePublish, ~(uint64_t)0,  0 },
   { CorVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
   // Catch-all accumulators — every verb lands here and honors --status.
   // supportedParams = ~0ULL: ftClient mocks any NGSI-LD endpoint and
@@ -865,6 +1155,12 @@ int main(int argC, char* argV[])
     corRestHttpsServerCredentialsSet(keyPem, certPem);
     KT_I("ftClient serving HTTPS on port %u", ftPort);
   }
+
+  //
+  // Bridges before the HTTP server: a transport that is up can deliver at once,
+  // and ftBridgeSampleIn only needs the dump, which exists from the start.
+  //
+  ftBridgesLoad();
 
   if (corRestInit(ftServices, ftServiceCount, ftPort, 2) != 0)
   {

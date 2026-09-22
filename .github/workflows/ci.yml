@@ -198,7 +198,7 @@ jobs:
     # is a commit. corLibs prints the tag to paste when it publishes.
     #
     container:
-      image: quay.io/seamware/coraine-ci:2026-08-24-814ad08
+      image: quay.io/seamware/coraine-ci:2026-09-22-f5a4eb4
 
     services:
       #
@@ -277,6 +277,25 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
+
+      #
+      # Does the DDS bridge still satisfy BridgeDriver.h?
+      #
+      # Seconds, and it needs no DDS at all: ddsRegister.cpp includes only the
+      # contract headers, so the file that fills in the BridgeDriver struct -
+      # and therefore the one that breaks the moment the contract changes -
+      # compiles on a runner with no eProsima stack anywhere.
+      #
+      # It runs FIRST because it names the failure precisely. The plugin's full
+      # build happens a few steps down as well now - the CI image carries the
+      # eProsima stack, so bootstrap.sh builds corDdsBridge like every other lib
+      # instead of turning itself off - but that build breaks on a moved
+      # BridgeDriver.h and on a moved Enabler API alike, and those are not the
+      # same problem. This step can only be the first of the two.
+      #
+      - name: Bridge contract check
+        working-directory: stack/corDdsBridge
+        run: make contract
 
       - name: Build and install coraine
         id: build

@@ -36,7 +36,7 @@ OUT="$(cd "$(dirname "$0")" && pwd)/vendor"
 # umbrella makefile builds every Cor-Lib, so a missing directory fails the image
 # build at `make -C corLibs di` rather than at the link. Which is how it was
 # found.
-LIBS=(corPlugin corHttp corRest corJsonld corNgsild corTest corLibs)
+LIBS=(corPlugin corBridge corDdsBridge corHttp corRest corJsonld corNgsild corTest corLibs)
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

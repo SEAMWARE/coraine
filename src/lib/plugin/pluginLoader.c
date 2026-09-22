@@ -16,6 +16,7 @@
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
 #include "troe/TroeDriver.h"                          // TroeDriver, TroeRegisterFunc, troe
 #include "plugin/ApiPlugin.h"                         // ApiPlugin, ApiRegisterFunc, apiPlugins
+#include "corBridge/BridgeDriver.h"                   // BridgeDriver, BridgeRegisterFunc, BRIDGES_MAX
 #include "plugin/pluginLoader.h"                      // Own interface
 
 
@@ -26,6 +27,15 @@
 //
 ApiPlugin  apiPlugins[API_PLUGINS_MAX];
 int        apiPluginCount = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridges / bridgeCount - global registry
+//
+BridgeDriver  bridges[BRIDGES_MAX];
+int           bridgeCount = 0;
 
 
 
@@ -161,5 +171,101 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
   registerFunc(&troe);
 
   KT_I("troe plugin loaded: %s", path);
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginLoadBridges - load bridge plugins from a comma-separated list
+//
+// Bridges are the transports over which the broker speaks to something that is
+// not an NGSI-LD client - a DDS topic, an MQTT broker. Like API plugins and
+// unlike the DB and TRoE drivers, ANY NUMBER may be active at once: a
+// deployment that bridges both DDS and MQTT loads both.
+//
+// This only loads the .so and lets it fill in its BridgeDriver. Bringing the
+// transport up is init()'s job, and that happens later, once the broker has
+// somewhere for an arriving sample to land.
+//
+int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize)
+{
+  if (commaList == NULL)
+    return 0;
+
+  // Work on a copy (strtok_r modifies the string)
+  char buf[1024];
+  strncpy(buf, commaList, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = 0;
+
+  char* saveptr = NULL;
+  char* token   = strtok_r(buf, ",", &saveptr);
+
+  while (token != NULL)
+  {
+    // Strip leading whitespace
+    while (*token == ' ')
+      token++;
+
+    if (*token == 0)
+    {
+      token = strtok_r(NULL, ",", &saveptr);
+      continue;
+    }
+
+    if (bridgeCount >= BRIDGES_MAX)
+    {
+      if (errorBuf != NULL)
+        snprintf(errorBuf, errorBufSize, "too many bridge plugins (max %d)", BRIDGES_MAX);
+      return -1;
+    }
+
+    char path[512];
+    corPluginResolve(corPluginBaseDir(), "bridge", NULL, token, path, sizeof(path));
+
+    char openErr[512];
+    BridgeRegisterFunc registerFunc = (BridgeRegisterFunc) corPluginOpen(path, "bridgeRegister", openErr, sizeof(openErr));
+    if (registerFunc == NULL)
+    {
+      //
+      // A bridge named on the command line is an assertion being made NOW, so a
+      // missing one is an error and the broker does not start. That is not in
+      // conflict with a STORED Bridge object naming a plugin that is absent -
+      // that is a record from the past, and it degrades to 'unavailable' rather
+      // than vetoing a boot.
+      //
+      if (errorBuf != NULL)
+      {
+        if (strchr(token, '/') == NULL)
+          snprintf(errorBuf, errorBufSize, "bridge plugin '%s' (%s): %s", token, path, openErr);
+        else
+          snprintf(errorBuf, errorBufSize, "bridge plugin '%s': %s", token, openErr);
+      }
+      return -1;
+    }
+
+    BridgeDriver* driverP = &bridges[bridgeCount];
+    memset(driverP, 0, sizeof(BridgeDriver));
+
+    registerFunc(driverP);
+    bridgeCount++;
+
+    //
+    // A mismatch is reported, not refused. The structs are append-only and the
+    // broker owns their allocation, so an older plugin has simply left the
+    // newer slots NULL - which is already how "not supported" is spelled.
+    // Refusing to load would turn a working deployment red over a capability it
+    // never asked for.
+    //
+    if (driverP->abiVersion != BRIDGE_ABI_VERSION)
+      KT_I("bridge plugin '%s' was built against bridge ABI %d, this broker speaks %d - newer entry points will be treated as unsupported",
+           (driverP->alias != NULL) ? driverP->alias : token, driverP->abiVersion, BRIDGE_ABI_VERSION);
+
+    KT_I("bridge plugin loaded: %s (alias: %s)", path, (driverP->alias != NULL) ? driverP->alias : token);
+
+    token = strtok_r(NULL, ",", &saveptr);
+  }
+
   return 0;
 }

@@ -45,4 +45,17 @@ extern int pluginLoadApi(const char* commaList, char* errorBuf, int errorBufSize
 //
 extern int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginLoadBridges - load bridge plugins from a comma-separated list
+//
+// Each name resolves to {baseDir}/bridge/{name}.so. Any number may be active.
+// Loading only fills in each plugin's BridgeDriver - the transport is brought
+// up later, by the driver's own init().
+// On failure, writes error detail to errorBuf (if not NULL).
+//
+extern int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize);
+
 #endif  // PLUGIN_PLUGINLOADER_H_

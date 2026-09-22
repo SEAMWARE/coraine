@@ -157,3 +157,24 @@ that expires turns a working `docker run` in someone's notes into a
 Whichever you pick, the broker can tell you what it is: `GET /version` reports
 its own version *and* the resolved commit of every library linked into it, which
 is most of the binary by volume.
+
+## The DDS bridge
+
+There is no `coraine-dds` image. There was one for a while, and the reason it
+existed was build time rather than size: the eProsima stack is a from-source
+build of Fast CDR, Fast DDS, ddspipe and the DDS Enabler, which is eight
+minutes nobody should spend on the way to an image.
+
+That build now happens in the **CI image** instead — once, deliberately, every
+few months — and the broker image copies the result out of `/opt/dds`. So the
+bridge ships in every `coraine`, costs about 21 MiB of libraries, and is loaded
+only when a deployment says `--bridges dds`.
+
+It was briefly 76 MB rather than 21 MiB, because `COPY --from=<stage>
+/usr/local/lib/libfastdds.so*` dereferences symlinks and wrote each library
+once per name. The nightly prints the image size for that reason.
+
+Running it needs two things the image cannot supply for itself — the topic
+mapping, which is the deployment's, and `ipc: host`, without which Fast DDS
+cannot reach a participant on the same machine over shared memory. Both are in
+`docker/docker-compose-dds.yml`.

@@ -223,7 +223,7 @@ etc/contextSourceExtras.json: FORCE
 
 # install_from <build-dir> — copy broker + plugins + etc out of a build tree
 define install_from
-	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(ETC_DIR)
+	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(ETC_DIR)
 	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/currentState/corDB/corDB.so     $(PLUGIN_DIR)/db/currentState/
@@ -231,6 +231,7 @@ define install_from
 	cp -p $(1)/src/plugins/temporal/corDB/corDB.so            $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
+	cp -p $(1)/src/plugins/bridge/loopback/loopback.so          $(PLUGIN_DIR)/bridge/
 	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/
 endef
 
@@ -467,11 +468,25 @@ cdi:        clean debug install_debug
 #
 DOCKER_TAG ?= coraine:local
 
+#
+# CI_IMAGE is where the eProsima DDS stack comes from - the CI image builds it
+# once, every few months, and the broker image copies it out of /opt/dds rather
+# than spending eight minutes compiling it again.
+#
+# EMPTY by default, so the pin is not restated here: docker/Dockerfile's own
+# ARG is the one place that names a CI image, and a second copy in this file is
+# how the two would come to disagree. Set it to build against another one:
+#
+#   make docker CI_IMAGE=coraine-ci:local
+#
+CI_IMAGE ?=
+
 docker:
 	@./docker/vendor-libs.sh
 	@docker build -f docker/Dockerfile \
 	  --build-arg GIT_SHA=$$(git rev-parse --short HEAD) \
 	  --build-arg BUILD_AT=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	  $(if $(CI_IMAGE),--build-arg CI_IMAGE=$(CI_IMAGE),) \
 	  -t $(DOCKER_TAG) .
 	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
 	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"

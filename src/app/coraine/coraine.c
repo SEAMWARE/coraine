@@ -79,7 +79,14 @@
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityDispatchPending
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
-#include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
+#include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
+#include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
+
+#include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
+#include "bridge/channelConfigLoad.h"             // channelConfigLoad
+#include "bridge/channelPrePopulate.h"            // channelPrePopulate
+#include "bridge/bridgeSampleIn.h"                // bridgeSampleIn
+#include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
@@ -165,6 +172,8 @@ unsigned short port         = 1026;
 char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
+char*          bridgeNames  = NULL;
+char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
@@ -195,6 +204,8 @@ static KArg kargV[] =
   { "--troe",               "-troe",        KaString, _vp &troeName,     KaOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--troeSync",           "-troeSync",    KaBool,   _vp &troeSync,    KaOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
+  { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+  { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
@@ -244,6 +255,11 @@ static void onCrash(int sigNo)
 
 // onSignal -
 //
+// bridgesClose is defined further down, beside bridgesInit and the rest of the
+// bridge seam; the signal handler is the one caller that comes before it.
+//
+static void bridgesClose(void);
+
 static void onSignal(int sigNo)
 {
   (void) sigNo;
@@ -260,6 +276,12 @@ static void onSignal(int sigNo)
   // ldPeriodicLoopStop clears the run flag and joins, so on return no other
   // thread can be inside the plugin.
   //
+  //
+  // Bridges before the periodic loop, and both before dbClose: a bridge thread
+  // is an inbound writer the broker does not own, and close() is what joins it.
+  //
+  bridgesClose();
+
   ldPeriodicLoopStop();
 
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
@@ -286,11 +308,12 @@ static bool pluginsLoad(int argC, char* argV[])
   //
   // Which plugins to load has to be known BEFORE kargsParse, because the plugins
   // contribute options of their own to the table that parse then resolves. So
-  // each of the three is taken from the command line by kargsPeek, falling back
+  // each of the four is taken from the command line by kargsPeek, falling back
   // to the variable behind the option.
   //
   // That fallback is not "the default" - kargsInit has already run (see main)
-  // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS into
+  // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS /
+  // CORAINE_BRIDGES into
   // these variables, so it is "the environment, or failing that the default".
   // kargsPeek itself reads argv and nothing else - it has no idea an
   // environment exists.
@@ -314,6 +337,10 @@ static bool pluginsLoad(int argC, char* argV[])
   char* apiPeek = kargsPeek(argC, argV, kargV, "--apiPlugins");
   if (apiPeek == NULL)
     apiPeek = apiNames;  // CORAINE_APIPLUGINS - kargsInit ran above and has already resolved it
+
+  char* bridgePeek = kargsPeek(argC, argV, kargV, "--bridges");
+  if (bridgePeek == NULL)
+    bridgePeek = bridgeNames;  // CORAINE_BRIDGES - and it needs this line for the same reason --apiPlugins did
 
   //
   // Load DB plugin (dlopen + dbRegister, no DB connection yet)
@@ -388,11 +415,51 @@ static bool pluginsLoad(int argC, char* argV[])
   }
 
   //
+  // Load bridge plugins (dlopen + bridgeRegister for each)
+  //
+  // Only the .so is loaded here. A bridge's init() - which is what actually
+  // brings a transport up, and after which samples start arriving on threads
+  // the broker does not own - runs much later, once there is somewhere for one
+  // to land.
+  //
+  if (bridgePeek != NULL)
+  {
+    char errBuf[1024];
+    if (pluginLoadBridges(bridgePeek, errBuf, sizeof(errBuf)) != 0)
+    {
+      fprintf(stderr, "%s\n", errBuf);
+      startupError = true;
+    }
+    else
+    {
+      for (int i = 0; i < bridgeCount; i++)
+      {
+        if (bridges[i].args != NULL)
+        {
+          static char bridgeSepText[BRIDGES_MAX][128];
+          if (bridges[i].alias != NULL)
+            snprintf(bridgeSepText[i], sizeof(bridgeSepText[i]), "Bridge (%s) plugin options:", bridges[i].alias);
+          else
+            snprintf(bridgeSepText[i], sizeof(bridgeSepText[i]), "Bridge plugin options:");
+
+          static KArg bridgeSepArgV[BRIDGES_MAX][2];
+          bridgeSepArgV[i][0] = (KArg) KARGS_SEPARATOR(NULL);
+          bridgeSepArgV[i][1] = (KArg) KARGS_END;
+          bridgeSepArgV[i][0].description = bridgeSepText[i];
+          kargsAdd(bridgeSepArgV[i]);
+          kargsAdd(bridges[i].args);
+        }
+      }
+    }
+  }
+
+  //
   // Add available-plugin info (shown in -u usage output)
   //
   corPluginArgUpdate("--database", "db/currentState");
   corPluginArgUpdate("--troe", "troe/temporal");
   corPluginArgUpdate("--apiPlugins", "api");
+  corPluginArgUpdate("--bridges", "bridge");
 
   // Add footer showing plugin directory
   static char footerText[256];
@@ -427,6 +494,176 @@ static void apiPluginsInit(void)
       if (p->init() != 0)
         KT_X(1, "init failed for API plugin '%s'", p->alias ? p->alias : "?");
     }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeLogFunction - the broker's side of BridgeBroker::logFunction
+//
+// ⚠ The file/line/function are the PLUGIN's, so they are passed to ktOut rather
+// than captured here. The KT_* macros record their own position, which inside a
+// log helper is this file, every time.
+//
+static void bridgeLogFunction(int severity, const char* fileName, int lineNo, const char* funcName, const char* msg)
+{
+  char sev;
+
+  switch (severity)
+  {
+  case BRIDGE_LOG_ERROR:    sev = 'E';  break;
+  case BRIDGE_LOG_WARNING:  sev = 'W';  break;
+  case BRIDGE_LOG_INFO:     sev = 'I';  break;
+  case BRIDGE_LOG_DEBUG:    sev = 'D';  break;
+  default:                  sev = 'T';  break;
+  }
+
+  ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeBroker - what every loaded bridge plugin is handed
+//
+static BridgeBroker bridgeBroker =
+{
+  BRIDGE_ABI_VERSION,
+  bridgeSampleIn,
+  bridgeLogFunction
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesInit - bring every loaded bridge's transport up
+//
+// Called LATE in startup, deliberately: the moment a transport is up, samples
+// arrive on threads of its own, and they must have somewhere to land. The DB is
+// open, the caches are loaded and the hooks are set by the time this runs.
+//
+// -----------------------------------------------------------------------------
+//
+// bridgeChannelsInit - build the Channels, and the entities they write into
+//
+// ⚠ RUNS WHILE THE STARTUP ALLOCATOR IS STILL ALIVE, and that is why it is not
+// part of bridgesInit below. The DB plugins allocate what they read through
+// corRest.kalloc, and the startup buffer is torn down - kaBufferReset with
+// reuse false, which frees every block and leaves allocList pointing at them -
+// once the caches are loaded. Touching the database after that point means
+// allocating from an arena that has been freed.
+//
+// Splitting it this way is also the right shape on its own terms: every
+// endpoint and every entity exists before a single transport is opened, so
+// there is no window in which arriving samples are dropped as unclaimed.
+//
+static void bridgeChannelsInit(void)
+{
+  if (bridgeCount == 0)
+    return;
+
+  if (channelCacheInit() != CHANNEL_OK)
+    KT_X(1, "unable to create the channel cache");
+
+  int channels = channelConfigLoad(bridgeConfig, (bridgeConfig != NULL), &tenant0);
+
+  if (channels > 0)
+  {
+    int attrs = channelPrePopulate(&tenant0);
+
+    if (attrs > 0)
+      KT_I("%d channel attribute%s created as placeholders", attrs, (attrs == 1) ? "" : "s");
+  }
+
+  if (channels > 0)
+    KT_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesInit - open the transports, and hand each Channel to its Bridge
+//
+// LAST in startup: from here on, samples arrive on threads of the transports'
+// own making, and everything one needs - the store, the caches, the hooks, and
+// the Channels themselves - is already up.
+//
+static void bridgesInit(void)
+{
+  if (bridgeCount == 0)
+    return;
+
+  for (int i = 0; i < bridgeCount; i++)
+  {
+    BridgeDriver* driverP = &bridges[i];
+
+    if (driverP->init == NULL)
+      continue;
+
+    if (driverP->init(bridgeConfig, &bridgeBroker) != BRIDGE_OK)
+      KT_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
+
+    KT_I("bridge '%s' up%s%s",
+         (driverP->alias != NULL) ? driverP->alias : "?",
+         (driverP->versionInfo != NULL) ? ": " : "",
+         (driverP->versionInfo != NULL) ? driverP->versionInfo() : "");
+  }
+
+  //
+  // And only now is each Channel handed to its Bridge. A driver cannot
+  // subscribe before its transport exists, so this cannot move above init() -
+  // which is the whole reason the cache is filled first and the wire opened
+  // last.
+  //
+  for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
+  {
+    if (channelP->status != ChannelStatusAvailable)
+    {
+      KT_I("channel '%s' is dormant: %s", channelP->endpoint,
+           (channelP->statusReason != NULL) ? channelP->statusReason : "?");
+      continue;
+    }
+
+    for (int i = 0; i < bridgeCount; i++)
+    {
+      if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, channelP->bridgeName) != 0))
+        continue;
+
+      if (bridges[i].channelAdd == NULL)
+        break;
+
+      int r = bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
+      if (r != BRIDGE_OK)
+        KT_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
+
+      break;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesClose - take every bridge's transport down
+//
+// ⭐ Must run BEFORE the DB plugin is closed, and for the same reason the
+// periodic loop is stopped first: a bridge thread inside sampleIn is on its way
+// into the store, and dbClose underneath it is a read of a pool that has
+// already been destroyed. A driver's close() does not return until its threads
+// have stopped, which is what makes the ordering sufficient.
+//
+static void bridgesClose(void)
+{
+  for (int i = 0; i < bridgeCount; i++)
+  {
+    if (bridges[i].close != NULL)
+      bridges[i].close();
   }
 }
 
@@ -1105,6 +1342,22 @@ int main(int argC, char* argV[])
   static char startupKallocBuf[16384];
   kaBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+
+  //
+  // "Now", for anything written before the first request arrives.
+  //
+  // corRest.requestStartTime is what stamps createdAt/modifiedAt, and the HTTP
+  // backends set it as each request lands. Nothing sets it before that, so
+  // every write the broker performs during startup - pre-populated channel
+  // entities today, whatever else later - is stamped zero and reads back as
+  // 1970 for the life of the deployment. Startup is a perfectly good moment to
+  // know what time it is.
+  //
+  {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    corRest.requestStartTime = (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
+  }
   //
   // --ha: from here on, what another broker instance writes reaches our caches
   // too. BEFORE the reload below, not after - see haInit.h: listening only after
@@ -1122,6 +1375,13 @@ int main(int argC, char* argV[])
   haApplyEnable();
 
   contextSourceExtrasLoad(contextSourceExtras);
+
+  //
+  // Channels and their placeholder entities, while corRest.kalloc is still a
+  // live arena - see bridgeChannelsInit. The transports themselves come up much
+  // later, once everything else is running.
+  //
+  bridgeChannelsInit();
 
   kaBufferReset(&corRest.kalloc, false);
 
@@ -1153,6 +1413,8 @@ int main(int argC, char* argV[])
   // defaults to 60s; 0 disables. The admin endpoint remains available
   // regardless.
   ldStatsFlushLoopStart(subStatsFlushInterval, subStatsFlushAll);
+
+  bridgesInit();
 
   //
   // Build combined service array (core + plugins) and start the REST server

@@ -47,6 +47,7 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrOut.h"                    // bridgeAttrOut
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrReplaced
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
@@ -391,6 +392,14 @@ bool putEntityAttr(void)
         if (r == DB_OK)
         {
           anySucceeded = true;
+
+          //
+          // If a Channel carries this attribute outbound, the new value goes on
+          // its wire. NULL for the entity: this path only fetches it when a
+          // subscription needs it, and bridgeAttrOut fetches its own only after
+          // a Channel has been found to want it.
+          //
+          bridgeAttrOut(tenantP, entityId, attrIri, NULL);
 
           KjNode* merged = NULL;
           if (tenantP->subCacheP != NULL)

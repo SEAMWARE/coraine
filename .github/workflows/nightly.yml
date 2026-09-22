@@ -19,10 +19,10 @@ on:
         type: boolean
         default: false
       only:
-        description: 'Run just one of the four - for trying a fix without paying for the other three'
+        description: 'Run just one of them - for trying a fix without paying for the rest'
         type: choice
         default: all
-        options: [all, coverage, valgrind, etsi, performance]
+        options: [all, coverage, valgrind, etsi, performance, dds]
 
 defaults:
   run:
@@ -712,3 +712,120 @@ jobs:
           git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" perf-history
         env:
           RUN_DATE: ${{ github.event.repository.updated_at }}
+
+  #
+  # The DDS bridge, built for real.
+  #
+  # There is no coraine-dds image any more. The eProsima stack lives in the CI
+  # image - built once, deliberately, every few months - and the ordinary
+  # broker image copies it out of /opt/dds, so DDS is simply part of coraine
+  # and costs a deployment that never asks for it about 21 MiB and nothing else.
+  # The plugin is loaded on --bridges dds and not otherwise.
+  #
+  # So what is left to find out here is what the per-PR checks structurally
+  # cannot. `make contract` runs on every PR and answers "does the plugin still
+  # satisfy BridgeDriver.h" against headers alone; this answers:
+  #
+  #   that corDdsBridge still COMPILES against the actual Enabler API rather
+  #   than against our memory of it - the callback signatures are eProsima's
+  #
+  #   that the image carrying it starts, with the bridge up
+  #
+  # Building the image does both at once, so that is what this job does.
+  #
+  dds:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "dds"]'), needs.gate.outputs.only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    name: dds bridge in the image
+
+    steps:
+      - name: Check out coraine
+        uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: Check out corLibs
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      #
+      # NOBUILD: clone the stack, do not build it. Nothing here needs built
+      # libraries - `make contract` compiles one file against headers, and the
+      # images build everything inside themselves. Building on the runner
+      # produced artifacts nothing would use and failed on a missing
+      # microhttpd.h, this job not being inside the CI image the others run in.
+      #
+      - name: Clone the dependency stack
+        working-directory: stack/corLibs
+        run: NOBUILD=1 ./bootstrap.sh
+
+      #
+      # The contract first. It costs seconds and it distinguishes "our seam
+      # moved" from "eProsima's API moved" - which are the same red job
+      # otherwise, and are not the same problem.
+      #
+      - name: Bridge contract check
+        working-directory: stack/corDdsBridge
+        run: make contract
+
+      #
+      # BASE: the script defaults to ~/git, which is where these live on a
+      # workstation. On the runner they are siblings of the corLibs checkout.
+      #
+      - name: Stage the vendored libs
+        working-directory: stack/coraine
+        env:
+          BASE: ${{ github.workspace }}/stack
+        run: |
+          ./docker/vendor-libs.sh
+          cat docker/vendor/MANIFEST.txt
+
+      #
+      # One image, and the bridge is in it. The CI image named by the
+      # Dockerfile's CI_IMAGE arg is where the eProsima stack comes from; the
+      # plugin is compiled here, against it.
+      #
+      - name: Build the coraine image
+        working-directory: stack/coraine
+        run: docker build -f docker/Dockerfile -t coraine:nightly .
+
+      #
+      # It has to start, and it has to have the bridge. An image that boots
+      # without loading a plugin it carries is the failure this catches.
+      #
+      - name: The image starts, with the bridge up
+        run: |
+          docker run -d --name ddsnight -p 1026:1026 coraine:nightly \
+                     --database corDB --bridges dds \
+                     --bridgeConfig /opt/seamware/etc/dds.json -v
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf "http://localhost:1026/ngsi-ld/v1/entities?type=T" || { docker logs ddsnight; exit 1; }
+          #
+          # The BROKER's line, not the plugin's. Both exist and both say the
+          # bridge is up, but they assert different things: ddsBridge.cpp prints
+          # "dds bridge up" from inside init(), while coraine.c prints
+          # "bridge 'dds' up" only after that init returned BRIDGE_OK and the
+          # driver is registered in the bridges[] table. The second is the
+          # stronger one, so it is the one grepped for. Both are I-severity,
+          # hence the -v above.
+          #
+          docker logs ddsnight 2>&1 | grep -q "bridge 'dds' up" || { docker logs ddsnight; echo "the bridge did not come up"; exit 1; }
+          docker logs ddsnight 2>&1 | tail -20
+          docker rm -f ddsnight
+
+      #
+      # What DDS costs the image, in the record, every night.
+      #
+      # It was 76 MB once, of which 55 was one library written three times by a
+      # globbed COPY that dereferenced its symlinks. A number nobody looks at
+      # is how that survived a review.
+      #
+      - name: What the image weighs
+        run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"

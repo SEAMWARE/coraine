@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "The DDS bridge's configuration. Two sections, read by two different things.",
+    "",
+    "dds.ddsmodule is the DDS Enabler's own - domain, QoS, threads, logging.",
+    "dds.ngsild is the broker's - which topic becomes which entity attribute.",
+    "",
+    "A topic must already exist in the DDS system. The broker is a participant",
+    "in that system, not the author of it: topics and types are compiled into",
+    "the applications on the domain, and a topic named here that nobody",
+    "publishes is simply a topic that never delivers."
+  ],
+
+  "dds": {
+    "ddsmodule": {
+      "dds": { "domain": 0 },
+      "specs": { "threads": 4, "logging": { "verbosity": "warning" } }
+    },
+
+    "ngsild": {
+      "typesDirectory": "/opt/seamware/etc/dds-types",
+
+      "topics": {
+        "rt/pose": {
+          "entityId":   "urn:ngsi-ld:Robot:1",
+          "entityType": "Robot",
+          "attribute":  "pose"
+        },
+        "rt/battery": {
+          "entityId":   "urn:ngsi-ld:Robot:1",
+          "entityType": "Robot",
+          "attribute":  "batteryLevel"
+        }
+      }
+    }
+  }
+}
