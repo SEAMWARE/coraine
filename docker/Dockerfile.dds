@@ -45,13 +45,6 @@ FROM ubuntu:24.04 AS ddsbuilder
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TZ=Etc/UTC
 
-#
-# Only the Enabler's branch is a knob here. Which Fast CDR, Fast DDS, ddspipe
-# and devutils go with it is stated by that branch's own ddsenabler.repos, and
-# pinning them separately would mean asserting a combination eProsima has not.
-#
-ARG DDSENABLER_BRANCH=main
-
 SHELL ["/bin/bash", "-c"]
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
@@ -68,19 +61,34 @@ RUN pip3 install --break-system-packages colcon-common-extensions colcon-mixin v
 # make up the stack - following it rather than listing them here means this
 # does not drift from what eProsima ships.
 #
+RUN mkdir -p /root/git
 WORKDIR /dds
 
 #
-# Only the repos FILE, fetched - not the repository it lives in.
+# ⭐ OUR pinned repos file, not the Enabler's.
 #
-# Cloning the Enabler here and then importing its repos into src/ puts the same
-# packages under two roots, and colcon crawls recursively: "Duplicate package
-# names not supported", which is how the first attempt failed.
+# eProsima's ddsenabler.repos pins BRANCHES - master for Fast-CDR and Fast-DDS,
+# main for dev-utils, DDS-Pipe and the Enabler. Importing it means building
+# whatever those branches held at that moment: two nightlies a week apart are
+# two different pieces of software, a green run says nothing about tomorrow's,
+# and a commit of eProsima's can redden this image with no change of ours,
+# looking exactly like our bug.
 #
-RUN curl -fsSL "https://raw.githubusercontent.com/eProsima/FIWARE-DDS-Enabler/${DDSENABLER_BRANCH}/ddsenabler.repos" \
-      -o ddsenabler.repos \
-    && mkdir src \
-    && vcs import src < ddsenabler.repos
+# corDdsBridge/ddsenabler-pinned.repos names versions instead - the ones the
+# bridge has been built and tested against. It arrives with the vendored repos
+# below.
+#
+COPY docker/vendor/ /tmp/vendor/
+RUN set -eux; \
+    test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
+    tar -xf /tmp/vendor/corBridge.tar    -C /root/git; \
+    tar -xf /tmp/vendor/corDdsBridge.tar -C /root/git; \
+    rm -rf /tmp/vendor
+
+RUN mkdir src \
+    && vcs import src < /root/git/corDdsBridge/ddsenabler-pinned.repos \
+    && echo "--- the stack being built:" \
+    && (cd src && for d in */; do printf "%-28s %s\n" "${d%/}" "$(git -C "$d" describe --tags --always 2>/dev/null)"; done)
 
 #
 # --merge-install puts everything under one install/lib and install/include
@@ -115,13 +123,6 @@ RUN test -f /usr/local/include/ddsenabler/DDSEnabler.hpp \
 # coraine's side - never its libraries.
 #
 WORKDIR /root/git
-COPY docker/vendor/ /tmp/vendor/
-RUN set -eux; \
-    test -f /tmp/vendor/MANIFEST.txt || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
-    tar -xf /tmp/vendor/corBridge.tar    -C /root/git; \
-    tar -xf /tmp/vendor/corDdsBridge.tar -C /root/git; \
-    rm -rf /tmp/vendor
-
 #
 # COR_BRIDGE_DDS=ON, not auto. In an image built for DDS a missing Enabler is an
 # error and not something to shrug at - auto's job is to let a developer without
