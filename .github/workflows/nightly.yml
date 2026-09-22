@@ -19,10 +19,10 @@ on:
         type: boolean
         default: false
       only:
-        description: 'Run just one of the four - for trying a fix without paying for the other three'
+        description: 'Run just one of them - for trying a fix without paying for the rest'
         type: choice
         default: all
-        options: [all, coverage, valgrind, etsi, performance]
+        options: [all, coverage, valgrind, etsi, performance, dds]
 
 defaults:
   run:
@@ -712,3 +712,92 @@ jobs:
           git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" perf-history
         env:
           RUN_DATE: ${{ github.event.repository.updated_at }}
+
+  #
+  # The DDS bridge, built for real.
+  #
+  # Nightly and not per-PR because the expensive part is unavoidable: Fast CDR,
+  # Fast DDS, ddspipe and the Enabler are built from source with colcon, which
+  # is twenty minutes nobody should spend on the way to a merge. The cheap half
+  # - does the plugin still satisfy BridgeDriver.h - already runs on every PR as
+  # `make contract`, and needs no DDS at all.
+  #
+  # What this adds is the half that check cannot reach:
+  #
+  #   that corDdsBridge still compiles against the ACTUAL Enabler API, rather
+  #   than against our memory of it - eProsima's main moves, and the callback
+  #   signatures are theirs
+  #
+  #   that the coraine-dds image builds, which is the only way to find out
+  #
+  # Building the image does both at once, so that is what this job does.
+  #
+  dds:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "dds"]'), needs.gate.outputs.only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    name: dds bridge + image
+
+    steps:
+      - name: Check out coraine
+        uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: Check out corLibs
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      - name: Clone the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+
+      #
+      # The contract first. It costs seconds and it distinguishes "our seam
+      # moved" from "eProsima's API moved" - which are the same red job
+      # otherwise, and are not the same problem.
+      #
+      - name: Bridge contract check
+        working-directory: stack/corDdsBridge
+        run: make contract
+
+      - name: Stage the vendored libs
+        working-directory: stack/coraine
+        run: ./docker/vendor-libs.sh
+
+      #
+      # The ordinary image first: coraine-dds is built FROM it, which is the
+      # point - it is the same broker plus one shared object.
+      #
+      - name: Build the coraine image
+        working-directory: stack/coraine
+        run: docker build -f docker/Dockerfile -t coraine:nightly .
+
+      - name: Build the coraine-dds image
+        working-directory: stack/coraine
+        run: docker build -f docker/Dockerfile.dds -t coraine-dds:nightly
+             --build-arg CORAINE_IMAGE=coraine:nightly .
+
+      #
+      # It has to start, and it has to have the bridge. An image that boots
+      # without loading its own reason for existing is the failure this catches.
+      #
+      - name: The image starts, with the bridge up
+        run: |
+          docker run -d --name ddsnight -p 1026:1026 coraine-dds:nightly \
+                     --database corDB --bridges dds \
+                     --bridgeConfig /opt/seamware/etc/dds.json -v
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf "http://localhost:1026/ngsi-ld/v1/entities?type=T" || { docker logs ddsnight; exit 1; }
+          docker logs ddsnight 2>&1 | grep -q "dds bridge up" || { docker logs ddsnight; echo "the bridge did not come up"; exit 1; }
+          docker logs ddsnight 2>&1 | tail -20
+          docker rm -f ddsnight
+
+      - name: Both image sizes, for the record
+        run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"
