@@ -5,6 +5,13 @@
 #
 # Copyright 2026 Seamware
 #
+#
+# ⚠ The plugin lists in this output are DISCOVERED, not declared: corPluginArgUpdate
+# scans the plugin directory and puts what it finds into the option's description.
+# So --bridges reads "loopback" on a machine with only the bundled bridge and
+# "dds|loopback" on one that has also installed the DDS plugin - which is not a
+# difference in the broker, and not something a test may pin. Hence the pattern.
+#
 --NAME--
 CLI usage output (-u and -U with various plugin combinations)
 
@@ -74,7 +81,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
-                [--bridges/-br <loopback>]
+                [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
@@ -114,7 +121,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
-                [--bridges/-br <loopback>]
+                [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
@@ -165,7 +172,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
-                [--bridges/-br <loopback>]
+                [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]

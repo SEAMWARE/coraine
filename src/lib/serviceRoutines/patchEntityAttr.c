@@ -47,6 +47,7 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
+#include "bridge/bridgeAttrOut.h"                    // bridgeAttrOut
 
 #include "troe/TroeDriver.h"                         // TroeEvent
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
@@ -428,6 +429,13 @@ bool patchEntityAttr(void)
         }
 
         anySucceeded = true;
+
+        //
+        // If a Channel carries this attribute outbound, the new value goes on
+        // its wire. Costs two integer loads when no bridge is loaded, which is
+        // every deployment that does not use one.
+        //
+        bridgeAttrOut(tenantP, entityId, attrIri, targetEntity);
 
         // targetEntity is the post-merge tree — feed notifications + TRoE directly.
         if (tenantP->subCacheP != NULL)
