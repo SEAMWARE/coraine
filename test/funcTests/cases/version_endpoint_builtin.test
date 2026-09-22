@@ -60,6 +60,7 @@ Content-Length: REGEX([0-9]+)
 {
   "product": "coraine",
   "stack": {
+    "corBridge": "REGEX([0-9a-f]{40})",
     "corHttp": "REGEX([0-9a-f]{40})",
     "corJsonld": "REGEX([0-9a-f]{40})",
     "corNgsild": "REGEX([0-9a-f]{40})",
