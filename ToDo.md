@@ -48,6 +48,74 @@ DDS is the bus and HTTP is the foreign body.
   — this is about wiring it into the broker as a transport rather than a
   separate bridge process.
 
+- **`-duc`, a default user context.** DDS people know nothing about JSON-LD, so
+  the ARISE decision is that the mapping tool Engineering is building emits a
+  **@context alongside the config file**, and the config file's short names
+  (`attribute`, `entityType`) are expanded with it. coraine has no such option:
+  `channelConfigLoad.c` expands with the core context, which is correct for a
+  broker that has no default user context and wrong for a deployment that was
+  given one.
+
+  ⭐ **How it has to work, and it is one rule, not a list of places** (KZ,
+  2026-09-22):
+
+  > For ANY expansion, if there is no user-supplied context, the default user
+  > context is used. With `-duc` set, the broker **NEVER** expands with only
+  > the core context.
+
+  Which includes every expansion that has **no incoming request behind it** -
+  reading the bridge config file at startup, an arriving sample, a cache being
+  rebuilt. There is no "user-supplied context" there, so the duc IS the user
+  context.
+
+  So the implementation is an accessor, not a sweep: ONE function answering
+  "the context to expand with when the caller was given none" - duc if there is
+  one, core otherwise - and every current `corLdCoreContext()` used as *the
+  context* (rather than as *the core context specifically*) becomes a call to
+  it. `ldContextResolve` already is that fallback for the request path; the
+  startup and bridge paths have no equivalent today.
+
+  ⚠️ **orion-ld gets this wrong and it is worth knowing why**: its substitution
+  lives in ONE place, `mhdConnectionTreat.cpp:1406`, the HTTP request path.
+  `ddsNotification` runs `orionldStateInit(NULL)` -> core context and never
+  consults the duc, so with a duc configured the same short name expands to the
+  duc's IRI over HTTP and to the @vocab IRI on its topic: **two attributes on
+  one entity, and nothing says so.** That is the shape of bug the accessor
+  above exists to prevent - the fallback is a property of expansion, not of a
+  transport.
+
+  ⚠️ **Whether it is MANDATORY for `--bridges dds`** is open. The config file
+  already is - the broker refuses to start without it, deliberately. If the
+  context is half of what the tool emits, the same argument says a DDS
+  deployment without one is misconfigured rather than defaulted. KZ is
+  consulting the ARISE project lead (2026-09-22).
+
+  ⛔ One exception, and it needs stating because the rule above is absolute:
+  the **catch-all's** attribute names (§ 3.6a of `doc/bridge-channels.md`) are
+  deliberately NOT expanded at all - an unclaimed endpoint is a foreign
+  system's name being quoted, not a term, and expanding it both validates it
+  (`rt/chatter` fails the § 4.6.2 name grammar on the slash) and looks it up (a
+  topic called `location` would land on the core GeoProperty term). It is put
+  under `@vocab` directly - and *that* @vocab should become the duc's when
+  there is one, since a user context may define its own.
+
+- **`--ddsFirst` — publish BEFORE storing, and fail the request if the publish
+  fails.** Off by default, and it stays off: eProsima's position is that the DDS
+  side goes first and an NGSI-LD request whose DDS publish failed has failed.
+  That is the right order for a broker that exists to serve a bus. It is not
+  this one - coraine is **NGSI-LD first and DDS is a nice-to-have**, so a
+  transport that is down must not turn a valid PATCH into an error. Worth having
+  as a switch for the deployments that see it the other way round.
+
+  ⚠️ It is a bigger change than a flag. Today the publish happens after a
+  successful store, and the store is what decides the response: making the
+  publish decide it means the bridge has to be reached *before* the write, its
+  failure has to become a ProblemDetails, and - the hard half - a publish that
+  succeeded when the store then fails has to be undone, which DDS cannot do. So
+  the honest version of the flag is probably "publish first, and refuse the
+  request if it fails", with the store's own failure still leaving a sample on
+  the wire. Not a priority (KZ, 2026-09-22): *"perhaps some day"*.
+
 ## 3. OPC UA
 
 The same shape as DDS, for the other half of the factory floor. An OPC UA
@@ -92,15 +160,61 @@ re-reads the document before applying it. haaux has neither: the instance that m
 the change pushes the change itself. **Single-digit milliseconds** is the target.
 
 Settled already: brokers **register at startup and the connection is
-maintained**; **no polling, interrupt driven**; its own repository, same
-libraries; REST endpoints `/subscriptions`, `/registrations`, `/contexts`,
-`/admin`.
+maintained**; **no polling, interrupt driven**; REST endpoints
+`/subscriptions`, `/registrations`, `/contexts`, `/admin`.
+
+⭐ **It is a helper executable OF THE BROKER, and its notes live here** (KZ,
+2026-09-22) - not a project of its own with a repository and a README of its
+own. There was a `~/git/haaux` holding one; it is superseded by this section.
+
+⏳ **Not this year, and not next in line either.** haaux is not needed until
+**corDB is a real persisting database** (item 15), because until then the
+deployment that has no HA at all is the in-memory one, and an in-memory store
+losing its state on restart is the larger half of that problem. corDB
+persistence should land this year; haaux is not a priority.
 
 The seam is in place: `--high-availability <ip:port>` parses and refuses with *"the haaux
 server, which is not implemented yet"* (`src/lib/ha/haInit.c`), and `HaEvent::apiP`
 already carries the API representation so a payload-carrying channel needs no
 database hop — `haEventApply()` refuses a non-NULL `apiP` on purpose, so the day
 it arrives is a decision and not an accident. Blocked on the binary API (item 6).
+
+### The fourth cache: bridge Channels
+
+The three caches haaux was designed around — subscriptions, registrations,
+@contexts — are all the same kind of thing: state one instance learned that the
+others need to know. The **Channel cache** is a fourth, it belongs here, and it
+is **not** the same kind of thing.
+
+⭐ **A Channel is a WRITER, not a fact.** A subscription on five instances means
+five instances might notify, which is the known HA problem and is solved by
+deciding who owns the trigger. A Channel on five instances means five instances
+**publish onto a shared bus**. A PATCH landing on any one of them puts a sample
+on the topic — and an actuator on the other end is not receiving a duplicate
+notification, it is being commanded five times. Inbound is the harmless mirror:
+all five hear the same sample and store the same value.
+
+Two questions, and they are not one question:
+
+- **The cache** — every instance must agree on what the Channels ARE. Ordinary
+  HA sync, carried like the rest: the API representation of the Channel
+  (bridge, endpoint, kind, direction, retention, tenant, entityId, entityType,
+  attrName) in `HaEvent::apiP`, never a database model.
+- ⭐ **The carrier** — which instance's bridge actually publishes. **Open.**
+  "All of them" is wrong for an actuator; "one of them" needs an owner, a
+  failover and a way to say so. Same shape as the notification-owner question
+  and will probably want the same answer.
+
+⚠️ **`--high-availability mongo` cannot carry Channels at all.** Its reach is
+defined by what is IN mongo: it watches collections and re-reads documents. A
+Channel is built at startup from the **config file**, held in RAM, and written
+to no collection — so the change stream has nothing to see, and two instances
+started from two different config files disagree silently and forever. That is
+not a bug in the mongo channel; it is what a cache outside the database means.
+
+While Channels stay config-file-only — a deliberate decision, and good enough
+through ARISE — the answer is the blunt one: **give every instance the same
+config file**, and treat a difference as a misconfiguration nothing reports.
 
 ## 6. Communication protocols as plugins
 
