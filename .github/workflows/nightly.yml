@@ -807,7 +807,16 @@ jobs:
             sleep 1
           done
           curl -sf "http://localhost:1026/ngsi-ld/v1/entities?type=T" || { docker logs ddsnight; exit 1; }
-          docker logs ddsnight 2>&1 | grep -q "dds bridge up" || { docker logs ddsnight; echo "the bridge did not come up"; exit 1; }
+          #
+          # The BROKER's line, not the plugin's. Both exist and both say the
+          # bridge is up, but they assert different things: ddsBridge.cpp prints
+          # "dds bridge up" from inside init(), while coraine.c prints
+          # "bridge 'dds' up" only after that init returned BRIDGE_OK and the
+          # driver is registered in the bridges[] table. The second is the
+          # stronger one, so it is the one grepped for. Both are I-severity,
+          # hence the -v above.
+          #
+          docker logs ddsnight 2>&1 | grep -q "bridge 'dds' up" || { docker logs ddsnight; echo "the bridge did not come up"; exit 1; }
           docker logs ddsnight 2>&1 | tail -20
           docker rm -f ddsnight
 

@@ -206,6 +206,34 @@ COPY --from=builder /usr/local/lib/libbson* /usr/local/lib/
 #
 COPY --from=ddsstack /opt/dds/lib/ /usr/local/lib/
 
+#
+# The bridge's CONFIG FILE, and the directory it names.
+#
+# The broker exits when --bridgeConfig names a file it cannot read, which is
+# right - a bridge that silently carries no topics is worse than one that does
+# not start - but it means the image has to ship something at the path the
+# documentation and docker-compose-dds.yml both use. This is that something:
+# domain 0, no topics. It joins the domain and carries nothing, which is the
+# honest default, and a deployment mounts its own file straight over it:
+#
+#     volumes: [ ./dds.json:/opt/seamware/etc/dds.json:ro ]
+#
+# so nothing on the command line changes and the same image serves every
+# deployment.
+#
+# The types directory is the broker's own and is written to: types are
+# announced by the participants on the domain and kept, so that a restarted
+# broker is not blind until each of them happens to announce itself again.
+#
+# ⚠ No VOLUME on it, unlike the coraine-dds image this replaced. A VOLUME here
+# would hand an anonymous volume to every container started from this image,
+# including the overwhelming majority that never pass --bridges dds. A
+# deployment that wants the types to survive a restart names a volume itself,
+# which is what docker-compose-dds.yml does.
+#
+COPY etc/dds-default.json /opt/seamware/etc/dds.json
+RUN mkdir -p /opt/seamware/etc/dds-types
+
 RUN ldconfig \
     && if ldd /opt/seamware/plugins/bridge/dds.so | grep "not found"; then \
          echo "dds.so has unresolved libraries - see above"; \
