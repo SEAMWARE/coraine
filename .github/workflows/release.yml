@@ -184,7 +184,7 @@ jobs:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
           owner: SEAMWARE
-          repositories: corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corTest,corLibs
+          repositories: corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corTest,corLibs
 
       #
       # Tag each Cor-Lib at the commit this release was actually built from.
@@ -199,6 +199,19 @@ jobs:
       # which is what a reproduction of this build would need. corHttp is in both
       # lists on purpose: a builtin build puts it in the manifest, and tagRepo is
       # idempotent, so the second attempt finds the tag and leaves it alone.
+      #
+      # ⭐ corDdsBridge is in that second list for a different reason, and it is
+      # the one that made this worth fixing. It is not linked either - it is a
+      # PLUGIN, dlopen'd, so stackManifest.sh rightly leaves it out of a
+      # manifest that answers "what is linked into this binary". But unlike
+      # corTest and corLibs its build output SHIPS: dds.so is in the image,
+      # built by the umbrella from a repository that is not this one. Every
+      # other artifact in the image is traceable - the linked libs through the
+      # manifest and their tags, the other plugins because they are built from
+      # coraine's own tree and carry coraine's commit. Without this line the one
+      # thing whose provenance is not implied is the only one with none, and
+      # "which commit built the dds.so in this release" is answerable only by
+      # digging the sha out of a build log.
       #
       - name: Tag the Cor-Libs at the released commits
         env:
@@ -234,7 +247,7 @@ jobs:
           done < /tmp/stack.txt
 
           # and the two that are not linked but are part of reproducing the build
-          for lib in corHttp corTest corLibs; do
+          for lib in corHttp corTest corLibs corDdsBridge; do
             tagRepo "$lib" "$(git -C "$GITHUB_WORKSPACE/stack/$lib" rev-parse HEAD 2>/dev/null)"
           done
 
