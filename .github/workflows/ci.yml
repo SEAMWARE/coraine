@@ -278,6 +278,26 @@ jobs:
         working-directory: stack/corLibs
         run: ./bootstrap.sh
 
+      #
+      # Does the DDS bridge still satisfy BridgeDriver.h?
+      #
+      # Seconds, and it needs no DDS at all: ddsRegister.cpp includes only the
+      # contract headers, so the file that fills in the BridgeDriver struct -
+      # and therefore the one that breaks the moment the contract changes -
+      # compiles on a runner with no eProsima stack anywhere.
+      #
+      # Without this the plugin rots invisibly. A change to BridgeDriver.h would
+      # build clean here, skip silently in corDdsBridge (no Enabler on a runner,
+      # so its build turns itself off) and be discovered by hand, later, by
+      # whoever next needed DDS.
+      #
+      # The plugin's FULL build, and the coraine-dds image, need the Enabler and
+      # belong in the nightly - not on the way to a merge.
+      #
+      - name: Bridge contract check
+        working-directory: stack/corDdsBridge
+        run: make contract
+
       - name: Build and install coraine
         id: build
         working-directory: stack/coraine
