@@ -174,13 +174,33 @@ COPY --from=ddsbuilder /root/git/corDdsBridge/dds.so   /opt/seamware/plugins/bri
 
 #
 # libyaml-cpp, tinyxml2 and foonathan_memory come from the stack above rather
-# than from apt: the versions have to match what Fast DDS was built against.
+# than from apt, and all three of them do.
+#
+# The two that were apt-installed here went red on the day the rest of it
+# worked: "E: Unable to locate package libtinyxml2-10". The builder is
+# ubuntu:24.04 and the broker image is ubuntu:26.04, and the soname is in the
+# package NAME - so the name that is right in the stage above is not a package
+# in the stage below. Pointing it at whatever 26.04 calls its tinyxml2 would be
+# worse than the error: Fast DDS was linked against the 24.04 soname, and a
+# different one either fails to load or is a silent ABI gamble.
+#
+# The stage that built against them has them. They come from there, which is
+# what the line above always said.
 #
 COPY --from=ddsbuilder /usr/local/lib/libfoonathan_memory*.so* /usr/local/lib/
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      libyaml-cpp0.8 libtinyxml2-10 \
-    && rm -rf /var/lib/apt/lists/* \
-    && ldconfig
+COPY --from=ddsbuilder /usr/lib/*/libyaml-cpp.so.*            /usr/local/lib/
+COPY --from=ddsbuilder /usr/lib/*/libtinyxml2.so.*            /usr/local/lib/
+
+#
+# And say so: an unresolved library in dds.so is otherwise found by a
+# deployment, as a bridge that does not load.
+#
+RUN ldconfig \
+    && if ldd /opt/seamware/plugins/bridge/dds.so | grep "not found"; then \
+         echo "dds.so has unresolved libraries - see above"; \
+         exit 1; \
+       fi \
+    && echo "dds.so resolves every library it needs"
 
 #
 # A default configuration, so the image starts.
