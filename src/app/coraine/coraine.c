@@ -79,7 +79,10 @@
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityDispatchPending
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
-#include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi
+#include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
+#include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
+
+#include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
@@ -165,6 +168,7 @@ unsigned short port         = 1026;
 char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
+char*          bridgeNames  = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
@@ -195,6 +199,7 @@ static KArg kargV[] =
   { "--troe",               "-troe",        KaString, _vp &troeName,     KaOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--troeSync",           "-troeSync",    KaBool,   _vp &troeSync,    KaOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
+  { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
@@ -244,6 +249,11 @@ static void onCrash(int sigNo)
 
 // onSignal -
 //
+// bridgesClose is defined further down, beside bridgesInit and the rest of the
+// bridge seam; the signal handler is the one caller that comes before it.
+//
+static void bridgesClose(void);
+
 static void onSignal(int sigNo)
 {
   (void) sigNo;
@@ -260,6 +270,12 @@ static void onSignal(int sigNo)
   // ldPeriodicLoopStop clears the run flag and joins, so on return no other
   // thread can be inside the plugin.
   //
+  //
+  // Bridges before the periodic loop, and both before dbClose: a bridge thread
+  // is an inbound writer the broker does not own, and close() is what joins it.
+  //
+  bridgesClose();
+
   ldPeriodicLoopStop();
 
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
@@ -286,11 +302,12 @@ static bool pluginsLoad(int argC, char* argV[])
   //
   // Which plugins to load has to be known BEFORE kargsParse, because the plugins
   // contribute options of their own to the table that parse then resolves. So
-  // each of the three is taken from the command line by kargsPeek, falling back
+  // each of the four is taken from the command line by kargsPeek, falling back
   // to the variable behind the option.
   //
   // That fallback is not "the default" - kargsInit has already run (see main)
-  // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS into
+  // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS /
+  // CORAINE_BRIDGES into
   // these variables, so it is "the environment, or failing that the default".
   // kargsPeek itself reads argv and nothing else - it has no idea an
   // environment exists.
@@ -314,6 +331,10 @@ static bool pluginsLoad(int argC, char* argV[])
   char* apiPeek = kargsPeek(argC, argV, kargV, "--apiPlugins");
   if (apiPeek == NULL)
     apiPeek = apiNames;  // CORAINE_APIPLUGINS - kargsInit ran above and has already resolved it
+
+  char* bridgePeek = kargsPeek(argC, argV, kargV, "--bridges");
+  if (bridgePeek == NULL)
+    bridgePeek = bridgeNames;  // CORAINE_BRIDGES - and it needs this line for the same reason --apiPlugins did
 
   //
   // Load DB plugin (dlopen + dbRegister, no DB connection yet)
@@ -388,11 +409,51 @@ static bool pluginsLoad(int argC, char* argV[])
   }
 
   //
+  // Load bridge plugins (dlopen + bridgeRegister for each)
+  //
+  // Only the .so is loaded here. A bridge's init() - which is what actually
+  // brings a transport up, and after which samples start arriving on threads
+  // the broker does not own - runs much later, once there is somewhere for one
+  // to land.
+  //
+  if (bridgePeek != NULL)
+  {
+    char errBuf[1024];
+    if (pluginLoadBridges(bridgePeek, errBuf, sizeof(errBuf)) != 0)
+    {
+      fprintf(stderr, "%s\n", errBuf);
+      startupError = true;
+    }
+    else
+    {
+      for (int i = 0; i < bridgeCount; i++)
+      {
+        if (bridges[i].args != NULL)
+        {
+          static char bridgeSepText[BRIDGES_MAX][128];
+          if (bridges[i].alias != NULL)
+            snprintf(bridgeSepText[i], sizeof(bridgeSepText[i]), "Bridge (%s) plugin options:", bridges[i].alias);
+          else
+            snprintf(bridgeSepText[i], sizeof(bridgeSepText[i]), "Bridge plugin options:");
+
+          static KArg bridgeSepArgV[BRIDGES_MAX][2];
+          bridgeSepArgV[i][0] = (KArg) KARGS_SEPARATOR(NULL);
+          bridgeSepArgV[i][1] = (KArg) KARGS_END;
+          bridgeSepArgV[i][0].description = bridgeSepText[i];
+          kargsAdd(bridgeSepArgV[i]);
+          kargsAdd(bridges[i].args);
+        }
+      }
+    }
+  }
+
+  //
   // Add available-plugin info (shown in -u usage output)
   //
   corPluginArgUpdate("--database", "db/currentState");
   corPluginArgUpdate("--troe", "troe/temporal");
   corPluginArgUpdate("--apiPlugins", "api");
+  corPluginArgUpdate("--bridges", "bridge");
 
   // Add footer showing plugin directory
   static char footerText[256];
@@ -427,6 +488,121 @@ static void apiPluginsInit(void)
       if (p->init() != 0)
         KT_X(1, "init failed for API plugin '%s'", p->alias ? p->alias : "?");
     }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeLogFunction - the broker's side of BridgeBroker::logFunction
+//
+// ⚠ The file/line/function are the PLUGIN's, so they are passed to ktOut rather
+// than captured here. The KT_* macros record their own position, which inside a
+// log helper is this file, every time.
+//
+static void bridgeLogFunction(int severity, const char* fileName, int lineNo, const char* funcName, const char* msg)
+{
+  char sev;
+
+  switch (severity)
+  {
+  case BRIDGE_LOG_ERROR:    sev = 'E';  break;
+  case BRIDGE_LOG_WARNING:  sev = 'W';  break;
+  case BRIDGE_LOG_INFO:     sev = 'I';  break;
+  case BRIDGE_LOG_DEBUG:    sev = 'D';  break;
+  default:                  sev = 'T';  break;
+  }
+
+  ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSampleIn - the broker's side of BridgeBroker::sampleIn
+//
+// ⚠⚠ CALLED FROM A PLUGIN THREAD - a DDS reader, an MQTT network loop. The
+// broker did not create this thread and its thread-locals are not initialised.
+// Everything that makes the call safe belongs HERE, on the broker's side of the
+// seam, and NOT in the plugin: per-request state, then the tenant lock, then
+// the write.
+//
+// Until the Channel registry exists there is nothing to resolve an endpoint to,
+// so this answers BRIDGE_NOT_FOUND - which is the ordinary answer for an
+// endpoint no Channel claims, and not an error.
+//
+static int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
+{
+  (void) json;
+  (void) publishTime;
+
+  KT_T(KtBridge, "sample on '%s' from bridge '%s' - no Channel claims it", endpoint, bridgeName);
+
+  return BRIDGE_NOT_FOUND;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeBroker - what every loaded bridge plugin is handed
+//
+static BridgeBroker bridgeBroker =
+{
+  BRIDGE_ABI_VERSION,
+  bridgeSampleIn,
+  bridgeLogFunction
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesInit - bring every loaded bridge's transport up
+//
+// Called LATE in startup, deliberately: the moment a transport is up, samples
+// arrive on threads of its own, and they must have somewhere to land. The DB is
+// open, the caches are loaded and the hooks are set by the time this runs.
+//
+static void bridgesInit(void)
+{
+  for (int i = 0; i < bridgeCount; i++)
+  {
+    BridgeDriver* driverP = &bridges[i];
+
+    if (driverP->init == NULL)
+      continue;
+
+    if (driverP->init(NULL, &bridgeBroker) != BRIDGE_OK)
+      KT_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
+
+    KT_I("bridge '%s' up%s%s",
+         (driverP->alias != NULL) ? driverP->alias : "?",
+         (driverP->versionInfo != NULL) ? ": " : "",
+         (driverP->versionInfo != NULL) ? driverP->versionInfo() : "");
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgesClose - take every bridge's transport down
+//
+// ⭐ Must run BEFORE the DB plugin is closed, and for the same reason the
+// periodic loop is stopped first: a bridge thread inside sampleIn is on its way
+// into the store, and dbClose underneath it is a read of a pool that has
+// already been destroyed. A driver's close() does not return until its threads
+// have stopped, which is what makes the ordering sufficient.
+//
+static void bridgesClose(void)
+{
+  for (int i = 0; i < bridgeCount; i++)
+  {
+    if (bridges[i].close != NULL)
+      bridges[i].close();
   }
 }
 
@@ -1153,6 +1329,13 @@ int main(int argC, char* argV[])
   // defaults to 60s; 0 disables. The admin endpoint remains available
   // regardless.
   ldStatsFlushLoopStart(subStatsFlushInterval, subStatsFlushAll);
+
+  //
+  // Bridges last: from here on, samples arrive on threads of the transports'
+  // own making, and everything one needs - the store, the caches, the hooks -
+  // is up.
+  //
+  bridgesInit();
 
   //
   // Build combined service array (core + plugins) and start the REST server

@@ -26,7 +26,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SIBLINGS=${SIBLING_DIR:-$(dirname "$HERE")}
 MANIFEST="$HERE/docker/vendor/MANIFEST.txt"
 
-LIBS="kbase kalloc khash kjson kargs ktrace kprom corRest corNgsild corJsonld corPlugin"
+LIBS="kbase kalloc khash kjson kargs ktrace kprom corRest corNgsild corJsonld corPlugin corBridge"
 
 #
 # corHttp only when it is the HTTP server in use. This file answers "what is

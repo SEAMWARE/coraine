@@ -129,6 +129,7 @@ set(COR_STATIC_LIBS
   ${COR_LIBS_DIR}/corNgsild/libcorNgsild.a
   ${COR_LIBS_DIR}/corJsonld/libcorJsonld.a
   ${COR_LIBS_DIR}/corPlugin/libcorPlugin.a
+  ${COR_LIBS_DIR}/corBridge/libcorBridge.a
   ${COR_LIBS_DIR}/kargs/libkargs.a
   ${COR_LIBS_DIR}/ktrace/libktrace.a
   ${COR_LIBS_DIR}/kprom/libkprom.a
@@ -233,6 +234,14 @@ endif()
 if (COR_FEATURE_ADMIN_API)
   ADD_SUBDIRECTORY(src/plugins/api/admin)
 endif()
+
+#
+# The loopback bridge. Not a transport - it hands back what it is given, from a
+# thread of its own, which is the one property of a real bridge the broker has
+# to survive. It is what lets the bridge seam be tested with no transport
+# library present, and it is the reference a new bridge is written against.
+#
+ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
 
 ADD_SUBDIRECTORY(src/app/coraine)
 ADD_SUBDIRECTORY(test)
