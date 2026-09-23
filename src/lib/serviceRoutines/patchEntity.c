@@ -35,6 +35,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
+#include "bridge/bridgeServiceSync.h"                 // bridgeSyncFragment, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 
@@ -384,9 +385,20 @@ bool patchEntity(void)
   bool localOp = inputHadAttrs ? hasNonKeywordAttr(fragment) : true;
   int  localR  = DB_NOT_FOUND;
 
+  BridgeSyncDone syncDone = { { NULL }, 0 };
+
   if (localOp)
   {
     ldApiEntityToDbModel(fragment, &corRest.kalloc, 0);
+
+    //
+    // ddsSync: a service this fragment writes is invoked NOW, before anything
+    // is stored, and waited for - so that its reply is written with the value,
+    // or, if it never comes, nothing is written at all. A no-op unless the
+    // request asked for it. See bridgeServiceSync.h.
+    //
+    if (bridgeSyncFragment(tenantP, entityId, fragment, &syncDone) == false)
+      return true;  // ldError already set - nothing has been written
 
     //
     // Merge in the broker: fetch the current entity, deep-merge the fragment
@@ -431,7 +443,7 @@ bool patchEntity(void)
       anySucceeded = true;
 
       // Every attribute the merge changed goes to whichever Channel carries it.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
 
       // mergedEntity is the post-merge tree — feed notifications + TRoE directly.
       if (tenantP->subCacheP != NULL)

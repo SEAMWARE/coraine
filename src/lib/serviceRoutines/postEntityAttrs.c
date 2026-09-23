@@ -508,7 +508,7 @@ bool postEntityAttrs(void)
 
       // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
       // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, NULL);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);

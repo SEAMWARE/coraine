@@ -25,6 +25,8 @@
 #include <stdlib.h>                                   // malloc, free
 #include <string.h>                                   // strcmp, strdup, memset
 #include <unistd.h>                                   // usleep
+#include <stdint.h>                                   // uint64_t, int64_t
+#include <time.h>                                     // clock_gettime
 
 #include "ktrace/kTrace.h"                            // KT_E
 
@@ -79,6 +81,8 @@ typedef struct LoopbackSample
   char*       endpoint;
   char*       json;
   const char* subAttrName;                            // NULL for a topic's sample; the reply envelope for a service
+  uint64_t    token;                                  // the broker's, for a reply somebody waits for; 0 otherwise
+  int64_t     dueMs;                                  // not delivered before this (monotonic ms) - see replyDelayMs
 } LoopbackSample;
 
 
@@ -106,6 +110,61 @@ static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // -----------------------------------------------------------------------------
 //
+// loopbackNowMs - a monotonic clock, in milliseconds
+//
+static int64_t loopbackNowMs(void)
+{
+  struct timespec ts;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Reply delays - "replyDelayMs": { "<endpoint>": <ms> } in the bridge config
+//
+// How late the loopback answers a service, per endpoint, and -1 for never.
+//
+// ⭐ A TRANSPORT THAT ALWAYS ANSWERS AT ONCE CANNOT TEST A REQUEST THAT WAITS.
+// A request that waits for its reply (ddsSync) has two outcomes a test must be
+// able to produce on purpose: no answer at all, which has to end in a timeout
+// rather than a hang, and an answer that arrives after the requester gave up,
+// which must not be written anywhere. A real server produces both by being
+// slow or gone; the loopback has to be told to.
+//
+typedef struct LoopbackReplyDelay
+{
+  char*  endpoint;
+  int    ms;                                          // -1: never answer
+} LoopbackReplyDelay;
+
+static LoopbackReplyDelay  replyDelays[LOOPBACK_CHANNELS_MAX];
+static int                 replyDelayCount = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackReplyDelay - how late to answer on this endpoint (0: at once, -1: never)
+//
+static int loopbackReplyDelay(const char* endpoint)
+{
+  for (int ix = 0; ix < replyDelayCount; ix++)
+  {
+    if (strcmp(replyDelays[ix].endpoint, endpoint) == 0)
+      return replyDelays[ix].ms;
+  }
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackDelivery - the "network" thread
 //
 static void* loopbackDelivery(void* vP)
@@ -114,15 +173,24 @@ static void* loopbackDelivery(void* vP)
 
   while (deliveryRunning == true)
   {
-    LoopbackSample sample = { NULL, NULL };
+    LoopbackSample sample = { NULL, NULL, NULL, 0, 0 };
+    int64_t        now    = loopbackNowMs();
 
+    //
+    // The first sample that is DUE, not simply the first one - a reply held
+    // back by replyDelayMs must not hold back everything queued behind it.
+    //
     pthread_mutex_lock(&queueMutex);
-    if (queueCount > 0)
+    for (int ix = 0; ix < queueCount; ix++)
     {
-      sample = queue[0];
-      for (int i = 1; i < queueCount; i++)
+      if (queue[ix].dueMs > now)
+        continue;
+
+      sample = queue[ix];
+      for (int i = ix + 1; i < queueCount; i++)
         queue[i - 1] = queue[i];
       queueCount--;
+      break;
     }
     pthread_mutex_unlock(&queueMutex);
 
@@ -135,8 +203,16 @@ static void* loopbackDelivery(void* vP)
       // point, and reading the member to test it would be reading past the end
       // of the struct it allocated.
       //
+      //
+      // A reply somebody waits for goes back through replyIn(), carrying the
+      // broker's token, so that it reaches its own request and no other. ABI 3
+      // AND a non-NULL slot, because a host that is not the broker fills in
+      // only what it needs.
+      //
       if (sample.subAttrName == NULL)
         brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+      else if ((sample.token != 0) && (brokerP->abiVersion >= 3) && (brokerP->replyIn != NULL))
+        brokerP->replyIn("loopback", sample.endpoint, sample.token, NULL, sample.subAttrName, sample.json, 0);
       else if ((brokerP->abiVersion >= 2) && (brokerP->sampleQualifiedIn != NULL))
         brokerP->sampleQualifiedIn("loopback", sample.endpoint, NULL, sample.subAttrName, sample.json, 0);
       else
@@ -200,6 +276,7 @@ static char loopbackConfigPath[512];
 // that a test bridge does not acquire a JSON dependency of its own.
 //
 static void loopbackEmitAtStart(void);
+static void loopbackReplyDelaysLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -233,6 +310,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
     return BRIDGE_ERR;
   }
 
+  loopbackReplyDelaysLoad();
   loopbackEmitAtStart();
 
   return BRIDGE_OK;
@@ -244,7 +322,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
 //
 // loopbackQueue - put a sample on the delivery thread's queue
 //
-static bool loopbackQueue(const char* endpoint, const char* json, const char* subAttrName)
+static bool loopbackQueue(const char* endpoint, const char* json, const char* subAttrName, uint64_t token, int delayMs)
 {
   bool queued = false;
 
@@ -254,6 +332,8 @@ static bool loopbackQueue(const char* endpoint, const char* json, const char* su
     queue[queueCount].endpoint    = strdup(endpoint);
     queue[queueCount].json        = strdup(json);
     queue[queueCount].subAttrName = subAttrName;      // a literal, or NULL - never freed
+    queue[queueCount].token       = token;
+    queue[queueCount].dueMs       = loopbackNowMs() + delayMs;
     queueCount++;
     queued = true;
   }
@@ -268,7 +348,7 @@ static bool loopbackQueue(const char* endpoint, const char* json, const char* su
 //
 // loopbackEmitAtStart -
 //
-static void loopbackEmitAtStart(void)
+static void loopbackConfigPairs(const char* member, void (*pairFunc)(const char* key, const char* value))
 {
   if (loopbackConfigPath[0] == 0)
     return;
@@ -283,7 +363,7 @@ static void loopbackEmitAtStart(void)
   buf[len] = 0;
 
 
-  char* emitP = strstr(buf, "\"emitAtStart\"");
+  char* emitP = strstr(buf, member);
   if (emitP == NULL)
   {
     return;
@@ -350,12 +430,49 @@ static void loopbackEmitAtStart(void)
 
     char saved = *p;
     *p = 0;
-    loopbackQueue(keyP, valP, NULL);
+    pairFunc(keyP, valP);
     *p = saved;
 
     if (saved == '"')
       ++p;
   }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackEmitPair / loopbackEmitAtStart - "emitAtStart": a sample per endpoint
+//
+static void loopbackEmitPair(const char* endpoint, const char* value)
+{
+  loopbackQueue(endpoint, value, NULL, 0, 0);
+}
+
+static void loopbackEmitAtStart(void)
+{
+  loopbackConfigPairs("\"emitAtStart\"", loopbackEmitPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackDelayPair / loopbackReplyDelaysLoad - "replyDelayMs", see replyDelays
+//
+static void loopbackDelayPair(const char* endpoint, const char* value)
+{
+  if (replyDelayCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  replyDelays[replyDelayCount].endpoint = strdup(endpoint);
+  replyDelays[replyDelayCount].ms       = atoi(value);
+  ++replyDelayCount;
+}
+
+static void loopbackReplyDelaysLoad(void)
+{
+  loopbackConfigPairs("\"replyDelayMs\"", loopbackDelayPair);
 }
 
 
@@ -395,6 +512,10 @@ static void loopbackClose(void)
     }
   }
   pthread_mutex_unlock(&channelMutex);
+
+  for (int i = 0; i < replyDelayCount; i++)
+    free(replyDelays[i].endpoint);
+  replyDelayCount = 0;
 }
 
 
@@ -488,7 +609,7 @@ static int loopbackPublish(const char* endpoint, const char* json)
   if (known == false)
     return BRIDGE_NOT_FOUND;
 
-  return (loopbackQueue(endpoint, json, NULL) == true) ? BRIDGE_OK : BRIDGE_ERR;
+  return (loopbackQueue(endpoint, json, NULL, 0, 0) == true) ? BRIDGE_OK : BRIDGE_ERR;
 }
 
 
@@ -507,7 +628,7 @@ static int loopbackPublish(const char* endpoint, const char* json)
 //
 // Called on a BROKER thread, so it queues and returns - as publish().
 //
-static int loopbackServiceInvoke(const char* endpoint, const char* json)
+static int loopbackInvoke(const char* endpoint, const char* json, uint64_t token)
 {
   if ((endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
@@ -519,7 +640,37 @@ static int loopbackServiceInvoke(const char* endpoint, const char* json)
   if (known == false)
     return BRIDGE_NOT_FOUND;
 
-  return (loopbackQueue(endpoint, json, LOOPBACK_REPLY) == true) ? BRIDGE_OK : BRIDGE_ERR;
+  //
+  // A service configured never to answer still ACCEPTS the request - which is
+  // what a real server that has hung does. Refusing it would be a different
+  // failure, the one BRIDGE_NOT_FOUND already is.
+  //
+  int delayMs = loopbackReplyDelay(endpoint);
+
+  if (delayMs < 0)
+    return BRIDGE_OK;
+
+  return (loopbackQueue(endpoint, json, LOOPBACK_REPLY, token, delayMs) == true) ? BRIDGE_OK : BRIDGE_ERR;
+}
+
+
+
+static int loopbackServiceInvoke(const char* endpoint, const char* json)
+{
+  return loopbackInvoke(endpoint, json, 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackServiceInvokeTracked - the same echo, for a request somebody waits for
+//
+// The token goes back with the reply, through replyIn(). See BridgeDriver.h.
+//
+static int loopbackServiceInvokeTracked(const char* endpoint, const char* json, uint64_t token)
+{
+  return loopbackInvoke(endpoint, json, token);
 }
 
 
@@ -565,6 +716,9 @@ void bridgeRegister(BridgeDriver* driverP)
   //
   if (hostAbi >= 2)
     driverP->serviceInvoke = loopbackServiceInvoke;
+
+  if (hostAbi >= 3)
+    driverP->serviceInvokeTracked = loopbackServiceInvokeTracked;
 
   //
   // And now the field is the PLUGIN's, which is what the host reads back.

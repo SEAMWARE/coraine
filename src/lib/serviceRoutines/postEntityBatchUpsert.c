@@ -836,7 +836,7 @@ bool postEntityBatchUpsert(void)
       if (notifyOp == LdNotifyEntityCreate)
         bridgeAttrsOutFromEntity(tenantP, g->id, finalP);
       else
-        bridgeAttrsOutFromMerge(tenantP, g->id, finalP, &report);
+        bridgeAttrsOutFromMerge(tenantP, g->id, finalP, &report, NULL);
 
       if (subCacheP != NULL)
       {

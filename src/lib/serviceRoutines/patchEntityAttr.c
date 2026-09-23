@@ -48,6 +48,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrOut.h"                    // bridgeAttrOut
+#include "bridge/bridgeServiceSync.h"                 // bridgeSyncFragment, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // TroeEvent
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
@@ -396,6 +397,17 @@ bool patchEntityAttr(void)
 
         ldApiEntityToDbModel(entityFrag, &corRest.kalloc, 0);
 
+        BridgeSyncDone syncDone = { { NULL }, 0 };
+
+        //
+        // ddsSync: a service this fragment writes is invoked NOW, before anything
+        // is stored, and waited for - so that its reply is written with the value,
+        // or, if it never comes, nothing is written at all. A no-op unless the
+        // request asked for it. See bridgeServiceSync.h.
+        //
+        if (bridgeSyncFragment(tenantP, entityId, entityFrag, &syncDone) == false)
+          return true;  // ldError already set - nothing has been written
+
         //
         // Partial Attribute Update (§ 10.2.5) — replace/append semantics, the
         // value is replaced wholesale, not deep-merged. Apply the fragment to
@@ -435,7 +447,7 @@ bool patchEntityAttr(void)
         // its wire. Costs two integer loads when no bridge is loaded, which is
         // every deployment that does not use one.
         //
-        bridgeAttrOut(tenantP, entityId, attrIri, targetEntity);
+        bridgeAttrOut(tenantP, entityId, attrIri, targetEntity, &syncDone);
 
         // targetEntity is the post-merge tree — feed notifications + TRoE directly.
         if (tenantP->subCacheP != NULL)

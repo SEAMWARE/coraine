@@ -787,7 +787,7 @@ bool postEntityBatchMerge(void)
           for (int ui = 0; ui < uniqueIdN; ui++)
             if (strcmp(uniqueIdV[ui], eid) == 0) { anySuccessV[ui] = true; break; }
 
-          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k]);
+          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k], NULL);
 
           if (subCacheP != NULL && snapshotsV[k] != NULL)
             ldNotifyDefer(subCacheP, snapshotsV[k],

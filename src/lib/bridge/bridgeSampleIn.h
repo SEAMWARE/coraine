@@ -12,6 +12,8 @@
 
 #include <stdint.h>                                   // int64_t
 
+#include "kjson/KjNode.h"                             // KjNode
+
 
 
 // -----------------------------------------------------------------------------
@@ -71,5 +73,14 @@ extern int bridgeSampleQualifiedIn(const char* bridgeName,
                                    const char* subAttrName,
                                    const char* json,
                                    int64_t     publishTime);
+
+// -----------------------------------------------------------------------------
+//
+// bridgeReplySubAttr - a reply, as the sub-attribute it is stored as
+//
+// Shared by the asynchronous reply path and the synchronous one (ddsSync), so
+// that both store a reply identically. See bridgeSampleIn.c.
+//
+extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime);
 
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

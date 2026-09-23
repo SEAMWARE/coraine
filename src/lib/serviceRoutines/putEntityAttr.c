@@ -399,7 +399,7 @@ bool putEntityAttr(void)
           // subscription needs it, and bridgeAttrOut fetches its own only after
           // a Channel has been found to want it.
           //
-          bridgeAttrOut(tenantP, entityId, attrIri, NULL);
+          bridgeAttrOut(tenantP, entityId, attrIri, NULL, NULL);
 
           KjNode* merged = NULL;
           if (tenantP->subCacheP != NULL)
