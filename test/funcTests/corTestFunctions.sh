@@ -1055,10 +1055,15 @@ contextServerReplace() {
 # own settings - which the broker never reads, and which a test therefore only
 # ever needs in order to prove they are ignored.
 #
+# --typesDirectory names where the plugin keeps type bytes (ngsild.typesDirectory).
+# Only a SERVER needs one given to it: it announces a service, and the transport
+# asks for the service's types before anybody else has said a word about them.
+#
 bridgeConfig() {
   local outFile="/tmp/coraine_bridges.json"
   local bridge="loopback"
   local defaultEntity=""
+  local typesDirectory=""
   local -a topics
   local -a services
   local -a emits
@@ -1068,6 +1073,7 @@ bridgeConfig() {
     case "$1" in
       -o)       outFile="$2"; shift ;;
       -b)       bridge="$2";  shift ;;
+      --typesDirectory) typesDirectory="$2"; shift ;;
       --topic)  topics+=("$2"); shift ;;
       #
       # A service entry is a topic entry plus, optionally, the names of its two
@@ -1115,6 +1121,10 @@ bridgeConfig() {
     fi
 
     echo "    \"ngsild\": {"
+
+    if [ -n "$typesDirectory" ]; then
+      echo "      \"typesDirectory\": \"$typesDirectory\","
+    fi
 
     if [ -n "$defaultEntity" ]; then
       if [ "$defaultEntity" == "true" ]; then
@@ -1250,7 +1260,6 @@ ros2ServiceStart() {
   local service="$2"
   local secs="${3:-30}"
   local name="cor_ros2_$node"
-  local i
 
   docker rm -f "$name" > /dev/null 2>&1
 
@@ -1259,12 +1268,28 @@ ros2ServiceStart() {
          bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/demo_nodes_py/'"$node" > /dev/null 2>&1 \
     || { echo "ros2ServiceStart: could not start the ROS 2 $node" >&2; return 1; }
 
+  ddsServiceAwait "$service" "$secs"
+}
+
+
+# ddsServiceAwait <service> [seconds] - wait until the BROKER has discovered a service
+#
+# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - what a test
+# depends on is the broker's own trace saying it found the service: a request
+# sent before that has no server to reach and is refused outright. The trace is
+# the plugin's, at level 0, so COR_TRACE_LEVELS must include 0.
+#
+ddsServiceAwait() {
+  local service="$1"
+  local secs="${2:-30}"
+  local i
+
   for ((i = 0; i < secs * 10; i++)); do
     grep -q "service '$service' discovered" /tmp/coraine.CB.log 2>/dev/null && return 0
     sleep 0.1
   done
 
-  echo "ros2ServiceStart: the broker did not discover service '$service' in ${secs}s" >&2
+  echo "ddsServiceAwait: the broker did not discover service '$service' in ${secs}s" >&2
   return 1
 }
 
