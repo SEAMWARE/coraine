@@ -1,0 +1,181 @@
+#
+# FILE            bridge_troe_from_sample.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A value arriving on a topic has to reach BOTH stores: current state, which is
+# what a GET answers with, and the history database, which is what a temporal
+# query answers with. The first has been proven since the bridge was written.
+# The second never has - bridgeSampleIn defers a TroeEvent and nothing has ever
+# looked to see whether a row came out the other end.
+#
+# It is not a detail. A sample is the only kind of write in this broker with no
+# request behind it, and the queues that carry notifications and TRoE are
+# drained by a hook that runs when an HTTP RESPONSE is sent. bridgeSampleIn
+# drains them itself for exactly that reason, and "it calls the drain" and "the
+# row is in postgres" are two different claims.
+#
+# ⚠ timescale, and it cannot be otherwise: corDB's TRoE plugin has no temporal
+# retrieve, so under it there is nothing to ask. No REQUIRE marker, because the
+# timescale cases carry none - each starts its own broker with --troe timescale
+# and brings its own database up with corTroeInit.
+#
+--NAME--
+Bridges: a sample reaches the history database, not only current state
+
+--TAGS--
+bridge troe timescale postgres plugins
+
+--INIT--
+corDbDrop
+corTroeInit
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --emit "P1=41")
+
+coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The sample reached current state - the half that was already proven"
+echo "======================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 41
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+echo
+echo
+
+
+echo "02. troe_attrs - the sample's own row"
+echo "====================================="
+sleep 0.5
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
+  -c "SELECT regexp_replace(attr_name, '.*/', ''), op, v_number FROM troe_attrs ORDER BY modified_at"
+echo
+echo
+
+
+echo "03. troe_entities - and whether the entity itself is in history"
+echo "==============================================================="
+#
+# channelPrePopulate creates the entity from the configuration alone, and
+# deliberately notifies nobody - it is the broker writing down what it is about
+# to be told. Whether it should also be a TRoE entity-created row is the
+# question this step asks: a temporal read scopes an attribute's timeline by
+# the entity's alive window, so an entity with attribute rows and no entity row
+# is a timeline nobody can retrieve.
+#
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
+  -c "SELECT entity_id, op FROM troe_entities ORDER BY modified_at"
+echo
+echo
+
+
+echo "04. Read back on observedAt - the default, and EMPTY here on purpose"
+echo "====================================================================="
+#
+# § 5.7.3's default timeproperty is observedAt, and these rows have none: the
+# loopback hands over publishTime 0, because a test transport has no clock of
+# its own. A REAL sample does carry one - bridge_dds_ros2_roundtrip shows the
+# observedAt a ROS 2 talker's publish time becomes - so on a live domain this
+# query is the one that answers. Asserted as it is so that the day the loopback
+# grows a publish time, this step changes and somebody looks.
+#
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Machine:1 --urlParams 'timerel=after&timeAt=2020-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "05. Read back on modifiedAt - the sample's value, out of the history DB"
+echo "======================================================================="
+#
+# THE POINT OF THE WHOLE CASE. A value that entered the broker from a
+# transport, with no HTTP request anywhere behind it, comes back out of a
+# temporal query - placeholder first, then the sample.
+#
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Machine:1 --urlParams 'timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--
+01. The sample reached current state - the half that was already proven
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": {
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Machine"
+}
+
+
+
+02. troe_attrs - the sample's own row
+=====================================
+temperature|created|
+temperature|replaced|41
+
+
+03. troe_entities - and whether the entity itself is in history
+===============================================================
+urn:ngsi-ld:Machine:1|created
+
+
+04. Read back on observedAt - the default, and EMPTY here on purpose
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "type": "Machine"
+}
+
+
+
+05. Read back on modifiedAt - the sample's value, out of the history DB
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": [
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "uninitialized"
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 41
+    }
+  ],
+  "type": "Machine"
+}
+
+
+

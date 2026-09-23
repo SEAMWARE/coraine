@@ -21,7 +21,7 @@
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 
 #include "corRest/corRest.h"                          // corRest
-#include "corNgsild/CorNgsild.h"                      // corNgsild
+#include "corNgsild/CorNgsild.h"                      // corNgsild, ldDefaultContext
 #include "corJsonld/CorLdContext.h"                  // CorLdContext
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
@@ -207,7 +207,13 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   //
   if (catchAll == true)
   {
-    CorLdContext* coreP = corLdCoreContext();
+    //
+    // The @vocab of whatever context this deployment expands with - the
+    // default user context when it has one, core otherwise. A user context may
+    // define its own @vocab, and an endpoint quoted under the wrong one is an
+    // attribute nobody else names the same way.
+    //
+    CorLdContext* coreP = ldDefaultContext(&corRest.kalloc);
 
     if ((coreP == NULL) || (coreP->vocab == NULL))
     {
@@ -358,6 +364,26 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
     tevP->entityType     = entityType;
     tevP->attrName       = attrName;
     tevP->modifiedAtNs   = corRest.requestStartTime;
+
+    //
+    // ⭐ attrSnapshot is what the VALUE is read from, and leaving it NULL is
+    // how a sample got a history row saying an attribute was replaced and not
+    // saying what with - every v_* column empty in the timescale table.
+    //
+    // fragmentP is the tree that was just written, dataset-keyed by
+    // ldApiEntityToDbModel, which is exactly the shape the plugin walks
+    // (extractCols takes the wrapper and reads its first instance). It is in
+    // hand already, so this costs nothing: the alternative, a retrieve, is
+    // what entitySnapshot below does and it is why that one is conditional.
+    //
+    tevP->attrSnapshot   = kjLookup(fragmentP, attrName);
+
+    //
+    // ⚠ And entitySnapshot is NULL when nothing subscribes, because that is
+    // the only reason the entity is fetched at all. An attribute event does
+    // not need it - the plugin reads attrSnapshot - but it must not be the
+    // thing the value depends on, which is what it silently was.
+    //
     tevP->entitySnapshot = mergedP;
     troeDeferAttrEvent(tevP);
   }

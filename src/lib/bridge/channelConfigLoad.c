@@ -25,6 +25,7 @@
 #include "ktrace/kTrace.h"                            // KT_W, KT_X, KT_T
 
 #include "corJsonld/corLdInit.h"                      // corLdCoreContext
+#include "corNgsild/CorNgsild.h"                     // ldDefaultContext
 #include "corJsonld/corLdExpand.h"                    // corLdExpand
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
@@ -117,7 +118,15 @@ static int topicsLoad(const char* alias, KjNode* topicsP, Tenant* tenantP, KAllo
     // Note the return value is used rather than the CorLdItem: a term's own id
     // is not to be trusted on the core context.
     //
-    CorLdContext* ctxP           = corLdCoreContext();
+    // ⭐ ldDefaultContext, not corLdCoreContext. The file carries no @context
+    // of its own and there is no request behind this - so if the deployment
+    // was given a default user context, THAT is the user context here. The
+    // mapping tool that writes this file writes that context beside it, and
+    // the short names in one are terms of the other; expanding them with core
+    // would give every one of them an @vocab IRI instead, and the same short
+    // name arriving over HTTP would then land on a different attribute.
+    //
+    CorLdContext* ctxP           = ldDefaultContext(kaP);
     char*         attrExpanded   = corLdExpand(ctxP, attribute,  kaP, NULL, NULL);
     char*         typeExpanded   = corLdExpand(ctxP, entityType, kaP, NULL, NULL);
 
@@ -225,7 +234,7 @@ static void defaultEntityLoad(const char* alias, KjNode* nodeP, Tenant* tenantP,
     entityType = derivedType;
   }
 
-  char* typeExpanded = corLdExpand(corLdCoreContext(), entityType, kaP, NULL, NULL);
+  char* typeExpanded = corLdExpand(ldDefaultContext(kaP), entityType, kaP, NULL, NULL);
 
   if (typeExpanded == NULL)
   {
