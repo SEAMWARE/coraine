@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <string.h>                                   // memset
+#include <string.h>                                   // memset, strlen, strcpy, strcat
 #include <time.h>                                     // clock_gettime
 
 #include "kalloc/KAlloc.h"                            // KAlloc
@@ -22,6 +22,7 @@
 
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/CorNgsild.h"                      // corNgsild
+#include "corJsonld/CorLdContext.h"                  // CorLdContext
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
@@ -40,7 +41,8 @@
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOpAttrReplaced, troeDispatchPending
 #include "troe/troeDispatch.h"                        // troeDeferAttrEvent
 #include "bridge/Channel.h"                           // Channel
-#include "bridge/channelCache.h"                      // channelLookup
+#include "bridge/channelCache.h"                      // channelLookup, channelLookupByTarget
+#include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet
 #include "bridge/bridgeSampleIn.h"                    // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -72,7 +74,7 @@
 // reaching it a second time on the same arena walks a dangling list and frees
 // the same pointers again.
 //
-static void threadBind(Channel* channelP)
+static void threadBind(Tenant* tenantP)
 {
   static __thread bool  inited = false;
   static __thread char  buffer[BRIDGE_SAMPLE_BUFFER];
@@ -87,10 +89,10 @@ static void threadBind(Channel* channelP)
     kaBufferReset(&corRest.kalloc, KTRUE);
 
   //
-  // The write runs AS the Channel's tenant. Not everything downstream takes a
+  // The write runs AS the target's tenant. Not everything downstream takes a
   // tenant as a parameter, and a thread with no request has none.
   //
-  corNgsild.tenantP = channelP->tenantP;
+  corNgsild.tenantP = tenantP;
 
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
@@ -142,28 +144,114 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   if ((bridgeName == NULL) || (endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
 
-  Channel* channelP = channelLookup(bridgeName, endpoint);
+  Channel*    channelP   = channelLookup(bridgeName, endpoint);
+  Tenant*     tenantP    = NULL;
+  const char* entityId   = NULL;
+  const char* entityType = NULL;
+  const char* attrName   = NULL;
+  bool        catchAll   = false;
 
+  if (channelP != NULL)
+  {
+    if (channelP->direction == BridgeDirectionOut)
+    {
+      KT_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
+      return BRIDGE_NOT_FOUND;
+    }
+
+    tenantP    = channelP->tenantP;
+    entityId   = channelP->entityId;
+    entityType = channelP->entityType;
+    attrName   = channelP->attrName;
+  }
   //
-  // Not an error. It means nobody asked for this endpoint - a transport that
-  // hands over everything it hears will say a great deal the broker was never
-  // configured to want.
+  // Nobody asked for this endpoint. A transport that hands over everything it
+  // hears says a great deal the broker was never configured to want, and
+  // dropping it is the default - unless this bridge was given a catch-all, in
+  // which case the endpoint names its own attribute.
   //
-  if (channelP == NULL)
+  else if (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == true)
+    catchAll = true;
+  else
   {
     KT_T(KtBridge, "sample on '%s' from bridge '%s' - no channel claims it", endpoint, bridgeName);
     return BRIDGE_NOT_FOUND;
   }
 
-  if (channelP->direction == BridgeDirectionOut)
+  threadBind(tenantP);
+
+  //
+  // The endpoint IS the attribute name here, and it is put under @vocab
+  // DIRECTLY rather than expanded.
+  //
+  // ⭐ Expanding it is what the Channel path does, and it is wrong here, twice
+  // over. A Channel's attribute is a name a person wrote in a configuration
+  // file, meaning it in NGSI-LD; an endpoint is what a foreign system calls
+  // one of its own things, and the broker is quoting it, not adopting it.
+  //
+  //   - Expansion VALIDATES, against the § 4.6.2 NGSI-LD Name grammar, and
+  //     'rt/chatter' fails it on the slash. Every ROS 2 topic carries one
+  //     (ROS prefixes its topics with "rt/"), so the catch-all would refuse
+  //     precisely the system it was built to show. The rule is should-level
+  //     and is about names the API is asked to accept - this is a name it is
+  //     reporting.
+  //   - Expansion also LOOKS THE NAME UP, so a topic that happens to be called
+  //     'location' would land on the core context's GeoProperty term, with its
+  //     value checks, because of what someone else named a topic.
+  //
+  // ⚠ The consequence, and it is the honest one: such an attribute cannot be
+  // addressed through /entities/{id}/attrs/{attr} - a slash is a path
+  // separator. It is readable on the entity and it is inbound only anyway, the
+  // catch-all being a view of what a system publishes rather than a way to
+  // write to it.
+  //
+  if (catchAll == true)
   {
-    KT_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
-    return BRIDGE_NOT_FOUND;
+    CorLdContext* coreP = corLdCoreContext();
+
+    if ((coreP == NULL) || (coreP->vocab == NULL))
+    {
+      KT_W("bridge '%s': no @vocab to name '%s' under - sample dropped", bridgeName, endpoint);
+      return BRIDGE_BAD_INPUT;
+    }
+
+    int   len   = strlen(coreP->vocab) + strlen(endpoint) + 1;
+    char* nameP = (char*) kaAlloc(&corRest.kalloc, len);
+
+    if (nameP == NULL)
+      return BRIDGE_ERR;
+
+    strcpy(nameP, coreP->vocab);
+    strcat(nameP, endpoint);
+
+    attrName = nameP;
+
+    //
+    // ⚠ And it must not land on an attribute a Channel already writes.
+    //
+    // The catch-all's entity is its own by default, so this needs a file that
+    // pointed defaultEntity at an entity Channels also write, and then an
+    // unclaimed endpoint whose name matches one of their attributes. Rare, and
+    // silent: the topic's value would overwrite the Channel's, and the
+    // attribute's value would depend on which arrived last.
+    //
+    // That is exactly the collision channelCreate refuses at configuration
+    // time ("they would race, and the value would depend on which arrived
+    // last"), and the same rule has to hold for a writer the configuration
+    // never named. Refused with the same words, in a trace rather than a fatal
+    // - this one is a sample arriving, not a broker starting.
+    //
+    Channel* clashP = channelLookupByTarget(tenantP, entityId, attrName);
+
+    if (clashP != NULL)
+    {
+      KT_T(KtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
+           endpoint, entityId, attrName, clashP->endpoint);
+      return BRIDGE_NOT_FOUND;
+    }
   }
 
-  threadBind(channelP);
-
-  KjNode* attrP = attributeFromSample(channelP->attrName, json, publishTime);
+  KjNode* attrP = attributeFromSample(attrName, json, publishTime);
 
   if (attrP == NULL)
   {
@@ -177,6 +265,35 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   //
   KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
   kjChildAdd(fragmentP, attrP);
+
+  //
+  // The catch-all's entity is made here, on the first sample that needs it,
+  // because until one arrived there was nothing to say it was needed. A
+  // Channel's entity was created at startup from the configuration.
+  //
+  if ((catchAll == true) && (bridgeDefaultEntityNeedsCreate(bridgeName) == true))
+  {
+    KjNode* existingP = NULL;
+
+    if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, entityId, &existingP) != DB_OK) || (existingP == NULL))
+    {
+      KjNode* entityP = kjObject(corRest.kjsonP, NULL);
+
+      kjChildAdd(entityP, kjString(corRest.kjsonP, "id",   (char*) entityId));
+      kjChildAdd(entityP, kjString(corRest.kjsonP, "type", (char*) entityType));
+
+      ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
+
+      if ((db.entityCreate == NULL) || (db.entityCreate(tenantP, entityId, entityP) != DB_OK))
+        KT_W("bridge '%s': could not create the catch-all entity '%s'", bridgeName, entityId);
+    }
+
+    //
+    // Marked either way. A second attempt would fail for the same reason, and
+    // the store below reports it per sample in any case.
+    //
+    bridgeDefaultEntityCreated(bridgeName);
+  }
 
   //
   // ⚠ EXPAND BEFORE CONVERTING, even though the names are already expanded.
@@ -201,7 +318,7 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   // DB_OK. It is also what subscription matching reads.
   //
   LdMergeReport report = { NULL };
-  int           r      = db.entityAttrsSet(channelP->tenantP, channelP->entityId, fragmentP,
+  int           r      = db.entityAttrsSet(tenantP, entityId, fragmentP,
                                            false, corRest.requestStartTime, &report);
 
   if (r != DB_OK)
@@ -212,7 +329,7 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
     // first sample.
     //
     KT_W("bridge '%s': could not store the sample from '%s' into %s (%d)",
-         bridgeName, endpoint, channelP->entityId, r);
+         bridgeName, endpoint, entityId, r);
     return BRIDGE_ERR;
   }
 
@@ -222,12 +339,12 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   //
   KjNode* mergedP = NULL;
 
-  if (channelP->tenantP->subCacheP != NULL)
+  if (tenantP->subCacheP != NULL)
   {
-    db.entityRetrieve(channelP->tenantP, channelP->entityId, &mergedP);
+    db.entityRetrieve(tenantP, entityId, &mergedP);
 
     if (mergedP != NULL)
-      ldNotifyDefer((LdSubCache*) channelP->tenantP->subCacheP, mergedP, LdNotifyEntityUpdate, &report);
+      ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedP, LdNotifyEntityUpdate, &report);
   }
 
   if (troe.attrEvent != NULL || troe.eventList != NULL)
@@ -236,10 +353,10 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
 
     memset(tevP, 0, sizeof(TroeEvent));
     tevP->op             = TroeOpAttrReplaced;
-    tevP->tenantP        = channelP->tenantP;
-    tevP->entityId       = channelP->entityId;
-    tevP->entityType     = channelP->entityType;
-    tevP->attrName       = channelP->attrName;
+    tevP->tenantP        = tenantP;
+    tevP->entityId       = entityId;
+    tevP->entityType     = entityType;
+    tevP->attrName       = attrName;
     tevP->modifiedAtNs   = corRest.requestStartTime;
     tevP->entitySnapshot = mergedP;
     troeDeferAttrEvent(tevP);
@@ -263,7 +380,7 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   troeDispatchPending();
   ldSubEntityTypeExprsRelease();
 
-  KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, channelP->entityId, channelP->attrName);
+  KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
 
   return BRIDGE_OK;
 }
