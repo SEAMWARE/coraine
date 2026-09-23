@@ -55,10 +55,16 @@
 //
 // URL parameter bits for the admin plugin
 //
-#define ADMIN_PARAM_VERBOSE       (1ULL << 48)
-#define ADMIN_PARAM_DEBUG         (1ULL << 49)
-#define ADMIN_PARAM_INFO          (1ULL << 50)
-#define ADMIN_PARAM_TRACELEVELS   (1ULL << 51)
+// ⚠ ONE 64-BIT SPACE, SHARED WITH EVERY OTHER REGISTRANT. corNgsild's LD_PARAM_*
+// grow upward from bit 0, so the broker's own parameters and its plugins' are
+// taken from the TOP (ddsSync is 63, see bridgeServiceSync.h). These were 48-51
+// until corNgsild grew into them - containedBy is 48, firstN 50, offsetN 51 -
+// and a route that took containedBy then took ?verbose too, as the same bit.
+//
+#define ADMIN_PARAM_VERBOSE       (1ULL << 59)
+#define ADMIN_PARAM_DEBUG         (1ULL << 60)
+#define ADMIN_PARAM_INFO          (1ULL << 61)
+#define ADMIN_PARAM_TRACELEVELS   (1ULL << 62)
 
 #define ADMIN_LOG_PARAMS   (ADMIN_PARAM_VERBOSE | ADMIN_PARAM_DEBUG | ADMIN_PARAM_INFO | ADMIN_PARAM_TRACELEVELS)
 
