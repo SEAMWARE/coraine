@@ -7,16 +7,20 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <string.h>                                   // strcmp
+#include <string.h>                                   // strcmp, memset
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjObject, kjString, kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "ktrace/kTrace.h"                            // KT_W, KT_T
+#include "kalloc/kaAlloc.h"                           // kaAlloc
+
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
+#include "troe/TroeDriver.h"                          // troe, TroeEvent, TroeOpEntityCreated
+#include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDispatchPending
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/channelPrePopulate.h"                // Own interface
@@ -190,6 +194,33 @@ int channelPrePopulate(Tenant* tenantP)
         continue;
       }
 
+      //
+      // ⭐ AND IT GOES INTO HISTORY, which is not the same decision as the
+      // notification two comments above.
+      //
+      // Not notifying is right: a subscriber woken by "uninitialized" learns
+      // only that a broker restarted. History is the opposite case - the
+      // entity genuinely came into existence at this moment, and the temporal
+      // read needs to know it. Without this row a DDS-fed entity has attribute
+      // history and no entity row, and that is not "a timeline missing its
+      // first entry": the retrieve resolves an entity's TYPE from
+      // troe_entities, so every temporal query against it answers 404 while
+      // the samples pile up in troe_attrs unread.
+      //
+      if (troe.entityEvent != NULL || troe.eventList != NULL)
+      {
+        TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+
+        memset(tevP, 0, sizeof(TroeEvent));
+        tevP->op             = TroeOpEntityCreated;
+        tevP->tenantP        = tenantP;
+        tevP->entityId       = entityId;
+        tevP->entityType     = channelP->entityType;
+        tevP->modifiedAtNs   = corRest.requestStartTime;
+        tevP->entitySnapshot = entityP;
+        troeDeferEntityEvent(tevP);
+      }
+
       KT_T(KtBridge, "pre-populated entity '%s' (%d attribute%s)", entityId, missing, (missing == 1) ? "" : "s");
     }
     else
@@ -215,6 +246,18 @@ int channelPrePopulate(Tenant* tenantP)
 
     attrsCreated += missing;
   }
+
+  //
+  // ⭐⭐ AND DRAIN, because nothing else will.
+  //
+  // TRoE events are queued and emptied by the hook that runs once an HTTP
+  // response has been sent. This runs at STARTUP: there is no request behind
+  // it and no response ahead of it, so without this the events sit on the
+  // queue until the first client request happens to flush them - or, on a
+  // broker nobody talks to, never. Exactly the reason bridgeSampleIn drains
+  // its own, and for the same reason: a write with no request behind it.
+  //
+  troeDispatchPending();
 
   return attrsCreated;
 }
