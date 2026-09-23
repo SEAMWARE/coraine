@@ -18,6 +18,7 @@
 #include "kjson/kjParse.h"                            // kjParse
 #include "kjson/kjBuilder.h"                          // kjObject, kjString, kjInteger, kjChildAdd
 #include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/kjClone.h"                            // kjClone
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 
 #include "corRest/corRest.h"                          // corRest
@@ -36,6 +37,7 @@
 #include "corNgsild/ldCheckSubscription.h"            // ldSubEntityTypeExprsRelease
 
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK, BRIDGE_NOT_FOUND, BRIDGE_BAD_INPUT
+#include "corBridge/corBridge.h"                      // corBridgeKindName
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOpAttrReplaced, troeDispatchPending
@@ -113,22 +115,73 @@ static void threadBind(Tenant* tenantP)
 // "when this was observed". A bespoke member would have said the same thing in
 // a word only this broker understands.
 //
-static KjNode* attributeFromSample(const char* attrName, const char* json, int64_t publishTime)
+// ⭐ WITH A subAttrName IT IS THE OTHER WAY AROUND, and that asymmetry is the
+// whole of what a reply is. The attribute's value is what was ASKED - a request
+// somebody wrote through the API - and it must survive the answer arriving. So
+// the payload goes one level down, into a sub-attribute of the name the plugin
+// chose, and the value is carried across unchanged.
+//
+// Which is also why observedAt then belongs to the SUB-attribute alone: the
+// reply was observed now, the request was not, and stamping the outer attribute
+// would say the value had just been written when nothing had touched it.
+//
+// @param existingValueP  the attribute's current value, from the store. CLONED
+//                        rather than moved: kjChildAdd relinks a node into its
+//                        new parent and truncates the list it came from, and
+//                        that list is a tree the caller still reads.
+//
+static KjNode* attributeFromSample(const char* attrName,
+                                   const char* json,
+                                   int64_t     publishTime,
+                                   const char* datasetId,
+                                   const char* subAttrName,
+                                   KjNode*     existingValueP)
 {
-  KjNode* valueP = kjParse(corRest.kjsonP, (char*) json);
+  KjNode* payloadP = kjParse(corRest.kjsonP, (char*) json);
 
-  if (valueP == NULL)
+  if (payloadP == NULL)
     return NULL;
 
   KjNode* attrP = kjObject(corRest.kjsonP, attrName);
 
   kjChildAdd(attrP, kjString(corRest.kjsonP, "type", "Property"));
 
-  valueP->name = (char*) "value";
-  kjChildAdd(attrP, valueP);
+  if (subAttrName == NULL)
+  {
+    payloadP->name = (char*) "value";
+    kjChildAdd(attrP, payloadP);
 
-  if (publishTime > 0)
-    kjChildAdd(attrP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+    if (publishTime > 0)
+      kjChildAdd(attrP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+  }
+  else
+  {
+    KjNode* valueP = kjClone(corRest.kjsonP, existingValueP);
+
+    if (valueP == NULL)
+      return NULL;
+
+    valueP->name = (char*) "value";
+    kjChildAdd(attrP, valueP);
+
+    KjNode* subP = kjObject(corRest.kjsonP, subAttrName);
+
+    kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Property"));
+    payloadP->name = (char*) "value";
+    kjChildAdd(subP, payloadP);
+
+    if (publishTime > 0)
+      kjChildAdd(subP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+
+    kjChildAdd(attrP, subP);
+  }
+
+  //
+  // Last, so that removing it in extractDatasetId leaves the rest in the order
+  // it was built in - which is the order a GET returns it in.
+  //
+  if (datasetId != NULL)
+    kjChildAdd(attrP, kjString(corRest.kjsonP, "datasetId", (char*) datasetId));
 
   return attrP;
 }
@@ -137,9 +190,89 @@ static KjNode* attributeFromSample(const char* attrName, const char* json, int64
 
 // -----------------------------------------------------------------------------
 //
-// bridgeSampleIn -
+// attrInstance - what the store currently holds for one instance
 //
-int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
+// The DB model keys an attribute by datasetId - "attr": { "@none": { ... } } -
+// so this is two lookups. NULL when the entity, the attribute or that
+// particular instance is not there.
+//
+// The whole instance and not only its value, because everything on it has to
+// survive an answer arriving - see instanceCarryOver.
+//
+static KjNode* attrInstance(Tenant* tenantP, const char* entityId, const char* attrName, const char* datasetId)
+{
+  KjNode* entityP = NULL;
+
+  if (db.entityRetrieve == NULL)
+    return NULL;
+
+  if ((db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK) || (entityP == NULL))
+    return NULL;
+
+  KjNode* attrP = kjLookup(entityP, attrName);
+
+  if (attrP == NULL)
+    return NULL;
+
+  return kjLookup(attrP, (datasetId != NULL) ? datasetId : "@none");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// instanceCarryOver - keep what the answer did not come to change
+//
+// ⭐ A REPLY IS AN ADDITION, NOT A REPLACEMENT, and the store's only way to
+// write an attribute instance is to replace it. So everything the instance
+// already had has to be put back: its unitCode, its observedAt, and any
+// sub-attribute somebody wrote alongside the request.
+//
+// Without this they were all silently dropped the moment an answer arrived -
+// the attribute came back holding its value and the reply and nothing else.
+//
+// ⭐ DONE AFTER THE CONVERSION, WHICH IS WHAT MAKES IT SIMPLE. Both trees are
+// then in the DB model, so names are expanded on both sides and comparing them
+// works - including for the sub-attribute this arrival is itself writing, whose
+// previous value is skipped rather than duplicated. And the members the
+// conversion has just written - type, value, createdAt, modifiedAt - are
+// skipped for free by the same rule: anything already there stays.
+//
+static void instanceCarryOver(KjNode* newInstanceP, KjNode* oldInstanceP)
+{
+  if ((newInstanceP == NULL) || (oldInstanceP == NULL))
+    return;
+
+  for (KjNode* childP = oldInstanceP->value.firstChildP; childP != NULL; childP = childP->next)
+  {
+    if (kjLookup(newInstanceP, childP->name) != NULL)
+      continue;
+
+    KjNode* copyP = kjClone(corRest.kjsonP, childP);
+
+    if (copyP != NULL)
+      kjChildAdd(newInstanceP, copyP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// sampleIn - the one inbound path, qualified or not
+//
+// bridgeSampleIn() and bridgeSampleQualifiedIn() are this function with and
+// without the two qualifiers. Everything after the attribute has been built is
+// identical - the store, the notification, the temporal event, the drain - and
+// duplicating it for a reply would have meant two copies of the one piece of
+// code in the broker that runs on a thread it did not create.
+//
+static int sampleIn(const char* bridgeName,
+                    const char* endpoint,
+                    const char* datasetId,
+                    const char* subAttrName,
+                    const char* json,
+                    int64_t     publishTime)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
@@ -153,9 +286,31 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
 
   if (channelP != NULL)
   {
-    if (channelP->direction == BridgeDirectionOut)
+    //
+    // ⭐ "Outbound only" is a statement about SAMPLES, and a reply is not one.
+    //
+    // A service Channel is outbound because the broker is the one that asks -
+    // that is what being a client means - and the answer coming back is the
+    // other half of the very exchange the direction describes. Refusing it here
+    // would mean no reply could ever arrive on the only kind of Channel that
+    // can produce one.
+    //
+    // A plain sample on such a Channel is a different matter: nothing on a
+    // request/reply endpoint publishes unprompted, so one arriving is a plugin
+    // handing over something it has mislabelled, and it is dropped.
+    //
+    if (channelP->kind == BridgeChannelTopic)
     {
-      KT_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
+      if (channelP->direction == BridgeDirectionOut)
+      {
+        KT_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
+        return BRIDGE_NOT_FOUND;
+      }
+    }
+    else if (subAttrName == NULL)
+    {
+      KT_T(KtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
+           endpoint, corBridgeKindName(channelP->kind));
       return BRIDGE_NOT_FOUND;
     }
 
@@ -170,7 +325,13 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   // dropping it is the default - unless this bridge was given a catch-all, in
   // which case the endpoint names its own attribute.
   //
-  else if (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == true)
+  //
+  // ⚠ And a qualified arrival is never a catch-all's. The catch-all shows what
+  // a system PUBLISHES; a reply is an answer to something this broker sent, so
+  // an unclaimed endpoint delivering one means the Channel that sent the
+  // request has gone - not that a new attribute should appear.
+  //
+  else if ((subAttrName == NULL) && (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == true))
     catchAll = true;
   else
   {
@@ -257,7 +418,34 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
     }
   }
 
-  KjNode* attrP = attributeFromSample(attrName, json, publishTime);
+  //
+  // What the attribute holds right now, which only a qualified arrival needs:
+  // a reply is added TO an attribute, not written over it.
+  //
+  KjNode* existingInstanceP = NULL;
+  KjNode* existingValueP     = NULL;
+
+  if (subAttrName != NULL)
+  {
+    existingInstanceP = attrInstance(tenantP, entityId, attrName, datasetId);
+    existingValueP    = (existingInstanceP != NULL) ? kjLookup(existingInstanceP, "value") : NULL;
+
+    if (existingValueP == NULL)
+    {
+      //
+      // The instance the answer belongs to is gone - the entity deleted, or the
+      // attribute removed, while the exchange was in flight. Saying so is the
+      // point: the alternative is an attribute that appears out of nowhere with
+      // a reply in it and no record of what was asked.
+      //
+      KT_W("bridge '%s': '%s' answered on '%s', but %s/%s%s%s no longer holds anything to answer - dropped",
+           bridgeName, subAttrName, endpoint, entityId, attrName,
+           (datasetId != NULL) ? " dataset " : "", (datasetId != NULL) ? datasetId : "");
+      return BRIDGE_NOT_FOUND;
+    }
+  }
+
+  KjNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP);
 
   if (attrP == NULL)
   {
@@ -317,6 +505,19 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   corLdExpandTree(fragmentP, corLdCoreContext(), &corRest.kalloc);
 
   ldApiEntityToDbModel(fragmentP, &corRest.kalloc, 0);
+
+  //
+  // And everything the instance already had, which the write below would
+  // otherwise replace away. Both trees are in the DB model by now, which is the
+  // only point at which their names can be compared.
+  //
+  if (subAttrName != NULL)
+  {
+    KjNode* wrapperP = kjLookup(fragmentP, attrName);
+
+    if (wrapperP != NULL)
+      instanceCarryOver(kjLookup(wrapperP, (datasetId != NULL) ? datasetId : "@none"), existingInstanceP);
+  }
 
   //
   // ⚠ The report is NOT optional. The mongoc driver builds its entire $set by
@@ -406,7 +607,37 @@ int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* jso
   troeDispatchPending();
   ldSubEntityTypeExprsRelease();
 
-  KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
+  if (subAttrName == NULL)
+    KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
+  else
+    KT_T(KtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSampleIn -
+//
+int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
+{
+  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSampleQualifiedIn -
+//
+int bridgeSampleQualifiedIn(const char* bridgeName,
+                            const char* endpoint,
+                            const char* datasetId,
+                            const char* subAttrName,
+                            const char* json,
+                            int64_t     publishTime)
+{
+  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime);
 }

@@ -1,0 +1,144 @@
+#
+# FILE            bridge_dds_service_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A service, over a REAL DDS transport, to a server that is not ours.
+#
+# bridge_service_invoke proves what the broker does with an invocation, through
+# the loopback, and that is the part that runs everywhere. What it structurally
+# cannot prove is that a request leaves this process, reaches a peer that was
+# built by somebody else, and that the peer's answer finds its way back into
+# the attribute that asked - which is the only claim anybody cares about when
+# they point the broker at a robot.
+#
+# So this runs against the ROS 2 add_two_ints server in eprosima/vulcanexus,
+# the same image the topic roundtrip uses. The service takes two integers and
+# returns their sum, which makes the assertion unambiguous: 3 + 4 is not a
+# value that could have come back by accident.
+#
+# ⭐ A SERVICE'S TYPES CANNOT BE LEARNED BY LISTENING, and that is the one
+# operational difference from a topic. A topic's type arrives with its first
+# publisher; there is nobody to learn a service's request and reply types from
+# before the first client speaks, and by then the request already has to be
+# serialized. The configuration names them, and the bytes come off disk or out
+# of discovery - see typesDirectory in the plugin.
+#
+# REQUIRE_DDS: yes
+#
+# Not for a GitHub runner, and not by being on a list: -dds is DETECTED
+# (corTestParams.sh) from the dds.so plugin and the ROS 2 image, so where they
+# are absent this is not a candidate for the run at all.
+#
+--NAME--
+DDS bridge: a service is invoked by writing an attribute, and a real ROS 2 server's reply comes back into it
+
+--TAGS--
+bridge dds service plugins docker
+
+--INIT--
+corDbDrop
+ros2NodeStop add_two_ints_server
+
+#
+# ⭐ The plugin's own traces, and the test cannot work without them.
+#
+# ros2ServiceStart waits for the broker to say it has DISCOVERED the service,
+# because an invocation sent before that is refused outright - and that sentence
+# is written by the PLUGIN, which is an external shared object and cannot use
+# the broker's trace-level enum. Everything it writes is level 0, so level 0 is
+# what has to be on.
+#
+export COR_TRACE_LEVELS=0
+
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --service "add_two_ints,Calculator,urn:ngsi-ld:Calculator:1,sum,example_interfaces::srv::dds_::AddTwoInts_Request_,example_interfaces::srv::dds_::AddTwoInts_Response_")
+
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The service's attribute is there before anything has been asked"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "02. A real ROS 2 service server answers what the attribute asks"
+echo "==============================================================="
+#
+# ros2ServiceStart returns once the BROKER has discovered the service, not once
+# the node has said something - a server says nothing until it is asked. A
+# request sent before discovery has no server to reach and is refused.
+#
+ros2ServiceStart add_two_ints_server add_two_ints
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/sum -X PATCH \
+        --payload '{ "type": "Property", "value": { "a": 3, "b": 4 } }'
+echo
+corAwaitBody 20 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"ddsServiceReply"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+--TEARDOWN--
+ros2NodeStop add_two_ints_server
+coraineStop
+
+--EXPECT--
+01. The service's attribute is there before anything has been asked
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "sum": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Calculator"
+}
+
+
+
+02. A real ROS 2 service server answers what the attribute asks
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "sum": {
+    "ddsServiceReply": {
+      "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "type": "Property",
+      "value": {
+        "sum": 7
+      }
+    },
+    "type": "Property",
+    "value": {
+      "a": 3,
+      "b": 4
+    }
+  },
+  "type": "Calculator"
+}
+
+
+

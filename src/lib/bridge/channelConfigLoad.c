@@ -64,16 +64,26 @@ static const char* stringMember(KjNode* objectP, const char* name)
 
 // -----------------------------------------------------------------------------
 //
-// topicsLoad - one bridge's topics section
+// channelsLoad - one section of one bridge's configuration
+//
+// The topics, services and actions sections are the same three fields per
+// entry - the endpoint's name, and the entity attribute it is bound to - and
+// they differ only in what KIND of Channel they make and which way it faces.
+// Those are parameters, not a reason for a second copy of this loop.
 //
 // Returns the number of Channels created. Does not return at all on a
 // collision, which is deliberate - see channelConfigLoad below.
 //
-static int topicsLoad(const char* alias, KjNode* topicsP, Tenant* tenantP, KAlloc* kaP)
+static int channelsLoad(const char*        alias,
+                        KjNode*            sectionP,
+                        BridgeChannelKind  kind,
+                        BridgeDirection    direction,
+                        Tenant*            tenantP,
+                        KAlloc*            kaP)
 {
   int created = 0;
 
-  for (KjNode* entryP = topicsP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+  for (KjNode* entryP = sectionP->value.firstChildP; entryP != NULL; entryP = entryP->next)
   {
     const char* endpoint = entryP->name;
 
@@ -142,9 +152,10 @@ static int topicsLoad(const char* alias, KjNode* topicsP, Tenant* tenantP, KAllo
     // Defaults, which are the loader's real work - the file names three things
     // per entry and a Channel has seven.
     //
-    //   kind      topic   - the only shape this section describes
-    //   direction both    - a value arriving is stored, and a value written
-    //                       locally goes back out on the same endpoint
+    //   kind      whichever section this is
+    //   direction both for a topic - a value arriving is stored, and a value
+    //                  written locally goes back out on the same endpoint.
+    //                  OUT for a service: the broker asks, and is never asked.
     //   retention mirror  - the broker holds what crosses. A Channel that held
     //                       nothing would be a relay, which this file has no
     //                       way of asking for.
@@ -152,8 +163,8 @@ static int topicsLoad(const char* alias, KjNode* topicsP, Tenant* tenantP, KAllo
     int r = channelCreate(NULL,                       // no stored id: this Channel came from a file
                           alias,
                           endpoint,
-                          BridgeChannelTopic,
-                          BridgeDirectionBoth,
+                          kind,
+                          direction,
                           ChannelRetentionMirror,
                           tenantP,
                           entityId,
@@ -363,17 +374,24 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 
     KjNode* topicsP = kjLookup(ngsildP, "topics");
     if (topicsP != NULL)
-      total += topicsLoad(alias, topicsP, tenantP, &kalloc);
+      total += channelsLoad(alias, topicsP, BridgeChannelTopic, BridgeDirectionBoth, tenantP, &kalloc);
 
     //
-    // Services and actions are described by the same file and are not carried
-    // yet. Saying so is the point: a deployment whose file has them would
-    // otherwise see nothing happen and have no way to tell that from a quiet
-    // peer.
+    // ⭐ A service Channel faces OUT, and that is the client-only boundary
+    // written down in the one place a deployment could otherwise contradict it.
+    // The broker invokes a service; nothing on the domain invokes the broker,
+    // because a context broker has no way to compute an answer. A file that
+    // asked for the opposite would be asking for something that cannot exist.
     //
-    if (kjLookup(ngsildP, "services") != NULL)
-      KT_W("bridge '%s': the 'services' section is not carried yet and is being ignored", alias);
+    KjNode* servicesP = kjLookup(ngsildP, "services");
+    if (servicesP != NULL)
+      total += channelsLoad(alias, servicesP, BridgeChannelService, BridgeDirectionOut, tenantP, &kalloc);
 
+    //
+    // Actions are described by the same file and are not carried yet. Saying so
+    // is the point: a deployment whose file has them would otherwise see
+    // nothing happen and have no way to tell that from a quiet peer.
+    //
     if (kjLookup(ngsildP, "actions") != NULL)
       KT_W("bridge '%s': the 'actions' section is not carried yet and is being ignored", alias);
 

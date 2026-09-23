@@ -35,4 +35,41 @@ extern int bridgeSampleIn(const char* bridgeName,
                           const char* json,
                           int64_t     publishTime);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSampleQualifiedIn - the broker's side of BridgeBroker::sampleQualifiedIn
+//
+// The same work, for the things a request/reply transport delivers that are not
+// plain samples: a reply, a piece of feedback, a status, a result.
+//
+// ⭐ What makes them different is WHERE THEY LAND, and nothing else. A reply
+// belongs to the attribute the service is bound to, but it is not that
+// attribute's value - the value is what was asked. So it goes in a
+// sub-attribute, under whatever name the plugin gives; and when several
+// exchanges are in flight on one endpoint, each one's instance is told apart by
+// its datasetId, which is what a datasetId is for.
+//
+// ⛔ The broker does not know, and must not learn, what those names mean. It is
+// handed a name and an instance; the convention that chose them belongs to the
+// transport and lives in the plugin. See BridgeBroker.h.
+//
+// @param datasetId    the instance this belongs to, NULL for the default one
+// @param subAttrName  the sub-attribute to put the payload in, NULL for the
+//                     attribute's own value - which is then exactly
+//                     bridgeSampleIn()
+//
+// ⚠ The target instance must already exist when subAttrName is given: a reply
+// is an answer to something this broker sent, and sending it is what created
+// the instance. An answer to nothing is dropped and said so, rather than
+// conjuring an attribute whose value nobody ever wrote.
+//
+extern int bridgeSampleQualifiedIn(const char* bridgeName,
+                                   const char* endpoint,
+                                   const char* datasetId,
+                                   const char* subAttrName,
+                                   const char* json,
+                                   int64_t     publishTime);
+
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

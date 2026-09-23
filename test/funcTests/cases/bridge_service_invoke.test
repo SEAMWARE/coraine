@@ -1,0 +1,221 @@
+#
+# FILE            bridge_service_invoke.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Channel of kind `service` - the second of the three shapes an endpoint can
+# have, and the first one where the broker ASKS rather than tells.
+#
+# ⭐ What is under test is the whole of the broker's side of an invocation, and
+# none of any transport's:
+#
+#   - a services section in the bridge configuration becomes a Channel, and the
+#     attribute it names exists before anything has been asked
+#   - writing that attribute INVOKES instead of publishing - a different entry
+#     point on the driver, chosen by the Channel's kind
+#   - the answer comes back on a thread the broker did not create, and lands in
+#     a sub-attribute WITHOUT disturbing the value that asked for it
+#   - the name of that sub-attribute is the plugin's, not the broker's
+#
+# The loopback bridge is what makes that testable anywhere. It answers with what
+# it was asked - a transport that goes nowhere has no application behind it to
+# compute anything - which is exactly enough to prove where the answer lands.
+#
+# ⚠ It cannot prove that a real transport carries a request, and does not try
+# to. That is bridge_dds_service_roundtrip, which needs a DDS peer.
+#
+--NAME--
+Bridges: a service Channel invokes on write, and the reply lands in a sub-attribute
+
+--TAGS--
+bridge service plugins
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --service "compute,Calculator,urn:ngsi-ld:Calculator:1,job")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The service's attribute exists before anything has been asked"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "02. Writing the attribute invokes the service, and the answer comes back into it"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job -X PATCH \
+        --payload '{ "type": "Property", "value": { "op": "sum", "args": [ 1, 2, 3 ] } }'
+echo
+#
+# The reply is delivered from the bridge's own thread, so it is not there when
+# the PATCH returns - which is the point of the design and the reason this
+# waits rather than sleeping.
+#
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"reply"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "03. The answer is an ADDITION - what was already on the attribute survives it"
+echo "============================================================================="
+#
+# The store's only way to write an attribute instance is to replace it, so
+# everything the instance already had has to be put back when the reply lands.
+# Before that was done, a unitCode and any sub-Property written alongside the
+# request were silently gone the moment the answer arrived.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job -X PATCH \
+        --payload '{ "type": "Property", "value": { "op": "max" }, "unitCode": "C62", "accuracy": { "type": "Property", "value": 0.9 } }'
+echo
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"max"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "04. A topic on the same bridge still publishes - the kind decides, not the bridge"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1/attrs/temperature -X PATCH \
+        --payload '{ "type": "Property", "value": 41 }'
+echo
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 41
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+echo
+echo
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. The service's attribute exists before anything has been asked
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Calculator"
+}
+
+
+
+02. Writing the attribute invokes the service, and the answer comes back into it
+===============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 359
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "reply": {
+      "type": "Property",
+      "value": {
+        "args": [
+          1,
+          2,
+          3
+        ],
+        "op": "sum"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "args": [
+        1,
+        2,
+        3
+      ],
+      "op": "sum"
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+03. The answer is an ADDITION - what was already on the attribute survives it
+=============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 328
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "accuracy": {
+      "type": "Property",
+      "value": 0.9
+    },
+    "reply": {
+      "type": "Property",
+      "value": {
+        "op": "max"
+      }
+    },
+    "type": "Property",
+    "unitCode": "C62",
+    "value": {
+      "op": "max"
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+04. A topic on the same bridge still publishes - the kind decides, not the bridge
+=================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": {
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Machine"
+}
+
+
+

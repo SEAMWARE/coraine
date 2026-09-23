@@ -45,6 +45,7 @@
 #include "corPlugin/corPlugin.h"                  // corPluginSetBaseDir, corPluginResolve, corPluginOpen
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, BridgeRegisterFunc, BRIDGES_MAX
 #include "corBridge/BridgeBroker.h"                // BridgeBroker, BRIDGE_*
+#include "corBridge/BridgeServer.h"                // BridgeServer, BridgeServiceRequestFunc
 #include "corRest/corRest.h"
 
 
@@ -254,6 +255,135 @@ static int ftBridgeSampleIn(const char* bridgeName, const char* endpoint, const 
 
 
 
+//
+// Defined below, beside the rest of the bridge plumbing; the service handler
+// above it is the one caller that comes first.
+//
+static BridgeDriver* ftBridgeDriverLookup(const char* alias);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Canned service replies.
+//
+// ⭐ ftClient IS THE PEER, and a peer to a service has to have an answer.
+// Computing one is exactly what a context broker cannot do and what a test must
+// not have to do either, so the answer is told to ftClient in advance: the test
+// says "when somebody asks this service, say that", then makes the broker ask.
+//
+// Which also keeps the assertion where it belongs. What the test is checking is
+// that the request left the broker and the reply came back into the attribute -
+// not that anything clever happened in between.
+//
+#define FT_SERVICE_MAX  8
+
+typedef struct FtServiceReply
+{
+  char*  endpoint;
+  char*  payload;                                      // rendered JSON, malloc'd
+} FtServiceReply;
+
+static FtServiceReply  ftServiceReplyV[FT_SERVICE_MAX];
+static int             ftServiceReplyCount = 0;
+static pthread_mutex_t ftServiceMutex      = PTHREAD_MUTEX_INITIALIZER;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftServiceReplyLookup - the answer set for an endpoint, or NULL
+//
+// Returns a COPY: the caller is on a transport thread and the table can be
+// rewritten by a REST thread between this call and the send.
+//
+static char* ftServiceReplyLookup(const char* endpoint)
+{
+  char* copy = NULL;
+
+  pthread_mutex_lock(&ftServiceMutex);
+
+  for (int i = 0; i < ftServiceReplyCount; i++)
+  {
+    if (strcmp(ftServiceReplyV[i].endpoint, endpoint) == 0)
+    {
+      copy = strdup(ftServiceReplyV[i].payload);
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&ftServiceMutex);
+
+  return copy;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ftBridgeServiceRequest - the broker asked us something
+//
+// ⚠ A PLUGIN THREAD, as ftBridgeSampleIn.
+//
+// Two things happen, and both matter to a test: the request is written down, so
+// it can be asserted on exactly as an arriving sample is, and it is answered,
+// so the other half of the exchange can be asserted on in the broker.
+//
+static int ftBridgeServiceRequest(const char* bridgeName,
+                                  const char* endpoint,
+                                  const char* json,
+                                  uint64_t    requestId,
+                                  int64_t     publishTime)
+{
+  KjNode* entry = kjObject(NULL, NULL);
+
+  kjChildAdd(entry, kjString(NULL, "bridge",    (bridgeName != NULL) ? bridgeName : "?"));
+  kjChildAdd(entry, kjString(NULL, "endpoint",  (endpoint   != NULL) ? endpoint   : "?"));
+  kjChildAdd(entry, kjString(NULL, "kind",      "serviceRequest"));
+  kjChildAdd(entry, kjString(NULL, "payload",   (json       != NULL) ? json       : ""));
+
+  if (publishTime > 0)
+    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+
+  pthread_mutex_lock(&dumpMutex);
+  if (dumpArray == NULL)
+    dumpArray = kjArray(NULL, NULL);
+  kjChildAdd(dumpArray, entry);
+  ++dumpCount;
+  pthread_mutex_unlock(&dumpMutex);
+
+  //
+  // ⛔ The requestId is NOT written into the dump. It is the transport's own
+  // counter, it runs across every service in the process, and a test that
+  // asserted on it would be asserting on how many requests happened to precede
+  // this one.
+  //
+  char* reply = ftServiceReplyLookup(endpoint);
+
+  if (reply == NULL)
+  {
+    KT_W("ftClient: asked on '%s' with no answer set - the request stands unanswered", endpoint);
+    return BRIDGE_OK;
+  }
+
+  BridgeDriver*       driverP = ftBridgeDriverLookup((bridgeName != NULL) ? bridgeName : "dds");
+  const BridgeServer* serverP = ((driverP != NULL) && (driverP->serverIface != NULL)) ? driverP->serverIface() : NULL;
+
+  if ((serverP != NULL) && (serverP->serviceReply != NULL))
+  {
+    if (serverP->serviceReply(endpoint, requestId, reply) != BRIDGE_OK)
+      KT_W("ftClient: could not answer on '%s'", endpoint);
+    else
+      KT_T(1, "ftClient: answered on '%s' with %s", endpoint, reply);
+  }
+
+  free(reply);
+
+  return BRIDGE_OK;
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // ftBridgeLog - the transport library's own log messages
@@ -275,11 +405,56 @@ static void ftBridgeLog(int severity, const char* fileName, int lineNo, const ch
 
 
 
+// -----------------------------------------------------------------------------
+//
+// ftBridgeQualifiedIn - a reply, or anything else that is not a plain sample
+//
+// ftClient hosts the plugin as the broker does, so it is offered the same
+// arrivals. It writes them down with their qualifiers, which is what lets a
+// test tell "the answer came back" from "a value arrived".
+//
+// ⚠ A PLUGIN THREAD, as ftBridgeSampleIn.
+//
+static int ftBridgeQualifiedIn(const char* bridgeName,
+                               const char* endpoint,
+                               const char* datasetId,
+                               const char* subAttrName,
+                               const char* json,
+                               int64_t     publishTime)
+{
+  KjNode* entry = kjObject(NULL, NULL);
+
+  kjChildAdd(entry, kjString(NULL, "bridge",   (bridgeName != NULL) ? bridgeName : "?"));
+  kjChildAdd(entry, kjString(NULL, "endpoint", (endpoint   != NULL) ? endpoint   : "?"));
+  kjChildAdd(entry, kjString(NULL, "payload",  (json       != NULL) ? json       : ""));
+
+  if (subAttrName != NULL)
+    kjChildAdd(entry, kjString(NULL, "subAttribute", (char*) subAttrName));
+
+  if (datasetId != NULL)
+    kjChildAdd(entry, kjString(NULL, "datasetId", (char*) datasetId));
+
+  if (publishTime > 0)
+    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+
+  pthread_mutex_lock(&dumpMutex);
+  if (dumpArray == NULL)
+    dumpArray = kjArray(NULL, NULL);
+  kjChildAdd(dumpArray, entry);
+  ++dumpCount;
+  pthread_mutex_unlock(&dumpMutex);
+
+  return BRIDGE_OK;
+}
+
+
+
 static BridgeBroker ftBridgeBroker =
 {
   BRIDGE_ABI_VERSION,
   ftBridgeSampleIn,
-  ftBridgeLog
+  ftBridgeLog,
+  ftBridgeQualifiedIn
 };
 
 
@@ -340,9 +515,10 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     return;
   }
 
-  KjNode* bridgeP = kjLookup(treeP, (driverP->alias != NULL) ? driverP->alias : "dds");
-  KjNode* ngsildP = (bridgeP != NULL) ? kjLookup(bridgeP, "ngsild") : NULL;
-  KjNode* topicsP = (ngsildP != NULL) ? kjLookup(ngsildP, "topics") : NULL;
+  KjNode* bridgeP   = kjLookup(treeP, (driverP->alias != NULL) ? driverP->alias : "dds");
+  KjNode* ngsildP   = (bridgeP != NULL) ? kjLookup(bridgeP, "ngsild")   : NULL;
+  KjNode* topicsP   = (ngsildP != NULL) ? kjLookup(ngsildP, "topics")   : NULL;
+  KjNode* servicesP = (ngsildP != NULL) ? kjLookup(ngsildP, "services") : NULL;
 
   for (KjNode* entryP = (topicsP != NULL) ? topicsP->value.firstChildP : NULL; entryP != NULL; entryP = entryP->next)
   {
@@ -352,6 +528,28 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     //
     if (driverP->channelAdd(entryP->name, BridgeChannelTopic, BridgeDirectionBoth) != BRIDGE_OK)
       KT_W("ftClient: bridge '%s' would not carry '%s'", driverP->alias, entryP->name);
+  }
+
+  //
+  // ⭐ AND THE SERVICES, THE OTHER WAY UP.
+  //
+  // A topic is carried; a service is SERVED. The broker reads these same
+  // entries and becomes the client of each - it is the only thing it can be -
+  // so for the exchange to exist at all, something has to be the server, and
+  // that is what ftClient is for. Without it there is nothing on the domain to
+  // answer and a service test could only ever assert that nothing happened.
+  //
+  const BridgeServer* serverP = (driverP->serverIface != NULL) ? driverP->serverIface() : NULL;
+
+  if ((servicesP != NULL) && ((serverP == NULL) || (serverP->serviceServe == NULL)))
+    KT_W("ftClient: bridge '%s' has services configured but cannot serve them", driverP->alias);
+  else if (servicesP != NULL)
+  {
+    for (KjNode* entryP = servicesP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+    {
+      if (serverP->serviceServe(entryP->name, ftBridgeServiceRequest) != BRIDGE_OK)
+        KT_W("ftClient: bridge '%s' would not serve '%s'", driverP->alias, entryP->name);
+    }
   }
 
   kaBufferReset(&kalloc, KTRUE);
@@ -395,6 +593,14 @@ static void ftBridgesLoad(void)
     BridgeDriver* driverP = &ftBridgeV[ftBridgeCount];
 
     memset(driverP, 0, sizeof(BridgeDriver));
+
+    //
+    // What THIS host speaks, so a plugin built against a newer contract knows
+    // where our struct ends - the same handshake the broker's loader does, and
+    // for the same reason. See BridgeDriver.h.
+    //
+    driverP->abiVersion = BRIDGE_ABI_VERSION;
+
     registerFunc(driverP);
     ++ftBridgeCount;
 
@@ -1032,6 +1238,90 @@ static void* mqttListenerThread(void* arg)
 
 // -----------------------------------------------------------------------------
 //
+// postBridgeServiceReply - POST /bridge/serviceReply
+//
+// Body: { "endpoint": "add_two_ints", "payload": <any json> }
+//
+// What ftClient will answer when the broker asks that service. Set before the
+// broker is made to ask; replacing it replaces the answer.
+//
+static bool postBridgeServiceReply(void)
+{
+  KjNode* bodyP = corRest.in.requestTree;
+
+  if (bodyP == NULL)
+  {
+    corRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  KjNode* endpointP = kjLookup(bodyP, "endpoint");
+  KjNode* payloadP  = kjLookup(bodyP, "payload");
+
+  if ((endpointP == NULL) || (endpointP->type != KjString) || (payloadP == NULL))
+  {
+    corRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  //
+  // The name and the sibling link come off for the render - the payload goes on
+  // the wire as the application's own JSON. Same two things that bite in
+  // postBridgePublish and in the broker's own outbound path.
+  //
+  static char rendered[16384];
+  char*       savedName = payloadP->name;
+  KjNode*     savedNext = payloadP->next;
+
+  payloadP->name = NULL;
+  payloadP->next = NULL;
+  kjFastRender(payloadP, rendered);
+  payloadP->name = savedName;
+  payloadP->next = savedNext;
+
+  pthread_mutex_lock(&ftServiceMutex);
+
+  int slot = -1;
+
+  for (int i = 0; i < ftServiceReplyCount; i++)
+  {
+    if (strcmp(ftServiceReplyV[i].endpoint, endpointP->value.s) == 0)
+    {
+      slot = i;
+      break;
+    }
+  }
+
+  if (slot == -1)
+  {
+    if (ftServiceReplyCount >= FT_SERVICE_MAX)
+    {
+      pthread_mutex_unlock(&ftServiceMutex);
+      corRest.out.httpStatusCode = 507;
+      return true;
+    }
+
+    slot = ftServiceReplyCount++;
+    ftServiceReplyV[slot].endpoint = strdup(endpointP->value.s);
+  }
+  else
+    free(ftServiceReplyV[slot].payload);
+
+  ftServiceReplyV[slot].payload = strdup(rendered);
+
+  pthread_mutex_unlock(&ftServiceMutex);
+
+  KT_T(1, "ftClient: '%s' will be answered with %s", endpointP->value.s, rendered);
+
+  corRest.out.httpStatusCode = 204;
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Service table
 //
 static CorRestServiceSimplified ftServices[] =
@@ -1044,6 +1334,7 @@ static CorRestServiceSimplified ftServices[] =
   // Programmable response stubs (mock-reply API).
   { CorVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
   { CorVerbPost,   "/bridge/publish", postBridgePublish, ~(uint64_t)0,  0 },
+  { CorVerbPost,   "/bridge/serviceReply", postBridgeServiceReply, ~(uint64_t)0, 0 },
   { CorVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
   // Catch-all accumulators — every verb lands here and honors --status.
   // supportedParams = ~0ULL: ftClient mocks any NGSI-LD endpoint and

@@ -76,9 +76,24 @@ static pthread_mutex_t      channelMutex = PTHREAD_MUTEX_INITIALIZER;
 //
 typedef struct LoopbackSample
 {
-  char* endpoint;
-  char* json;
+  char*       endpoint;
+  char*       json;
+  const char* subAttrName;                            // NULL for a topic's sample; the reply envelope for a service
 } LoopbackSample;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// LOOPBACK_REPLY - what the loopback calls the answer it gives
+//
+// ⭐ THE NAME IS THE PLUGIN'S, and this is the whole point of the seam taking
+// one. The broker is told "a sub-attribute of this name"; it does not know the
+// word, has no branch on it, and a second bridge is free to use another. Here
+// it is 'reply', because a transport that goes nowhere has no convention to
+// match and the plainest word is the honest one.
+//
+#define LOOPBACK_REPLY  "reply"
 
 static pthread_t  deliveryThread;
 static bool       deliveryRunning = false;
@@ -113,7 +128,20 @@ static void* loopbackDelivery(void* vP)
 
     if (sample.endpoint != NULL)
     {
-      brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+      //
+      // A reply goes back QUALIFIED - it belongs to the attribute that was
+      // written, but it is not that attribute's value. Guarded on the broker's
+      // ABI because a host built before services existed has no such entry
+      // point, and reading the member to test it would be reading past the end
+      // of the struct it allocated.
+      //
+      if (sample.subAttrName == NULL)
+        brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+      else if ((brokerP->abiVersion >= 2) && (brokerP->sampleQualifiedIn != NULL))
+        brokerP->sampleQualifiedIn("loopback", sample.endpoint, NULL, sample.subAttrName, sample.json, 0);
+      else
+        KT_E("loopback: a reply on '%s' has nowhere to go - the host predates the service contract", sample.endpoint);
+
       free(sample.endpoint);
       free(sample.json);
     }
@@ -216,15 +244,16 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
 //
 // loopbackQueue - put a sample on the delivery thread's queue
 //
-static bool loopbackQueue(const char* endpoint, const char* json)
+static bool loopbackQueue(const char* endpoint, const char* json, const char* subAttrName)
 {
   bool queued = false;
 
   pthread_mutex_lock(&queueMutex);
   if (queueCount < LOOPBACK_CHANNELS_MAX)
   {
-    queue[queueCount].endpoint = strdup(endpoint);
-    queue[queueCount].json     = strdup(json);
+    queue[queueCount].endpoint    = strdup(endpoint);
+    queue[queueCount].json        = strdup(json);
+    queue[queueCount].subAttrName = subAttrName;      // a literal, or NULL - never freed
     queueCount++;
     queued = true;
   }
@@ -321,7 +350,7 @@ static void loopbackEmitAtStart(void)
 
     char saved = *p;
     *p = 0;
-    loopbackQueue(keyP, valP);
+    loopbackQueue(keyP, valP, NULL);
     *p = saved;
 
     if (saved == '"')
@@ -380,10 +409,11 @@ static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, Brid
     return BRIDGE_BAD_INPUT;
 
   //
-  // Services and actions are request/response shapes. Loopback carries values,
-  // and answering BRIDGE_UNSUPPORTED is the contract's way of saying so.
+  // Actions are a lifecycle - a goal, feedback over time, a result, a cancel -
+  // and answering BRIDGE_UNSUPPORTED is the contract's way of saying this
+  // transport does not carry one yet.
   //
-  if (kind != BridgeChannelTopic)
+  if (kind == BridgeChannelAction)
     return BRIDGE_UNSUPPORTED;
 
   int rc = BRIDGE_ERR;
@@ -458,7 +488,38 @@ static int loopbackPublish(const char* endpoint, const char* json)
   if (known == false)
     return BRIDGE_NOT_FOUND;
 
-  return (loopbackQueue(endpoint, json) == true) ? BRIDGE_OK : BRIDGE_ERR;
+  return (loopbackQueue(endpoint, json, NULL) == true) ? BRIDGE_OK : BRIDGE_ERR;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackServiceInvoke - ask, and be answered by the only peer there is
+//
+// ⭐ THE ECHO IS THE POINT, not a shortcut. A transport that goes nowhere has
+// no application behind it to compute an answer, so it answers with what it was
+// asked - exactly as publish() hands back the value it was given. What that
+// makes testable is everything on the BROKER's side of an invocation: that
+// writing a bound attribute invokes instead of publishing, that the answer
+// comes back on a thread the broker did not create, and that it lands in a
+// sub-attribute without disturbing the value that asked for it.
+//
+// Called on a BROKER thread, so it queues and returns - as publish().
+//
+static int loopbackServiceInvoke(const char* endpoint, const char* json)
+{
+  if ((endpoint == NULL) || (json == NULL))
+    return BRIDGE_BAD_INPUT;
+
+  pthread_mutex_lock(&channelMutex);
+  bool known = (loopbackChannelLookup(endpoint) != NULL);
+  pthread_mutex_unlock(&channelMutex);
+
+  if (known == false)
+    return BRIDGE_NOT_FOUND;
+
+  return (loopbackQueue(endpoint, json, LOOPBACK_REPLY) == true) ? BRIDGE_OK : BRIDGE_ERR;
 }
 
 
@@ -480,9 +541,15 @@ static const char* loopbackVersionInfo(void)
 //
 void bridgeRegister(BridgeDriver* driverP)
 {
+  //
+  // What the HOST speaks, read before anything is written - the host owns this
+  // struct and allocated it at its own size. Zero means a host from before the
+  // handshake, and the safe reading of that is 1. See BridgeDriver.h.
+  //
+  const int hostAbi = (driverP->abiVersion > 0) ? driverP->abiVersion : 1;
+
   driverP->alias       = "loopback";
   driverP->version     = "0.1.0";
-  driverP->abiVersion  = BRIDGE_ABI_VERSION;
   driverP->args        = NULL;
   driverP->init        = loopbackInit;
   driverP->close       = loopbackClose;
@@ -490,4 +557,17 @@ void bridgeRegister(BridgeDriver* driverP)
   driverP->channelDel  = loopbackChannelDel;
   driverP->publish     = loopbackPublish;
   driverP->versionInfo = loopbackVersionInfo;
+
+  //
+  // ABI 2, and only where the host has the slot. serverIface stays NULL either
+  // way: there is nothing for the loopback to serve TO - it is already both
+  // ends of its own wire.
+  //
+  if (hostAbi >= 2)
+    driverP->serviceInvoke = loopbackServiceInvoke;
+
+  //
+  // And now the field is the PLUGIN's, which is what the host reads back.
+  //
+  driverP->abiVersion = BRIDGE_ABI_VERSION;
 }
