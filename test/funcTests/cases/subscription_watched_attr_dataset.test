@@ -1,0 +1,323 @@
+#
+# FILE            subscription_watched_attr_dataset.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A watchedAttributes entry can name ONE instance of an Attribute:
+# "speed@urn:ds:1" is watched only when the instance whose datasetId is
+# urn:ds:1 is written. A plain "speed" is watched whenever any of its
+# instances is.
+#
+# The subscription's own datasetId member (§ 5.8.6) cannot do this: it
+# selects which instances a notification CARRIES, not whether one is sent,
+# so on its own it fires on every instance's write and delivers urn:ds:1's
+# instance unchanged. The extension is what a DDS action goal needs - one
+# instance per goal, and each goal's client wants its own feedback only.
+#
+# Every step writes one instance, and the dump after it holds either the one
+# notification the step should cause, or nothing. The triggers are explicit so
+# that deleting an instance is watched as well as writing one.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription watchedAttributes naming one Attribute instance - attr@datasetId
+
+--TAGS--
+datasetid subscription watchedAttributes
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+echo "01. A subscription watching speed@urn:ds:1 only"
+echo "==============================================="
+payload='{
+  "id": "urn:S:instance",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "watchedAttributes": ["speed@urn:ds:1"],
+  "datasetId": ["urn:ds:1"],
+  "notificationTrigger": ["entityCreated", "attributeCreated", "attributeUpdated", "attributeDeleted"],
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Create the entity with three instances of speed - it fires, carrying urn:ds:1"
+echo "=================================================================================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 10},
+    {"type": "Property", "value": 20, "datasetId": "urn:ds:1"},
+    {"type": "Property", "value": 30, "datasetId": "urn:ds:2"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "03. Write urn:ds:2 - nothing"
+echo "============================"
+payload='{ "speed": { "type": "Property", "value": 31, "datasetId": "urn:ds:2" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload "$payload"
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "04. Write the default instance - nothing"
+echo "========================================"
+payload='{ "speed": { "type": "Property", "value": 11 } }'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload "$payload"
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "05. Write urn:ds:1 - it fires"
+echo "============================="
+payload='{ "speed": { "type": "Property", "value": 21, "datasetId": "urn:ds:1" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload "$payload"
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "06. Delete the urn:ds:2 instance - nothing"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ds:2' -X DELETE
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "07. Delete the urn:ds:1 instance - it fires"
+echo "==========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?datasetId=urn:ds:1' -X DELETE
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "08. The subscription reads back with the entry as it was given"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S:instance
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. A subscription watching speed@urn:ds:1 only
+===============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S:instance
+Content-Length: 0
+
+
+
+
+02. Create the entity with three instances of speed - it fires, carrying urn:ds:1
+==================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "datasetId": "urn:ds:1",
+            "type": "Property",
+            "value": 20
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:instance",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+03. Write urn:ds:2 - nothing
+============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[]
+
+04. Write the default instance - nothing
+========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[]
+
+05. Write urn:ds:1 - it fires
+=============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "datasetId": "urn:ds:1",
+            "type": "Property",
+            "value": 21
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:instance",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+06. Delete the urn:ds:2 instance - nothing
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[]
+
+07. Delete the urn:ds:1 instance - it fires
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "datasetId": "urn:ds:1",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:instance",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+08. The subscription reads back with the entry as it was given
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "datasetId": [
+    "urn:ds:1"
+  ],
+  "entities": [
+    {
+      "type": "Vehicle"
+    }
+  ],
+  "id": "urn:S:instance",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:7701/notify"
+    },
+    "lastNotification": "REGEX(.*)",
+    "lastSuccess": "REGEX(.*)",
+    "status": "ok",
+    "timesSent": 3
+  },
+  "notificationTrigger": [
+    "entityCreated",
+    "attributeCreated",
+    "attributeUpdated",
+    "attributeDeleted"
+  ],
+  "status": "active",
+  "type": "Subscription",
+  "watchedAttributes": [
+    "speed@urn:ds:1"
+  ]
+}
+
+
