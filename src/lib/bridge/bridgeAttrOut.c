@@ -43,7 +43,7 @@
 //
 // bridgeAttrOut -
 //
-void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP)
+void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP, const BridgeSyncDone* syncDoneP)
 {
   //
   // The common case is no bridges at all, and it must cost nothing: two
@@ -65,6 +65,9 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
 
   if (channelP->status != ChannelStatusAvailable)
     return;                                            // its bridge is not loaded; the Channel is dormant
+
+  if (bridgeSyncDoneHas(syncDoneP, channelP) == true)
+    return;                                            // invoked before the write, and waited for (ddsSync)
 
   //
   // Only now, with a Channel known to want it, is the entity worth having.

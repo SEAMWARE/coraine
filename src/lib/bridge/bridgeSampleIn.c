@@ -14,6 +14,7 @@
 #include "kalloc/kaBufferInit.h"                      // kaBufferInit
 #include "kalloc/kaBufferReset.h"                     // kaBufferReset
 #include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "kalloc/kaStrdup.h"                          // kaStrdup
 #include "kjson/kjBufferCreate.h"                     // kjBufferCreate
 #include "kjson/kjParse.h"                            // kjParse
 #include "kjson/kjBuilder.h"                          // kjObject, kjString, kjInteger, kjChildAdd
@@ -613,6 +614,70 @@ static int sampleIn(const char* bridgeName,
     KT_T(KtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeReplySubAttr - a reply, as the sub-attribute it is stored as
+//
+// ⭐ THE ONE WAY A REPLY BECOMES A SUB-ATTRIBUTE, whichever path it takes. An
+// asynchronous reply is built, expanded and converted by sampleIn() below; a
+// reply a request waited for (ddsSync) is grafted into that request's own
+// fragment instead - and the two must be stored identically, or the same answer
+// would read differently depending on who asked for it. So this runs the very
+// steps sampleIn() runs, on a throwaway attribute, and hands back the part that
+// is the reply.
+//
+// The attribute's value is a placeholder: the caller's fragment has the real
+// one, and only the sub-attribute is taken from here.
+//
+// @return the sub-attribute, in the DB model and unlinked from anything, or
+//         NULL when the reply is not valid JSON.
+//
+KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime)
+{
+  //
+  // ⚠ kjParse parses IN PLACE - every name and string in the tree points into
+  // the text it was given. The caller's text is not the request's (a reply that
+  // was waited for arrives in a buffer freed as soon as it has been grafted), so
+  // the tree gets a copy of its own, in the arena it lives in.
+  //
+  char*   jsonCopy     = kaStrdup(&corRest.kalloc, json);
+  KjNode* placeholderP = kjString(corRest.kjsonP, NULL, "-");
+  KjNode* attrP        = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP);
+
+  if (attrP == NULL)
+    return NULL;
+
+  KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(fragmentP, attrP);
+
+  corLdExpandTree(fragmentP, corLdCoreContext(), &corRest.kalloc);
+  ldApiEntityToDbModel(fragmentP, &corRest.kalloc, 0);
+
+  KjNode* wrapperP  = kjLookup(fragmentP, attrName);
+  KjNode* instanceP = (wrapperP != NULL) ? kjLookup(wrapperP, "@none") : NULL;
+
+  if (instanceP == NULL)
+    return NULL;
+
+  //
+  // The reply is the one object in the instance that is not its value - the
+  // name it was given has been expanded on the way, so it is found by shape.
+  //
+  for (KjNode* nodeP = instanceP->value.firstChildP; nodeP != NULL; nodeP = nodeP->next)
+  {
+    if ((nodeP->type == KjObject) && (strcmp(nodeP->name, "value") != 0))
+    {
+      kjChildRemove(instanceP, nodeP);
+      nodeP->next = NULL;
+      return nodeP;
+    }
+  }
+
+  return NULL;
 }
 
 

@@ -49,6 +49,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
+#include "bridge/bridgeServiceSync.h"                 // bridgeSyncFragment, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
 
@@ -452,6 +453,17 @@ bool patchEntityAttrs(void)
 
     ldApiEntityToDbModel(fragment, &corRest.kalloc, 0);
 
+    BridgeSyncDone syncDone = { { NULL }, 0 };
+
+    //
+    // ddsSync: a service this fragment writes is invoked NOW, before anything
+    // is stored, and waited for - so that its reply is written with the value,
+    // or, if it never comes, nothing is written at all. A no-op unless the
+    // request asked for it. See bridgeServiceSync.h.
+    //
+    if (bridgeSyncFragment(tenantP, entityId, fragment, &syncDone) == false)
+      return true;  // ldError already set - nothing has been written
+
     if (db.entityAttrsSet == NULL)
     {
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
@@ -493,7 +505,7 @@ bool patchEntityAttrs(void)
 
       // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
       // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);

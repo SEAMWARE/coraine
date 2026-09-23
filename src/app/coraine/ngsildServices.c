@@ -12,6 +12,7 @@
 #include "corRest/CorRestService.h"                // CorRestServiceSimplified, CorRestVerb
 #include "corRest/CorRestVerb.h"                   // CorVerbGet, CorVerbPost, CorVerbDelete, CorVerbPatch
 #include "corNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES, LD_PARAMS_DELETE_ENTITY, LD_PARAMS_PATCH_ENTITY
+#include "bridge/bridgeServiceSync.h"                  // BRIDGE_PARAM_DDS_SYNC
 #include "corNgsild/LdOp.h"                       // LdOp*
 #include "corNgsild/ldPCheckQuery.h"              // pCheckQuery
 
@@ -138,16 +139,16 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY,     LdOpRetrieveEntity },
   { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
-  { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY,   LdOpMergeEntity    },
+  { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY | BRIDGE_PARAM_DDS_SYNC,   LdOpMergeEntity    },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY, LdOpReplaceEntity },
   { CorVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS,  LdOpAppendAttrs },
-  { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS, LdOpUpdateAttrs },
+  { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS | BRIDGE_PARAM_DDS_SYNC, LdOpUpdateAttrs },
   // value-only sub-resource (TS 104-176 § 7.6) — MUST precede /attrs/* so the
   // trailing-literal route wins over the single-attribute route.
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*/value", getEntityAttrValue, LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*/value", putEntityAttrValue, LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
-  { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
+  { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR | BRIDGE_PARAM_DDS_SYNC,  LdOpUpdateAttrs    },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR,    LdOpReplaceAttr    },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*/attrs/*", deleteEntityAttr, LD_PARAMS_DELETE_ENTITY_ATTR, LdOpDeleteAttr     },
   { CorVerbDelete, "/ngsi-ld/v1/entities",         purgeEntities,    LD_PARAMS_PURGE_ENTITIES,     LdOpPurgeEntity    },

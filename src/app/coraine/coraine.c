@@ -86,6 +86,7 @@
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
+#include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -206,6 +207,8 @@ static KArg kargV[] =
   { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
   { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
   { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
+  { "--ddsSync",            "-ddsSync",     KaBool,   _vp &bridgeSyncDefault,   KaOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
+  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before failing with 504" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
   { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
@@ -475,6 +478,20 @@ static bool pluginsLoad(int argC, char* argV[])
 
 // -----------------------------------------------------------------------------
 //
+// bridgeParams - the URL parameters the broker itself adds to NGSI-LD's
+//
+// ?ddsSync, on the three entity PATCH routes - see bridgeServiceSync.h.
+//
+static CorRestParam bridgeParams[] =
+{
+  { "ddsSync", BRIDGE_PARAM_DDS_SYNC },
+  { NULL,      0                     }
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
 // apiPluginsInit - register API plugin params and call init()
 //
 static void apiPluginsInit(void)
@@ -534,7 +551,8 @@ static BridgeBroker bridgeBroker =
   BRIDGE_ABI_VERSION,
   bridgeSampleIn,
   bridgeLogFunction,
-  bridgeSampleQualifiedIn
+  bridgeSampleQualifiedIn,
+  bridgeReplyIn
 };
 
 
@@ -1319,6 +1337,9 @@ int main(int argC, char* argV[])
     };
     corRestCorsConfig(&corsConf);
   }
+
+  if (corRestParamAdd(bridgeParams) == false)
+    KT_X(1, "corRestParamAdd failed for the broker's own URL parameters");
 
   apiPluginsInit();
   tenantInit("cor");

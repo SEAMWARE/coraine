@@ -921,7 +921,7 @@ bool postEntityBatchUpdate(void)
       // those two already are - a bulk write that fails afterwards has been
       // announced to a subscriber as well as to a Channel.
       //
-      bridgeAttrsOutFromMerge(tenantP, g->id, existingDb, &report);
+      bridgeAttrsOutFromMerge(tenantP, g->id, existingDb, &report, NULL);
 
       if (subCacheP != NULL)
       {

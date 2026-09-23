@@ -1059,6 +1059,10 @@ contextServerReplace() {
 # Only a SERVER needs one given to it: it announces a service, and the transport
 # asks for the service's types before anybody else has said a word about them.
 #
+# --replyDelay "<endpoint>=<ms>" makes the loopback bridge answer a service that
+# late, and -1 never - what a test of a request that WAITS for its reply
+# (ddsSync) needs to produce a timeout, and a reply after one, on purpose.
+#
 bridgeConfig() {
   local outFile="/tmp/coraine_bridges.json"
   local bridge="loopback"
@@ -1067,6 +1071,7 @@ bridgeConfig() {
   local -a topics
   local -a services
   local -a emits
+  local -a replyDelays
   local -a raws
 
   while [ $# -gt 0 ]; do
@@ -1088,6 +1093,7 @@ bridgeConfig() {
       #
       --defaultEntity) defaultEntity="$2"; shift ;;
       --emit)   emits+=("$2");  shift ;;
+      --replyDelay) replyDelays+=("$2"); shift ;;
       --raw)    raws+=("$2");   shift ;;
       *)        echo "bridgeConfig: unknown option '$1'" >&2; return 1 ;;
     esac
@@ -1116,6 +1122,19 @@ bridgeConfig() {
         else
           echo "      \"$endpoint\": $value"
         fi
+      done
+      echo "    },"
+    fi
+
+    if [ ${#replyDelays[@]} -gt 0 ]; then
+      echo "    \"replyDelayMs\": {"
+      local i=0
+      local d
+      for d in "${replyDelays[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#replyDelays[@]} ] && comma=""
+        echo "      \"${d%%=*}\": ${d#*=}$comma"
       done
       echo "    },"
     fi

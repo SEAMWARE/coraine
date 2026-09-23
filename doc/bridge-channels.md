@@ -1830,8 +1830,16 @@ topics:
 - **No type discovery.** There is no peer to learn the IDL from before
   the first send, so pre-built `.bin` type files must be on disk. The
   `typesDirectory` becomes a Bridge field.
-- **A synchronous timeout** for service invocation — `syncTimeoutMs`,
-  a Bridge default overridable per Channel.
+- **Waiting for the reply — `ddsSync`, opt-in.** By default a write to a
+  service attribute invokes after the write and answers on its NGSI-LD merits;
+  the reply lands later. `?ddsSync=true` on the three entity PATCH forms (or
+  `--ddsSync` as the broker default, with `?ddsSync=false` to opt out) invokes
+  BEFORE the write, waits for that invocation's reply, and writes value and
+  reply together — or answers 503/504 and writes nothing. The timeout is
+  broker-wide for now, `--ddsSyncTimeout` (default 5000 ms); per Channel is
+  still open. Off by default because it changes what a PATCH means (no server:
+  504 and nothing stored, instead of 204 and stored) and its latency. The
+  correlation it needs is ABI 3 — see the revision of 2026-09-23.
 
 Port the DDS *mechanics* — type loading, `.bin` handling, goal
 correlation, cancel, feedback/status/result arrival. That is transport
@@ -2012,6 +2020,17 @@ that preceded it, are in a separate working document not published here.
 Oldest first would be tidier, but these were written newest-first as they
 happened and renumbering them invites transcription errors. Read § 1–§ 4 first;
 this section answers "why is it like that" rather than "what is it".
+
+> **Revision 2026-09-23** — `ddsSync`, and bridge ABI 3. A service request can
+> now be WAITED FOR (§ 9.1), which the seam could not express: an asynchronous
+> reply is identified by its endpoint alone, and a waiting request must get its
+> own reply and no other — not a late answer to an earlier invocation, not one
+> belonging to a request that already gave up. ABI 3 appends
+> `BridgeDriver.serviceInvokeTracked(endpoint, json, token)` and
+> `BridgeBroker.replyIn(..., token, ...)`. The BROKER chooses the token, because
+> it has to be waiting before the reply can arrive, and a reply can arrive
+> before the invocation returns. A reply to a request that timed out is dropped,
+> so that a request that answered 504 never gains a reply afterwards.
 
 > **Revision 2026-09-16** — timing and status, which were never written down.
 > **coraine implements this design now; it is not waiting for ETSI.** The
