@@ -19,6 +19,7 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/corNgsild.h"                       // corNgsild (rawResponse)
+#include "corBridge/BridgeDriver.h"                     // bridges, bridgeCount
 
 #include "coraineVersion.h"                         // CORAINE_VERSION (-Isrc/app/coraine)
 #include "coraineStack.h"                           // coraineStack - GENERATED, see the makefile
@@ -49,6 +50,32 @@ bool getVersion(void)
     kjChildAdd(stack, kjString(corRest.kjsonP, coraineStack[ix][0], coraineStack[ix][1]));
 
   kjChildAdd(body, stack);
+
+  //
+  // The bridges, one member per loaded plugin, its value the plugin's own
+  // one-liner - BridgeDriver.h promises that string to this response.
+  //
+  // ⭐ A bridge plugin links a transport stack built apart from coraine (DDS is
+  // five times the size of the whole broker), so the commits above say nothing
+  // about it; only the plugin can say what it actually loaded.
+  //
+  // Absent rather than empty when no bridge is loaded: a broker without
+  // --bridges answers exactly as it always did.
+  //
+  if (bridgeCount > 0)
+  {
+    KjNode* bridgesP = kjObject(corRest.kjsonP, "bridges");
+
+    for (int ix = 0; ix < bridgeCount; ix++)
+    {
+      const char* alias = (bridges[ix].alias       != NULL) ? bridges[ix].alias         : "?";
+      const char* info  = (bridges[ix].versionInfo != NULL) ? bridges[ix].versionInfo() : "";
+
+      kjChildAdd(bridgesP, kjString(corRest.kjsonP, alias, info));
+    }
+
+    kjChildAdd(body, bridgesP);
+  }
 
   // Bypass @context expansion / compaction — this endpoint is non-NGSI-LD.
   corNgsild.rawResponse      = true;
