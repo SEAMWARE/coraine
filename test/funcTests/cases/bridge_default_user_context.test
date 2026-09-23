@@ -1,0 +1,195 @@
+#
+# FILE            bridge_default_user_context.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The mapping file names attributes the SHORT way, and DDS people know nothing
+# about JSON-LD - so the tool that writes that file writes a @context beside
+# it, and the broker is pointed at it with -duc. The short names in the one are
+# terms of the other.
+#
+# ⭐ The rule is one rule: for ANY expansion, if there is no user-supplied
+# @context, the default user context is used. A broker started with -duc never
+# expands with the core context alone. A broker without one expands with core,
+# which is then the whole of what it has.
+#
+# The reason it has to be a rule rather than a list of places is step 04. If
+# the default is substituted only where a REQUEST resolves its context, then
+# the same short name means the duc's IRI over HTTP and the @vocab IRI on its
+# topic - two attributes on one entity, and nothing anywhere to say so. That is
+# not hypothetical: it is what the broker this file format comes from does
+# today, because its substitution lives in the HTTP path alone.
+#
+# ⭐ And the symptom is sharper than "two attributes". Run this case against a
+# broker that expands the config file with core while the request path uses the
+# duc, and step 04 answers
+#
+#   404  "attribute 'temperature' not found in entity 'urn:ngsi-ld:Machine:1'"
+#
+# to a client that can SEE temperature in the GET one line above. The GET
+# compacts one IRI and the PATCH's URL expands to another, and they never meet.
+# A POST /attrs would not even complain - it would create the second one.
+#
+--NAME--
+Bridges: the config file's short names expand with the default user context, and so does everything else
+
+--TAGS--
+bridge channel plugins jsonld-context
+
+--INIT--
+corDbDrop
+contextServerStart
+
+contextServerPush /jsonldContexts/dds '{
+  "@context": {
+    "temperature": "https://example.org/factory/temp",
+    "Machine": "https://example.org/factory/Machine"
+  }
+}'
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --emit "P1=41")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG \
+             -duc http://localhost:7080/jsonldContexts/dds
+
+--RUN--
+
+echo "01. The config file's short names became the DUC's IRIs, not @vocab ones"
+echo "========================================================================"
+#
+# Asked for with the CORE context, which has no term for either - so anything
+# the duc named comes back as a full IRI, and an @vocab expansion would show up
+# as .../default-context/temperature instead. This is the assertion; the
+# friendly rendering in step 02 is the consequence.
+#
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 41
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 \
+        -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "02. And with no context named, the duc is used to compact as well"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
+echo
+echo
+
+
+echo "03. A sample arriving on the topic lands on that same attribute"
+echo "==============================================================="
+#
+# The sample went through bridgeSampleIn, which has no request behind it at
+# all. Its value is in the attribute the CONFIG FILE named - one attribute.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "04. ⭐ And an HTTP write with no @context lands on the SAME attribute"
+echo "====================================================================="
+#
+# The whole point. Two doors into one broker - a PATCH carrying no context, and
+# a sample carrying none either - and one attribute at the end of both. Expand
+# the request with the duc and the topic with core and this step would leave
+# the entity holding TWO temperatures.
+#
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1/attrs/temperature -X PATCH --payload '{
+  "type": "Property",
+  "value": 99
+}'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 \
+        -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--
+01. The config file's short names became the DUC's IRIs, not @vocab ones
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "https://example.org/factory/temp": {
+    "type": "Property",
+    "value": 41
+  },
+  "id": "urn:ngsi-ld:Machine:1",
+  "type": "https://example.org/factory/Machine"
+}
+
+
+
+02. And with no context named, the duc is used to compact as well
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/dds>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": {
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Machine"
+}
+
+
+
+03. A sample arriving on the topic lands on that same attribute
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/dds>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 78
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": 41,
+  "type": "Machine"
+}
+
+
+
+04. ⭐ And an HTTP write with no @context lands on the SAME attribute
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 170
+
+{
+  "https://example.org/factory/temp": {
+    "type": "Property",
+    "value": 99
+  },
+  "id": "urn:ngsi-ld:Machine:1",
+  "type": "https://example.org/factory/Machine"
+}
+
+
+
