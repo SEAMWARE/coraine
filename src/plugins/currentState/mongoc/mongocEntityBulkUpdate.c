@@ -16,6 +16,11 @@
 // from the reply. Pre-checking existence costs us one extra round-trip
 // but keeps the per-entity BatchOperationResult accurate.
 //
+// A replace that FAILS is a different matter: the bulk is unordered, so
+// mongo goes on with the rest, and the reply's writeErrors names each
+// failed op by its index in the bulk. Those - and only those - are the
+// entities that were not written.
+//
 
 #include <string.h>                                      // strcmp, strcpy, memset
 
@@ -66,6 +71,89 @@ static const char* entityIdAt(KjNode* entitiesArr, int ix)
     return idP->value.s;
   }
   return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityAt - return the ix-th entity, or NULL
+//
+static KjNode* entityAt(KjNode* entitiesArr, int ix)
+{
+  int i = 0;
+  for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
+  {
+    if (i == ix)
+      return e;
+  }
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// applyWriteErrors - mark the entities the reply's writeErrors names
+//
+// Each writeError is { "index": <bulk op>, "code": <int>, "errmsg": ... }, and
+// the index is a BULK slot - mapped back to the entity through batchIx. Returns
+// how many were marked, so the caller can tell a reply that named the failures
+// from one that named none (a transport error), where nothing can be told apart.
+//
+static int applyWriteErrors(const bson_t* reply, int* resultsV, int batchN, const int* batchIx, KjNode* entitiesArr, Tenant* tenantP)
+{
+  bson_iter_t top;
+  if (!bson_iter_init_find(&top, reply, "writeErrors"))
+    return 0;
+
+  bson_iter_t arr;
+  if (!bson_iter_recurse(&top, &arr))
+    return 0;
+
+  int marked = 0;
+  while (bson_iter_next(&arr))
+  {
+    bson_iter_t doc;
+    if (!bson_iter_recurse(&arr, &doc))
+      continue;
+
+    int         idx    = -1;
+    const char* errmsg = NULL;
+    while (bson_iter_next(&doc))
+    {
+      const char* key = bson_iter_key(&doc);
+      if      (strcmp(key, "index")  == 0) idx    = bson_iter_int32(&doc);
+      else if (strcmp(key, "errmsg") == 0 && BSON_ITER_HOLDS_UTF8(&doc)) errmsg = bson_iter_utf8(&doc, NULL);
+    }
+
+    if (idx < 0 || idx >= batchN)
+      continue;
+
+    int entityIx = batchIx[idx];
+    marked++;
+
+    //
+    // A name geo-indexed in this tenant and updated to another type is a clash of
+    // Attribute kinds, decided from our own payload plus the geo-index cache.
+    //
+    if (errmsg != NULL && strstr(errmsg, "Can't extract geo keys") != NULL)
+    {
+      const char* mixedP = mongocGeoIndexMixedName(tenantP, entityAt(entitiesArr, entityIx));
+      if (mixedP != NULL)
+      {
+        KT_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
+        corNgsild.geoConflictAttr = mixedP;
+        resultsV[entityIx] = DB_GEO_TYPE_CONFLICT;
+        continue;
+      }
+    }
+
+    KT_E("mongoc: entityBulkUpdate: replace of entity %d failed: %s", entityIx, (errmsg != NULL) ? errmsg : "(no errmsg)");
+    resultsV[entityIx] = DB_ERR;
+  }
+
+  return marked;
 }
 
 
@@ -152,6 +240,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
   //
   mongoc_bulk_operation_t* bulk = NULL;
   int bulkCount = 0;
+  int* batchIx  = (int*) bson_malloc0(sizeof(int) * n);  // bulk slot -> entity index
 
   for (int i = 0; i < n; i++)
   {
@@ -203,8 +292,8 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     bson_destroy(&selector);
     bson_destroy(&doc);
 
-    resultsV[i] = DB_OK;  // optimistic; if bulk reports an error we downgrade below
-    bulkCount++;
+    resultsV[i] = DB_OK;  // optimistic; the reply's writeErrors downgrades the ones that failed
+    batchIx[bulkCount++] = i;
   }
 
   if (bulk != NULL)
@@ -217,36 +306,21 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       KT_E("mongoc: entityBulkUpdate execute failed: %s", error.message);
 
       //
-      // The bulk reply does not say WHICH entry failed, but for the one failure
-      // that has a better answer than 500 it does not have to: an entity of this
-      // batch holding a geo-indexed name as another type is a clash of Attribute
-      // kinds, and that is decided from our own payload plus the geo-index cache.
-      // Everything else stays DB_ERR, and only a failing batch pays for the walk.
+      // Unordered: every op that did not fail was written, so only the ones the
+      // reply names are downgraded. A reply naming none is a transport error,
+      // and then no staged entity is known to have been written.
       //
-      bool geoClash = (strstr(error.message, "Can't extract geo keys") != NULL);
-      int  i        = 0;
-
-      for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+      if (applyWriteErrors(&reply, resultsV, bulkCount, batchIx, entitiesArr, tenantP) == 0)
       {
-        if (resultsV[i] != DB_OK)
-          continue;
-
-        const char* mixedP = geoClash ? mongocGeoIndexMixedName(tenantP, inP) : NULL;
-
-        if (mixedP != NULL)
-        {
-          KT_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
-          corNgsild.geoConflictAttr = mixedP;
-          resultsV[i] = DB_GEO_TYPE_CONFLICT;
-        }
-        else
-          resultsV[i] = DB_ERR;
+        for (int k = 0; k < bulkCount; k++)
+          resultsV[batchIx[k]] = DB_ERR;
       }
     }
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk);
   }
 
+  bson_free(batchIx);
   bson_free(existsV);
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);
