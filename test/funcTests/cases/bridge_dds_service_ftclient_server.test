@@ -1,0 +1,176 @@
+#
+# FILE            bridge_dds_service_ftclient_server.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The broker as a DDS service CLIENT, against ftClient as the SERVER - over a
+# real DDS transport, with no ROS 2 anywhere.
+#
+# bridge_dds_service_roundtrip proves the same exchange against a real ROS 2
+# server, and needs Docker and the vulcanexus image to do it. This one needs
+# neither: ftClient hosts the same DDS plugin, announces the service from the
+# type files under test/funcTests/fixtures/ddsTypes, and answers with whatever
+# it was told to answer - so the request that leaves the broker, the reply that
+# comes back and the sub-attribute it lands in are all asserted by a test that
+# can run wherever DDS can.
+#
+# ⭐ THE BROKER IS GIVEN NO TYPES. It learns both of them from discovery, the
+# way it would from any real server - which is exactly what could not happen
+# before the DDS-Pipe / DDS Enabler fix this test was written for: a service
+# announced by an Enabler went on the wire with NO type information (DDS-Pipe's
+# RpcTopic erased it), the broker's Enabler never learned the request type, and
+# every request failed with "schema not available". With a stack that lacks the
+# fix, step 03 fails exactly that way.
+#
+# The reply is ftClient's canned answer, set in step 02 - 7, not a computed sum.
+# What is under test is the transport and the broker, not arithmetic.
+#
+# REQUIRE_DDS: yes
+#
+
+--NAME--
+DDS service: the broker as client, ftClient as server - types learned from discovery
+
+--TAGS--
+bridge dds service
+
+--INIT--
+corDbDrop
+
+#
+# The plugin's discovery trace is level 0, and ddsServiceAwait reads it.
+#
+export COR_TRACE_LEVELS=0
+
+#
+# A copy, not the fixtures directory itself: the plugin WRITES every type it
+# learns into its typesDirectory, and the repository is not the place for that.
+#
+rm -rf /tmp/coraine_ftclient_ddstypes
+mkdir -p /tmp/coraine_ftclient_ddstypes
+cp "$REPO_ROOT"/test/funcTests/fixtures/ddsTypes/*.bin /tmp/coraine_ftclient_ddstypes/
+
+DDS_MODULE="\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }"
+SERVICE="add_two_ints,Calculator,urn:ngsi-ld:Calculator:1,sum,example_interfaces::srv::dds_::AddTwoInts_Request_,example_interfaces::srv::dds_::AddTwoInts_Response_"
+
+BROKER_CONFIG=$(bridgeConfig -b dds --raw "$DDS_MODULE" --service "$SERVICE")
+FT_CONFIG=$(bridgeConfig -o /tmp/coraine_ftclient_bridges.json -b dds --raw "$DDS_MODULE" \
+                         --typesDirectory /tmp/coraine_ftclient_ddstypes --service "$SERVICE")
+
+coraineStart --bridges dds --bridgeConfig $BROKER_CONFIG
+ftClientStart --bridges dds --bridgeConfig $FT_CONFIG
+
+--RUN--
+
+echo "01. The service's attribute is there before anything has been asked"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "02. ftClient is told what to answer"
+echo "==================================="
+corCurl --port $FT_CLIENT_PORT --url /bridge/serviceReply --payload '{ "endpoint": "add_two_ints", "payload": { "sum": 7 } }'
+echo
+echo
+
+
+echo "03. Once the broker has discovered the service, the attribute asks and the answer lands in it"
+echo "============================================================================================="
+ddsServiceAwait add_two_ints
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/sum -X PATCH \
+        --payload '{ "type": "Property", "value": { "a": 3, "b": 4 } }'
+echo
+corAwaitBody 20 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"ddsServiceReply"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "04. What ftClient was asked"
+echo "==========================="
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. The service's attribute is there before anything has been asked
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 132
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "sum": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Calculator"
+}
+
+
+
+02. ftClient is told what to answer
+===================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. Once the broker has discovered the service, the attribute asks and the answer lands in it
+=============================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 251
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "sum": {
+    "ddsServiceReply": {
+      "type": "Property",
+      "value": {
+        "sum": 7
+      }
+    },
+    "type": "Property",
+    "value": {
+      "a": 3,
+      "b": 4
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+04. What ftClient was asked
+===========================
+[
+  {
+    "bridge": "dds",
+    "endpoint": "add_two_ints",
+    "kind": "serviceRequest",
+    "payload": "{\"a\":3,\"b\":4}"
+  }
+]
+
+
+--TEARDOWN--
+ftClientStop
+coraineStop
+rm -rf /tmp/coraine_ftclient_ddstypes /tmp/coraine_ftclient_bridges.json
