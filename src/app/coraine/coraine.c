@@ -85,7 +85,7 @@
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
-#include "bridge/bridgeSampleIn.h"                // bridgeSampleIn
+#include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -533,7 +533,8 @@ static BridgeBroker bridgeBroker =
 {
   BRIDGE_ABI_VERSION,
   bridgeSampleIn,
-  bridgeLogFunction
+  bridgeLogFunction,
+  bridgeSampleQualifiedIn
 };
 
 

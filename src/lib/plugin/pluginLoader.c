@@ -248,6 +248,19 @@ int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize)
     BridgeDriver* driverP = &bridges[bridgeCount];
     memset(driverP, 0, sizeof(BridgeDriver));
 
+    //
+    // ⭐ WHAT THIS BROKER SPEAKS, BEFORE THE PLUGIN WRITES A THING.
+    //
+    // The plugin fills in this struct, and the struct is OURS - allocated at
+    // the size our header says. A plugin built against a newer contract knows
+    // of slots that are not there, and without being told how much room it has
+    // it would write them anyway, past the end of bridges[bridgeCount]. It
+    // cannot be told by a parameter, because bridgeRegister takes one pointer
+    // and nothing else, so it is told here and read back below as the PLUGIN's
+    // own version. See the handshake note in BridgeDriver.h.
+    //
+    driverP->abiVersion = BRIDGE_ABI_VERSION;
+
     registerFunc(driverP);
     bridgeCount++;
 

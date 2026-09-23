@@ -1060,6 +1060,7 @@ bridgeConfig() {
   local bridge="loopback"
   local defaultEntity=""
   local -a topics
+  local -a services
   local -a emits
   local -a raws
 
@@ -1068,6 +1069,12 @@ bridgeConfig() {
       -o)       outFile="$2"; shift ;;
       -b)       bridge="$2";  shift ;;
       --topic)  topics+=("$2"); shift ;;
+      #
+      # A service entry is a topic entry plus, optionally, the names of its two
+      # DDS types - which the broker never reads and the plugin always does.
+      #   <endpoint>,<entityType>,<entityId>,<attribute>[,<requestType>,<replyType>]
+      #
+      --service) services+=("$2"); shift ;;
       #
       # The catch-all entity: "true" for the derived one, or "<id>,<type>" to
       # name it. An endpoint no topic claims goes there instead of being
@@ -1140,7 +1147,31 @@ bridgeConfig() {
       fi
     done
 
-    echo "      }"
+    if [ ${#services[@]} -eq 0 ]; then
+      echo "      }"
+    else
+      echo "      },"
+      echo "      \"services\": {"
+
+      i=0
+      local sv
+      for sv in "${services[@]}"; do
+        local sEndpoint sType sId sAttr sReq sRep
+        IFS=',' read -r sEndpoint sType sId sAttr sReq sRep <<< "$sv"
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#services[@]} ] && comma=""
+
+        local types=""
+        [ -n "$sReq" ] && types="$types, \"requestType\": \"$sReq\""
+        [ -n "$sRep" ] && types="$types, \"replyType\": \"$sRep\""
+
+        echo "        \"$sEndpoint\": { \"entityId\": \"$sId\", \"entityType\": \"$sType\", \"attribute\": \"$sAttr\"$types }$comma"
+      done
+
+      echo "      }"
+    fi
+
     echo "    }"
     echo "  }"
     echo "}"
@@ -1199,6 +1230,42 @@ ros2NodeStart() {
   #
   ros2NodeWait "$node" "." 10 \
     || { echo "ros2NodeStart: the ROS 2 $node printed nothing in 10s" >&2; return 1; }
+}
+
+
+# ros2ServiceStart <node> <service> [seconds] - start a ROS 2 service SERVER
+#
+# ⭐ NOT ros2NodeStart, and the difference is the whole point. That one waits
+# for the node's first log line, which is right for a talker and impossible for
+# a server: a service server says nothing at all until somebody asks it
+# something, so there is no first line to wait for.
+#
+# What a test actually depends on is something else anyway - that the BROKER has
+# DISCOVERED the service. An invocation sent before that has no server to reach
+# and is refused outright, which is not a race worth having in a test. So this
+# waits for the broker's own trace saying it found it.
+#
+ros2ServiceStart() {
+  local node="$1"
+  local service="$2"
+  local secs="${3:-30}"
+  local name="cor_ros2_$node"
+  local i
+
+  docker rm -f "$name" > /dev/null 2>&1
+
+  docker run --rm -d --name "$name" --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" \
+         "$COR_DDS_ROS2_IMAGE" \
+         bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/demo_nodes_py/'"$node" > /dev/null 2>&1 \
+    || { echo "ros2ServiceStart: could not start the ROS 2 $node" >&2; return 1; }
+
+  for ((i = 0; i < secs * 10; i++)); do
+    grep -q "service '$service' discovered" /tmp/coraine.CB.log 2>/dev/null && return 0
+    sleep 0.1
+  done
+
+  echo "ros2ServiceStart: the broker did not discover service '$service' in ${secs}s" >&2
+  return 1
 }
 
 
