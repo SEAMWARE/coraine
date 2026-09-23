@@ -54,9 +54,9 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 echo "01. Seed 'a' as a GeoProperty; the create path needs Machine:5 and :6 absent"
 echo "============================================================================"
-corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }' | head -1
-corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5 -X DELETE | head -1
-corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:6 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:6 -X DELETE
 echo
 echo
 
@@ -113,7 +113,7 @@ corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2?attrs=temperature&form
 echo
 corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3?attrs=temperature&format=keyValues'
 echo
-corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5'
 echo
 
 
@@ -125,8 +125,19 @@ rm -f /tmp/coraine_bridges.json
 01. Seed 'a' as a GeoProperty; the create path needs Machine:5 and :6 absent
 ============================================================================
 HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:G
+Content-Length: 0
+
+
 HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
 HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
 
 
 02. Batch update - Machine:1 refused by the bulk write, Machine:2 written by two fragments
@@ -256,4 +267,15 @@ Content-Length: 91
 
 
 HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 166
+
+{
+  "detail": "entity 'urn:ngsi-ld:Machine:5' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
 
