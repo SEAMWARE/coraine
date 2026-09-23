@@ -24,6 +24,13 @@
 # every request failed with "schema not available". With a stack that lacks the
 # fix, step 03 fails exactly that way.
 #
+# ⚠ IT NEEDS THAT FIX, which is not in any eProsima release yet:
+# eProsima/DDS-Pipe#204 and eProsima/DDS-Enabler#38. Until it is, a machine that
+# runs this test builds DDS-Pipe and the DDS Enabler from ~/git/DDS/DDS-Pipe
+# (branch local/v1.5.3-fixed) and ~/git/DDS/DDS-Enabler (local/v1.2.2-fixed).
+# It is not a CI test either way: REQUIRE_DDS takes it out of any run without
+# the DDS plugin, and a GA runner has none.
+#
 # The reply is ftClient's canned answer, set in step 02 - 7, not a computed sum.
 # What is under test is the transport and the broker, not arithmetic.
 #
