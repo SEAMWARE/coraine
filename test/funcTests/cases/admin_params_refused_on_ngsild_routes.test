@@ -1,0 +1,82 @@
+#
+# FILE            admin_params_refused_on_ngsild_routes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The admin plugin's URL parameters belong to its own routes. On an NGSI-LD
+# route they are unknown parameters, and refused like any other (400).
+#
+# URL parameters are validated by BIT - every registrant's names map into one
+# 64-bit space, and a route declares the bits it takes. The admin plugin's four
+# used to sit on bits 48-51, which corNgsild had meanwhile grown into:
+# containedBy is 48, firstN 50, offsetN 51. So with the plugin loaded, a route
+# that takes containedBy took ?verbose as well - the same bit - and
+# GET /entities?verbose=1 answered 200 where ?nonsense=1 answers 400.
+#
+# Only visible with --apiPlugins admin: without it the four names are never
+# registered and there is nothing to collide.
+#
+
+--NAME--
+Admin plugin URL parameters are refused on NGSI-LD routes
+
+--TAGS--
+admin params
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+echo "01. GET /entities?type=T&verbose=1 - an admin parameter on an NGSI-LD route"
+echo "==========================================================================="
+corCurl --url "/ngsi-ld/v1/entities?type=T&verbose=1"
+echo
+echo
+
+
+echo "02. GET /entities?type=T&nonsense=1 - what any unknown parameter gets"
+echo "====================================================================="
+corCurl --url "/ngsi-ld/v1/entities?type=T&nonsense=1"
+echo
+echo
+
+
+--EXPECT--
+01. GET /entities?type=T&verbose=1 - an admin parameter on an NGSI-LD route
+===========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "Unknown/unsupported URL parameter: verbose",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+02. GET /entities?type=T&nonsense=1 - what any unknown parameter gets
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "Unknown/unsupported URL parameter: nonsense",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+coraineStop
