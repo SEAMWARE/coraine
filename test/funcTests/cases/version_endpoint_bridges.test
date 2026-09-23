@@ -1,0 +1,88 @@
+#
+# FILE            version_endpoint_bridges.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /version reports every loaded bridge plugin, under "bridges", as the
+# plugin's own one-line versionInfo() - what BridgeDriver.h has always said
+# that string was for, and what nothing did until now: it reached the startup
+# log line and no response.
+#
+# It matters for a bridge more than for anything else in the binary. A bridge
+# plugin links a transport stack built apart from coraine - DDS is five times
+# the size of the whole broker - so the commits under "stack" say nothing about
+# it; only the plugin knows what it actually loaded.
+#
+# The whole response is asserted, and that makes this an mhd-only test for the
+# same reason as version_endpoint.test: "stack" lists what is linked into the
+# binary, and a built-in-server build legitimately links one more library.
+#
+# The loopback plugin's string is fixed, so it is asserted literally. The DDS
+# plugin's, which carries the versions of the loaded Fast DDS / Fast CDR / DDS
+# Enabler libraries, needs a DDS stack and is not a CI test.
+#
+# The other half of the contract - with no --bridges the member is ABSENT, not
+# an empty object - is pinned by version_endpoint.test, whose full expected body
+# has no "bridges" member.
+#
+# REQUIRE_HTTPSERVER: mhd
+#
+--NAME--
+GET /version lists the loaded bridge plugins
+
+--TAGS--
+version bridge
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. GET /version, loopback bridge loaded"
+echo "========================================"
+corCurl --url /version
+echo
+echo
+
+
+--EXPECT--
+01. GET /version, loopback bridge loaded
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX([0-9]+)
+
+{
+  "bridges": {
+    "loopback": "loopback 0.1.0 (no transport)"
+  },
+  "product": "coraine",
+  "stack": {
+    "corBridge": "REGEX([0-9a-f]{40})",
+    "corJsonld": "REGEX([0-9a-f]{40})",
+    "corNgsild": "REGEX([0-9a-f]{40})",
+    "corPlugin": "REGEX([0-9a-f]{40})",
+    "corRest": "REGEX([0-9a-f]{40})",
+    "kalloc": "REGEX([0-9a-f]{40})",
+    "kargs": "REGEX([0-9a-f]{40})",
+    "kbase": "REGEX([0-9a-f]{40})",
+    "khash": "REGEX([0-9a-f]{40})",
+    "kjson": "REGEX([0-9a-f]{40})",
+    "kprom": "REGEX([0-9a-f]{40})",
+    "ktrace": "REGEX([0-9a-f]{40})"
+  },
+  "version": "0.4.0"
+}
+
+
+
+--TEARDOWN--
+coraineStop
