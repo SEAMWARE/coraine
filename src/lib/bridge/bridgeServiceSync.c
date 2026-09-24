@@ -11,9 +11,11 @@
 #include <stdbool.h>                                  // bool
 #include <stdint.h>                                   // uint64_t, int64_t
 #include <stdlib.h>                                   // free
+#include <stdio.h>                                    // snprintf
 #include <string.h>                                   // strcmp, strdup
 #include <time.h>                                     // clock_gettime
 
+#include "kalloc/kaStrdup.h"                          // kaStrdup
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjRender.h"                           // kjFastRender
@@ -340,6 +342,48 @@ static void sendError(int r, const char* attrName, const Channel* channelP, cons
 
 // -----------------------------------------------------------------------------
 //
+// sendFailedOne - one attribute of a request writing several could not be sent
+//
+// Recorded for the handler's 207, and taken out of the fragment so that it is
+// not written. The status is what the request would have answered had it
+// written that attribute alone.
+//
+static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attrP, int r, const Channel* channelP, const char* what)
+{
+  char reason[512];
+  int  status;
+
+  if (r == BRIDGE_BAD_INPUT)
+  {
+    status = 400;
+    snprintf(reason, sizeof(reason), "the value does not fit the %s of '%s' - not written", what, channelP->endpoint);
+  }
+  else if (r == BRIDGE_UNSUPPORTED)
+  {
+    status = 422;
+    snprintf(reason, sizeof(reason), "bridge '%s' cannot send the %s of '%s' - not written", channelP->bridgeName, what, channelP->endpoint);
+  }
+  else
+  {
+    status = 503;
+    snprintf(reason, sizeof(reason), "'%s' on bridge '%s' could not be reached - not written", channelP->endpoint, channelP->bridgeName);
+  }
+
+  if (doneP->failedN < BRIDGE_SYNC_MAX)
+  {
+    doneP->failedAttrV[doneP->failedN]   = attrP->name;
+    doneP->failedStatusV[doneP->failedN] = status;
+    doneP->failedReasonV[doneP->failedN] = kaStrdup(&corRest.kalloc, reason);
+    doneP->failedN++;
+  }
+
+  kjChildRemove(fragmentP, attrP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // SyncOutcome - what came of invoking a service and waiting for it
 //
 typedef enum SyncOutcome
@@ -512,6 +556,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 {
   doneP->count    = 0;
   doneP->accepted = false;
+  doneP->failedN  = 0;
 
   if ((bridgeCount == 0) || (channelCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
@@ -521,8 +566,29 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   if (bridgeSyncRequested(&wait) == false)
     return requestsFailed(doneP);
 
+  //
+  // Several attributes: nothing waits, and one that cannot be sent is left out
+  // rather than failing the rest (see "ONE ATTRIBUTE OR SEVERAL").
+  //
+  int attrCount = 0;
+
   for (KjNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
+    if (ldIsNotAttributeName(attrP->name) == false)
+      attrCount++;
+  }
+
+  bool several = (attrCount > 1);
+
+  if (several == true)
+    wait = false;
+
+  KjNode* nextP;
+
+  for (KjNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = nextP)
+  {
+    nextP = attrP->next;                              // attrP may be taken out of the fragment
+
     if (ldIsNotAttributeName(attrP->name) == true)
       continue;
 
@@ -565,6 +631,12 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
       if (r != BRIDGE_OK)
       {
+        if (several == true)
+        {
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "goal");
+          continue;
+        }
+
         sendError(r, attrP->name, channelP, "goal");
         return requestsFailed(doneP);
       }
@@ -631,6 +703,12 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
       if (r != BRIDGE_OK)
       {
+        if (several == true)
+        {
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "request");
+          continue;
+        }
+
         sendError(r, attrP->name, channelP, "request");
         return requestsFailed(doneP);
       }

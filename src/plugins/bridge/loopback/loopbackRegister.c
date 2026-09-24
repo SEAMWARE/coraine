@@ -118,6 +118,8 @@ typedef struct LoopbackSample
 //   abort    accepted, then aborted, with a result
 //   stubborn held, like hold - but a cancel cannot be sent, which is how a
 //            test gets a failed cancel
+//   unreachable  the goal itself cannot be sent - a server that cannot be
+//            reached, and so a request that must not write the attribute
 //
 // The envelope names are the loopback's own, and plain: a transport that goes
 // nowhere has no convention to match.
@@ -837,6 +839,9 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
     return BRIDGE_NOT_FOUND;
 
   const char* mode = loopbackGoalMode(endpoint);
+
+  if (strcmp(mode, "unreachable") == 0)
+    return BRIDGE_ERR;
 
   if (strcmp(mode, "reject") == 0)
   {

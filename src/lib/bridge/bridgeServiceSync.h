@@ -34,6 +34,11 @@
 //   503  nobody serves the endpoint        400  the value does not fit its type
 //   422  the bridge cannot carry this at all
 //
+// ⭐ ONE ATTRIBUTE OR SEVERAL. The above is a request that writes ONE attribute.
+// One that writes several is not held hostage by one of them: it never waits,
+// and an attribute whose request cannot be sent is taken out and not written -
+// the rest is, and the answer is 207 with that attribute not updated.
+//
 // What a request that DID go out answers:
 //
 //   an action goal              202 - accepted, not done: a goal runs, and its
@@ -99,6 +104,17 @@ typedef struct BridgeSyncDone
   bool      accepted;                                 // something went out that is not finished - answer 202
   uint64_t  detachedV[BRIDGE_SYNC_MAX];               // per channelV: the token of a wait that timed out, else 0
   uint64_t  goalV[BRIDGE_SYNC_MAX];                   // per channelV: the token of a goal held for the write, else 0
+
+  //
+  // A request writing SEVERAL attributes does not fail as a whole because one
+  // request to the DDS side could not be sent: that attribute is taken out of
+  // the fragment and not written, the rest is, and the handler reports it here
+  // as not updated (207). See "Requests to the DDS side".
+  //
+  int          failedN;
+  const char*  failedAttrV[BRIDGE_SYNC_MAX];          // the attribute - not written
+  int          failedStatusV[BRIDGE_SYNC_MAX];        // what a request of it alone would have answered
+  const char*  failedReasonV[BRIDGE_SYNC_MAX];        // why, in the request's arena
 } BridgeSyncDone;
 
 

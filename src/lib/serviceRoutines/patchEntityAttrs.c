@@ -78,6 +78,18 @@ static void addNotUpdated(KjNode* arrP, const char* attrName,
   kjChildAdd(arrP, entry);
 }
 
+static void updatedRemove(KjNode* arrP, const char* attrName)
+{
+  for (KjNode* p = arrP->value.firstChildP; p != NULL; p = p->next)
+  {
+    if ((p->type == KjString) && (strcmp(p->value.s, attrName) == 0))
+    {
+      kjChildRemove(arrP, p);
+      return;
+    }
+  }
+}
+
 static void addUpdatedUnique(KjNode* arrP, const char* attrName)
 {
   for (KjNode* p = arrP->value.firstChildP; p != NULL; p = p->next)
@@ -466,6 +478,28 @@ bool patchEntityAttrs(void)
     if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, &syncDone) == false)
       return true;  // ldError already set - nothing has been written
 
+    //
+    // Several attributes: one whose request to the DDS side could not be sent
+    // was taken out of the fragment - not updated, and the rest goes on (207).
+    //
+    for (int ix = 0; ix < syncDone.failedN; ix++)
+    {
+      updatedRemove(updatedP, syncDone.failedAttrV[ix]);
+      addNotUpdated(notUpdatedP, syncDone.failedAttrV[ix], syncDone.failedReasonV[ix], NULL);
+    }
+
+    //
+    // ⚠ Only when the DDS step TOOK SOMETHING OUT. A fragment with no Attributes
+    // at all (scope alone) is an ordinary update and is written as always.
+    //
+    bool nothingLeft = (syncDone.failedN > 0);
+
+    for (KjNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    {
+      if (ldIsNotAttributeName(c->name) == false)
+        nothingLeft = false;
+    }
+
     if (db.entityAttrsSet == NULL)
     {
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
@@ -476,9 +510,20 @@ bool patchEntityAttrs(void)
     // Update Attributes: scope semantics per § 5.6.2.4 are "replace"
     // (matching the default "overwrite allowed" since there's no
     // noOverwrite flag for this op).
-    LdMergeReport report = { NULL };
-    int r = db.entityAttrsSet(tenantP, entityId, fragment, true,
-                               corRest.requestStartTime, &report);
+    LdMergeReport report  = { NULL };
+    int           r       = DB_OK;
+    bool          written = false;
+
+    //
+    // Nothing left to write when every attribute was one whose request could
+    // not be sent - and writing an empty fragment would still stamp modifiedAt
+    // and could notify.
+    //
+    if (nothingLeft == false)
+    {
+      r       = db.entityAttrsSet(tenantP, entityId, fragment, true, corRest.requestStartTime, &report);
+      written = true;
+    }
 
     bridgeRequestsWritten(&syncDone);   // late replies may land now - see bridgeServiceSync.h
     ddsAccepted = syncDone.accepted;
@@ -502,7 +547,7 @@ bool patchEntityAttrs(void)
       return true;
     }
 
-    if (r == DB_OK)
+    if ((r == DB_OK) && (written == true))
     {
       KjNode* mergedEntity = NULL;
       if (tenantP->subCacheP != NULL)

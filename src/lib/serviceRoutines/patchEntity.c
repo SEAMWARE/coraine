@@ -42,6 +42,7 @@
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldIsEntityKeyword.h"                // ldIsNotAttributeName
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
@@ -403,6 +404,33 @@ bool patchEntity(void)
       return true;  // ldError already set - nothing has been written
 
     //
+    // Several attributes: one whose request to the DDS side could not be sent
+    // was taken out of the fragment - an error of its own, and the rest goes on
+    // (207). See bridgeServiceSync.h.
+    //
+    for (int ix = 0; ix < syncDone.failedN; ix++)
+    {
+      int st = syncDone.failedStatusV[ix];
+
+      ldDistOpBatchErrorAdd(errorsArrayP, entityId, st,
+                            (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                            (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                            syncDone.failedReasonV[ix], NULL);
+    }
+
+    //
+    // ⚠ Only when the DDS step TOOK SOMETHING OUT. A fragment with no Attributes
+    // at all is an ordinary PATCH - of scope, of type - and is merged as always.
+    //
+    bool nothingLeft = (syncDone.failedN > 0);
+
+    for (KjNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    {
+      if (ldIsNotAttributeName(c->name) == false)
+        nothingLeft = false;
+    }
+
+    //
     // Merge in the broker: fetch the current entity, deep-merge the fragment
     // into it (§ 10.2.9, true RFC 7396), then ask the driver to persist the
     // resulting change report. The merge engine lives here, not in the plugin.
@@ -410,7 +438,13 @@ bool patchEntity(void)
     KjNode* mergedEntity = NULL;
     localR = db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
-    if (localR == DB_OK)
+    //
+    // Nothing left to merge when every attribute was one whose request could
+    // not be sent: the entity is there, and untouched.
+    //
+    if ((localR == DB_OK) && (nothingLeft == true))
+      bridgeRequestsWritten(&syncDone);
+    else if (localR == DB_OK)
     {
       LdMergeReport report = { NULL };
 
