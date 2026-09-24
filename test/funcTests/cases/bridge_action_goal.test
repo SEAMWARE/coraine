@@ -12,6 +12,11 @@
 # first event, holding the request, and removed after the final one. The
 # attribute's own value, and every other goal, stay.
 #
+# A goal is cancelled by deleting its instance, and DDS goes first - a goal is
+# something the broker ASKED the DDS side to do, so that side is its master: the
+# cancel is sent, 202 says it was, and the instance goes only when the goal says
+# it has ended. A cancel that cannot be sent fails the request, deleting nothing.
+#
 # The loopback bridge runs each goal as its endpoint's goalMode says:
 #
 #   A1  succeed   accepted, feedback, succeeded, the result
@@ -19,9 +24,10 @@
 #                 cancellation is reported 500 ms late (replyDelay), so the
 #                 test can look at the entity in between
 #   A3  reject    refused at once - the final event, with no result
+#   A4  stubborn  held, and a cancel of it cannot be sent
 #
 # Tokens are handed out from 1 by a broker that has just started, so the goals
-# of this test are urn:loopback:goal:1, :2 and :3, in the order they are sent.
+# of this test are urn:loopback:goal:1 to :4, in the order they are sent.
 #
 # ⭐ Three oracles, each for what it can see:
 #   - a subscription watching navigate@urn:loopback:goal:1 - every event of the
@@ -45,9 +51,11 @@ BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
   --action "A3,Robot,urn:R:3,navigate" \
+  --action "A4,Robot,urn:R:4,navigate" \
   --goalMode "A2=hold" \
   --replyDelay "A2=500" \
-  --goalMode "A3=reject")
+  --goalMode "A3=reject" \
+  --goalMode "A4=stubborn")
 
 coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
@@ -115,23 +123,23 @@ echo
 echo
 
 
-echo "07. Cancel goal 2 - by deleting its instance"
-echo "============================================"
+echo "07. Cancel goal 2 - by deleting its instance: 202, the cancel is on its way"
+echo "=============================================================================="
 corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:2' -X DELETE
 echo
 echo
 
 
-echo "08. At once, NGSI-LD first - the instance is gone while the goal has not ended yet"
-echo "=================================================================================="
+echo "08. At once - DDS first, so the instance stays while the goal has not ended"
+echo "============================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:2
 echo "goal 2 ended: $(grep -c "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log)"
 echo
 echo
 
 
-echo "09. The goal's own end - canceled, with a result - writes nothing back"
-echo "======================================================================"
+echo "09. The goal ends, canceled - and its instance goes with it"
+echo "============================================================"
 for i in $(seq 1 50); do
   grep -q "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
   sleep 0.1
@@ -167,7 +175,33 @@ echo
 echo
 
 
-echo "13. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected"
+echo "13. Send goal 4 to A4 - it is accepted, and cannot be cancelled"
+echo "================================================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 4, "y": 4 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:4/attrs -X PATCH --payload "$payload"
+for i in $(seq 1 50); do
+  grep -q "'status' on 'A4'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "14. Cancel goal 4 - the cancel cannot be sent: 503, and nothing is deleted"
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:4/attrs/navigate?datasetId=urn:loopback:goal:4' -X DELETE
+echo
+echo
+
+
+echo "15. Robot 4 - goal 4 is still there, as it still runs"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:4
+echo
+echo
+
+
+echo "16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected"
 echo "============================================================================================="
 grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
 echo
@@ -473,39 +507,56 @@ Content-Length: 406
 
 
 
-07. Cancel goal 2 - by deleting its instance
-============================================
-HTTP/1.1 204 No Content
+07. Cancel goal 2 - by deleting its instance: 202, the cancel is on its way
+==============================================================================
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
 
-08. At once, NGSI-LD first - the instance is gone while the goal has not ended yet
-==================================================================================
+08. At once - DDS first, so the instance stays while the goal has not ended
+=============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 134
+Content-Length: 406
 
 {
   "id": "urn:R:2",
-  "navigate": {
-    "type": "Property",
-    "value": {
-      "x": 5,
-      "y": 6
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 5,
+        "y": 6
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:2",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 5,
+        "y": 6
+      }
     }
-  },
+  ],
   "type": "Robot"
 }
 
 goal 2 ended: 0
 
 
-09. The goal's own end - canceled, with a result - writes nothing back
-======================================================================
+09. The goal ends, canceled - and its instance goes with it
+============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -572,7 +623,69 @@ Content-Length: 134
 
 
 
-13. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected
+13. Send goal 4 to A4 - it is accepted, and cannot be cancelled
+=================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+14. Cancel goal 4 - the cancel cannot be sent: 503, and nothing is deleted
+==========================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "the cancellation of goal 'urn:loopback:goal:4' could not be sent (-1) - nothing was deleted",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+15. Robot 4 - goal 4 is still there, as it still runs
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 406
+
+{
+  "id": "urn:R:4",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 4,
+        "y": 4
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:4",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 4,
+        "y": 4
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected
 =============================================================================================
 sends goal 1 to action 'A1'
 goal 1 on 'A1' (urn:loopback:goal:1) ended, state 4
@@ -580,4 +693,5 @@ sends goal 2 to action 'A2'
 goal 2 on 'A2' (urn:loopback:goal:2) ended, state 5
 sends goal 3 to action 'A3'
 goal 3 on 'A3' (urn:loopback:goal:3) ended, state 7
+sends goal 4 to action 'A4'
 

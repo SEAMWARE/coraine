@@ -27,9 +27,10 @@
 // Several goals on one attribute are several instances, side by side.
 //
 // A goal is cancelled by deleting its instance - DELETE of the attribute with
-// ?datasetId=<the goal's alias>. NGSI-LD goes first: the instance is deleted
-// there and then, as any DELETE deletes, and the transport is asked to cancel
-// on the side. Whatever the goal reports afterwards is not written anywhere.
+// ?datasetId=<the goal's alias> - and DDS goes first, as for everything the
+// broker ASKS the DDS side to do: the cancel is sent, a cancel that cannot be
+// sent fails the request, and one that was sent is answered 202. The instance
+// goes when the goal ends, as it always does.
 //
 #include <stdbool.h>                                  // bool
 #include <stdint.h>                                   // int64_t, uint64_t
@@ -74,10 +75,7 @@ extern int bridgeGoalEventIn(const char* bridgeName,
 //
 // bridgeGoalCancel - is this the instance of a goal in flight? Then cancel it
 //
-// For DELETE /entities/{id}/attrs/{attr}?datasetId=X, BEFORE the instance is
-// deleted - which the caller then does, whatever this answered. Marks the goal
-// so that none of its later events are written into an instance a client has
-// deleted.
+// For DELETE /entities/{id}/attrs/{attr}?datasetId=X, instead of deleting.
 //
 // @return false when X is not a goal in flight on an action Channel for that
 //         attribute. true when it was, with *rcP holding what the plugin

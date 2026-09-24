@@ -116,6 +116,8 @@ typedef struct LoopbackSample
 //            test gets a goal in flight to cancel
 //   reject   refused at once. No result, so that event is the final one.
 //   abort    accepted, then aborted, with a result
+//   stubborn held, like hold - but a cancel cannot be sent, which is how a
+//            test gets a failed cancel
 //
 // The envelope names are the loopback's own, and plain: a transport that goes
 // nowhere has no convention to match.
@@ -844,7 +846,7 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
 
   loopbackGoalEvent(endpoint, token, BridgeGoalAccepted, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"ACCEPTED\"}", 0);
 
-  if (strcmp(mode, "hold") == 0)
+  if ((strcmp(mode, "hold") == 0) || (strcmp(mode, "stubborn") == 0))
   {
     //
     // In flight until cancelled. Kept here, because the cancel is by token and
@@ -891,6 +893,9 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
 //
 static int loopbackActionGoalCancel(const char* endpoint, uint64_t token)
 {
+  if (strcmp(loopbackGoalMode(endpoint), "stubborn") == 0)
+    return BRIDGE_ERR;
+
   LoopbackHeldGoal held = { NULL, NULL, 0 };
 
   pthread_mutex_lock(&heldGoalMutex);

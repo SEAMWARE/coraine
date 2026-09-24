@@ -192,16 +192,31 @@ bool deleteEntityAttr(void)
 
   //
   // The instance of a goal in flight on an action Channel: deleting it is how a
-  // goal is CANCELLED (bridgeGoal.h). NGSI-LD goes first - the delete below
-  // happens whatever the transport answers, and a cancel that could not be sent
-  // is the transport's problem, said in the log. (Were DDS to go first, a failed
-  // cancel would fail the request and delete nothing - see --ddsFirst in ToDo.)
+  // goal is CANCELLED (bridgeGoal.h), and DDS goes first. A goal is something
+  // the broker asked the DDS side to do, so the DDS side is the master of it:
+  // deleting its instance here while the goal runs on would say it had stopped
+  // when nothing says so.
+  //
+  //   the cancel could not be sent  -> the request fails, nothing is deleted
+  //   it was sent                   -> 202: accepted, not done. The instance
+  //                                    goes when the goal ends - cancelled, or
+  //                                    with its result if it finished first.
   //
   int cancelRc;
 
-  if ((bridgeGoalCancel(tenantP, entityId, attrIri, corNgsild.datasetId, &cancelRc) == true) && (cancelRc != BRIDGE_OK))
-    KT_W("the cancellation of goal '%s' on %s/%s could not be sent (%d) - its instance is deleted all the same",
-         corNgsild.datasetId, entityId, attrWild, cancelRc);
+  if (bridgeGoalCancel(tenantP, entityId, attrIri, corNgsild.datasetId, &cancelRc) == true)
+  {
+    if (cancelRc == BRIDGE_OK)
+      corRest.out.httpStatusCode = 202;
+    else if (cancelRc == BRIDGE_UNSUPPORTED)
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+              "the bridge carrying '%s' cannot cancel a goal", attrWild);
+    else
+      ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
+              "the cancellation of goal '%s' could not be sent (%d) - nothing was deleted", corNgsild.datasetId, cancelRc);
+
+    return true;
+  }
 
   KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;

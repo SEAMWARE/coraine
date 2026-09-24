@@ -58,7 +58,6 @@ typedef struct Goal
   char*         goalAlias;                            // the instance's datasetId, once an event has said
   int           state;                                // BridgeGoalState
   bool          instanceMade;                         // an event has been written into the instance
-  bool          instanceGone;                         // a client deleted the instance (the cancel) - write no more into it
   int64_t       sentMs;
   struct Goal*  next;
 } Goal;
@@ -312,12 +311,7 @@ int bridgeGoalEventIn(const char* bridgeName,
   // sub-attribute - the first one creating the instance, with the request as
   // its value.
   //
-  //
-  // Nothing more is written once the client has deleted the instance: that
-  // DELETE was the cancel, and NGSI-LD goes first - the instance is gone the
-  // moment it is asked, and the goal's own end must not bring it back.
-  //
-  if ((subAttrName != NULL) && (json != NULL) && (goalP->instanceGone == false))
+  if ((subAttrName != NULL) && (json != NULL))
   {
     int r = bridgeGoalWrite(goalP->bridgeName, goalP->endpoint, goalP->goalAlias, subAttrName, json, publishTime, goalP->request);
 
@@ -334,7 +328,7 @@ int bridgeGoalEventIn(const char* bridgeName,
     // was ever made: removing an instance that is not there would still be a
     // write to the attribute, and notify its watchers of nothing.
     //
-    if ((goalP->instanceMade == true) && (goalP->instanceGone == false))
+    if (goalP->instanceMade == true)
       bridgeGoalInstanceRemove(goalP->bridgeName, goalP->endpoint, goalP->goalAlias);
 
     KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", token, endpoint, goalP->goalAlias, state);
@@ -374,8 +368,7 @@ bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrNam
         (strcmp(goalP->bridgeName, channelP->bridgeName) == 0) &&
         (strcmp(goalP->endpoint,   channelP->endpoint)   == 0))
     {
-      token                = goalP->token;
-      goalP->instanceGone  = true;                    // before the plugin is asked - it may report at once
+      token = goalP->token;
       break;
     }
   }
