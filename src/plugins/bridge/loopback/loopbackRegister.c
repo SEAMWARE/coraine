@@ -83,6 +83,9 @@ typedef struct LoopbackSample
   const char* subAttrName;                            // NULL for a topic's sample; the reply envelope for a service
   uint64_t    token;                                  // the broker's, for a reply somebody waits for; 0 otherwise
   int64_t     dueMs;                                  // not delivered before this (monotonic ms) - see replyDelayMs
+  bool        goal;                                   // an event of a goal: goalEventIn, not sampleIn
+  int         goalState;                              // BridgeGoalState, for a goal's event
+  bool        goalFinal;                              // the goal's last event
 } LoopbackSample;
 
 
@@ -98,6 +101,48 @@ typedef struct LoopbackSample
 // match and the plainest word is the honest one.
 //
 #define LOOPBACK_REPLY  "reply"
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Goals - what the loopback does with one, per endpoint
+//
+// "goalMode": { "<endpoint>": "succeed" | "hold" | "reject" | "abort" }
+//
+//   succeed  accepted, one feedback, succeeded, and the result - the goal
+//            echoed, as a service's reply is. The default.
+//   hold     accepted, and then nothing until it is cancelled - which is how a
+//            test gets a goal in flight to cancel
+//   reject   refused at once. No result, so that event is the final one.
+//   abort    accepted, then aborted, with a result
+//
+// The envelope names are the loopback's own, and plain: a transport that goes
+// nowhere has no convention to match.
+//
+#define LOOPBACK_GOAL_STATUS    "status"
+#define LOOPBACK_GOAL_FEEDBACK  "feedback"
+#define LOOPBACK_GOAL_RESULT    "result"
+
+typedef struct LoopbackGoalMode
+{
+  char*  endpoint;
+  char*  mode;
+} LoopbackGoalMode;
+
+static LoopbackGoalMode  goalModes[LOOPBACK_CHANNELS_MAX];
+static int               goalModeCount = 0;
+
+typedef struct LoopbackHeldGoal
+{
+  char*     endpoint;
+  char*     json;
+  uint64_t  token;
+} LoopbackHeldGoal;
+
+static LoopbackHeldGoal  heldGoals[LOOPBACK_CHANNELS_MAX];
+static int               heldGoalCount = 0;
+static pthread_mutex_t   heldGoalMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_t  deliveryThread;
 static bool       deliveryRunning = false;
@@ -173,7 +218,7 @@ static void* loopbackDelivery(void* vP)
 
   while (deliveryRunning == true)
   {
-    LoopbackSample sample = { NULL, NULL, NULL, 0, 0 };
+    LoopbackSample sample = { NULL, NULL, NULL, 0, 0, false, 0, false };
     int64_t        now    = loopbackNowMs();
 
     //
@@ -209,7 +254,27 @@ static void* loopbackDelivery(void* vP)
       // AND a non-NULL slot, because a host that is not the broker fills in
       // only what it needs.
       //
-      if (sample.subAttrName == NULL)
+      //
+      // A goal's event carries the token, the goal's names, where it stands and
+      // whether it is the last one - ABI 4 and a non-NULL slot, as for replyIn().
+      //
+      if (sample.goal == true)
+      {
+        if ((brokerP->abiVersion >= 4) && (brokerP->goalEventIn != NULL))
+        {
+          char goalId[32];
+          char goalAlias[64];
+
+          snprintf(goalId,    sizeof(goalId),    "%llu", (unsigned long long) sample.token);
+          snprintf(goalAlias, sizeof(goalAlias), "urn:loopback:goal:%llu", (unsigned long long) sample.token);
+
+          brokerP->goalEventIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
+                               sample.goalState, sample.goalFinal, sample.subAttrName, sample.json, 0);
+        }
+        else
+          KT_E("loopback: a goal event on '%s' has nowhere to go - the host predates the action contract", sample.endpoint);
+      }
+      else if (sample.subAttrName == NULL)
         brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
       else if ((sample.token != 0) && (brokerP->abiVersion >= 3) && (brokerP->replyIn != NULL))
         brokerP->replyIn("loopback", sample.endpoint, sample.token, NULL, sample.subAttrName, sample.json, 0);
@@ -277,6 +342,7 @@ static char loopbackConfigPath[512];
 //
 static void loopbackEmitAtStart(void);
 static void loopbackReplyDelaysLoad(void);
+static void loopbackGoalModesLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -311,6 +377,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   }
 
   loopbackReplyDelaysLoad();
+  loopbackGoalModesLoad();
   loopbackEmitAtStart();
 
   return BRIDGE_OK;
@@ -334,6 +401,38 @@ static bool loopbackQueue(const char* endpoint, const char* json, const char* su
     queue[queueCount].subAttrName = subAttrName;      // a literal, or NULL - never freed
     queue[queueCount].token       = token;
     queue[queueCount].dueMs       = loopbackNowMs() + delayMs;
+    queue[queueCount].goal        = false;              // slots are reused - a goal's event may have been here
+    queue[queueCount].goalState   = 0;
+    queue[queueCount].goalFinal   = false;
+    queueCount++;
+    queued = true;
+  }
+  pthread_mutex_unlock(&queueMutex);
+
+  return queued;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackGoalEvent - queue one event of a goal
+//
+static bool loopbackGoalEvent(const char* endpoint, uint64_t token, int state, bool final, const char* subAttrName, const char* json, int delayMs)
+{
+  bool queued = false;
+
+  pthread_mutex_lock(&queueMutex);
+  if (queueCount < LOOPBACK_CHANNELS_MAX)
+  {
+    queue[queueCount].endpoint    = strdup(endpoint);
+    queue[queueCount].json        = strdup(json);
+    queue[queueCount].subAttrName = subAttrName;      // a literal - never freed
+    queue[queueCount].token       = token;
+    queue[queueCount].dueMs       = loopbackNowMs() + delayMs;
+    queue[queueCount].goal        = true;
+    queue[queueCount].goalState   = state;
+    queue[queueCount].goalFinal   = final;
     queueCount++;
     queued = true;
   }
@@ -479,6 +578,38 @@ static void loopbackReplyDelaysLoad(void)
 
 // -----------------------------------------------------------------------------
 //
+// loopbackGoalModePair / loopbackGoalModesLoad - "goalMode", see goalModes
+//
+static void loopbackGoalModePair(const char* endpoint, const char* value)
+{
+  if (goalModeCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  goalModes[goalModeCount].endpoint = strdup(endpoint);
+  goalModes[goalModeCount].mode     = strdup(value);
+  ++goalModeCount;
+}
+
+static void loopbackGoalModesLoad(void)
+{
+  loopbackConfigPairs("\"goalMode\"", loopbackGoalModePair);
+}
+
+static const char* loopbackGoalMode(const char* endpoint)
+{
+  for (int ix = 0; ix < goalModeCount; ix++)
+  {
+    if (strcmp(goalModes[ix].endpoint, endpoint) == 0)
+      return goalModes[ix].mode;
+  }
+
+  return "succeed";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackClose -
 //
 // Joins the delivery thread before returning. The broker tears down what
@@ -516,6 +647,22 @@ static void loopbackClose(void)
   for (int i = 0; i < replyDelayCount; i++)
     free(replyDelays[i].endpoint);
   replyDelayCount = 0;
+
+  for (int i = 0; i < goalModeCount; i++)
+  {
+    free(goalModes[i].endpoint);
+    free(goalModes[i].mode);
+  }
+  goalModeCount = 0;
+
+  pthread_mutex_lock(&heldGoalMutex);
+  for (int i = 0; i < heldGoalCount; i++)
+  {
+    free(heldGoals[i].endpoint);
+    free(heldGoals[i].json);
+  }
+  heldGoalCount = 0;
+  pthread_mutex_unlock(&heldGoalMutex);
 }
 
 
@@ -528,14 +675,6 @@ static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, Brid
 {
   if ((endpoint == NULL) || (*endpoint == 0))
     return BRIDGE_BAD_INPUT;
-
-  //
-  // Actions are a lifecycle - a goal, feedback over time, a result, a cancel -
-  // and answering BRIDGE_UNSUPPORTED is the contract's way of saying this
-  // transport does not carry one yet.
-  //
-  if (kind == BridgeChannelAction)
-    return BRIDGE_UNSUPPORTED;
 
   int rc = BRIDGE_ERR;
 
@@ -677,6 +816,122 @@ static int loopbackServiceInvokeTracked(const char* endpoint, const char* json, 
 
 // -----------------------------------------------------------------------------
 //
+// loopbackActionGoalSend - run a goal, as the endpoint's goalMode says
+//
+// Called on a BROKER thread, so every event is queued, never delivered here -
+// and they are queued in the order a real server would produce them, the
+// final one last, which is the plugin's side of the contract.
+//
+static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64_t token)
+{
+  if ((endpoint == NULL) || (json == NULL) || (token == 0))
+    return BRIDGE_BAD_INPUT;
+
+  pthread_mutex_lock(&channelMutex);
+  bool known = (loopbackChannelLookup(endpoint) != NULL);
+  pthread_mutex_unlock(&channelMutex);
+
+  if (known == false)
+    return BRIDGE_NOT_FOUND;
+
+  const char* mode = loopbackGoalMode(endpoint);
+
+  if (strcmp(mode, "reject") == 0)
+  {
+    loopbackGoalEvent(endpoint, token, BridgeGoalRejected, true, LOOPBACK_GOAL_STATUS, "{\"code\":\"REJECTED\"}", 0);
+    return BRIDGE_OK;
+  }
+
+  loopbackGoalEvent(endpoint, token, BridgeGoalAccepted, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"ACCEPTED\"}", 0);
+
+  if (strcmp(mode, "hold") == 0)
+  {
+    //
+    // In flight until cancelled. Kept here, because the cancel is by token and
+    // this is where the token meets what was asked.
+    //
+    int rc = BRIDGE_ERR;
+
+    pthread_mutex_lock(&heldGoalMutex);
+    if (heldGoalCount < LOOPBACK_CHANNELS_MAX)
+    {
+      heldGoals[heldGoalCount].endpoint = strdup(endpoint);
+      heldGoals[heldGoalCount].json     = strdup(json);
+      heldGoals[heldGoalCount].token    = token;
+      ++heldGoalCount;
+      rc = BRIDGE_OK;
+    }
+    pthread_mutex_unlock(&heldGoalMutex);
+
+    return rc;
+  }
+
+  if (strcmp(mode, "abort") == 0)
+  {
+    loopbackGoalEvent(endpoint, token, BridgeGoalAborted, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"ABORTED\"}", 0);
+    loopbackGoalEvent(endpoint, token, BridgeGoalAborted, true,  LOOPBACK_GOAL_RESULT, json, 0);
+    return BRIDGE_OK;
+  }
+
+  loopbackGoalEvent(endpoint, token, BridgeGoalExecuting, false, LOOPBACK_GOAL_FEEDBACK, "{\"progress\":50}", 0);
+  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, false, LOOPBACK_GOAL_STATUS,   "{\"code\":\"SUCCEEDED\"}", 0);
+  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, true,  LOOPBACK_GOAL_RESULT,   json, 0);
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackActionGoalCancel - cancel a held goal
+//
+// Only a held goal is still running here; any other has finished, or was never
+// sent, and there is nothing to cancel.
+//
+static int loopbackActionGoalCancel(const char* endpoint, uint64_t token)
+{
+  LoopbackHeldGoal held = { NULL, NULL, 0 };
+
+  pthread_mutex_lock(&heldGoalMutex);
+  for (int ix = 0; ix < heldGoalCount; ix++)
+  {
+    if ((heldGoals[ix].token == token) && (strcmp(heldGoals[ix].endpoint, endpoint) == 0))
+    {
+      held = heldGoals[ix];
+      for (int i = ix + 1; i < heldGoalCount; i++)
+        heldGoals[i - 1] = heldGoals[i];
+      --heldGoalCount;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&heldGoalMutex);
+
+  if (held.endpoint == NULL)
+    return BRIDGE_NOT_FOUND;
+
+  //
+  // As late as the endpoint's replyDelayMs says - a real server takes its time
+  // to stop, and a test of what the broker does in the meantime needs it to.
+  //
+  int delayMs = loopbackReplyDelay(endpoint);
+
+  if (delayMs < 0)
+    delayMs = 0;
+
+  loopbackGoalEvent(endpoint, token, BridgeGoalCanceled, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"CANCELED\"}", delayMs);
+  loopbackGoalEvent(endpoint, token, BridgeGoalCanceled, true,  LOOPBACK_GOAL_RESULT, held.json, delayMs);
+
+  free(held.endpoint);
+  free(held.json);
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackVersionInfo -
 //
 static const char* loopbackVersionInfo(void)
@@ -719,6 +974,12 @@ void bridgeRegister(BridgeDriver* driverP)
 
   if (hostAbi >= 3)
     driverP->serviceInvokeTracked = loopbackServiceInvokeTracked;
+
+  if (hostAbi >= 4)
+  {
+    driverP->actionGoalSend   = loopbackActionGoalSend;
+    driverP->actionGoalCancel = loopbackActionGoalCancel;
+  }
 
   //
   // And now the field is the PLUGIN's, which is what the host reads back.

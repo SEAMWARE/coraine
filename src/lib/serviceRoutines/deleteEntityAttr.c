@@ -42,6 +42,9 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 
+#include "ktrace/kTrace.h"                           // KT_W
+#include "corBridge/BridgeBroker.h"                  // BRIDGE_OK, BRIDGE_UNSUPPORTED
+#include "bridge/bridgeGoal.h"                        // bridgeGoalCancel
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
 
@@ -186,6 +189,19 @@ bool deleteEntityAttr(void)
   }
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+
+  //
+  // The instance of a goal in flight on an action Channel: deleting it is how a
+  // goal is CANCELLED (bridgeGoal.h). NGSI-LD goes first - the delete below
+  // happens whatever the transport answers, and a cancel that could not be sent
+  // is the transport's problem, said in the log. (Were DDS to go first, a failed
+  // cancel would fail the request and delete nothing - see --ddsFirst in ToDo.)
+  //
+  int cancelRc;
+
+  if ((bridgeGoalCancel(tenantP, entityId, attrIri, corNgsild.datasetId, &cancelRc) == true) && (cancelRc != BRIDGE_OK))
+    KT_W("the cancellation of goal '%s' on %s/%s could not be sent (%d) - its instance is deleted all the same",
+         corNgsild.datasetId, entityId, attrWild, cancelRc);
 
   KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;

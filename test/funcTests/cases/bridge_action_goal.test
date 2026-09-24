@@ -1,0 +1,583 @@
+#
+# FILE            bridge_action_goal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Writing an attribute bound to an action Channel SENDS A GOAL, the value written
+# being the goal's request. What then happens to the goal comes back as events
+# and lands in the goal's OWN instance of that attribute - the instance whose
+# datasetId is the alias the bridge gave the goal - which is created by the
+# first event, holding the request, and removed after the final one. The
+# attribute's own value, and every other goal, stay.
+#
+# The loopback bridge runs each goal as its endpoint's goalMode says:
+#
+#   A1  succeed   accepted, feedback, succeeded, the result
+#   A2  hold      accepted, and then nothing until it is cancelled - and the
+#                 cancellation is reported 500 ms late (replyDelay), so the
+#                 test can look at the entity in between
+#   A3  reject    refused at once - the final event, with no result
+#
+# Tokens are handed out from 1 by a broker that has just started, so the goals
+# of this test are urn:loopback:goal:1, :2 and :3, in the order they are sent.
+#
+# ⭐ Three oracles, each for what it can see:
+#   - a subscription watching navigate@urn:loopback:goal:1 - every event of the
+#     first goal, in its own instance, and the instance going away at the end
+#   - the entity, read while a goal is held and after each has ended
+#   - the bridge's trace (402, KtBridge), for how each goal ended
+#
+--NAME--
+Bridges: an action Channel - a goal, its events in its own instance, cancel, reject
+
+--TAGS--
+bridge channel plugins action goal
+
+--INIT--
+corDbDrop
+ftClientStart
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --action "A3,Robot,urn:R:3,navigate" \
+  --goalMode "A2=hold" \
+  --replyDelay "A2=500" \
+  --goalMode "A3=reject")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A subscription on the instance the first goal will have"
+echo "============================================================"
+payload='{
+  "id": "urn:S:goal1",
+  "type": "Subscription",
+  "entities": [{"type": "Robot"}],
+  "watchedAttributes": ["navigate@urn:loopback:goal:1"],
+  "datasetId": ["urn:loopback:goal:1"],
+  "notificationTrigger": ["attributeCreated", "attributeUpdated", "attributeDeleted"],
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "02. Send goal 1 to A1 - it succeeds"
+echo "==================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 1, "y": 2 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. Every event of goal 1 reached its watcher, and then its instance went"
+echo "========================================================================"
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "04. Robot 1 holds the value that was asked, and no goal instance"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "05. Send goal 2 to A2 - it is accepted and held"
+echo "==============================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 5, "y": 6 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload "$payload"
+for i in $(seq 1 50); do
+  grep -q "'status' on 'A2'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "06. Robot 2 shows goal 2 in flight - its own instance, holding the request and its status"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo
+
+
+echo "07. Cancel goal 2 - by deleting its instance"
+echo "============================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:2' -X DELETE
+echo
+echo
+
+
+echo "08. At once, NGSI-LD first - the instance is gone while the goal has not ended yet"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo "goal 2 ended: $(grep -c "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log)"
+echo
+echo
+
+
+echo "09. The goal's own end - canceled, with a result - writes nothing back"
+echo "======================================================================"
+for i in $(seq 1 50); do
+  grep -q "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo
+
+
+echo "10. Cancelling it again - not a goal in flight any more, so an ordinary delete of nothing"
+echo "========================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:2' -X DELETE
+echo
+echo
+
+
+echo "11. Send goal 3 to A3 - it is rejected"
+echo "======================================"
+payload='{ "navigate": { "type": "Property", "value": { "x": 9, "y": 9 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:3/attrs -X PATCH --payload "$payload"
+for i in $(seq 1 50); do
+  grep -q "goal 3 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "12. Robot 3 - no goal instance left behind"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:3
+echo
+echo
+
+
+echo "13. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected"
+echo "============================================================================================="
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+--EXPECT--
+01. A subscription on the instance the first goal will have
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S:goal1
+Content-Length: 0
+
+
+
+
+02. Send goal 1 to A1 - it succeeds
+===================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. Every event of goal 1 reached its watcher, and then its instance went
+========================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:goal1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:goal1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "SUCCEEDED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:goal1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "result": {
+              "type": "Property",
+              "value": {
+                "x": 1,
+                "y": 2
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "SUCCEEDED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:goal1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:S:goal1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+04. Robot 1 holds the value that was asked, and no goal instance
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 1,
+      "y": 2
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+05. Send goal 2 to A2 - it is accepted and held
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. Robot 2 shows goal 2 in flight - its own instance, holding the request and its status
+=========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 406
+
+{
+  "id": "urn:R:2",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 5,
+        "y": 6
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:2",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 5,
+        "y": 6
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+07. Cancel goal 2 - by deleting its instance
+============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+08. At once, NGSI-LD first - the instance is gone while the goal has not ended yet
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 5,
+      "y": 6
+    }
+  },
+  "type": "Robot"
+}
+
+goal 2 ended: 0
+
+
+09. The goal's own end - canceled, with a result - writes nothing back
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 5,
+      "y": 6
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+10. Cancelling it again - not a goal in flight any more, so an ordinary delete of nothing
+========================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 219
+
+{
+  "detail": "attribute 'navigate' has no instance with datasetId 'urn:loopback:goal:2' in entity 'urn:R:2'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. Send goal 3 to A3 - it is rejected
+======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+12. Robot 3 - no goal instance left behind
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 134
+
+{
+  "id": "urn:R:3",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 9,
+      "y": 9
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+13. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected
+=============================================================================================
+sends goal 1 to action 'A1'
+goal 1 on 'A1' (urn:loopback:goal:1) ended, state 4
+sends goal 2 to action 'A2'
+goal 2 on 'A2' (urn:loopback:goal:2) ended, state 5
+sends goal 3 to action 'A3'
+goal 3 on 'A3' (urn:loopback:goal:3) ended, state 7
+

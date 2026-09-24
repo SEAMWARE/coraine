@@ -7,6 +7,7 @@ SET(SOURCES
   bridgeAttrOut.c
   bridgeAttrsOut.c
   bridgeServiceSync.c
+  bridgeGoal.c
   bridgeDefaultEntity.c
 )
 
