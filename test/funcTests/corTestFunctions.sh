@@ -1089,7 +1089,8 @@ bridgeConfig() {
       #
       --service) services+=("$2"); shift ;;
       #
-      # An action entry has the shape of a service entry. Writing its attribute
+      # An action entry has the shape of a service entry, its optional fifth field
+      # the DDS action type (dds bridge only). Writing its attribute
       # sends a goal; --goalMode "<endpoint>=succeed|hold|reject|abort" tells the
       # loopback bridge what to make of the goals sent there (succeed if unsaid).
       #
@@ -1232,12 +1233,18 @@ bridgeConfig() {
       i=0
       local av
       for av in "${actions[@]}"; do
-        local aEndpoint aType aId aAttr
-        IFS=',' read -r aEndpoint aType aId aAttr <<< "$av"
+        local aEndpoint aType aId aAttr aActionType
+        IFS=',' read -r aEndpoint aType aId aAttr aActionType <<< "$av"
         i=$((i + 1))
         local comma=","
         [ $i -eq ${#actions[@]} ] && comma=""
-        echo "        \"$aEndpoint\": { \"entityId\": \"$aId\", \"entityType\": \"$aType\", \"attribute\": \"$aAttr\" }$comma"
+        #
+        # The fifth field is the DDS action type - the broker never reads it,
+        # the dds plugin derives every one of the action's types from it.
+        #
+        local actionType=""
+        [ -n "$aActionType" ] && actionType=", \"type\": \"$aActionType\""
+        echo "        \"$aEndpoint\": { \"entityId\": \"$aId\", \"entityType\": \"$aType\", \"attribute\": \"$aAttr\"$actionType }$comma"
       done
       echo "      }"
     fi
