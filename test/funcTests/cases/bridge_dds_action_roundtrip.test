@@ -1,0 +1,234 @@
+#
+# FILE            bridge_dds_action_roundtrip.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A goal to a REAL ROS 2 action server, through the dds bridge - seam ABI 4.
+#
+# The server is the Fibonacci example (examples_rclpy_minimal_action_server):
+# one feedback per step, a second apart, and it accepts a cancel. Writing the
+# attribute bound to the action sends the goal - DDS first, so the PATCH answers
+# 202 - and the goal's events land in its own instance, urn:goal:<its UUID>:
+# ddsActionStatus, ddsActionFeedback, ddsActionResult. The instance goes when
+# the goal ends; the value that was asked stays.
+#
+#   01-03  a goal of order 3: two feedbacks, a result, and it SUCCEEDED (4)
+#   04-06  a goal of order 10, cancelled after its first feedback: 202, and it
+#          ends CANCELED (5)
+#   07-08  a goal to an action nobody serves: 503, and nothing is written
+#
+# ⭐ The oracle is the entity afterwards and the broker's trace (0 for the
+# plugin, 402 KtBridge) - not the goal's instance mid-flight, which holds
+# whatever the server has said so far and so depends on ROS's timing. How many
+# status updates a goal gets depends on it too; its end, its feedback count and
+# its one result do not.
+#
+# REQUIRE_DDS: yes
+#
+--NAME--
+Bridges (DDS): an action goal to a real ROS 2 server - success, cancel, no server
+
+--TAGS--
+bridge dds action goal
+
+--INIT--
+corDbDrop
+docker rm -f cor_ros2_action_server >/dev/null 2>&1
+
+export COR_TRACE_LEVELS=0,402
+
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --action "fibonacci,Robot,urn:R:1,compute,example_interfaces::action::dds_::Fibonacci" \
+  --action "nobody,Robot,urn:R:2,compute,example_interfaces::action::dds_::Fibonacci")
+
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A goal of order 3 to the Fibonacci server - DDS first, so 202"
+echo "================================================================="
+docker run --rm -d --name cor_ros2_action_server --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+  bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/examples_rclpy_minimal_action_server/server' > /dev/null
+for i in $(seq 1 300); do grep -q "action 'fibonacci' discovered" /tmp/coraine.CB.log && break; sleep 0.1; done
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }'
+echo
+echo
+
+
+echo "02. It ended - how, and what it wrote on the way"
+echo "================================================"
+for i in $(seq 1 200); do grep -q "goal 1 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
+grep -oE "goal 1 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
+echo "feedback written: $(grep -c "'ddsActionFeedback' on 'fibonacci'" /tmp/coraine.CB.log)"
+echo "result written:   $(grep -c "'ddsActionResult' on 'fibonacci'" /tmp/coraine.CB.log)"
+echo
+echo
+
+
+echo "03. Robot 1 holds the value that was asked - the goal's instance went with the goal"
+echo "==================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "04. A goal of order 10 - it runs for some ten seconds"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 10 } }'
+for i in $(seq 1 100); do [ $(grep -c "'ddsActionFeedback' on 'fibonacci'" /tmp/coraine.CB.log) -ge 3 ] && break; sleep 0.1; done
+echo
+echo
+
+
+echo "05. Cancel it - by deleting its instance: 202, the cancel is on its way"
+echo "======================================================================="
+GOAL=$(grep -oE "goal [0-9a-f-]{36} sent to action 'fibonacci' \(token 2\)" /tmp/coraine.CB.log | cut -d' ' -f2)   # the UUID the plugin gave goal 2
+corCurl --url "/ngsi-ld/v1/entities/urn:R:1/attrs/compute?datasetId=urn:goal:$GOAL" -X DELETE
+echo
+echo
+
+
+echo "06. It ended CANCELED, and its instance went with it"
+echo "===================================================="
+for i in $(seq 1 200); do grep -q "goal 2 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
+grep -oE "goal 2 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "07. A goal to an action nobody serves - it cannot be sent: 503"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }'
+echo
+echo
+
+
+echo "08. Nothing was written"
+echo "======================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo
+
+
+--TEARDOWN--
+docker rm -f cor_ros2_action_server >/dev/null 2>&1
+coraineStop
+
+
+--EXPECT--
+01. A goal of order 3 to the Fibonacci server - DDS first, so 202
+=================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. It ended - how, and what it wrote on the way
+================================================
+goal 1 on 'fibonacci' (urn:goal:<uuid>) ended, state 4
+feedback written: 2
+result written:   1
+
+
+03. Robot 1 holds the value that was asked - the goal's instance went with the goal
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "compute": {
+    "type": "Property",
+    "value": {
+      "order": 3
+    }
+  },
+  "id": "urn:R:1",
+  "type": "Robot"
+}
+
+
+
+04. A goal of order 10 - it runs for some ten seconds
+=====================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+05. Cancel it - by deleting its instance: 202, the cancel is on its way
+=======================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. It ended CANCELED, and its instance went with it
+====================================================
+goal 2 on 'fibonacci' (urn:goal:<uuid>) ended, state 5
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "compute": {
+    "type": "Property",
+    "value": {
+      "order": 10
+    }
+  },
+  "id": "urn:R:1",
+  "type": "Robot"
+}
+
+
+
+07. A goal to an action nobody serves - it cannot be sent: 503
+==============================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 200
+
+{
+  "detail": "'nobody' on bridge 'dds' could not be reached - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+08. Nothing was written
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+{
+  "compute": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:R:2",
+  "type": "Robot"
+}
+
+
+
