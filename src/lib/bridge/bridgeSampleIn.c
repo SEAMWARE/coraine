@@ -864,6 +864,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   ldCsrSubDispatchPending();
   troeDispatchPending();
   ldSubEntityTypeExprsRelease();
+  corNgsildFallbackRelease();                         // this thread's queues - see sampleIn()
 
   KT_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
 
