@@ -38,6 +38,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
 
@@ -134,6 +135,24 @@ static char* renderFragmentWithContext(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
+// updatedRemove - take an Attribute out of updated[] again
+//
+static void updatedRemove(KjNode* updatedP, const char* attrName)
+{
+  for (KjNode* p = updatedP->value.firstChildP; p != NULL; p = p->next)
+  {
+    if ((p->type == KjString) && (strcmp(p->value.s, attrName) == 0))
+    {
+      kjChildRemove(updatedP, p);
+      return;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // classifyAndChopLocal - noOverwrite filter against local existing entity
 //
 // For the (possibly chopped) fragment remaining after distops, apply
@@ -211,6 +230,8 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
 //
 bool postEntityAttrs(void)
 {
+  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
+
   const char* entityId = corRest.in.wildcard[0];
   KjNode*     fragment = corRest.in.requestTree;
 
@@ -474,10 +495,48 @@ bool postEntityAttrs(void)
       return true;
     }
 
-    bool overwriteScope = !noOverwrite;
-    LdMergeReport report = { NULL };
-    int r = db.entityAttrsSet(tenantP, entityId, fragment, overwriteScope,
-                               corRest.requestStartTime, &report);
+    BridgeSyncDone syncDone = { { NULL }, 0 };
+
+    //
+    // Requests to the DDS side go FIRST, never waited for on this route. One
+    // Attribute that cannot be sent fails the request with nothing written; of
+    // several, it is left out - not updated - and the rest goes on (207). See
+    // bridgeServiceSync.h.
+    //
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, false, &syncDone) == false)
+      return true;  // ldError already set - nothing has been written
+
+    for (int ix = 0; ix < syncDone.failedN; ix++)
+    {
+      updatedRemove(updatedP, syncDone.failedAttrV[ix]);
+      ldWriteResultNotUpdatedAdd(notUpdatedP, syncDone.failedAttrV[ix], syncDone.failedReasonV[ix], NULL, syncDone.failedStatusV[ix]);
+    }
+
+    //
+    // Nothing to write only when the DDS step TOOK SOMETHING OUT and left no
+    // Attribute - an empty write would still stamp modifiedAt and could notify.
+    //
+    bool nothingLeft = (syncDone.failedN > 0);
+
+    for (KjNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    {
+      if (ldIsNotAttributeName(c->name) == false)
+        nothingLeft = false;
+    }
+
+    bool          overwriteScope = !noOverwrite;
+    LdMergeReport report         = { NULL };
+    int           r              = DB_OK;
+    bool          written        = false;
+
+    if (nothingLeft == false)
+    {
+      r       = db.entityAttrsSet(tenantP, entityId, fragment, overwriteScope, corRest.requestStartTime, &report);
+      written = true;
+    }
+
+    bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
+    ddsAccepted = syncDone.accepted;
 
     if (r == DB_GEO_TYPE_CONFLICT)
     {
@@ -500,7 +559,7 @@ bool postEntityAttrs(void)
       return true;
     }
 
-    if (r == DB_OK)
+    if ((r == DB_OK) && (written == true))
     {
       KjNode* mergedEntity = NULL;
       if (tenantP->subCacheP != NULL)
@@ -508,7 +567,7 @@ bool postEntityAttrs(void)
 
       // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
       // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, NULL);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
@@ -539,7 +598,7 @@ bool postEntityAttrs(void)
 
   if (notUpdatedCount == 0)
   {
-    corRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = (ddsAccepted == true) ? 202 : 204;
     return true;
   }
 

@@ -67,8 +67,15 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
   if (channelP->status != ChannelStatusAvailable)
     return;                                            // its bridge is not loaded; the Channel is dormant
 
-  if (bridgeSyncDoneHas(syncDoneP, channelP) == true)
-    return;                                            // invoked before the write, and waited for (ddsSync)
+  //
+  // A service or an action is sent BEFORE the write (bridgeRequestsBeforeWrite)
+  // on every path that ran it - and the record of it is what a caller hands in
+  // here. Whatever became of it there - sent, waited for, or not sendable and
+  // left out - it is not sent again after the write, with whatever value the
+  // stored attribute now holds. Only a topic is published from here.
+  //
+  if ((syncDoneP != NULL) && (channelP->kind != BridgeChannelTopic))
+    return;
 
   //
   // Only now, with a Channel known to want it, is the entity worth having.

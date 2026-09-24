@@ -39,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -663,7 +664,41 @@ bool postEntities(void)
   {
     ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
 
+    //
+    // Requests to the DDS side go FIRST, never waited for on this route - but
+    // only for an Entity that does not exist yet: the create of one that does is
+    // a 409, and a goal must not go out for a request that is refused. (A bridge
+    // Channel's Entity is pre-created at startup, so this is the common case, not
+    // a corner.) One Attribute that cannot be sent fails the request with nothing
+    // created; of several, it is left out of the Entity and the rest goes on
+    // (207). See bridgeServiceSync.h.
+    //
+    BridgeSyncDone syncDone = { { NULL }, 0 };
+    KjNode*        existsP  = NULL;
+
+    if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL))
+    {
+      if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, false, &syncDone) == false)
+        return true;  // ldError already set - nothing has been created
+    }
+
+    //
+    // Several Attributes: one whose request to the DDS side could not be sent was
+    // left out of the write - an error of its own, and the rest goes on (207).
+    //
+    for (int ix = 0; ix < syncDone.failedN; ix++)
+    {
+      int st = syncDone.failedStatusV[ix];
+
+      ldBatchErrorListAdd(&errors, idP->value.s, st,
+                          (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                          (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                          syncDone.failedReasonV[ix], NULL);
+    }
+
     int r = db.entityCreate(tenantP, idP->value.s, entityP);
+
+    bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
 
     if (r == DB_ALREADY_EXISTS)
     {
@@ -678,7 +713,7 @@ bool postEntities(void)
         idP->name = "id";
 
       // A create has no change report: every attribute in it is new.
-      bridgeAttrsOutFromEntity(tenantP, idP->value.s, entityP);
+      bridgeAttrsOutFromEntity(tenantP, idP->value.s, entityP, &syncDone);
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);

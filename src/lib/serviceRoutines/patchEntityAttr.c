@@ -407,7 +407,7 @@ bool patchEntityAttr(void)
         // fails the request with nothing written. A service may be waited for, and
         // its reply is then written with the value. See bridgeServiceSync.h.
         //
-        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, &syncDone) == false)
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, true, &syncDone) == false)
           return true;  // ldError already set - nothing has been written
 
         //

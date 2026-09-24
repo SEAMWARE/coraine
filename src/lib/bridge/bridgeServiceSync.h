@@ -55,10 +55,11 @@
 // sent without waiting (202). A DDS network that is slow, or gone, can then never
 // take the broker's workers from everything else.
 //
-// Only the three entity PATCH forms send before the write so far: PATCH
-// /entities/{id}, /entities/{id}/attrs and /entities/{id}/attrs/{attrId}. The
-// other write paths still send after it (bridgeAttrOut) - that is the next step.
-// On any other route ?ddsSync is an unknown parameter and refused (400).
+// Every single-entity write sends before the write: create, append, the three
+// PATCH forms, replace of an Attribute and of an Entity. Only the PATCH forms
+// may WAIT (?ddsSync is theirs; on any other route it is an unknown parameter,
+// refused with 400). The batch operations still send after the bulk write
+// (bridgeAttrOut) - that is the next step.
 //
 
 
@@ -135,8 +136,11 @@ extern bool bridgeSyncRequested(bool* syncP);
 //
 // bridgeRequestsBeforeWrite - send every service request and goal a fragment makes
 //
-// Called by the three PATCH handlers after the fragment is in the DB model and
-// before it is merged and written. See "Requests to the DDS side" above for what
+// Called by every single-entity write handler after the fragment is in the DB
+// model and before it is merged and written.
+//
+// @param mayWait  a service may be waited for: the three PATCH forms, whose
+//                 ?ddsSync this is. Every other route sends without waiting. See "Requests to the DDS side" above for what
 // is sent and what the request then answers; a reply waited for is added to its
 // attribute as the sub-attribute the plugin names, so the ordinary write stores
 // both.
@@ -149,7 +153,7 @@ extern bool bridgeSyncRequested(bool* syncP);
 // @return false, with the error set, when a request could not be sent. The
 //         handler then returns without writing anything.
 //
-extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP);
+extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, bool mayWait, BridgeSyncDone* doneP);
 
 
 
@@ -162,14 +166,6 @@ extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjN
 // this right after the write - whether it succeeded or not.
 //
 extern void bridgeRequestsWritten(const BridgeSyncDone* doneP);
-
-
-
-// -----------------------------------------------------------------------------
-//
-// bridgeSyncDoneHas - did this request already invoke the service on this Channel?
-//
-extern bool bridgeSyncDoneHas(const BridgeSyncDone* doneP, const Channel* channelP);
 
 
 
