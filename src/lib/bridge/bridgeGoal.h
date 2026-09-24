@@ -50,11 +50,17 @@
 // Always sent BEFORE its request's write (DDS first), so it is HELD: its events
 // wait until bridgeGoalRelease(*tokenP) says the write is done.
 //
-// @param tokenP  the goal's token
+// @param endpoint  where the goal's events are to be notified, or NULL - the
+//                  "endpoint" sub-Attribute of the request. The broker then
+//                  holds a subscription of its own for that endpoint to THIS
+//                  goal's instance, made on its first event and gone after its
+//                  last. Only in the broker's memory: never stored, never
+//                  listed - it lives exactly as long as the goal.
+// @param tokenP    the goal's token
 //
 // @return the plugin's answer: BRIDGE_OK, or why the goal did not go
 //
-extern int bridgeGoalSend(Channel* channelP, const char* json, uint64_t* tokenP);
+extern int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, uint64_t* tokenP);
 
 
 
