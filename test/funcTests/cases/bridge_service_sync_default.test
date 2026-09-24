@@ -14,9 +14,9 @@
 # opt a request out. bridge_service_sync has the behaviour itself; this pins
 # only which way the default points:
 #
-#   01-02  no parameter now waits: a service that never answers is a 504, and
-#          nothing is written
-#   03-04  ?ddsSync=false opts out: 204, and the value is written
+#   01-02  no parameter now waits: a service that never answers is waited for
+#          until --ddsSyncTimeout, and then accepted (202), the value written
+#   03-04  ?ddsSync=false opts out: 202 at once, and the value is written
 #
 
 --NAME--
@@ -36,23 +36,23 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSync --ddsSyn
 
 --RUN--
 
-echo "01. PATCH without ?ddsSync, on a service that never answers - 504"
-echo "=================================================================="
+echo "01. PATCH without ?ddsSync, on a service that never answers - it waits, then 202"
+echo "================================================================================"
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M/attrs/job -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 1 } }'
 echo
 echo
 
 
-echo "02. Nothing was written"
-echo "======================="
+echo "02. The value is written"
+echo "========================"
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M
 echo
 echo
 
 
-echo "03. PATCH ?ddsSync=false - 204"
-echo "=============================="
+echo "03. PATCH ?ddsSync=false - 202 at once"
+echo "======================================"
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M/attrs/job?ddsSync=false" -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 2 } }'
 echo
@@ -66,46 +66,46 @@ echo
 echo
 
 
+--TEARDOWN--
+coraineStop
+
+
 --EXPECT--
-01. PATCH without ?ddsSync, on a service that never answers - 504
-==================================================================
-HTTP/1.1 504 Gateway Timeout
+01. PATCH without ?ddsSync, on a service that never answers - it waits, then 202
+================================================================================
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 193
-
-{
-  "detail": "service 'mute' on bridge 'loopback' did not answer within 800 ms",
-  "status": 504,
-  "title": "Service Timeout",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-}
+Content-Length: 0
 
 
 
-02. Nothing was written
-=======================
+
+02. The value is written
+========================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 132
+Content-Length: 137
 
 {
   "id": "urn:ngsi-ld:Calculator:M",
   "job": {
     "type": "Property",
-    "value": "uninitialized"
+    "value": {
+      "a": 1
+    }
   },
   "type": "Calculator"
 }
 
 
 
-03. PATCH ?ddsSync=false - 204
-==============================
-HTTP/1.1 204 No Content
+03. PATCH ?ddsSync=false - 202 at once
+======================================
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -131,5 +131,3 @@ Content-Length: 137
 
 
 
---TEARDOWN--
-coraineStop

@@ -21,35 +21,39 @@
 
 // -----------------------------------------------------------------------------
 //
-// ddsSync - an NGSI-LD request that WAITS for the service it invokes
+// Requests to the DDS side - DDS FIRST
 //
-// By default, writing an attribute bound to a service invokes the service after
-// the write and answers at once: the reply lands in the attribute whenever it
-// comes, and a service that is not there is a line in the log. The NGSI-LD
-// write succeeded on its own merits, and that is what the answer says.
+// ⭐ A TOPIC REPORTS A FACT; A SERVICE OR AN ACTION ASKS FOR SOMETHING TO BE DONE.
+// A write that publishes on a topic is NGSI-LD first: the value is stored, then
+// published, and a publish that fails is the transport's problem. A write bound
+// to a service or an action asks somebody on the DDS side to act, and that side
+// is the master of it: storing the request as made when it never went out would
+// be a lie. So the request is sent BEFORE anything is stored, and one that
+// cannot be sent fails the NGSI-LD request with nothing written:
 //
-// With ?ddsSync=true - or --ddsSync, which makes it the default and leaves
-// ?ddsSync=false to opt out - the order is turned round: the service is invoked
-// BEFORE the write, the request waits for THIS invocation's reply, and the value
-// and the reply are then written together, in the request's own write. A
-// service that cannot be reached, or does not answer in time, fails the request
-// and NOTHING is written.
+//   503  nobody serves the endpoint        400  the value does not fit its type
+//   422  the bridge cannot carry this at all
 //
-// ⭐ OFF BY DEFAULT, AND FOR TWO REASONS THAT ARE NOT ABOUT PERFORMANCE:
+// What a request that DID go out answers:
 //
-//   - it changes what a PATCH MEANS. Without a server, the asynchronous PATCH is
-//     a 204 and the value is stored; the synchronous one is a 503 and nothing is.
-//   - it changes the LATENCY of every such PATCH to that of the device behind
-//     the service - which a client that did not ask for it did not agree to.
+//   an action goal              202 - accepted, not done: a goal runs, and its
+//                               events land in an instance of its own
+//   a service, waited for,      as any write (204) - the reply is written WITH
+//   answered in time            the value, in the request's own write
+//   a service, not waited for,  202 - the reply lands in the attribute when it
+//   or not answered in time     comes (GET to poll, or subscribe)
 //
-// The wait costs a corRest worker thread - the request is already on one, never
-// on an event loop - and nothing else.
+// ?ddsSync=true|false (or --ddsSync as the default) says whether to wait for a
+// service at all. The wait is short - --ddsSyncTimeout, sized for the normal
+// case - and CAPPED: a waiting request holds a corRest worker, and the pool is
+// small, so at most --ddsSyncWaitMax requests wait at once and the rest are
+// sent without waiting (202). A DDS network that is slow, or gone, can then never
+// take the broker's workers from everything else.
 //
-// Only the three entity PATCH forms take it: PATCH /entities/{id},
-// /entities/{id}/attrs and /entities/{id}/attrs/{attrId}. On any other route
-// ?ddsSync is an unknown parameter and the request is refused (400) - better
-// than a client believing it had asked to wait when nothing would. Those routes
-// invoke after the write, as always, and --ddsSync does not change them.
+// Only the three entity PATCH forms send before the write so far: PATCH
+// /entities/{id}, /entities/{id}/attrs and /entities/{id}/attrs/{attrId}. The
+// other write paths still send after it (bridgeAttrOut) - that is the next step.
+// On any other route ?ddsSync is an unknown parameter and refused (400).
 //
 
 
@@ -68,20 +72,23 @@
 
 // -----------------------------------------------------------------------------
 //
-// bridgeSyncDefault / bridgeSyncTimeoutMs - the --ddsSync and --ddsSyncTimeout options
+// bridgeSyncDefault / bridgeSyncTimeoutMs / bridgeSyncWaitMax - --ddsSync,
+// --ddsSyncTimeout and --ddsSyncWaitMax
 //
 extern bool bridgeSyncDefault;
 extern int  bridgeSyncTimeoutMs;
+extern int  bridgeSyncWaitMax;
 
 
 
 // -----------------------------------------------------------------------------
 //
-// BridgeSyncDone - the services a request has already invoked, synchronously
+// BridgeSyncDone - what a request has already sent to the DDS side, before its write
 //
-// Handed from the pre-write step to the post-write one, so that a service the
-// request already waited for is not invoked a second time once the write is
-// done. Lives on the handler's stack: the request is the whole of its lifetime.
+// Handed from the pre-write step to the post-write one, so that nothing sent
+// before the write is sent a second time after it, and so that the handler knows
+// to answer 202. Lives on the handler's stack: the request is the whole of its
+// lifetime.
 //
 #define BRIDGE_SYNC_MAX  16
 
@@ -89,6 +96,9 @@ typedef struct BridgeSyncDone
 {
   Channel*  channelV[BRIDGE_SYNC_MAX];
   int       count;
+  bool      accepted;                                 // something went out that is not finished - answer 202
+  uint64_t  detachedV[BRIDGE_SYNC_MAX];               // per channelV: the token of a wait that timed out, else 0
+  uint64_t  goalV[BRIDGE_SYNC_MAX];                   // per channelV: the token of a goal held for the write, else 0
 } BridgeSyncDone;
 
 
@@ -107,27 +117,35 @@ extern bool bridgeSyncRequested(bool* syncP);
 
 // -----------------------------------------------------------------------------
 //
-// bridgeSyncFragment - invoke, and wait for, every service a PATCH fragment writes
+// bridgeRequestsBeforeWrite - send every service request and goal a fragment makes
 //
 // Called by the three PATCH handlers after the fragment is in the DB model and
-// before it is merged and written. For each attribute of the fragment that a
-// service Channel carries, the service is invoked with the attribute's new value
-// and the request waits for the reply, which is then added to the attribute as
-// the sub-attribute the plugin names - exactly as an asynchronous reply would be
-// stored - so that the ordinary write stores both.
+// before it is merged and written. See "Requests to the DDS side" above for what
+// is sent and what the request then answers; a reply waited for is added to its
+// attribute as the sub-attribute the plugin names, so the ordinary write stores
+// both.
 //
-// A no-op, returning true, unless the request asked to wait (bridgeSyncRequested).
+// @param doneP  filled with what was sent. Hand it to the post-write
+//               bridgeAttrOut / bridgeAttrsOutFromMerge so nothing is sent
+//               twice, to bridgeRequestsWritten once the write is done, and read
+//               doneP->accepted for 202.
 //
-// @param doneP  filled with the Channels invoked here; hand it to the post-write
-//               bridgeAttrOut / bridgeAttrsOutFromMerge so they are not invoked
-//               again.
+// @return false, with the error set, when a request could not be sent. The
+//         handler then returns without writing anything.
 //
-// @return false, with the error set, when a service could not be reached (503),
-//         did not answer in time (504), was sent a payload that does not fit it
-//         (400), or is carried by a bridge that cannot wait (422). The handler
-//         then returns without writing anything.
+extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP);
+
+
+
+// -----------------------------------------------------------------------------
 //
-extern bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP);
+// bridgeRequestsWritten - the request's write is done: late replies may land now
+//
+// A service that did not answer in time answers later, and its reply must not
+// be written before the request's own write, which would replace it away. Call
+// this right after the write - whether it succeeded or not.
+//
+extern void bridgeRequestsWritten(const BridgeSyncDone* doneP);
 
 
 

@@ -118,8 +118,9 @@ Content-Length: 132
 
 02. Writing the attribute invokes the service, and the answer comes back into it
 ===============================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -160,8 +161,9 @@ Content-Length: 359
 
 03. The answer is an ADDITION - what was already on the attribute survives it
 =============================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 

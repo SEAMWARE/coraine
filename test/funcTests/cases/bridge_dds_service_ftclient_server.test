@@ -134,8 +134,9 @@ Date: REGEX(.*)
 
 03. Once the broker has discovered the service, the attribute asks and the answer lands in it
 =============================================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 

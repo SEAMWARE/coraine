@@ -26,6 +26,7 @@
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
+#include "bridge/bridgeGoal.h"                        // bridgeGoalSend
 #include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr
 #include "bridge/bridgeServiceSync.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
@@ -37,7 +38,17 @@
 // bridgeSyncDefault / bridgeSyncTimeoutMs - --ddsSync, --ddsSyncTimeout
 //
 bool bridgeSyncDefault   = false;
-int  bridgeSyncTimeoutMs = 5000;
+//
+// The defaults, from a real ROS 2 service over DDS on one machine (2026-09-24):
+// a waited-for call answered in 2.0 ms at the median and 5.6 ms at worst with 8
+// in parallel. 200 ms is some 40 times that - room for a network hop and a
+// service that works a little - and a request that waits longer is answered
+// 202 anyway, its reply landing when it comes. 8 waiters is a quarter of the
+// default 32 workers: at 3 ms a call that is some 2500 waited-for requests a
+// second, and a DDS side that answers nothing can tie up 8 workers, never 32.
+//
+int  bridgeSyncTimeoutMs = 200;
+int  bridgeSyncWaitMax   = 8;
 
 
 
@@ -54,16 +65,28 @@ int  bridgeSyncTimeoutMs = 5000;
 
 // -----------------------------------------------------------------------------
 //
-// ABANDONED_KEEP_MS - how long the token of a request that gave up is remembered
+// DETACHED_KEEP_MS - how long the token of a request that stopped waiting is kept
 //
-// Its late reply must be recognised as late and dropped, rather than taken for
-// an ordinary asynchronous one and written - the request answered 504 and wrote
-// nothing, and a reply turning up in the attribute a minute later would say
-// otherwise. A reply later than this is so late that the service has, to every
-// purpose, not answered; forgetting the token bounds what a service that never
-// answers can cost.
+// A request that stopped waiting answered 202 and wrote its value; the reply is
+// still welcome, and lands in the attribute as an ordinary one when it comes.
+// The token is kept only to hold such a reply back until the request's own
+// write is done (see SyncDetached) - after this long a service has, to every
+// purpose, not answered, and forgetting the token bounds what one that never
+// answers can cost. A reply after that is simply an ordinary one.
 //
-#define ABANDONED_KEEP_MS  (60 * 1000)
+#define DETACHED_KEEP_MS  (60 * 1000)
+
+
+
+// -----------------------------------------------------------------------------
+//
+// RELEASE_WAIT_MS - how long a late reply waits for its request's write
+//
+// The write normally follows the timeout by a millisecond. This is the bound for
+// a handler that, through some fault, never says its write is done: the reply
+// lands anyway, a second late, rather than never.
+//
+#define RELEASE_WAIT_MS  1000
 
 
 
@@ -77,11 +100,18 @@ int  bridgeSyncTimeoutMs = 5000;
 // when it has to: it is freed by whichever side is LAST to touch it, the
 // waiter on success, the reply (or the sweep) after a timeout.
 //
+// ⭐ SyncDetached IS WHAT KEEPS A LATE REPLY FROM BEING LOST. The request stopped
+// waiting BEFORE its own write: were the reply written the moment it came, it
+// could land on the attribute's OLD value, and the request's write - a moment
+// later, replacing the instance - would take it away again. So a reply for a
+// detached request waits for the request to say its write is done (released).
+//
 typedef enum SyncState
 {
-  SyncWaiting   = 0,                                  // invoked, no reply yet
+  SyncWaiting   = 0,                                  // invoked, the request waits
   SyncAnswered  = 1,                                  // the reply is here, for the waiter to take
-  SyncAbandoned = 2                                   // the waiter gave up; a reply is to be dropped
+  SyncDetached  = 2,                                  // the request stopped waiting (202) and has not written yet
+  SyncReleased  = 3                                   // ... and now has - a reply lands as an ordinary one
 } SyncState;
 
 typedef struct SyncWaiter
@@ -96,13 +126,14 @@ typedef struct SyncWaiter
   char*               json;
   int64_t             publishTime;
 
-  int64_t             abandonedAtMs;
+  int64_t             detachedAtMs;
   struct SyncWaiter*  next;
 } SyncWaiter;
 
 static pthread_mutex_t  syncMutex   = PTHREAD_MUTEX_INITIALIZER;
 static SyncWaiter*      waiters     = NULL;
 static uint64_t         nextToken   = 1;
+static int              waitingNow  = 0;              // requests waiting right now - capped by bridgeSyncWaitMax
 
 
 
@@ -153,7 +184,7 @@ static void waiterUnlink(SyncWaiter* wP)
 
 // -----------------------------------------------------------------------------
 //
-// waiterSweep - forget the tokens of requests that gave up long ago
+// waiterSweep - forget the tokens of requests that stopped waiting long ago
 //
 // Caller holds syncMutex.
 //
@@ -166,7 +197,7 @@ static void waiterSweep(void)
   {
     SyncWaiter* wP = *pP;
 
-    if ((wP->state == SyncAbandoned) && (now - wP->abandonedAtMs > ABANDONED_KEEP_MS))
+    if (((wP->state == SyncDetached) || (wP->state == SyncReleased)) && (now - wP->detachedAtMs > DETACHED_KEEP_MS))
     {
       *pP = wP->next;
       waiterFree(wP);
@@ -290,21 +321,48 @@ static BridgeDriver* driverFor(const Channel* channelP)
 
 // -----------------------------------------------------------------------------
 //
-// syncInvoke - invoke one service and wait for its reply
+// sendError - the answer to a request whose request to the DDS side did not go
 //
-// @return true with *waiterPP holding the answered entry, which the caller
-//         frees; false with the error set.
+static void sendError(int r, const char* attrName, const Channel* channelP, const char* what)
+{
+  if (r == BRIDGE_BAD_INPUT)
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request",
+            "the value of '%s' does not fit the %s of '%s'", attrName, what, channelP->endpoint);
+  else if (r == BRIDGE_UNSUPPORTED)
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+            "bridge '%s' cannot send the %s of '%s'", channelP->bridgeName, what, channelP->endpoint);
+  else
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
+            "'%s' on bridge '%s' could not be reached - nothing was written", channelP->endpoint, channelP->bridgeName);
+}
+
+
+
+// -----------------------------------------------------------------------------
 //
-static bool syncInvoke(const char* entityId, const char* attrName, Channel* channelP, const char* json, SyncWaiter** waiterPP)
+// SyncOutcome - what came of invoking a service and waiting for it
+//
+typedef enum SyncOutcome
+{
+  SyncFailed    = 0,                                  // not sent - the error is set
+  SyncReplied   = 1,                                  // the reply came in time - *waiterPP holds it
+  SyncTimedOut  = 2                                   // sent, no reply in time - *tokenP is detached
+} SyncOutcome;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// syncInvoke - invoke one service and wait, a short while, for its reply
+//
+static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channel* channelP, const char* json, SyncWaiter** waiterPP, uint64_t* tokenP)
 {
   BridgeDriver* driverP = driverFor(channelP);
 
   if ((driverP == NULL) || (driverP->serviceInvokeTracked == NULL))
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
-            "bridge '%s' cannot wait for the reply of service '%s' - ddsSync is not available for it",
-            channelP->bridgeName, channelP->endpoint);
-    return false;
+    sendError(BRIDGE_UNSUPPORTED, attrName, channelP, "tracked request");
+    return SyncFailed;
   }
 
   SyncWaiter* wP = waiterCreate();
@@ -312,7 +370,7 @@ static bool syncInvoke(const char* entityId, const char* attrName, Channel* chan
   if (wP == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory");
-    return false;
+    return SyncFailed;
   }
 
   int r = driverP->serviceInvokeTracked(channelP->endpoint, json, wP->token);
@@ -324,14 +382,8 @@ static bool syncInvoke(const char* entityId, const char* attrName, Channel* chan
     waiterFree(wP);
     pthread_mutex_unlock(&syncMutex);
 
-    if (r == BRIDGE_BAD_INPUT)
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request",
-              "the value of '%s' does not fit the request of service '%s'", attrName, channelP->endpoint);
-    else
-      ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
-              "service '%s' on bridge '%s' could not be reached", channelP->endpoint, channelP->bridgeName);
-
-    return false;
+    sendError(r, attrName, channelP, "request");
+    return SyncFailed;
   }
 
   KT_T(KtBridge, "%s/%s asks service '%s' on bridge '%s', and waits (token %llu)",
@@ -356,23 +408,81 @@ static bool syncInvoke(const char* entityId, const char* attrName, Channel* chan
   if (wP->state != SyncAnswered)
   {
     //
-    // Left in the list, marked: the reply may yet come, and has to be known for
-    // what it is when it does. See ABANDONED_KEEP_MS.
+    // The request went, and is not finished: that is 202, not an error. Left in
+    // the list, detached, so that the reply - still welcome - waits for this
+    // request's write before it lands. By token from here on: the entry is no
+    // longer this thread's to point at.
     //
-    wP->state         = SyncAbandoned;
-    wP->abandonedAtMs = nowMs();
+    wP->state        = SyncDetached;
+    wP->detachedAtMs = nowMs();
+    *tokenP          = wP->token;
     pthread_mutex_unlock(&syncMutex);
 
-    ldError(504, LD_ERROR_INTERNAL_ERROR, "Service Timeout",
-            "service '%s' on bridge '%s' did not answer within %d ms",
-            channelP->endpoint, channelP->bridgeName, bridgeSyncTimeoutMs);
-    return false;
+    KT_T(KtBridge, "service '%s' did not answer within %d ms - accepted (202), its reply will land when it comes",
+         channelP->endpoint, bridgeSyncTimeoutMs);
+    return SyncTimedOut;
   }
 
   waiterUnlink(wP);
   pthread_mutex_unlock(&syncMutex);
 
   *waiterPP = wP;
+  return SyncReplied;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// waitSlotTake / waitSlotGive - the cap on requests waiting at once
+//
+// ⭐ A WAITING REQUEST HOLDS A WORKER, and the pool is small (--connectionPoolSize).
+// A DDS network that is slow, or gone, would otherwise take every worker in turn
+// and the broker would stop answering anything at all. So only so many may wait;
+// the rest send, and answer 202 at once.
+//
+static bool waitSlotTake(void)
+{
+  bool taken = false;
+
+  pthread_mutex_lock(&syncMutex);
+  if (waitingNow < bridgeSyncWaitMax)
+  {
+    ++waitingNow;
+    taken = true;
+  }
+  pthread_mutex_unlock(&syncMutex);
+
+  return taken;
+}
+
+static void waitSlotGive(void)
+{
+  pthread_mutex_lock(&syncMutex);
+  --waitingNow;
+  pthread_mutex_unlock(&syncMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// doneAdd - note a Channel this request has already sent to
+//
+static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedToken, uint64_t goalToken)
+{
+  if (doneP->count >= BRIDGE_SYNC_MAX)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request",
+            "one request may send to at most %d services and actions", BRIDGE_SYNC_MAX);
+    return false;
+  }
+
+  doneP->channelV[doneP->count]      = channelP;
+  doneP->detachedV[doneP->count]     = detachedToken;
+  doneP->goalV[doneP->count]         = goalToken;
+  doneP->count++;
+
   return true;
 }
 
@@ -380,22 +490,36 @@ static bool syncInvoke(const char* entityId, const char* attrName, Channel* chan
 
 // -----------------------------------------------------------------------------
 //
-// bridgeSyncFragment -
+// requestsFailed - the request fails after some of its requests went out
 //
-bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP)
+// It writes nothing, so it will not say "written" - but what it already sent
+// must not wait for a write that never comes: held goals and detached replies
+// are released at once. Always returns false, for the caller to return.
+//
+static bool requestsFailed(BridgeSyncDone* doneP)
 {
-  doneP->count = 0;
+  bridgeRequestsWritten(doneP);
+  return false;
+}
 
-  bool sync;
 
-  if (bridgeSyncRequested(&sync) == false)
-    return false;
 
-  if (sync == false)
-    return true;
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsBeforeWrite -
+//
+bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP)
+{
+  doneP->count    = 0;
+  doneP->accepted = false;
 
   if ((bridgeCount == 0) || (channelCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
+
+  bool wait;
+
+  if (bridgeSyncRequested(&wait) == false)
+    return requestsFailed(doneP);
 
   for (KjNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
@@ -404,29 +528,21 @@ bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP
 
     Channel* channelP = channelLookupByTarget(tenantP, entityId, attrP->name);
 
-    if ((channelP == NULL) || (channelP->kind != BridgeChannelService))
+    if ((channelP == NULL) || (channelP->kind == BridgeChannelTopic))
       continue;
 
     if ((channelP->direction == BridgeDirectionIn) || (channelP->status != ChannelStatusAvailable))
       continue;
 
     //
-    // The default instance only. A service answers the one request it was
-    // sent, and an attribute written as several datasetId instances at once is
-    // not one request - those go the asynchronous way, after the write.
+    // The default instance only - it is what a service is sent and what a goal
+    // is made of, as after the write (bridgeAttrOut).
     //
     KjNode* instanceP = kjLookup(attrP, "@none");
     KjNode* valueP    = (instanceP != NULL) ? kjLookup(instanceP, "value") : NULL;
 
     if (valueP == NULL)
       continue;
-
-    if (doneP->count >= BRIDGE_SYNC_MAX)
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request",
-              "a synchronous request may invoke at most %d services", BRIDGE_SYNC_MAX);
-      return false;
-    }
 
     static __thread char buf[SYNC_OUT_MAX];
     char*   savedName = valueP->name;
@@ -438,10 +554,117 @@ bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP
     valueP->name = savedName;
     valueP->next = savedNext;
 
-    SyncWaiter* wP = NULL;
+    //
+    // An action: the goal is sent, and can only be accepted - what becomes of it
+    // comes later, into an instance of its own.
+    //
+    if (channelP->kind == BridgeChannelAction)
+    {
+      uint64_t goalToken = 0;
+      int      r         = bridgeGoalSend(channelP, buf, true, &goalToken);   // held until this request has written
 
-    if (syncInvoke(entityId, attrP->name, channelP, buf, &wP) == false)
-      return false;
+      if (r != BRIDGE_OK)
+      {
+        sendError(r, attrP->name, channelP, "goal");
+        return requestsFailed(doneP);
+      }
+
+      doneP->accepted = true;
+
+      if (doneAdd(doneP, channelP, 0, goalToken) == false)
+      {
+        bridgeGoalRelease(goalToken);
+        return requestsFailed(doneP);
+      }
+
+      continue;
+    }
+
+    //
+    // A service nobody waits for - not asked to, or no wait slot free - is sent
+    // now, and the request answers that it was: 202.
+    //
+    //
+    // ⭐ SENT TRACKED ALL THE SAME, its waiter detached from the start. The reply
+    // may come before this request has written - the loopback answers at once -
+    // and written then it races the request's own write of the same attribute:
+    // one of the two takes the other's instance away (CI lost the request's
+    // sub-attributes that way). Tracked, the reply waits for
+    // bridgeRequestsWritten, like one that came after a wait that timed out.
+    // Only a bridge that cannot track sends it untracked.
+    //
+    if ((wait == false) || (waitSlotTake() == false))
+    {
+      BridgeDriver* driverP = driverFor(channelP);
+      uint64_t      token   = 0;
+      int           r;
+
+      if ((driverP != NULL) && (driverP->serviceInvokeTracked != NULL))
+      {
+        SyncWaiter* wP = waiterCreate();
+
+        if (wP == NULL)
+        {
+          ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory");
+          return requestsFailed(doneP);
+        }
+
+        pthread_mutex_lock(&syncMutex);
+        wP->state        = SyncDetached;              // nobody waits - the reply is held for the write, no more
+        wP->detachedAtMs = nowMs();
+        token            = wP->token;
+        pthread_mutex_unlock(&syncMutex);
+
+        r = driverP->serviceInvokeTracked(channelP->endpoint, buf, token);
+
+        if (r != BRIDGE_OK)
+        {
+          pthread_mutex_lock(&syncMutex);
+          waiterUnlink(wP);
+          waiterFree(wP);
+          pthread_mutex_unlock(&syncMutex);
+          token = 0;
+        }
+      }
+      else
+        r = ((driverP == NULL) || (driverP->serviceInvoke == NULL)) ? BRIDGE_UNSUPPORTED : driverP->serviceInvoke(channelP->endpoint, buf);
+
+      if (r != BRIDGE_OK)
+      {
+        sendError(r, attrP->name, channelP, "request");
+        return requestsFailed(doneP);
+      }
+
+      if (wait == true)
+        KT_T(KtBridge, "%s/%s asks service '%s' without waiting - %d requests wait already",
+             entityId, attrP->name, channelP->endpoint, bridgeSyncWaitMax);
+
+      doneP->accepted = true;
+
+      if (doneAdd(doneP, channelP, token, 0) == false)
+        return requestsFailed(doneP);
+
+      continue;
+    }
+
+    SyncWaiter* wP    = NULL;
+    uint64_t    token = 0;
+    SyncOutcome o     = syncInvoke(entityId, attrP->name, channelP, buf, &wP, &token);
+
+    waitSlotGive();
+
+    if (o == SyncFailed)
+      return requestsFailed(doneP);
+
+    if (o == SyncTimedOut)
+    {
+      doneP->accepted = true;
+
+      if (doneAdd(doneP, channelP, token, 0) == false)
+        return requestsFailed(doneP);
+
+      continue;
+    }
 
     KjNode* replyP = bridgeReplySubAttr(attrP->name, wP->subAttrName, wP->json, wP->publishTime);
 
@@ -451,7 +674,7 @@ bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP
               "service '%s' on bridge '%s' answered with something that is not JSON",
               channelP->endpoint, channelP->bridgeName);
       waiterFree(wP);
-      return false;
+      return requestsFailed(doneP);
     }
 
     //
@@ -465,12 +688,49 @@ bool bridgeSyncFragment(Tenant* tenantP, const char* entityId, KjNode* fragmentP
       kjChildRemove(instanceP, oldP);
 
     kjChildAdd(instanceP, replyP);
-
-    doneP->channelV[doneP->count++] = channelP;
     waiterFree(wP);
+
+    if (doneAdd(doneP, channelP, 0, 0) == false)
+      return requestsFailed(doneP);
   }
 
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsWritten -
+//
+void bridgeRequestsWritten(const BridgeSyncDone* doneP)
+{
+  if ((doneP == NULL) || (doneP->count == 0))
+    return;
+
+  for (int ix = 0; ix < doneP->count; ix++)
+  {
+    if (doneP->goalV[ix] != 0)
+      bridgeGoalRelease(doneP->goalV[ix]);
+  }
+
+  pthread_mutex_lock(&syncMutex);
+  for (int ix = 0; ix < doneP->count; ix++)
+  {
+    if (doneP->detachedV[ix] == 0)
+      continue;
+
+    for (SyncWaiter* wP = waiters; wP != NULL; wP = wP->next)
+    {
+      if ((wP->token == doneP->detachedV[ix]) && (wP->state == SyncDetached))
+      {
+        wP->state = SyncReleased;
+        pthread_cond_broadcast(&wP->cond);            // a reply may be waiting for exactly this
+        break;
+      }
+    }
+  }
+  pthread_mutex_unlock(&syncMutex);
 }
 
 
@@ -508,15 +768,34 @@ int bridgeReplyIn(const char* bridgeName,
       return BRIDGE_OK;
     }
 
-    if ((wP != NULL) && (wP->state == SyncAbandoned))
+    //
+    // Late: the request answered 202. Its reply is welcome, and lands as an
+    // ordinary one - but not before the request's own write, or the write would
+    // replace it away (see SyncDetached). Bounded, in case the release never
+    // comes.
+    //
+    if ((wP != NULL) && ((wP->state == SyncDetached) || (wP->state == SyncReleased)))
     {
+      struct timespec deadline;
+      int64_t         dueMs = nowMs() + RELEASE_WAIT_MS;
+
+      deadline.tv_sec  = dueMs / 1000;
+      deadline.tv_nsec = (dueMs % 1000) * 1000000;
+
+      while (wP->state == SyncDetached)
+      {
+        if (pthread_cond_timedwait(&wP->cond, &syncMutex, &deadline) == ETIMEDOUT)
+          break;
+      }
+
       waiterUnlink(wP);
       waiterFree(wP);
       pthread_mutex_unlock(&syncMutex);
 
-      KT_W("bridge '%s': service '%s' answered after its request had given up - the reply is dropped",
+      KT_T(KtBridge, "bridge '%s': service '%s' answered late - written as an ordinary reply",
            (bridgeName != NULL) ? bridgeName : "?", (endpoint != NULL) ? endpoint : "?");
-      return BRIDGE_OK;
+
+      return bridgeSampleQualifiedIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime);
     }
 
     pthread_mutex_unlock(&syncMutex);

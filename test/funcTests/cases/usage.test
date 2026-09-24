@@ -84,7 +84,8 @@ Usage: coraine  [--usage/-u (usage)]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
-                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before failing with 504>]
+                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes>]
+                [--ddsSyncWaitMax/-ddsSyncWaitMax <at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
                 [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
@@ -126,7 +127,8 @@ Usage: coraine  [--usage/-u (usage)]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
-                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before failing with 504>]
+                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes>]
+                [--ddsSyncWaitMax/-ddsSyncWaitMax <at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
                 [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
@@ -179,7 +181,8 @@ Usage: coraine  [--usage/-u (usage)]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
-                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before failing with 504>]
+                [--ddsSyncTimeout/-ddsSyncTimeout <how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes>]
+                [--ddsSyncWaitMax/-ddsSyncWaitMax <at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker>]
                 [--pretty-print/-pp <default JSON indentation (0=compact)>]
                 [--connectionPoolSize/-cps <MHD thread pool size>]
                 [--httpLoops/-hl <HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)>]
@@ -222,6 +225,7 @@ Usage: coraine  [--usage/-u (usage)]
   --bridgeConfig          (-brc)             CORAINE_BRIDGECONFIG          Optional   String   Default Value  
   --ddsSync               (-ddsSync)         CORAINE_DDSSYNC               Optional   Bool     Default Value  
   --ddsSyncTimeout        (-ddsSyncTimeout)  CORAINE_DDSSYNCTIMEOUT        Optional   Int      Default Value  
+  --ddsSyncWaitMax        (-ddsSyncWaitMax)  CORAINE_DDSSYNCWAITMAX        Optional   Int      Default Value  
   --pretty-print          (-pp)              CORAINE_PRETTY_PRINT          Optional   UInt     Default Value  
   --connectionPoolSize    (-cps)             CORAINE_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
   --httpLoops             (-hl)              CORAINE_HTTPLOOPS             Optional   Int      Default Value  

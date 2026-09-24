@@ -181,7 +181,7 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
       // An action: the value written is the goal. What becomes of it arrives as
       // events, into an instance of its own - see bridgeGoal.h.
       //
-      bridgeGoalSend(channelP, buf);
+      bridgeGoalSend(channelP, buf, false, NULL);     // after the write - nothing to hold for
       return;
     }
 
