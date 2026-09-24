@@ -9,8 +9,8 @@ use_directory_urls: false
 theme: readthedocs
 extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 #
-# bridge-channels.md and problem-details.md are EXCLUDED from the build, not
-# merely left out of the nav.
+# bridge-channels.md, problem-details.md and error-reporting.md are EXCLUDED from
+# the build, not merely left out of the nav.
 #
 # Leaving a page out of `nav` does not unpublish it: mkdocs builds every .md
 # under docs_dir regardless, so both were live and reachable by URL with no
@@ -35,6 +35,7 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 exclude_docs: |
   bridge-channels.md
   problem-details.md
+  error-reporting.md
   tutorial-doubts.md
 
 nav:

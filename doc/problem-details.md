@@ -400,3 +400,83 @@ about a day.**
   § 2 (the problem), the stack-trace analogy, and a menu invites a discussion
   about what belongs on it. The second is likelier to end with someone else
   volunteering to co-author the CR.
+
+
+
+## 9. The member set — what an error carries today, and what it should
+
+Added 2026-09-24, with `doc/error-reporting.md`, which needs it: the uniform 207
+body there is an array of ProblemDetails, and it works only if each one can say
+what it is about. This section gathers what § 4 offers into the one set a
+ProblemDetails would have, next to what exists today.
+
+### 9.1 Today
+
+| Member | TS 104-175 § 8.3.3 | Coraine emits it |
+|---|---|---|
+| `type` | **mandatory** — one of the twelve § 8.3.2 URIs | always |
+| `title` | **mandatory** | always |
+| `detail` | **mandatory**, content "should convey enough information" | almost always (a few batch-level 404/409s omit it) |
+| `status` | in the example only — not required | almost always (the same few omit it) |
+| `instance` | in the example only | no |
+| `entityId` | — | 10 tests: batch-level 404/409, where the standard members cannot say which |
+| `entityIds` | — | 3 tests: batch delete |
+| `attributeName` | — | 4 tests: a type conflict |
+| `registrationId` | — | 6 tests: a single forwarded retrieve that failed (502/504) |
+| `statusCode` | — | beside a `reason` String in `notUpdated`, where there is no ProblemDetails to put a status in |
+
+So the spec defines four members, of which one — `type` — is machine-readable, and
+an implementation that needs to say *which* Entity, Attribute or Registration
+invents a member for it — in the singular in one place and the plural in another,
+because nothing says which.
+
+### 9.2 Proposed
+
+Three tiers, following § 6's point that an optional member nobody must fill is
+worth nothing to a test suite.
+
+**Always:**
+
+| Member | Type | Note |
+|---|---|---|
+| `type` | URI | as today — one of § 8.3.2, stable, what clients switch on |
+| `title` | String | as today |
+| `detail` | String | as today — prose, for people |
+| `status` | Number | **promoted from the example to mandatory**: the HTTP status this error would have alone. Inside a 207 it is the only place an element's status can live |
+| `errorCode` | String | the **sub-code** beneath `type` (decided 2026-09-13): `BadRequestData` + `invalidJson`, `Conflict` + `registrationUnsupported`, … — what a client and a test suite actually assert on |
+
+**Whenever it applies — a conditional obligation, not an option:**
+
+| Member | Type | When |
+|---|---|---|
+| `entityIds` | String[] | the error concerns particular Entities |
+| `attributeNames` | String[] | … particular Attributes — compacted with the request's @context |
+| `datasetIds` | String[] | … particular Attribute instances |
+| `registrationIds` | String[] | **the error came from a forwarded request** — in chain order, each broker appending the registration it forwarded through (§ 5). The one that matters most in a distributed deployment, and today it lives in four different places (`error-reporting.md` § 1.5) |
+| `entityTypes`, `subscriptionIds`, `snapshotIds` | String[] | the error concerns those — `snapshotIds` is new, for Purge Snapshots, whose partial result has no member today |
+| `pointer` | String | the request body was wrong — JSON Pointer (RFC 6901) to where (§ 4.B) |
+| `retryable` | Boolean | the answer to "will sending it again ever work?" is known (§ 4.D) |
+
+Plural throughout, because one error can be about several things — duplicated IDs
+in a batch, two Attributes that conflict — and because a member that is sometimes
+a String and sometimes an array is exactly the drift § 9.1 shows.
+
+**Optional:**
+
+| Member | Type | Note |
+|---|---|---|
+| `instance` | URI | RFC 9457's own — the request URL |
+| `receivedValue`, `expectedValues` | any, String[] | § 4.B |
+| `retryAfter`, `limit` | Number | § 4.D |
+| `specClause` | String[] | § 4.E |
+| `diagnostics` | Object | § 4.C — `requestId` first |
+
+### 9.3 What it takes away
+
+With `entityIds`, `attributeNames` and `registrationIds` in the ProblemDetails
+itself, the wrappers that exist only to add them go: **EntityError**
+(`{entityId, error, registrationId}`) and **NotUpdatedResult**
+(`{attributeName, reason, registrationId}`) are both a ProblemDetails with those
+members. That is what lets `error-reporting.md` § 2.2 make every partial result
+one array of one type.
+
