@@ -159,13 +159,13 @@ ProblemDetails — and this settles it.)
       "status": 409,
       "detail": "…",
       "entityIds": [ "urn:ngsi-ld:Vehicle:C" ],
-      "attributeNames": [ "speed" ],
+      "attributeNames": { "speed": "https://example.org/vocab#speed" },
       "registrationIds": [ "urn:ngsi-ld:ContextSourceRegistration:7" ]
     }
   ],
   "success": [
     { "entityIds": [ "urn:ngsi-ld:Vehicle:A" ] },
-    { "entityIds": [ "urn:ngsi-ld:Vehicle:C" ], "attributeNames": [ "brand" ] }
+    { "entityIds": [ "urn:ngsi-ld:Vehicle:C" ], "attributeNames": { "brand": "https://example.org/vocab#brand" } }
   ]
 }
 ```
@@ -175,6 +175,14 @@ ProblemDetails — and this settles it.)
   `attributeNames`, `datasetIds`, `registrationIds` — `problem-details.md` § 4.A
   and § 9; plural, because one error can be about several things, as a batch with
   a duplicated ID is).
+- **Names are Fully Qualified, with the alias as the key.** The body is JSON, not
+  JSON-LD — no @context travels with it, and 176 § 6.2.3 requires "Only Fully
+  Qualified Names … in the payload body of error or partial success responses" —
+  so `attributeNames`, `subAttributeNames` and `entityTypes` are objects,
+  `{ "<alias>": "<FQN>" }`: the value is the real name, the key the short name the
+  request's @context gives it (the FQN itself when there is none). A client
+  matches on either. Identifiers — Entity ids, registration ids — are URIs
+  already, and stay arrays.
   The wrapper element (EntityError) and the String element (NotUpdatedResult)
   both disappear: a ProblemDetails *is* the element.
 - **`success`** — what went well, as **targets**: objects with the same
