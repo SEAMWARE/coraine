@@ -139,11 +139,17 @@ is exactly what just happened to ours.
    ignore extension members they do not recognise, so adding them cannot break a
    deployed client. A mandatory member would break every deployed broker at
    once. The teeth have to come from a *conditional* obligation instead — § 6.
-3. **Names follow the request's `@context`.** An Attribute name in an error
-   should be the name as the client wrote it, compacted per the request's
-   `@context`, like every other name in a response. Returning an expanded IRI
-   where the request said `speed` makes the field harder to use than the prose
-   it replaces.
+3. **Names are Fully Qualified — with the alias beside them.** An error body is
+   plain JSON, not JSON-LD: there is no @context in it to expand a short name
+   against, and TS 104-176 § 6.2.3 says so outright — "Only Fully Qualified Names
+   shall be used in the payload body of error or partial success responses". A
+   bare `"speed"` there names nothing. But the FQN alone is hard to match against
+   the request the client wrote, so a name member is an **object, alias → FQN**:
+   `{ "speed": "https://example.org/vocab#speed" }` — the key is the short name the
+   request's @context gives it, the value the real name; with no alias, the key
+   is the FQN itself. (That error bodies are JSON and not JSON-LD at all is
+   itself worth changing — as JSON-LD, with the request's @context, they could
+   carry short names like every other response. Not proposed here.)
 
 ## 4. The menu
 
@@ -159,8 +165,9 @@ thing the deck can do.
 | member | type | notes |
 |---|---|---|
 | `entityIds` | String[] | |
-| `attributeNames` | String[] | compacted per the request `@context` |
-| `entityTypes` | String[] | |
+| `attributeNames` | Object | alias → Fully Qualified Name (§ 3, rule 3) |
+| `subAttributeNames` | Object | alias → FQN, where the error concerns a sub-Attribute |
+| `entityTypes` | Object | alias → FQN |
 | `registrationIds` | String[] | **the one that matters for forwarding** |
 | `subscriptionIds` | String[] | |
 | `datasetIds` | String[] | where the error is instance-specific |
@@ -450,16 +457,22 @@ worth nothing to a test suite.
 | Member | Type | When |
 |---|---|---|
 | `entityIds` | String[] | the error concerns particular Entities |
-| `attributeNames` | String[] | … particular Attributes — compacted with the request's @context |
+| `attributeNames` | Object | … particular Attributes — **alias → Fully Qualified Name** (§ 3, rule 3): the body is JSON, not JSON-LD, so the real name is the value and the short name the request used is the key |
+| `subAttributeNames` | Object | … particular sub-Attributes — alias → FQN |
 | `datasetIds` | String[] | … particular Attribute instances |
 | `registrationIds` | String[] | **the error came from a forwarded request** — in chain order, each broker appending the registration it forwarded through (§ 5). The one that matters most in a distributed deployment, and today it lives in four different places (`error-reporting.md` § 1.5) |
-| `entityTypes`, `subscriptionIds`, `snapshotIds` | String[] | the error concerns those — `snapshotIds` is new, for Purge Snapshots, whose partial result has no member today |
+| `entityTypes` | Object | the error concerns Entity types — alias → FQN, as `attributeNames` |
+| `subscriptionIds`, `snapshotIds` | String[] | the error concerns those — `snapshotIds` is new, for Purge Snapshots, whose partial result has no member today |
 | `pointer` | String | the request body was wrong — JSON Pointer (RFC 6901) to where (§ 4.B) |
 | `retryable` | Boolean | the answer to "will sending it again ever work?" is known (§ 4.D) |
 
 Plural throughout, because one error can be about several things — duplicated IDs
 in a batch, two Attributes that conflict — and because a member that is sometimes
-a String and sometimes an array is exactly the drift § 9.1 shows.
+a String and sometimes an array is exactly the drift § 9.1 shows. Identifiers
+(`entityIds`, `registrationIds`, …) are arrays of URIs; **names** (`attributeNames`,
+`subAttributeNames`, `entityTypes`) are objects, alias → Fully Qualified Name,
+because a name needs both: the FQN is the real one, and the alias is what the
+client wrote.
 
 **Optional:**
 
