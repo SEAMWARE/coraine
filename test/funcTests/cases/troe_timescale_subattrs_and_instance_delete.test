@@ -1,0 +1,233 @@
+#
+# FILE            troe_timescale_subattrs_and_instance_delete.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Two things the temporal history must keep, both found by
+# bridge_action_goal_troe:
+#
+# 1. EVERY sub-Attribute of an instance. The rows always held them all
+#    (sub_attrs JSONB); the read side added them one by one with kjChildAdd,
+#    which NULLs the added node's ->next - so the loop stopped after the
+#    first, and every temporal answer carried one sub-Attribute at most.
+#
+# 2. EVERY instance of a multi-instance create - the rows were written from
+#    the first instance of the Attribute only; urn:ds:1 had no history at all.
+#
+# 3. ONLY the instance a PATCH wrote - an update of urn:ds:1 was recorded as
+#    a row of the first instance (the default one, which was not touched).
+#
+# 4. WHICH instance a  DELETE .../attrs/{attr}?datasetId=X  removed. The
+#    deletion row came without its datasetId - a history in which the
+#    default instance appears deleted while it still lives.
+#
+--NAME--
+TRoE timescale - every sub-Attribute kept, and a deleted instance keeps its datasetId
+
+--TAGS--
+troe timescale postgres temporal datasetid subattrs
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Create urn:E1 - P1 default instance with sub-Attributes a, b and c; P1 urn:ds:1 with x and y"
+echo "================================================================================================"
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "P1": [
+    {
+      "type":  "Property",
+      "value": 1,
+      "a":     { "type": "Property", "value": "A" },
+      "b":     { "type": "Property", "value": "B" },
+      "c":     { "type": "Property", "value": "C" }
+    },
+    {
+      "type":      "Property",
+      "value":     2,
+      "datasetId": "urn:ds:1",
+      "x":         { "type": "Property", "value": "X" },
+      "y":         { "type": "Property", "value": "Y" }
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. PATCH P1 urn:ds:1 - x to X2 - the default instance is not touched"
+echo "======================================================================"
+payload='{
+  "P1": {
+    "type":      "Property",
+    "value":     3,
+    "datasetId": "urn:ds:1",
+    "x":         { "type": "Property", "value": "X2" },
+    "y":         { "type": "Property", "value": "Y" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. DELETE P1?datasetId=urn:ds:1 - only that instance goes"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E1/attrs/P1?datasetId=urn:ds:1' -X DELETE
+echo
+echo
+
+
+echo "04. Current state - P1 default instance, a, b and c"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "05. The history of P1 - both instances, all sub-Attributes, the PATCH of urn:ds:1 only, and its deletion"
+echo "==========================================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:E1 --urlParams 'attrs=P1&timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. Create urn:E1 - P1 default instance with sub-Attributes a, b and c; P1 urn:ds:1 with x and y
+================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. PATCH P1 urn:ds:1 - x to X2 - the default instance is not touched
+======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. DELETE P1?datasetId=urn:ds:1 - only that instance goes
+==========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. Current state - P1 default instance, a, b and c
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 279
+
+{
+  "P1": {
+    "a": {
+      "type": "Property",
+      "value": "A"
+    },
+    "b": {
+      "type": "Property",
+      "value": "B"
+    },
+    "c": {
+      "type": "Property",
+      "value": "C"
+    },
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+05. The history of P1 - both instances, all sub-Attributes, the PATCH of urn:ds:1 only, and its deletion
+===========================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "c": {
+        "type": "Property",
+        "value": "C"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 3,
+      "x": {
+        "type": "Property",
+        "value": "X2"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+

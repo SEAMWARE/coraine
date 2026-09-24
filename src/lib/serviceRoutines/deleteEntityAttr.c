@@ -444,6 +444,7 @@ bool deleteEntityAttr(void)
               tevP->entityId       = entityId;
               tevP->entityType     = etype;
               tevP->attrName       = attrIri;
+              tevP->datasetId      = (corNgsild.deleteAll == false) ? corNgsild.datasetId : NULL;  // the wrapper names no instance
               tevP->modifiedAtNs   = corRest.requestStartTime;
               tevP->entitySnapshot = targetEntity;
               tevP->attrSnapshot   = preSnapshot;  // pre-delete wrapper — carries the attr kind for the tombstone row

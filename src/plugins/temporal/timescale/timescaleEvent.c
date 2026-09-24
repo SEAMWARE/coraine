@@ -422,6 +422,40 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 {
   AttrCols cols;
 
+  //
+  // A snapshot is a wrapper keyed by datasetId - { "@none": {...}, "urn:ds:1": {...} }
+  // - and a row is ONE instance. A wrapper with several instances (a create or
+  // replace of a multi-instance Attribute, a deleteAll) is a row per instance:
+  // each goes through here again, in a one-instance wrapper of its own. The
+  // wrapper is a copy on the stack, so no list is touched - only firstChildP
+  // is ever read from it.
+  //
+  KjNode* wrapperP = (KjNode*) evP->attrSnapshot;
+
+  if ((evP->datasetId == NULL) && (wrapperP != NULL) && (wrapperP->type == KjObject) &&
+      (wrapperP->value.firstChildP != NULL) && (wrapperP->value.firstChildP->next != NULL))
+  {
+    for (KjNode* instP = wrapperP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if (instP->type != KjObject)
+        continue;
+
+      KjNode     one   = *wrapperP;
+      TroeEvent  oneEv = *evP;
+
+      one.value.firstChildP = instP;
+      one.lastChild         = instP;
+      oneEv.attrSnapshot    = &one;
+      oneEv.datasetId       = ((instP->name != NULL) && (strcmp(instP->name, "@none") != 0)) ? instP->name : "";
+
+      int r = timescaleExecAttrInsertLocked(&oneEv);
+      if (r != TROE_OK)
+        return r;
+    }
+
+    return TROE_OK;
+  }
+
   if (evP->op == TroeOpAttrDeleted)
   {
     // Tombstone row: no value columns are bound, but attr_kind must survive —

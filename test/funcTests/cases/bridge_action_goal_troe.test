@@ -1,0 +1,217 @@
+#
+# FILE            bridge_action_goal_troe.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A finished goal is gone from the current state, and kept in the temporal
+# history - every transition of it.
+#
+# A goal lives in its own instance of the attribute it was sent through (its
+# datasetId the alias the bridge gives it), and each of its events is an
+# ordinary write of that instance: accepted, feedback, succeeded, the result.
+# When the goal ends, the instance is removed - current state shows only goals
+# in progress (KZ's decision: "The goal's state is kept in troe forever. I
+# don't want it in the current state after it has finished"). So TRoE is where
+# a finished goal is read back, and this is the test that it is all there:
+# the instance, each transition in order, and its removal.
+#
+# Loopback: A1 succeeds - accepted, one feedback, succeeded, the result.
+#
+--NAME--
+Bridges: a finished goal is gone from current state and kept, every transition, in TRoE
+
+--TAGS--
+bridge channel plugins action goal temporal troe
+
+--INIT--
+corDbDrop
+corTroeInit
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate")
+
+coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. Send goal 1 to A1 - it succeeds"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }'
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "02. Current state - the goal is gone, the value that was asked stays"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "03. The temporal history of navigate - goal 1's instance, every transition, in order"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:R:1 --urlParams 'attrs=navigate&timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. Send goal 1 to A1 - it succeeds
+===================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Current state - the goal is gone, the value that was asked stays
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 1
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+03. The temporal history of navigate - goal 1's instance, every transition, in order
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "uninitialized"
+    },
+    {
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:1",
+      "instanceId": "REGEX(.*)",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:1",
+      "feedback": {
+        "type": "Property",
+        "value": {
+          "progress": 50
+        }
+      },
+      "instanceId": "REGEX(.*)",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:1",
+      "feedback": {
+        "type": "Property",
+        "value": {
+          "progress": 50
+        }
+      },
+      "instanceId": "REGEX(.*)",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "SUCCEEDED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:1",
+      "feedback": {
+        "type": "Property",
+        "value": {
+          "progress": 50
+        }
+      },
+      "instanceId": "REGEX(.*)",
+      "result": {
+        "type": "Property",
+        "value": {
+          "x": 1
+        }
+      },
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "SUCCEEDED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:loopback:goal:1",
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
