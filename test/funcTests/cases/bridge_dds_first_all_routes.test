@@ -115,7 +115,7 @@ echo
 
 echo "08. The goals that went out, and how they ended - two, both to A2, none for the refused create"
 echo "=============================================================================================="
-grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
 echo
 
 
@@ -266,7 +266,7 @@ Content-Length: 0
 08. The goals that went out, and how they ended - two, both to A2, none for the refused create
 ==============================================================================================
 sends goal 4 to action 'A2'
-goal 4 on 'A2' (urn:loopback:goal:4) ended, state 4
+goal 4 on 'A2' (urn:goal:4) ended, state 4
 sends goal 5 to action 'A2'
-goal 5 on 'A2' (urn:loopback:goal:5) ended, state 4
+goal 5 on 'A2' (urn:goal:5) ended, state 4
 

@@ -19,7 +19,7 @@
 #          endpoint hears its own goal - while held, and when cancelled
 #
 # Loopback: A1 succeeds, A2 holds its goals until they are cancelled. Tokens
-# are handed out from 1, so the goals are urn:loopback:goal:1 to :4.
+# are handed out from 1, so the goals are urn:goal:1 to :4.
 #
 --NAME--
 Bridges: a goal's endpoint - its own events, and only its own, through a subscription nobody lists
@@ -112,7 +112,7 @@ echo
 
 echo "07. Cancel goal 3"
 echo "================="
-corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:3' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:goal:3' -X DELETE
 for i in $(seq 1 50); do
   grep -q "goal 3 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
   sleep 0.1
@@ -155,7 +155,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "status": {
               "type": "Property",
               "value": {
@@ -191,7 +191,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -233,7 +233,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -275,7 +275,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -323,7 +323,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "type": "Property",
             "value": "urn:ngsi-ld:null"
           },
@@ -392,7 +392,7 @@ Content-Length: 0
         {
           "id": "urn:R:2",
           "navigate": {
-            "datasetId": "urn:loopback:goal:3",
+            "datasetId": "urn:goal:3",
             "status": {
               "type": "Property",
               "value": {
@@ -428,7 +428,7 @@ Content-Length: 0
         {
           "id": "urn:R:2",
           "navigate": {
-            "datasetId": "urn:loopback:goal:4",
+            "datasetId": "urn:goal:4",
             "status": {
               "type": "Property",
               "value": {
@@ -479,7 +479,7 @@ Content-Length: 0
         {
           "id": "urn:R:2",
           "navigate": {
-            "datasetId": "urn:loopback:goal:3",
+            "datasetId": "urn:goal:3",
             "status": {
               "type": "Property",
               "value": {
@@ -515,7 +515,7 @@ Content-Length: 0
         {
           "id": "urn:R:2",
           "navigate": {
-            "datasetId": "urn:loopback:goal:3",
+            "datasetId": "urn:goal:3",
             "result": {
               "type": "Property",
               "value": {
@@ -557,7 +557,7 @@ Content-Length: 0
         {
           "id": "urn:R:2",
           "navigate": {
-            "datasetId": "urn:loopback:goal:3",
+            "datasetId": "urn:goal:3",
             "type": "Property",
             "value": "urn:ngsi-ld:null"
           },

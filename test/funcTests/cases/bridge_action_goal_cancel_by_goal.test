@@ -1,0 +1,317 @@
+#
+# FILE            bridge_action_goal_cancel_by_goal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?goal=<id> - a goal cancelled by its own id.
+#
+# A goal lives in its own instance of the attribute it was sent through,
+# datasetId urn:goal:<id>, and it is cancelled by deleting that instance:
+#   DELETE /entities/{id}/attrs/{attr}?datasetId=urn:goal:<id>
+# ?goal=<id> is the same datasetId, spelled by the goal's own id:
+#   DELETE /entities/{id}/attrs/{attr}?goal=<id>
+# So everything a cancel does, this does - 202, the instance staying until the
+# goal ends, an ordinary delete of nothing once it has - and what it adds is
+# refused where it would be ambiguous: goal AND datasetId, an empty goal, a list.
+# It is a parameter of DELETE .../attrs/{attr} only.
+#
+# Loopback: A1 holds its goals until they are cancelled.
+#
+--NAME--
+Bridges: a goal cancelled by its own id - ?goal=<id> is ?datasetId=urn:goal:<id>
+
+--TAGS--
+bridge channel plugins action goal
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --goalMode "A1=hold")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. Send goal 1 to A1 - it is accepted and held"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }'
+for i in $(seq 1 50); do
+  grep -q "'status' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "02. Robot 1 - goal 1 in flight, in its instance urn:goal:1"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "03. ?goal=1 AND ?datasetId=urn:goal:1 - one thing named twice: 400, nothing cancelled"
+echo "====================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=1&datasetId=urn:goal:1' -X DELETE
+echo
+echo
+
+
+echo "04. ?goal= - empty: 400"
+echo "======================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=' -X DELETE
+echo
+echo
+
+
+echo "05. ?goal=1,2 - a list: 400, a goal is cancelled one at a time"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=1,2' -X DELETE
+echo
+echo
+
+
+echo "06. ?goal=1 on GET /entities/{id} - not a parameter of that route: 400"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1?goal=1'
+echo
+echo
+
+
+echo "07. Goal 1 is still in flight - none of the refused requests touched it"
+echo "======================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo "goal 1 ended: $(grep -c "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log)"
+echo
+echo
+
+
+echo "08. Cancel goal 1 by its id - ?goal=1: 202, the cancel is on its way"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=1' -X DELETE
+echo
+echo
+
+
+echo "09. The goal ends, canceled - and its instance goes with it; the value asked stays"
+echo "=================================================================================="
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "10. ?goal=1 again - no goal in flight any more, so an ordinary delete of an instance that is not there: 404"
+echo "=========================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=1' -X DELETE
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. Send goal 1 to A1 - it is accepted and held
+===============================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Robot 1 - goal 1 in flight, in its instance urn:goal:1
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 365
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:goal:1",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+03. ?goal=1 AND ?datasetId=urn:goal:1 - one thing named twice: 400, nothing cancelled
+=====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "goal and datasetId name the same thing - give one of them",
+  "status": 400,
+  "title": "Invalid URL parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. ?goal= - empty: 400
+=======================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "goal: the id of ONE goal",
+  "status": 400,
+  "title": "Invalid URL parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. ?goal=1,2 - a list: 400, a goal is cancelled one at a time
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "goal: the id of ONE goal",
+  "status": 400,
+  "title": "Invalid URL parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. ?goal=1 on GET /entities/{id} - not a parameter of that route: 400
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "Unknown/unsupported URL parameter: goal",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+07. Goal 1 is still in flight - none of the refused requests touched it
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 365
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:goal:1",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+goal 1 ended: 0
+
+
+08. Cancel goal 1 by its id - ?goal=1: 202, the cancel is on its way
+====================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+09. The goal ends, canceled - and its instance goes with it; the value asked stays
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 1
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+10. ?goal=1 again - no goal in flight any more, so an ordinary delete of an instance that is not there: 404
+==========================================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 210
+
+{
+  "detail": "attribute 'navigate' has no instance with datasetId 'urn:goal:1' in entity 'urn:R:1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
