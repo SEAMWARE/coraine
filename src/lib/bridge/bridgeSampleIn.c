@@ -851,6 +851,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
     tevP->entityId       = entityId;
     tevP->entityType     = channelP->entityType;
     tevP->attrName       = attrName;
+    tevP->datasetId      = goalAlias;                 // the snapshot is the wrapper - it names no instance
     tevP->modifiedAtNs   = corRest.requestStartTime;
     tevP->entitySnapshot = entityP;
     tevP->attrSnapshot   = preSnapshotP;              // the pre-delete wrapper, as a client's delete gives

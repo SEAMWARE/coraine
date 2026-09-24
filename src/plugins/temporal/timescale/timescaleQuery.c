@@ -663,8 +663,14 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       KjNode* parsed = kjParse(kjsonP, dup);
       if (parsed != NULL && parsed->type == KjObject)
       {
-        for (KjNode* sP = parsed->value.firstChildP; sP != NULL; sP = sP->next)
+        // kjChildAdd sets the added node's ->next to NULL - the next one is taken first
+        KjNode* sP = parsed->value.firstChildP;
+        while (sP != NULL)
+        {
+          KjNode* nextP = sP->next;
           kjChildAdd(inst, sP);
+          sP = nextP;
+        }
       }
     }
 
