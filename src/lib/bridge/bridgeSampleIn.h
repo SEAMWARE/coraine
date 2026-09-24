@@ -74,6 +74,36 @@ extern int bridgeSampleQualifiedIn(const char* bridgeName,
                                    const char* json,
                                    int64_t     publishTime);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalWrite - one event of a goal, into the goal's own instance
+//
+// bridgeSampleQualifiedIn() for a goal (bridgeGoal.c): the instance is the
+// goal's alias, and the first event creates it, holding requestJson - the goal
+// the broker sent - as its value. subAttrName NULL with json NULL writes nothing.
+//
+extern int bridgeGoalWrite(const char* bridgeName,
+                           const char* endpoint,
+                           const char* goalAlias,
+                           const char* subAttrName,
+                           const char* json,
+                           int64_t     publishTime,
+                           const char* requestJson);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalInstanceRemove - a finished goal's instance goes, and nothing else
+//
+// Stored, notified and recorded exactly as a client's own DELETE of that one
+// instance (?datasetId=) would be. The attribute and its other instances -
+// other goals, and the value that was last asked - stay.
+//
+extern int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const char* goalAlias);
+
 // -----------------------------------------------------------------------------
 //
 // bridgeReplySubAttr - a reply, as the sub-attribute it is stored as

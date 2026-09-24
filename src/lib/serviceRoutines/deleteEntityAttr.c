@@ -42,6 +42,9 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 
+#include "ktrace/kTrace.h"                           // KT_W
+#include "corBridge/BridgeBroker.h"                  // BRIDGE_OK, BRIDGE_UNSUPPORTED
+#include "bridge/bridgeGoal.h"                        // bridgeGoalCancel
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
 
@@ -186,6 +189,34 @@ bool deleteEntityAttr(void)
   }
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+
+  //
+  // The instance of a goal in flight on an action Channel: deleting it is how a
+  // goal is CANCELLED (bridgeGoal.h), and DDS goes first. A goal is something
+  // the broker asked the DDS side to do, so the DDS side is the master of it:
+  // deleting its instance here while the goal runs on would say it had stopped
+  // when nothing says so.
+  //
+  //   the cancel could not be sent  -> the request fails, nothing is deleted
+  //   it was sent                   -> 202: accepted, not done. The instance
+  //                                    goes when the goal ends - cancelled, or
+  //                                    with its result if it finished first.
+  //
+  int cancelRc;
+
+  if (bridgeGoalCancel(tenantP, entityId, attrIri, corNgsild.datasetId, &cancelRc) == true)
+  {
+    if (cancelRc == BRIDGE_OK)
+      corRest.out.httpStatusCode = 202;
+    else if (cancelRc == BRIDGE_UNSUPPORTED)
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+              "the bridge carrying '%s' cannot cancel a goal", attrWild);
+    else
+      ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
+              "the cancellation of goal '%s' could not be sent (%d) - nothing was deleted", corNgsild.datasetId, cancelRc);
+
+    return true;
+  }
 
   KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
   bool    anySucceeded = false;

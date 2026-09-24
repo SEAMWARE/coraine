@@ -1070,8 +1070,10 @@ bridgeConfig() {
   local typesDirectory=""
   local -a topics
   local -a services
+  local -a actions
   local -a emits
   local -a replyDelays
+  local -a goalModes
   local -a raws
 
   while [ $# -gt 0 ]; do
@@ -1086,6 +1088,13 @@ bridgeConfig() {
       #   <endpoint>,<entityType>,<entityId>,<attribute>[,<requestType>,<replyType>]
       #
       --service) services+=("$2"); shift ;;
+      #
+      # An action entry has the shape of a service entry. Writing its attribute
+      # sends a goal; --goalMode "<endpoint>=succeed|hold|reject|abort" tells the
+      # loopback bridge what to make of the goals sent there (succeed if unsaid).
+      #
+      --action) actions+=("$2"); shift ;;
+      --goalMode) goalModes+=("$2"); shift ;;
       #
       # The catch-all entity: "true" for the derived one, or "<id>,<type>" to
       # name it. An endpoint no topic claims goes there instead of being
@@ -1135,6 +1144,19 @@ bridgeConfig() {
         local comma=","
         [ $i -eq ${#replyDelays[@]} ] && comma=""
         echo "      \"${d%%=*}\": ${d#*=}$comma"
+      done
+      echo "    },"
+    fi
+
+    if [ ${#goalModes[@]} -gt 0 ]; then
+      echo "    \"goalMode\": {"
+      local i=0
+      local g
+      for g in "${goalModes[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#goalModes[@]} ] && comma=""
+        echo "      \"${g%%=*}\": \"${g#*=}\"$comma"
       done
       echo "    },"
     fi
@@ -1198,6 +1220,25 @@ bridgeConfig() {
         echo "        \"$sEndpoint\": { \"entityId\": \"$sId\", \"entityType\": \"$sType\", \"attribute\": \"$sAttr\"$types }$comma"
       done
 
+      echo "      }"
+    fi
+
+    #
+    # Actions, if any - after whichever section came last, so the comma that
+    # separates them leads this one.
+    #
+    if [ ${#actions[@]} -gt 0 ]; then
+      echo "      ,\"actions\": {"
+      i=0
+      local av
+      for av in "${actions[@]}"; do
+        local aEndpoint aType aId aAttr
+        IFS=',' read -r aEndpoint aType aId aAttr <<< "$av"
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#actions[@]} ] && comma=""
+        echo "        \"$aEndpoint\": { \"entityId\": \"$aId\", \"entityType\": \"$aType\", \"attribute\": \"$aAttr\" }$comma"
+      done
       echo "      }"
     fi
 

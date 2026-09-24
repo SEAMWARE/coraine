@@ -269,12 +269,24 @@ static void instanceCarryOver(KjNode* newInstanceP, KjNode* oldInstanceP)
 // duplicating it for a reply would have meant two copies of the one piece of
 // code in the broker that runs on a thread it did not create.
 //
+// @param seedJson  a GOAL's request, as text, or NULL. A goal's instance does
+//                  not exist until the first event about it arrives - the
+//                  broker did not know the goal's alias before that - so this
+//                  is the value the instance is created with. Text and not a
+//                  tree, because the arena is reset below and it has to be
+//                  parsed after that.
+// @param goal      the call is about a goal (bridgeGoal.c), which may write an
+//                  action Channel's attribute without a sub-attribute: the
+//                  null that removes a finished goal's instance.
+//
 static int sampleIn(const char* bridgeName,
                     const char* endpoint,
                     const char* datasetId,
                     const char* subAttrName,
                     const char* json,
-                    int64_t     publishTime)
+                    int64_t     publishTime,
+                    const char* seedJson,
+                    bool        goal)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
@@ -309,7 +321,7 @@ static int sampleIn(const char* bridgeName,
         return BRIDGE_NOT_FOUND;
       }
     }
-    else if (subAttrName == NULL)
+    else if ((subAttrName == NULL) && (goal == false))
     {
       KT_T(KtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
            endpoint, corBridgeKindName(channelP->kind));
@@ -431,6 +443,21 @@ static int sampleIn(const char* bridgeName,
   {
     existingInstanceP = attrInstance(tenantP, entityId, attrName, datasetId);
     existingValueP    = (existingInstanceP != NULL) ? kjLookup(existingInstanceP, "value") : NULL;
+
+    //
+    // A goal's first event: the instance is created here, holding what was
+    // asked. It is the one arrival that may make an instance, because the
+    // broker sent the goal and knows what it was - the "answer to nothing" below
+    // is exactly the case where it does not.
+    //
+    if ((existingValueP == NULL) && (seedJson != NULL))
+    {
+      existingValueP    = kjParse(corRest.kjsonP, kaStrdup(&corRest.kalloc, seedJson));
+      existingInstanceP = NULL;
+
+      if (existingValueP == NULL)
+        return BRIDGE_BAD_INPUT;
+    }
 
     if (existingValueP == NULL)
     {
@@ -697,7 +724,7 @@ KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const 
 //
 int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
 {
-  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime);
+  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime, NULL, false);
 }
 
 
@@ -713,5 +740,132 @@ int bridgeSampleQualifiedIn(const char* bridgeName,
                             const char* json,
                             int64_t     publishTime)
 {
-  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime);
+  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime, NULL, false);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalWrite -
+//
+int bridgeGoalWrite(const char* bridgeName,
+                    const char* endpoint,
+                    const char* goalAlias,
+                    const char* subAttrName,
+                    const char* json,
+                    int64_t     publishTime,
+                    const char* requestJson)
+{
+  return sampleIn(bridgeName, endpoint, goalAlias, subAttrName, json, publishTime, requestJson, true);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalInstanceRemove -
+//
+// ⭐ EXACTLY WHAT A CLIENT'S  DELETE .../attrs/{attr}?datasetId=<alias>  DOES,
+// and not the instance-level null of a PATCH, although that would store the
+// same thing. The two differ in what they SAY: a delete is reported as
+// attributeDeleted naming the instance, so a watcher's notification carries the
+// "urn:ngsi-ld:null" marker for it and the temporal history records a deletion,
+// where the null would have been an update that emptied the notification and a
+// replace in the history.
+//
+int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const char* goalAlias)
+{
+  Channel* channelP = channelLookup(bridgeName, endpoint);
+
+  if ((channelP == NULL) || (goalAlias == NULL))
+    return BRIDGE_NOT_FOUND;
+
+  if ((db.entityRetrieve == NULL) || (db.entityReplace == NULL))
+    return BRIDGE_UNSUPPORTED;
+
+  Tenant*     tenantP  = channelP->tenantP;
+  const char* entityId = channelP->entityId;
+  const char* attrName = channelP->attrName;
+
+  threadBind(tenantP);
+
+  KjNode* entityP = NULL;
+
+  if ((db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK) || (entityP == NULL))
+    return BRIDGE_NOT_FOUND;
+
+  KjNode* attrP     = kjLookup(entityP, attrName);
+  KjNode* instanceP = (attrP != NULL) ? kjLookup(attrP, goalAlias) : NULL;
+
+  if (instanceP == NULL)
+    return BRIDGE_NOT_FOUND;
+
+  KjNode* preSnapshotP = kjClone(corRest.kjsonP, attrP);
+
+  kjChildRemove(attrP, instanceP);
+
+  if (attrP->value.firstChildP == NULL)
+    kjChildRemove(entityP, attrP);
+
+  KjNode* oldEntityP = NULL;
+
+  if (db.entityReplace(tenantP, entityId, entityP, &oldEntityP) != DB_OK)
+  {
+    KT_W("bridge '%s': the instance %s of %s/%s could not be removed", bridgeName, goalAlias, entityId, attrName);
+    return BRIDGE_ERR;
+  }
+
+  if (tenantP->subCacheP != NULL)
+  {
+    LdMergeReport report;
+    KjNode*       entryP  = kjObject(corRest.kjsonP, NULL);
+    KjNode*       dsKeysP = kjArray(corRest.kjsonP, "datasetIds");
+
+    report.changes = kjArray(corRest.kjsonP, "changes");
+
+    kjChildAdd(dsKeysP, kjString(corRest.kjsonP, NULL, (char*) goalAlias));
+    kjChildAdd(entryP, kjString(corRest.kjsonP, "attr",   (char*) attrName));
+    kjChildAdd(entryP, kjString(corRest.kjsonP, "reason", "attributeDeleted"));
+    kjChildAdd(entryP, dsKeysP);
+
+    if (preSnapshotP != NULL)
+    {
+      KjNode* preValueP = kjClone(corRest.kjsonP, preSnapshotP);
+
+      preValueP->name = (char*) "preValue";
+      kjChildAdd(entryP, preValueP);
+    }
+
+    kjChildAdd(report.changes, entryP);
+    ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityUpdate, &report);
+  }
+
+  if (troe.attrEvent != NULL || troe.eventList != NULL)
+  {
+    TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+
+    memset(tevP, 0, sizeof(TroeEvent));
+    tevP->op             = TroeOpAttrDeleted;
+    tevP->tenantP        = tenantP;
+    tevP->entityId       = entityId;
+    tevP->entityType     = channelP->entityType;
+    tevP->attrName       = attrName;
+    tevP->modifiedAtNs   = corRest.requestStartTime;
+    tevP->entitySnapshot = entityP;
+    tevP->attrSnapshot   = preSnapshotP;              // the pre-delete wrapper, as a client's delete gives
+    troeDeferAttrEvent(tevP);
+  }
+
+  //
+  // Drained here as sampleIn() drains: there is no request behind this.
+  //
+  ldNotifyDispatchPending();
+  ldCsrSubDispatchPending();
+  troeDispatchPending();
+  ldSubEntityTypeExprsRelease();
+
+  KT_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
+
+  return BRIDGE_OK;
 }

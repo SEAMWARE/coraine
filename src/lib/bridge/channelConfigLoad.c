@@ -388,12 +388,13 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
       total += channelsLoad(alias, servicesP, BridgeChannelService, BridgeDirectionOut, tenantP, &kalloc);
 
     //
-    // Actions are described by the same file and are not carried yet. Saying so
-    // is the point: a deployment whose file has them would otherwise see
-    // nothing happen and have no way to tell that from a quiet peer.
+    // An action Channel faces OUT for the same reason: the broker sends goals,
+    // it cannot run one. Whatever comes back - feedback, status, a result - is
+    // the other half of a goal the broker sent, not a sample.
     //
-    if (kjLookup(ngsildP, "actions") != NULL)
-      KT_W("bridge '%s': the 'actions' section is not carried yet and is being ignored", alias);
+    KjNode* actionsP = kjLookup(ngsildP, "actions");
+    if (actionsP != NULL)
+      total += channelsLoad(alias, actionsP, BridgeChannelAction, BridgeDirectionOut, tenantP, &kalloc);
 
     //
     // And the catch-all, which is off unless the file asks for it.
