@@ -38,9 +38,11 @@ TS_RE = re.compile(
     r'("(?:' + "|".join(TS_FIELDS) + r')"\s*:\s*)"[^"]+"'
 )
 
-# Notification id — fixed length but value varies per process
+# Notification id — fixed length but value varies per process. BOTH parts are hex:
+# the counter too - the tenth notification of a run is ...:000a, and a \d+ counter
+# left it a literal that never matched again.
 NID_RE = re.compile(
-    r'"urn:ngsi-ld:Notification:[0-9a-fA-F]+:\d+"'
+    r'"urn:ngsi-ld:Notification:[0-9a-fA-F]+:[0-9a-fA-F]+"'
 )
 
 # EntityMap id — fixed length, process-volatile hex hash. Appears both as
@@ -65,7 +67,7 @@ ECL_RE = re.compile(r'("Content-Length"\s*:\s*)"\d+"')
 # Escaped-JSON forms — appear when a notification body is itself a
 # JSON-encoded string (e.g. MQTT delivery: `"body": "{...escaped JSON...}"`).
 # The volatile fields inside are visible as \"notifiedAt\":\"...\" etc.
-ESC_NID_RE = re.compile(r'\\"urn:ngsi-ld:Notification:[0-9a-fA-F]+:\d+\\"')
+ESC_NID_RE = re.compile(r'\\"urn:ngsi-ld:Notification:[0-9a-fA-F]+:[0-9a-fA-F]+\\"')
 ESC_TS_RE = re.compile(
     r'(\\"(?:' + "|".join(TS_FIELDS) + r')\\"\s*:\s*)\\"[^\\]+\\"'
 )

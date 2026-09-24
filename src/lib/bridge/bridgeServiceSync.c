@@ -23,6 +23,7 @@
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
@@ -610,8 +611,17 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     //
     if (channelP->kind == BridgeChannelAction)
     {
+      //
+      // A goal may carry where its events are to be sent: an "endpoint"
+      // sub-Attribute of the request, as orion-ld's goals do. The broker then
+      // subscribes that endpoint to this goal's instance alone (bridgeGoal.c).
+      //
+      KjNode*     endpointAttrP = kjLookup(instanceP, LD_VOCAB_ENDPOINT);
+      KjNode*     endpointValP  = ((endpointAttrP != NULL) && (endpointAttrP->type == KjObject)) ? kjLookup(endpointAttrP, "value") : NULL;
+      const char* endpoint      = ((endpointValP != NULL) && (endpointValP->type == KjString)) ? endpointValP->value.s : NULL;
+
       uint64_t goalToken = 0;
-      int      r         = bridgeGoalSend(channelP, buf, &goalToken);   // held until this request has written
+      int      r         = bridgeGoalSend(channelP, buf, endpoint, &goalToken);   // held until this request has written
 
       if (r != BRIDGE_OK)
       {

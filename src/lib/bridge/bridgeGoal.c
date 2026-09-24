@@ -20,6 +20,12 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount, BRIDGE_*
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget
+#include "kjson/KjNode.h"                             // KjNode
+#include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
+#include "corRest/corRest.h"                          // corRest
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
+#include "corNgsild/LdSubCache.h"                     // LdSubCache
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemRemove, ldSubCacheWrLock
 #include "bridge/bridgeSampleIn.h"                    // bridgeGoalWrite, bridgeGoalInstanceRemove
 #include "bridge/bridgeGoal.h"                        // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
@@ -68,6 +74,9 @@ typedef struct Goal
   char*         request;                              // the goal as sent - its instance's value
   char*         goalId;                               // the transport's, once an event has said
   char*         goalAlias;                            // the instance's datasetId, once an event has said
+  char*         notifyEndpoint;                       // where the goal's events are notified - NULL: nowhere
+  char*         subId;                                // the goal's own subscription, once made
+  char*         entityType;                           // for that subscription's entity selector
   int           state;                                // BridgeGoalState
   bool          instanceMade;                         // an event has been written into the instance
   bool          held;                                 // sent before its request's write, which has not happened yet
@@ -145,6 +154,9 @@ static void goalFree(Goal* goalP)
   free(goalP->request);
   free(goalP->goalId);
   free(goalP->goalAlias);
+  free(goalP->notifyEndpoint);
+  free(goalP->subId);
+  free(goalP->entityType);
   free(goalP);
 }
 
@@ -170,6 +182,126 @@ static void goalUnlink(Goal* goalP)
 
 // -----------------------------------------------------------------------------
 //
+// goalSubscribe - the goal's own subscription, for the endpoint its request named
+//
+// Made on the goal's FIRST event, before that event is written - which is when
+// the goal's alias, the datasetId of its instance, is known - so that the event
+// itself is notified. It watches attr@alias (corNgsild: a watchedAttributes
+// entry naming one instance), so the endpoint hears THIS goal and no other on
+// the same attribute, and projects datasetId to it, so it receives that instance
+// alone. The triggers are the attribute's three: the instance is created,
+// written, and removed.
+//
+// ⭐ IN THE CACHE ONLY. It is never stored, never listed by GET /subscriptions,
+// and gone with the goal (goalUnsubscribe) - or with the broker, like the goal
+// itself. The periodic statistics flush reaches it like any cached
+// subscription: mongoc's is an update that matches nothing, corDB has none.
+//
+// Caller holds goalMutex. On a plugin thread: corRest.kjsonP is its arena.
+//
+static void goalSubscribe(Goal* goalP)
+{
+  if ((goalP->notifyEndpoint == NULL) || (goalP->subId != NULL) || (goalP->goalAlias == NULL))
+    return;
+
+  LdSubCache* cacheP = (LdSubCache*) goalP->tenantP->subCacheP;
+
+  if (cacheP == NULL)
+    return;
+
+  char subId[128];
+  snprintf(subId, sizeof(subId), "urn:coraine:goal-subscription:%" PRIu64, goalP->token);
+
+  int   watchedLen = strlen(goalP->attrName) + 1 + strlen(goalP->goalAlias) + 1;
+  char* watched    = (char*) malloc(watchedLen);
+
+  if (watched == NULL)
+    return;
+
+  snprintf(watched, watchedLen, "%s@%s", goalP->attrName, goalP->goalAlias);
+
+  KjNode* subP      = kjObject(corRest.kjsonP, NULL);
+  KjNode* entitiesP = kjArray(corRest.kjsonP, LD_VOCAB_ENTITIES);
+  KjNode* selectorP = kjObject(corRest.kjsonP, NULL);
+  KjNode* watchedP  = kjArray(corRest.kjsonP, LD_VOCAB_WATCHED_ATTRS);
+  KjNode* datasetP  = kjArray(corRest.kjsonP, LD_VOCAB_DATASET_ID);
+  KjNode* triggerP  = kjArray(corRest.kjsonP, "notificationTrigger");
+  KjNode* notifP    = kjObject(corRest.kjsonP, LD_VOCAB_NOTIFICATION);
+  KjNode* endpointP = kjObject(corRest.kjsonP, LD_VOCAB_ENDPOINT);
+
+  kjChildAdd(subP, kjString(corRest.kjsonP, "id",   subId));
+  kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Subscription"));
+
+  kjChildAdd(selectorP, kjString(corRest.kjsonP, "id", goalP->entityId));
+  if (goalP->entityType != NULL)
+    kjChildAdd(selectorP, kjString(corRest.kjsonP, "type", goalP->entityType));
+  kjChildAdd(entitiesP, selectorP);
+  kjChildAdd(subP, entitiesP);
+
+  kjChildAdd(watchedP, kjString(corRest.kjsonP, NULL, watched));
+  kjChildAdd(subP, watchedP);
+
+  kjChildAdd(datasetP, kjString(corRest.kjsonP, NULL, goalP->goalAlias));
+  kjChildAdd(subP, datasetP);
+
+  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeCreated"));
+  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
+  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeDeleted"));
+  kjChildAdd(subP, triggerP);
+
+  kjChildAdd(endpointP, kjString(corRest.kjsonP, LD_VOCAB_URI, goalP->notifyEndpoint));
+  kjChildAdd(endpointP, kjString(corRest.kjsonP, "accept", "application/json"));
+  kjChildAdd(notifP, endpointP);
+  kjChildAdd(subP, notifP);
+
+  ldSubCacheWrLock(cacheP);
+  LdSubCacheItem* itemP = ldSubCacheItemAdd(cacheP, subP, NULL, LdFormatUnset);   // clones the tree
+  ldSubCacheUnlock(cacheP);
+
+  free(watched);
+
+  if (itemP == NULL)
+  {
+    KT_W("goal %" PRIu64 ": its subscription for '%s' could not be made - its events go unnotified", goalP->token, goalP->notifyEndpoint);
+    return;
+  }
+
+  goalP->subId = strdup(subId);
+  KT_T(KtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalUnsubscribe - the goal has ended: its subscription goes. Caller holds goalMutex.
+//
+// A notification of the goal's last write still being sent is not disturbed:
+// the sender pins the cache item, and a removed item waits on the retired list
+// until it is unpinned.
+//
+static void goalUnsubscribe(Goal* goalP)
+{
+  if (goalP->subId == NULL)
+    return;
+
+  LdSubCache* cacheP = (LdSubCache*) goalP->tenantP->subCacheP;
+
+  if (cacheP != NULL)
+  {
+    ldSubCacheWrLock(cacheP);
+    ldSubCacheItemRemove(cacheP, goalP->subId);
+    ldSubCacheUnlock(cacheP);
+  }
+
+  free(goalP->subId);
+  goalP->subId = NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // goalSweep - let go of goals whose end was never heard. Caller holds goalMutex.
 //
 static void goalSweep(void)
@@ -185,6 +317,7 @@ static void goalSweep(void)
     {
       KT_W("goal %" PRIu64 " on '%s' (%s) has not ended in %d minutes - no longer followed",
            goalP->token, goalP->endpoint, (goalP->goalAlias != NULL) ? goalP->goalAlias : "no alias yet", GOAL_TTL_MS / 60000);
+      goalUnsubscribe(goalP);
       goalUnlink(goalP);
       goalFree(goalP);
     }
@@ -236,7 +369,7 @@ static void releasedCondInit(void)
 //
 // bridgeGoalSend -
 //
-int bridgeGoalSend(Channel* channelP, const char* json, uint64_t* tokenP)
+int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, uint64_t* tokenP)
 {
   BridgeDriver* driverP = driverFor(channelP->bridgeName);
 
@@ -258,6 +391,8 @@ int bridgeGoalSend(Channel* channelP, const char* json, uint64_t* tokenP)
   goalP->entityId   = strdup(channelP->entityId);
   goalP->attrName   = strdup(channelP->attrName);
   goalP->request    = strdup(json);
+  goalP->notifyEndpoint = (endpoint != NULL) ? strdup(endpoint) : NULL;
+  goalP->entityType = (channelP->entityType != NULL) ? strdup(channelP->entityType) : NULL;
   goalP->state      = BridgeGoalUnknown;
   goalP->held       = true;                         // sent before its request's write - see bridgeGoalRelease
   goalP->sentMs     = nowMs();
@@ -419,6 +554,8 @@ int bridgeGoalEventIn(const char* bridgeName,
 
   goalP->state = state;
 
+  goalSubscribe(goalP);                               // the alias is known now - before the event is written
+
   //
   // A state change alone has nothing to write. A payload goes into its
   // sub-attribute - the first one creating the instance, with the request as
@@ -446,6 +583,7 @@ int bridgeGoalEventIn(const char* bridgeName,
 
     KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", token, endpoint, goalP->goalAlias, state);
 
+    goalUnsubscribe(goalP);                           // after the removal - its notification is the endpoint's last
     goalUnlink(goalP);
     goalFree(goalP);
   }

@@ -1,0 +1,584 @@
+#
+# FILE            bridge_action_goal_endpoint.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A goal can say where its events are to be sent: an "endpoint" sub-Attribute
+# of the request, as orion-ld's goals do. The broker then subscribes that
+# endpoint to the goal's OWN instance - made on the goal's first event, gone
+# after its last - so it hears every event of that goal, in order, including the
+# instance going away, and nothing of any other goal on the same attribute. The
+# subscription lives only in the broker's memory: GET /subscriptions never
+# lists it.
+#
+#   01-03  a goal with an endpoint: all its events, then nothing is left behind
+#   04     a goal without one: nothing is notified
+#   05-08  two goals held on ONE attribute, each with its own endpoint: each
+#          endpoint hears its own goal - while held, and when cancelled
+#
+# Loopback: A1 succeeds, A2 holds its goals until they are cancelled. Tokens
+# are handed out from 1, so the goals are urn:loopback:goal:1 to :4.
+#
+--NAME--
+Bridges: a goal's endpoint - its own events, and only its own, through a subscription nobody lists
+
+--TAGS--
+bridge channel plugins action goal subscription
+
+--INIT--
+corDbDrop
+ftClientStart
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --goalMode "A2=hold")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A goal with an endpoint - 202"
+echo "================================="
+payload='{
+  "navigate": {
+    "type": "Property",
+    "value": { "x": 1 },
+    "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/goal1" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "02. The endpoint heard every event of goal 1, in order, and the instance going away"
+echo "==================================================================================="
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "03. Nothing left behind - GET /subscriptions has never listed it"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. A goal without an endpoint - nothing is notified"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 2 } } }'
+for i in $(seq 1 50); do
+  grep -q "goal 2 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "05. Two goals on Robot 2's one attribute, held - goal 3 to /a, goal 4 to /b"
+echo "==========================================================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 3 }, "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/a" } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload "$payload"
+payload='{ "navigate": { "type": "Property", "value": { "x": 4 }, "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/b" } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "06. Each endpoint heard its own goal accepted - /a goal 3, /b goal 4"
+echo "===================================================================="
+for i in $(seq 1 50); do
+  [ $(grep -c "'status' on 'A2'" /tmp/coraine.CB.log 2>/dev/null) -ge 2 ] && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "07. Cancel goal 3"
+echo "================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:3' -X DELETE
+for i in $(seq 1 50); do
+  grep -q "goal 3 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "08. Only /a heard it - canceled, the result, the instance going away; /b heard nothing"
+echo "======================================================================================"
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+
+--EXPECT--
+01. A goal with an endpoint - 202
+=================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. The endpoint heard every event of goal 1, in order, and the instance going away
+===================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "SUCCEEDED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "feedback": {
+              "type": "Property",
+              "value": {
+                "progress": 50
+              }
+            },
+            "result": {
+              "type": "Property",
+              "value": {
+                "x": 1
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "SUCCEEDED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 1
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal1",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:1",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:1",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal1",
+    "verb": "POST"
+  }
+]
+
+
+03. Nothing left behind - GET /subscriptions has never listed it
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. A goal without an endpoint - nothing is notified
+====================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+[]
+
+05. Two goals on Robot 2's one attribute, held - goal 3 to /a, goal 4 to /b
+===========================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. Each endpoint heard its own goal accepted - /a goal 3, /b goal 4
+====================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:2",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:3",
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 3
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/a",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:2",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:4",
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "ACCEPTED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 4
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:4",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/b",
+    "verb": "POST"
+  }
+]
+
+
+07. Cancel goal 3
+=================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. Only /a heard it - canceled, the result, the instance going away; /b heard nothing
+======================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:2",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:3",
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "CANCELED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 3
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/a",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:2",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:3",
+            "result": {
+              "type": "Property",
+              "value": {
+                "x": 3
+              }
+            },
+            "status": {
+              "type": "Property",
+              "value": {
+                "code": "CANCELED"
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 3
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/a",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:2",
+          "navigate": {
+            "datasetId": "urn:loopback:goal:3",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:3",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/a",
+    "verb": "POST"
+  }
+]
+
+
