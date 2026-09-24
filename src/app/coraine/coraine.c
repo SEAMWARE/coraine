@@ -86,6 +86,7 @@
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
+#include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
 #include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs
 #include "coraineTraceLevels.h"                    // KtBridge
 
@@ -552,7 +553,8 @@ static BridgeBroker bridgeBroker =
   bridgeSampleIn,
   bridgeLogFunction,
   bridgeSampleQualifiedIn,
-  bridgeReplyIn
+  bridgeReplyIn,
+  bridgeGoalEventIn
 };
 
 

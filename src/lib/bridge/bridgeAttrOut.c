@@ -19,6 +19,7 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 
+#include "bridge/bridgeGoal.h"                        // bridgeGoalSend
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
 #include "bridge/bridgeAttrOut.h"                     // Own interface
@@ -175,7 +176,14 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
       r = bridges[i].serviceInvoke(channelP->endpoint, buf);
     }
     else
-      return;                                          // actions are not carried yet
+    {
+      //
+      // An action: the value written is the goal. What becomes of it arrives as
+      // events, into an instance of its own - see bridgeGoal.h.
+      //
+      bridgeGoalSend(channelP, buf);
+      return;
+    }
 
     if (r != BRIDGE_OK)
       KT_W("bridge '%s' could not reach %s '%s' (%d)",
