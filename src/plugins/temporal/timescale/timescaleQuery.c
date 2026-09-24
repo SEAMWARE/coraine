@@ -617,6 +617,17 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       arr = kjArray(kjsonP, kaStrdup(&corRest.kalloc, attrName));
       kjChildAdd(root, arr);
     }
+    else if (arr->type != KjArray)
+    {
+      //
+      // A row named as an Entity member that is no Attribute - "createdAt",
+      // "modifiedAt" - found that member, a string, and an instance added to
+      // a string is a dead broker. No write path records such a row now; one
+      // already in a database is skipped.
+      //
+      KT_W("timescale: '%s' of '%s' is no Attribute - history row skipped", attrName, entityId);
+      continue;
+    }
 
     KjNode* inst = kjObject(kjsonP, NULL);
     kjChildAdd(inst, kjString(kjsonP, "type", kindToTypeString(attrKind)));
