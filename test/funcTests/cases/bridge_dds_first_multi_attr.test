@@ -1,0 +1,303 @@
+#
+# FILE            bridge_dds_first_multi_attr.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A request to the DDS side goes first - but a request that writes SEVERAL
+# attributes is not held hostage by one of them.
+#
+# One attribute bound to a service or an action: the request to the DDS side is
+# sent before anything is stored, a service may be waited for, and a request
+# that cannot be sent fails the whole NGSI-LD request (503) with nothing
+# written. Several attributes: nothing waits - DDS must not make the request
+# slower - and an attribute whose request cannot be sent is left out and not
+# written, while the rest is: 207, that attribute not updated.
+#
+# The loopback bridge's goalMode "unreachable" makes a goal that cannot be sent.
+#
+#   01-02  PATCH /attrs, the unreachable action and a plain attribute: 207
+#   03-04  PATCH /entities/{id}, the same: 207
+#   05-06  the unreachable action alone: 503, nothing written
+#   07-08  a service and a plain attribute, ?ddsSync=true: several, so no wait
+#          - 202, and the reply lands a moment later
+#
+--NAME--
+Bridges: DDS first with several attributes - no wait, and a failed send is a 207, not a failed request
+
+--TAGS--
+bridge channel plugins action service ddsSync
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --service "fast,Robot,urn:R:1,job" \
+  --goalMode "A1=unreachable")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. PATCH /attrs - the unreachable action and a plain attribute: 207"
+echo "====================================================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 1 } }, "note": { "type": "Property", "value": "one" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "02. The plain attribute is written, the action's is not"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "03. PATCH /entities/{id} - the same two: 207"
+echo "============================================"
+payload='{ "navigate": { "type": "Property", "value": { "x": 2 } }, "note": { "type": "Property", "value": "two" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "04. Again the plain attribute only"
+echo "=================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "05. The unreachable action alone - one attribute: the request fails, 503"
+echo "========================================================================"
+payload='{ "navigate": { "type": "Property", "value": { "x": 3 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "06. Nothing was written"
+echo "======================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "07. A service and a plain attribute, ?ddsSync=true - several, so no wait: 202"
+echo "=============================================================================="
+payload='{ "job": { "type": "Property", "value": { "a": 1 } }, "note": { "type": "Property", "value": "three" } }'
+corCurl --url "/ngsi-ld/v1/entities/urn:R:1/attrs?ddsSync=true" -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "08. The reply landed a moment later"
+echo "==================================="
+for i in $(seq 1 50); do
+  grep -q "'reply' on 'fast'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. PATCH /attrs - the unreachable action and a plain attribute: 207
+=====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 273
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/navigate",
+      "reason": "'A1' on bridge 'loopback' could not be reached - not written"
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/note"
+  ]
+}
+
+
+
+02. The plain attribute is written, the action's is not
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 244
+
+{
+  "id": "urn:R:1",
+  "job": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "one"
+  },
+  "type": "Robot"
+}
+
+
+
+03. PATCH /entities/{id} - the same two: 207
+============================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 335
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:1"
+  ]
+}
+
+
+
+04. Again the plain attribute only
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 244
+
+{
+  "id": "urn:R:1",
+  "job": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "two"
+  },
+  "type": "Robot"
+}
+
+
+
+05. The unreachable action alone - one attribute: the request fails, 503
+========================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 201
+
+{
+  "detail": "'A1' on bridge 'loopback' could not be reached - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+06. Nothing was written
+=======================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 244
+
+{
+  "id": "urn:R:1",
+  "job": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "two"
+  },
+  "type": "Robot"
+}
+
+
+
+07. A service and a plain attribute, ?ddsSync=true - several, so no wait: 202
+==============================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. The reply landed a moment later
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 339
+
+{
+  "id": "urn:R:1",
+  "job": {
+    "reply": {
+      "type": "Property",
+      "value": {
+        "a": 1
+      }
+    },
+    "type": "Property",
+    "value": {
+      "a": 1
+    }
+  },
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "three"
+  },
+  "type": "Robot"
+}
+
+
+
