@@ -33,6 +33,7 @@
 #include "corNgsild/LdOp.h"                            // LdOpAppendAttrs
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
+#include "corNgsild/ldHooks.h"                        // corNgsildFallbackRelease
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer, ldNotifyDispatchPending
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubDispatchPending
 #include "corNgsild/ldCheckSubscription.h"            // ldSubEntityTypeExprsRelease
@@ -607,6 +608,14 @@ static int sampleIn(const char* bridgeName,
   ldCsrSubDispatchPending();
   troeDispatchPending();
   ldSubEntityTypeExprsRelease();
+
+  //
+  // ⚠ And give back what the queues grew to. This thread has no connection, so
+  // its corNgsild is the per-thread fallback, and nothing frees that - a plugin
+  // thread that ended took its queues with it, 640 bytes definitely lost in
+  // every valgrind run with a bridge.
+  //
+  corNgsildFallbackRelease();
 
   if (subAttrName == NULL)
     KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
