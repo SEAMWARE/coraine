@@ -47,14 +47,14 @@
 // Called on a broker thread. Registers the goal under a fresh token BEFORE the
 // plugin sees it, because the plugin may report on the goal before it returns.
 //
-// @param held    the goal is sent BEFORE its request's write (DDS first): its
-//                events wait until bridgeGoalRelease(*tokenP) says the write
-//                is done. false when the write has already happened.
-// @param tokenP  the goal's token, or NULL
+// Always sent BEFORE its request's write (DDS first), so it is HELD: its events
+// wait until bridgeGoalRelease(*tokenP) says the write is done.
+//
+// @param tokenP  the goal's token
 //
 // @return the plugin's answer: BRIDGE_OK, or why the goal did not go
 //
-extern int bridgeGoalSend(Channel* channelP, const char* json, bool held, uint64_t* tokenP);
+extern int bridgeGoalSend(Channel* channelP, const char* json, uint64_t* tokenP);
 
 
 

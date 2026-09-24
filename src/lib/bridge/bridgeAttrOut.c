@@ -19,7 +19,6 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 
-#include "bridge/bridgeGoal.h"                        // bridgeGoalSend
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
 #include "bridge/bridgeAttrOut.h"                     // Own interface
@@ -44,7 +43,7 @@
 //
 // bridgeAttrOut -
 //
-void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP, const BridgeSyncDone* syncDoneP)
+void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP)
 {
   //
   // The common case is no bridges at all, and it must cost nothing: two
@@ -68,13 +67,13 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
     return;                                            // its bridge is not loaded; the Channel is dormant
 
   //
-  // A service or an action is sent BEFORE the write (bridgeRequestsBeforeWrite)
-  // on every path that ran it - and the record of it is what a caller hands in
-  // here. Whatever became of it there - sent, waited for, or not sendable and
-  // left out - it is not sent again after the write, with whatever value the
-  // stored attribute now holds. Only a topic is published from here.
+  // ⭐ TOPICS ONLY. A service or an action is a request to the DDS side, and
+  // every write sends those BEFORE it stores anything (bridgeRequestsBeforeWrite,
+  // DDS first) - whatever became of one there, it is not sent again from here,
+  // with whatever value the stored attribute now holds. What is published after
+  // the write is a fact, and that is a topic's.
   //
-  if ((syncDoneP != NULL) && (channelP->kind != BridgeChannelTopic))
+  if (channelP->kind != BridgeChannelTopic)
     return;
 
   //
@@ -156,55 +155,16 @@ void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, 
     if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, channelP->bridgeName) != 0))
       continue;
 
-    //
-    // ⭐ WRITING THE ATTRIBUTE IS THE INVOCATION. On a topic the value is
-    // published and that is the end of it; on a service the same write is a
-    // request, and an answer comes back later - through sampleQualifiedIn, into
-    // a sub-attribute of this same attribute.
-    //
-    // Which is why the two are different entry points rather than one. They
-    // share a payload and nothing else: the outcomes differ, the failure modes
-    // differ, and a transport may well carry one and not the other.
-    //
-    int r;
+    if (bridges[i].publish == NULL)
+      return;                                          // this transport does not send
 
-    if (channelP->kind == BridgeChannelTopic)
-    {
-      if (bridges[i].publish == NULL)
-        return;                                        // this transport does not send
-
-      r = bridges[i].publish(channelP->endpoint, buf);
-    }
-    else if (channelP->kind == BridgeChannelService)
-    {
-      if (bridges[i].serviceInvoke == NULL)
-        return;                                        // this transport does not do request/reply
-
-      r = bridges[i].serviceInvoke(channelP->endpoint, buf);
-    }
-    else
-    {
-      //
-      // An action: the value written is the goal. What becomes of it arrives as
-      // events, into an instance of its own - see bridgeGoal.h.
-      //
-      bridgeGoalSend(channelP, buf, false, NULL);     // after the write - nothing to hold for
-      return;
-    }
+    int r = bridges[i].publish(channelP->endpoint, buf);
 
     if (r != BRIDGE_OK)
       KT_W("bridge '%s' could not reach %s '%s' (%d)",
            channelP->bridgeName, corBridgeKindName(channelP->kind), channelP->endpoint, r);
-
-    //
-    // Two sentences, because they say two different things. A topic's value
-    // WENT; a service has only been ASKED, and what comes of that is a separate
-    // line written when the answer arrives.
-    //
-    else if (channelP->kind == BridgeChannelTopic)
-      KT_T(KtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrName, channelP->endpoint, channelP->bridgeName);
     else
-      KT_T(KtBridge, "%s/%s asks service '%s' on bridge '%s'", entityId, attrName, channelP->endpoint, channelP->bridgeName);
+      KT_T(KtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrName, channelP->endpoint, channelP->bridgeName);
 
     return;
   }

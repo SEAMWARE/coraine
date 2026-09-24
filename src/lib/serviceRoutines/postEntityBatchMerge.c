@@ -65,6 +65,9 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
+#include "corNgsild/ldIsEntityKeyword.h"               // ldIsNotAttributeName
+#include "bridge/channelCache.h"                      // channelRequestCount
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -722,12 +725,17 @@ bool postEntityBatchMerge(void)
     LdMergeReport*  reportsV    = (LdMergeReport*)  kaAlloc(&corRest.kalloc, sizeof(LdMergeReport)   * localN);
     KjNode**        snapshotsV  = (KjNode**)        kaAlloc(&corRest.kalloc, sizeof(KjNode*)         * localN);
     KjNode**        targetsV    = (KjNode**)        kaAlloc(&corRest.kalloc, sizeof(KjNode*)         * localN);
+    bool            requestsFirst    = (channelRequestCount() > 0);
+    BridgeSyncDone** doneV      = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN) : NULL;   // nothing without a bridge
 
     for (int k = 0; k < localN; k++)
     {
       reportsV[k].changes = NULL;
       snapshotsV[k]       = NULL;
       targetsV[k]         = NULL;
+
+      if (doneV != NULL)
+        doneV[k] = NULL;
       resultsV[k]         = DB_NOT_FOUND;
     }
 
@@ -746,6 +754,54 @@ bool postEntityBatchMerge(void)
       {
         resultsV[fi] = DB_NOT_FOUND;
         continue;
+      }
+
+      //
+      // Requests to the DDS side go FIRST - per fragment, now that its Entity is
+      // known to exist (a merge into a missing one is a 404, and no goal must go
+      // out for it), before the bulk write, never waited for and never failing
+      // the batch: one that cannot be sent is left out of the fragment and
+      // becomes this Entity's error. A fragment left with nothing is not merged.
+      //
+      if (requestsFirst == true)
+      {
+        KjNode*     idNodeP = kjLookup(fragP, "id");
+        const char* fragId  = ((idNodeP != NULL) && (idNodeP->type == KjString)) ? idNodeP->value.s : localIdV[fi];
+
+        doneV[fi] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        memset(doneV[fi], 0, sizeof(BridgeSyncDone));
+
+        bridgeRequestsBeforeWrite(tenantP, fragId, fragP, BRIDGE_REQ_PER_ENTITY, doneV[fi]);
+
+        for (int ix = 0; ix < doneV[fi]->failedN; ix++)
+        {
+          int st = doneV[fi]->failedStatusV[ix];
+
+          addBatchError(errorsP, fragId, st,
+                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                        doneV[fi]->failedReasonV[ix], NULL);
+        }
+
+        if (doneV[fi]->failedN > 0)
+        {
+          bool anyAttrLeft = false;
+
+          for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+          {
+            if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
+            {
+              anyAttrLeft = true;
+              break;
+            }
+          }
+
+          if (anyAttrLeft == false)
+          {
+            resultsV[fi] = DB_BAD_INPUT;   // reported above - the bulk write skips it, the switch too
+            continue;
+          }
+        }
       }
 
       // Batch Merge = true RFC 7396 deep-merge (§ 5.6.10 → § 10.2.9). Like the
@@ -770,7 +826,14 @@ bool postEntityBatchMerge(void)
       resultsV[fi]   = DB_OK;
     }
 
+
     db.entityBulkChangesApply(tenantP, localFragsArr, targetsV, reportsV, resultsV);
+
+    for (int k = 0; (doneV != NULL) && (k < localN); k++)
+    {
+      if (doneV[k] != NULL)
+        bridgeRequestsWritten(doneV[k]);            // late replies and held goals may land now
+    }
 
     //
     // Pass 5 — per-fragment notify + per-unique-id success tracking.
@@ -787,7 +850,7 @@ bool postEntityBatchMerge(void)
           for (int ui = 0; ui < uniqueIdN; ui++)
             if (strcmp(uniqueIdV[ui], eid) == 0) { anySuccessV[ui] = true; break; }
 
-          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k], NULL);
+          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k]);
 
           if (subCacheP != NULL && snapshotsV[k] != NULL)
             ldNotifyDefer(subCacheP, snapshotsV[k],

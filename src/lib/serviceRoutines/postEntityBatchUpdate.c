@@ -75,6 +75,8 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge, bridgeChangesAccumulate
+#include "bridge/channelCache.h"                      // channelRequestCount
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -732,6 +734,25 @@ bool postEntityBatchUpdate(void)
   KjNode*      finals   = kjArray(corRest.kjsonP, NULL);
   const char** finalIdV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
   KjNode**     finalEntityV = (KjNode**) kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+
+  //
+  // Requests to the DDS side go FIRST, per fragment, before the bulk write -
+  // and what they sent is released once that write is done. Only when a bridge
+  // carries anything: a batch of five hundred with no bridge allocates nothing.
+  //
+  bool             requestsFirst  = (channelRequestCount() > 0);
+  BridgeSyncDone** doneV     = NULL;
+  int              doneN     = 0;
+
+  if (requestsFirst == true)                              // nothing at all without a bridge - not even the count
+  {
+    int fragTotal = 0;
+
+    for (int gi = 0; gi < gN; gi++)
+      fragTotal += groups[gi].count;
+
+    doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragTotal + 1));
+  }
   LdMergeReport* bridgeReportV = (LdMergeReport*) kaAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);
   bool*        anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * gN);
   const char** allIdV   = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
@@ -911,6 +932,49 @@ bool postEntityBatchUpdate(void)
           continue;
       }
 
+      //
+      // Requests to the DDS side go FIRST - before the bulk write, never waited
+      // for, and never failing the batch: a request that cannot be sent is left
+      // out of the fragment and becomes this Entity's error. A fragment that had
+      // nothing else to write is then not merged at all.
+      //
+      if (requestsFirst == true)
+      {
+        BridgeSyncDone* doneP = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+
+        memset(doneP, 0, sizeof(BridgeSyncDone));
+        doneV[doneN++] = doneP;
+
+        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY, doneP);
+
+        for (int ix = 0; ix < doneP->failedN; ix++)
+        {
+          int st = doneP->failedStatusV[ix];
+
+          addBatchError(errorsP, g->id, st,
+                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                        doneP->failedReasonV[ix], NULL);
+        }
+
+        if (doneP->failedN > 0)
+        {
+          bool anyAttrLeft = false;
+
+          for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+          {
+            if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
+            {
+              anyAttrLeft = true;
+              break;
+            }
+          }
+
+          if (anyAttrLeft == false)
+            continue;
+        }
+      }
+
       LdMergeReport report = { NULL };
       ldEntityAttrsSet(existingDb, fragP, true /* overwriteScope */,
                        corRest.requestStartTime, &report, corRest.kjsonP);
@@ -1087,6 +1151,9 @@ bool postEntityBatchUpdate(void)
     int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * finalN);
     db.entityBulkUpdate(tenantP, finals, resultsV);
 
+    for (int ix = 0; ix < doneN; ix++)
+      bridgeRequestsWritten(doneV[ix]);             // late replies and held goals may land now
+
     for (int k = 0; k < finalN; k++)
     {
       const char* eid = finalIdV[k];
@@ -1098,7 +1165,7 @@ bool postEntityBatchUpdate(void)
           for (int gi = 0; gi < gN; gi++)
             if (strcmp(allIdV[gi], eid) == 0) { anySuccessV[gi] = true; break; }
 
-          bridgeAttrsOutFromMerge(tenantP, eid, finalEntityV[k], &bridgeReportV[k], NULL);
+          bridgeAttrsOutFromMerge(tenantP, eid, finalEntityV[k], &bridgeReportV[k]);
           break;
         }
         case DB_NOT_FOUND:

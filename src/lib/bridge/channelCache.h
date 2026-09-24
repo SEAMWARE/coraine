@@ -98,4 +98,18 @@ extern int channelDelete(const char* bridgeName, const char* endpoint);
 extern Channel* channelCacheFirst(void);
 extern int      channelCount(void);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// channelRequestCount - how many Channels ASK something: a service or an action
+//
+// What decides whether a write has to look for requests to send before it
+// stores (bridgeRequestsBeforeWrite). Not channelCount(): a bridge carrying only
+// topics - MQTT, say - would make every write, every batch fragment, look up a
+// Channel per attribute for requests that cannot exist. Topics are published
+// after the write and never go through that step.
+//
+extern int      channelRequestCount(void);
+
 #endif  // BRIDGE_CHANNELCACHE_H_

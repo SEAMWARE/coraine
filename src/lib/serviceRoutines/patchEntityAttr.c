@@ -407,7 +407,7 @@ bool patchEntityAttr(void)
         // fails the request with nothing written. A service may be waited for, and
         // its reply is then written with the value. See bridgeServiceSync.h.
         //
-        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, true, &syncDone) == false)
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
           return true;  // ldError already set - nothing has been written
 
         //
@@ -452,7 +452,7 @@ bool patchEntityAttr(void)
         // its wire. Costs two integer loads when no bridge is loaded, which is
         // every deployment that does not use one.
         //
-        bridgeAttrOut(tenantP, entityId, attrIri, targetEntity, &syncDone);
+        bridgeAttrOut(tenantP, entityId, attrIri, targetEntity);
 
         // targetEntity is the post-merge tree — feed notifications + TRoE directly.
         if (tenantP->subCacheP != NULL)

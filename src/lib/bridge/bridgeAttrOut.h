@@ -12,7 +12,6 @@
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "db/Tenant.h"                                // Tenant
-#include "bridge/bridgeServiceSync.h"                 // BridgeSyncDone
 
 
 
@@ -51,10 +50,7 @@
 // broker's business alone, and means nothing to a publisher on that topic.
 //
 //
-// @param syncDoneP  the services this request already invoked synchronously
-//                   (ddsSync), so that they are not invoked a second time now
-//                   that the write is done. NULL on every other path.
 //
-extern void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP, const BridgeSyncDone* syncDoneP);
+extern void bridgeAttrOut(Tenant* tenantP, const char* entityId, const char* attrName, KjNode* entityP);
 
 #endif  // BRIDGE_BRIDGEATTROUT_H_
