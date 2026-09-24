@@ -74,7 +74,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge, bridgeChangesAccumulate
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -731,6 +731,8 @@ bool postEntityBatchUpdate(void)
 
   KjNode*      finals   = kjArray(corRest.kjsonP, NULL);
   const char** finalIdV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  KjNode**     finalEntityV = (KjNode**) kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  LdMergeReport* bridgeReportV = (LdMergeReport*) kaAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);
   bool*        anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * gN);
   const char** allIdV   = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
   int          finalN   = 0;
@@ -779,6 +781,7 @@ bool postEntityBatchUpdate(void)
     //
     bool anyMerge        = false;
     bool anyNoOverwriteSkip = false;
+    LdMergeReport bridgeReport = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
     for (int fi = 0; fi < g->count; fi++)
     {
       KjNode* fragP = g->fragV[fi];
@@ -914,14 +917,14 @@ bool postEntityBatchUpdate(void)
       anyMerge = true;
 
       //
-      // Here rather than in pass 4, for the same reason the notification and
-      // the TRoE events are here: this is where the per-fragment merge report
-      // exists, and pass 4 knows only that an entity was written, not which of
-      // its attributes this batch touched. It is optimistic in exactly the way
-      // those two already are - a bulk write that fails afterwards has been
-      // announced to a subscriber as well as to a Channel.
+      // NOT published here, where the report exists, but in pass 4 once the bulk
+      // write said DB_OK: a sample is a command to whatever listens on the topic,
+      // and one for an entity the write then refused would be acted on while
+      // errors[] says it never happened. The notification and the TRoE events
+      // below are still optimistic; a spurious notification makes a subscriber
+      // re-read, a spurious sample makes an actuator act.
       //
-      bridgeAttrsOutFromMerge(tenantP, g->id, existingDb, &report, NULL);
+      bridgeChangesAccumulate(&bridgeReport, &report, corRest.kjsonP);
 
       if (subCacheP != NULL)
       {
@@ -942,7 +945,9 @@ bool postEntityBatchUpdate(void)
 
     if (anyMerge)
     {
-      finalIdV[finalN++] = g->id;
+      finalEntityV[finalN]  = existingDb;
+      bridgeReportV[finalN] = bridgeReport;
+      finalIdV[finalN++]    = g->id;
       kjChildAdd(finals, existingDb);
 
       // Mixed outcome: some attrs were merged, some were skipped by
@@ -1092,6 +1097,8 @@ bool postEntityBatchUpdate(void)
           // Mark success on the top-level index tracker
           for (int gi = 0; gi < gN; gi++)
             if (strcmp(allIdV[gi], eid) == 0) { anySuccessV[gi] = true; break; }
+
+          bridgeAttrsOutFromMerge(tenantP, eid, finalEntityV[k], &bridgeReportV[k], NULL);
           break;
         }
         case DB_NOT_FOUND:

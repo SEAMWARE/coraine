@@ -13,6 +13,8 @@
 
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd, kjChildRemove
+#include "kjson/kjClone.h"                            // kjClone
 #include "ktrace/kTrace.h"                            // KT_T
 
 #include "corBridge/BridgeDriver.h"                   // bridgeCount
@@ -74,6 +76,46 @@ void bridgeAttrsOutFromMerge(Tenant* tenantP, const char* entityId, KjNode* enti
     }
 
     bridgeAttrOut(tenantP, entityId, attrP->value.s, entityP, syncDoneP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeChangesAccumulate -
+//
+void bridgeChangesAccumulate(LdMergeReport* accP, LdMergeReport* reportP, Kjson* kjsonP)
+{
+  if ((bridgeCount == 0) || (channelCount() == 0))
+    return;
+
+  if ((reportP == NULL) || (reportP->changes == NULL))
+    return;
+
+  if (accP->changes == NULL)
+    accP->changes = kjArray(kjsonP, NULL);
+
+  for (KjNode* changeP = reportP->changes->value.firstChildP; changeP != NULL; changeP = changeP->next)
+  {
+    KjNode* attrP = kjLookup(changeP, "attr");
+
+    if ((attrP == NULL) || (attrP->type != KjString))
+      continue;
+
+    for (KjNode* earlierP = accP->changes->value.firstChildP; earlierP != NULL; earlierP = earlierP->next)
+    {
+      KjNode* earlierAttrP = kjLookup(earlierP, "attr");
+
+      if ((earlierAttrP != NULL) && (earlierAttrP->type == KjString) && (strcmp(earlierAttrP->value.s, attrP->value.s) == 0))
+      {
+        kjChildRemove(accP->changes, earlierP);
+        break;
+      }
+    }
+
+    // A clone: the report is still the notification's and the TRoE events'
+    kjChildAdd(accP->changes, kjClone(kjsonP, changeP));
   }
 }
 

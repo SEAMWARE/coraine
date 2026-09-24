@@ -71,7 +71,7 @@
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity, bridgeAttrsOutFromMerge
+#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity, bridgeAttrsOutFromMerge, bridgeChangesAccumulate
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -601,6 +601,9 @@ bool postEntityBatchUpsert(void)
   KjNode*      finalsUpdate  = kjArray(corRest.kjsonP, NULL);  // existing entities → bulk replace
   const char** createIdV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
   const char** updateIdV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  KjNode**     createEntityV = (KjNode**)     kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  KjNode**     updateEntityV = (KjNode**)     kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  LdMergeReport* updateReportV = (LdMergeReport*) kaAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);
   int          createN       = 0;
   int          updateN       = 0;
   bool*        anySuccessV   = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * gN);
@@ -642,6 +645,7 @@ bool postEntityBatchUpsert(void)
     KjNode* finalP = exists ? existingDb : NULL;
 
     bool    anyLocal = false;
+    LdMergeReport bridgeReport = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
 
     for (int fi = 0; fi < g->count; fi++)
     {
@@ -829,14 +833,17 @@ bool postEntityBatchUpsert(void)
       anyLocal = true;
 
       //
-      // The two modes of an upsert are two different statements, and the
-      // bridge has to make the same distinction the notification does: a
-      // created entity is entirely new, an updated one has a merge report.
+      // NOT published here but in pass 4, once the bulk write said DB_OK - a
+      // sample for an entity the write then refused would be acted on while
+      // errors[] says it never happened. The notification and the TRoE events
+      // below are still optimistic; a spurious notification makes a subscriber
+      // re-read, a spurious sample makes an actuator act.
       //
-      if (notifyOp == LdNotifyEntityCreate)
-        bridgeAttrsOutFromEntity(tenantP, g->id, finalP);
-      else
-        bridgeAttrsOutFromMerge(tenantP, g->id, finalP, &report, NULL);
+      // A created entity is published whole from its final state there; an
+      // updated one needs to know which attributes this batch changed.
+      //
+      if (notifyOp == LdNotifyEntityUpdate)
+        bridgeChangesAccumulate(&bridgeReport, &report, corRest.kjsonP);
 
       if (subCacheP != NULL)
       {
@@ -881,12 +888,15 @@ bool postEntityBatchUpsert(void)
     //
     if (wasCreatedV[gi])
     {
-      createIdV[createN++] = g->id;
+      createEntityV[createN] = finalP;
+      createIdV[createN++]   = g->id;
       kjChildAdd(finalsCreate, finalP);
     }
     else
     {
-      updateIdV[updateN++] = g->id;
+      updateEntityV[updateN] = finalP;
+      updateReportV[updateN] = bridgeReport;
+      updateIdV[updateN++]   = g->id;
       kjChildAdd(finalsUpdate, finalP);
     }
   }
@@ -1015,6 +1025,8 @@ bool postEntityBatchUpsert(void)
         case DB_OK:
           for (int gi = 0; gi < gN; gi++)
             if (strcmp(allIdV[gi], eid) == 0) { anySuccessV[gi] = true; break; }
+
+          bridgeAttrsOutFromEntity(tenantP, eid, createEntityV[k]);
           break;
         case DB_ALREADY_EXISTS:
           // Rare race: entity appeared between retrieve and bulk-create.
@@ -1056,6 +1068,8 @@ bool postEntityBatchUpsert(void)
         case DB_OK:
           for (int gi = 0; gi < gN; gi++)
             if (strcmp(allIdV[gi], eid) == 0) { anySuccessV[gi] = true; break; }
+
+          bridgeAttrsOutFromMerge(tenantP, eid, updateEntityV[k], &updateReportV[k], NULL);
           break;
         case DB_NOT_FOUND:
           // Rare race: entity disappeared between retrieve and bulk-update.

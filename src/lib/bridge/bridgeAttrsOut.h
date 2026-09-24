@@ -75,6 +75,22 @@ extern void bridgeAttrsOutFromMerge(Tenant* tenantP, const char* entityId, KjNod
 
 // -----------------------------------------------------------------------------
 //
+// bridgeChangesAccumulate - fold one merge report into a running one
+//
+// For the batch paths that merge several fragments into an entity and write it
+// once, afterwards: the running report is what bridgeAttrsOutFromMerge gets on
+// DB_OK, with the written entity. One record per attribute, the LAST change
+// winning - so an attribute two fragments set is published once, with the
+// value that was stored, and one a later fragment deleted is not published.
+//
+// Costs nothing when no Channel exists, like the publish it prepares.
+//
+extern void bridgeChangesAccumulate(LdMergeReport* accP, LdMergeReport* reportP, Kjson* kjsonP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeAttrsOutFromEntity - publish every attribute of an entity
 //
 // For the paths that made a whole entity true at once: create and replace.

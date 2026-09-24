@@ -1,0 +1,281 @@
+#
+# FILE            bridge_batch_publish_after_bulk_write.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Batch update and batch upsert merge every fragment into an in-memory state
+# and write all entities in one bulk call at the end. They used to publish to
+# the bridges from the merge, BEFORE that write - so an entity the bulk write
+# then refused had its sample on the bus anyway, while NGSI-LD reported the
+# failure in errors[]. Every other write path publishes on DB_OK.
+#
+# The failure used here is the mongoc geo-type conflict: 'a' is a GeoProperty
+# on another entity of the tenant, so a fragment carrying 'a' as a Property
+# merges cleanly and is refused only by the bulk write. mongoc only - corDB
+# has no such conflict (see geo_attr_type_conflict_corDB).
+#
+# ⭐ THE ORACLE IS THE TRACE, as in bridge_all_write_endpoints: one publish line
+# per topic that was written, none for one that was refused. The loopback also
+# hands the sample back in and STORES it, so an early publish is not only
+# noise on a bus: the refused value would end up in the entity after all,
+# behind a 409. Step 06 reads the entities for that.
+#
+# Step 02 also pins the other half of publishing from the stored state: two
+# fragments for one entity are one write, and one sample, of the final value.
+#
+# ⚠ Traces are narrowed to 402 (KtBridge) so the grep matches nothing else.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Bridges: batch update and upsert publish after the bulk write, never for an entity it refused
+
+--TAGS--
+bridge channel plugins batch geo
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
+  --topic "P3,Machine,urn:ngsi-ld:Machine:3,temperature" \
+  --topic "P4,Machine,urn:ngsi-ld:Machine:4,temperature" \
+  --topic "P5,Machine,urn:ngsi-ld:Machine:5,temperature" \
+  --topic "P6,Machine,urn:ngsi-ld:Machine:6,temperature")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. Seed 'a' as a GeoProperty; the create path needs Machine:5 and :6 absent"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:G", "type": "T", "a": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5 -X DELETE
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:6 -X DELETE
+echo
+echo
+
+
+echo "02. Batch update - Machine:1 refused by the bulk write, Machine:2 written by two fragments"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  { "id": "urn:ngsi-ld:Machine:1", "type": "Machine", "temperature": { "type": "Property", "value": 11 }, "a": { "type": "Property", "value": "x" } },
+  { "id": "urn:ngsi-ld:Machine:2", "type": "Machine", "temperature": { "type": "Property", "value": 21 } },
+  { "id": "urn:ngsi-ld:Machine:2", "type": "Machine", "temperature": { "type": "Property", "value": 22 } }
+]'
+echo
+echo
+
+
+echo "03. Batch upsert, update path - Machine:3 refused, Machine:4 written"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[
+  { "id": "urn:ngsi-ld:Machine:3", "type": "Machine", "temperature": { "type": "Property", "value": 33 }, "a": { "type": "Property", "value": "x" } },
+  { "id": "urn:ngsi-ld:Machine:4", "type": "Machine", "temperature": { "type": "Property", "value": 44 } }
+]'
+echo
+echo
+
+
+echo "04. Batch upsert, create path - Machine:5 refused, Machine:6 created"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[
+  { "id": "urn:ngsi-ld:Machine:5", "type": "Machine", "temperature": { "type": "Property", "value": 55 }, "a": { "type": "Property", "value": "x" } },
+  { "id": "urn:ngsi-ld:Machine:6", "type": "Machine", "temperature": { "type": "Property", "value": 66 } }
+]'
+echo
+echo
+
+
+echo "05. One publish per written entity, none for a refused one"
+echo "=========================================================="
+for i in $(seq 1 50); do
+  n=$(grep -c "on bridge 'loopback'" /tmp/coraine.CB.log 2>/dev/null)
+  [ "${n:-0}" -ge 3 ] && break
+  sleep 0.2
+done
+sleep 0.5
+grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+echo
+echo
+
+
+echo "06. The refused entities hold no refused value - the loopback never got one to hand back"
+echo "========================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?attrs=temperature&format=keyValues'
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2?attrs=temperature&format=keyValues'
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3?attrs=temperature&format=keyValues'
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:5'
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--
+01. Seed 'a' as a GeoProperty; the create path needs Machine:5 and :6 absent
+============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:G
+Content-Length: 0
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+02. Batch update - Machine:1 refused by the bulk write, Machine:2 written by two fragments
+=========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 456
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:Machine:1",
+      "error": {
+        "detail": "an Attribute name is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+        "status": 409,
+        "title": "Attribute Type Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      }
+    }
+  ],
+  "success": [
+    "urn:ngsi-ld:Machine:2"
+  ]
+}
+
+
+
+03. Batch upsert, update path - Machine:3 refused, Machine:4 written
+====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 456
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:Machine:3",
+      "error": {
+        "detail": "an Attribute name is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+        "status": 409,
+        "title": "Attribute Type Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      }
+    }
+  ],
+  "success": [
+    "urn:ngsi-ld:Machine:4"
+  ]
+}
+
+
+
+04. Batch upsert, create path - Machine:5 refused, Machine:6 created
+====================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 456
+
+{
+  "errors": [
+    {
+      "entityId": "urn:ngsi-ld:Machine:5",
+      "error": {
+        "detail": "an Attribute name is already in use with a conflicting Attribute type in this tenant (a GeoProperty and another type cannot share one Attribute name here)",
+        "status": 409,
+        "title": "Attribute Type Conflict",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
+      }
+    }
+  ],
+  "success": [
+    "urn:ngsi-ld:Machine:6"
+  ]
+}
+
+
+
+05. One publish per written entity, none for a refused one
+==========================================================
+1 -> 'P2' on bridge 'loopback'
+1 -> 'P4' on bridge 'loopback'
+1 -> 'P6' on bridge 'loopback'
+
+
+06. The refused entities hold no refused value - the loopback never got one to hand back
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 91
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": "uninitialized",
+  "type": "Machine"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 78
+
+{
+  "id": "urn:ngsi-ld:Machine:2",
+  "temperature": 22,
+  "type": "Machine"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 91
+
+{
+  "id": "urn:ngsi-ld:Machine:3",
+  "temperature": "uninitialized",
+  "type": "Machine"
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 166
+
+{
+  "detail": "entity 'urn:ngsi-ld:Machine:5' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
