@@ -270,7 +270,8 @@ static void* loopbackDelivery(void* vP)
           char goalAlias[64];
 
           snprintf(goalId,    sizeof(goalId),    "%llu", (unsigned long long) sample.token);
-          snprintf(goalAlias, sizeof(goalAlias), "urn:loopback:goal:%llu", (unsigned long long) sample.token);
+          // urn:goal:<id> - the form the DDS plugin gives a goal, so ?goal=<id> finds it here too
+          snprintf(goalAlias, sizeof(goalAlias), "urn:goal:%llu", (unsigned long long) sample.token);
 
           brokerP->goalEventIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
                                sample.goalState, sample.goalFinal, sample.subAttrName, sample.json, 0);

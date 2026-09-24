@@ -27,10 +27,10 @@
 #   A4  stubborn  held, and a cancel of it cannot be sent
 #
 # Tokens are handed out from 1 by a broker that has just started, so the goals
-# of this test are urn:loopback:goal:1 to :4, in the order they are sent.
+# of this test are urn:goal:1 to :4, in the order they are sent.
 #
 # ⭐ Three oracles, each for what it can see:
-#   - a subscription watching navigate@urn:loopback:goal:1 - every event of the
+#   - a subscription watching navigate@urn:goal:1 - every event of the
 #     first goal, in its own instance, and the instance going away at the end
 #   - the entity, read while a goal is held and after each has ended
 #   - the bridge's trace (402, KtBridge), for how each goal ended
@@ -67,8 +67,8 @@ payload='{
   "id": "urn:S:goal1",
   "type": "Subscription",
   "entities": [{"type": "Robot"}],
-  "watchedAttributes": ["navigate@urn:loopback:goal:1"],
-  "datasetId": ["urn:loopback:goal:1"],
+  "watchedAttributes": ["navigate@urn:goal:1"],
+  "datasetId": ["urn:goal:1"],
   "notificationTrigger": ["attributeCreated", "attributeUpdated", "attributeDeleted"],
   "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
 }'
@@ -125,7 +125,7 @@ echo
 
 echo "07. Cancel goal 2 - by deleting its instance: 202, the cancel is on its way"
 echo "=============================================================================="
-corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:2' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:goal:2' -X DELETE
 echo
 echo
 
@@ -151,7 +151,7 @@ echo
 
 echo "10. Cancelling it again - not a goal in flight any more, so an ordinary delete of nothing"
 echo "========================================================================================"
-corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:loopback:goal:2' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:goal:2' -X DELETE
 echo
 echo
 
@@ -189,7 +189,7 @@ echo
 
 echo "14. Cancel goal 4 - the cancel cannot be sent: 503, and nothing is deleted"
 echo "=========================================================================="
-corCurl --url '/ngsi-ld/v1/entities/urn:R:4/attrs/navigate?datasetId=urn:loopback:goal:4' -X DELETE
+corCurl --url '/ngsi-ld/v1/entities/urn:R:4/attrs/navigate?datasetId=urn:goal:4' -X DELETE
 echo
 echo
 
@@ -203,7 +203,7 @@ echo
 
 echo "16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected"
 echo "============================================================================================="
-grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
 echo
 
 
@@ -242,7 +242,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "status": {
               "type": "Property",
               "value": {
@@ -279,7 +279,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -322,7 +322,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -365,7 +365,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "feedback": {
               "type": "Property",
               "value": {
@@ -415,7 +415,7 @@ Content-Length: 0
         {
           "id": "urn:R:1",
           "navigate": {
-            "datasetId": "urn:loopback:goal:1",
+            "datasetId": "urn:goal:1",
             "type": "Property",
             "value": "urn:ngsi-ld:null"
           },
@@ -477,7 +477,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 406
+Content-Length: 397
 
 {
   "id": "urn:R:2",
@@ -490,7 +490,7 @@ Content-Length: 406
       }
     },
     {
-      "datasetId": "urn:loopback:goal:2",
+      "datasetId": "urn:goal:2",
       "status": {
         "type": "Property",
         "value": {
@@ -524,7 +524,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 406
+Content-Length: 397
 
 {
   "id": "urn:R:2",
@@ -537,7 +537,7 @@ Content-Length: 406
       }
     },
     {
-      "datasetId": "urn:loopback:goal:2",
+      "datasetId": "urn:goal:2",
       "status": {
         "type": "Property",
         "value": {
@@ -584,10 +584,10 @@ Content-Length: 134
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 219
+Content-Length: 210
 
 {
-  "detail": "attribute 'navigate' has no instance with datasetId 'urn:loopback:goal:2' in entity 'urn:R:2'",
+  "detail": "attribute 'navigate' has no instance with datasetId 'urn:goal:2' in entity 'urn:R:2'",
   "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
@@ -640,10 +640,10 @@ Content-Length: 0
 HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 224
+Content-Length: 215
 
 {
-  "detail": "the cancellation of goal 'urn:loopback:goal:4' could not be sent (-1) - nothing was deleted",
+  "detail": "the cancellation of goal 'urn:goal:4' could not be sent (-1) - nothing was deleted",
   "status": 503,
   "title": "Service Unavailable",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
@@ -657,7 +657,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 406
+Content-Length: 397
 
 {
   "id": "urn:R:4",
@@ -670,7 +670,7 @@ Content-Length: 406
       }
     },
     {
-      "datasetId": "urn:loopback:goal:4",
+      "datasetId": "urn:goal:4",
       "status": {
         "type": "Property",
         "value": {
@@ -692,10 +692,10 @@ Content-Length: 406
 16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected
 =============================================================================================
 sends goal 1 to action 'A1'
-goal 1 on 'A1' (urn:loopback:goal:1) ended, state 4
+goal 1 on 'A1' (urn:goal:1) ended, state 4
 sends goal 2 to action 'A2'
-goal 2 on 'A2' (urn:loopback:goal:2) ended, state 5
+goal 2 on 'A2' (urn:goal:2) ended, state 5
 sends goal 3 to action 'A3'
-goal 3 on 'A3' (urn:loopback:goal:3) ended, state 7
+goal 3 on 'A3' (urn:goal:3) ended, state 7
 sends goal 4 to action 'A4'
 
