@@ -584,10 +584,50 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     // A service nobody waits for - not asked to, or no wait slot free - is sent
     // now, and the request answers that it was: 202.
     //
+    //
+    // ⭐ SENT TRACKED ALL THE SAME, its waiter detached from the start. The reply
+    // may come before this request has written - the loopback answers at once -
+    // and written then it races the request's own write of the same attribute:
+    // one of the two takes the other's instance away (CI lost the request's
+    // sub-attributes that way). Tracked, the reply waits for
+    // bridgeRequestsWritten, like one that came after a wait that timed out.
+    // Only a bridge that cannot track sends it untracked.
+    //
     if ((wait == false) || (waitSlotTake() == false))
     {
       BridgeDriver* driverP = driverFor(channelP);
-      int           r       = ((driverP == NULL) || (driverP->serviceInvoke == NULL)) ? BRIDGE_UNSUPPORTED : driverP->serviceInvoke(channelP->endpoint, buf);
+      uint64_t      token   = 0;
+      int           r;
+
+      if ((driverP != NULL) && (driverP->serviceInvokeTracked != NULL))
+      {
+        SyncWaiter* wP = waiterCreate();
+
+        if (wP == NULL)
+        {
+          ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory");
+          return requestsFailed(doneP);
+        }
+
+        pthread_mutex_lock(&syncMutex);
+        wP->state        = SyncDetached;              // nobody waits - the reply is held for the write, no more
+        wP->detachedAtMs = nowMs();
+        token            = wP->token;
+        pthread_mutex_unlock(&syncMutex);
+
+        r = driverP->serviceInvokeTracked(channelP->endpoint, buf, token);
+
+        if (r != BRIDGE_OK)
+        {
+          pthread_mutex_lock(&syncMutex);
+          waiterUnlink(wP);
+          waiterFree(wP);
+          pthread_mutex_unlock(&syncMutex);
+          token = 0;
+        }
+      }
+      else
+        r = ((driverP == NULL) || (driverP->serviceInvoke == NULL)) ? BRIDGE_UNSUPPORTED : driverP->serviceInvoke(channelP->endpoint, buf);
 
       if (r != BRIDGE_OK)
       {
@@ -601,7 +641,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
       doneP->accepted = true;
 
-      if (doneAdd(doneP, channelP, 0, 0) == false)
+      if (doneAdd(doneP, channelP, token, 0) == false)
         return requestsFailed(doneP);
 
       continue;
