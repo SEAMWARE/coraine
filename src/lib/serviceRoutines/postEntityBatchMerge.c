@@ -441,7 +441,18 @@ bool postEntityBatchMerge(void)
     // already set the problem, so it joins the existing check: short-circuit
     // means ldCheckEntity is skipped and the handling below reports it.
     //
-    if (ldNormalizeInput(inP, &corRest.kalloc, false, false) == false ||
+    // In MERGE mode, as PATCH /entities/{id} is - each entity of a Batch Merge
+    // IS a Merge Entity. Not in merge mode, an Attribute object without a type
+    // was wrapped as a new Property whose VALUE is that object:
+    //   "P1": { "datasetId": "urn:ds:1", "x": "urn:ngsi-ld:null" }
+    // - delete sub-Attribute x of instance urn:ds:1 - was stored as the value of
+    // P1's DEFAULT instance, with a 204.
+    //
+    // Never simplified: unlike Merge Entity (§ 10.2.9.3), Batch Entity Merge has
+    // no format parameter (§ 10.3.5.3 - the Entity array is all its input), so
+    // a bare value is a concise Property here, as § 5.3.2.3 has it.
+    //
+    if (ldNormalizeInput(inP, &corRest.kalloc, true, false) == false ||
         ldCheckEntity(inP, LdOpBatchMerge, NULL, &corRest.kalloc) == false)
     {
       const char* eid = "";

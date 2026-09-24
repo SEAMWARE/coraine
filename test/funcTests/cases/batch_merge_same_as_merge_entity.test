@@ -1,0 +1,445 @@
+#
+# FILE            batch_merge_same_as_merge_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Each entity of a Batch Merge IS a Merge Entity (§ 5.6.17 / Batch Entity Merge),
+# so the two must leave an entity in the same state. Every step here sends ONE
+# body twice - to PATCH /entities/{id} on urn:S:n and inside a Batch Merge on
+# urn:B:n, two entities created identical - and then reads both back: they must
+# not differ in anything but their id.
+#
+# The Batch Merge read its body as a CREATE does: an Attribute object without a
+# type became a new Property whose value was that object. So
+#   "P1": { "datasetId": "urn:ds:1", "x": "urn:ngsi-ld:null" }
+# - delete sub-Attribute x of instance urn:ds:1 of P1 - wrote the whole object
+# as the value of P1's DEFAULT instance, and answered 204.
+#
+--NAME--
+Batch Merge leaves an entity exactly as Merge Entity does - datasetId, partial fragments
+
+--TAGS--
+batch merge datasetid
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+fixture()
+{
+  corCurl --url /ngsi-ld/v1/entities --payload '{
+    "id": "'$1'",
+    "type": "T",
+    "P1": [
+      { "type": "Property", "value": 1, "a": { "type": "Property", "value": "A" } },
+      { "type": "Property", "value": 2, "datasetId": "urn:ds:1", "x": { "type": "Property", "value": "X" }, "y": { "type": "Property", "value": "Y" } }
+    ],
+    "P2": { "type": "Property", "value": 9 }
+  }' > /dev/null
+}
+
+both()
+{
+  local n=$1
+  local attrs=$2
+  fixture urn:S:$n
+  fixture urn:B:$n
+  corCurl --url /ngsi-ld/v1/entities/urn:S:$n -X PATCH --payload "{ $attrs }"
+  corCurl --url /ngsi-ld/v1/entityOperations/merge --payload "[ { \"id\": \"urn:B:$n\", \"type\": \"T\", $attrs } ]"
+  echo
+  corCurl --url /ngsi-ld/v1/entities/urn:S:$n
+  echo
+  corCurl --url /ngsi-ld/v1/entities/urn:B:$n
+}
+
+
+echo "01. One instance, no type - delete sub-Attribute x of urn:ds:1: both entities lose x of urn:ds:1, nothing else"
+echo "==========================================================================================================="
+both 01 '"P1": { "datasetId": "urn:ds:1", "x": "urn:ngsi-ld:null" }'
+echo
+echo
+
+
+echo "02. Two instances, no type - default to 17, x of urn:ds:1 deleted: the same in both"
+echo "==================================================================================="
+both 02 '"P1": [ { "value": 17 }, { "datasetId": "urn:ds:1", "x": "urn:ngsi-ld:null" } ]'
+echo
+echo
+
+
+echo "03. No type, sub-Attribute y of urn:ds:1 to Y2: urn:ds:1 keeps x, the default instance is untouched - the same in both"
+echo "======================================================================================================================"
+both 03 '"P1": { "datasetId": "urn:ds:1", "y": "Y2" }'
+echo
+echo
+
+
+echo "04. A NEW instance urn:ds:2 of P1, typed: added beside the two, the same in both"
+echo "================================================================================"
+both 04 '"P1": { "type": "Property", "value": 3, "datasetId": "urn:ds:2" }'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. One instance, no type - delete sub-Attribute x of urn:ds:1: both entities lose x of urn:ds:1, nothing else
+===========================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 391
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:S:01",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 391
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:B:01",
+  "type": "T"
+}
+
+
+
+02. Two instances, no type - default to 17, x of urn:ds:1 deleted: the same in both
+===================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 392
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 17
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:S:02",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 392
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 17
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:B:02",
+  "type": "T"
+}
+
+
+
+03. No type, sub-Attribute y of urn:ds:1 to Y2: urn:ds:1 keeps x, the default instance is untouched - the same in both
+======================================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 463
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y2"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:S:03",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 463
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y2"
+      }
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:B:03",
+  "type": "T"
+}
+
+
+
+04. A NEW instance urn:ds:2 of P1, typed: added beside the two, the same in both
+================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 549
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 3
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:S:04",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 549
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 3
+    }
+  ],
+  "P2": {
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:B:04",
+  "type": "T"
+}
+
+
+
