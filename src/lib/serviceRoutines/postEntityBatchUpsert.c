@@ -846,33 +846,26 @@ bool postEntityBatchUpsert(void)
           }
         }
 
-        report.changes = kjArray(corRest.kjsonP, NULL);
+        //
+        // The change report of a Replace - the one PUT /entities/{id} makes.
+        // A copy of it here skipped none of the Entity's own members (its
+        // createdAt and modifiedAt came out as changed Attributes, in the
+        // notifications and as rows of the temporal history) and carried no
+        // preValue, so an instance the replace removed was never a deletion.
+        //
         if (prevP != NULL)
+          ldEntityReplaceReport(prevP, newFinalP, &report);
+        else
         {
-          for (KjNode* eAttr = prevP->value.firstChildP; eAttr != NULL; eAttr = eAttr->next)
+          report.changes = kjArray(corRest.kjsonP, NULL);
+          for (KjNode* fAttr = fragP->value.firstChildP; fAttr != NULL; fAttr = fAttr->next)
           {
-            if (eAttr->name == NULL || eAttr->name[0] == '@')   continue;
-            if (strcmp(eAttr->name, "id")   == 0)               continue;
-            if (strcmp(eAttr->name, "type") == 0)               continue;
-            if (kjLookup(fragP, eAttr->name) != NULL)           continue;
+            if (fAttr->name == NULL || ldIsNotAttributeName(fAttr->name))  continue;
             KjNode* chg = kjObject(corRest.kjsonP, NULL);
-            kjChildAdd(chg, kjString(corRest.kjsonP, "attr",   (char*) eAttr->name));
-            kjChildAdd(chg, kjString(corRest.kjsonP, "reason", (char*) "attributeDeleted"));
+            kjChildAdd(chg, kjString(corRest.kjsonP, "attr",   (char*) fAttr->name));
+            kjChildAdd(chg, kjString(corRest.kjsonP, "reason", (char*) "attributeCreated"));
             kjChildAdd(report.changes, chg);
           }
-        }
-        for (KjNode* fAttr = fragP->value.firstChildP; fAttr != NULL; fAttr = fAttr->next)
-        {
-          if (fAttr->name == NULL || fAttr->name[0] == '@')     continue;
-          if (strcmp(fAttr->name, "id")   == 0)                  continue;
-          if (strcmp(fAttr->name, "type") == 0)                  continue;
-          const char* reason = (prevP != NULL && kjLookup(prevP, fAttr->name) != NULL)
-                               ? "attributeModified"
-                               : "attributeCreated";
-          KjNode* chg = kjObject(corRest.kjsonP, NULL);
-          kjChildAdd(chg, kjString(corRest.kjsonP, "attr",   (char*) fAttr->name));
-          kjChildAdd(chg, kjString(corRest.kjsonP, "reason", (char*) reason));
-          kjChildAdd(report.changes, chg);
         }
 
         finalP = newFinalP;

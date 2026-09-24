@@ -1,0 +1,1547 @@
+#
+# FILE            troe_timescale_routes_single_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The temporal history is written by the CURRENT-STATE routes - almost all of
+# it "leaks in" from ordinary writes, not from the temporal API. So every
+# single-entity write route, each on an entity of its own, all with the same
+# fixture:
+#
+#   P1  - two instances: the default one (sub-Attributes a and b) and
+#         urn:ds:1 (x and y)
+#   P2  - one instance, sub-Attribute s - the write never names it
+#
+# After each write the current state and then the whole history of the entity
+# are read back. What the history must show: a row for each instance the write
+# touched, with all its sub-Attributes, and its datasetId - and NOTHING for an
+# instance or an Attribute it did not touch. And the round trip: the newest
+# row of each instance IS that instance in the current state.
+#
+--NAME--
+TRoE timescale - every single-entity write route, history of each instance touched and of none other
+
+--TAGS--
+troe timescale postgres temporal datasetid subattrs
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+fixture()
+{
+  corCurl --url /ngsi-ld/v1/entities --payload '{
+    "id": "'$1'",
+    "type": "T",
+    "P1": [
+      { "type": "Property", "value": 1, "a": { "type": "Property", "value": "A" }, "b": { "type": "Property", "value": "B" } },
+      { "type": "Property", "value": 2, "datasetId": "urn:ds:1", "x": { "type": "Property", "value": "X" }, "y": { "type": "Property", "value": "Y" } }
+    ],
+    "P2": { "type": "Property", "value": 9, "s": { "type": "Property", "value": "S" } }
+  }'
+}
+
+current()
+{
+  corCurl --url /ngsi-ld/v1/entities/$1
+}
+
+history()
+{
+  corCurl --url /ngsi-ld/v1/temporal/entities/$1 --urlParams 'timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+}
+
+
+echo "01. POST /entities - the fixture: P1 default + urn:ds:1, P2 - five sub-Attributes in three rows"
+echo "============================================================================================="
+fixture urn:E:01
+echo
+current urn:E:01
+echo
+history urn:E:01
+echo
+echo
+
+
+echo "02. PATCH /entities/{id}/attrs - P1 urn:ds:1 only: one new row, for urn:ds:1"
+echo "============================================================================"
+fixture urn:E:02 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:02/attrs -X PATCH --payload '{ "P1": { "type": "Property", "value": 3, "datasetId": "urn:ds:1", "x": { "type": "Property", "value": "X2" } } }'
+echo
+current urn:E:02
+echo
+history urn:E:02
+echo
+echo
+
+
+echo "03. PATCH /entities/{id}/attrs/P1 - the default instance only: one new row, default"
+echo "==================================================================================="
+fixture urn:E:03 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:03/attrs/P1 -X PATCH --payload '{ "value": 4, "a": { "type": "Property", "value": "A2" } }'
+echo
+current urn:E:03
+echo
+history urn:E:03
+echo
+echo
+
+
+echo "04. PATCH /entities/{id}/attrs/P1 - urn:ds:1 named in the body: one new row, for urn:ds:1"
+echo "========================================================================================="
+fixture urn:E:04 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:04/attrs/P1 -X PATCH --payload '{ "value": 5, "datasetId": "urn:ds:1", "y": { "type": "Property", "value": "Y2" } }'
+echo
+current urn:E:04
+echo
+history urn:E:04
+echo
+echo
+
+
+echo "05. PATCH /entities/{id} (merge-patch) - x of urn:ds:1 set to null: one new row, urn:ds:1 without x"
+echo "=================================================================================================="
+fixture urn:E:05 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:05 -X PATCH --payload '{ "P1": { "datasetId": "urn:ds:1", "x": "urn:ngsi-ld:null" } }'
+echo
+current urn:E:05
+echo
+history urn:E:05
+echo
+echo
+
+
+echo "06. PUT /entities/{id}/attrs/P1 - urn:ds:1 replaced: one new row, urn:ds:1 with z only"
+echo "======================================================================================"
+fixture urn:E:06 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:06/attrs/P1 -X PUT --payload '{ "type": "Property", "value": 6, "datasetId": "urn:ds:1", "z": { "type": "Property", "value": "Z" } }'
+echo
+current urn:E:06
+echo
+history urn:E:06
+echo
+echo
+
+
+echo "07. POST /entities/{id}/attrs - a NEW instance urn:ds:2 of P1: one new row, for urn:ds:2"
+echo "========================================================================================"
+fixture urn:E:07 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:07/attrs --payload '{ "P1": { "type": "Property", "value": 7, "datasetId": "urn:ds:2", "w": { "type": "Property", "value": "W" } } }'
+echo
+current urn:E:07
+echo
+history urn:E:07
+echo
+echo
+
+
+echo "08. POST /entities/{id}/attrs?options=noOverwrite - urn:ds:1 exists: not written, no new row"
+echo "============================================================================================"
+fixture urn:E:08 > /dev/null
+corCurl --url '/ngsi-ld/v1/entities/urn:E:08/attrs?options=noOverwrite' --payload '{ "P1": { "type": "Property", "value": 8, "datasetId": "urn:ds:1" } }'
+echo
+current urn:E:08
+echo
+history urn:E:08
+echo
+echo
+
+
+echo "09. PUT /entities/{id} - replaced by P1 default only: a row for it, and P1 urn:ds:1 and P2 deleted"
+echo "================================================================================================="
+fixture urn:E:09 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:09 -X PUT --payload '{ "id": "urn:E:09", "type": "T", "P1": { "type": "Property", "value": 10, "c": { "type": "Property", "value": "C" } } }'
+echo
+current urn:E:09
+echo
+history urn:E:09
+echo
+echo
+
+
+echo "10. DELETE /entities/{id}/attrs/P1?deleteAll=true - both instances of P1 deleted, each named"
+echo "============================================================================================"
+fixture urn:E:10 > /dev/null
+corCurl --url '/ngsi-ld/v1/entities/urn:E:10/attrs/P1?deleteAll=true' -X DELETE
+echo
+current urn:E:10
+echo
+history urn:E:10
+echo
+echo
+
+
+echo "11. DELETE /entities/{id}/attrs/P1 - the default instance only: a deletion row, no datasetId"
+echo "============================================================================================"
+fixture urn:E:11 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:11/attrs/P1 -X DELETE
+echo
+current urn:E:11
+echo
+history urn:E:11
+echo
+echo
+
+
+echo "12. DELETE /entities/{id} - the entity goes: its history stays readable"
+echo "======================================================================="
+fixture urn:E:12 > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:E:12 -X DELETE
+echo
+current urn:E:12
+echo
+history urn:E:12
+echo
+echo
+
+
+echo "13. The deleted entity's history with options=sysAttrs - the Entity's own deletedAt"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:E:12 --urlParams 'timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt&attrs=P2&options=sysAttrs'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. POST /entities - the fixture: P1 default + urn:ds:1, P2 - five sub-Attributes in three rows
+=============================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E:01
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 596
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:01",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:01",
+  "type": "T"
+}
+
+
+
+02. PATCH /entities/{id}/attrs - P1 urn:ds:1 only: one new row, for urn:ds:1
+============================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 526
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 3,
+      "x": {
+        "type": "Property",
+        "value": "X2"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:02",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 3,
+      "x": {
+        "type": "Property",
+        "value": "X2"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:02",
+  "type": "T"
+}
+
+
+
+03. PATCH /entities/{id}/attrs/P1 - the default instance only: one new row, default
+===================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 597
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A2"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 4
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:03",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "a": {
+        "type": "Property",
+        "value": "A2"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 4
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:03",
+  "type": "T"
+}
+
+
+
+04. PATCH /entities/{id}/attrs/P1 - urn:ds:1 named in the body: one new row, for urn:ds:1
+=========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 597
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 5,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y2"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:04",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 5,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y2"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:04",
+  "type": "T"
+}
+
+
+
+05. PATCH /entities/{id} (merge-patch) - x of urn:ds:1 set to null: one new row, urn:ds:1 without x
+==================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 525
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:05",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:05",
+  "type": "T"
+}
+
+
+
+06. PUT /entities/{id}/attrs/P1 - urn:ds:1 replaced: one new row, urn:ds:1 with z only
+======================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 525
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 6,
+      "z": {
+        "type": "Property",
+        "value": "Z"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:06",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 6,
+      "z": {
+        "type": "Property",
+        "value": "Z"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:06",
+  "type": "T"
+}
+
+
+
+07. POST /entities/{id}/attrs - a NEW instance urn:ds:2 of P1: one new row, for urn:ds:2
+========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 754
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "type": "Property",
+      "value": 7,
+      "w": {
+        "type": "Property",
+        "value": "W"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:07",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:2",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 7,
+      "w": {
+        "type": "Property",
+        "value": "W"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:07",
+  "type": "T"
+}
+
+
+
+08. POST /entities/{id}/attrs?options=noOverwrite - urn:ds:1 exists: not written, no new row
+============================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/P1",
+      "reason": "Attribute already exists"
+    }
+  ],
+  "updated": []
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 596
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:08",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:08",
+  "type": "T"
+}
+
+
+
+09. PUT /entities/{id} - replaced by P1 default only: a row for it, and P1 urn:ds:1 and P2 deleted
+=================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 156
+
+{
+  "P1": {
+    "c": {
+      "type": "Property",
+      "value": "C"
+    },
+    "type": "Property",
+    "value": 10
+  },
+  "id": "urn:E:09",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "c": {
+        "type": "Property",
+        "value": "C"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    },
+    {
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "id": "urn:E:09",
+  "type": "T"
+}
+
+
+
+10. DELETE /entities/{id}/attrs/P1?deleteAll=true - both instances of P1 deleted, each named
+============================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 155
+
+{
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:10",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:10",
+  "type": "T"
+}
+
+
+
+11. DELETE /entities/{id}/attrs/P1 - the default instance only: a deletion row, no datasetId
+============================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 364
+
+{
+  "P1": {
+    "datasetId": "urn:ds:1",
+    "type": "Property",
+    "value": 2,
+    "x": {
+      "type": "Property",
+      "value": "X"
+    },
+    "y": {
+      "type": "Property",
+      "value": "Y"
+    }
+  },
+  "P2": {
+    "s": {
+      "type": "Property",
+      "value": "S"
+    },
+    "type": "Property",
+    "value": 9
+  },
+  "id": "urn:E:11",
+  "type": "T"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "deletedAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "id": "urn:E:11",
+  "type": "T"
+}
+
+
+
+12. DELETE /entities/{id} - the entity goes: its history stays readable
+=======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "entity 'urn:E:12' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": [
+    {
+      "a": {
+        "type": "Property",
+        "value": "A"
+      },
+      "b": {
+        "type": "Property",
+        "value": "B"
+      },
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "datasetId": "urn:ds:1",
+      "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": 2,
+      "x": {
+        "type": "Property",
+        "value": "X"
+      },
+      "y": {
+        "type": "Property",
+        "value": "Y"
+      }
+    }
+  ],
+  "P2": [
+    {
+      "instanceId": "REGEX(.*)",
+      "s": {
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "deletedAt": "REGEX(.*)",
+  "id": "urn:E:12",
+  "type": "T"
+}
+
+
+
+13. The deleted entity's history with options=sysAttrs - the Entity's own deletedAt
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P2": [
+    {
+      "createdAt": "REGEX(.*)",
+      "instanceId": "REGEX(.*)",
+      "modifiedAt": "REGEX(.*)",
+      "s": {
+        "createdAt": "REGEX(.*)",
+        "modifiedAt": "REGEX(.*)",
+        "type": "Property",
+        "value": "S"
+      },
+      "type": "Property",
+      "value": 9
+    }
+  ],
+  "createdAt": "REGEX(.*)",
+  "deletedAt": "REGEX(.*)",
+  "id": "urn:E:12",
+  "modifiedAt": "REGEX(.*)",
+  "type": "T"
+}
+
+
+

@@ -444,6 +444,15 @@ bool putEntityAttr(void)
             tevP->attrName       = attrIri;
             tevP->modifiedAtNs   = corRest.requestStartTime;
             tevP->entitySnapshot = merged;
+
+            //
+            // What the row is read from - left NULL, the row said "replaced"
+            // and nothing else (every value column empty). The fragment, not
+            // the merged entity: the body is the ONE instance the PUT wrote,
+            // dataset-keyed; the entity has the others too, which it did not
+            // touch.
+            //
+            tevP->attrSnapshot   = kjLookup(entityFrag, attrIri);
             troeDeferAttrEvent(tevP);
           }
         }

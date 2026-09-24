@@ -444,7 +444,15 @@ bool deleteEntityAttr(void)
               tevP->entityId       = entityId;
               tevP->entityType     = etype;
               tevP->attrName       = attrIri;
-              tevP->datasetId      = (corNgsild.deleteAll == false) ? corNgsild.datasetId : NULL;  // the wrapper names no instance
+              //
+              // The instance deleted: the one named, or the default one when none
+              // is - "" - never NULL, which says "every instance of the wrapper"
+              // and is what deleteAll removed.
+              //
+              if (corNgsild.deleteAll == true)
+                tevP->datasetId = NULL;
+              else
+                tevP->datasetId = (corNgsild.datasetId != NULL) ? corNgsild.datasetId : "";
               tevP->modifiedAtNs   = corRest.requestStartTime;
               tevP->entitySnapshot = targetEntity;
               tevP->attrSnapshot   = preSnapshot;  // pre-delete wrapper — carries the attr kind for the tombstone row

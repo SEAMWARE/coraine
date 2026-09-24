@@ -32,4 +32,24 @@ extern void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
                                          LdMergeReport*  reportP,
                                          uint64_t        modifiedAtNs);
 
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeDeferRemovedByReplace - a deletion event for every instance a Replace removed
+//
+// A Replace Entity writes the Attributes of its body - each has its row from
+// the caller - and removes whatever else the entity had: a whole Attribute,
+// or instances of one it kept. Those are deletions (§ 5.3.2.5: an instance
+// with value urn:ngsi-ld:null and deletedAt), one per instance, each naming
+// its datasetId. Both entities dataset-keyed (DB model).
+//
+extern void troeDeferRemovedByReplace(Tenant*      tenantP,
+                                      const char*  entityId,
+                                      const char*  entityType,
+                                      KjNode*      oldEntity,
+                                      KjNode*      newEntity,
+                                      uint64_t     modifiedAtNs);
+
 #endif  // TROE_TROEFROMMERGE_H_

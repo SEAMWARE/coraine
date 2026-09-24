@@ -554,7 +554,8 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     PGresult* tRes = PQexecParams(timescaleConn,
       "SELECT to_char(MIN(modified_at) FILTER (WHERE op = 'created') "
       "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
-      "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') "
+      "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
+      "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1] "
       "FROM troe_entities WHERE entity_id = $1",
       1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)
@@ -564,6 +565,16 @@ static int buildEntityTemporalDocLocked(const char* entityId,
                                    stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
       if (!PQgetisnull(tRes, 0, 1))
         kjChildAdd(root, kjString(kjsonP, "modifiedAt",
+                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+
+      //
+      // § 5.2.6.2: an Entity's deletedAt is used "in the temporal
+      // representation of Entities". When the Entity's most recent row is its
+      // deletion, that row's time - the same as modifiedAt above. Not a sysAttr
+      // to strip: like an instance's deletedAt, it is what says the thing is gone.
+      //
+      if ((!PQgetisnull(tRes, 0, 1)) && (!PQgetisnull(tRes, 0, 2)) && (strcmp(PQgetvalue(tRes, 0, 2), "deleted") == 0))
+        kjChildAdd(root, kjString(kjsonP, "deletedAt",
                                    stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
     }
     PQclear(tRes);
@@ -605,6 +616,17 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     {
       arr = kjArray(kjsonP, kaStrdup(&corRest.kalloc, attrName));
       kjChildAdd(root, arr);
+    }
+    else if (arr->type != KjArray)
+    {
+      //
+      // A row named as an Entity member that is no Attribute - "createdAt",
+      // "modifiedAt" - found that member, a string, and an instance added to
+      // a string is a dead broker. No write path records such a row now; one
+      // already in a database is skipped.
+      //
+      KT_W("timescale: '%s' of '%s' is no Attribute - history row skipped", attrName, entityId);
+      continue;
     }
 
     KjNode* inst = kjObject(kjsonP, NULL);
