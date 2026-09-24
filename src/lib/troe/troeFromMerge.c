@@ -89,6 +89,28 @@ static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, cons
 
 // -----------------------------------------------------------------------------
 //
+// removedInstances - a deletion event for each instance of preP that postP lacks
+//
+static void removedInstances(Tenant* tenantP, const char* entityId, const char* entityType, const char* attrName,
+                             KjNode* entityP, KjNode* preP, KjNode* postP, uint64_t modifiedAtNs)
+{
+  if ((preP == NULL) || (preP->type != KjObject))
+    return;
+
+  for (KjNode* instP = preP->value.firstChildP; instP != NULL; instP = instP->next)
+  {
+    if ((instP->name == NULL) || (instP->type != KjObject))
+      continue;
+
+    if ((postP == NULL) || (kjLookup(postP, instP->name) == NULL))
+      instanceEvent(TroeOpAttrDeleted, tenantP, entityId, entityType, attrName, entityP, preP, instP, modifiedAtNs);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // instanceEvents - an event per instance the write touched
 //
 // ldInstanceWritten is the one answer to "touched" - the one a subscription
@@ -111,17 +133,7 @@ static void instanceEvents(Tenant* tenantP, const char* entityId, const char* en
     }
   }
 
-  if ((preP != NULL) && (preP->type == KjObject))
-  {
-    for (KjNode* instP = preP->value.firstChildP; instP != NULL; instP = instP->next)
-    {
-      if ((instP->name == NULL) || (instP->type != KjObject))
-        continue;
-
-      if ((postP == NULL) || (kjLookup(postP, instP->name) == NULL))
-        instanceEvent(TroeOpAttrDeleted, tenantP, entityId, entityType, attrName, mergedEntity, preP, instP, modifiedAtNs);
-    }
-  }
+  removedInstances(tenantP, entityId, entityType, attrName, mergedEntity, preP, postP, modifiedAtNs);
 }
 
 
@@ -188,5 +200,32 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
     tevP->attrSnapshot   = attrSnapshot;
     tevP->entitySnapshot = mergedEntity;
     troeDeferAttrEvent(tevP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeDeferRemovedByReplace -
+//
+void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char* entityType, KjNode* oldEntity, KjNode* newEntity, uint64_t modifiedAtNs)
+{
+  if ((oldEntity == NULL) || (oldEntity->type != KjObject))
+    return;
+
+  for (KjNode* oldAttrP = oldEntity->value.firstChildP; oldAttrP != NULL; oldAttrP = oldAttrP->next)
+  {
+    if ((oldAttrP->name == NULL) || (oldAttrP->name[0] == '@') || (oldAttrP->type != KjObject))  continue;
+    if (strcmp(oldAttrP->name, "id")         == 0)    continue;
+    if (strcmp(oldAttrP->name, "_id")        == 0)    continue;
+    if (strcmp(oldAttrP->name, "type")       == 0)    continue;
+    if (strcmp(oldAttrP->name, "scope")      == 0)    continue;
+    if (strcmp(oldAttrP->name, "createdAt")  == 0)    continue;
+    if (strcmp(oldAttrP->name, "modifiedAt") == 0)    continue;
+
+    KjNode* newAttrP = (newEntity != NULL) ? kjLookup(newEntity, oldAttrP->name) : NULL;
+
+    removedInstances(tenantP, entityId, entityType, oldAttrP->name, newEntity, oldAttrP, newAttrP, modifiedAtNs);
   }
 }

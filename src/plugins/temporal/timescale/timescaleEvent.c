@@ -469,6 +469,14 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
     memset(&cols, 0, sizeof(cols));
     KjNode* wrapP = (KjNode*) evP->attrSnapshot;
     KjNode* instP = (wrapP != NULL && wrapP->type == KjObject) ? wrapP->value.firstChildP : NULL;
+
+    // The kind of the instance the event names, when it names one
+    if ((evP->datasetId != NULL) && (wrapP != NULL) && (wrapP->type == KjObject))
+    {
+      KjNode* namedP = kjLookup(wrapP, (evP->datasetId[0] != 0) ? evP->datasetId : "@none");
+      if (namedP != NULL)
+        instP = namedP;
+    }
     if (instP != NULL && instP->type == KjObject)
       cols.kind = (int) ldAttrTypeDetect(instP);
   }
@@ -540,21 +548,20 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
-// fanOutAttrsFromEntity - on entityCreated / entityReplaced, write a
-// per-attr row for each top-level attr in entitySnapshot.
+// fanOutAttrsFromEntity - on entityCreated, write a per-attr row for each
+// top-level attr in entitySnapshot.
 //
-// Service routines defer one entity-level event for create/replace
-// (vs N attr events, which would force every routine to walk its own
-// write). The timescale plugin owns the per-attr expansion at write
-// time so a temporal-query GET sees the initial state too.
+// The create routines defer one entity-level event (vs N attr events, which
+// would force every routine to walk its own write). The timescale plugin owns
+// the per-attr expansion at write time so a temporal-query GET sees the
+// initial state too. A Replace is not expanded here - it defers its own
+// per-Attribute events.
 //
 static int fanOutAttrsFromEntity(const TroeEvent* evP)
 {
   if (evP->entitySnapshot == NULL) return TROE_OK;
 
-  TroeOp attrOp = (evP->op == TroeOpEntityReplaced)
-                  ? TroeOpAttrReplaced
-                  : TroeOpAttrCreated;
+  TroeOp attrOp = TroeOpAttrCreated;
 
   for (KjNode* attrP = evP->entitySnapshot->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
@@ -627,7 +634,12 @@ int timescaleEventList(const TroeEvent* listHead, int count)
 
       // Entity-level create / replace fan out into per-attr rows so
       // the initial state is queryable on the temporal-attrs side.
-      if (r == TROE_OK && (evP->op == TroeOpEntityCreated || evP->op == TroeOpEntityReplaced))
+      //
+      // Created only: a Replace defers an event of its own per Attribute of its
+      // body (and a deletion per instance it removed), so fanning out its entity
+      // event too wrote every one of its rows TWICE.
+      //
+      if (r == TROE_OK && evP->op == TroeOpEntityCreated)
         r = fanOutAttrsFromEntity(evP);
     }
 

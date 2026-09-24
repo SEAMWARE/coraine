@@ -43,6 +43,7 @@
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
+#include "troe/troeFromMerge.h"                       // troeDeferRemovedByReplace
 
 #include "corNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "corNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
@@ -487,9 +488,10 @@ bool replaceEntity(void)
       }
 
       // TRoE: defer 1 entity-level "replaced" marker + N "attrReplaced"
-      // events, one per attr in the new body. Attrs that existed in the
-      // old body but aren't in the new body close implicitly via the
-      // entity-replaced marker (read-side scopes alive windows by it).
+      // events, one per attr in the new body - and a deletion for every
+      // instance the replace removed, whole Attributes and single instances
+      // alike: nothing on the read side closes them, the history said they
+      // still lived.
       {
         KjNode* typeNode = kjLookup(entityP, "type");
         const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
@@ -527,6 +529,8 @@ bool replaceEntity(void)
           aevP->entitySnapshot = entityP;
           troeDeferAttrEvent(aevP);
         }
+
+        troeDeferRemovedByReplace(tenantP, entityId, etype, oldStored, entityP, corRest.requestStartTime);
       }
     }
     else if (r != DB_NOT_FOUND)
