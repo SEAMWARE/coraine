@@ -48,7 +48,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrOut.h"                    // bridgeAttrOut
-#include "bridge/bridgeServiceSync.h"                 // bridgeSyncFragment, BridgeSyncDone
+#include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // TroeEvent
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
@@ -118,6 +118,8 @@ static char* renderBodyWithContext(KjNode* bodyP)
 //
 bool patchEntityAttr(void)
 {
+  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
+
   const char* entityId = corRest.in.wildcard[0];
   const char* attrWild = corRest.in.wildcard[1];
   KjNode*     bodyP    = corRest.in.requestTree;
@@ -400,12 +402,12 @@ bool patchEntityAttr(void)
         BridgeSyncDone syncDone = { { NULL }, 0 };
 
         //
-        // ddsSync: a service this fragment writes is invoked NOW, before anything
-        // is stored, and waited for - so that its reply is written with the value,
-        // or, if it never comes, nothing is written at all. A no-op unless the
-        // request asked for it. See bridgeServiceSync.h.
+        // Requests to the DDS side go FIRST: a service or an action this fragment
+        // writes is sent NOW, before anything is stored, and one that cannot be sent
+        // fails the request with nothing written. A service may be waited for, and
+        // its reply is then written with the value. See bridgeServiceSync.h.
         //
-        if (bridgeSyncFragment(tenantP, entityId, entityFrag, &syncDone) == false)
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, &syncDone) == false)
           return true;  // ldError already set - nothing has been written
 
         //
@@ -420,6 +422,9 @@ bool patchEntityAttr(void)
           return true;  // ldError already set
 
         int car = db.entityChangesApply(tenantP, entityId, targetEntity, &report);
+
+        bridgeRequestsWritten(&syncDone);   // late replies may land now - see bridgeServiceSync.h
+        ddsAccepted = syncDone.accepted;
         if (car == DB_GEO_TYPE_CONFLICT)
         {
           ldGeoTypeConflict();
@@ -478,7 +483,7 @@ bool patchEntityAttr(void)
 
   if (errorsCount == 0)
   {
-    corRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = (ddsAccepted == true) ? 202 : 204;
     return true;
   }
 

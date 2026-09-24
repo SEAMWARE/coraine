@@ -226,8 +226,9 @@ Content-Length: 0
 
 02. Send goal 1 to A1 - it succeeds
 ===================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -463,8 +464,9 @@ Content-Length: 134
 
 05. Send goal 2 to A2 - it is accepted and held
 ===============================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -595,8 +597,9 @@ Content-Length: 219
 
 11. Send goal 3 to A3 - it is rejected
 ======================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -625,8 +628,9 @@ Content-Length: 134
 
 13. Send goal 4 to A4 - it is accepted, and cannot be cancelled
 =================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 

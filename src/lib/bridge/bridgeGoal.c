@@ -13,6 +13,7 @@
 #include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // calloc, free
 #include <string.h>                                   // strcmp, strdup
+#include <errno.h>                                    // ETIMEDOUT
 #include <time.h>                                     // clock_gettime
 
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
@@ -40,6 +41,17 @@
 
 // -----------------------------------------------------------------------------
 //
+// HELD_WAIT_MS - how long an event of a held goal waits for the request's write
+//
+// As for a late service reply (bridgeServiceSync.c): the write normally follows
+// in a millisecond, and this bounds a handler that never says it has written.
+//
+#define HELD_WAIT_MS  1000
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Goal - one goal in flight
 //
 // Everything malloc'd: the registry outlives the request that sent the goal, and
@@ -58,6 +70,7 @@ typedef struct Goal
   char*         goalAlias;                            // the instance's datasetId, once an event has said
   int           state;                                // BridgeGoalState
   bool          instanceMade;                         // an event has been written into the instance
+  bool          held;                                 // sent before its request's write, which has not happened yet
   int64_t       sentMs;
   struct Goal*  next;
 } Goal;
@@ -83,6 +96,8 @@ typedef struct Goal
 static Goal*            goals     = NULL;
 static uint64_t         nextToken = 1;
 static pthread_mutex_t  goalMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t   goalReleased;                 // CLOCK_MONOTONIC - initialised on first use
+static bool             goalReleasedInit = false;
 
 
 
@@ -182,9 +197,46 @@ static void goalSweep(void)
 
 // -----------------------------------------------------------------------------
 //
+// goalLookup - a goal in flight, by token. Caller holds goalMutex.
+//
+static Goal* goalLookup(const char* bridgeName, uint64_t token)
+{
+  Goal* goalP = goals;
+
+  while ((goalP != NULL) && ((goalP->token != token) || (strcmp(goalP->bridgeName, bridgeName) != 0)))
+    goalP = goalP->next;
+
+  return goalP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// releasedCondInit - the condition held events wait on. Caller holds goalMutex.
+//
+static void releasedCondInit(void)
+{
+  if (goalReleasedInit == true)
+    return;
+
+  pthread_condattr_t attr;
+
+  pthread_condattr_init(&attr);
+  pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&goalReleased, &attr);
+  pthread_condattr_destroy(&attr);
+
+  goalReleasedInit = true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeGoalSend -
 //
-int bridgeGoalSend(Channel* channelP, const char* json)
+int bridgeGoalSend(Channel* channelP, const char* json, bool held, uint64_t* tokenP)
 {
   BridgeDriver* driverP = driverFor(channelP->bridgeName);
 
@@ -207,6 +259,7 @@ int bridgeGoalSend(Channel* channelP, const char* json)
   goalP->attrName   = strdup(channelP->attrName);
   goalP->request    = strdup(json);
   goalP->state      = BridgeGoalUnknown;
+  goalP->held       = held;
   goalP->sentMs     = nowMs();
 
   //
@@ -247,7 +300,34 @@ int bridgeGoalSend(Channel* channelP, const char* json)
   KT_T(KtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
        channelP->entityId, channelP->attrName, token, channelP->endpoint, channelP->bridgeName);
 
+  if (tokenP != NULL)
+    *tokenP = token;
+
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRelease -
+//
+void bridgeGoalRelease(uint64_t token)
+{
+  pthread_mutex_lock(&goalMutex);
+
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if (goalP->token == token)
+    {
+      goalP->held = false;
+      break;
+    }
+  }
+
+  releasedCondInit();
+  pthread_cond_broadcast(&goalReleased);
+  pthread_mutex_unlock(&goalMutex);
 }
 
 
@@ -272,10 +352,43 @@ int bridgeGoalEventIn(const char* bridgeName,
 
   pthread_mutex_lock(&goalMutex);
 
-  Goal* goalP = goals;
+  //
+  // ⭐ A GOAL SENT BEFORE ITS REQUEST'S WRITE WAITS FOR THAT WRITE. DDS goes
+  // first, so the goal can report before the request has stored anything - and
+  // an event written then would race the request's own write of the same
+  // attribute: at best the request's write reads as a fresh write of the goal's
+  // instance (a second notification), at worst a store that replaces the
+  // attribute whole takes the instance away. So an event of a held goal waits,
+  // bounded, for bridgeGoalRelease.
+  //
+  // By TOKEN after every wake, never by a pointer kept across the wait: another
+  // event of the same goal may have been the final one meanwhile, and freed it.
+  //
+  Goal* goalP = goalLookup(bridgeName, token);
 
-  while ((goalP != NULL) && ((goalP->token != token) || (strcmp(goalP->bridgeName, bridgeName) != 0)))
-    goalP = goalP->next;
+  if ((goalP != NULL) && (goalP->held == true))
+  {
+    struct timespec deadline;
+    int64_t         dueMs = nowMs() + HELD_WAIT_MS;
+
+    deadline.tv_sec  = dueMs / 1000;
+    deadline.tv_nsec = (dueMs % 1000) * 1000000;
+
+    releasedCondInit();
+
+    while (((goalP = goalLookup(bridgeName, token)) != NULL) && (goalP->held == true))
+    {
+      if (pthread_cond_timedwait(&goalReleased, &goalMutex, &deadline) == ETIMEDOUT)
+      {
+        goalP = goalLookup(bridgeName, token);
+
+        if (goalP != NULL)
+          goalP->held = false;                        // never released - write anyway, a second late
+
+        break;
+      }
+    }
+  }
 
   if (goalP == NULL)
   {

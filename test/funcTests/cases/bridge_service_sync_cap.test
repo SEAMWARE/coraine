@@ -1,0 +1,115 @@
+#
+# FILE            bridge_service_sync_cap.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --ddsSyncWaitMax - how many requests may wait for a service at once.
+#
+# A request waiting for a service holds a corRest worker, and the pool is small.
+# A DDS network that is slow, or gone, would otherwise take every worker in turn
+# and the broker would stop answering anything at all. So only so many wait; a
+# request that finds them all taken sends without waiting and answers 202.
+#
+# One slot here. Request A waits on 'slow' (the loopback answers after 1.5 s,
+# the broker waits 800 ms) and holds the slot while it does. Request B, sent
+# meanwhile, asks the 'fast' service - which answers at once and so would
+# normally be waited for, answered and written with its reply (204). With the
+# slot taken it is not waited for: 202, and its reply lands a moment later.
+# Once A has given its slot back, the same request is waited for again.
+#
+--NAME--
+Bridges: --ddsSyncWaitMax caps the requests that wait for a service - the rest answer 202 at once
+
+--TAGS--
+bridge channel plugins service ddsSync
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --replyDelay "slow=1500" \
+  --service "fast,Calculator,urn:ngsi-ld:Calculator:F,job" \
+  --service "slow,Calculator,urn:ngsi-ld:Calculator:S,job")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 800 --ddsSyncWaitMax 1
+
+--RUN--
+
+echo "01. Request A waits on 'slow' and holds the one slot - request B, on 'fast', does not wait: 202"
+echo "================================================================================================"
+REQUEST_A_OUT=/tmp/claude-cap-requestA.out
+corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S/attrs/job?ddsSync=true" -X PATCH \
+        --payload '{ "type": "Property", "value": { "a": 1 } }' > $REQUEST_A_OUT 2>&1 &
+REQUEST_A_PID=$!
+for i in $(seq 1 50); do
+  grep -q "asks service 'slow'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.05
+done
+corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:F/attrs/job?ddsSync=true" -X PATCH \
+        --payload '{ "type": "Property", "value": { "b": 2 } }'
+echo
+echo
+
+
+echo "02. Request A - it waited its 800 ms, and was accepted: 202"
+echo "==========================================================="
+wait $REQUEST_A_PID
+cat $REQUEST_A_OUT
+rm -f $REQUEST_A_OUT
+echo
+echo
+
+
+echo "03. The slot is free again - the same request on 'fast' is waited for, and answered: 204"
+echo "========================================================================================"
+corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:F/attrs/job?ddsSync=true" -X PATCH \
+        --payload '{ "type": "Property", "value": { "c": 3 } }'
+echo
+echo
+
+
+echo "04. The broker said why B did not wait"
+echo "======================================"
+grep -oE "asks service '[a-z]+' without waiting - [0-9]+ requests wait already" /tmp/coraine.CB.log
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. Request A waits on 'slow' and holds the one slot - request B, on 'fast', does not wait: 202
+================================================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+02. Request A - it waited its 800 ms, and was accepted: 202
+===========================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+03. The slot is free again - the same request on 'fast' is waited for, and answered: 204
+========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. The broker said why B did not wait
+======================================
+asks service 'fast' without waiting - 1 requests wait already
+

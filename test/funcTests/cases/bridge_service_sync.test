@@ -8,11 +8,13 @@
 # ?ddsSync=true - a PATCH that WAITS for the service it invokes, on the loopback
 # bridge.
 #
-# Without it, writing a service-bound attribute invokes the service after the
-# write and answers at once; the reply lands whenever it comes. With it, the
-# service is invoked BEFORE the write, the request waits for this invocation's
-# reply, and the value and the reply are written together - or, if the reply
-# does not come, the request fails and nothing at all is written.
+# A service request is DDS first either way: it is sent BEFORE the write, and
+# one that cannot be sent fails the request. Without ?ddsSync the request does
+# not wait and answers 202 - accepted, not done - and the reply lands whenever
+# it comes. With it, the request waits a short while (--ddsSyncTimeout) for this
+# invocation's reply, and the value and the reply are written together; if the
+# reply does not come in that while, the request is still one that went out: it
+# answers 202, the value is written, and the reply lands when it comes.
 #
 # The loopback answers 'fast' at once, 'slow' after 1.5 s and 'mute' never
 # (--replyDelay), and the broker waits 800 ms (--ddsSyncTimeout), which gives
@@ -20,14 +22,13 @@
 #
 #   01-02  the reply is in the entity on the very next GET - no waiting for it,
 #          which is the whole difference from the asynchronous path
-#   03-04  a service that never answers: 504, and the value is not written
-#   05-06  a PATCH writing a service attribute AND a plain one: the timeout
-#          fails the request as a whole, and neither is written
-#   07-08  a reply that comes after the request gave up is dropped - it must not
-#          appear in the attribute of a request that answered 504
+#   03-04  a service that never answers: 202, and the value is written
+#   05-06  a PATCH writing a service attribute AND a plain one: 202, both written
+#   07-08  a reply that comes after the request stopped waiting LANDS - the
+#          request said 202, and this is the reply it was accepted for
 #   09     ?ddsSync is 'true' or 'false', nothing else
 #   10-11  the /attrs form waits too
-#   12-13  without the parameter, nothing changed: the asynchronous path
+#   12-13  without the parameter: 202 at once, and the value is written
 #   14     a route that cannot wait refuses the parameter rather than ignore it
 #
 # --ddsSync, which makes waiting the default, is bridge_service_sync_default.
@@ -68,46 +69,46 @@ echo
 echo
 
 
-echo "03. PATCH ?ddsSync=true on a service that never answers - 504"
-echo "=============================================================="
+echo "03. PATCH ?ddsSync=true on a service that never answers - 202, it went out"
+echo "==========================================================================="
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M/attrs/job?ddsSync=true" -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 1 } }'
 echo
 echo
 
 
-echo "04. Nothing was written"
-echo "======================="
+echo "04. The value is written, without a reply"
+echo "=========================================="
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M
 echo
 echo
 
 
-echo "05. PATCH /entities/{id}?ddsSync=true - the service attribute and a plain one, and the service never answers"
-echo "============================================================================================================="
+echo "05. PATCH /entities/{id}?ddsSync=true - the service attribute and a plain one, and the service never answers - 202"
+echo "==================================================================================================================="
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M?ddsSync=true" -X PATCH \
         --payload '{ "job": { "type": "Property", "value": { "a": 2 } }, "note": { "type": "Property", "value": "x" } }'
 echo
 echo
 
 
-echo "06. Neither was written"
-echo "======================="
+echo "06. Both are written"
+echo "===================="
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M
 echo
 echo
 
 
-echo "07. PATCH ?ddsSync=true on a service that answers after the request gave up - 504"
-echo "================================================================================="
+echo "07. PATCH ?ddsSync=true on a service that answers after the request stopped waiting - 202"
+echo "=========================================================================================="
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S/attrs/job?ddsSync=true" -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 4 } }'
 echo
 echo
 
 
-echo "08. After the late reply has come and gone - still nothing written"
-echo "=================================================================="
+echo "08. After the late reply has come - it landed in the attribute"
+echo "=============================================================="
 sleep 1.5
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S
 echo
@@ -137,8 +138,8 @@ echo
 echo
 
 
-echo "12. Without ?ddsSync, a service that never answers - 204, and the value is written"
-echo "=================================================================================="
+echo "12. Without ?ddsSync, a service that never answers - 202 at once, and the value is written"
+echo "==========================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:M/attrs/job -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 7 } }'
 echo
@@ -158,6 +159,10 @@ corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:F/attrs?ddsSync=true"
         --payload '{ "job": { "type": "Property", "value": { "a": 8 } } }'
 echo
 echo
+
+
+--TEARDOWN--
+coraineStop
 
 
 --EXPECT--
@@ -196,105 +201,100 @@ Content-Length: 225
 
 
 
-03. PATCH ?ddsSync=true on a service that never answers - 504
+03. PATCH ?ddsSync=true on a service that never answers - 202, it went out
+===========================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. The value is written, without a reply
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 137
+
+{
+  "id": "urn:ngsi-ld:Calculator:M",
+  "job": {
+    "type": "Property",
+    "value": {
+      "a": 1
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+05. PATCH /entities/{id}?ddsSync=true - the service attribute and a plain one, and the service never answers - 202
+===================================================================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. Both are written
+====================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+{
+  "id": "urn:ngsi-ld:Calculator:M",
+  "job": {
+    "type": "Property",
+    "value": {
+      "a": 2
+    }
+  },
+  "note": {
+    "type": "Property",
+    "value": "x"
+  },
+  "type": "Calculator"
+}
+
+
+
+07. PATCH ?ddsSync=true on a service that answers after the request stopped waiting - 202
+==========================================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+08. After the late reply has come - it landed in the attribute
 ==============================================================
-HTTP/1.1 504 Gateway Timeout
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 193
-
-{
-  "detail": "service 'mute' on bridge 'loopback' did not answer within 800 ms",
-  "status": 504,
-  "title": "Service Timeout",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-}
-
-
-
-04. Nothing was written
-=======================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 132
-
-{
-  "id": "urn:ngsi-ld:Calculator:M",
-  "job": {
-    "type": "Property",
-    "value": "uninitialized"
-  },
-  "type": "Calculator"
-}
-
-
-
-05. PATCH /entities/{id}?ddsSync=true - the service attribute and a plain one, and the service never answers
-=============================================================================================================
-HTTP/1.1 504 Gateway Timeout
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 193
-
-{
-  "detail": "service 'mute' on bridge 'loopback' did not answer within 800 ms",
-  "status": 504,
-  "title": "Service Timeout",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-}
-
-
-
-06. Neither was written
-=======================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 132
-
-{
-  "id": "urn:ngsi-ld:Calculator:M",
-  "job": {
-    "type": "Property",
-    "value": "uninitialized"
-  },
-  "type": "Calculator"
-}
-
-
-
-07. PATCH ?ddsSync=true on a service that answers after the request gave up - 504
-=================================================================================
-HTTP/1.1 504 Gateway Timeout
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 193
-
-{
-  "detail": "service 'slow' on bridge 'loopback' did not answer within 800 ms",
-  "status": 504,
-  "title": "Service Timeout",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
-}
-
-
-
-08. After the late reply has come and gone - still nothing written
-==================================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 132
+Content-Length: 225
 
 {
   "id": "urn:ngsi-ld:Calculator:S",
   "job": {
+    "reply": {
+      "type": "Property",
+      "value": {
+        "a": 4
+      }
+    },
     "type": "Property",
-    "value": "uninitialized"
+    "value": {
+      "a": 4
+    }
   },
   "type": "Calculator"
 }
@@ -352,10 +352,11 @@ Content-Length: 225
 
 
 
-12. Without ?ddsSync, a service that never answers - 204, and the value is written
-==================================================================================
-HTTP/1.1 204 No Content
+12. Without ?ddsSync, a service that never answers - 202 at once, and the value is written
+===========================================================================================
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
@@ -366,7 +367,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 137
+Content-Length: 195
 
 {
   "id": "urn:ngsi-ld:Calculator:M",
@@ -375,6 +376,10 @@ Content-Length: 137
     "value": {
       "a": 7
     }
+  },
+  "note": {
+    "type": "Property",
+    "value": "x"
   },
   "type": "Calculator"
 }
@@ -397,5 +402,3 @@ Content-Length: 172
 
 
 
---TEARDOWN--
-coraineStop

@@ -42,15 +42,27 @@
 
 // -----------------------------------------------------------------------------
 //
-// bridgeGoalSend - send the value just written to an action Channel as a goal
+// bridgeGoalSend - send a value written to an action Channel as a goal
 //
-// Called on the broker thread that wrote the attribute. Registers the goal
-// under a fresh token BEFORE the plugin sees it, because the plugin may report
-// on the goal before it returns.
+// Called on a broker thread. Registers the goal under a fresh token BEFORE the
+// plugin sees it, because the plugin may report on the goal before it returns.
+//
+// @param held    the goal is sent BEFORE its request's write (DDS first): its
+//                events wait until bridgeGoalRelease(*tokenP) says the write
+//                is done. false when the write has already happened.
+// @param tokenP  the goal's token, or NULL
 //
 // @return the plugin's answer: BRIDGE_OK, or why the goal did not go
 //
-extern int bridgeGoalSend(Channel* channelP, const char* json);
+extern int bridgeGoalSend(Channel* channelP, const char* json, bool held, uint64_t* tokenP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRelease - the request that sent a held goal has written: events may land
+//
+extern void bridgeGoalRelease(uint64_t token);
 
 
 

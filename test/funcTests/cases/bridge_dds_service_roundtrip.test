@@ -110,8 +110,9 @@ Content-Length: 132
 
 02. A real ROS 2 service server answers what the attribute asks
 ===============================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
+Content-Length: 0
 
 
 
