@@ -125,14 +125,21 @@ For **every** operation, local or distributed, entity or attribute or batch:
 |---|---|---|
 | everything succeeded | the operation's own success code (200/201/204) | as today |
 | **exactly one** thing failed and nothing succeeded | **that error's own status** (400, 404, 409, …) | **one ProblemDetails** |
-| anything else — several failures, or failures and successes | **207 Multi-Status** | **ErrorReport** (§ 2.2) |
+| **nothing succeeded, and every failure is a 404** | **404** | **one ProblemDetails**, naming every target that was not found (`entityIds`, `attributeNames`) |
+| anything else — failures and successes, or failures that differ | **207 Multi-Status** | **ErrorReport** (§ 2.2) |
 
-"Anything else" is deliberately the catch-all: a batch where every element failed
-for *different* reasons has no single honest status, and 207 is what says so.
-A batch where every element failed for the *same* reason is still several
-failures — 207. Today that case is open to interpretation: 176's batch tables name
-207 for a partial result, and Coraine answers the shared status with a
-ProblemDetails instead.
+**All 404 is one 404.** A request whose every target turned out not to exist has
+one answer, and it is "not found": a 207 listing *N* identical ResourceNotFound
+elements says the same thing *N* times and makes the client dig for it. So it is
+a single 404 whose ProblemDetails names them all — which is exactly what the
+plural identifying members (`problem-details.md` § 9.2) are for. The same holds
+for one entity whose distributed parts were not found at any source.
+
+"Anything else" is the catch-all: a request where some things succeeded, or where
+the failures are of different kinds, has no single honest status, and 207 is
+what says so. (Today the all-404 case is open to interpretation — 176's batch
+tables name 207 for a partial result, while Coraine answers a shared status with a
+ProblemDetails — and this settles it.)
 
 ### 2.2 One body for a partial result: ErrorReport
 
@@ -295,8 +302,11 @@ estimated.
 ## 5. Open questions
 
 1. Strings or objects in `success` (§ 2.2).
-2. "Exactly one failure" as the line between a 4xx and a 207 — or 207 for every
-   batch, however many failed?
+2. **Does "all 404 is one 404" extend to any shared error?** Every element a 409
+   Conflict, or a 400 for the same reason: one ProblemDetails naming them all, or a
+   207? 404 is the clear case — "nothing you named exists" is one fact. A shared
+   400 or 409 may still differ in its `detail` per element, which a single
+   ProblemDetails would have to drop.
 3. Header or body for distributed reads (§ 2.4), and whether (b) is a `Prefer` or
    an `options` value.
 4. Is `ErrorReport` the right name — or does the room prefer to keep
