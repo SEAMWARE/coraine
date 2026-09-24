@@ -304,10 +304,11 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 # sits in /opt/seamware - an ordinary build with no counters - and every plugin
 # source then reports as unexecuted while the run appears to have covered it.
 #
-	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api
+	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
+	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
 	@find $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) -name '*.gcda' -delete
 #
 # COR_PLUGIN_DIR is how the HARNESS spells a plugin path (--database ...).
