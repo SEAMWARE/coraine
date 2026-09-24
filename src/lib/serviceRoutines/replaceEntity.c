@@ -18,6 +18,7 @@
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbPut
 
+#include "kjson/kjClone.h"                            // kjClone
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
 #include "kjson/KjNode.h"                             // KjNode
@@ -38,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
@@ -161,6 +163,8 @@ static char* renderFragmentWithContext(KjNode* fragP)
 //
 bool replaceEntity(void)
 {
+  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
+
   const char* entityId = corRest.in.wildcard[0];
   KjNode*     entityP  = corRest.in.requestTree;
 
@@ -417,8 +421,37 @@ bool replaceEntity(void)
     int64_t  keepCreatedAt = (oldCreatedAt != NULL && oldCreatedAt->type == KjInt) ? oldCreatedAt->value.i : 0;
     ldApiEntityToDbModel(entityP, &corRest.kalloc, keepCreatedAt);
 
+    //
+    // Requests to the DDS side go FIRST, never waited for on this route. One
+    // Attribute that cannot be sent fails the request with nothing replaced; of
+    // several, it is not written - and in a REPLACE, leaving it out would delete
+    // it, so it keeps the value it has: not written means unchanged. An error of
+    // its own, and the rest goes on (207). See bridgeServiceSync.h.
+    //
+    BridgeSyncDone syncDone = { { NULL }, 0 };
+
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, false, &syncDone) == false)
+      return true;  // ldError already set - nothing has been replaced
+
+    for (int ix = 0; ix < syncDone.failedN; ix++)
+    {
+      int     st    = syncDone.failedStatusV[ix];
+      KjNode* keptP = kjLookup(oldStored, syncDone.failedAttrV[ix]);
+
+      if (keptP != NULL)
+        kjChildAdd(entityP, kjClone(corRest.kjsonP, keptP));
+
+      ldDistOpBatchErrorAdd(errorsArrayP, entityId, st,
+                            (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                            (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                            syncDone.failedReasonV[ix], NULL);
+    }
+
     KjNode* replacedOld = NULL;
     int     r           = db.entityReplace(tenantP, entityId, entityP, &replacedOld);
+
+    bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
+    ddsAccepted = syncDone.accepted;
 
     if (r == DB_GEO_TYPE_CONFLICT)
     {
@@ -439,7 +472,7 @@ bool replaceEntity(void)
       // true at once, and that is what a Channel's endpoint is owed. The
       // attributes the replace REMOVED are not sent - see bridgeAttrsOut.h.
       //
-      bridgeAttrsOutFromEntity(tenantP, entityId, entityP);
+      bridgeAttrsOutFromEntity(tenantP, entityId, entityP, &syncDone);
 
       if (tenantP->subCacheP != NULL)
       {
@@ -523,7 +556,7 @@ bool replaceEntity(void)
 
   if (errorsCount == 0)
   {
-    corRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = (ddsAccepted == true) ? 202 : 204;
     return true;
   }
 

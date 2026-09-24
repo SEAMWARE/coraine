@@ -286,26 +286,6 @@ bool bridgeSyncRequested(bool* syncP)
 
 // -----------------------------------------------------------------------------
 //
-// bridgeSyncDoneHas -
-//
-bool bridgeSyncDoneHas(const BridgeSyncDone* doneP, const Channel* channelP)
-{
-  if (doneP == NULL)
-    return false;
-
-  for (int ix = 0; ix < doneP->count; ix++)
-  {
-    if (doneP->channelV[ix] == channelP)
-      return true;
-  }
-
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // driverFor - the loaded bridge that carries a Channel
 //
 static BridgeDriver* driverFor(const Channel* channelP)
@@ -552,7 +532,7 @@ static bool requestsFailed(BridgeSyncDone* doneP)
 //
 // bridgeRequestsBeforeWrite -
 //
-bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, BridgeSyncDone* doneP)
+bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, bool mayWait, BridgeSyncDone* doneP)
 {
   doneP->count    = 0;
   doneP->accepted = false;
@@ -580,7 +560,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
   bool several = (attrCount > 1);
 
-  if (several == true)
+  if ((several == true) || (mayWait == false))
     wait = false;
 
   KjNode* nextP;

@@ -99,6 +99,6 @@ extern void bridgeChangesAccumulate(LdMergeReport* accP, LdMergeReport* reportP,
 // is not an attribute is filtered by the Channel lookup itself - nothing can
 // claim a name no configuration named.
 //
-extern void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP);
+extern void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP, const BridgeSyncDone* syncDoneP);
 
 #endif  // BRIDGE_BRIDGEATTRSOUT_H_

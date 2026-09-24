@@ -48,6 +48,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrOut.h"                    // bridgeAttrOut
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrReplaced
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
@@ -103,6 +104,8 @@ static char* renderBodyWithContext(KjNode* bodyP)
 //
 bool putEntityAttr(void)
 {
+  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
+
   const char* entityId = corRest.in.wildcard[0];
   const char* attrWild = corRest.in.wildcard[1];
   KjNode*     bodyP    = corRest.in.requestTree;
@@ -363,9 +366,22 @@ bool putEntityAttr(void)
           return true;
         }
 
+        BridgeSyncDone syncDone = { { NULL }, 0 };
+
+        //
+        // Requests to the DDS side go FIRST - one Attribute, so one that cannot
+        // be sent fails the request with nothing written. Never waited for on
+        // this route. See bridgeServiceSync.h.
+        //
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, false, &syncDone) == false)
+          return true;  // ldError already set - nothing has been written
+
         LdMergeReport report = { NULL };
         int r = db.entityAttrsSet(tenantP, entityId, entityFrag, true,
                                    corRest.requestStartTime, &report);
+
+        bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
+        ddsAccepted = syncDone.accepted;
 
         if (r == DB_GEO_TYPE_CONFLICT)
         {
@@ -399,7 +415,7 @@ bool putEntityAttr(void)
           // subscription needs it, and bridgeAttrOut fetches its own only after
           // a Channel has been found to want it.
           //
-          bridgeAttrOut(tenantP, entityId, attrIri, NULL, NULL);
+          bridgeAttrOut(tenantP, entityId, attrIri, NULL, &syncDone);
 
           KjNode* merged = NULL;
           if (tenantP->subCacheP != NULL)
@@ -447,7 +463,7 @@ bool putEntityAttr(void)
 
   if (errorsCount == 0)
   {
-    corRest.out.httpStatusCode = 204;
+    corRest.out.httpStatusCode = (ddsAccepted == true) ? 202 : 204;
     return true;
   }
 

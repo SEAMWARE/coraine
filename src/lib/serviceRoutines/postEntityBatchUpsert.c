@@ -1026,7 +1026,7 @@ bool postEntityBatchUpsert(void)
           for (int gi = 0; gi < gN; gi++)
             if (strcmp(allIdV[gi], eid) == 0) { anySuccessV[gi] = true; break; }
 
-          bridgeAttrsOutFromEntity(tenantP, eid, createEntityV[k]);
+          bridgeAttrsOutFromEntity(tenantP, eid, createEntityV[k], NULL);
           break;
         case DB_ALREADY_EXISTS:
           // Rare race: entity appeared between retrieve and bulk-create.

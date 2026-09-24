@@ -1,0 +1,272 @@
+#
+# FILE            bridge_dds_first_all_routes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Requests to the DDS side go first on EVERY single-entity write, not only the
+# three PATCH forms: replace of an Attribute, append, replace of an Entity and
+# create. None of them waits for a service - only the PATCH forms may - and the
+# rule for one Attribute or several is the one PATCH has: one that cannot be
+# sent fails the request with nothing written; of several, it is left out and
+# the rest goes on (207).
+#
+# Two route-specific points:
+#   - REPLACE of an Entity cannot simply leave the Attribute out: the replacement
+#     would then delete it. It keeps the value it has - not written means
+#     unchanged.
+#   - CREATE sends nothing for an Entity that already exists: that create is a
+#     409, and a goal must not go out for a request that is refused.
+#
+# Loopback: A1 cannot be reached (goalMode unreachable), A2 succeeds, 'fast'
+# answers a service at once. The broker hands out a token for every goal it
+# TRIES to send, so the three to A1 that could not be sent take 1-3, and the two
+# to A2 are 4 and 5.
+#
+--NAME--
+Bridges: DDS first on every single-entity write - PUT attr, append, replace, create
+
+--TAGS--
+bridge channel plugins action service
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --service "fast,Robot,urn:R:1,job" \
+  --goalMode "A1=unreachable")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. PUT /attrs/navigate - one Attribute, its goal cannot be sent: 503"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/navigate -X PUT --payload '{ "type": "Property", "value": { "x": 1 } }'
+echo
+echo
+
+
+echo "02. POST /attrs - the unreachable action and a plain Attribute: 207, the plain one written"
+echo "========================================================================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 2 } }, "note": { "type": "Property", "value": "appended" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X POST --payload "$payload"
+echo
+echo
+
+
+echo "03. PUT /entities/urn:R:1 - the unreachable action, the service and a plain Attribute: 207"
+echo "=========================================================================================="
+payload='{
+  "id": "urn:R:1",
+  "type": "Robot",
+  "navigate": { "type": "Property", "value": { "x": 3 } },
+  "job":      { "type": "Property", "value": { "a": 1 } },
+  "note":     { "type": "Property", "value": "replaced" }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1 -X PUT --payload "$payload"
+echo
+echo
+
+
+echo "04. navigate kept the value it had - not written means unchanged; the service's reply landed"
+echo "============================================================================================"
+for i in $(seq 1 50); do
+  grep -q "'reply' on 'fast'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "05. PUT /attrs/navigate on Robot 2 - its goal is sent: 202"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs/navigate -X PUT --payload '{ "type": "Property", "value": { "x": 5 } }'
+echo
+echo
+
+
+echo "06. POST /entities for Robot 2, which exists - 409, and no goal went out for it"
+echo "==============================================================================="
+payload='{ "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 6 } } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+echo
+echo
+
+
+echo "07. Delete Robot 2, then create it with a goal - the goal is sent, 201"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:2 -X DELETE
+payload='{ "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } }'
+corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
+for i in $(seq 1 50); do
+  [ $(grep -c "on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null) -ge 2 ] && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "08. The goals that went out, and how they ended - two, both to A2, none for the refused create"
+echo "=============================================================================================="
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. PUT /attrs/navigate - one Attribute, its goal cannot be sent: 503
+======================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 201
+
+{
+  "detail": "'A1' on bridge 'loopback' could not be reached - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+02. POST /attrs - the unreachable action and a plain Attribute: 207, the plain one written
+=========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 298
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/navigate",
+      "reason": "'A1' on bridge 'loopback' could not be reached - not written",
+      "statusCode": 503
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/note"
+  ]
+}
+
+
+
+03. PUT /entities/urn:R:1 - the unreachable action, the service and a plain Attribute: 207
+==========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 335
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:1"
+  ]
+}
+
+
+
+04. navigate kept the value it had - not written means unchanged; the service's reply landed
+============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 342
+
+{
+  "id": "urn:R:1",
+  "job": {
+    "reply": {
+      "type": "Property",
+      "value": {
+        "a": 1
+      }
+    },
+    "type": "Property",
+    "value": {
+      "a": 1
+    }
+  },
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "replaced"
+  },
+  "type": "Robot"
+}
+
+
+
+05. PUT /attrs/navigate on Robot 2 - its goal is sent: 202
+==========================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. POST /entities for Robot 2, which exists - 409, and no goal went out for it
+===============================================================================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:R:2' already exists",
+  "status": 409,
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+07. Delete Robot 2, then create it with a goal - the goal is sent, 201
+======================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R:2
+Content-Length: 0
+
+
+
+
+08. The goals that went out, and how they ended - two, both to A2, none for the refused create
+==============================================================================================
+sends goal 4 to action 'A2'
+goal 4 on 'A2' (urn:loopback:goal:4) ended, state 4
+sends goal 5 to action 'A2'
+goal 5 on 'A2' (urn:loopback:goal:5) ended, state 4
+

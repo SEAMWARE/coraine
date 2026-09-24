@@ -125,7 +125,7 @@ void bridgeChangesAccumulate(LdMergeReport* accP, LdMergeReport* reportP, Kjson*
 //
 // bridgeAttrsOutFromEntity -
 //
-void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP)
+void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP, const BridgeSyncDone* syncDoneP)
 {
   if (nothingToDo(entityId) == true)
     return;
@@ -144,6 +144,6 @@ void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* ent
     // so the name-based filter above lets them through; the Channel lookup
     // then refuses them, as it refuses any name no configuration named.
     //
-    bridgeAttrOut(tenantP, entityId, attrP->name, entityP, NULL);
+    bridgeAttrOut(tenantP, entityId, attrP->name, entityP, syncDoneP);
   }
 }

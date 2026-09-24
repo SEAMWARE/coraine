@@ -851,7 +851,7 @@ bool postEntityBatchCreate(void)
 
           // Created, so every attribute in it is new - the whole entity.
           if (entP != NULL)
-            bridgeAttrsOutFromEntity(tenantP, eid, entP);
+            bridgeAttrsOutFromEntity(tenantP, eid, entP, NULL);
 
           if (subCacheP != NULL && entP != NULL)
             ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);
