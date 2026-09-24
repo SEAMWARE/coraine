@@ -430,7 +430,7 @@ bool replaceEntity(void)
     //
     BridgeSyncDone syncDone = { { NULL }, 0 };
 
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, false, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, 0, &syncDone) == false)
       return true;  // ldError already set - nothing has been replaced
 
     for (int ix = 0; ix < syncDone.failedN; ix++)
@@ -472,7 +472,7 @@ bool replaceEntity(void)
       // true at once, and that is what a Channel's endpoint is owed. The
       // attributes the replace REMOVED are not sent - see bridgeAttrsOut.h.
       //
-      bridgeAttrsOutFromEntity(tenantP, entityId, entityP, &syncDone);
+      bridgeAttrsOutFromEntity(tenantP, entityId, entityP);
 
       if (tenantP->subCacheP != NULL)
       {

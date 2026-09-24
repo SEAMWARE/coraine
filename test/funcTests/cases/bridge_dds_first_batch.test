@@ -1,0 +1,291 @@
+#
+# FILE            bridge_dds_first_batch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Requests to the DDS side go first in the BATCH operations too - update,
+# upsert, merge and create - per Entity, before the bulk write, and released
+# once it is done. Nothing is waited for, and nothing fails the batch: a request
+# that cannot be sent - even for an Entity writing a single Attribute - is left
+# out of that Entity's write and becomes its error in errors[]; the rest of the
+# batch goes on. One unreachable robot does not fail a batch of five hundred.
+#
+#   - upsert in its default (replace) mode keeps a failed Attribute's value, as
+#     a replace does: leaving it out would delete it
+#   - merge sends nothing for an Entity that does not exist (its merge is a 404)
+#   - create sends nothing for an Entity that already exists (its create is 409)
+#
+# Loopback: A1 cannot be reached (goalMode unreachable), A2 succeeds. Every goal
+# the broker TRIES to send takes a token, so the trace at the end lists the
+# goals that went out to A2 and how each ended.
+#
+--NAME--
+Bridges: DDS first in the batch operations - per Entity, never failing the batch
+
+--TAGS--
+bridge channel plugins action batch
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --goalMode "A1=unreachable")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. Batch update - Robot 1: the unreachable action and a plain Attribute; Robot 2: a goal"
+echo "=========================================================================================="
+payload='[
+  { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 1 } }, "note": { "type": "Property", "value": "updated" } },
+  { "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 2 } } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/update -X POST --payload "$payload"
+echo
+echo
+
+
+echo "02. Batch update - Robot 1's unreachable action alone: that Entity's error, nothing written"
+echo "==========================================================================================="
+payload='[ { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 3 } } } ]'
+corCurl --url /ngsi-ld/v1/entityOperations/update -X POST --payload "$payload"
+echo
+echo
+
+
+echo "03. Batch upsert (replace) - Robot 1: the unreachable action and a plain Attribute"
+echo "=================================================================================="
+payload='[ { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 4 } }, "note": { "type": "Property", "value": "upserted" } } ]'
+corCurl --url /ngsi-ld/v1/entityOperations/upsert -X POST --payload "$payload"
+echo
+echo
+
+
+echo "04. Robot 1 - note written each time; navigate kept its value, never the unreachable goal's"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "05. Batch merge - Robot 2: a goal; Robot 1: the unreachable action; Robot 9: does not exist"
+echo "==========================================================================================="
+payload='[
+  { "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 5 } } },
+  { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 6 } } },
+  { "id": "urn:R:9", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/merge -X POST --payload "$payload"
+echo
+echo
+
+
+echo "06. Batch create - Robot 2 anew with a goal; Robot 1, which exists: 409, and no goal for it"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2 -X DELETE
+payload='[
+  { "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 8 } } },
+  { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 9 } } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/create -X POST --payload "$payload"
+for i in $(seq 1 50); do
+  [ $(grep -c "on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null) -ge 3 ] && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "07. The goals that went out - three, all to A2: batch update, merge, create; none to A1, none for Robot 9 or the refused create"
+echo "=============================================================================================================================="
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:loopback:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. Batch update - Robot 1: the unreachable action and a plain Attribute; Robot 2: a goal
+==========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 350
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:1",
+    "urn:R:2"
+  ]
+}
+
+
+
+02. Batch update - Robot 1's unreachable action alone: that Entity's error, nothing written
+===========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 318
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+
+03. Batch upsert (replace) - Robot 1: the unreachable action and a plain Attribute
+==================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 335
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:1"
+  ]
+}
+
+
+
+04. Robot 1 - note written each time; navigate kept its value, never the unreachable goal's
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 180
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "note": {
+    "type": "Property",
+    "value": "upserted"
+  },
+  "type": "Robot"
+}
+
+
+
+05. Batch merge - Robot 2: a goal; Robot 1: the unreachable action; Robot 9: does not exist
+===========================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 569
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "'A1' on bridge 'loopback' could not be reached - not written",
+        "status": 503,
+        "title": "Service Unavailable",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    },
+    {
+      "entityId": "urn:R:9",
+      "error": {
+        "detail": "entity does not exist",
+        "status": 404,
+        "title": "Not Found",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:2"
+  ]
+}
+
+
+
+06. Batch create - Robot 2 anew with a goal; Robot 1, which exists: 409, and no goal for it
+===========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 291
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "entity already exists",
+        "status": 409,
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      }
+    }
+  ],
+  "success": [
+    "urn:R:2"
+  ]
+}
+
+
+
+07. The goals that went out - three, all to A2: batch update, merge, create; none to A1, none for Robot 9 or the refused create
+==============================================================================================================================
+sends goal 2 to action 'A2'
+goal 2 on 'A2' (urn:loopback:goal:2) ended, state 4
+sends goal 5 to action 'A2'
+goal 5 on 'A2' (urn:loopback:goal:5) ended, state 4
+sends goal 7 to action 'A2'
+goal 7 on 'A2' (urn:loopback:goal:7) ended, state 4
+

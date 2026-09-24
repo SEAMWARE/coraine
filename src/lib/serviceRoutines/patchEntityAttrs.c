@@ -475,7 +475,7 @@ bool patchEntityAttrs(void)
     // fails the request with nothing written. A service may be waited for, and
     // its reply is then written with the value. See bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, true, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
       return true;  // ldError already set - nothing has been written
 
     //
@@ -555,7 +555,7 @@ bool patchEntityAttrs(void)
 
       // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
       // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);

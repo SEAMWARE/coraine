@@ -503,7 +503,7 @@ bool postEntityAttrs(void)
     // several, it is left out - not updated - and the rest goes on (207). See
     // bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, false, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, 0, &syncDone) == false)
       return true;  // ldError already set - nothing has been written
 
     for (int ix = 0; ix < syncDone.failedN; ix++)
@@ -567,7 +567,7 @@ bool postEntityAttrs(void)
 
       // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
       // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);

@@ -63,6 +63,8 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
+#include "bridge/channelCache.h"                      // channelRequestCount
+#include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -834,8 +836,56 @@ bool postEntityBatchCreate(void)
       return true;
     }
 
+    //
+    // Requests to the DDS side go FIRST - per Entity, before the bulk create,
+    // never waited for and never failing the batch: one that cannot be sent is
+    // left out of the Entity and becomes its error. Nothing is sent for an Entity
+    // that already exists - its create is refused, and a goal must not go out for
+    // it. Only when a bridge carries anything.
+    //
+    bool             requestsFirst = (channelRequestCount() > 0);
+    BridgeSyncDone** doneV    = NULL;
+
+    if (requestsFirst == true)                            // nothing at all without a bridge
+    {
+      doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN);
+      memset(doneV, 0, sizeof(BridgeSyncDone*) * localN);
+
+      KjNode* ddsEntP = localArr->value.firstChildP;
+
+      for (int k = 0; k < localN; k++, ddsEntP = (ddsEntP != NULL) ? ddsEntP->next : NULL)
+      {
+        const char* eid     = eligIdV[localIdxV[k]];
+        KjNode*     existsP = NULL;
+
+        if ((ddsEntP == NULL) || ((db.entityRetrieve != NULL) && (db.entityRetrieve(tenantP, eid, &existsP) == DB_OK) && (existsP != NULL)))
+          continue;
+
+        doneV[k] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        memset(doneV[k], 0, sizeof(BridgeSyncDone));
+
+        bridgeRequestsBeforeWrite(tenantP, eid, ddsEntP, BRIDGE_REQ_PER_ENTITY, doneV[k]);
+
+        for (int ix = 0; ix < doneV[k]->failedN; ix++)
+        {
+          int st = doneV[k]->failedStatusV[ix];
+
+          addBatchError(errorsP, eid, st,
+                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
+                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                        doneV[k]->failedReasonV[ix], NULL);
+        }
+      }
+    }
+
     int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * localN);
     db.entityBulkCreate(tenantP, localArr, resultsV);
+
+    for (int k = 0; (doneV != NULL) && (k < localN); k++)
+    {
+      if (doneV[k] != NULL)
+        bridgeRequestsWritten(doneV[k]);            // late replies and held goals may land now
+    }
 
     LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
 
@@ -851,7 +901,7 @@ bool postEntityBatchCreate(void)
 
           // Created, so every attribute in it is new - the whole entity.
           if (entP != NULL)
-            bridgeAttrsOutFromEntity(tenantP, eid, entP, NULL);
+            bridgeAttrsOutFromEntity(tenantP, eid, entP);
 
           if (subCacheP != NULL && entP != NULL)
             ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);

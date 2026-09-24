@@ -42,6 +42,7 @@
 static KHashTable*  endpointHash  = NULL;
 static Channel*     channelList   = NULL;
 static int          channelCounter = 0;
+static int          requestCounter = 0;          // Channels that ASK something - a service or an action
 
 
 
@@ -122,6 +123,7 @@ int channelCacheInit(void)
 
   channelList    = NULL;
   channelCounter = 0;
+  requestCounter = 0;
 
   return CHANNEL_OK;
 }
@@ -305,6 +307,9 @@ int channelCreate
   channelList    = channelP;
   channelCounter++;
 
+  if (channelP->kind != BridgeChannelTopic)
+    requestCounter++;
+
   KT_T(KtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
        endpoint, bridgeName, entityId, attrName,
        (channelP->status == ChannelStatusAvailable) ? "available" : "dormant");
@@ -348,6 +353,9 @@ int channelDelete(const char* bridgeName, const char* endpoint)
     prevPP = &(*prevPP)->next;
   }
 
+  if (channelP->kind != BridgeChannelTopic)
+    requestCounter--;
+
   free(channelP->id);
   free(channelP->bridgeName);
   free(channelP->endpoint);
@@ -376,4 +384,15 @@ Channel* channelCacheFirst(void)
 int channelCount(void)
 {
   return channelCounter;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelRequestCount -
+//
+int channelRequestCount(void)
+{
+  return requestCounter;
 }

@@ -678,7 +678,7 @@ bool postEntities(void)
 
     if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL))
     {
-      if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, false, &syncDone) == false)
+      if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, 0, &syncDone) == false)
         return true;  // ldError already set - nothing has been created
     }
 
@@ -713,7 +713,7 @@ bool postEntities(void)
         idP->name = "id";
 
       // A create has no change report: every attribute in it is new.
-      bridgeAttrsOutFromEntity(tenantP, idP->value.s, entityP, &syncDone);
+      bridgeAttrsOutFromEntity(tenantP, idP->value.s, entityP);
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);

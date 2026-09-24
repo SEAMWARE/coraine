@@ -532,13 +532,13 @@ static bool requestsFailed(BridgeSyncDone* doneP)
 //
 // bridgeRequestsBeforeWrite -
 //
-bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, bool mayWait, BridgeSyncDone* doneP)
+bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP)
 {
   doneP->count    = 0;
   doneP->accepted = false;
   doneP->failedN  = 0;
 
-  if ((bridgeCount == 0) || (channelCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
+  if ((channelRequestCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
 
   bool wait;
@@ -558,9 +558,13 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
       attrCount++;
   }
 
-  bool several = (attrCount > 1);
+  //
+  // "several" is what decides whether a failed send is left out (recorded) or
+  // fails the call - and in a batch it is always left out, whatever the count.
+  //
+  bool several = (attrCount > 1) || ((flags & BRIDGE_REQ_PER_ENTITY) != 0);
 
-  if ((several == true) || (mayWait == false))
+  if ((several == true) || ((flags & BRIDGE_REQ_MAY_WAIT) == 0))
     wait = false;
 
   KjNode* nextP;
@@ -607,7 +611,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     if (channelP->kind == BridgeChannelAction)
     {
       uint64_t goalToken = 0;
-      int      r         = bridgeGoalSend(channelP, buf, true, &goalToken);   // held until this request has written
+      int      r         = bridgeGoalSend(channelP, buf, &goalToken);   // held until this request has written
 
       if (r != BRIDGE_OK)
       {

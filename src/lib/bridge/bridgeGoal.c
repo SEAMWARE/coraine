@@ -236,7 +236,7 @@ static void releasedCondInit(void)
 //
 // bridgeGoalSend -
 //
-int bridgeGoalSend(Channel* channelP, const char* json, bool held, uint64_t* tokenP)
+int bridgeGoalSend(Channel* channelP, const char* json, uint64_t* tokenP)
 {
   BridgeDriver* driverP = driverFor(channelP->bridgeName);
 
@@ -259,7 +259,7 @@ int bridgeGoalSend(Channel* channelP, const char* json, bool held, uint64_t* tok
   goalP->attrName   = strdup(channelP->attrName);
   goalP->request    = strdup(json);
   goalP->state      = BridgeGoalUnknown;
-  goalP->held       = held;
+  goalP->held       = true;                         // sent before its request's write - see bridgeGoalRelease
   goalP->sentMs     = nowMs();
 
   //

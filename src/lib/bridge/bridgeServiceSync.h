@@ -55,11 +55,12 @@
 // sent without waiting (202). A DDS network that is slow, or gone, can then never
 // take the broker's workers from everything else.
 //
-// Every single-entity write sends before the write: create, append, the three
-// PATCH forms, replace of an Attribute and of an Entity. Only the PATCH forms
-// may WAIT (?ddsSync is theirs; on any other route it is an unknown parameter,
-// refused with 400). The batch operations still send after the bulk write
-// (bridgeAttrOut) - that is the next step.
+// EVERY write sends before it stores: create, append, the three PATCH forms,
+// replace of an Attribute and of an Entity, and the batch operations (per
+// Entity, released after the bulk write, BRIDGE_REQ_PER_ENTITY). Nothing is sent
+// to a service or an action after a write any more - bridgeAttrOut publishes
+// topics only. Only the PATCH forms may WAIT (?ddsSync is theirs; on any other
+// route it is an unknown parameter, refused with 400).
 //
 
 
@@ -139,8 +140,14 @@ extern bool bridgeSyncRequested(bool* syncP);
 // Called by every single-entity write handler after the fragment is in the DB
 // model and before it is merged and written.
 //
-// @param mayWait  a service may be waited for: the three PATCH forms, whose
-//                 ?ddsSync this is. Every other route sends without waiting. See "Requests to the DDS side" above for what
+// @param flags  BRIDGE_REQ_MAY_WAIT: a service may be waited for - the three
+//               PATCH forms, whose ?ddsSync this is. Every other route sends
+//               without waiting.
+//               BRIDGE_REQ_PER_ENTITY: a batch operation. A request that cannot
+//               be sent never fails the call, not even for an Entity writing a
+//               single Attribute: it is recorded and left out, and the batch
+//               reports it as that Entity's error - one unreachable robot does
+//               not fail a batch of five hundred. See "Requests to the DDS side" above for what
 // is sent and what the request then answers; a reply waited for is added to its
 // attribute as the sub-attribute the plugin names, so the ordinary write stores
 // both.
@@ -153,7 +160,10 @@ extern bool bridgeSyncRequested(bool* syncP);
 // @return false, with the error set, when a request could not be sent. The
 //         handler then returns without writing anything.
 //
-extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, bool mayWait, BridgeSyncDone* doneP);
+#define BRIDGE_REQ_MAY_WAIT    0x1                    // a service may be waited for (?ddsSync) - the PATCH forms
+#define BRIDGE_REQ_PER_ENTITY  0x2                    // a batch: nothing fails the call - see below
+
+extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP);
 
 
 

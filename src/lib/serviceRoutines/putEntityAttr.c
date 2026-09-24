@@ -373,7 +373,7 @@ bool putEntityAttr(void)
         // be sent fails the request with nothing written. Never waited for on
         // this route. See bridgeServiceSync.h.
         //
-        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, false, &syncDone) == false)
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, 0, &syncDone) == false)
           return true;  // ldError already set - nothing has been written
 
         LdMergeReport report = { NULL };
@@ -415,7 +415,7 @@ bool putEntityAttr(void)
           // subscription needs it, and bridgeAttrOut fetches its own only after
           // a Channel has been found to want it.
           //
-          bridgeAttrOut(tenantP, entityId, attrIri, NULL, &syncDone);
+          bridgeAttrOut(tenantP, entityId, attrIri, NULL);
 
           KjNode* merged = NULL;
           if (tenantP->subCacheP != NULL)

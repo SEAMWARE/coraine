@@ -55,7 +55,6 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "db/Tenant.h"                                // Tenant
-#include "bridge/bridgeServiceSync.h"                 // BridgeSyncDone
 
 
 
@@ -69,7 +68,7 @@
 //                 that retrieves the entity only for subscriptions does not
 //                 have to start retrieving it for bridges.
 //
-extern void bridgeAttrsOutFromMerge(Tenant* tenantP, const char* entityId, KjNode* entityP, LdMergeReport* reportP, const BridgeSyncDone* syncDoneP);
+extern void bridgeAttrsOutFromMerge(Tenant* tenantP, const char* entityId, KjNode* entityP, LdMergeReport* reportP);
 
 
 
@@ -99,6 +98,6 @@ extern void bridgeChangesAccumulate(LdMergeReport* accP, LdMergeReport* reportP,
 // is not an attribute is filtered by the Channel lookup itself - nothing can
 // claim a name no configuration named.
 //
-extern void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP, const BridgeSyncDone* syncDoneP);
+extern void bridgeAttrsOutFromEntity(Tenant* tenantP, const char* entityId, KjNode* entityP);
 
 #endif  // BRIDGE_BRIDGEATTRSOUT_H_

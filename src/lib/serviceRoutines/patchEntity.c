@@ -400,7 +400,7 @@ bool patchEntity(void)
     // fails the request with nothing written. A service may be waited for, and
     // its reply is then written with the value. See bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, true, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
       return true;  // ldError already set - nothing has been written
 
     //
@@ -482,7 +482,7 @@ bool patchEntity(void)
       anySucceeded = true;
 
       // Every attribute the merge changed goes to whichever Channel carries it.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report, &syncDone);
+      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
 
       // mergedEntity is the post-merge tree — feed notifications + TRoE directly.
       if (tenantP->subCacheP != NULL)
