@@ -1,0 +1,160 @@
+#
+# FILE            bridge_dds_service_concurrent.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Eight streams of PATCHes that wait for a real ROS 2 service (?ddsSync=true),
+# side by side - ten each, every stream sending its next as soon as the last is
+# answered.
+#
+# The DDS Enabler calls its plugin's callbacks INSIDE its own lock, and takes
+# that same lock when a request is sent. The plugin held a lock of its own
+# across sending a waited-for request, and its reply callback took that lock
+# too - so a reply arriving WHILE another waited-for request was being sent
+# deadlocked the pair: every waiting request ran into its timeout, no reply was
+# ever delivered again, and the next send hung for good. One request at a time
+# can never show it, and neither can one burst - every send is out before the
+# first reply comes. It takes streams that overlap sending with answering.
+#
+# The plugin now only queues what the Enabler hands over, and a thread of its
+# own delivers it to the broker, holding none of the Enabler's locks. Every one
+# of the eighty is answered in time: 204.
+#
+# The count per stream is the output (80 full responses would bury it), and a
+# stream that has not finished after 60 s - a deadlock never ends by itself - is
+# stopped and said so, rather than hanging the suite.
+#
+# REQUIRE_DDS: yes
+#
+--NAME--
+Bridges (DDS): eight streams of waited-for service requests - all answered, no deadlock
+
+--TAGS--
+bridge dds service ddsSync concurrency
+
+--INIT--
+corDbDrop
+ros2NodeStop add_two_ints_server
+
+#
+# Level 0: the plugin's own traces - ddsServiceAwait reads its "discovered".
+#
+export COR_TRACE_LEVELS=0
+
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --service "add_two_ints,Calculator,urn:ngsi-ld:Calculator:1,sum,example_interfaces::srv::dds_::AddTwoInts_Request_,example_interfaces::srv::dds_::AddTwoInts_Response_")
+
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 3000
+
+--RUN--
+
+echo "01. Eight streams, ten waited-for PATCHes each - how many were answered 204"
+echo "============================================================================"
+ros2ServiceStart add_two_ints_server add_two_ints
+OUT=/tmp/cor_dds_concurrent
+PIDS=""
+for s in 1 2 3 4 5 6 7 8; do
+  (
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/sum?ddsSync=true" -X PATCH \
+              --payload "{ \"type\": \"Property\", \"value\": { \"a\": $s, \"b\": $i } }"
+    done
+  ) > $OUT.$s 2>&1 &
+  PIDS="$PIDS $!"
+done
+for t in $(seq 1 600); do
+  running=0
+  for p in $PIDS; do kill -0 $p 2>/dev/null && running=1; done
+  [ $running == 0 ] && break
+  sleep 0.1
+done
+s=0
+HUNG=0
+for p in $PIDS; do
+  s=$((s + 1))
+  if kill -0 $p 2>/dev/null; then
+    echo "stream $s: did not finish in 60 s"
+    kill $p 2>/dev/null
+    HUNG=1
+  fi
+done
+wait 2>/dev/null
+for s in 1 2 3 4 5 6 7 8; do
+  echo "stream $s: $(grep -c '^HTTP/1.1 204 No Content' $OUT.$s) of 10 answered 204"
+  rm -f $OUT.$s
+done
+echo
+echo
+
+
+echo "02. And the broker still answers the next one"
+echo "============================================="
+#
+# Not after a hang: a deadlocked broker never answers, and a request sent to it
+# would hang the suite exactly as the streams would have.
+#
+if [ $HUNG == 1 ]; then
+  echo "skipped - the broker is hung"
+else
+  corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/sum?ddsSync=true" -X PATCH \
+          --payload '{ "type": "Property", "value": { "a": 20, "b": 22 } }'
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+fi
+echo
+echo
+
+
+--TEARDOWN--
+ros2NodeStop add_two_ints_server
+coraineStop
+
+
+--EXPECT--
+01. Eight streams, ten waited-for PATCHes each - how many were answered 204
+============================================================================
+stream 1: 10 of 10 answered 204
+stream 2: 10 of 10 answered 204
+stream 3: 10 of 10 answered 204
+stream 4: 10 of 10 answered 204
+stream 5: 10 of 10 answered 204
+stream 6: 10 of 10 answered 204
+stream 7: 10 of 10 answered 204
+stream 8: 10 of 10 answered 204
+
+
+02. And the broker still answers the next one
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "sum": {
+    "ddsServiceReply": {
+      "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "type": "Property",
+      "value": {
+        "sum": 42
+      }
+    },
+    "type": "Property",
+    "value": {
+      "a": 20,
+      "b": 22
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
