@@ -114,8 +114,9 @@ static void threadBind(Tenant* tenantP)
 // whole, whether that is a number or a nested object.
 //
 // publishTime becomes observedAt, which is the term the spec already has for
-// "when this was observed". A bespoke member would have said the same thing in
-// a word only this broker understands.
+// "when this was observed". A reply's or goal's sub-attribute ALSO gets
+// Orion-LD's publishedAt (whole seconds) - its clients read that, and moving
+// from Orion-LD is meant to change nothing for them.
 //
 // ⭐ WITH A subAttrName IT IS THE OTHER WAY AROUND, and that asymmetry is the
 // whole of what a reply is. The attribute's value is what was ASKED - a request
@@ -173,7 +174,21 @@ static KjNode* attributeFromSample(const char* attrName,
     kjChildAdd(subP, payloadP);
 
     if (publishTime > 0)
+    {
       kjChildAdd(subP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+
+      //
+      // publishedAt, as Orion-LD writes it on a reply or goal sub-attribute: a
+      // Property holding WHOLE seconds since the epoch - it divides the
+      // transport's nanoseconds by 10^9. Its clients read it, and until ARISE ends
+      // that contract does not change. observedAt, just above, keeps the precision.
+      //
+      KjNode* publishedAtP = kjObject(corRest.kjsonP, "publishedAt");
+
+      kjChildAdd(publishedAtP, kjString(corRest.kjsonP, "type", "Property"));
+      kjChildAdd(publishedAtP, kjInteger(corRest.kjsonP, "value", (long long) (publishTime / 1000000000LL)));
+      kjChildAdd(subP, publishedAtP);
+    }
 
     kjChildAdd(attrP, subP);
   }

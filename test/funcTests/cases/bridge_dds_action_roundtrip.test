@@ -17,13 +17,16 @@
 #   01-03  a goal of order 3: two feedbacks, a result, and it SUCCEEDED (4)
 #   04-06  a goal of order 10, cancelled after its first feedback: 202, and it
 #          ends CANCELED (5)
+#   04b    while it runs: ddsActionStatus.code as orion-ld spells it, and publishedAt
 #   07-08  a goal to an action nobody serves: 503, and nothing is written
 #
 # ⭐ The oracle is the entity afterwards and the broker's trace (0 for the
 # plugin, 402 KtBridge) - not the goal's instance mid-flight, which holds
 # whatever the server has said so far and so depends on ROS's timing. How many
 # status updates a goal gets depends on it too; its end, its feedback count and
-# its one result do not.
+# its one result do not. 04b looks mid-flight for two things only, and neither
+# depends on it: after its first feedback the status IS executing (its next is
+# the end, seconds away), and publishedAt is there - orion-ld's contract.
 #
 # REQUIRE_DDS: yes
 #
@@ -79,6 +82,13 @@ echo "04. A goal of order 10 - it runs for some ten seconds"
 echo "====================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 10 } }'
 for i in $(seq 1 100); do [ $(grep -c "'ddsActionFeedback' on 'fibonacci'" /tmp/coraine.CB.log) -ge 3 ] && break; sleep 0.1; done
+echo
+echo
+
+
+echo "04b. While it runs - its instance as orion-ld shows it: the status code, publishedAt"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1 | grep -oE '"code": "[a-zA-Z]+"|"publishedAt"' | sort -u
 echo
 echo
 
@@ -164,6 +174,12 @@ Date: REGEX(.*)
 Content-Length: 0
 
 
+
+
+04b. While it runs - its instance as orion-ld shows it: the status code, publishedAt
+====================================================================================
+"code": "executing"
+"publishedAt"
 
 
 05. Cancel it - by deleting its instance: 202, the cancel is on its way
