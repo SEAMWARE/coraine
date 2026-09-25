@@ -15,9 +15,10 @@
 # becomes an attribute named after itself. Point a broker at a live system with
 # no mapping at all and everything on it shows up.
 #
-# ⚠ It is OFF unless the configuration asks. A broker that stores every
-# endpoint it hears, unasked, is a different product - and on a busy domain an
-# unbounded entity.
+# ⚠ It is ON unless the configuration says "defaultEntity": false - as Orion-LD
+# does for its DDS clients (KZ 2026-09-25). A broker that stores every endpoint
+# it hears, unasked, is a different product - and on a busy domain an unbounded
+# entity - so the off switch is tested too (05b).
 #
 # The samples come from the loopback bridge's emitAtStart, which is the only
 # way to produce an unclaimed sample without a foreign publisher: everything
@@ -128,19 +129,39 @@ echo
 
 
 
-echo "05. Restart with no catch-all in the file - the default, and it drops"
-echo "====================================================================="
+echo "05. Restart with no defaultEntity in the file - the default, ON: it is stored"
+echo "=============================================================================="
 #
 # The same bridge, a new endpoint nobody claims, and no defaultEntity. This is
-# what every deployment that does not ask for one gets, and it is the claim
-# most likely to be broken by accident later: a broker that quietly began
-# storing every endpoint it hears would pass every other step above.
+# what every deployment that does not say gets - the catch-all, as Orion-LD
+# gives its DDS clients (KZ 2026-09-25).
 #
 BRIDGE_CONFIG2=$(bridgeConfig -o /tmp/coraine_bridges2.json \
   --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
   --emit "pressure=7")
 
 coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG2
+
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default '"pressure"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+echo
+echo
+
+
+
+echo "05b. Restart with \"defaultEntity\": false - off, and it drops"
+echo "=============================================================="
+#
+# A new endpoint nobody claims, and the file turning the catch-all off. The
+# claim most likely to be broken by accident later: a broker that ignored the
+# "false" would pass every other step in this file.
+#
+BRIDGE_CONFIG4=$(bridgeConfig -o /tmp/coraine_bridges4.json \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --defaultEntity false \
+  --emit "flowRate=5")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG4
 
 #
 # A fixed wait, deliberately: every other wait in this file is corAwaitBody on
@@ -149,7 +170,7 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG2
 # thread's 1 ms tick.
 #
 sleep 1
-corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default | grep -c '"flowRate"'
 echo
 echo
 
@@ -184,7 +205,7 @@ echo
 
 --TEARDOWN--
 coraineStop
-rm -f /tmp/coraine_bridges.json /tmp/coraine_bridges2.json /tmp/coraine_bridges3.json
+rm -f /tmp/coraine_bridges.json /tmp/coraine_bridges2.json /tmp/coraine_bridges3.json /tmp/coraine_bridges4.json
 
 --EXPECT--
 01. The claimed endpoint went where it always did
@@ -271,13 +292,13 @@ Content-Length: 225
 1 -> 'P1' on bridge 'loopback'
 
 
-05. Restart with no catch-all in the file - the default, and it drops
-=====================================================================
+05. Restart with no defaultEntity in the file - the default, ON: it is stored
+==============================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 225
+Content-Length: 285
 
 {
   "humidity": {
@@ -285,6 +306,10 @@ Content-Length: 225
     "value": 99
   },
   "id": "urn:ngsi-ld:loopback:default",
+  "pressure": {
+    "type": "Property",
+    "value": 7
+  },
   "rt/chatter": {
     "type": "Property",
     "value": {
@@ -294,6 +319,11 @@ Content-Length: 225
   "type": "LOOPBACK"
 }
 
+
+
+05b. Restart with "defaultEntity": false - off, and it drops
+==============================================================
+0
 
 
 06. A catch-all must not write an attribute a Channel already writes

@@ -32,12 +32,15 @@
 // find out what to write in the configuration file. It is also the single best
 // thing to show someone.
 //
-// ⚠ OFF by default. A broker that stores every endpoint it hears, unasked, is a
-// different product from one that stores what it was configured to store - and
-// on a busy domain it is also an unbounded entity. The bridge's section of the
-// configuration file turns it on:
+// ⚠ ON by default (since 2026-09-25), for every bridge whose section of the
+// configuration file has an "ngsild" part - because Orion-LD does it, and its
+// DDS clients must see what they saw (KZ: "not that I like it very much, but
+// yes"). The cost stands: a broker that stores every endpoint it hears, unasked,
+// is a different product from one that stores what it was configured to store,
+// and on a busy domain it is an unbounded entity. So the file can say:
 //
-//   "defaultEntity": true                                  - the derived pair
+//   "defaultEntity": false                                 - off
+//   "defaultEntity": true                                  - the derived pair (the default)
 //   "defaultEntity": { "id": "urn:...", "type": "Sensor" } - or say it exactly
 //
 // The derived pair is "urn:ngsi-ld:<bridge>:default" with the bridge's alias

@@ -21,6 +21,7 @@
 #include "kjson/kjBufferCreate.h"                     // kjBufferCreate
 #include "kjson/kjParse.h"                            // kjParse
 #include "kjson/kjLookup.h"                           // kjLookup
+#include "kjson/kjBuilder.h"                          // kjBoolean
 #include "kjson/KjNode.h"                             // KjNode
 #include "ktrace/kTrace.h"                            // KT_W, KT_X, KT_T
 
@@ -480,10 +481,17 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     //
     // And the catch-all, which is off unless the file asks for it.
     //
+    //
+    // ON unless the file says "defaultEntity": false - as Orion-LD does, whose
+    // DDS clients find every unmapped topic on urn:ngsi-ld:dds:default without
+    // asking (KZ 2026-09-25: until ARISE ends, what they see stays).
+    //
     KjNode* defaultEntityP = kjLookup(ngsildP, "defaultEntity");
 
-    if (defaultEntityP != NULL)
-      defaultEntityLoad(alias, defaultEntityP, tenantP, &kalloc);
+    if (defaultEntityP == NULL)
+      defaultEntityP = kjBoolean(kjP, "defaultEntity", true);
+
+    defaultEntityLoad(alias, defaultEntityP, tenantP, &kalloc);
   }
 
   kaBufferReset(&kalloc, true);
