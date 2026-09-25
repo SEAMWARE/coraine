@@ -18,6 +18,7 @@
 
 #include "bridge/Channel.h"                           // Channel, ChannelStatus*, ChannelRetention*
 #include "bridge/channelCache.h"                      // channelCacheFirst
+#include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefault
 #include "bridge/bridgeRender.h"                      // Own interface
 
 
@@ -121,6 +122,24 @@ static const char* retentionName(ChannelRetention retention)
 
 // -----------------------------------------------------------------------------
 //
+// notificationRender - a default goal endpoint, in the subscription's own shape
+//
+static void notificationRender(KjNode* bodyP, const char* uri, const char* accept)
+{
+  Kjson*  kjsonP        = corRest.kjsonP;
+  KjNode* notificationP = kjObject(kjsonP, "notification");
+  KjNode* endpointP     = kjObject(kjsonP, "endpoint");
+
+  kjChildAdd(endpointP, kjString(kjsonP, "uri",    (char*) uri));
+  kjChildAdd(endpointP, kjString(kjsonP, "accept", (char*) ((accept != NULL) ? accept : "application/json")));
+  kjChildAdd(notificationP, endpointP);
+  kjChildAdd(bodyP, notificationP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelRender -
 //
 KjNode* channelRender(Channel* channelP, CorLdContext* contextP)
@@ -146,6 +165,9 @@ KjNode* channelRender(Channel* channelP, CorLdContext* contextP)
 
   if (channelP->statusReason != NULL)
     kjChildAdd(bodyP, kjString(kjsonP, "statusReason", channelP->statusReason));
+
+  if (channelP->notifyUri != NULL)
+    notificationRender(bodyP, channelP->notifyUri, channelP->notifyAccept);
 
   return bodyP;
 }
@@ -174,6 +196,12 @@ KjNode* bridgeRender(const char* bridgeName, bool loaded)
     snprintf(reason, len, "plugin '%s' not loaded - not named on --bridges", bridgeName);
     kjChildAdd(bodyP, kjString(kjsonP, "statusReason", reason));
   }
+
+  const char* uri    = NULL;
+  const char* accept = NULL;
+
+  if (bridgeGoalNotifyDefault(bridgeName, &uri, &accept) == true)
+    notificationRender(bodyP, uri, accept);
 
   return bodyP;
 }

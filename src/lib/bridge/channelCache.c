@@ -299,6 +299,8 @@ int channelCreate
     free(channelP->entityType);
     free(channelP->attrName);
     free(channelP->statusReason);
+    free(channelP->notifyUri);
+    free(channelP->notifyAccept);
     free(channelP);
     return CHANNEL_ERR;
   }
@@ -363,6 +365,8 @@ int channelDelete(const char* bridgeName, const char* endpoint)
   free(channelP->entityType);
   free(channelP->attrName);
   free(channelP->statusReason);
+  free(channelP->notifyUri);
+  free(channelP->notifyAccept);
   free(channelP);
 
   channelCounter--;

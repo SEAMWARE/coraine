@@ -33,6 +33,7 @@
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
+#include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/channelConfigLoad.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -58,6 +59,46 @@ static const char* stringMember(KjNode* objectP, const char* name)
     return NULL;
 
   return nodeP->value.s;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notificationParse - a default goal endpoint: { "endpoint": { "uri": ..., "accept": ... } }
+//
+// The subscription's own shape, so nothing new to learn and nothing to mint.
+// Only http(s) - a goal's events go out as an HTTP notification - and accept
+// application/json (the default) or application/ld+json.
+//
+// A default that cannot be used is WARNED ABOUT AND IGNORED, as an incomplete
+// Channel entry is: its goals then fall back to the next default, or are polled,
+// and a working deployment is not refused a start over where it notifies.
+//
+// @return true with *uriP (and *acceptP, NULL for the default) set
+//
+static bool notificationParse(const char* alias, const char* where, KjNode* notificationP, const char** uriP, const char** acceptP)
+{
+  KjNode*     endpointP = (notificationP->type == KjObject) ? kjLookup(notificationP, "endpoint") : NULL;
+  const char* uri       = ((endpointP != NULL) && (endpointP->type == KjObject)) ? stringMember(endpointP, "uri")    : NULL;
+  const char* accept    = ((endpointP != NULL) && (endpointP->type == KjObject)) ? stringMember(endpointP, "accept") : NULL;
+
+  if ((uri == NULL) || ((strncmp(uri, "http://", 7) != 0) && (strncmp(uri, "https://", 8) != 0)))
+  {
+    KT_W("bridge '%s': %s - notification.endpoint.uri must be an http(s) URL - ignored", alias, where);
+    return false;
+  }
+
+  if ((accept != NULL) && (strcmp(accept, "application/json") != 0) && (strcmp(accept, "application/ld+json") != 0))
+  {
+    KT_W("bridge '%s': %s - notification.endpoint.accept '%s' is neither application/json nor application/ld+json - ignored", alias, where, accept);
+    return false;
+  }
+
+  *uriP    = uri;
+  *acceptP = accept;
+
+  return true;
 }
 
 
@@ -190,6 +231,31 @@ static int channelsLoad(const char*        alias,
 
     if (r != CHANNEL_OK)
       KT_X(1, "bridge '%s': endpoint '%s' could not be added (%d)", alias, endpoint, r);
+
+    //
+    // An action's default goal endpoint - where a goal that names none of its
+    // own is notified. Only goals are notified this way: on a topic or a
+    // service it would mean nothing, and saying so beats silently dropping it.
+    //
+    KjNode* notificationP = kjLookup(entryP, "notification");
+
+    if ((notificationP != NULL) && (kind != BridgeChannelAction))
+      KT_W("bridge '%s': endpoint '%s' - 'notification' is for actions only - ignored", alias, endpoint);
+    else if (notificationP != NULL)
+    {
+      const char* uri    = NULL;
+      const char* accept = NULL;
+      Channel*    chP    = channelLookup(alias, endpoint);
+      char        where[256];
+
+      snprintf(where, sizeof(where), "endpoint '%s'", endpoint);
+
+      if ((chP != NULL) && (notificationParse(alias, where, notificationP, &uri, &accept) == true))
+      {
+        chP->notifyUri    = strdup(uri);
+        chP->notifyAccept = (accept != NULL) ? strdup(accept) : NULL;
+      }
+    }
 
     ++created;
   }
@@ -370,6 +436,21 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     {
       KT_W("bridge '%s' is named in '%s' but has no 'ngsild' section - no Channels from it", alias, path);
       continue;
+    }
+
+    //
+    // The Bridge's default goal endpoint - for a goal whose request and Channel
+    // name none. One address for every action Channel of this Bridge.
+    //
+    KjNode* bridgeNotificationP = kjLookup(ngsildP, "notification");
+
+    if (bridgeNotificationP != NULL)
+    {
+      const char* uri    = NULL;
+      const char* accept = NULL;
+
+      if (notificationParse(alias, "its ngsild section", bridgeNotificationP, &uri, &accept) == true)
+        bridgeGoalNotifyDefaultSet(alias, uri, accept);
     }
 
     KjNode* topicsP = kjLookup(ngsildP, "topics");

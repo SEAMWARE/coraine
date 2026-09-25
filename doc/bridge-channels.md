@@ -1878,20 +1878,25 @@ topics:
   4. none - the goal is polled with `GET …/goals/{goalId}` while it runs, and its
      end is in TRoE.
 
-  The defaults are cache-only subscriptions too, made when the Channel is
-  loaded, watching the Channel's attribute of its entity. They cannot be the
-  objects' `endpoint`: on a Bridge that is the transport instance's address, on
-  a Channel the transport's own name (the DDS action). Proposed: the
-  subscription's own shape,
-  `"notification": { "endpoint": { "uri": "…", "accept": "application/json" } }`,
-  on both - core terms already. From the config file until Channel/Bridge CRUD
-  exists (§3.5a). Every feedback event is notified; no throttling.
+  A default makes **no subscription of its own**: a goal that names no endpoint
+  is given its Channel's default, else its Bridge's, as its endpoint, and gets
+  the same per-goal subscription an endpoint of its own would (built,
+  2026-09-25). So "the first that exists" holds exactly - a default hears only
+  the goals that named none, never a goal with an endpoint of its own, nor an
+  ordinary write of the attribute. A standing subscription on the attribute
+  would have heard all three.
 
-  Open: a default subscription watches the whole attribute, so on its own it
-  also fires for a goal that has its own endpoint (both hear it - "the first
-  that exists" then does not hold) and for the attribute's default instance.
-  Either the default watches goal instances only and skips those with their own
-  endpoint, or both hear such a goal.
+  The defaults cannot be the objects' `endpoint`: on a Bridge that is the
+  transport instance's address, on a Channel the transport's own name (the DDS
+  action). They take the subscription's own shape,
+  `"notification": { "endpoint": { "uri": "…", "accept": "application/json" } }`
+  - core terms already - in the configuration file, additive to Orion-LD's
+  format: on an action entry for the Channel's, in the Bridge's `ngsild` section
+  for the Bridge's. `GET /channels` and `GET /bridges` show them. Only http(s),
+  accept `application/json` (the default) or `application/ld+json`; a default
+  that cannot be used is warned about and ignored, as an incomplete entry is. From
+  the config file until Channel/Bridge CRUD exists (§3.5a). Every feedback event
+  is notified; no throttling.
 
 Port the DDS *mechanics* — type loading, `.bin` handling, goal
 correlation, cancel, feedback/status/result arrival. That is transport
