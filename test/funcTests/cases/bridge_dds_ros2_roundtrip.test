@@ -135,7 +135,23 @@ Content-Length: REGEX(\d+)
 {
   "id": "urn:ngsi-ld:Talker:1",
   "message": {
+    "ddsDataType": {
+      "type": "Property",
+      "value": "std_msgs::msg::dds_::String_"
+    },
+    "instanceHandleId": {
+      "type": "Property",
+      "value": "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"
+    },
     "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+    "participantId": {
+      "type": "Property",
+      "value": "REGEX([0-9a-f.]+)"
+    },
+    "publishedAt": {
+      "type": "Property",
+      "value": REGEX(\d{19})
+    },
     "type": "Property",
     "value": {
       "data": "REGEX(Hello World: \d+)"

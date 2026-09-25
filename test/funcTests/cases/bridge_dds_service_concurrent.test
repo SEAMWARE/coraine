@@ -140,11 +140,27 @@ Content-Length: REGEX(\d+)
 {
   "id": "urn:ngsi-ld:Calculator:1",
   "sum": {
-    "ddsServiceReply": {
+    "reply": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "example_interfaces::srv::dds_::AddTwoInts_Response_"
+      },
+      "instanceHandleId": {
+        "type": "Property",
+        "value": "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"
+      },
       "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "participantId": {
+        "type": "Property",
+        "value": "REGEX([0-9a-f.]+)"
+      },
       "publishedAt": {
         "type": "Property",
         "value": REGEX(\d{10})
+      },
+      "requestId": {
+        "type": "Property",
+        "value": REGEX(\d+)
       },
       "type": "Property",
       "value": {

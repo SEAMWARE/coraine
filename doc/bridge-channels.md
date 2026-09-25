@@ -1935,7 +1935,7 @@ that option is gone — but **how cheap the choice is to replace.**
 So:
 
 1. **Adopt the convention already in field use, explicitly provisional.**
-   `ddsServiceReply` / `ddsActionFeedback` sub-Property envelopes,
+   `reply` / `ddsActionFeedback` sub-Property envelopes (Orion-LD's names),
    per-goal instances keyed by `datasetId`. The reason is
    **interoperability**: deployments and tooling exist that already read
    that shape, and matching them is the point. Inventing a better one now
