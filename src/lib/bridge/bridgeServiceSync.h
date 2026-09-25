@@ -39,9 +39,25 @@
 // and an attribute whose request cannot be sent is taken out and not written -
 // the rest is, and the answer is 207 with that attribute not updated.
 //
+// ⭐⭐ AN ACTION'S TRANSPORT DECIDES BEFORE ANYTHING IS STORED. Its goal is sent,
+// and the request WAITS for the goal's first event - on every route, whatever
+// ?ddsSync says - and writes the value only for a goal that was accepted,
+// together with that first event, as the goal's own instance. A goal can be
+// refused for reasons nobody sees until it is, and a value stored for one would
+// be a record of something that is not happening:
+//
+//   422  rejected (errorCode goalRejected)   503  the transport lost it (goalFailed)
+//   504  no answer by --ddsSyncTimeout (goalNotAnswered) - and the goal is
+//        CANCELLED, so that "nothing was written" stays true
+//
+// Several goals are all sent first and then waited for against ONE deadline,
+// and each attribute is written or refused on its own goal's answer (207). A
+// batch sends EVERY Entity's goals before it waits for any (BRIDGE_REQ_SEND_ONLY,
+// then bridgeRequestsAwait): its wait is its slowest goal, never their sum.
+//
 // What a request that DID go out answers:
 //
-//   an action goal              202 - accepted, not done: a goal runs, and its
+//   an action goal, accepted    202 - accepted, not done: a goal runs, and its
 //                               events land in an instance of its own
 //   a service, waited for,      as any write (204) - the reply is written WITH
 //   answered in time            the value, in the request's own write
@@ -106,6 +122,10 @@ typedef struct BridgeSyncDone
   bool      accepted;                                 // something went out that is not finished - answer 202
   uint64_t  detachedV[BRIDGE_SYNC_MAX];               // per channelV: the token of a wait that timed out, else 0
   uint64_t  goalV[BRIDGE_SYNC_MAX];                   // per channelV: the token of a goal held for the write, else 0
+  KjNode*   goalAttrV[BRIDGE_SYNC_MAX];               // per goal: its attribute in the fragment - the instance goes in there
+  char*     goalRequestV[BRIDGE_SYNC_MAX];            // per goal: the goal as sent - its instance's value
+  char*     goalIdV[BRIDGE_SYNC_MAX];                 // per goal: the transport's id, once accepted (POST /channels/{id}/goals)
+  bool      several;                                  // a refusal takes the attribute out, and does not fail the request
 
   //
   // A request writing SEVERAL attributes does not fail as a whole because one
@@ -117,6 +137,8 @@ typedef struct BridgeSyncDone
   const char*  failedAttrV[BRIDGE_SYNC_MAX];          // the attribute - not written
   int          failedStatusV[BRIDGE_SYNC_MAX];        // what a request of it alone would have answered
   const char*  failedReasonV[BRIDGE_SYNC_MAX];        // why, in the request's arena
+  const char*  failedTitleV[BRIDGE_SYNC_MAX];         // the ProblemDetails title of that status
+  const char*  failedTypeV[BRIDGE_SYNC_MAX];          // ... and its type
 } BridgeSyncDone;
 
 
@@ -162,8 +184,37 @@ extern bool bridgeSyncRequested(bool* syncP);
 //
 #define BRIDGE_REQ_MAY_WAIT    0x1                    // a service may be waited for (?ddsSync) - the PATCH forms
 #define BRIDGE_REQ_PER_ENTITY  0x2                    // a batch: nothing fails the call - see below
+#define BRIDGE_REQ_SEND_ONLY   0x4                    // goals are sent, not waited for - the caller calls bridgeRequestsAwait
 
 extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsAwait - wait for the goals a fragment sent, and write only those accepted
+//
+// bridgeRequestsBeforeWrite does this itself, unless BRIDGE_REQ_SEND_ONLY. A
+// batch sends every Entity's goals first and then calls this once per Entity,
+// all with the same dueMs (bridgeRequestsDeadline): a goal's answer never waits
+// for the next goal to be sent.
+//
+// An accepted goal's instance - the request and the first event - is put in
+// its attribute in the fragment, for the request's one write to create. A
+// refused or unanswered goal's attribute is taken out of the fragment and
+// recorded as failed (in a batch, a request never fails as a whole).
+//
+// @return false, with the error set, when the request fails as a whole.
+//
+extern bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsDeadline - the absolute deadline of a wait begun now (--ddsSyncTimeout)
+//
+extern int64_t bridgeRequestsDeadline(void);
 
 
 
@@ -176,6 +227,19 @@ extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjN
 // this right after the write - whether it succeeded or not.
 //
 extern void bridgeRequestsWritten(const BridgeSyncDone* doneP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsReleasePending - the request's notifications have gone out: its goals may speak
+//
+// For the post-response hook, AFTER ldNotifyDispatchPending (which sends
+// inline). bridgeRequestsWritten queued the goals the request holds; their
+// events wait until now, so that none of them reaches a subscriber before the
+// request's own notification of the write that made the goal's instance.
+//
+extern void bridgeRequestsReleasePending(void);
 
 
 

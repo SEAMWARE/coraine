@@ -1,0 +1,368 @@
+#
+# FILE            bridge_channel_goals.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The goals of an action Channel, as a resource - Actions phase 2:
+#
+#   POST   /ngsi-ld/v1/channels/{channelId}/goals            send one
+#   GET    /ngsi-ld/v1/channels/{channelId}/goals            those in progress
+#   GET    /ngsi-ld/v1/channels/{channelId}/goals/{goalId}   poll one
+#   DELETE /ngsi-ld/v1/channels/{channelId}/goals/{goalId}   cancel it
+#
+# KZ's decisions: the POST WAITS for the transport's answer, and the Location
+# carries the transport's own goal id - a refused goal is an error, not a 201
+# that fails later (422, errorCode goalRejected). The goal still lives in its
+# own instance of the entity's attribute, as in phase 1 (datasetId
+# urn:goal:<id>) - the resource is a view onto it. And a goal is readable only
+# while in progress: after its end, 404.
+#
+# goalFeedback / goalResult are shown whatever the plugin names them: the
+# plugin says which PART of a goal a payload is (ABI 5, goalEventPartIn).
+#
+# Loopback:  A1 progress - accepted, one feedback, then held until cancelled
+#            A2 reject   - refused at once
+#            A3 succeed  - over before anybody could poll it
+#            P1 a topic  - no goals
+#
+--NAME--
+Bridges: a Channel's goals - POST waits for the answer, GET while in progress, DELETE cancels
+
+--TAGS--
+bridge channel plugins action goal
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic  "P1,Machine,urn:M:1,temperature" \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --action "A3,Robot,urn:R:3,navigate" \
+  --goalMode "A1=progress" \
+  --goalMode "A2=reject")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. POST a goal to A1 - accepted: 201, Location .../goals/<the transport's goal id>"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals --payload '{ "goalRequest": { "x": 1, "frame-id": "map" } }'
+for i in $(seq 1 50); do
+  grep -q "'feedback' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "02. GET the Channel's goals - goal 1, executing, with its request and its latest feedback"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals
+echo
+echo
+
+
+echo "03. GET goal 1 - the same, alone"
+echo "================================"
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1
+echo
+echo
+
+
+echo "04. The entity - goal 1 in its own instance of navigate, datasetId urn:goal:1, as in phase 1"
+echo "============================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "05. DELETE goal 1 - the cancel is on its way: 202"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1 -X DELETE
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "06. GET goal 1 - it has ended, so it is gone: 404"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1
+echo
+echo
+
+
+echo "07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and nothing is written"
+echo "=================================================================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A2/goals --payload '{ "goalRequest": { "x": 2 } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo
+
+
+echo "08. POST a goal to A3 - it succeeds at once: 201; it is over before a poll, so GET is 404"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals --payload '{ "goalRequest": { "x": 3 } }'
+for i in $(seq 1 50); do
+  grep -q "goal 3 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals/3
+echo
+echo
+
+
+echo "09. Refusals: no goalRequest - 400; a topic Channel - 400; no such Channel - 404"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals --payload '{ "endpoint": "http://localhost:9997/notify" }'
+echo
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P1/goals --payload '{ "goalRequest": { "x": 9 } }'
+echo
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A9/goals --payload '{ "goalRequest": { "x": 9 } }'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. POST a goal to A1 - accepted: 201, Location .../goals/<the transport's goal id>
+==================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1
+Content-Length: 0
+
+
+
+
+02. GET the Channel's goals - goal 1, executing, with its request and its latest feedback
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 217
+
+[
+  {
+    "goalFeedback": {
+      "progress": 50
+    },
+    "goalId": "1",
+    "goalRequest": {
+      "frame-id": "map",
+      "x": 1
+    },
+    "id": "urn:goal:1",
+    "status": "executing",
+    "type": "Goal"
+  }
+]
+
+
+
+03. GET goal 1 - the same, alone
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 187
+
+{
+  "goalFeedback": {
+    "progress": 50
+  },
+  "goalId": "1",
+  "goalRequest": {
+    "frame-id": "map",
+    "x": 1
+  },
+  "id": "urn:goal:1",
+  "status": "executing",
+  "type": "Goal"
+}
+
+
+
+04. The entity - goal 1 in its own instance of navigate, datasetId urn:goal:1, as in phase 1
+============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 530
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "frame-id": "map",
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:goal:1",
+      "feedback": {
+        "type": "Property",
+        "value": {
+          "progress": 50
+        }
+      },
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "frame-id": "map",
+        "x": 1
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+05. DELETE goal 1 - the cancel is on its way: 202
+=================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. GET goal 1 - it has ended, so it is gone: 404
+=================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "goal '1' is not in progress on this channel",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and nothing is written
+==================================================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "the server of 'A2' on bridge 'loopback' rejected the goal - nothing was written",
+  "errorCode": "goalRejected",
+  "status": 422,
+  "title": "Goal Rejected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+
+08. POST a goal to A3 - it succeeds at once: 201; it is over before a poll, so GET is 404
+=========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals/3
+Content-Length: 0
+
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "goal '3' is not in progress on this channel",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. Refusals: no goalRequest - 400; a topic Channel - 400; no such Channel - 404
+================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "a goal needs a goalRequest - the goal, as the transport takes it",
+  "status": 400,
+  "title": "Invalid Goal",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "channel 'urn:ngsi-ld:Channel:loopback:P1' carries no goals - a goal goes to a Channel whose channelKind is action",
+  "status": 400,
+  "title": "Not an Action Channel",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "channel 'urn:ngsi-ld:Channel:loopback:A9' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+

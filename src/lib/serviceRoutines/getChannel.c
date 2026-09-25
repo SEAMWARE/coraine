@@ -17,7 +17,7 @@
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCacheFirst
-#include "bridge/bridgeRender.h"                      // channelRender, channelIdOf
+#include "bridge/bridgeRender.h"                      // channelRender, channelOfTenant
 #include "serviceRoutines/getChannel.h"               // Own interface
 
 
@@ -35,14 +35,13 @@ bool getChannel(void)
   // Attribute keyed by datasetId and render it as an array of instances
   corNgsild.rawResponse = true;
 
-  for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
+  Channel* channelP = channelOfTenant(tenantP, channelId);
+
+  if (channelP != NULL)
   {
-    if ((channelP->tenantP == tenantP) && (strcmp(channelIdOf(channelP), channelId) == 0))
-    {
-      ldContextResolve();
-      corRest.out.responseTree = channelRender(channelP, corNgsild.contextP);
-      return true;
-    }
+    ldContextResolve();
+    corRest.out.responseTree = channelRender(channelP, corNgsild.contextP);
+    return true;
   }
 
   ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "channel '%s' not found", channelId);

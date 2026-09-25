@@ -88,7 +88,7 @@
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
-#include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs
+#include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs, bridgeRequestsReleasePending
 #include "coraineTraceLevels.h"                    // KtBridge
 
 #if COR_FEATURE_REGISTRATIONS
@@ -556,7 +556,8 @@ static BridgeBroker bridgeBroker =
   bridgeLogFunction,
   bridgeSampleQualifiedIn,
   bridgeReplyIn,
-  bridgeGoalEventIn
+  bridgeGoalEventIn,
+  bridgeGoalEventPartIn
 };
 
 
@@ -904,6 +905,7 @@ static void brokerPostResponseHook(void)
   ldNotifyDispatchPending();
   ldCsrSubDispatchPending();
   troeDispatchPending();
+  bridgeRequestsReleasePending();     // after the notifications - a goal's events must not overtake them
   dbExpiredEntityDispatchPending();   // transient Entities a read found expired
   ldRegCacheProbePending();
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch

@@ -9,10 +9,10 @@
 #include <inttypes.h>                                 // PRIu64
 #include <pthread.h>                                  // pthread_mutex_*
 #include <stdbool.h>                                  // bool
-#include <stdint.h>                                   // uint64_t, int64_t
+#include <stdint.h>                                   // uint64_t, int64_t, uintptr_t
 #include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // calloc, free
-#include <string.h>                                   // strcmp, strdup
+#include <string.h>                                   // strcmp, strdup, memset
 #include <errno.h>                                    // ETIMEDOUT
 #include <time.h>                                     // clock_gettime
 
@@ -22,11 +22,15 @@
 #include "bridge/channelCache.h"                      // channelLookupByTarget
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
+#include "kjson/kjParse.h"                            // kjParse
+#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corBridge/BridgeBroker.h"                   // BridgeGoalState, BridgeGoalPart
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemRemove, ldSubCacheWrLock
 #include "bridge/bridgeSampleIn.h"                    // bridgeGoalWrite, bridgeGoalInstanceRemove
+#include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutMs
 #include "bridge/bridgeGoal.h"                        // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -47,10 +51,13 @@
 
 // -----------------------------------------------------------------------------
 //
-// HELD_WAIT_MS - how long an event of a held goal waits for the request's write
+// HELD_WAIT_MS - how long an event of a held goal waits for the request's write, beyond --ddsSyncTimeout
 //
-// As for a late service reply (bridgeServiceSync.c): the write normally follows
-// in a millisecond, and this bounds a handler that never says it has written.
+// The first event of a goal is handed to the request that sent it, and the
+// write follows it. A later event can arrive before that write - and in a batch,
+// the write waits for EVERY goal of the batch, up to --ddsSyncTimeout. So an
+// event of a held goal waits that long, and this on top of it, which bounds a
+// handler that never says it has written.
 //
 #define HELD_WAIT_MS  1000
 
@@ -81,6 +88,14 @@ typedef struct Goal
   bool          instanceMade;                         // an event has been written into the instance
   bool          held;                                 // sent before its request's write, which has not happened yet
   int64_t       sentMs;
+  char*         feedback;                             // the latest feedback, as the plugin sent it (part: ABI 5)
+  char*         result;                               // the result, once it came (part: ABI 5)
+  bool          answered;                             // its first event has arrived - accepted, or not
+  bool          firstFinal;                           // ... and it was the goal's last
+  bool          endPending;                           // ended with its first event: the instance goes once the request has written it
+  char*         firstSubAttr;                         // ... and what it carried - for the request's write
+  char*         firstJson;
+  int64_t       firstTime;
   struct Goal*  next;
 } Goal;
 
@@ -107,6 +122,10 @@ static uint64_t         nextToken = 1;
 static pthread_mutex_t  goalMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t   goalReleased;                 // CLOCK_MONOTONIC - initialised on first use
 static bool             goalReleasedInit = false;
+static pthread_cond_t   goalAnswered;                 // CLOCK_MONOTONIC - initialised with goalReleased
+
+static Goal* goalByToken(uint64_t token);
+static void  goalEnd(Goal* goalP);
 
 
 
@@ -157,6 +176,10 @@ static void goalFree(Goal* goalP)
   free(goalP->notifyEndpoint);
   free(goalP->subId);
   free(goalP->entityType);
+  free(goalP->feedback);
+  free(goalP->result);
+  free(goalP->firstSubAttr);
+  free(goalP->firstJson);
   free(goalP);
 }
 
@@ -358,6 +381,7 @@ static void releasedCondInit(void)
   pthread_condattr_init(&attr);
   pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
   pthread_cond_init(&goalReleased, &attr);
+  pthread_cond_init(&goalAnswered, &attr);
   pthread_condattr_destroy(&attr);
 
   goalReleasedInit = true;
@@ -394,7 +418,7 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
   goalP->notifyEndpoint = (endpoint != NULL) ? strdup(endpoint) : NULL;
   goalP->entityType = (channelP->entityType != NULL) ? strdup(channelP->entityType) : NULL;
   goalP->state      = BridgeGoalUnknown;
-  goalP->held       = true;                         // sent before its request's write - see bridgeGoalRelease
+  goalP->held       = true;                         // its request has not written yet - see bridgeGoalRelease
   goalP->sentMs     = nowMs();
 
   //
@@ -445,19 +469,78 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
 
 // -----------------------------------------------------------------------------
 //
+// goalEndThread - the end of a goal that ended with its first event
+//
+static void* goalEndThread(void* arg)
+{
+  uint64_t token = (uint64_t) (uintptr_t) arg;
+
+  pthread_mutex_lock(&goalMutex);
+
+  Goal* goalP = goalByToken(token);
+
+  if (goalP != NULL)
+    goalEnd(goalP);
+
+  pthread_mutex_unlock(&goalMutex);
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalEndLater - a goal over with its first event: its instance goes, now that the request has written it
+//
+// ⭐ WRITTEN AND THEN REMOVED, not skipped. KZ: the temporal history needs the
+// goal - that it was asked, and how it ended - and a subscriber, or the goal's
+// own endpoint, must hear it. The request's write made the instance; this
+// removes it exactly as any ended goal's is removed. Only current state does
+// without it, as it does without every goal that has ended.
+//
+// ⚠ On a thread of its own, never the request's. The removal is a write of its
+// own, and it drains the notification and TRoE queues and frees the thread's
+// per-thread state as a plugin thread's events do (bridgeGoalInstanceRemove) -
+// on a request thread that would dispatch the request's own notifications
+// before its response. Rare - a goal that ends before it was ever in progress.
+//
+// Caller holds goalMutex.
+//
+static void goalEndLater(Goal* goalP)
+{
+  pthread_t      tid;
+  pthread_attr_t attr;
+
+  goalP->endPending = false;
+
+  pthread_attr_init(&attr);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+  if (pthread_create(&tid, &attr, goalEndThread, (void*) (uintptr_t) goalP->token) != 0)
+    KT_W("goal %" PRIu64 " on '%s': ended, but its instance cannot be removed (no thread) - it stays", goalP->token, goalP->endpoint);
+
+  pthread_attr_destroy(&attr);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeGoalRelease -
 //
 void bridgeGoalRelease(uint64_t token)
 {
   pthread_mutex_lock(&goalMutex);
 
-  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  Goal* goalP = goalByToken(token);
+
+  if (goalP != NULL)
   {
-    if (goalP->token == token)
-    {
-      goalP->held = false;
-      break;
-    }
+    goalP->held = false;
+
+    if (goalP->endPending == true)
+      goalEndLater(goalP);
   }
 
   releasedCondInit();
@@ -469,28 +552,162 @@ void bridgeGoalRelease(uint64_t token)
 
 // -----------------------------------------------------------------------------
 //
-// bridgeGoalEventIn -
+// goalIdentify - the transport's id and the instance's datasetId, from the first event that says. Caller holds goalMutex.
 //
-int bridgeGoalEventIn(const char* bridgeName,
-                      const char* endpoint,
-                      uint64_t    token,
-                      const char* goalId,
-                      const char* goalAlias,
-                      int         state,
-                      bool        final,
-                      const char* subAttrName,
-                      const char* json,
-                      int64_t     publishTime)
+static void goalIdentify(Goal* goalP, const char* goalId, const char* goalAlias)
+{
+  if ((goalP->goalId == NULL) && (goalId != NULL))
+    goalP->goalId = strdup(goalId);
+
+  //
+  // The instance needs a datasetId, and a plugin that gives none still gets one:
+  // minted from the token, which is unique for as long as this broker runs.
+  //
+  if (goalP->goalAlias == NULL)
+  {
+    if (goalAlias != NULL)
+      goalP->goalAlias = strdup(goalAlias);
+    else
+    {
+      char alias[64];
+
+      snprintf(alias, sizeof(alias), "urn:coraine:goal:%" PRIu64, goalP->token);
+      goalP->goalAlias = strdup(alias);
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalStateKeep - the state, and the payload by its part. Caller holds goalMutex.
+//
+// What the payload IS, when the plugin says - so a goal can be shown the same
+// way whatever transport carries it (the goal resource's goalFeedback and
+// goalResult). Only the latest feedback is kept: it describes the goal NOW.
+//
+static void goalStateKeep(Goal* goalP, int state, int part, const char* json)
+{
+  goalP->state = state;
+
+  if (json == NULL)
+    return;
+
+  if (part == BridgeGoalPartFeedback)
+  {
+    free(goalP->feedback);
+    goalP->feedback = strdup(json);
+  }
+  else if (part == BridgeGoalPartResult)
+  {
+    free(goalP->result);
+    goalP->result = strdup(json);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// firstEventKeep - a goal's first event, kept for the request that waits for it. Caller holds goalMutex.
+//
+static void firstEventKeep(Goal*       goalP,
+                           const char* goalId,
+                           const char* goalAlias,
+                           int         state,
+                           bool        final,
+                           int         part,
+                           const char* subAttrName,
+                           const char* json,
+                           int64_t     publishTime)
+{
+  goalIdentify(goalP, goalId, goalAlias);
+  goalStateKeep(goalP, state, part, json);
+
+  goalP->answered   = true;
+  goalP->firstFinal = final;
+  goalP->firstTime  = publishTime;
+
+  if ((subAttrName != NULL) && (json != NULL))
+  {
+    goalP->firstSubAttr = strdup(subAttrName);
+    goalP->firstJson    = strdup(json);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalEnd - the goal has ended: its instance goes, then its subscription, then the goal. Caller holds goalMutex.
+//
+static void goalEnd(Goal* goalP)
+{
+  //
+  // Written, notified, recorded - and now the goal's instance goes. Only if it
+  // was ever made: removing an instance that is not there would still be a
+  // write to the attribute, and notify its watchers of nothing.
+  //
+  if (goalP->instanceMade == true)
+    bridgeGoalInstanceRemove(goalP->bridgeName, goalP->endpoint, goalP->goalAlias);
+
+  KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
+
+  goalUnsubscribe(goalP);                             // after the removal - its notification is the endpoint's last
+  goalUnlink(goalP);
+  goalFree(goalP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalEvent - an event of a goal, with the part its payload is (BridgeGoalPartNone: not said)
+//
+static int goalEvent(const char* bridgeName,
+                     const char* endpoint,
+                     uint64_t    token,
+                     const char* goalId,
+                     const char* goalAlias,
+                     int         state,
+                     bool        final,
+                     int         part,
+                     const char* subAttrName,
+                     const char* json,
+                     int64_t     publishTime)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (token == 0))
     return BRIDGE_BAD_INPUT;
 
   pthread_mutex_lock(&goalMutex);
 
+  Goal* goalP = goalLookup(bridgeName, token);
+
   //
-  // ⭐ A GOAL SENT BEFORE ITS REQUEST'S WRITE WAITS FOR THAT WRITE. DDS goes
-  // first, so the goal can report before the request has stored anything - and
-  // an event written then would race the request's own write of the same
+  // ⭐ THE FIRST EVENT DECIDES, AND IT IS THE REQUEST'S - never written here.
+  // The transport decides before anything is stored (bridgeGoalAwait): the
+  // request that sent the goal waits for this event, and writes the value it
+  // was asked for only when the goal was accepted - together with this event,
+  // in its own write. Rejected, nothing is written at all.
+  //
+  if ((goalP != NULL) && (goalP->answered == false))
+  {
+    firstEventKeep(goalP, goalId, goalAlias, state, final, part, subAttrName, json, publishTime);
+
+    if (bridgeGoalRefused(state) == false)
+      goalSubscribe(goalP);                           // before the request's write, which is the instance's first
+
+    pthread_cond_broadcast(&goalAnswered);
+    pthread_mutex_unlock(&goalMutex);
+
+    KT_T(KtBridge, "goal %" PRIu64 " on '%s' answered, state %d - handed to its request", token, endpoint, state);
+    return BRIDGE_OK;
+  }
+
+  //
+  // ⭐ A LATER EVENT WAITS FOR THE REQUEST'S WRITE. The request writes the
+  // instance, and an event written before it would race that write of the same
   // attribute: at best the request's write reads as a fresh write of the goal's
   // instance (a second notification), at worst a store that replaces the
   // attribute whole takes the instance away. So an event of a held goal waits,
@@ -499,12 +716,10 @@ int bridgeGoalEventIn(const char* bridgeName,
   // By TOKEN after every wake, never by a pointer kept across the wait: another
   // event of the same goal may have been the final one meanwhile, and freed it.
   //
-  Goal* goalP = goalLookup(bridgeName, token);
-
   if ((goalP != NULL) && (goalP->held == true))
   {
     struct timespec deadline;
-    int64_t         dueMs = nowMs() + HELD_WAIT_MS;
+    int64_t         dueMs = nowMs() + bridgeSyncTimeoutMs + HELD_WAIT_MS;
 
     deadline.tv_sec  = dueMs / 1000;
     deadline.tv_nsec = (dueMs % 1000) * 1000000;
@@ -532,29 +747,8 @@ int bridgeGoalEventIn(const char* bridgeName,
     return BRIDGE_NOT_FOUND;
   }
 
-  if ((goalP->goalId == NULL) && (goalId != NULL))
-    goalP->goalId = strdup(goalId);
-
-  //
-  // The instance needs a datasetId, and a plugin that gives none still gets one:
-  // minted from the token, which is unique for as long as this broker runs.
-  //
-  if (goalP->goalAlias == NULL)
-  {
-    if (goalAlias != NULL)
-      goalP->goalAlias = strdup(goalAlias);
-    else
-    {
-      char alias[64];
-
-      snprintf(alias, sizeof(alias), "urn:coraine:goal:%" PRIu64, token);
-      goalP->goalAlias = strdup(alias);
-    }
-  }
-
-  goalP->state = state;
-
-  goalSubscribe(goalP);                               // the alias is known now - before the event is written
+  goalIdentify(goalP, goalId, goalAlias);
+  goalStateKeep(goalP, state, part, json);
 
   //
   // A state change alone has nothing to write. A payload goes into its
@@ -572,25 +766,371 @@ int bridgeGoalEventIn(const char* bridgeName,
   }
 
   if (final == true)
-  {
-    //
-    // Written, notified, recorded - and now the goal's instance goes. Only if it
-    // was ever made: removing an instance that is not there would still be a
-    // write to the attribute, and notify its watchers of nothing.
-    //
-    if (goalP->instanceMade == true)
-      bridgeGoalInstanceRemove(goalP->bridgeName, goalP->endpoint, goalP->goalAlias);
-
-    KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", token, endpoint, goalP->goalAlias, state);
-
-    goalUnsubscribe(goalP);                           // after the removal - its notification is the endpoint's last
-    goalUnlink(goalP);
-    goalFree(goalP);
-  }
+    goalEnd(goalP);
 
   pthread_mutex_unlock(&goalMutex);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventIn - ABI 4: the part is not said
+//
+int bridgeGoalEventIn(const char* bridgeName,
+                      const char* endpoint,
+                      uint64_t    token,
+                      const char* goalId,
+                      const char* goalAlias,
+                      int         state,
+                      bool        final,
+                      const char* subAttrName,
+                      const char* json,
+                      int64_t     publishTime)
+{
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, BridgeGoalPartNone, subAttrName, json, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventPartIn - ABI 5
+//
+int bridgeGoalEventPartIn(const char* bridgeName,
+                          const char* endpoint,
+                          uint64_t    token,
+                          const char* goalId,
+                          const char* goalAlias,
+                          int         state,
+                          bool        final,
+                          int         part,
+                          const char* subAttrName,
+                          const char* json,
+                          int64_t     publishTime)
+{
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, part, subAttrName, json, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalByToken - a goal in flight, by token alone. Caller holds goalMutex.
+//
+// Tokens are the broker's own, unique across bridges - which is why the
+// request side, that knows no bridge name, can use them alone.
+//
+static Goal* goalByToken(uint64_t token)
+{
+  Goal* goalP = goals;
+
+  while ((goalP != NULL) && (goalP->token != token))
+    goalP = goalP->next;
+
+  return goalP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalDrop - a goal whose request writes nothing: out of the registry, and cancelled
+//
+// Taken out FIRST, under the lock, so that anything the goal still says - its
+// answer arriving a moment too late, the cancel's own events - finds no goal
+// and is dropped: nothing about it is ever written. Then cancelled, outside
+// the lock, as the plugin may report from inside actionGoalCancel().
+//
+// Called with goalMutex held; returns with it released.
+//
+static void goalDrop(Goal* goalP, const char* why)
+{
+  char* bridgeName = goalP->bridgeName;
+  char* endpoint   = goalP->endpoint;
+  uint64_t token   = goalP->token;
+
+  goalP->bridgeName = NULL;                           // kept for the cancel below - goalFree leaves them
+  goalP->endpoint   = NULL;
+
+  goalUnsubscribe(goalP);
+  goalUnlink(goalP);
+  goalFree(goalP);
+  pthread_mutex_unlock(&goalMutex);
+
+  BridgeDriver* driverP = driverFor(bridgeName);
+  int           r       = ((driverP == NULL) || (driverP->actionGoalCancel == NULL))
+                          ? BRIDGE_UNSUPPORTED
+                          : driverP->actionGoalCancel(endpoint, token);
+
+  KT_T(KtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
+
+  free(bridgeName);
+  free(endpoint);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRefused -
+//
+bool bridgeGoalRefused(int state)
+{
+  return (state == BridgeGoalRejected) || (state == BridgeGoalFailed) || (state == BridgeGoalAborted) || (state == BridgeGoalCanceled);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAwait -
+//
+bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
+{
+  struct timespec deadline;
+
+  deadline.tv_sec  = dueMs / 1000;
+  deadline.tv_nsec = (dueMs % 1000) * 1000000;
+
+  memset(answerP, 0, sizeof(BridgeGoalAnswer));
+
+  pthread_mutex_lock(&goalMutex);
+  releasedCondInit();
+
+  Goal* goalP;
+
+  while (((goalP = goalByToken(token)) != NULL) && (goalP->answered == false))
+  {
+    if (pthread_cond_timedwait(&goalAnswered, &goalMutex, &deadline) == ETIMEDOUT)
+    {
+      goalP = goalByToken(token);   // the last chance - it may have come with the timeout
+      break;
+    }
+  }
+
+  if (goalP == NULL)
+  {
+    pthread_mutex_unlock(&goalMutex);   // let go meanwhile (the TTL sweep) - nothing to cancel
+    return false;
+  }
+
+  if (goalP->answered == false)
+  {
+    goalDrop(goalP, "not answered in time");   // unlocks
+    return false;
+  }
+
+  answerP->state       = goalP->state;
+  answerP->final       = goalP->firstFinal;
+  answerP->goalId      = (goalP->goalId       != NULL) ? kaStrdup(&corRest.kalloc, goalP->goalId)       : NULL;
+  answerP->goalAlias   = kaStrdup(&corRest.kalloc, goalP->goalAlias);
+  answerP->subAttrName = (goalP->firstSubAttr != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstSubAttr) : NULL;
+  answerP->json        = (goalP->firstJson    != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstJson)    : NULL;
+  answerP->publishTime = goalP->firstTime;
+
+  free(goalP->firstSubAttr);
+  free(goalP->firstJson);
+  goalP->firstSubAttr = NULL;
+  goalP->firstJson    = NULL;
+
+  //
+  // Refused: nothing will be written of this goal, so it leaves the registry
+  // now - whatever it might still say is dropped. A refusal that is not the
+  // goal's final event is taken at its word all the same.
+  //
+  // Accepted: the request's own write makes the instance, and later events
+  // wait for that write (held) and then land in it. Over already, with this
+  // first event: the request writes the instance all the same, and it is
+  // removed once written (goalEndLater) - see there for why.
+  //
+  if (bridgeGoalRefused(answerP->state) == true)
+  {
+    KT_T(KtBridge, "goal %" PRIu64 " on '%s' refused, state %d - nothing written", goalP->token, goalP->endpoint, answerP->state);
+    goalUnsubscribe(goalP);
+    goalUnlink(goalP);
+    goalFree(goalP);
+  }
+  else
+  {
+    goalP->instanceMade = true;
+    goalP->endPending   = answerP->final;
+  }
+
+  pthread_mutex_unlock(&goalMutex);
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAbandon -
+//
+void bridgeGoalAbandon(uint64_t token)
+{
+  pthread_mutex_lock(&goalMutex);
+
+  Goal* goalP = goalByToken(token);
+
+  if (goalP == NULL)
+  {
+    pthread_mutex_unlock(&goalMutex);
+    return;
+  }
+
+  goalDrop(goalP, "sent by a request that wrote nothing");   // unlocks
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalStateName -
+//
+const char* bridgeGoalStateName(int state)
+{
+  switch (state)
+  {
+  case BridgeGoalAccepted:   return "accepted";
+  case BridgeGoalExecuting:  return "executing";
+  case BridgeGoalCanceling:  return "canceling";
+  case BridgeGoalSucceeded:  return "succeeded";
+  case BridgeGoalCanceled:   return "canceled";
+  case BridgeGoalAborted:    return "aborted";
+  case BridgeGoalRejected:   return "rejected";
+  case BridgeGoalFailed:     return "failed";
+  }
+
+  return "unknown";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// jsonNode - a JSON text as a tree in the request's arena, as a member named 'name'
+//
+// A payload that does not parse is shown as the string it is rather than lost.
+//
+static KjNode* jsonNode(const char* name, const char* json)
+{
+  char*   copy  = kaStrdup(&corRest.kalloc, json);
+  KjNode* nodeP = kjParse(corRest.kjsonP, copy);
+
+  if (nodeP == NULL)
+    return kjString(corRest.kjsonP, name, kaStrdup(&corRest.kalloc, json));
+
+  nodeP->name = (char*) name;
+  return nodeP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalRender - a goal as its body. Caller holds goalMutex; everything is copied into the request's arena.
+//
+static KjNode* goalRender(Goal* goalP)
+{
+  Kjson*  kjsonP = corRest.kjsonP;
+  KjNode* bodyP  = kjObject(kjsonP, NULL);
+
+  kjChildAdd(bodyP, kjString(kjsonP, "id",     kaStrdup(&corRest.kalloc, goalP->goalAlias)));
+  kjChildAdd(bodyP, kjString(kjsonP, "type",   "Goal"));
+  kjChildAdd(bodyP, kjString(kjsonP, "goalId", kaStrdup(&corRest.kalloc, goalP->goalId)));
+  kjChildAdd(bodyP, kjString(kjsonP, "status", (char*) bridgeGoalStateName(goalP->state)));
+
+  if (goalP->request != NULL)   kjChildAdd(bodyP, jsonNode("goalRequest",  goalP->request));
+  if (goalP->feedback != NULL)  kjChildAdd(bodyP, jsonNode("goalFeedback", goalP->feedback));
+  if (goalP->result != NULL)    kjChildAdd(bodyP, jsonNode("goalResult",   goalP->result));
+
+  return bodyP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalOfChannel - is this goal one of the Channel's, in flight and answered?
+//
+static bool goalOfChannel(Goal* goalP, Channel* channelP)
+{
+  return (goalP->goalId != NULL)                                  &&
+         (strcmp(goalP->bridgeName, channelP->bridgeName) == 0)   &&
+         (strcmp(goalP->endpoint,   channelP->endpoint)   == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalsRender -
+//
+KjNode* bridgeGoalsRender(Channel* channelP)
+{
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if (goalOfChannel(goalP, channelP) == true)
+      kjChildAdd(arrayP, goalRender(goalP));
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return arrayP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRender -
+//
+KjNode* bridgeGoalRender(Channel* channelP, const char* goalId)
+{
+  KjNode* bodyP = NULL;
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if ((goalOfChannel(goalP, channelP) == true) && (strcmp(goalP->goalId, goalId) == 0))
+    {
+      bodyP = goalRender(goalP);
+      break;
+    }
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return bodyP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAliasOf - the datasetId of a Channel's goal in flight, by the transport's id
+//
+char* bridgeGoalAliasOf(Channel* channelP, const char* goalId)
+{
+  char* aliasP = NULL;
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if ((goalOfChannel(goalP, channelP) == true) && (strcmp(goalP->goalId, goalId) == 0))
+    {
+      aliasP = kaStrdup(&corRest.kalloc, goalP->goalAlias);
+      break;
+    }
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return aliasP;
 }
 
 

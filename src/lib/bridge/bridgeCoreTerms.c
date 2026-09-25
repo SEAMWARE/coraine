@@ -41,9 +41,9 @@ static const CorLdCoreTerm bridgeCoreTermV[] =
   { "statusReason",      NULL     },
   { "goals",             NULL     },
   { "goalId",            NULL     },
-  { "goalRequest",       NULL     },
-  { "goalFeedback",      NULL     },
-  { "goalResult",        NULL     },
+  { "goalRequest",       "@json"  },   // the transport's own JSON - verbatim
+  { "goalFeedback",      "@json"  },   // the transport's own JSON - verbatim
+  { "goalResult",        "@json"  },   // the transport's own JSON - verbatim
   { NULL,                NULL     }
 };
 

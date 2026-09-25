@@ -8,7 +8,7 @@
 //
 #include <stdbool.h>                                  // bool
 #include <stdio.h>                                    // snprintf
-#include <string.h>                                   // strlen
+#include <string.h>                                   // strlen, strcmp
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kjson/KjNode.h"                             // KjNode
@@ -17,6 +17,7 @@
 #include "corRest/CorRestState.h"                     // corRest
 
 #include "bridge/Channel.h"                           // Channel, ChannelStatus*, ChannelRetention*
+#include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/bridgeRender.h"                      // Own interface
 
 
@@ -47,6 +48,23 @@ const char* channelIdOf(Channel* channelP)
 
   snprintf(id, len, "urn:ngsi-ld:Channel:%s:%s", channelP->bridgeName, channelP->endpoint);
   return id;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelOfTenant -
+//
+Channel* channelOfTenant(Tenant* tenantP, const char* channelId)
+{
+  for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
+  {
+    if ((channelP->tenantP == tenantP) && (strcmp(channelIdOf(channelP), channelId) == 0))
+      return channelP;
+  }
+
+  return NULL;
 }
 
 

@@ -53,6 +53,11 @@ SET(SOURCES
   getBridge.c
   getChannels.c
   getChannel.c
+  channelGoalCommon.c
+  postChannelGoals.c
+  getChannelGoals.c
+  getChannelGoal.c
+  deleteChannelGoal.c
 )
 
 IF (COR_FEATURE_CONTEXT_HOSTING)

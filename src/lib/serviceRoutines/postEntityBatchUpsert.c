@@ -631,16 +631,59 @@ bool postEntityBatchUpsert(void)
   bool*        wasCreatedV   = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * gN);
   const char** allIdV        = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
 
+  //
+  // ⭐ TWO LOOPS, split where the DDS step waits. Loop 1 chops each fragment and
+  // SENDS its requests to the DDS side; every goal of the batch is then waited
+  // for against one deadline; loop 2 applies what the transport accepted. In
+  // one loop, each Entity's goals would wait before the next Entity's were even
+  // sent - a batch's wait the sum of its goals', not the slowest of them.
+  //
+  // What crosses from one loop to the other is per Entity (a group) or per
+  // fragment, below. Errors are collected per Entity and joined in batch order
+  // at the end, so the split does not reorder errors[].
+  //
+  int fragAll = 0;
+
+  for (int gi = 0; gi < gN; gi++)
+    fragAll += groups[gi].count;
+
+  KjNode**         existingDbV  = (KjNode**) kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  KjNode**         groupErrorsV = (KjNode**) kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  bool*            groupLiveV   = (bool*)    kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);   // got past the retrieve
+  bool*            existsV      = (bool*)    kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);
+  int*             fragBaseV    = (int*)     kaAlloc(&corRest.kalloc, sizeof(int)     * gN);   // a group's first fragment, in the per-fragment arrays
+  bool*            readyV       = (bool*)    kaAlloc(&corRest.kalloc, sizeof(bool)    * (fragAll + 1));   // made it through loop 1
+  BridgeSyncDone** fragDoneV    = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragAll + 1)) : NULL;
+
+  memset(groupErrorsV, 0, sizeof(KjNode*) * gN);
+  memset(groupLiveV,   0, sizeof(bool)    * gN);
+  memset(readyV,       0, sizeof(bool)    * (fragAll + 1));
+
+  if (fragDoneV != NULL)
+    memset(fragDoneV, 0, sizeof(BridgeSyncDone*) * (fragAll + 1));
+
+  for (int gi = 0, base = 0; gi < gN; gi++)
+  {
+    fragBaseV[gi]  = base;
+    base          += groups[gi].count;
+  }
+
+  //
+  // Loop 1 - chop, and send.
+  //
   for (int gi = 0; gi < gN; gi++)
   {
-    Group* g           = &groups[gi];
+    Group*  g            = &groups[gi];
+    KjNode* groupErrorsP = kjArray(corRest.kjsonP, NULL);
+
+    groupErrorsV[gi]   = groupErrorsP;
     allIdV[gi]         = g->id;
     anySuccessV[gi]    = false;
     wasCreatedV[gi]    = false;
 
     if (db.entityRetrieve == NULL)
     {
-      addBatchError(errorsP, g->id, 500,
+      addBatchError(groupErrorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "entityRetrieve not supported by this DB plugin", NULL);
       continue;
@@ -652,22 +695,20 @@ bool postEntityBatchUpsert(void)
     bool exists = (r == DB_OK && existingDb != NULL);
     if (!exists && r != DB_NOT_FOUND && r != DB_OK)
     {
-      addBatchError(errorsP, g->id, 500,
+      addBatchError(groupErrorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "database error during retrieve", NULL);
       continue;
     }
 
-    // finalP is our in-memory running state. For upsert:
-    //   - exists && replace mode: we'll set finalP to a clone of first frag
-    //     AFTER the chop for the first frag (so chopped attrs aren't kept).
-    //   - exists && update mode: finalP = existingDb; merge all frags in order.
-    //   - !exists: finalP = clone of first frag (post-chop); merge remaining.
-    KjNode* finalP = exists ? existingDb : NULL;
+    groupLiveV[gi]  = true;
+    existingDbV[gi] = existingDb;
+    existsV[gi]     = exists;
 
-    bool    anyLocal = false;
-    LdMergeReport bridgeReport = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
-
+    //
+    // Each fragment in array order: distops chop, then - the fragment being
+    // final now - its requests to the DDS side are SENT. Applied in loop 2.
+    //
     for (int fi = 0; fi < g->count; fi++)
     {
       KjNode* fragP = g->fragV[fi];
@@ -737,29 +778,88 @@ bool postEntityBatchUpsert(void)
 
       ldApiEntityToDbModel(fragP, &corRest.kalloc, 0);
 
-      //
-      // Requests to the DDS side go FIRST - before the bulk writes, never waited
-      // for, and never failing the batch: a request that cannot be sent is left
-      // out of the fragment and becomes this Entity's error. In the default
-      // (replace) mode leaving it out would DELETE it, so it keeps the value it
-      // had - not written means unchanged, as for a replace of one Entity.
-      //
+      readyV[fragBaseV[gi] + fi] = true;
+
       if (requestsFirst == true)
       {
         BridgeSyncDone* doneP = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
 
         memset(doneP, 0, sizeof(BridgeSyncDone));
-        doneV[doneN++] = doneP;
+        doneV[doneN++]                = doneP;
+        fragDoneV[fragBaseV[gi] + fi] = doneP;
 
-        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY, doneP);
+        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneP);
+      }
+    }
+  }
 
+  //
+  // Every goal of the batch is out - now they are waited for, against ONE
+  // deadline, so that a goal's answer never waits for the next goal to be
+  // sent. A refused one is taken out of its fragment here.
+  //
+  if (requestsFirst == true)
+  {
+    int64_t dueMs = bridgeRequestsDeadline();
+
+    for (int gi = 0; gi < gN; gi++)
+    {
+      for (int fi = 0; fi < groups[gi].count; fi++)
+      {
+        BridgeSyncDone* doneP = fragDoneV[fragBaseV[gi] + fi];
+
+        if (doneP != NULL)
+          bridgeRequestsAwait(groups[gi].fragV[fi], doneP, dueMs);
+      }
+    }
+  }
+
+  //
+  // Loop 2 - each fragment the first loop made ready, in array order: what the
+  // DDS step refused is reported, and the rest applied, notified and recorded.
+  //
+  for (int gi = 0; gi < gN; gi++)
+  {
+    if (groupLiveV[gi] == false)
+      continue;
+
+    Group*  g            = &groups[gi];
+    KjNode* existingDb   = existingDbV[gi];
+    bool    exists       = existsV[gi];
+    KjNode* groupErrorsP = groupErrorsV[gi];
+
+    // finalP is our in-memory running state. For upsert:
+    //   - exists && replace mode: we'll set finalP to a clone of first frag
+    //     AFTER the chop for the first frag (so chopped attrs aren't kept).
+    //   - exists && update mode: finalP = existingDb; merge all frags in order.
+    //   - !exists: finalP = clone of first frag (post-chop); merge remaining.
+    KjNode* finalP = exists ? existingDb : NULL;
+
+    bool    anyLocal = false;
+    LdMergeReport bridgeReport = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
+
+    for (int fi = 0; fi < g->count; fi++)
+    {
+      if (readyV[fragBaseV[gi] + fi] == false)
+        continue;
+
+      KjNode*         fragP = g->fragV[fi];
+      BridgeSyncDone* doneP = (fragDoneV != NULL) ? fragDoneV[fragBaseV[gi] + fi] : NULL;
+
+      //
+      // A request to the DDS side that could not be sent, or a goal that was
+      // refused, was left out of the fragment and is this Entity's error. In
+      // the default (replace) mode leaving it out would DELETE it, so it keeps
+      // the value it had - not written means unchanged, as for a replace of
+      // one Entity.
+      //
+      if (doneP != NULL)
+      {
         for (int ix = 0; ix < doneP->failedN; ix++)
         {
-          int st = doneP->failedStatusV[ix];
-
-          addBatchError(errorsP, g->id, st,
-                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
-                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+          addBatchError(groupErrorsP, g->id, doneP->failedStatusV[ix],
+                        doneP->failedTypeV[ix],
+                        doneP->failedTitleV[ix],
                         doneP->failedReasonV[ix], NULL);
 
           if (updateMode == false)
@@ -948,6 +1048,23 @@ bool postEntityBatchUpsert(void)
       updateReportV[updateN] = bridgeReport;
       updateIdV[updateN++]   = g->id;
       kjChildAdd(finalsUpdate, finalP);
+    }
+  }
+
+  //
+  // Each Entity's errors, in batch order - as one loop would have reported them.
+  //
+  for (int gi = 0; gi < gN; gi++)
+  {
+    KjNode* errP = (groupErrorsV[gi] != NULL) ? groupErrorsV[gi]->value.firstChildP : NULL;
+
+    while (errP != NULL)
+    {
+      KjNode* nextP = errP->next;
+
+      errP->next = NULL;                              // ⚠ kjChildAdd would take the rest of the list along
+      kjChildAdd(errorsP, errP);
+      errP = nextP;
     }
   }
 

@@ -36,6 +36,7 @@
 #include <stdint.h>                                   // int64_t, uint64_t
 
 #include "db/Tenant.h"                                // Tenant
+#include "kjson/KjNode.h"                             // KjNode
 #include "bridge/Channel.h"                           // Channel
 
 
@@ -47,8 +48,11 @@
 // Called on a broker thread. Registers the goal under a fresh token BEFORE the
 // plugin sees it, because the plugin may report on the goal before it returns.
 //
-// Always sent BEFORE its request's write (DDS first), so it is HELD: its events
-// wait until bridgeGoalRelease(*tokenP) says the write is done.
+// Always sent BEFORE its request's write, and the transport DECIDES before
+// anything is stored: the request waits for the goal's first event
+// (bridgeGoalAwait) and writes only a goal that was accepted - the value and
+// that first event together, in its own write. The goal is HELD meanwhile: its
+// later events wait until bridgeGoalRelease(*tokenP) says the write is done.
 //
 // @param endpoint  where the goal's events are to be notified, or NULL - the
 //                  "endpoint" sub-Attribute of the request. The broker then
@@ -100,5 +104,119 @@ extern int bridgeGoalEventIn(const char* bridgeName,
 //         answered.
 //
 extern bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrName, const char* datasetId, int* rcP);
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventPartIn - the broker's side of BridgeBroker::goalEventPartIn (ABI 5)
+//
+// bridgeGoalEventIn, and the part the payload is (BridgeGoalPart): the latest
+// feedback and the result are kept for the goal resource.
+//
+extern int bridgeGoalEventPartIn(const char* bridgeName,
+                                 const char* endpoint,
+                                 uint64_t    token,
+                                 const char* goalId,
+                                 const char* goalAlias,
+                                 int         state,
+                                 bool        final,
+                                 int         part,
+                                 const char* subAttrName,
+                                 const char* json,
+                                 int64_t     publishTime);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// BridgeGoalAnswer - a goal's FIRST event, as the request that sent the goal gets it
+//
+// In the request's arena. subAttrName and json are NULL when the event carried
+// no payload - a state change alone.
+//
+typedef struct BridgeGoalAnswer
+{
+  int      state;                                     // BridgeGoalState
+  bool     final;                                     // the goal ended with it
+  char*    goalId;                                    // the transport's id - NULL when it gave none
+  char*    goalAlias;                                 // the datasetId of the goal's instance
+  char*    subAttrName;
+  char*    json;
+  int64_t  publishTime;
+} BridgeGoalAnswer;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAwait - wait for a goal's first event: accepted, or not
+//
+// ⭐ THE TRANSPORT DECIDES BEFORE ANYTHING IS STORED. A write to an action
+// Channel sends its goal, waits here, and then writes only a goal that was
+// accepted - so the answer and the data always agree: a rejected goal leaves no
+// value, no instance and no history behind it.
+//
+// dueMs is an absolute CLOCK_MONOTONIC deadline, so that a request sending
+// several goals waits for all of them against ONE deadline: its latency is
+// the slowest answer, not their sum. An answer that came before the wait began
+// is found at once.
+//
+// Refused (bridgeGoalRefused), or ended with its first event: the goal leaves
+// the registry here, and nothing it may still say is written. Accepted: it
+// stays, held, for the request's write to make its instance.
+//
+// @return false: no answer by dueMs. The goal has then been taken out of the
+//         registry and CANCELLED - the broker never leaves behind a goal it
+//         did not record.
+//
+extern bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRefused - does a first event in this state mean the goal was not taken on?
+//
+extern bool bridgeGoalRefused(int state);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAbandon - a goal sent by a request that then writes nothing: cancel it
+//
+// Nothing about it is written - it is out of the registry before the cancel
+// goes. A goal no longer in the registry is left alone.
+//
+extern void bridgeGoalAbandon(uint64_t token);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalStateName - a BridgeGoalState as the goal resource spells it
+//
+extern const char* bridgeGoalStateName(int state);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalsRender / bridgeGoalRender - a Channel's goals in flight, as Goal bodies
+//
+// Only while a goal is in progress, as phase 1: an ended goal is gone - its end
+// is in TRoE and in the notifications. bridgeGoalRender: NULL when not found.
+//
+extern KjNode* bridgeGoalsRender(Channel* channelP);
+extern KjNode* bridgeGoalRender(Channel* channelP, const char* goalId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAliasOf - the datasetId of a Channel's goal in flight, by the transport's id - NULL if none
+//
+extern char* bridgeGoalAliasOf(Channel* channelP, const char* goalId);
+
+
 
 #endif  // SRC_LIB_BRIDGE_BRIDGEGOAL_H_

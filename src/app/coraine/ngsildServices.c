@@ -41,6 +41,10 @@
 #include "serviceRoutines/getBridge.h"           // getBridge
 #include "serviceRoutines/getChannels.h"         // getChannels
 #include "serviceRoutines/getChannel.h"          // getChannel
+#include "serviceRoutines/postChannelGoals.h"    // postChannelGoals
+#include "serviceRoutines/getChannelGoals.h"     // getChannelGoals
+#include "serviceRoutines/getChannelGoal.h"      // getChannelGoal
+#include "serviceRoutines/deleteChannelGoal.h"   // deleteChannelGoal
 #include "serviceRoutines/getTypes.h"            // getTypes
 #include "serviceRoutines/getType.h"             // getType
 #include "serviceRoutines/getAttributes.h"       // getAttributes
@@ -182,6 +186,10 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/bridges/*",        getBridge,   0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels",         getChannels, 0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels/*",       getChannel,  0, LdOpNone },
+  { CorVerbPost,   "/ngsi-ld/v1/channels/*/goals",   postChannelGoals,  0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals",   getChannelGoals,   0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals/*", getChannelGoal,    0, LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/channels/*/goals/*", deleteChannelGoal, 0, LdOpNone },
 
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },
