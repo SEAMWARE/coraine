@@ -49,7 +49,7 @@ payload='{
     }
   ]
 }'
-corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
@@ -65,7 +65,7 @@ payload='{
     { "type": "Property", "value": 10, "observedAt": "2026-04-28T09:00:00Z" }
   ]
 }'
-corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
@@ -92,7 +92,7 @@ echo
 echo "04. PATCH the CP1 instance via CB (forward succeeds, local 404 swallowed)"
 echo "========================================================================="
 corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
-  -X PATCH --payload '{"type":"Property","value":99,"observedAt":"2026-04-28T09:30:00Z"}' --include 2>&1 | python3 -c "
+  -X PATCH --payload '{"type":"Property","value":99,"observedAt":"2026-04-28T09:30:00Z"}' 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
@@ -117,7 +117,7 @@ echo
 echo "06. DELETE the CP1 instance via CB (forward succeeds, local 404 swallowed)"
 echo "=========================================================================="
 corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$INSTANCE_ID" \
-  -X DELETE --include 2>&1 | python3 -c "
+  -X DELETE 2>&1 | python3 -c "
 import sys
 print('  status:', sys.stdin.readline().strip().split(' ',1)[1])"
 echo
