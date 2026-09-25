@@ -7,6 +7,38 @@ design* are restated below.
 
 ---
 
+## 0. TRoE timescale: automatic chunking and compression
+
+**Decided 2026-09-26 (KZ): do it, early.** Found by the A10 capacity benchmark:
+with the plugin's current schema (7-day chunks, no compression) a day of 60 s
+samples for 10 000 sensors is ~49 GB of row store, larger than RAM, and one
+sensor's day is spread over thousands of pages - every multi-sensor query missed
+0.3 s. The same data with TimescaleDB compression is 10x smaller (43 GB -> 4.3 GB)
+and zone queries came in at ~200 ms P95. Today it only happens if a DBA types it.
+
+The plugin's migrate step does it, **only when the TimescaleDB extension is
+present** (the plugin also runs on plain postgres - nothing changes there):
+
+- `--troeChunkInterval` (default 1 h): `set_chunk_time_interval`. Live inserts
+  then always land in a small, uncompressed current chunk.
+- compression settings: `segmentby = 'entity_id, attr_name'`,
+  `orderby = 'observed_at DESC'` - one attribute of one Entity is contiguous.
+- `--troeCompressAfter` (default 1 h): `add_compression_policy`. TimescaleDB's own
+  background scheduler runs it - nothing in the broker, so several brokers on one
+  database (HA) cannot race.
+- `--troeCompressMinMB` (optional, KZ's idea): compress what is older than
+  CompressAfter only once it adds up to more than X MB. Not built in (the policy
+  is age-only) - a custom `add_job()` procedure, still inside the database. Look
+  at `compress_chunk_time_interval` (merges small chunks while compressing) first;
+  it may be the simpler answer to "don't compress lots of tiny chunks".
+
+Costs to keep in view:
+- late writes into compressed history are expensive: the UNIQUE index on
+  `instance_id` makes an insert/modify/delete there decompress. Decompressing 23
+  one-hour chunks (10k sensors) took 37 min; compressing them 106 s. The lag
+  must be longer than data realistically arrives late.
+- existing databases: changing the chunk interval affects new chunks only.
+
 ## 1. Service Execution
 
 Actuation as a first-class citizen of the API. TS 104 175 Annex G describes
