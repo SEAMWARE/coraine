@@ -1,0 +1,296 @@
+#
+# FILE            bridge_channel_read_api.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /ngsi-ld/v1/bridges[/{id}] and GET /ngsi-ld/v1/channels[/{id}] - the
+# ContextBridges and Channels, as loaded from the configuration file.
+#
+# The path is the one proposed to ETSI, and so are the terms: they are CORE
+# terms (bridgeCoreTerms.c) - never expanded, never overridden by a user
+# @context. Each was checked absent from Smart Data Models, schema.org,
+# SOSA/SSN and SAREF, because the core @context overrides every other one:
+# a term added to it is taken from every vocabulary a client may load.
+#
+# A Channel from the configuration file has no stored id - it is named by its
+# Bridge and its endpoint: urn:ngsi-ld:Channel:<bridge>:<endpoint>.
+#
+--NAME--
+Bridges: GET the ContextBridges and Channels - the proposed API, the terms core terms
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic  "P1,Machine,urn:M:1,temperature" \
+  --action "A1,Robot,urn:R:1,navigate")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. GET /bridges - the loopback bridge, available"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/bridges
+echo
+echo
+
+
+echo "02. GET /bridges/urn:ngsi-ld:ContextBridge:loopback"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:loopback
+echo
+echo
+
+
+echo "03. GET /bridges/urn:ngsi-ld:ContextBridge:nope - 404"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:nope
+echo
+echo
+
+
+echo "04. GET /channels - a topic and an action, each with its entity, attribute and status"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/channels
+echo
+echo
+
+
+echo "05. GET /channels/urn:ngsi-ld:Channel:loopback:A1 - the action"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1
+echo
+echo
+
+
+echo "06. GET /channels/urn:ngsi-ld:Channel:loopback:A9 - 404"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A9
+echo
+echo
+
+
+echo "07. GET /channels in tenant t1 (created by an entity) - none: a Channel is its tenant's"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:t1", "type": "T" }' -H "NGSILD-Tenant: t1"
+echo
+corCurl --url /ngsi-ld/v1/channels -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "08. A user @context cannot take a core term: channelKind posted under a context mapping it elsewhere stays channelKind"
+echo "======================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "@context": [ { "channelKind": "http://example.org/ck", "myAttr": "http://example.org/myAttr" }, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ],
+  "id": "urn:E:1",
+  "type": "T",
+  "channelKind": { "type": "Property", "value": 1 },
+  "myAttr": { "type": "Property", "value": 2 }
+}' --in jsonld
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:E:1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. GET /bridges - the loopback bridge, available
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 141
+
+[
+  {
+    "id": "urn:ngsi-ld:ContextBridge:loopback",
+    "plugin": "loopback",
+    "status": "available",
+    "type": "ContextBridge"
+  }
+]
+
+
+
+02. GET /bridges/urn:ngsi-ld:ContextBridge:loopback
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "id": "urn:ngsi-ld:ContextBridge:loopback",
+  "plugin": "loopback",
+  "status": "available",
+  "type": "ContextBridge"
+}
+
+
+
+03. GET /bridges/urn:ngsi-ld:ContextBridge:nope - 404
+=====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "bridge 'urn:ngsi-ld:ContextBridge:nope' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET /channels - a topic and an action, each with its entity, attribute and status
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 756
+
+[
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelDirection": "out",
+    "channelKind": "action",
+    "channelTarget": "A1",
+    "entity": {
+      "id": "urn:R:1",
+      "type": "Robot"
+    },
+    "entityAttribute": "navigate",
+    "id": "urn:ngsi-ld:Channel:loopback:A1",
+    "retention": "mirror",
+    "status": "available",
+    "type": "Channel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelDirection": "both",
+    "channelKind": "topic",
+    "channelTarget": "P1",
+    "entity": {
+      "id": "urn:M:1",
+      "type": "Machine"
+    },
+    "entityAttribute": "temperature",
+    "id": "urn:ngsi-ld:Channel:loopback:P1",
+    "retention": "mirror",
+    "status": "available",
+    "type": "Channel"
+  }
+]
+
+
+
+05. GET /channels/urn:ngsi-ld:Channel:loopback:A1 - the action
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 343
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "out",
+  "channelKind": "action",
+  "channelTarget": "A1",
+  "entity": {
+    "id": "urn:R:1",
+    "type": "Robot"
+  },
+  "entityAttribute": "navigate",
+  "id": "urn:ngsi-ld:Channel:loopback:A1",
+  "retention": "mirror",
+  "status": "available",
+  "type": "Channel"
+}
+
+
+
+06. GET /channels/urn:ngsi-ld:Channel:loopback:A9 - 404
+======================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "channel 'urn:ngsi-ld:Channel:loopback:A9' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET /channels in tenant t1 (created by an entity) - none: a Channel is its tenant's
+========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/entities/urn:E:t1
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+08. A user @context cannot take a core term: channelKind posted under a context mapping it elsewhere stays channelKind
+======================================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E:1
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 177
+
+{
+  "channelKind": {
+    "type": "Property",
+    "value": 1
+  },
+  "http://example.org/myAttr": {
+    "type": "Property",
+    "value": 2
+  },
+  "id": "urn:E:1",
+  "type": "T"
+}
+
+
+

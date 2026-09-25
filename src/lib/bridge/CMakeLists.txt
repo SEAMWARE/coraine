@@ -9,6 +9,8 @@ SET(SOURCES
   bridgeServiceSync.c
   bridgeGoal.c
   bridgeDefaultEntity.c
+  bridgeCoreTerms.c
+  bridgeRender.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})

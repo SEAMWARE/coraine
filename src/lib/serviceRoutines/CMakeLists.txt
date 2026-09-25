@@ -63,6 +63,10 @@ IF (COR_FEATURE_SUBSCRIPTIONS)
   LIST(APPEND SOURCES
     postSubscriptions.c
     getSubscription.c
+    getBridges.c
+    getBridge.c
+    getChannels.c
+    getChannel.c
     getSubscriptions.c
     patchSubscription.c
     deleteSubscription.c
