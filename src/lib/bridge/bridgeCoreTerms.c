@@ -30,9 +30,7 @@ static const CorLdCoreTerm bridgeCoreTermV[] =
   { "Goal",              NULL     },
   { "GoalNotification",  NULL     },
   { "bridgeId",          "@id"    },
-  { "bridgeOptions",     "@json"  },   // its keys are the transport's vocabulary, not ours.
-                                       // ⚠ corLdExpand does not honour "@type": "@json" yet - it must,
-                                       // before a ContextBridge body with options can be POSTed
+  { "bridgeOptions",     "@json"  },   // its keys are the transport's vocabulary - verbatim, as core "json" is
   { "plugin",            NULL     },
   { "channelTarget",     NULL     },
   { "channelKind",       NULL     },

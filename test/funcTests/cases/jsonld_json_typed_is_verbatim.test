@@ -1,0 +1,170 @@
+#
+# FILE            jsonld_json_typed_is_verbatim.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Anything typed @json is JSON, not JSON-LD - taken verbatim, nothing inside it
+# expanded:
+#
+#   - an object that says so itself - JSON-LD's JSON literal,
+#       { "@type": "@json", "@value": <any JSON> }
+#   - the value of a term whose definition says so, as the core's own "json"
+#     (JsonProperty) is, and coraine's bridgeOptions:
+#       "cfg": { "@id": "http://example.org/cfg", "@type": "@json" }
+#
+# Its keys are somebody else's vocabulary - a transport's options, a device's
+# configuration - and need not even satisfy the NGSI-LD name grammar: "my-key",
+# "a b" and "c.d" below. Expanded, they became default-context IRIs, or failed
+# the request as bad names.
+#
+# JsonProperty itself was never affected: its "json" member is kept verbatim by
+# its value-key classification, not by its @type - which is why nothing else
+# typed @json was.
+#
+--NAME--
+@json - a JSON literal, and the value of a term typed @json, are taken verbatim
+
+--TAGS--
+jsonld json registration
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+echo "01. A registration with a free JSON literal - {\"@type\": \"@json\", \"@value\": {...}} - 201"
+echo "======================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:CSR:J1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "cfg": { "@type": "@json", "@value": { "my-key": 1, "a b": { "c.d": 2 }, "type": "not a term" } }
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. GET it back - the literal and every key inside it, verbatim"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:J1
+echo
+echo
+
+
+echo "03. A registration whose @context types the term cfg2 @json - 201"
+echo "================================================================="
+payload='{
+  "@context": [ { "cfg2": { "@id": "http://example.org/cfg2", "@type": "@json" } }, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ],
+  "id": "urn:ngsi-ld:CSR:J2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://example.org/cs",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ],
+  "cfg2": { "my-key": 1, "a b": { "c.d": 2 } }
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" --in jsonld
+echo
+echo
+
+
+echo "04. GET it back with no @context - cfg2 is its IRI, its value's keys verbatim"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:J2
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. A registration with a free JSON literal - {"@type": "@json", "@value": {...}} - 201
+=======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:J1
+Content-Length: 0
+
+
+
+
+02. GET it back - the literal and every key inside it, verbatim
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 370
+
+{
+  "cfg": {
+    "@type": "@json",
+    "@value": {
+      "a b": {
+        "c.d": 2
+      },
+      "my-key": 1,
+      "type": "not a term"
+    }
+  },
+  "endpoint": "http://example.org/cs",
+  "id": "urn:ngsi-ld:CSR:J1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+03. A registration whose @context types the term cfg2 @json - 201
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:J2
+Content-Length: 0
+
+
+
+
+04. GET it back with no @context - cfg2 is its IRI, its value's keys verbatim
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 310
+
+{
+  "endpoint": "http://example.org/cs",
+  "http://example.org/cfg2": {
+    "a b": {
+      "c.d": 2
+    },
+    "my-key": 1
+  },
+  "id": "urn:ngsi-ld:CSR:J2",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
