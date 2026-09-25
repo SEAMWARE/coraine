@@ -37,6 +37,10 @@
 #include "serviceRoutines/putEntityAttrValue.h"  // putEntityAttrValue
 #include "serviceRoutines/putEntityAttr.h"       // putEntityAttr
 #include "serviceRoutines/deleteEntityAttr.h"    // deleteEntityAttr
+#include "serviceRoutines/getBridges.h"          // getBridges
+#include "serviceRoutines/getBridge.h"           // getBridge
+#include "serviceRoutines/getChannels.h"         // getChannels
+#include "serviceRoutines/getChannel.h"          // getChannel
 #include "serviceRoutines/getTypes.h"            // getTypes
 #include "serviceRoutines/getType.h"             // getType
 #include "serviceRoutines/getAttributes.h"       // getAttributes
@@ -169,6 +173,15 @@ CorRestServiceSimplified ngsildCoreServices[] =
   // by remote Context Sources when a derived sub fires; the body is
   // re-dispatched to the original local sub's notification endpoint.
   { CorVerbPost,   "/ngsi-ld/ex/v1/notifications/*", SUBS(postExNotification), 0, LdOpNone },
+
+  //
+  // ContextBridges and Channels - proposed to ETSI; the path the proposal gives
+  // them. Read-only while every Channel comes from the configuration file.
+  //
+  { CorVerbGet,    "/ngsi-ld/v1/bridges",          getBridges,  0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/bridges/*",        getBridge,   0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/channels",         getChannels, 0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/channels/*",       getChannel,  0, LdOpNone },
 
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts",   getJsonldContexts, LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", getJsonldContext, LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },

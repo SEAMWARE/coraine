@@ -82,6 +82,7 @@
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
 
+#include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
@@ -1312,6 +1313,13 @@ int main(int argC, char* argV[])
 
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     KT_X(1, "corLdInit failed");
+
+  //
+  // The ContextBridge / Channel / Goal terms are core terms - with or without
+  // --bridges: whether a term expands must not depend on a startup flag.
+  //
+  if (bridgeCoreTermsAdd(&contextAlloc) != 0)
+    KT_X(1, "the ContextBridge/Channel terms could not be added to the core context");
 
   if (ldInit() != 0)
     KT_X(1, "ldInit failed");
