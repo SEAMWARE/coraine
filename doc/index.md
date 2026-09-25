@@ -20,6 +20,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | If you want to | Read |
 |----------------|------|
 | install, build and run it | [Installation & Administration](installation.md) |
+| run several instances behind a load balancer | [High Availability](high-availability.md) |
 | see the API in action | [API walkthrough](api-walkthrough.md) |
 | understand how it is put together, or write a plugin | [Plugin architecture](plugin-architecture.md) |
 | know what it costs to run, and how fast it is | [Performance and footprint](performance.md) |
