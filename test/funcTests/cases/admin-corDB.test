@@ -215,9 +215,9 @@ Content-Length: REGEX(\d+)
   "coraine version": "REGEX(\d+\.\d+\.\d+)",
   "kalloc": "0.10.2",
   "kargs": "0.10.1",
-  "kbase": "0.11.0",
+  "kbase": "0.11.1",
   "khash": "0.10.0",
-  "kjson": "0.14.1",
+  "kjson": "0.14.2",
   "kprom": "0.1.1",
   "ktrace": "0.10.0"
 }

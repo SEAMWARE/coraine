@@ -328,7 +328,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e1",
     "location": {
       "type": "GeoProperty",
@@ -343,7 +343,7 @@ Content-Length: REGEX(\d+)
     "type": "City"
   },
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e2",
     "location": {
       "type": "GeoProperty",
@@ -371,7 +371,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e1",
     "location": {
       "type": "GeoProperty",
@@ -586,7 +586,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e2",
     "location": {
       "type": "GeoProperty",
@@ -693,7 +693,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e5",
     "observationPoint": {
       "type": "GeoProperty",
@@ -721,7 +721,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e2",
     "location": {
       "type": "GeoProperty",
@@ -736,7 +736,7 @@ Content-Length: REGEX(\d+)
     "type": "City"
   },
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e3",
     "location": {
       "type": "GeoProperty",
@@ -751,7 +751,7 @@ Content-Length: REGEX(\d+)
     "type": "City"
   },
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e4",
     "location": {
       "type": "GeoProperty",
@@ -809,7 +809,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e2",
     "location": {
       "type": "GeoProperty",
@@ -837,7 +837,7 @@ Content-Length: REGEX(\d+)
 
 [
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e3",
     "location": {
       "type": "GeoProperty",
@@ -852,7 +852,7 @@ Content-Length: REGEX(\d+)
     "type": "City"
   },
   {
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:e4",
     "location": {
       "type": "GeoProperty",
