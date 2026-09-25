@@ -59,12 +59,33 @@
 //                  holds a subscription of its own for that endpoint to THIS
 //                  goal's instance, made on its first event and gone after its
 //                  last. Only in the broker's memory: never stored, never
-//                  listed - it lives exactly as long as the goal.
+//                  listed - it lives exactly as long as the goal. NULL: the
+//                  Channel's default, else the Bridge's (bridgeGoalNotifyDefaultSet),
+//                  else nowhere.
 // @param tokenP    the goal's token
 //
 // @return the plugin's answer: BRIDGE_OK, or why the goal did not go
 //
 extern int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, uint64_t* tokenP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalNotifyDefaultSet - a Bridge's default goal endpoint, for goals that name none
+//
+// From the configuration ("ngsild": { "notification": { "endpoint": { "uri", "accept" } } }),
+// at startup only - the table is read without a lock. accept NULL: application/json.
+//
+extern void bridgeGoalNotifyDefaultSet(const char* bridgeName, const char* uri, const char* accept);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalNotifyDefault - a Bridge's default goal endpoint; false if it has none
+//
+extern bool bridgeGoalNotifyDefault(const char* bridgeName, const char** uriP, const char** acceptP);
 
 
 

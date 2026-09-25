@@ -86,6 +86,8 @@ typedef struct Channel
   char*              attrName;                        // EXPANDED
   ChannelStatus      status;
   char*              statusReason;                    // why, when dormant. NULL otherwise
+  char*              notifyUri;                       // action: where a goal naming no endpoint is notified. NULL: the Bridge's default
+  char*              notifyAccept;                    // its accept - application/json unless the file said otherwise
   struct Channel*    next;
 } Channel;
 

@@ -1,0 +1,162 @@
+#
+# FILE            bridge_action_goal_default_endpoint.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Default goal endpoints, from the bridge configuration: a goal that names no
+# endpoint of its own is notified to its action Channel's default, else to its
+# Bridge's default, else nowhere (bridge-channels.md 9.1). Both are the
+# subscription's own shape, "notification": { "endpoint": { "uri" } }. A default
+# makes no subscription of its own - the goal is given it as its endpoint - so a
+# default hears only goals that named none.
+#
+#   A1 - urn:R:1 navigate, Channel default /chan
+#   A2 - urn:R:2 navigate, no Channel default
+#   A3 - urn:R:3 navigate, Channel default ftp://... - unusable, ignored
+#   the Bridge's default: /bridge
+#
+#   01     GET the A1 Channel and the Bridge: both show their default
+#   02     a goal on A1, no endpoint: /chan hears it
+#   03     a goal on A2, no endpoint: the Bridge's /bridge hears it
+#   04     a goal on A1 WITH its own endpoint /own: only /own hears it
+#   05     a goal on A3, no endpoint: its Channel default was ignored - /bridge
+#
+# Each step shows only the URLs the endpoints were called on - which endpoint
+# heard a goal is the point here; what a goal notification carries is
+# bridge_action_goal_endpoint's.
+#
+--NAME--
+Bridges: default goal endpoints - the Channel's, else the Bridge's, for a goal that names none
+
+--TAGS--
+bridge channel action goal notification
+
+--INIT--
+corDbDrop
+ftClientStart
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --action "A3,Robot,urn:R:3,navigate" \
+  --actionNotify "A1=http://localhost:$FT_CLIENT_PORT/chan" \
+  --actionNotify "A3=ftp://localhost/nope" \
+  --notify "http://localhost:$FT_CLIENT_PORT/bridge")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The A1 Channel and the Bridge show their default goal endpoints"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1 | grep -A4 '"notification"' | sed "s/$FT_CLIENT_PORT/FT_PORT/"
+corCurl --url /ngsi-ld/v1/bridges | grep -A4 '"notification"' | sed "s/$FT_CLIENT_PORT/FT_PORT/"
+echo
+echo
+
+
+echo "02. A goal on A1, naming no endpoint - its Channel's default hears it"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }' | head -1
+for i in $(seq 1 50); do
+  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
+echo
+echo
+
+
+echo "03. A goal on A2, naming no endpoint - no Channel default, so the Bridge's"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 2 } } }' | head -1
+for i in $(seq 1 50); do
+  grep -q "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
+echo
+echo
+
+
+echo "04. A goal on A1 with its own endpoint - only that endpoint hears it"
+echo "===================================================================="
+payload='{ "navigate": { "type": "Property", "value": { "x": 3 }, "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/own" } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload" | head -1
+for i in $(seq 1 50); do
+  grep -q "goal 3 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
+echo
+echo
+
+
+echo "05. A goal on A3, naming no endpoint - its unusable default was ignored: the Bridge's"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:3/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 4 } } }' | head -1
+for i in $(seq 1 50); do
+  grep -q "goal 4 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+ftClientSettle
+ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
+grep -c "endpoint 'A3' - notification.endpoint.uri must be an http(s) URL - ignored" /tmp/coraine.CB.log
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+
+--EXPECT--
+01. The A1 Channel and the Bridge show their default goal endpoints
+===================================================================
+  "notification": {
+    "endpoint": {
+      "accept": "application/json",
+      "uri": "http://localhost:FT_PORT/chan"
+    }
+    "notification": {
+      "endpoint": {
+        "accept": "application/json",
+        "uri": "http://localhost:FT_PORT/bridge"
+      }
+
+
+02. A goal on A1, naming no endpoint - its Channel's default hears it
+=====================================================================
+HTTP/1.1 202 Accepted
+"url": "/chan"
+
+
+03. A goal on A2, naming no endpoint - no Channel default, so the Bridge's
+==========================================================================
+HTTP/1.1 202 Accepted
+"url": "/bridge"
+
+
+04. A goal on A1 with its own endpoint - only that endpoint hears it
+====================================================================
+HTTP/1.1 202 Accepted
+"url": "/own"
+
+
+05. A goal on A3, naming no endpoint - its unusable default was ignored: the Bridge's
+====================================================================================
+HTTP/1.1 202 Accepted
+"url": "/bridge"
+1
+
+

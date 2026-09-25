@@ -82,6 +82,7 @@ typedef struct Goal
   char*         goalId;                               // the transport's, once an event has said
   char*         goalAlias;                            // the instance's datasetId, once an event has said
   char*         notifyEndpoint;                       // where the goal's events are notified - NULL: nowhere
+  char*         notifyAccept;                         // ... and in what: application/json unless a default said otherwise
   char*         subId;                                // the goal's own subscription, once made
   char*         entityType;                           // for that subscription's entity selector
   int           state;                                // BridgeGoalState
@@ -174,6 +175,7 @@ static void goalFree(Goal* goalP)
   free(goalP->goalId);
   free(goalP->goalAlias);
   free(goalP->notifyEndpoint);
+  free(goalP->notifyAccept);
   free(goalP->subId);
   free(goalP->entityType);
   free(goalP->feedback);
@@ -273,7 +275,7 @@ static void goalSubscribe(Goal* goalP)
   kjChildAdd(subP, triggerP);
 
   kjChildAdd(endpointP, kjString(corRest.kjsonP, LD_VOCAB_URI, goalP->notifyEndpoint));
-  kjChildAdd(endpointP, kjString(corRest.kjsonP, "accept", "application/json"));
+  kjChildAdd(endpointP, kjString(corRest.kjsonP, "accept", (goalP->notifyAccept != NULL) ? goalP->notifyAccept : "application/json"));
   kjChildAdd(notifP, endpointP);
   kjChildAdd(subP, notifP);
 
@@ -391,6 +393,116 @@ static void releasedCondInit(void)
 
 // -----------------------------------------------------------------------------
 //
+// NotifyDefault - a Bridge's default goal endpoint, from its configuration
+//
+// Where a goal is notified, the first that exists (bridge-channels.md 9.1):
+//   1. the goal's own endpoint - the request's "endpoint"
+//   2. its Channel's default   - Channel::notifyUri
+//   3. its Bridge's default    - this table
+//   4. none: the goal is polled
+//
+// A default does not make a subscription of its own: a goal that falls back to
+// one is given it as its endpoint, and gets the same per-goal subscription an
+// endpoint of its own would. So a default hears the goals that named none -
+// never a goal with an endpoint of its own, nor an ordinary write of the
+// attribute.
+//
+// ⭐ Written only while the configuration loads, before any request or plugin
+// thread exists, and read-only after - so no lock.
+//
+#define NOTIFY_DEFAULTS_MAX  16
+
+typedef struct NotifyDefault
+{
+  char* bridgeName;
+  char* uri;
+  char* accept;
+} NotifyDefault;
+
+static NotifyDefault notifyDefaults[NOTIFY_DEFAULTS_MAX];
+static int           notifyDefaultCount = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalNotifyDefaultSet - a Bridge's default goal endpoint (startup only)
+//
+void bridgeGoalNotifyDefaultSet(const char* bridgeName, const char* uri, const char* accept)
+{
+  for (int ix = 0; ix < notifyDefaultCount; ix++)
+  {
+    if (strcmp(notifyDefaults[ix].bridgeName, bridgeName) == 0)
+    {
+      free(notifyDefaults[ix].uri);
+      free(notifyDefaults[ix].accept);
+      notifyDefaults[ix].uri    = strdup(uri);
+      notifyDefaults[ix].accept = (accept != NULL) ? strdup(accept) : NULL;
+      return;
+    }
+  }
+
+  if (notifyDefaultCount >= NOTIFY_DEFAULTS_MAX)
+  {
+    KT_W("bridge '%s': no room for its default goal endpoint - its goals are notified only where they say", bridgeName);
+    return;
+  }
+
+  notifyDefaults[notifyDefaultCount].bridgeName = strdup(bridgeName);
+  notifyDefaults[notifyDefaultCount].uri        = strdup(uri);
+  notifyDefaults[notifyDefaultCount].accept     = (accept != NULL) ? strdup(accept) : NULL;
+  ++notifyDefaultCount;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalNotifyDefault - a Bridge's default goal endpoint, or false
+//
+bool bridgeGoalNotifyDefault(const char* bridgeName, const char** uriP, const char** acceptP)
+{
+  for (int ix = 0; ix < notifyDefaultCount; ix++)
+  {
+    if (strcmp(notifyDefaults[ix].bridgeName, bridgeName) == 0)
+    {
+      *uriP    = notifyDefaults[ix].uri;
+      *acceptP = notifyDefaults[ix].accept;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalNotifyChoose - where this goal's events go: its own endpoint, its Channel's, its Bridge's, or nowhere
+//
+static void goalNotifyChoose(Goal* goalP, Channel* channelP, const char* endpoint)
+{
+  const char* uri    = endpoint;
+  const char* accept = NULL;
+
+  if ((uri == NULL) && (channelP->notifyUri != NULL))
+  {
+    uri    = channelP->notifyUri;
+    accept = channelP->notifyAccept;
+  }
+
+  if (uri == NULL)
+    bridgeGoalNotifyDefault(channelP->bridgeName, &uri, &accept);
+
+  goalP->notifyEndpoint = (uri    != NULL) ? strdup(uri)    : NULL;
+  goalP->notifyAccept   = (accept != NULL) ? strdup(accept) : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeGoalSend -
 //
 int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, uint64_t* tokenP)
@@ -415,7 +527,7 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
   goalP->entityId   = strdup(channelP->entityId);
   goalP->attrName   = strdup(channelP->attrName);
   goalP->request    = strdup(json);
-  goalP->notifyEndpoint = (endpoint != NULL) ? strdup(endpoint) : NULL;
+  goalNotifyChoose(goalP, channelP, endpoint);
   goalP->entityType = (channelP->entityType != NULL) ? strdup(channelP->entityType) : NULL;
   goalP->state      = BridgeGoalUnknown;
   goalP->held       = true;                         // its request has not written yet - see bridgeGoalRelease

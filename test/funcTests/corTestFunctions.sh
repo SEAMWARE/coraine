@@ -1074,6 +1074,8 @@ bridgeConfig() {
   local -a emits
   local -a replyDelays
   local -a goalModes
+  local -a actionNotifies
+  local bridgeNotify=""
   local -a raws
 
   while [ $# -gt 0 ]; do
@@ -1096,6 +1098,14 @@ bridgeConfig() {
       #
       --action) actions+=("$2"); shift ;;
       --goalMode) goalModes+=("$2"); shift ;;
+      #
+      # Default goal endpoints, for goals that name none: --actionNotify
+      # "<endpoint>=<uri>" is that action Channel's, --notify "<uri>" the
+      # Bridge's (ngsild.notification). The goal's own endpoint wins, then the
+      # Channel's, then the Bridge's.
+      #
+      --actionNotify) actionNotifies+=("$2"); shift ;;
+      --notify) bridgeNotify="$2"; shift ;;
       #
       # The catch-all entity: "true" for the derived one, or "<id>,<type>" to
       # name it. An endpoint no topic claims goes there instead of being
@@ -1166,6 +1176,10 @@ bridgeConfig() {
 
     if [ -n "$typesDirectory" ]; then
       echo "      \"typesDirectory\": \"$typesDirectory\","
+    fi
+
+    if [ -n "$bridgeNotify" ]; then
+      echo "      \"notification\": { \"endpoint\": { \"uri\": \"$bridgeNotify\" } },"
     fi
 
     if [ -n "$defaultEntity" ]; then
@@ -1244,7 +1258,12 @@ bridgeConfig() {
         #
         local actionType=""
         [ -n "$aActionType" ] && actionType=", \"type\": \"$aActionType\""
-        echo "        \"$aEndpoint\": { \"entityId\": \"$aId\", \"entityType\": \"$aType\", \"attribute\": \"$aAttr\"$actionType }$comma"
+        local notify=""
+        local an
+        for an in "${actionNotifies[@]}"; do
+          [ "${an%%=*}" == "$aEndpoint" ] && notify=", \"notification\": { \"endpoint\": { \"uri\": \"${an#*=}\" } }"
+        done
+        echo "        \"$aEndpoint\": { \"entityId\": \"$aId\", \"entityType\": \"$aType\", \"attribute\": \"$aAttr\"$actionType$notify }$comma"
       done
       echo "      }"
     fi
