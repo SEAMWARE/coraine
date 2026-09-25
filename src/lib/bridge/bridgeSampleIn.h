@@ -18,6 +18,20 @@
 
 // -----------------------------------------------------------------------------
 //
+// BridgeSubAttr - a payload headed for a sub-attribute of its own: the request a reply answers (ABI 7)
+//
+typedef struct BridgeSubAttr
+{
+  const char*  name;                                  // the sub-attribute's name, as the plugin spells it
+  const char*  json;                                  // the payload, JSON text
+  const char*  meta;                                  // the transport's meta about it, or NULL
+  int64_t      time;                                  // nanoseconds since the epoch - 0: not said
+} BridgeSubAttr;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeSampleIn - the broker's side of BridgeBroker::sampleIn
 //
 // A foreign endpoint produced a value. Resolve it to its Channel and do the
@@ -126,7 +140,8 @@ extern int bridgeSampleQualifiedMetaIn(const char* bridgeName,
                                        const char* subAttrName,
                                        const char* json,
                                        const char* meta,
-                                       int64_t     publishTime);
+                                       int64_t     publishTime,
+                                       const BridgeSubAttr* requestP);
 
 
 

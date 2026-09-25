@@ -258,6 +258,31 @@ static const char* loopbackMeta(const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// Request echoes - "echoRequest": { "<endpoint>": "<sub-attribute name>" } (ABI 7)
+//
+// A reply on that endpoint goes back WITH the request it answers, under that
+// sub-attribute, through replyExchangeIn - what a transport that knows its
+// requests does (DDS: "request" beside "reply"). The loopback's reply is its
+// request, so what was asked is simply the payload again.
+//
+static LoopbackMeta  echoes[LOOPBACK_CHANNELS_MAX];   // endpoint -> the request's sub-attribute name
+static int           echoCount = 0;
+
+static const char* loopbackEchoName(const char* endpoint)
+{
+  for (int ix = 0; ix < echoCount; ix++)
+  {
+    if (strcmp(echoes[ix].endpoint, endpoint) == 0)
+      return echoes[ix].meta;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackReplyDelay - how late to answer on this endpoint (0: at once, -1: never)
 //
 static int loopbackReplyDelay(const char* endpoint)
@@ -364,6 +389,10 @@ static void* loopbackDelivery(void* vP)
         brokerP->sampleMetaIn("loopback", sample.endpoint, sample.json, meta, 0);
       else if (sample.subAttrName == NULL)
         brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+      else if ((loopbackEchoName(sample.endpoint) != NULL) && (brokerP->abiVersion >= 7) && (brokerP->replyExchangeIn != NULL))
+        brokerP->replyExchangeIn("loopback", sample.endpoint, sample.token, NULL,
+                                 loopbackEchoName(sample.endpoint), sample.json, NULL, 0,
+                                 sample.subAttrName, sample.json, meta, 0);
       else if ((useMeta == true) && (brokerP->replyMetaIn != NULL))
         brokerP->replyMetaIn("loopback", sample.endpoint, sample.token, NULL, sample.subAttrName, sample.json, meta, 0);
       else if ((sample.token != 0) && (brokerP->abiVersion >= 3) && (brokerP->replyIn != NULL))
@@ -433,6 +462,7 @@ static char loopbackConfigPath[512];
 static void loopbackEmitAtStart(void);
 static void loopbackReplyDelaysLoad(void);
 static void loopbackMetasLoad(void);
+static void loopbackEchoesLoad(void);
 static void loopbackGoalModesLoad(void);
 
 
@@ -469,6 +499,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
 
   loopbackReplyDelaysLoad();
   loopbackMetasLoad();
+  loopbackEchoesLoad();
   loopbackGoalModesLoad();
   loopbackEmitAtStart();
 
@@ -685,6 +716,27 @@ static void loopbackMetaPair(const char* endpoint, const char* value)
 static void loopbackMetasLoad(void)
 {
   loopbackConfigPairs("\"meta\"", loopbackMetaPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackEchoPair / loopbackEchoesLoad - "echoRequest", see echoes
+//
+static void loopbackEchoPair(const char* endpoint, const char* value)
+{
+  if (echoCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  echoes[echoCount].endpoint = strdup(endpoint);
+  echoes[echoCount].meta     = strdup(value);
+  ++echoCount;
+}
+
+static void loopbackEchoesLoad(void)
+{
+  loopbackConfigPairs("\"echoRequest\"", loopbackEchoPair);
 }
 
 

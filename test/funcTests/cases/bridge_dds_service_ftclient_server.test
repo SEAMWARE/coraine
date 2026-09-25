@@ -144,7 +144,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 682
+Content-Length: REGEX(\d+)
 
 {
   "id": "urn:ngsi-ld:Calculator:1",
@@ -169,6 +169,26 @@ Content-Length: 682
       "type": "Property",
       "value": {
         "sum": 7
+      }
+    },
+    "request": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "example_interfaces::srv::dds_::AddTwoInts_Request_"
+      },
+      "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "publishedAt": {
+        "type": "Property",
+        "value": REGEX(\d{10})
+      },
+      "requestId": {
+        "type": "Property",
+        "value": REGEX(\d+)
+      },
+      "type": "Property",
+      "value": {
+        "a": 3,
+        "b": 4
       }
     },
     "type": "Property",

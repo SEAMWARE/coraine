@@ -1,0 +1,173 @@
+#
+# FILE            bridge_service_request_echo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A service's reply, and the request it answers, in ONE write (bridge ABI 7,
+# replyExchangeIn): the transport hands both over, and the attribute gets the
+# reply's sub-attribute and the request's, side by side - as Orion-LD shows a
+# DDS service call ("request" + "reply", each with its own sub-Properties). One
+# change of the attribute, so a subscriber hears the whole exchange in one
+# notification.
+#
+# The loopback's reply is its request, so "request" and "reply" hold the same
+# value here; what matters is where they go and that they go together.
+#
+#   01-02  a reply nobody waits for: request and reply, and ONE notification with both
+#   03     a reply the request waits for (ddsSync): the same, through the request's own write
+#
+--NAME--
+Bridges: a service reply and the request it answers, written together
+
+--TAGS--
+bridge channel service
+
+--INIT--
+corDbDrop
+ftClientStart
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --service "compute,Calculator,urn:ngsi-ld:Calculator:1,job" \
+  --echoRequest "compute=request" \
+  --meta 'compute={ "requestId": 7 }')
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A subscription on the service's attribute, then invoke the service"
+echo "======================================================================="
+payload='{
+  "id": "urn:S:1",
+  "type": "Subscription",
+  "entities": [ { "type": "Calculator" } ],
+  "watchedAttributes": [ "job" ],
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job -X PATCH --payload '{ "type": "Property", "value": { "op": "sum" } }' | head -1
+echo
+echo
+
+
+echo "02. Request and reply, side by side - and heard in ONE notification"
+echo "==================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"request"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+ftClientSettle
+#
+# A dumped notification's "body" sorts before its "verb", so the lines below
+# read as: the PATCH's own notification (no reply yet), then ONE notification
+# carrying reply AND request. Written apart, request and reply would each have
+# a "verb" line after it.
+#
+echo "notifications, in order - each POST, and the request/reply sub-attributes it carried:"
+ftClientDump | grep -oE '"verb": "POST"|"request": \{|"reply": \{'
+echo
+echo
+
+
+echo "03. A reply the request WAITS for (ddsSync) - both, through the request's own write"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job?ddsSync=true' -X PATCH --payload '{ "type": "Property", "value": { "op": "max" } }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+
+--EXPECT--
+01. A subscription on the service's attribute, then invoke the service
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
+
+
+02. Request and reply, side by side - and heard in ONE notification
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 407
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "reply": {
+      "requestId": {
+        "type": "Property",
+        "value": 7
+      },
+      "type": "Property",
+      "value": {
+        "op": "sum"
+      }
+    },
+    "request": {
+      "type": "Property",
+      "value": {
+        "op": "sum"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "op": "sum"
+    }
+  },
+  "type": "Calculator"
+}
+
+notifications, in order - each POST, and the request/reply sub-attributes it carried:
+"verb": "POST"
+"reply": {
+"request": {
+"verb": "POST"
+
+
+03. A reply the request WAITS for (ddsSync) - both, through the request's own write
+==================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 407
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "reply": {
+      "requestId": {
+        "type": "Property",
+        "value": 7
+      },
+      "type": "Property",
+      "value": {
+        "op": "max"
+      }
+    },
+    "request": {
+      "type": "Property",
+      "value": {
+        "op": "max"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "op": "max"
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
