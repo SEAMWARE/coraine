@@ -137,14 +137,61 @@ static void threadBind(Tenant* tenantP)
 //
 static void metaAdd(KjNode* targetP, const char* meta);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// subAttrFrom - a payload as a sub-attribute: a reply, a goal event, a request (ABI 7)
+//
+// One builder, so that a reply and the request it answers are shaped alike.
+//
+static KjNode* subAttrFrom(const char* name, KjNode* payloadP, int64_t publishTime, const char* meta)
+{
+  KjNode* subP = kjObject(corRest.kjsonP, name);
+
+  kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Property"));
+  payloadP->name = (char*) "value";
+  kjChildAdd(subP, payloadP);
+
+  if (publishTime > 0)
+  {
+    kjChildAdd(subP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+
+    //
+    // publishedAt, as Orion-LD writes it on a reply or goal sub-attribute: a
+    // Property holding WHOLE seconds since the epoch - it divides the
+    // transport's nanoseconds by 10^9. Its clients read it, and until ARISE ends
+    // that contract does not change. observedAt, just above, keeps the precision.
+    //
+    KjNode* publishedAtP = kjObject(corRest.kjsonP, "publishedAt");
+
+    kjChildAdd(publishedAtP, kjString(corRest.kjsonP, "type", "Property"));
+    kjChildAdd(publishedAtP, kjInteger(corRest.kjsonP, "value", (long long) (publishTime / 1000000000LL)));
+    kjChildAdd(subP, publishedAtP);
+  }
+
+  metaAdd(subP, meta);
+
+  return subP;
+}
+
 static KjNode* attributeFromSample(const char* attrName,
                                    const char* json,
                                    int64_t     publishTime,
                                    const char* datasetId,
                                    const char* subAttrName,
                                    KjNode*     existingValueP,
-                                   const char* meta)
+                                   const char* meta,
+                                   const BridgeSubAttr* requestP)
 {
+  //
+  // ⚠ The request (ABI 7) is copied BEFORE the payload is parsed. kjParse works
+  // IN PLACE, and nothing says the two are different texts - a transport whose
+  // reply is its request may hand the same buffer twice, and parsing the reply
+  // first would leave the request's copy made from a buffer already cut up.
+  //
+  char* requestJson = ((requestP != NULL) && (requestP->json != NULL)) ? kaStrdup(&corRest.kalloc, requestP->json) : NULL;
+
   KjNode* payloadP = kjParse(corRest.kjsonP, (char*) json);
 
   if (payloadP == NULL)
@@ -174,31 +221,20 @@ static KjNode* attributeFromSample(const char* attrName,
     valueP->name = (char*) "value";
     kjChildAdd(attrP, valueP);
 
-    KjNode* subP = kjObject(corRest.kjsonP, subAttrName);
+    kjChildAdd(attrP, subAttrFrom(subAttrName, payloadP, publishTime, meta));
 
-    kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Property"));
-    payloadP->name = (char*) "value";
-    kjChildAdd(subP, payloadP);
-
-    if (publishTime > 0)
+    //
+    // ABI 7: the request this answers, beside it, in the same write
+    //
+    if ((requestP != NULL) && (requestP->name != NULL) && (requestJson != NULL))
     {
-      kjChildAdd(subP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+      KjNode* requestPayloadP = kjParse(corRest.kjsonP, requestJson);
 
-      //
-      // publishedAt, as Orion-LD writes it on a reply or goal sub-attribute: a
-      // Property holding WHOLE seconds since the epoch - it divides the
-      // transport's nanoseconds by 10^9. Its clients read it, and until ARISE ends
-      // that contract does not change. observedAt, just above, keeps the precision.
-      //
-      KjNode* publishedAtP = kjObject(corRest.kjsonP, "publishedAt");
-
-      kjChildAdd(publishedAtP, kjString(corRest.kjsonP, "type", "Property"));
-      kjChildAdd(publishedAtP, kjInteger(corRest.kjsonP, "value", (long long) (publishTime / 1000000000LL)));
-      kjChildAdd(subP, publishedAtP);
+      if (requestPayloadP != NULL)
+        kjChildAdd(attrP, subAttrFrom(requestP->name, requestPayloadP, requestP->time, requestP->meta));
+      else
+        KT_W("bridge: the request beside a '%s' reply is not valid JSON - left out", subAttrName);
     }
-
-    metaAdd(subP, meta);
-    kjChildAdd(attrP, subP);
   }
 
   //
@@ -368,7 +404,8 @@ static int sampleIn(const char* bridgeName,
                     int64_t     publishTime,
                     const char* seedJson,
                     bool        goal,
-                    const char* meta)
+                    const char* meta,
+                    const BridgeSubAttr* requestP)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
@@ -556,7 +593,7 @@ static int sampleIn(const char* bridgeName,
     }
   }
 
-  KjNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP, meta);
+  KjNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP, meta, requestP);
 
   if (attrP == NULL)
   {
@@ -764,7 +801,7 @@ KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const 
   //
   char*   jsonCopy     = kaStrdup(&corRest.kalloc, json);
   KjNode* placeholderP = kjString(corRest.kjsonP, NULL, "-");
-  KjNode* attrP        = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP, meta);
+  KjNode* attrP        = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP, meta, NULL);
 
   if (attrP == NULL)
     return NULL;
@@ -826,9 +863,9 @@ KjNode* bridgeGoalInstance(const char* attrName,
   KjNode* attrP;
 
   if ((subAttrName != NULL) && (json != NULL))
-    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP, meta);
+    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP, meta, NULL);
   else
-    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, requestJson), 0, goalAlias, NULL, NULL, NULL);   // the request as the value, and no more
+    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, requestJson), 0, goalAlias, NULL, NULL, NULL, NULL);   // the request as the value, and no more
 
   if (attrP == NULL)
     return NULL;
@@ -859,7 +896,7 @@ KjNode* bridgeGoalInstance(const char* attrName,
 //
 int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
 {
-  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime, NULL, false, NULL);
+  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime, NULL, false, NULL, NULL);
 }
 
 
@@ -875,7 +912,7 @@ int bridgeSampleQualifiedIn(const char* bridgeName,
                             const char* json,
                             int64_t     publishTime)
 {
-  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime, NULL, false, NULL);
+  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime, NULL, false, NULL, NULL);
 }
 
 
@@ -886,7 +923,7 @@ int bridgeSampleQualifiedIn(const char* bridgeName,
 //
 int bridgeSampleMetaIn(const char* bridgeName, const char* endpoint, const char* json, const char* meta, int64_t publishTime)
 {
-  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime, NULL, false, meta);
+  return sampleIn(bridgeName, endpoint, NULL, NULL, json, publishTime, NULL, false, meta, NULL);
 }
 
 
@@ -901,9 +938,10 @@ int bridgeSampleQualifiedMetaIn(const char* bridgeName,
                                 const char* subAttrName,
                                 const char* json,
                                 const char* meta,
-                                int64_t     publishTime)
+                                int64_t     publishTime,
+                                const BridgeSubAttr* requestP)
 {
-  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime, NULL, false, meta);
+  return sampleIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime, NULL, false, meta, requestP);
 }
 
 
@@ -921,7 +959,7 @@ int bridgeGoalWrite(const char* bridgeName,
                     const char* requestJson,
                     const char* meta)
 {
-  return sampleIn(bridgeName, endpoint, goalAlias, subAttrName, json, publishTime, requestJson, true, meta);
+  return sampleIn(bridgeName, endpoint, goalAlias, subAttrName, json, publishTime, requestJson, true, meta, NULL);
 }
 
 

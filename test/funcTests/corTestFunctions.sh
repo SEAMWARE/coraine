@@ -1076,6 +1076,7 @@ bridgeConfig() {
   local -a goalModes
   local -a actionNotifies
   local -a metas
+  local -a echoRequests
   local bridgeNotify=""
   local -a raws
 
@@ -1111,6 +1112,11 @@ bridgeConfig() {
       # sub-attribute of whatever the payload lands in.
       #
       --meta) metas+=("$2"); shift ;;
+      #
+      # --echoRequest "<endpoint>=<sub-attribute>": a reply on that service goes
+      # back with the request it answers, under that sub-attribute (ABI 7)
+      #
+      --echoRequest) echoRequests+=("$2"); shift ;;
       --actionNotify) actionNotifies+=("$2"); shift ;;
       --notify) bridgeNotify="$2"; shift ;;
       #
@@ -1162,6 +1168,19 @@ bridgeConfig() {
         local comma=","
         [ $i -eq ${#metas[@]} ] && comma=""
         echo "      \"${m%%=*}\": ${m#*=}$comma"
+      done
+      echo "    },"
+    fi
+
+    if [ ${#echoRequests[@]} -gt 0 ]; then
+      echo "    \"echoRequest\": {"
+      local i=0
+      local er
+      for er in "${echoRequests[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#echoRequests[@]} ] && comma=""
+        echo "      \"${er%%=*}\": \"${er#*=}\"$comma"
       done
       echo "    },"
     fi

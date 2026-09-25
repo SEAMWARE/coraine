@@ -113,6 +113,26 @@ Content-Length: REGEX(\d+)
         "sum": 7
       }
     },
+    "request": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "example_interfaces::srv::dds_::AddTwoInts_Request_"
+      },
+      "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "publishedAt": {
+        "type": "Property",
+        "value": REGEX(\d{10})
+      },
+      "requestId": {
+        "type": "Property",
+        "value": REGEX(\d+)
+      },
+      "type": "Property",
+      "value": {
+        "a": 3,
+        "b": 4
+      }
+    },
     "type": "Property",
     "value": {
       "a": 3,
