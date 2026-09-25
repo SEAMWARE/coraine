@@ -556,7 +556,8 @@ static BridgeBroker bridgeBroker =
   bridgeLogFunction,
   bridgeSampleQualifiedIn,
   bridgeReplyIn,
-  bridgeGoalEventIn
+  bridgeGoalEventIn,
+  bridgeGoalEventPartIn
 };
 
 

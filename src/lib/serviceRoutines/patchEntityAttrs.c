@@ -41,7 +41,7 @@
 
 #include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckEntity.h"                   // ldCheckEntity
-#include "corNgsild/LdOp.h"                            // LdOpUpdateEntity
+#include "corNgsild/LdOp.h"                            // LdOpUpdateEntity, LdOpUpdateAttrs
 #include "corNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_*
@@ -190,14 +190,22 @@ static void recordFragmentAttrsUpdated(KjNode* targetP, KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
-// patchEntityAttrs -
+// patchEntityAttrs - PATCH /ngsi-ld/v1/entities/{entityId}/attrs
 //
 bool patchEntityAttrs(void)
 {
-  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
+  return patchEntityAttrsOn(corRest.in.wildcard[0], corRest.in.requestTree, NULL);
+}
 
-  const char* entityId = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+
+
+// -----------------------------------------------------------------------------
+//
+// patchEntityAttrsOn -
+//
+bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, uint64_t* goalTokenP)
+{
+  bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
   //
   // Validate — LdOpUpdateEntity allows null-markers (unlike Create/Append).
@@ -300,7 +308,7 @@ bool patchEntityAttrs(void)
         if (csr->endpoint == NULL)                    continue;
         bool loop = loopSeen || ldDistOpCsrWouldLoop(csr, ownAlias);
 
-        bool opSupported = ldRegOpSupported(csr, corRest.serviceP->ldOp);
+        bool opSupported = ldRegOpSupported(csr, LdOpUpdateAttrs);   // not the route's: a goal POSTed to a Channel runs this too
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
@@ -527,6 +535,22 @@ bool patchEntityAttrs(void)
 
     bridgeRequestsWritten(&syncDone);   // late replies may land now - see bridgeServiceSync.h
     ddsAccepted = syncDone.accepted;
+
+    //
+    // The goal this write sent, for a caller that waits for its answer
+    // (POST /channels/{id}/goals). Released by now - it may already have one.
+    //
+    if (goalTokenP != NULL)
+    {
+      for (int ix = 0; ix < syncDone.count; ix++)
+      {
+        if (syncDone.goalV[ix] != 0)
+        {
+          *goalTokenP = syncDone.goalV[ix];
+          break;
+        }
+      }
+    }
 
     if (r == DB_GEO_TYPE_CONFLICT)
     {

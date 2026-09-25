@@ -22,6 +22,9 @@
 #include "bridge/channelCache.h"                      // channelLookupByTarget
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
+#include "kjson/kjParse.h"                            // kjParse
+#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corBridge/BridgeBroker.h"                   // BridgeGoalState, BridgeGoalPart
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -81,8 +84,32 @@ typedef struct Goal
   bool          instanceMade;                         // an event has been written into the instance
   bool          held;                                 // sent before its request's write, which has not happened yet
   int64_t       sentMs;
+  char*         feedback;                             // the latest feedback, as the plugin sent it (part: ABI 5)
+  char*         result;                               // the result, once it came (part: ABI 5)
+  bool          answered;                             // its first event has arrived - accepted, or not
   struct Goal*  next;
 } Goal;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// GoalAnswer - how a goal's FIRST event answered it: accepted, or not
+//
+// Kept apart from the Goal, because a goal refused at once is final at once -
+// the same event that answers it frees it - and because on a fast transport
+// the answer can arrive before whoever sent the goal has started to wait for
+// it: the goal is released inside the request's write. A small ring of recent
+// answers covers both: the waiter looks here first, then waits.
+//
+#define GOAL_ANSWERS  64
+
+typedef struct GoalAnswer
+{
+  uint64_t  token;                                    // 0: a free slot
+  int       state;
+  char      goalId[128];                              // the transport's own id - "" when it gave none
+} GoalAnswer;
 
 
 
@@ -107,6 +134,9 @@ static uint64_t         nextToken = 1;
 static pthread_mutex_t  goalMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t   goalReleased;                 // CLOCK_MONOTONIC - initialised on first use
 static bool             goalReleasedInit = false;
+static pthread_cond_t   goalAnswered;                 // CLOCK_MONOTONIC - initialised with goalReleased
+static GoalAnswer       answerV[GOAL_ANSWERS];
+static int              answerNext = 0;
 
 
 
@@ -157,6 +187,8 @@ static void goalFree(Goal* goalP)
   free(goalP->notifyEndpoint);
   free(goalP->subId);
   free(goalP->entityType);
+  free(goalP->feedback);
+  free(goalP->result);
   free(goalP);
 }
 
@@ -358,6 +390,7 @@ static void releasedCondInit(void)
   pthread_condattr_init(&attr);
   pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
   pthread_cond_init(&goalReleased, &attr);
+  pthread_cond_init(&goalAnswered, &attr);
   pthread_condattr_destroy(&attr);
 
   goalReleasedInit = true;
@@ -469,18 +502,56 @@ void bridgeGoalRelease(uint64_t token)
 
 // -----------------------------------------------------------------------------
 //
-// bridgeGoalEventIn -
+// answerRecord - the goal's first event: into the ring, and wake who waits. Caller holds goalMutex.
 //
-int bridgeGoalEventIn(const char* bridgeName,
-                      const char* endpoint,
-                      uint64_t    token,
-                      const char* goalId,
-                      const char* goalAlias,
-                      int         state,
-                      bool        final,
-                      const char* subAttrName,
-                      const char* json,
-                      int64_t     publishTime)
+static void answerRecord(Goal* goalP, int state)
+{
+  GoalAnswer* aP = &answerV[answerNext];
+
+  answerNext = (answerNext + 1) % GOAL_ANSWERS;
+
+  aP->token = goalP->token;
+  aP->state = state;
+  snprintf(aP->goalId, sizeof(aP->goalId), "%s", (goalP->goalId != NULL) ? goalP->goalId : "");
+
+  releasedCondInit();
+  pthread_cond_broadcast(&goalAnswered);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// answerFind - the recorded answer of a goal, NULL if none yet. Caller holds goalMutex.
+//
+static GoalAnswer* answerFind(uint64_t token)
+{
+  for (int ix = 0; ix < GOAL_ANSWERS; ix++)
+  {
+    if (answerV[ix].token == token)
+      return &answerV[ix];
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalEvent - an event of a goal, with the part its payload is (BridgeGoalPartNone: not said)
+//
+static int goalEvent(const char* bridgeName,
+                     const char* endpoint,
+                     uint64_t    token,
+                     const char* goalId,
+                     const char* goalAlias,
+                     int         state,
+                     bool        final,
+                     int         part,
+                     const char* subAttrName,
+                     const char* json,
+                     int64_t     publishTime)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (token == 0))
     return BRIDGE_BAD_INPUT;
@@ -554,6 +625,31 @@ int bridgeGoalEventIn(const char* bridgeName,
 
   goalP->state = state;
 
+  //
+  // What the payload IS, when the plugin says - so a goal can be shown the same
+  // way whatever transport carries it (the goal resource's goalFeedback and
+  // goalResult). Only the latest feedback is kept: it describes the goal NOW.
+  //
+  if (json != NULL)
+  {
+    if (part == BridgeGoalPartFeedback)
+    {
+      free(goalP->feedback);
+      goalP->feedback = strdup(json);
+    }
+    else if (part == BridgeGoalPartResult)
+    {
+      free(goalP->result);
+      goalP->result = strdup(json);
+    }
+  }
+
+  if (goalP->answered == false)
+  {
+    goalP->answered = true;
+    answerRecord(goalP, state);
+  }
+
   goalSubscribe(goalP);                               // the alias is known now - before the event is written
 
   //
@@ -591,6 +687,234 @@ int bridgeGoalEventIn(const char* bridgeName,
   pthread_mutex_unlock(&goalMutex);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventIn - ABI 4: the part is not said
+//
+int bridgeGoalEventIn(const char* bridgeName,
+                      const char* endpoint,
+                      uint64_t    token,
+                      const char* goalId,
+                      const char* goalAlias,
+                      int         state,
+                      bool        final,
+                      const char* subAttrName,
+                      const char* json,
+                      int64_t     publishTime)
+{
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, BridgeGoalPartNone, subAttrName, json, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventPartIn - ABI 5
+//
+int bridgeGoalEventPartIn(const char* bridgeName,
+                          const char* endpoint,
+                          uint64_t    token,
+                          const char* goalId,
+                          const char* goalAlias,
+                          int         state,
+                          bool        final,
+                          int         part,
+                          const char* subAttrName,
+                          const char* json,
+                          int64_t     publishTime)
+{
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, part, subAttrName, json, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAwaitAnswer -
+//
+bool bridgeGoalAwaitAnswer(uint64_t token, int timeoutMs, int* stateP, char* goalIdBuf, int goalIdBufSize)
+{
+  struct timespec deadline;
+  int64_t         dueMs = nowMs() + timeoutMs;
+
+  deadline.tv_sec  = dueMs / 1000;
+  deadline.tv_nsec = (dueMs % 1000) * 1000000;
+
+  pthread_mutex_lock(&goalMutex);
+  releasedCondInit();
+
+  GoalAnswer* aP;
+
+  while ((aP = answerFind(token)) == NULL)
+  {
+    if (pthread_cond_timedwait(&goalAnswered, &goalMutex, &deadline) == ETIMEDOUT)
+    {
+      aP = answerFind(token);   // the last chance - it may have come with the timeout
+      break;
+    }
+  }
+
+  if (aP != NULL)
+  {
+    *stateP = aP->state;
+    snprintf(goalIdBuf, goalIdBufSize, "%s", aP->goalId);
+  }
+
+  pthread_mutex_unlock(&goalMutex);
+
+  return (aP != NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalStateName -
+//
+const char* bridgeGoalStateName(int state)
+{
+  switch (state)
+  {
+  case BridgeGoalAccepted:   return "accepted";
+  case BridgeGoalExecuting:  return "executing";
+  case BridgeGoalCanceling:  return "canceling";
+  case BridgeGoalSucceeded:  return "succeeded";
+  case BridgeGoalCanceled:   return "canceled";
+  case BridgeGoalAborted:    return "aborted";
+  case BridgeGoalRejected:   return "rejected";
+  case BridgeGoalFailed:     return "failed";
+  }
+
+  return "unknown";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// jsonNode - a JSON text as a tree in the request's arena, as a member named 'name'
+//
+// A payload that does not parse is shown as the string it is rather than lost.
+//
+static KjNode* jsonNode(const char* name, const char* json)
+{
+  char*   copy  = kaStrdup(&corRest.kalloc, json);
+  KjNode* nodeP = kjParse(corRest.kjsonP, copy);
+
+  if (nodeP == NULL)
+    return kjString(corRest.kjsonP, name, kaStrdup(&corRest.kalloc, json));
+
+  nodeP->name = (char*) name;
+  return nodeP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalRender - a goal as its body. Caller holds goalMutex; everything is copied into the request's arena.
+//
+static KjNode* goalRender(Goal* goalP)
+{
+  Kjson*  kjsonP = corRest.kjsonP;
+  KjNode* bodyP  = kjObject(kjsonP, NULL);
+
+  kjChildAdd(bodyP, kjString(kjsonP, "id",     kaStrdup(&corRest.kalloc, goalP->goalAlias)));
+  kjChildAdd(bodyP, kjString(kjsonP, "type",   "Goal"));
+  kjChildAdd(bodyP, kjString(kjsonP, "goalId", kaStrdup(&corRest.kalloc, goalP->goalId)));
+  kjChildAdd(bodyP, kjString(kjsonP, "status", (char*) bridgeGoalStateName(goalP->state)));
+
+  if (goalP->request != NULL)   kjChildAdd(bodyP, jsonNode("goalRequest",  goalP->request));
+  if (goalP->feedback != NULL)  kjChildAdd(bodyP, jsonNode("goalFeedback", goalP->feedback));
+  if (goalP->result != NULL)    kjChildAdd(bodyP, jsonNode("goalResult",   goalP->result));
+
+  return bodyP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalOfChannel - is this goal one of the Channel's, in flight and answered?
+//
+static bool goalOfChannel(Goal* goalP, Channel* channelP)
+{
+  return (goalP->goalId != NULL)                                  &&
+         (strcmp(goalP->bridgeName, channelP->bridgeName) == 0)   &&
+         (strcmp(goalP->endpoint,   channelP->endpoint)   == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalsRender -
+//
+KjNode* bridgeGoalsRender(Channel* channelP)
+{
+  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if (goalOfChannel(goalP, channelP) == true)
+      kjChildAdd(arrayP, goalRender(goalP));
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return arrayP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalRender -
+//
+KjNode* bridgeGoalRender(Channel* channelP, const char* goalId)
+{
+  KjNode* bodyP = NULL;
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if ((goalOfChannel(goalP, channelP) == true) && (strcmp(goalP->goalId, goalId) == 0))
+    {
+      bodyP = goalRender(goalP);
+      break;
+    }
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return bodyP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAliasOf - the datasetId of a Channel's goal in flight, by the transport's id
+//
+char* bridgeGoalAliasOf(Channel* channelP, const char* goalId)
+{
+  char* aliasP = NULL;
+
+  pthread_mutex_lock(&goalMutex);
+  for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
+  {
+    if ((goalOfChannel(goalP, channelP) == true) && (strcmp(goalP->goalId, goalId) == 0))
+    {
+      aliasP = kaStrdup(&corRest.kalloc, goalP->goalAlias);
+      break;
+    }
+  }
+  pthread_mutex_unlock(&goalMutex);
+
+  return aliasP;
 }
 
 

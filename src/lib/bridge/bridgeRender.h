@@ -14,6 +14,7 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "corJsonld/CorLdContext.h"                   // CorLdContext
 
+#include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // Channel
 
 
@@ -28,6 +29,14 @@
 // on every start, which is what lets a client keep it.
 //
 extern const char* channelIdOf(Channel* channelP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelOfTenant - a tenant's Channel by its id (channelIdOf) - NULL if none
+//
+extern Channel* channelOfTenant(Tenant* tenantP, const char* channelId);
 
 
 

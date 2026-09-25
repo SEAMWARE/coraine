@@ -36,6 +36,7 @@
 #include <stdint.h>                                   // int64_t, uint64_t
 
 #include "db/Tenant.h"                                // Tenant
+#include "kjson/KjNode.h"                             // KjNode
 #include "bridge/Channel.h"                           // Channel
 
 
@@ -100,5 +101,67 @@ extern int bridgeGoalEventIn(const char* bridgeName,
 //         answered.
 //
 extern bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrName, const char* datasetId, int* rcP);
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventPartIn - the broker's side of BridgeBroker::goalEventPartIn (ABI 5)
+//
+// bridgeGoalEventIn, and the part the payload is (BridgeGoalPart): the latest
+// feedback and the result are kept for the goal resource.
+//
+extern int bridgeGoalEventPartIn(const char* bridgeName,
+                                 const char* endpoint,
+                                 uint64_t    token,
+                                 const char* goalId,
+                                 const char* goalAlias,
+                                 int         state,
+                                 bool        final,
+                                 int         part,
+                                 const char* subAttrName,
+                                 const char* json,
+                                 int64_t     publishTime);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAwaitAnswer - wait for a goal's FIRST event: accepted, or not
+//
+// For POST /channels/{id}/goals, which answers with the transport's goal id -
+// so it waits for it, and a refused goal is a proper error instead of a 201
+// that later fails (KZ: "better error handling if we wait"). Finds an answer
+// that came before the wait began. false: none within timeoutMs.
+//
+extern bool bridgeGoalAwaitAnswer(uint64_t token, int timeoutMs, int* stateP, char* goalIdBuf, int goalIdBufSize);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalStateName - a BridgeGoalState as the goal resource spells it
+//
+extern const char* bridgeGoalStateName(int state);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalsRender / bridgeGoalRender - a Channel's goals in flight, as Goal bodies
+//
+// Only while a goal is in progress, as phase 1: an ended goal is gone - its end
+// is in TRoE and in the notifications. bridgeGoalRender: NULL when not found.
+//
+extern KjNode* bridgeGoalsRender(Channel* channelP);
+extern KjNode* bridgeGoalRender(Channel* channelP, const char* goalId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalAliasOf - the datasetId of a Channel's goal in flight, by the transport's id - NULL if none
+//
+extern char* bridgeGoalAliasOf(Channel* channelP, const char* goalId);
+
+
 
 #endif  // SRC_LIB_BRIDGE_BRIDGEGOAL_H_

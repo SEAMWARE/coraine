@@ -114,6 +114,8 @@ typedef struct LoopbackSample
 //            echoed, as a service's reply is. The default.
 //   hold     accepted, and then nothing until it is cancelled - which is how a
 //            test gets a goal in flight to cancel
+//   progress held, like hold - after one feedback: a goal in flight that has
+//            reported progress, for a test to see it (goalFeedback)
 //   reject   refused at once. No result, so that event is the final one.
 //   abort    accepted, then aborted, with a result
 //   stubborn held, like hold - but a cancel cannot be sent, which is how a
@@ -127,6 +129,22 @@ typedef struct LoopbackSample
 #define LOOPBACK_GOAL_STATUS    "status"
 #define LOOPBACK_GOAL_FEEDBACK  "feedback"
 #define LOOPBACK_GOAL_RESULT    "result"
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackGoalPart - the BridgeGoalPart a payload in this sub-attribute is
+//
+static int loopbackGoalPart(const char* subAttrName)
+{
+  if (subAttrName == NULL)                                    return BridgeGoalPartNone;
+  if (strcmp(subAttrName, LOOPBACK_GOAL_STATUS)   == 0)       return BridgeGoalPartStatus;
+  if (strcmp(subAttrName, LOOPBACK_GOAL_FEEDBACK) == 0)       return BridgeGoalPartFeedback;
+  if (strcmp(subAttrName, LOOPBACK_GOAL_RESULT)   == 0)       return BridgeGoalPartResult;
+
+  return BridgeGoalPartNone;
+}
 
 typedef struct LoopbackGoalMode
 {
@@ -273,8 +291,17 @@ static void* loopbackDelivery(void* vP)
           // urn:goal:<id> - the form the DDS plugin gives a goal, so ?goal=<id> finds it here too
           snprintf(goalAlias, sizeof(goalAlias), "urn:goal:%llu", (unsigned long long) sample.token);
 
-          brokerP->goalEventIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
-                               sample.goalState, sample.goalFinal, sample.subAttrName, sample.json, 0);
+          //
+          // ABI 5: say which part of the goal the payload is - the loopback's own
+          // names say it, and only the plugin can know them
+          //
+          if ((brokerP->abiVersion >= 5) && (brokerP->goalEventPartIn != NULL))
+            brokerP->goalEventPartIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
+                                     sample.goalState, sample.goalFinal, loopbackGoalPart(sample.subAttrName),
+                                     sample.subAttrName, sample.json, 0);
+          else
+            brokerP->goalEventIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
+                                 sample.goalState, sample.goalFinal, sample.subAttrName, sample.json, 0);
         }
         else
           KT_E("loopback: a goal event on '%s' has nowhere to go - the host predates the action contract", sample.endpoint);
@@ -852,7 +879,10 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
 
   loopbackGoalEvent(endpoint, token, BridgeGoalAccepted, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"ACCEPTED\"}", 0);
 
-  if ((strcmp(mode, "hold") == 0) || (strcmp(mode, "stubborn") == 0))
+  if (strcmp(mode, "progress") == 0)
+    loopbackGoalEvent(endpoint, token, BridgeGoalExecuting, false, LOOPBACK_GOAL_FEEDBACK, "{\"progress\":50}", 0);
+
+  if ((strcmp(mode, "hold") == 0) || (strcmp(mode, "stubborn") == 0) || (strcmp(mode, "progress") == 0))
   {
     //
     // In flight until cancelled. Kept here, because the cancel is by token and
