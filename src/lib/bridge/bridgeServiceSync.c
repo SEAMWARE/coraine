@@ -128,6 +128,7 @@ typedef struct SyncWaiter
   // are gone the moment replyIn returns
   char*               subAttrName;
   char*               json;
+  char*               meta;                           // the transport's curiosities about it (ABI 6), or NULL
   int64_t             publishTime;
 
   int64_t             detachedAtMs;
@@ -164,6 +165,7 @@ static void waiterFree(SyncWaiter* wP)
   pthread_cond_destroy(&wP->cond);
   free(wP->subAttrName);
   free(wP->json);
+  free(wP->meta);
   free(wP);
 }
 
@@ -822,7 +824,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
       continue;
     }
 
-    KjNode* replyP = bridgeReplySubAttr(attrP->name, wP->subAttrName, wP->json, wP->publishTime);
+    KjNode* replyP = bridgeReplySubAttr(attrP->name, wP->subAttrName, wP->json, wP->publishTime, wP->meta);
 
     if (replyP == NULL)
     {
@@ -925,7 +927,7 @@ bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs
     // like any other - TRoE and the notifications need it - and removed once
     // this request has written it (bridgeGoalRelease).
     //
-    KjNode* instanceP = bridgeGoalInstance(attrP->name, answer.goalAlias, doneP->goalRequestV[ix], answer.subAttrName, answer.json, answer.publishTime);
+    KjNode* instanceP = bridgeGoalInstance(attrP->name, answer.goalAlias, doneP->goalRequestV[ix], answer.subAttrName, answer.json, answer.publishTime, answer.meta);
 
     if (instanceP == NULL)
     {
@@ -1026,15 +1028,16 @@ void bridgeRequestsReleasePending(void)
 
 // -----------------------------------------------------------------------------
 //
-// bridgeReplyIn -
+// replyIn - a service's reply, with the transport's meta (NULL before ABI 6)
 //
-int bridgeReplyIn(const char* bridgeName,
-                  const char* endpoint,
-                  uint64_t    token,
-                  const char* datasetId,
-                  const char* subAttrName,
-                  const char* json,
-                  int64_t     publishTime)
+static int replyIn(const char* bridgeName,
+                   const char* endpoint,
+                   uint64_t    token,
+                   const char* datasetId,
+                   const char* subAttrName,
+                   const char* json,
+                   const char* meta,
+                   int64_t     publishTime)
 {
   if (token != 0)
   {
@@ -1049,6 +1052,7 @@ int bridgeReplyIn(const char* bridgeName,
     {
       wP->subAttrName = (subAttrName != NULL) ? strdup(subAttrName) : NULL;
       wP->json        = (json        != NULL) ? strdup(json)        : NULL;
+      wP->meta        = (meta        != NULL) ? strdup(meta)        : NULL;
       wP->publishTime = publishTime;
       wP->state       = SyncAnswered;
 
@@ -1084,7 +1088,7 @@ int bridgeReplyIn(const char* bridgeName,
       KT_T(KtBridge, "bridge '%s': service '%s' answered late - written as an ordinary reply",
            (bridgeName != NULL) ? bridgeName : "?", (endpoint != NULL) ? endpoint : "?");
 
-      return bridgeSampleQualifiedIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime);
+      return bridgeSampleQualifiedMetaIn(bridgeName, endpoint, datasetId, subAttrName, json, meta, publishTime);
     }
 
     pthread_mutex_unlock(&syncMutex);
@@ -1093,5 +1097,40 @@ int bridgeReplyIn(const char* bridgeName,
   //
   // Nobody is waiting for it - an ordinary reply, to an ordinary invocation.
   //
-  return bridgeSampleQualifiedIn(bridgeName, endpoint, datasetId, subAttrName, json, publishTime);
+  return bridgeSampleQualifiedMetaIn(bridgeName, endpoint, datasetId, subAttrName, json, meta, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeReplyIn - ABI 3
+//
+int bridgeReplyIn(const char* bridgeName,
+                  const char* endpoint,
+                  uint64_t    token,
+                  const char* datasetId,
+                  const char* subAttrName,
+                  const char* json,
+                  int64_t     publishTime)
+{
+  return replyIn(bridgeName, endpoint, token, datasetId, subAttrName, json, NULL, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeReplyMetaIn - ABI 6: the reply's meta goes on its sub-attribute
+//
+int bridgeReplyMetaIn(const char* bridgeName,
+                      const char* endpoint,
+                      uint64_t    token,
+                      const char* datasetId,
+                      const char* subAttrName,
+                      const char* json,
+                      const char* meta,
+                      int64_t     publishTime)
+{
+  return replyIn(bridgeName, endpoint, token, datasetId, subAttrName, json, meta, publishTime);
 }

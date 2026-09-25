@@ -91,7 +91,7 @@ ddsServiceAwait add_two_ints
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/sum -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 3, "b": 4 } }'
 echo
-corAwaitBody 20 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"ddsServiceReply"'
+corAwaitBody 20 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"reply"'
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
 echo
 echo
@@ -144,12 +144,28 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 251
+Content-Length: 682
 
 {
   "id": "urn:ngsi-ld:Calculator:1",
   "sum": {
-    "ddsServiceReply": {
+    "reply": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "example_interfaces::srv::dds_::AddTwoInts_Response_"
+      },
+      "instanceHandleId": {
+        "type": "Property",
+        "value": "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"
+      },
+      "participantId": {
+        "type": "Property",
+        "value": "REGEX([0-9a-f]{2}(\.[0-9a-f]{2}){11})"
+      },
+      "requestId": {
+        "type": "Property",
+        "value": 1
+      },
       "type": "Property",
       "value": {
         "sum": 7

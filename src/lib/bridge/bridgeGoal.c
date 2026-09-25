@@ -96,6 +96,7 @@ typedef struct Goal
   bool          endPending;                           // ended with its first event: the instance goes once the request has written it
   char*         firstSubAttr;                         // ... and what it carried - for the request's write
   char*         firstJson;
+  char*         firstMeta;                            // ... and the transport's meta about it (ABI 6)
   int64_t       firstTime;
   struct Goal*  next;
 } Goal;
@@ -182,6 +183,7 @@ static void goalFree(Goal* goalP)
   free(goalP->result);
   free(goalP->firstSubAttr);
   free(goalP->firstJson);
+  free(goalP->firstMeta);
   free(goalP);
 }
 
@@ -732,6 +734,7 @@ static void firstEventKeep(Goal*       goalP,
                            int         part,
                            const char* subAttrName,
                            const char* json,
+                           const char* meta,
                            int64_t     publishTime)
 {
   goalIdentify(goalP, goalId, goalAlias);
@@ -745,6 +748,7 @@ static void firstEventKeep(Goal*       goalP,
   {
     goalP->firstSubAttr = strdup(subAttrName);
     goalP->firstJson    = strdup(json);
+    goalP->firstMeta    = (meta != NULL) ? strdup(meta) : NULL;
   }
 }
 
@@ -795,6 +799,7 @@ static int goalEvent(const char* bridgeName,
                      int         part,
                      const char* subAttrName,
                      const char* json,
+                     const char* meta,
                      int64_t     publishTime)
 {
   if ((bridgeName == NULL) || (endpoint == NULL) || (token == 0))
@@ -813,7 +818,7 @@ static int goalEvent(const char* bridgeName,
   //
   if ((goalP != NULL) && (goalP->answered == false))
   {
-    firstEventKeep(goalP, goalId, goalAlias, state, final, part, subAttrName, json, publishTime);
+    firstEventKeep(goalP, goalId, goalAlias, state, final, part, subAttrName, json, meta, publishTime);
 
     if (bridgeGoalRefused(state) == false)
       goalSubscribe(goalP);                           // before the request's write, which is the instance's first
@@ -877,7 +882,7 @@ static int goalEvent(const char* bridgeName,
   //
   if ((subAttrName != NULL) && (json != NULL))
   {
-    int r = bridgeGoalWrite(goalP->bridgeName, goalP->endpoint, goalP->goalAlias, subAttrName, json, publishTime, goalP->request);
+    int r = bridgeGoalWrite(goalP->bridgeName, goalP->endpoint, goalP->goalAlias, subAttrName, json, publishTime, goalP->request, meta);
 
     if (r == BRIDGE_OK)
       goalP->instanceMade = true;
@@ -910,7 +915,7 @@ int bridgeGoalEventIn(const char* bridgeName,
                       const char* json,
                       int64_t     publishTime)
 {
-  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, BridgeGoalPartNone, subAttrName, json, publishTime);
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, BridgeGoalPartNone, subAttrName, json, NULL, publishTime);
 }
 
 
@@ -931,7 +936,29 @@ int bridgeGoalEventPartIn(const char* bridgeName,
                           const char* json,
                           int64_t     publishTime)
 {
-  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, part, subAttrName, json, publishTime);
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, part, subAttrName, json, NULL, publishTime);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalEventMetaIn - ABI 6: the event's meta goes on its sub-attribute
+//
+int bridgeGoalEventMetaIn(const char* bridgeName,
+                          const char* endpoint,
+                          uint64_t    token,
+                          const char* goalId,
+                          const char* goalAlias,
+                          int         state,
+                          bool        final,
+                          int         part,
+                          const char* subAttrName,
+                          const char* json,
+                          const char* meta,
+                          int64_t     publishTime)
+{
+  return goalEvent(bridgeName, endpoint, token, goalId, goalAlias, state, final, part, subAttrName, json, meta, publishTime);
 }
 
 
@@ -1049,12 +1076,15 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
   answerP->goalAlias   = kaStrdup(&corRest.kalloc, goalP->goalAlias);
   answerP->subAttrName = (goalP->firstSubAttr != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstSubAttr) : NULL;
   answerP->json        = (goalP->firstJson    != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstJson)    : NULL;
+  answerP->meta        = (goalP->firstMeta    != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstMeta)    : NULL;
   answerP->publishTime = goalP->firstTime;
 
   free(goalP->firstSubAttr);
   free(goalP->firstJson);
+  free(goalP->firstMeta);
   goalP->firstSubAttr = NULL;
   goalP->firstJson    = NULL;
+  goalP->firstMeta    = NULL;
 
   //
   // Refused: nothing will be written of this goal, so it leaves the registry

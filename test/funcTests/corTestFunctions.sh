@@ -1075,6 +1075,7 @@ bridgeConfig() {
   local -a replyDelays
   local -a goalModes
   local -a actionNotifies
+  local -a metas
   local bridgeNotify=""
   local -a raws
 
@@ -1104,6 +1105,12 @@ bridgeConfig() {
       # Bridge's (ngsild.notification). The goal's own endpoint wins, then the
       # Channel's, then the Bridge's.
       #
+      #
+      # --meta "<endpoint>=<json object>": what the loopback says ABOUT every
+      # payload on that endpoint (ABI 6) - each member becomes a Property
+      # sub-attribute of whatever the payload lands in.
+      #
+      --meta) metas+=("$2"); shift ;;
       --actionNotify) actionNotifies+=("$2"); shift ;;
       --notify) bridgeNotify="$2"; shift ;;
       #
@@ -1142,6 +1149,19 @@ bridgeConfig() {
         else
           echo "      \"$endpoint\": $value"
         fi
+      done
+      echo "    },"
+    fi
+
+    if [ ${#metas[@]} -gt 0 ]; then
+      echo "    \"meta\": {"
+      local i=0
+      local m
+      for m in "${metas[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#metas[@]} ] && comma=""
+        echo "      \"${m%%=*}\": ${m#*=}$comma"
       done
       echo "    },"
     fi

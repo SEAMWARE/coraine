@@ -221,6 +221,43 @@ static int                 replyDelayCount = 0;
 
 // -----------------------------------------------------------------------------
 //
+// Meta - "meta": { "<endpoint>": "<json object>" } in the bridge config (ABI 6)
+//
+// What the loopback says ABOUT every payload on that endpoint - a sample, a
+// reply, a goal event - the way a real transport hands over its own curiosities
+// beside the data. It exists so the broker's side of the meta object can be
+// tested without one.
+//
+typedef struct LoopbackMeta
+{
+  char*  endpoint;
+  char*  meta;
+} LoopbackMeta;
+
+static LoopbackMeta  metas[LOOPBACK_CHANNELS_MAX];
+static int           metaCount = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackMeta - the meta configured for this endpoint, or NULL
+//
+static const char* loopbackMeta(const char* endpoint)
+{
+  for (int ix = 0; ix < metaCount; ix++)
+  {
+    if (strcmp(metas[ix].endpoint, endpoint) == 0)
+      return metas[ix].meta;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackReplyDelay - how late to answer on this endpoint (0: at once, -1: never)
 //
 static int loopbackReplyDelay(const char* endpoint)
@@ -286,6 +323,13 @@ static void* loopbackDelivery(void* vP)
       // A goal's event carries the token, the goal's names, where it stands and
       // whether it is the last one - ABI 4 and a non-NULL slot, as for replyIn().
       //
+      //
+      // ABI 6: with a meta configured for the endpoint, and a host that takes
+      // it, every payload goes with it
+      //
+      const char* meta    = loopbackMeta(sample.endpoint);
+      bool        useMeta = (meta != NULL) && (brokerP->abiVersion >= 6);
+
       if (sample.goal == true)
       {
         if ((brokerP->abiVersion >= 4) && (brokerP->goalEventIn != NULL))
@@ -301,7 +345,11 @@ static void* loopbackDelivery(void* vP)
           // ABI 5: say which part of the goal the payload is - the loopback's own
           // names say it, and only the plugin can know them
           //
-          if ((brokerP->abiVersion >= 5) && (brokerP->goalEventPartIn != NULL))
+          if ((useMeta == true) && (brokerP->goalEventMetaIn != NULL))
+            brokerP->goalEventMetaIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
+                                     sample.goalState, sample.goalFinal, loopbackGoalPart(sample.subAttrName),
+                                     sample.subAttrName, sample.json, meta, 0);
+          else if ((brokerP->abiVersion >= 5) && (brokerP->goalEventPartIn != NULL))
             brokerP->goalEventPartIn("loopback", sample.endpoint, sample.token, goalId, goalAlias,
                                      sample.goalState, sample.goalFinal, loopbackGoalPart(sample.subAttrName),
                                      sample.subAttrName, sample.json, 0);
@@ -312,8 +360,12 @@ static void* loopbackDelivery(void* vP)
         else
           KT_E("loopback: a goal event on '%s' has nowhere to go - the host predates the action contract", sample.endpoint);
       }
+      else if ((sample.subAttrName == NULL) && (useMeta == true) && (brokerP->sampleMetaIn != NULL))
+        brokerP->sampleMetaIn("loopback", sample.endpoint, sample.json, meta, 0);
       else if (sample.subAttrName == NULL)
         brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+      else if ((useMeta == true) && (brokerP->replyMetaIn != NULL))
+        brokerP->replyMetaIn("loopback", sample.endpoint, sample.token, NULL, sample.subAttrName, sample.json, meta, 0);
       else if ((sample.token != 0) && (brokerP->abiVersion >= 3) && (brokerP->replyIn != NULL))
         brokerP->replyIn("loopback", sample.endpoint, sample.token, NULL, sample.subAttrName, sample.json, 0);
       else if ((brokerP->abiVersion >= 2) && (brokerP->sampleQualifiedIn != NULL))
@@ -380,6 +432,7 @@ static char loopbackConfigPath[512];
 //
 static void loopbackEmitAtStart(void);
 static void loopbackReplyDelaysLoad(void);
+static void loopbackMetasLoad(void);
 static void loopbackGoalModesLoad(void);
 
 
@@ -415,6 +468,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   }
 
   loopbackReplyDelaysLoad();
+  loopbackMetasLoad();
   loopbackGoalModesLoad();
   loopbackEmitAtStart();
 
@@ -610,6 +664,27 @@ static void loopbackDelayPair(const char* endpoint, const char* value)
 static void loopbackReplyDelaysLoad(void)
 {
   loopbackConfigPairs("\"replyDelayMs\"", loopbackDelayPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackMetaPair / loopbackMetasLoad - "meta", see metas
+//
+static void loopbackMetaPair(const char* endpoint, const char* value)
+{
+  if (metaCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  metas[metaCount].endpoint = strdup(endpoint);
+  metas[metaCount].meta     = strdup(value);
+  ++metaCount;
+}
+
+static void loopbackMetasLoad(void)
+{
+  loopbackConfigPairs("\"meta\"", loopbackMetaPair);
 }
 
 

@@ -1,0 +1,300 @@
+#
+# FILE            bridge_meta.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The meta object (bridge ABI 6): what a transport says ABOUT a payload - DDS's
+# instance handle, participant and data type, another transport's own - handed
+# over beside it. The broker makes each member a Property sub-attribute of
+# whatever the payload lands in, named as the plugin spelled it, never
+# interpreting it: the attribute for a sample, the sub-attribute for a reply
+# or a goal event. A member that would replace what is already there ("type",
+# "value", ...) is skipped, with a warning.
+#
+# The loopback bridge hands a configured meta ("meta": { "<endpoint>": {...} })
+# with every payload on that endpoint.
+#
+#   01     a topic sample: its meta on the attribute
+#   02     a meta member named "type": skipped, the rest kept, a warning
+#   03-04  a service reply: its meta on the reply sub-attribute
+#   04b    a reply the request waits for (ddsSync): the same, through the request's own write
+#   05-06  a goal event: its meta on the event's sub-attribute
+#
+--NAME--
+Bridges: the meta object - a transport's curiosities about a payload, as Property sub-attributes
+
+--TAGS--
+bridge channel meta
+
+--INIT--
+corDbDrop
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Camera,urn:ngsi-ld:Camera:1,shutterSpeed" \
+  --topic "P2,Camera,urn:ngsi-ld:Camera:2,shutterSpeed" \
+  --service "compute,Calculator,urn:ngsi-ld:Calculator:1,job" \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --goalMode "A1=hold" \
+  --meta 'P1={ "instanceHandleId": "01.0f.aa.bb", "participantId": "p-1", "publishedAt": 1790000000123456789 }' \
+  --meta 'P2={ "type": "Evil", "ddsDataType": "Temperature" }' \
+  --meta 'compute={ "requestId": 7, "ddsDataType": "Compute_Response" }' \
+  --meta 'A1={ "ddsDataType": "Navigate_Goal" }' \
+  --emit "P1=41" \
+  --emit "P2=42")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A topic sample - its meta on the attribute"
+echo "=============================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Camera:1 '"instanceHandleId"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Camera:1
+echo
+echo
+
+
+echo "02. A meta member named \"type\" - skipped, the rest kept, and a warning"
+echo "======================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Camera:2 '"ddsDataType"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Camera:2
+grep -c "meta member 'type' would replace what is already there - skipped" /tmp/coraine.CB.log
+echo
+echo
+
+
+echo "03. Invoke the service"
+echo "======================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job -X PATCH --payload '{ "type": "Property", "value": { "op": "sum" } }'
+echo
+echo
+
+
+echo "04. The reply - its meta on the reply sub-attribute"
+echo "==================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1 '"requestId"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "04b. A reply the request WAITS for (ddsSync) - written by the request, its meta too"
+echo "===================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1/attrs/job?ddsSync=true' -X PATCH --payload '{ "type": "Property", "value": { "op": "max" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:1
+echo
+echo
+
+
+echo "05. Send a goal to A1 - held, so its instance stays"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/navigate -X PATCH --payload '{ "type": "Property", "value": { "x": 1 } }'
+echo
+echo
+
+
+echo "06. The goal's status - its meta on the status sub-attribute"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+
+--EXPECT--
+01. A topic sample - its meta on the attribute
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 374
+
+{
+  "id": "urn:ngsi-ld:Camera:1",
+  "shutterSpeed": {
+    "instanceHandleId": {
+      "type": "Property",
+      "value": "01.0f.aa.bb"
+    },
+    "participantId": {
+      "type": "Property",
+      "value": "p-1"
+    },
+    "publishedAt": {
+      "type": "Property",
+      "value": 1790000000123456789
+    },
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Camera"
+}
+
+
+
+02. A meta member named "type" - skipped, the rest kept, and a warning
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 203
+
+{
+  "id": "urn:ngsi-ld:Camera:2",
+  "shutterSpeed": {
+    "ddsDataType": {
+      "type": "Property",
+      "value": "Temperature"
+    },
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Camera"
+}
+
+1
+
+
+03. Invoke the service
+======================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+04. The reply - its meta on the reply sub-attribute
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 408
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "reply": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "Compute_Response"
+      },
+      "requestId": {
+        "type": "Property",
+        "value": 7
+      },
+      "type": "Property",
+      "value": {
+        "op": "sum"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "op": "sum"
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+04b. A reply the request WAITS for (ddsSync) - written by the request, its meta too
+====================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 408
+
+{
+  "id": "urn:ngsi-ld:Calculator:1",
+  "job": {
+    "reply": {
+      "ddsDataType": {
+        "type": "Property",
+        "value": "Compute_Response"
+      },
+      "requestId": {
+        "type": "Property",
+        "value": 7
+      },
+      "type": "Property",
+      "value": {
+        "op": "max"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "op": "max"
+    }
+  },
+  "type": "Calculator"
+}
+
+
+
+05. Send a goal to A1 - held, so its instance stays
+===================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. The goal's status - its meta on the status sub-attribute
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 466
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:goal:1",
+      "status": {
+        "ddsDataType": {
+          "type": "Property",
+          "value": "Navigate_Goal"
+        },
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
