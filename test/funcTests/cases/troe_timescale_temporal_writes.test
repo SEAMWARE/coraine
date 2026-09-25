@@ -36,7 +36,7 @@ corCurl --url /ngsi-ld/v1/temporal/entities --payload '{
     {"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},
     {"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"}
   ]
-}' --include 2>&1 | python3 -c "
+}' 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
@@ -74,7 +74,7 @@ echo "====================================================================="
 corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload '{
   "speed": [{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}],
   "color": [{"type":"Property","value":"red","observedAt":"2026-04-28T09:30:00Z"}]
-}' --include 2>&1 | python3 -c "
+}' 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
@@ -104,7 +104,7 @@ echo
 
 echo "05. DELETE /temporal/entities/urn:V1/attrs/color — drops the color attr"
 echo "======================================================================="
-corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs/color -X DELETE --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs/color -X DELETE 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
@@ -133,7 +133,7 @@ echo
 
 echo "07. DELETE /temporal/entities/urn:V1 — drops everything"
 echo "======================================================="
-corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
@@ -153,7 +153,7 @@ echo
 
 echo "09. DELETE the same entity again → 404 (already gone)"
 echo "====================================================="
-corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE --include 2>&1 | python3 -c "
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
@@ -168,7 +168,7 @@ echo "10. POST attrs to non-existent entity → 404"
 echo "==========================================="
 corCurl --url /ngsi-ld/v1/temporal/entities/urn:NoSuch/attrs --payload '{
   "speed":[{"type":"Property","value":1,"observedAt":"2026-04-28T09:00:00Z"}]
-}' --include 2>&1 | python3 -c "
+}' 2>&1 | python3 -c "
 import sys
 text = sys.stdin.read()
 sep = text.find('\r\n\r\n')
