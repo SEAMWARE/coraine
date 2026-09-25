@@ -1860,6 +1860,39 @@ topics:
   NGSI-LD first. And none of this is paid by a deployment without DDS: it is
   reached only for a Channel of kind `service` or `action`.
 
+- **A goal's notifications: a normal `Notification`, from a subscription**
+  (agreed 2026-09-25, not yet built). Orion-LD serves a goal's endpoint with a
+  subscription, so its clients receive an ordinary NGSI-LD `Notification` of the
+  entity, the goal being an instance of the attribute (`datasetId
+  urn:goal:<id>`, sub-attributes `ddsActionFeedback` / `ddsActionStatus` /
+  `ddsActionResult`). The move from Orion-LD must be transparent, so that is
+  what every goal notification is - there is no goal-specific body.
+  Where they go, the first that exists:
+  1. the goal's own `endpoint` - the `endpoint` sub-attribute of a write of the
+     attribute (as Orion-LD), or in the `POST /ngsi-ld/v1/channels/{id}/goals`
+     body. A cache-only subscription watching `attr@urn:goal:<id>`, projected to
+     that instance, made on the goal's first event and gone with its end (built,
+     phase 1);
+  2. the Channel's default;
+  3. the Bridge's default - one address for every action Channel of that Bridge;
+  4. none - the goal is polled with `GET …/goals/{goalId}` while it runs, and its
+     end is in TRoE.
+
+  The defaults are cache-only subscriptions too, made when the Channel is
+  loaded, watching the Channel's attribute of its entity. They cannot be the
+  objects' `endpoint`: on a Bridge that is the transport instance's address, on
+  a Channel the transport's own name (the DDS action). Proposed: the
+  subscription's own shape,
+  `"notification": { "endpoint": { "uri": "…", "accept": "application/json" } }`,
+  on both - core terms already. From the config file until Channel/Bridge CRUD
+  exists (§3.5a). Every feedback event is notified; no throttling.
+
+  Open: a default subscription watches the whole attribute, so on its own it
+  also fires for a goal that has its own endpoint (both hear it - "the first
+  that exists" then does not hold) and for the attribute's default instance.
+  Either the default watches goal instances only and skips those with their own
+  endpoint, or both hear such a goal.
+
 Port the DDS *mechanics* — type loading, `.bin` handling, goal
 correlation, cancel, feedback/status/result arrival. That is transport
 work which has to exist in any design and is where the value of those
