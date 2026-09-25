@@ -1203,8 +1203,8 @@ bridgeConfig() {
     fi
 
     if [ -n "$defaultEntity" ]; then
-      if [ "$defaultEntity" == "true" ]; then
-        echo "      \"defaultEntity\": true,"
+      if [ "$defaultEntity" == "true" ] || [ "$defaultEntity" == "false" ]; then
+        echo "      \"defaultEntity\": $defaultEntity,"
       else
         local deId deType
         IFS=',' read -r deId deType <<< "$defaultEntity"
