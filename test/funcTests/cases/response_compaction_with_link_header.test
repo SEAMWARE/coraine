@@ -13,7 +13,23 @@ context routing http retrieve
 
 --INIT--
 corDbDrop
+contextServerStart
 coraineStart
+
+#
+# The terms this test needs from the ETSI test suite's compound @context, served
+# locally - the forge copy is fetched live otherwise, and forge being down or the
+# context changing upstream turns this test red with no broker change
+#
+contextServerPush /jsonldContexts/testSuiteCompound '{
+  "@context": [
+    {
+      "Building": "https://ngsi-ld-test-suite/context#Building",
+      "name": "https://ngsi-ld-test-suite/context#name"
+    },
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+  ]
+}'
 
 --RUN--
 
@@ -26,7 +42,7 @@ payload='{
   "id": "urn:ngsi-ld:Building:E1",
   "type": "Building",
   "name": { "type": "Property", "value": "Eiffel Tower" },
-  "@context": "https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld"
+  "@context": "http://localhost:7080/jsonldContexts/testSuiteCompound"
 }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload" --in jsonld
 echo
@@ -39,7 +55,7 @@ echo
 echo "02. GET with Link header — terms compacted"
 echo "=========================================="
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:E1 \
-       -H 'Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+       -H 'Link: <http://localhost:7080/jsonldContexts/testSuiteCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 echo
 echo
 
@@ -69,7 +85,7 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/develop/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Link: <http://localhost:7080/jsonldContexts/testSuiteCompound>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
@@ -104,3 +120,4 @@ Content-Length: REGEX(\d+)
 
 --TEARDOWN--
 coraineStop
+contextServerStop
