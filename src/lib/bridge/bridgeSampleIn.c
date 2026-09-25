@@ -720,6 +720,58 @@ KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const 
 
 // -----------------------------------------------------------------------------
 //
+// bridgeGoalInstance - a goal's instance, as the request that sent the goal writes it
+//
+// ⭐ BUILT EXACTLY AS AN EVENT BUILDS IT (sampleIn with a seed): the request as
+// the value, parsed from the very text that was sent, and the first event as
+// its sub-attribute - through the same expansion and the same conversion. The
+// instance a request's write makes and one an event would have made must not
+// differ in a single member.
+//
+KjNode* bridgeGoalInstance(const char* attrName,
+                           const char* goalAlias,
+                           const char* requestJson,
+                           const char* subAttrName,
+                           const char* json,
+                           int64_t     publishTime)
+{
+  KjNode* requestP = kjParse(corRest.kjsonP, kaStrdup(&corRest.kalloc, requestJson));
+
+  if (requestP == NULL)
+    return NULL;
+
+  KjNode* attrP;
+
+  if ((subAttrName != NULL) && (json != NULL))
+    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP);
+  else
+    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, requestJson), 0, goalAlias, NULL, NULL);   // the request as the value, and no more
+
+  if (attrP == NULL)
+    return NULL;
+
+  KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
+  kjChildAdd(fragmentP, attrP);
+
+  corLdExpandTree(fragmentP, corLdCoreContext(), &corRest.kalloc);   // ⚠ before the conversion - see sampleIn
+  ldApiEntityToDbModel(fragmentP, &corRest.kalloc, 0);
+
+  KjNode* wrapperP  = kjLookup(fragmentP, attrName);
+  KjNode* instanceP = (wrapperP != NULL) ? kjLookup(wrapperP, goalAlias) : NULL;
+
+  if (instanceP == NULL)
+    return NULL;
+
+  kjChildRemove(wrapperP, instanceP);
+  instanceP->next = NULL;
+
+  return instanceP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeSampleIn -
 //
 int bridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)

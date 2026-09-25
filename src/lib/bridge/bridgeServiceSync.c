@@ -23,14 +23,15 @@
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
+#include "corNgsild/ldError.h"                        // ldErrorExtraString
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
-#include "bridge/bridgeGoal.h"                        // bridgeGoalSend
-#include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr
+#include "bridge/bridgeGoal.h"                        // bridgeGoalSend, bridgeGoalAwait, bridgeGoalAbandon, BridgeGoalAnswer
+#include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr, bridgeGoalInstance
 #include "bridge/bridgeServiceSync.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -255,6 +256,21 @@ static SyncWaiter* waiterCreate(void)
 
 // -----------------------------------------------------------------------------
 //
+// GoalRelease - a goal the request holds until its notifications have gone out
+//
+// In the request's arena, listed in corNgsild.bridgeReleaseQ - see
+// bridgeRequestsWritten.
+//
+typedef struct GoalRelease
+{
+  uint64_t             token;
+  struct GoalRelease*  next;
+} GoalRelease;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeSyncRequested -
 //
 bool bridgeSyncRequested(bool* syncP)
@@ -331,17 +347,23 @@ static void sendError(int r, const char* attrName, const Channel* channelP, cons
 //
 static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attrP, int r, const Channel* channelP, const char* what)
 {
-  char reason[512];
-  int  status;
+  char        reason[512];
+  int         status;
+  const char* title = "Service Unavailable";
+  const char* type  = LD_ERROR_INTERNAL_ERROR;
 
   if (r == BRIDGE_BAD_INPUT)
   {
     status = 400;
+    title  = "Invalid request";
+    type   = LD_ERROR_BAD_REQUEST_DATA;
     snprintf(reason, sizeof(reason), "the value does not fit the %s of '%s' - not written", what, channelP->endpoint);
   }
   else if (r == BRIDGE_UNSUPPORTED)
   {
     status = 422;
+    title  = "Operation Not Supported";
+    type   = LD_ERROR_OP_NOT_SUPPORTED;
     snprintf(reason, sizeof(reason), "bridge '%s' cannot send the %s of '%s' - not written", channelP->bridgeName, what, channelP->endpoint);
   }
   else
@@ -355,10 +377,56 @@ static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attr
     doneP->failedAttrV[doneP->failedN]   = attrP->name;
     doneP->failedStatusV[doneP->failedN] = status;
     doneP->failedReasonV[doneP->failedN] = kaStrdup(&corRest.kalloc, reason);
+    doneP->failedTitleV[doneP->failedN]  = title;
+    doneP->failedTypeV[doneP->failedN]   = type;
     doneP->failedN++;
   }
 
   kjChildRemove(fragmentP, attrP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// goalNotTaken - a goal was refused, lost, or not answered: its attribute is not written
+//
+// ONE attribute: the request fails with the error. Several: the attribute is
+// taken out of the fragment and reported, and the rest goes on (207) - as for
+// a goal that could not be sent at all (sendFailedOne).
+//
+// @return false when the request fails as a whole - the error is set.
+//
+static bool goalNotTaken(BridgeSyncDone* doneP, KjNode* fragmentP, int ix, int status, const char* type, const char* title, const char* errorCode, const char* reason)
+{
+  KjNode* attrP = doneP->goalAttrV[ix];
+
+  doneP->goalV[ix] = 0;                               // out of the registry already - nothing to release
+
+  if (doneP->several == false)
+  {
+    ldError(status, type, title, "%s - nothing was written", reason);
+    ldErrorExtraString("errorCode", errorCode);
+    return false;
+  }
+
+  if (doneP->failedN < BRIDGE_SYNC_MAX)
+  {
+    int   len = strlen(reason) + 20;
+    char* buf = (char*) kaAlloc(&corRest.kalloc, len);
+
+    snprintf(buf, len, "%s - not written", reason);
+
+    doneP->failedAttrV[doneP->failedN]   = attrP->name;
+    doneP->failedStatusV[doneP->failedN] = status;
+    doneP->failedReasonV[doneP->failedN] = buf;
+    doneP->failedTitleV[doneP->failedN]  = title;
+    doneP->failedTypeV[doneP->failedN]   = type;
+    doneP->failedN++;
+  }
+
+  kjChildRemove(fragmentP, attrP);
+  return true;
 }
 
 
@@ -494,7 +562,7 @@ static void waitSlotGive(void)
 //
 // doneAdd - note a Channel this request has already sent to
 //
-static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedToken, uint64_t goalToken)
+static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedToken, uint64_t goalToken, KjNode* goalAttrP, const char* goalRequest)
 {
   if (doneP->count >= BRIDGE_SYNC_MAX)
   {
@@ -506,6 +574,9 @@ static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedT
   doneP->channelV[doneP->count]      = channelP;
   doneP->detachedV[doneP->count]     = detachedToken;
   doneP->goalV[doneP->count]         = goalToken;
+  doneP->goalAttrV[doneP->count]     = goalAttrP;
+  doneP->goalRequestV[doneP->count]  = (goalRequest != NULL) ? kaStrdup(&corRest.kalloc, goalRequest) : NULL;
+  doneP->goalIdV[doneP->count]       = NULL;
   doneP->count++;
 
   return true;
@@ -518,11 +589,22 @@ static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedT
 // requestsFailed - the request fails after some of its requests went out
 //
 // It writes nothing, so it will not say "written" - but what it already sent
-// must not wait for a write that never comes: held goals and detached replies
-// are released at once. Always returns false, for the caller to return.
+// must not wait for a write that never comes. Its goals are CANCELLED: nothing
+// of them will be written, and a goal the broker holds no record of must not
+// run. Detached replies are released at once. Always returns false, for the
+// caller to return.
 //
 static bool requestsFailed(BridgeSyncDone* doneP)
 {
+  for (int ix = 0; ix < doneP->count; ix++)
+  {
+    if (doneP->goalV[ix] != 0)
+    {
+      bridgeGoalAbandon(doneP->goalV[ix]);
+      doneP->goalV[ix] = 0;
+    }
+  }
+
   bridgeRequestsWritten(doneP);
   return false;
 }
@@ -538,6 +620,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   doneP->count    = 0;
   doneP->accepted = false;
   doneP->failedN  = 0;
+  doneP->several  = false;
 
   if ((channelRequestCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
@@ -564,6 +647,8 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   // fails the call - and in a batch it is always left out, whatever the count.
   //
   bool several = (attrCount > 1) || ((flags & BRIDGE_REQ_PER_ENTITY) != 0);
+
+  doneP->several = several;
 
   if ((several == true) || ((flags & BRIDGE_REQ_MAY_WAIT) == 0))
     wait = false;
@@ -606,8 +691,9 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     valueP->next = savedNext;
 
     //
-    // An action: the goal is sent, and can only be accepted - what becomes of it
-    // comes later, into an instance of its own.
+    // An action: the goal is sent now, and waited for once every goal of the
+    // fragment has gone (bridgeRequestsAwait) - the transport decides whether
+    // anything is written.
     //
     if (channelP->kind == BridgeChannelAction)
     {
@@ -621,7 +707,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
       const char* endpoint      = ((endpointValP != NULL) && (endpointValP->type == KjString)) ? endpointValP->value.s : NULL;
 
       uint64_t goalToken = 0;
-      int      r         = bridgeGoalSend(channelP, buf, endpoint, &goalToken);   // held until this request has written
+      int      r         = bridgeGoalSend(channelP, buf, endpoint, &goalToken);
 
       if (r != BRIDGE_OK)
       {
@@ -635,11 +721,9 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
         return requestsFailed(doneP);
       }
 
-      doneP->accepted = true;
-
-      if (doneAdd(doneP, channelP, 0, goalToken) == false)
+      if (doneAdd(doneP, channelP, 0, goalToken, attrP, buf) == false)
       {
-        bridgeGoalRelease(goalToken);
+        bridgeGoalAbandon(goalToken);
         return requestsFailed(doneP);
       }
 
@@ -713,7 +797,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
       doneP->accepted = true;
 
-      if (doneAdd(doneP, channelP, token, 0) == false)
+      if (doneAdd(doneP, channelP, token, 0, NULL, NULL) == false)
         return requestsFailed(doneP);
 
       continue;
@@ -732,7 +816,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     {
       doneP->accepted = true;
 
-      if (doneAdd(doneP, channelP, token, 0) == false)
+      if (doneAdd(doneP, channelP, token, 0, NULL, NULL) == false)
         return requestsFailed(doneP);
 
       continue;
@@ -762,8 +846,104 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     kjChildAdd(instanceP, replyP);
     waiterFree(wP);
 
-    if (doneAdd(doneP, channelP, 0, 0) == false)
+    if (doneAdd(doneP, channelP, 0, 0, NULL, NULL) == false)
       return requestsFailed(doneP);
+  }
+
+  if ((flags & BRIDGE_REQ_SEND_ONLY) != 0)
+    return true;
+
+  return bridgeRequestsAwait(fragmentP, doneP, bridgeRequestsDeadline());
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsDeadline -
+//
+int64_t bridgeRequestsDeadline(void)
+{
+  return nowMs() + bridgeSyncTimeoutMs;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsAwait -
+//
+bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs)
+{
+  for (int ix = 0; ix < doneP->count; ix++)
+  {
+    if (doneP->goalV[ix] == 0)
+      continue;
+
+    Channel*         channelP = doneP->channelV[ix];
+    KjNode*          attrP    = doneP->goalAttrV[ix];
+    BridgeGoalAnswer answer;
+    char             reason[512];
+
+    if (bridgeGoalAwait(doneP->goalV[ix], dueMs, &answer) == false)
+    {
+      snprintf(reason, sizeof(reason), "the goal was sent to '%s' on bridge '%s', and not answered within %d ms - it was cancelled",
+               channelP->endpoint, channelP->bridgeName, bridgeSyncTimeoutMs);
+
+      if (goalNotTaken(doneP, fragmentP, ix, 504, LD_ERROR_INTERNAL_ERROR, "Goal Not Answered", "goalNotAnswered", reason) == false)
+        return requestsFailed(doneP);
+
+      continue;
+    }
+
+    if (answer.state == BridgeGoalRejected)
+    {
+      snprintf(reason, sizeof(reason), "the server of '%s' on bridge '%s' rejected the goal", channelP->endpoint, channelP->bridgeName);
+
+      if (goalNotTaken(doneP, fragmentP, ix, 422, LD_ERROR_OP_NOT_SUPPORTED, "Goal Rejected", "goalRejected", reason) == false)
+        return requestsFailed(doneP);
+
+      continue;
+    }
+
+    if (bridgeGoalRefused(answer.state) == true)
+    {
+      snprintf(reason, sizeof(reason), "the goal sent to '%s' on bridge '%s' was never taken on - it came back %s",
+               channelP->endpoint, channelP->bridgeName, bridgeGoalStateName(answer.state));
+
+      if (goalNotTaken(doneP, fragmentP, ix, 503, LD_ERROR_INTERNAL_ERROR, "Goal Failed", "goalFailed", reason) == false)
+        return requestsFailed(doneP);
+
+      continue;
+    }
+
+    doneP->accepted     = true;
+    doneP->goalIdV[ix]  = answer.goalId;
+
+    //
+    // Also a goal over with its first event already: its instance is written
+    // like any other - TRoE and the notifications need it - and removed once
+    // this request has written it (bridgeGoalRelease).
+    //
+    KjNode* instanceP = bridgeGoalInstance(attrP->name, answer.goalAlias, doneP->goalRequestV[ix], answer.subAttrName, answer.json, answer.publishTime);
+
+    if (instanceP == NULL)
+    {
+      //
+      // The request went out as that very text, and the answer came from the
+      // plugin - so this is a plugin handing over something that is not JSON.
+      // The goal runs; its later events create the instance as they arrive.
+      //
+      KT_W("goal on '%s': its instance could not be built - left to its events", channelP->endpoint);
+      continue;
+    }
+
+    KjNode* oldP = kjLookup(attrP, answer.goalAlias);   // the client's own write of that instance - the goal's is what goes
+
+    if (oldP != NULL)
+      kjChildRemove(attrP, oldP);
+
+    kjChildAdd(attrP, instanceP);
   }
 
   return true;
@@ -780,10 +960,31 @@ void bridgeRequestsWritten(const BridgeSyncDone* doneP)
   if ((doneP == NULL) || (doneP->count == 0))
     return;
 
+  //
+  // ⭐ A goal is released only once this request's NOTIFICATIONS have gone out,
+  // not now. The write made the goal's instance, and the request notifies it
+  // after its response - so an event released now, written and notified at
+  // once on the plugin's thread, would reach a subscriber BEFORE the instance
+  // it changes: a goal's endpoint heard it end before it had begun. Queued in
+  // the request's state; bridgeRequestsReleasePending, from the post-response
+  // hook after the notifications, lets them go.
+  //
   for (int ix = 0; ix < doneP->count; ix++)
   {
-    if (doneP->goalV[ix] != 0)
-      bridgeGoalRelease(doneP->goalV[ix]);
+    if (doneP->goalV[ix] == 0)
+      continue;
+
+    GoalRelease* relP = (GoalRelease*) kaAlloc(&corRest.kalloc, sizeof(GoalRelease));
+
+    if (relP == NULL)
+    {
+      bridgeGoalRelease(doneP->goalV[ix]);           // better early than never
+      continue;
+    }
+
+    relP->token              = doneP->goalV[ix];
+    relP->next               = (GoalRelease*) corNgsild.bridgeReleaseQ;
+    corNgsild.bridgeReleaseQ = relP;
   }
 
   pthread_mutex_lock(&syncMutex);
@@ -803,6 +1004,22 @@ void bridgeRequestsWritten(const BridgeSyncDone* doneP)
     }
   }
   pthread_mutex_unlock(&syncMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeRequestsReleasePending -
+//
+void bridgeRequestsReleasePending(void)
+{
+  GoalRelease* relP = (GoalRelease*) corNgsild.bridgeReleaseQ;
+
+  corNgsild.bridgeReleaseQ = NULL;
+
+  for (; relP != NULL; relP = relP->next)
+    bridgeGoalRelease(relP->token);
 }
 
 

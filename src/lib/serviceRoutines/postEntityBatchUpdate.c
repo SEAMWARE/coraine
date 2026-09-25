@@ -562,6 +562,62 @@ static bool hasLocalPayload(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
+// hasAttribute - is anything left in the fragment to merge?
+//
+static bool hasAttribute(KjNode* fragP)
+{
+  for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  {
+    if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
+      return true;
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seenAdd - noOverwrite: the attributes and instances a fragment brings, for the later fragments of its Entity
+//
+// What noOverwriteChopLocal looks at in an Entity - an attribute, and its
+// instances by datasetId - and nothing else: names only, empty objects. In
+// one loop the merge put them in existingDb; with the merge in loop 2, a
+// later fragment is chopped against this as well.
+//
+static KjNode* seenAdd(KjNode* seenP, KjNode* fragP)
+{
+  if (seenP == NULL)
+    seenP = kjObject(corRest.kjsonP, NULL);
+
+  for (KjNode* attrP = fragP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  {
+    if ((attrP->type != KjObject) || (ldIsNotAttributeName(attrP->name) == true))
+      continue;
+
+    KjNode* seenAttrP = kjLookup(seenP, attrP->name);
+
+    if (seenAttrP == NULL)
+    {
+      seenAttrP = kjObject(corRest.kjsonP, attrP->name);
+      kjChildAdd(seenP, seenAttrP);
+    }
+
+    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    {
+      if ((instP->type == KjObject) && (kjLookup(seenAttrP, instP->name) == NULL))
+        kjChildAdd(seenAttrP, kjObject(corRest.kjsonP, instP->name));
+    }
+  }
+
+  return seenP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // postEntityBatchUpdate -
 //
 bool postEntityBatchUpdate(void)
@@ -746,28 +802,72 @@ bool postEntityBatchUpdate(void)
 
   if (requestsFirst == true)                              // nothing at all without a bridge - not even the count
   {
-    int fragTotal = 0;
+    int fragN = 0;
 
     for (int gi = 0; gi < gN; gi++)
-      fragTotal += groups[gi].count;
+      fragN += groups[gi].count;
 
-    doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragTotal + 1));
+    doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragN + 1));
   }
   LdMergeReport* bridgeReportV = (LdMergeReport*) kaAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);
   bool*        anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * gN);
   const char** allIdV   = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
   int          finalN   = 0;
 
+  //
+  // ⭐ TWO LOOPS, split where the DDS step waits. Loop 1 chops each fragment and
+  // SENDS its requests to the DDS side; every goal of the batch is then waited
+  // for against one deadline; loop 2 merges what the transport accepted. In
+  // one loop, each Entity's goals would wait before the next Entity's were even
+  // sent - a batch's wait the sum of its goals', not the slowest of them.
+  //
+  // What crosses from one loop to the other is per Entity (a group) or per
+  // fragment, below. Errors are collected per Entity and joined in batch order
+  // at the end, so the split does not reorder errors[].
+  //
+  int fragTotal = 0;
+
+  for (int gi = 0; gi < gN; gi++)
+    fragTotal += groups[gi].count;
+
+  KjNode**         existingDbV      = (KjNode**)         kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  KjNode**         groupErrorsV     = (KjNode**)         kaAlloc(&corRest.kalloc, sizeof(KjNode*) * gN);
+  bool*            groupLiveV       = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);   // got past the retrieve
+  bool*            noOverwriteSkipV = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);
+  int*             fragBaseV        = (int*)             kaAlloc(&corRest.kalloc, sizeof(int)     * gN);   // a group's first fragment, in the per-fragment arrays
+  bool*            readyV           = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * (fragTotal + 1));   // made it through loop 1
+  BridgeSyncDone** fragDoneV        = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragTotal + 1)) : NULL;
+
+  memset(groupErrorsV, 0, sizeof(KjNode*) * gN);
+  memset(groupLiveV,   0, sizeof(bool)    * gN);
+  memset(readyV,       0, sizeof(bool)    * (fragTotal + 1));
+
+  if (fragDoneV != NULL)
+    memset(fragDoneV, 0, sizeof(BridgeSyncDone*) * (fragTotal + 1));
+
+  for (int gi = 0, base = 0; gi < gN; gi++)
+  {
+    fragBaseV[gi]        = base;
+    noOverwriteSkipV[gi] = false;
+    base                += groups[gi].count;
+  }
+
+  //
+  // Loop 1 - chop, and send.
+  //
   for (int gi = 0; gi < gN; gi++)
   {
-    Group* g  = &groups[gi];
+    Group*  g            = &groups[gi];
+    KjNode* groupErrorsP = kjArray(corRest.kjsonP, NULL);
+
+    groupErrorsV[gi] = groupErrorsP;
     allIdV[gi]     = g->id;
     anySuccessV[gi] = false;
 
     KjNode* existingDb = NULL;
     if (db.entityRetrieve == NULL)
     {
-      addBatchError(errorsP, g->id, 500,
+      addBatchError(groupErrorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "entityRetrieve not supported by this DB plugin", NULL);
       continue;
@@ -783,7 +883,7 @@ bool postEntityBatchUpdate(void)
       existingDb = NULL;
       if (!dispatch || !anyCsrMatchesEntity(tenantP, g->id, (g->count > 0) ? g->fragV[0] : NULL))
       {
-        addBatchError(errorsP, g->id, 404,
+        addBatchError(groupErrorsP, g->id, 404,
                       LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                       "entity does not exist", NULL);
         continue;
@@ -791,18 +891,21 @@ bool postEntityBatchUpdate(void)
     }
     else if (r != DB_OK)
     {
-      addBatchError(errorsP, g->id, 500,
+      addBatchError(groupErrorsP, g->id, 500,
                     LD_ERROR_INTERNAL_ERROR, "Internal Error",
                     "database error during retrieve", NULL);
       continue;
     }
 
+    groupLiveV[gi]  = true;
+    existingDbV[gi] = existingDb;
+
     //
-    // Apply each fragment in array order: distops chop → local merge → notify.
+    // Each fragment in array order: distops chop, then - the fragment being
+    // final now - its requests to the DDS side are SENT. Merged in loop 2.
     //
-    bool anyMerge        = false;
-    bool anyNoOverwriteSkip = false;
-    LdMergeReport bridgeReport = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
+    bool    anyNoOverwriteSkip = false;
+    KjNode* seenP              = NULL;                // noOverwrite: what the earlier fragments bring
     for (int fi = 0; fi < g->count; fi++)
     {
       KjNode* fragP = g->fragV[fi];
@@ -894,7 +997,7 @@ bool postEntityBatchUpdate(void)
       // the chop have no local entity to land on.
       if (existingDb == NULL)
       {
-        addBatchError(errorsP, g->id, 404,
+        addBatchError(groupErrorsP, g->id, 404,
                       LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                       "entity does not exist locally; attributes not covered by any registration", NULL);
         continue;
@@ -914,7 +1017,12 @@ bool postEntityBatchUpdate(void)
       //
       if (corNgsild.noOverwrite)
       {
-        if (noOverwriteChopLocal(fragP, existingDb) > 0)
+        //
+        // Against what is stored AND what this batch's earlier fragments of
+        // the same Entity bring - the merge that would have added those to
+        // existingDb comes only in the second loop (see "Two loops").
+        //
+        if (noOverwriteChopLocal(fragP, existingDb) + noOverwriteChopLocal(fragP, seenP) > 0)
           anyNoOverwriteSkip = true;
 
         // Re-check whether any attribute (not just id/type/timestamps)
@@ -932,47 +1040,88 @@ bool postEntityBatchUpdate(void)
           continue;
       }
 
-      //
-      // Requests to the DDS side go FIRST - before the bulk write, never waited
-      // for, and never failing the batch: a request that cannot be sent is left
-      // out of the fragment and becomes this Entity's error. A fragment that had
-      // nothing else to write is then not merged at all.
-      //
+      readyV[fragBaseV[gi] + fi] = true;
+
+      if (corNgsild.noOverwrite)
+        seenP = seenAdd(seenP, fragP);
+
       if (requestsFirst == true)
       {
         BridgeSyncDone* doneP = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
 
         memset(doneP, 0, sizeof(BridgeSyncDone));
-        doneV[doneN++] = doneP;
+        doneV[doneN++]                = doneP;
+        fragDoneV[fragBaseV[gi] + fi] = doneP;
 
-        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY, doneP);
+        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneP);
+      }
+    }
 
+    noOverwriteSkipV[gi] = anyNoOverwriteSkip;
+  }
+
+  //
+  // Every goal of the batch is out - now they are waited for, against ONE
+  // deadline, so that a goal's answer never waits for the next goal to be
+  // sent. A refused one is taken out of its fragment here.
+  //
+  if (requestsFirst == true)
+  {
+    int64_t dueMs = bridgeRequestsDeadline();
+
+    for (int gi = 0; gi < gN; gi++)
+    {
+      for (int fi = 0; fi < groups[gi].count; fi++)
+      {
+        BridgeSyncDone* doneP = fragDoneV[fragBaseV[gi] + fi];
+
+        if (doneP != NULL)
+          bridgeRequestsAwait(groups[gi].fragV[fi], doneP, dueMs);
+      }
+    }
+  }
+
+  //
+  // Loop 2 - each fragment the first loop made ready, in array order: what the
+  // DDS step refused is reported, and the rest merged, notified and recorded.
+  //
+  for (int gi = 0; gi < gN; gi++)
+  {
+    if (groupLiveV[gi] == false)
+      continue;
+
+    Group*        g                  = &groups[gi];
+    KjNode*       existingDb         = existingDbV[gi];
+    KjNode*       groupErrorsP       = groupErrorsV[gi];
+    bool          anyNoOverwriteSkip = noOverwriteSkipV[gi];
+    bool          anyMerge           = false;
+    LdMergeReport bridgeReport       = { NULL };  // every fragment's changes, published in pass 4 on DB_OK
+
+    for (int fi = 0; fi < g->count; fi++)
+    {
+      if (readyV[fragBaseV[gi] + fi] == false)
+        continue;
+
+      KjNode*         fragP = g->fragV[fi];
+      BridgeSyncDone* doneP = (fragDoneV != NULL) ? fragDoneV[fragBaseV[gi] + fi] : NULL;
+
+      //
+      // A request to the DDS side that could not be sent, or a goal that was
+      // refused, was left out of the fragment - this Entity's error. A fragment
+      // that had nothing else to write is then not merged at all.
+      //
+      if (doneP != NULL)
+      {
         for (int ix = 0; ix < doneP->failedN; ix++)
         {
-          int st = doneP->failedStatusV[ix];
-
-          addBatchError(errorsP, g->id, st,
-                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
-                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+          addBatchError(groupErrorsP, g->id, doneP->failedStatusV[ix],
+                        doneP->failedTypeV[ix],
+                        doneP->failedTitleV[ix],
                         doneP->failedReasonV[ix], NULL);
         }
 
-        if (doneP->failedN > 0)
-        {
-          bool anyAttrLeft = false;
-
-          for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
-          {
-            if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
-            {
-              anyAttrLeft = true;
-              break;
-            }
-          }
-
-          if (anyAttrLeft == false)
-            continue;
-        }
+        if ((doneP->failedN > 0) && (hasAttribute(fragP) == false))
+          continue;
       }
 
       LdMergeReport report = { NULL };
@@ -1019,7 +1168,7 @@ bool postEntityBatchUpdate(void)
       // in errors[] alongside the entity's id in success[], driving the
       // overall response to 207 instead of 204 (ETSI 005_02_03).
       if (anyNoOverwriteSkip)
-        addBatchError(errorsP, g->id, 400,
+        addBatchError(groupErrorsP, g->id, 400,
                       LD_ERROR_BAD_REQUEST_DATA, "Already Exists",
                       "some attrs already existed; skipped under noOverwrite",
                       NULL);
@@ -1029,10 +1178,27 @@ bool postEntityBatchUpdate(void)
       // All attrs skipped by noOverwrite — entity had nothing to update.
       // Surface as a BatchEntityError so the response status is 207, not
       // a silent 204 (ETSI 005_02_01 expects this).
-      addBatchError(errorsP, g->id, 400,
+      addBatchError(groupErrorsP, g->id, 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Already Exists",
                     "all attrs already exist; nothing to update under noOverwrite",
                     NULL);
+    }
+  }
+
+  //
+  // Each Entity's errors, in batch order - as one loop would have reported them.
+  //
+  for (int gi = 0; gi < gN; gi++)
+  {
+    KjNode* errP = (groupErrorsV[gi] != NULL) ? groupErrorsV[gi]->value.firstChildP : NULL;
+
+    while (errP != NULL)
+    {
+      KjNode* nextP = errP->next;
+
+      errP->next = NULL;                              // ⚠ kjChildAdd would take the rest of the list along
+      kjChildAdd(errorsP, errP);
+      errP = nextP;
     }
   }
 

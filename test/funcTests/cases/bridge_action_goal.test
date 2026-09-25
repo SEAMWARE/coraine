@@ -156,20 +156,16 @@ echo
 echo
 
 
-echo "11. Send goal 3 to A3 - it is rejected"
-echo "======================================"
+echo "11. Send goal 3 to A3 - it is rejected: 422 goalRejected - the transport decides before anything is stored"
+echo "==========================================================================================================="
 payload='{ "navigate": { "type": "Property", "value": { "x": 9, "y": 9 } } }'
 corCurl --url /ngsi-ld/v1/entities/urn:R:3/attrs -X PATCH --payload "$payload"
-for i in $(seq 1 50); do
-  grep -q "goal 3 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
 echo
 echo
 
 
-echo "12. Robot 3 - no goal instance left behind"
-echo "=========================================="
+echo "12. Robot 3 - nothing was written: the value it had, and no goal instance"
+echo "========================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:3
 echo
 echo
@@ -201,9 +197,9 @@ echo
 echo
 
 
-echo "16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected"
-echo "============================================================================================="
-grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+echo "16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled; goal 3 refused (7) before anything was written"
+echo "================================================================================================================================="
+grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+|goal [0-9]+ on 'A[0-9]' refused, state [0-9]+" /tmp/coraine.CB.log
 echo
 
 
@@ -595,31 +591,36 @@ Content-Length: 210
 
 
 
-11. Send goal 3 to A3 - it is rejected
-======================================
-HTTP/1.1 202 Accepted
+11. Send goal 3 to A3 - it is rejected: 422 goalRejected - the transport decides before anything is stored
+===========================================================================================================
+HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
-Content-Length: 0
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "the server of 'A3' on bridge 'loopback' rejected the goal - nothing was written",
+  "errorCode": "goalRejected",
+  "status": 422,
+  "title": "Goal Rejected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
 
 
 
-
-12. Robot 3 - no goal instance left behind
-==========================================
+12. Robot 3 - nothing was written: the value it had, and no goal instance
+=========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 134
+Content-Length: 115
 
 {
   "id": "urn:R:3",
   "navigate": {
     "type": "Property",
-    "value": {
-      "x": 9,
-      "y": 9
-    }
+    "value": "uninitialized"
   },
   "type": "Robot"
 }
@@ -689,13 +690,13 @@ Content-Length: 397
 
 
 
-16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled, 7 rejected
-=============================================================================================
+16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled; goal 3 refused (7) before anything was written
+=================================================================================================================================
 sends goal 1 to action 'A1'
 goal 1 on 'A1' (urn:goal:1) ended, state 4
 sends goal 2 to action 'A2'
 goal 2 on 'A2' (urn:goal:2) ended, state 5
 sends goal 3 to action 'A3'
-goal 3 on 'A3' (urn:goal:3) ended, state 7
+goal 3 on 'A3' refused, state 7
 sends goal 4 to action 'A4'
 

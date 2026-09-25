@@ -113,4 +113,22 @@ extern int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint
 //
 extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime);
 
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeGoalInstance - a goal's instance, as the request that sent the goal writes it
+//
+// The request as its value, and the goal's first event - when it carried a
+// payload - as its sub-attribute. In the DB model, named goalAlias and unlinked,
+// for the request to put in its fragment. NULL when a text is not valid JSON.
+//
+extern KjNode* bridgeGoalInstance(const char* attrName,
+                                  const char* goalAlias,
+                                  const char* requestJson,
+                                  const char* subAttrName,
+                                  const char* json,
+                                  int64_t     publishTime);
+
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

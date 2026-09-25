@@ -108,7 +108,7 @@ typedef struct LoopbackSample
 //
 // Goals - what the loopback does with one, per endpoint
 //
-// "goalMode": { "<endpoint>": "succeed" | "hold" | "reject" | "abort" }
+// "goalMode": { "<endpoint>": "succeed" | "hold" | "progress" | "reject" | "abort" | "stubborn" | "unreachable" | "silent" | "instant" }
 //
 //   succeed  accepted, one feedback, succeeded, and the result - the goal
 //            echoed, as a service's reply is. The default.
@@ -122,6 +122,12 @@ typedef struct LoopbackSample
 //            test gets a failed cancel
 //   unreachable  the goal itself cannot be sent - a server that cannot be
 //            reached, and so a request that must not write the attribute
+//   instant  over with its first and only event: succeeded, with the result -
+//            a goal that was never in progress, whose instance is written and
+//            removed at once (the broker's goalEndLater)
+//   silent   sent, and never answered - not even accepted. The broker gives up
+//            after --ddsSyncTimeout and cancels it, which is how a test sees
+//            that a goal nobody answered is not left running
 //
 // The envelope names are the loopback's own, and plain: a transport that goes
 // nowhere has no convention to match.
@@ -848,6 +854,33 @@ static int loopbackServiceInvokeTracked(const char* endpoint, const char* json, 
 
 // -----------------------------------------------------------------------------
 //
+// loopbackGoalHold - a goal in flight until cancelled
+//
+// Kept here, because the cancel is by token and this is where the token meets
+// what was asked.
+//
+static int loopbackGoalHold(const char* endpoint, const char* json, uint64_t token)
+{
+  int rc = BRIDGE_ERR;
+
+  pthread_mutex_lock(&heldGoalMutex);
+  if (heldGoalCount < LOOPBACK_CHANNELS_MAX)
+  {
+    heldGoals[heldGoalCount].endpoint = strdup(endpoint);
+    heldGoals[heldGoalCount].json     = strdup(json);
+    heldGoals[heldGoalCount].token    = token;
+    ++heldGoalCount;
+    rc = BRIDGE_OK;
+  }
+  pthread_mutex_unlock(&heldGoalMutex);
+
+  return rc;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackActionGoalSend - run a goal, as the endpoint's goalMode says
 //
 // Called on a BROKER thread, so every event is queued, never delivered here -
@@ -877,32 +910,22 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
     return BRIDGE_OK;
   }
 
+  if (strcmp(mode, "silent") == 0)
+    return loopbackGoalHold(endpoint, json, token);
+
+  if (strcmp(mode, "instant") == 0)
+  {
+    loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, true, LOOPBACK_GOAL_RESULT, json, 0);
+    return BRIDGE_OK;
+  }
+
   loopbackGoalEvent(endpoint, token, BridgeGoalAccepted, false, LOOPBACK_GOAL_STATUS, "{\"code\":\"ACCEPTED\"}", 0);
 
   if (strcmp(mode, "progress") == 0)
     loopbackGoalEvent(endpoint, token, BridgeGoalExecuting, false, LOOPBACK_GOAL_FEEDBACK, "{\"progress\":50}", 0);
 
   if ((strcmp(mode, "hold") == 0) || (strcmp(mode, "stubborn") == 0) || (strcmp(mode, "progress") == 0))
-  {
-    //
-    // In flight until cancelled. Kept here, because the cancel is by token and
-    // this is where the token meets what was asked.
-    //
-    int rc = BRIDGE_ERR;
-
-    pthread_mutex_lock(&heldGoalMutex);
-    if (heldGoalCount < LOOPBACK_CHANNELS_MAX)
-    {
-      heldGoals[heldGoalCount].endpoint = strdup(endpoint);
-      heldGoals[heldGoalCount].json     = strdup(json);
-      heldGoals[heldGoalCount].token    = token;
-      ++heldGoalCount;
-      rc = BRIDGE_OK;
-    }
-    pthread_mutex_unlock(&heldGoalMutex);
-
-    return rc;
-  }
+    return loopbackGoalHold(endpoint, json, token);
 
   if (strcmp(mode, "abort") == 0)
   {

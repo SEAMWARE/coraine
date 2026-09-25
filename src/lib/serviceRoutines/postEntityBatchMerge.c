@@ -372,6 +372,36 @@ static bool hasAnyNonKeywordAttr(KjNode* fragP)
 
 // -----------------------------------------------------------------------------
 //
+// fragmentId - a fragment's entity id, as the DDS step names it
+//
+static const char* fragmentId(KjNode* fragP, const char* fallback)
+{
+  KjNode* idNodeP = kjLookup(fragP, "id");
+
+  return ((idNodeP != NULL) && (idNodeP->type == KjString)) ? idNodeP->value.s : fallback;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// hasAttribute - is anything left in the fragment to merge?
+//
+static bool hasAttribute(KjNode* fragP)
+{
+  for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  {
+    if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
+      return true;
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // postEntityBatchMerge -
 //
 bool postEntityBatchMerge(void)
@@ -758,6 +788,58 @@ bool postEntityBatchMerge(void)
     //
     db.entityBulkRetrieve(tenantP, localFragsArr, targetsV);
 
+    //
+    // Requests to the DDS side go FIRST - per fragment, now that its Entity is
+    // known to exist (a merge into a missing one is a 404, and no goal must go
+    // out for it), before the merge and the bulk write, and never failing the
+    // batch: one that cannot be sent, or a goal that is refused, is left out of
+    // the fragment and becomes this Entity's error. A fragment left with
+    // nothing is not merged.
+    //
+    // In two passes: every fragment's requests are SENT, and only then is
+    // every goal waited for, against one deadline - a goal's answer never
+    // waits for the next goal to be sent.
+    //
+    if (requestsFirst == true)
+    {
+      int fk = 0;
+
+      for (KjNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fk++)
+      {
+        if (targetsV[fk] == NULL)
+          continue;
+
+        doneV[fk] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        memset(doneV[fk], 0, sizeof(BridgeSyncDone));
+
+        bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneV[fk]);
+      }
+
+      int64_t dueMs = bridgeRequestsDeadline();
+
+      fk = 0;
+      for (KjNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fk++)
+      {
+        if (doneV[fk] == NULL)
+          continue;
+
+        const char* fragId = fragmentId(fragP, localIdV[fk]);
+
+        bridgeRequestsAwait(fragP, doneV[fk], dueMs);
+
+        for (int ix = 0; ix < doneV[fk]->failedN; ix++)
+        {
+          addBatchError(errorsP, fragId, doneV[fk]->failedStatusV[ix],
+                        doneV[fk]->failedTypeV[ix],
+                        doneV[fk]->failedTitleV[ix],
+                        doneV[fk]->failedReasonV[ix], NULL);
+        }
+
+        if ((doneV[fk]->failedN > 0) && (hasAttribute(fragP) == false))
+          resultsV[fk] = DB_BAD_INPUT;   // reported above - the merge skips it, the bulk write and the switch too
+      }
+    }
+
     int fi = 0;
     for (KjNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fi++)
     {
@@ -767,53 +849,8 @@ bool postEntityBatchMerge(void)
         continue;
       }
 
-      //
-      // Requests to the DDS side go FIRST - per fragment, now that its Entity is
-      // known to exist (a merge into a missing one is a 404, and no goal must go
-      // out for it), before the bulk write, never waited for and never failing
-      // the batch: one that cannot be sent is left out of the fragment and
-      // becomes this Entity's error. A fragment left with nothing is not merged.
-      //
-      if (requestsFirst == true)
-      {
-        KjNode*     idNodeP = kjLookup(fragP, "id");
-        const char* fragId  = ((idNodeP != NULL) && (idNodeP->type == KjString)) ? idNodeP->value.s : localIdV[fi];
-
-        doneV[fi] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
-        memset(doneV[fi], 0, sizeof(BridgeSyncDone));
-
-        bridgeRequestsBeforeWrite(tenantP, fragId, fragP, BRIDGE_REQ_PER_ENTITY, doneV[fi]);
-
-        for (int ix = 0; ix < doneV[fi]->failedN; ix++)
-        {
-          int st = doneV[fi]->failedStatusV[ix];
-
-          addBatchError(errorsP, fragId, st,
-                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
-                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
-                        doneV[fi]->failedReasonV[ix], NULL);
-        }
-
-        if (doneV[fi]->failedN > 0)
-        {
-          bool anyAttrLeft = false;
-
-          for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
-          {
-            if ((c->type == KjObject) && (ldIsNotAttributeName(c->name) == false))
-            {
-              anyAttrLeft = true;
-              break;
-            }
-          }
-
-          if (anyAttrLeft == false)
-          {
-            resultsV[fi] = DB_BAD_INPUT;   // reported above - the bulk write skips it, the switch too
-            continue;
-          }
-        }
-      }
+      if (resultsV[fi] == DB_BAD_INPUT)
+        continue;                                     // the DDS step left nothing to merge - reported
 
       // Batch Merge = true RFC 7396 deep-merge (§ 5.6.10 → § 10.2.9). Like the
       // single Merge Entity it may NOT change an attribute's type (§ 10.3.5

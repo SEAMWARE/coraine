@@ -32,7 +32,9 @@ corTroeInit
 export COR_TRACE_LEVELS=402
 
 BRIDGE_CONFIG=$(bridgeConfig \
-  --action "A1,Robot,urn:R:1,navigate")
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --goalMode "A2=instant")
 
 coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
@@ -59,6 +61,26 @@ echo
 echo "03. The temporal history of navigate - goal 1's instance, every transition, in order"
 echo "===================================================================================="
 corCurl --url /ngsi-ld/v1/temporal/entities/urn:R:1 --urlParams 'attrs=navigate&timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
+echo
+echo
+
+
+echo "04. Send a goal to A2 - over with its first event: never in current state, but in the history"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 2 } } }'
+for i in $(seq 1 50); do
+  grep -q "on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo
+
+
+echo "05. The temporal history of A2's navigate - the goal's instance, with its result, created and deleted"
+echo "===================================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:R:2 --urlParams 'attrs=navigate&timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
 echo
 echo
 
@@ -206,6 +228,83 @@ Content-Length: REGEX(\d+)
       "datasetId": "urn:goal:1",
       "deletedAt": "REGEX(.*)",
       "instanceId": "REGEX(.*)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+04. Send a goal to A2 - over with its first event: never in current state, but in the history
+===============================================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 2
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+05. The temporal history of A2's navigate - the goal's instance, with its result, created and deleted
+====================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:R:2",
+  "navigate": [
+    {
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "type": "Property",
+      "value": "uninitialized"
+    },
+    {
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "type": "Property",
+      "value": {
+        "x": 2
+      }
+    },
+    {
+      "datasetId": "urn:goal:2",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "result": {
+        "type": "Property",
+        "value": {
+          "x": 2
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 2
+      }
+    },
+    {
+      "datasetId": "urn:goal:2",
+      "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
       "type": "Property",
       "value": "urn:ngsi-ld:null"
     }

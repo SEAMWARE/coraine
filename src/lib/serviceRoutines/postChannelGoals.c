@@ -10,21 +10,24 @@
 //
 //   { "goalRequest": <the goal, the transport's JSON>, "endpoint": "<where its events go>" }
 //
-// The goal does to the entity exactly what a PATCH of its attribute does - DDS
-// first, the goal's own instance (datasetId urn:goal:<id>), its notifications,
-// its TRoE history - so that is what runs: patchEntityAttrsOn, with the
-// fragment such a PATCH would carry.
+// The goal does to the entity exactly what a PATCH of its attribute does - the
+// transport deciding first, the goal's own instance (datasetId urn:goal:<id>),
+// its notifications, its TRoE history - so that is what runs: patchEntityAttrsOn,
+// with the fragment such a PATCH would carry.
 //
-// ⭐ Then it WAITS for the transport's answer (KZ: "just for creation, let's
-// wait - we get much better error handling as well if we wait"):
+// And that PATCH already WAITS for the transport's answer, as every write to an
+// action Channel does, and writes nothing unless the goal was accepted (KZ:
+// "just for creation, let's wait - we get much better error handling as well"):
 //
 //   accepted          -> 201, Location .../goals/<the transport's goal id>
 //   rejected          -> 422, errorCode goalRejected - the server refused it,
 //                        and the transport says no more than that
 //   lost by transport -> 503, errorCode goalFailed
 //   no answer in time -> 504, errorCode goalNotAnswered (--ddsSyncTimeout) -
-//                        the goal WAS sent; it may run
-//   not sent at all   -> what the PATCH answers: 503 / 422, nothing written
+//                        and the goal is cancelled
+//   not sent at all   -> what the PATCH answers: 503 / 422
+//
+// Nothing is written in any of the failures.
 //
 #include <stddef.h>                                   // NULL
 #include <stdio.h>                                    // snprintf
@@ -42,13 +45,9 @@
 #include "corRest/corRestOutHeader.h"                 // corRestOutHeaderAdd
 #include "corJsonld/corLdExpandTree.h"                // corLdExpandTree
 #include "corNgsild/corNgsild.h"                      // corNgsild, ldError, ldContextResolve, LD_ERROR_*
-#include "corNgsild/ldError.h"                        // ldErrorExtraString
-#include "corBridge/BridgeBroker.h"                   // BridgeGoal*
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/bridgeRender.h"                      // channelIdOf
-#include "bridge/bridgeGoal.h"                        // bridgeGoalAwaitAnswer
-#include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutMs
 #include "serviceRoutines/patchEntityAttrs.h"         // patchEntityAttrsOn
 #include "serviceRoutines/channelGoalCommon.h"        // actionChannelOfRequest
 #include "serviceRoutines/postChannelGoals.h"         // Own interface
@@ -137,41 +136,21 @@ bool postChannelGoals(void)
     return true;
   }
 
-  uint64_t token = 0;
+  //
+  // The PATCH waits for the transport to decide, as every write to an action
+  // Channel does, and writes nothing for a goal that was not accepted - its
+  // error is this POST's: 422 goalRejected, 503 goalFailed, 504 goalNotAnswered.
+  //
+  char* goalId = NULL;
 
-  patchEntityAttrsOn(channelP->entityId, fragP, &token);
+  patchEntityAttrsOn(channelP->entityId, fragP, &goalId);
 
   if (corRest.out.httpStatusCode >= 400)
-    return true;   // not sent, or not written - the PATCH has said why
+    return true;   // not taken on, or not written - the PATCH has said why
 
-  if (token == 0)
+  if (goalId == NULL)
   {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "the goal was written but no goal was sent");
-    return true;
-  }
-
-  int  state = 0;
-  char goalId[128];
-
-  if (bridgeGoalAwaitAnswer(token, bridgeSyncTimeoutMs, &state, goalId, sizeof(goalId)) == false)
-  {
-    ldError(504, LD_ERROR_INTERNAL_ERROR, "Goal Not Answered",
-            "the goal was sent, and the transport did not answer within %d ms - it may run", bridgeSyncTimeoutMs);
-    ldErrorExtraString("errorCode", "goalNotAnswered");
-    return true;
-  }
-
-  if (state == BridgeGoalRejected)
-  {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Goal Rejected", "the server of channel '%s' rejected the goal", channelIdOf(channelP));
-    ldErrorExtraString("errorCode", "goalRejected");
-    return true;
-  }
-
-  if (state == BridgeGoalFailed)
-  {
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Goal Failed", "the transport lost the goal before it was accepted");
-    ldErrorExtraString("errorCode", "goalFailed");
+    ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "the transport accepted the goal without giving it an id");
     return true;
   }
 

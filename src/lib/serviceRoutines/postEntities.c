@@ -691,8 +691,8 @@ bool postEntities(void)
       int st = syncDone.failedStatusV[ix];
 
       ldBatchErrorListAdd(&errors, idP->value.s, st,
-                          (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
-                          (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                          syncDone.failedTypeV[ix],
+                          syncDone.failedTitleV[ix],
                           syncDone.failedReasonV[ix], NULL);
     }
 

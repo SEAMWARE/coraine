@@ -28,12 +28,13 @@ extern bool patchEntityAttrs(void);
 //
 // The route, with its input given instead of read from the request: what a goal
 // POSTed to a Channel does to its entity is exactly what a PATCH of the
-// attribute does - DDS first, the hold, the notifications, TRoE. goalTokenP:
-// NULL, or where to put the token of the goal the write sent (0: none).
+// attribute does - the transport deciding first, the notifications, TRoE.
+// goalIdP: NULL, or where to put the transport's id of the goal the write sent
+// and that was accepted (NULL: none, or the transport gave no id).
 //
 // fragment must be what the route gets: EXPANDED, by corLdExpandTree - the
 // nodes carry the classification bits the NGSI-LD layer reads.
 //
-extern bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, uint64_t* goalTokenP);
+extern bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, char** goalIdP);
 
 #endif  // CORAINE_PATCH_ENTITY_ATTRS_H_

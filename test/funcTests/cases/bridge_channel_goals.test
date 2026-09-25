@@ -100,8 +100,8 @@ echo
 echo
 
 
-echo "07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and no instance"
-echo "==========================================================================================="
+echo "07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and nothing is written"
+echo "=================================================================================================="
 corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A2/goals --payload '{ "goalRequest": { "x": 2 } }'
 echo
 corCurl --url /ngsi-ld/v1/entities/urn:R:2
@@ -268,15 +268,15 @@ Content-Length: 169
 
 
 
-07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and no instance
-===========================================================================================
+07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and nothing is written
+==================================================================================================
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 239
+Content-Length: 245
 
 {
-  "detail": "the server of channel 'urn:ngsi-ld:Channel:loopback:A2' rejected the goal",
+  "detail": "the server of 'A2' on bridge 'loopback' rejected the goal - nothing was written",
   "errorCode": "goalRejected",
   "status": 422,
   "title": "Goal Rejected",
@@ -288,15 +288,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 120
+Content-Length: 115
 
 {
   "id": "urn:R:2",
   "navigate": {
     "type": "Property",
-    "value": {
-      "x": 2
-    }
+    "value": "uninitialized"
   },
   "type": "Robot"
 }

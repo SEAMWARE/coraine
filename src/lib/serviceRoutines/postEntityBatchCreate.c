@@ -838,8 +838,9 @@ bool postEntityBatchCreate(void)
 
     //
     // Requests to the DDS side go FIRST - per Entity, before the bulk create,
-    // never waited for and never failing the batch: one that cannot be sent is
-    // left out of the Entity and becomes its error. Nothing is sent for an Entity
+    // and never failing the batch: one that cannot be sent, or a goal that is
+    // refused, is left out of the Entity and becomes its error. Every goal is
+    // sent before any is waited for. Nothing is sent for an Entity
     // that already exists - its create is refused, and a goal must not go out for
     // it. Only when a bridge carries anything.
     //
@@ -864,15 +865,34 @@ bool postEntityBatchCreate(void)
         doneV[k] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[k], 0, sizeof(BridgeSyncDone));
 
-        bridgeRequestsBeforeWrite(tenantP, eid, ddsEntP, BRIDGE_REQ_PER_ENTITY, doneV[k]);
+
+        bridgeRequestsBeforeWrite(tenantP, eid, ddsEntP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneV[k]);
+      }
+
+      //
+      // Every Entity's goals are out - now they are waited for, against ONE
+      // deadline: a goal's answer never waits for the next goal to be sent.
+      //
+      int64_t dueMs = bridgeRequestsDeadline();
+
+      ddsEntP = localArr->value.firstChildP;
+
+      for (int k = 0; k < localN; k++, ddsEntP = (ddsEntP != NULL) ? ddsEntP->next : NULL)
+      {
+        if (doneV[k] == NULL)
+          continue;
+
+        const char* eid = eligIdV[localIdxV[k]];
+
+        bridgeRequestsAwait(ddsEntP, doneV[k], dueMs);
 
         for (int ix = 0; ix < doneV[k]->failedN; ix++)
         {
           int st = doneV[k]->failedStatusV[ix];
 
           addBatchError(errorsP, eid, st,
-                        (st == 400) ? LD_ERROR_BAD_REQUEST_DATA : (st == 422) ? LD_ERROR_OP_NOT_SUPPORTED : LD_ERROR_INTERNAL_ERROR,
-                        (st == 400) ? "Invalid request" : (st == 422) ? "Operation Not Supported" : "Service Unavailable",
+                        doneV[k]->failedTypeV[ix],
+                        doneV[k]->failedTitleV[ix],
                         doneV[k]->failedReasonV[ix], NULL);
         }
       }

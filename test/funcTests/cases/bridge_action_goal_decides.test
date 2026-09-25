@@ -1,0 +1,528 @@
+#
+# FILE            bridge_action_goal_decides.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An action's transport DECIDES before anything is stored (KZ 2026-09-25):
+# a write to an action Channel sends the goal, waits for its first event, and
+# writes only a goal that was accepted - the value and that first event
+# together, in the request's own write. Otherwise nothing at all is written:
+#
+#   rejected            422, errorCode goalRejected
+#   no answer in time   504, errorCode goalNotAnswered - and the goal is CANCELLED
+#
+# Several attributes: each written or refused on its own goal's answer (207).
+# A batch: every goal waits against the batch's ONE deadline, so two goals that
+# are never answered cost one --ddsSyncTimeout, not two.
+#
+# Loopback:  A1 reject  - urn:R:1 navigate
+#            A2 silent  - urn:R:2 navigate: never answered, not even accepted
+#            A3 hold    - urn:R:3 navigate: accepted, then in flight
+#            A4 reject  - urn:R:3 dock
+#            A5 silent  - urn:R:4 navigate
+#            A6 instant - urn:R:5 navigate: over with its first event
+#
+# A goal over with its first event was never in progress, and current state
+# does without it - but it is written all the same, and removed at once: the
+# temporal history needs it (bridge_action_goal_troe), and its endpoint, or a
+# subscriber, must hear it (KZ 2026-09-25).
+#
+--NAME--
+Bridges: an action's transport decides before anything is stored - rejected or unanswered writes nothing
+
+--TAGS--
+bridge plugins action goal
+
+--INIT--
+corDbDrop
+ftClientStart
+
+export COR_TRACE_LEVELS=402
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --action "A2,Robot,urn:R:2,navigate" \
+  --action "A3,Robot,urn:R:3,navigate" \
+  --action "A4,Robot,urn:R:3,dock" \
+  --action "A5,Robot,urn:R:4,navigate" \
+  --action "A6,Robot,urn:R:5,navigate" \
+  --goalMode "A1=reject" \
+  --goalMode "A2=silent" \
+  --goalMode "A3=hold" \
+  --goalMode "A4=reject" \
+  --goalMode "A5=silent" \
+  --goalMode "A6=instant")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 800
+
+--RUN--
+
+echo "01. PATCH urn:R:1 navigate - the server rejects the goal: 422 goalRejected, and nothing is written"
+echo "==================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/navigate -X PATCH --payload '{ "value": { "x": 1 } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "02. PUT urn:R:1 navigate - the same: 422, nothing written"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/navigate -X PUT --payload '{ "type": "Property", "value": { "x": 2 } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "03. PATCH urn:R:2 navigate - never answered: 504 goalNotAnswered, nothing written, and the goal is cancelled"
+echo "============================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs/navigate -X PATCH --payload '{ "value": { "x": 3 } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:2
+echo
+echo "cancelled: $(grep -c "on 'A2' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
+echo
+echo
+
+
+echo "04. PATCH urn:R:3 navigate (accepted) and dock (rejected) - 207: dock not updated, navigate written"
+echo "=================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:3/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 4 } }, "dock": { "type": "Property", "value": { "bay": 1 } } }'
+echo
+echo
+echo
+
+
+echo "05. GET urn:R:3 - navigate: the request, and the goal's instance made BY THE REQUEST'S WRITE, holding the first event; dock unchanged"
+echo "====================================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:3
+echo
+echo
+
+
+echo "06. Batch update of urn:R:1 navigate - rejected: that entity's error is 422 Goal Rejected, and it is not written"
+echo "==============================================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[ { "id": "urn:R:1", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 6 } } } ]'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:1
+echo
+echo
+
+
+echo "07. Batch update of urn:R:2 and urn:R:4 - neither answers: two 504s, within ONE --ddsSyncTimeout, both cancelled"
+echo "================================================================================================================"
+T0=${EPOCHREALTIME/./}                              # microseconds - no % in a test: the harness eats it
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[ { "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } }, { "id": "urn:R:4", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } } ]'
+T1=${EPOCHREALTIME/./}
+echo
+if [ $(((T1 - T0) / 1000)) -lt 1500 ]; then echo "one deadline: yes"; else echo "one deadline: NO - $(((T1 - T0) / 1000)) ms"; fi
+echo "A2 cancelled, step 03 included: $(grep -c "on 'A2' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
+echo "A5 cancelled: $(grep -c "on 'A5' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:R:4
+echo
+echo
+
+
+echo "08. PATCH urn:R:5 navigate with an endpoint - the goal is over with its first event: 202"
+echo "==========================================================================================="
+payload='{
+  "navigate": {
+    "type": "Property",
+    "value": { "x": 8 },
+    "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/goal8" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:R:5/attrs -X PATCH --payload "$payload"
+for i in $(seq 1 50); do
+  grep -q "on 'A6' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "09. The endpoint heard the goal's instance appear, with its result, and go"
+echo "=========================================================================="
+ftClientSettle
+ftClientDump
+echo
+echo
+
+
+echo "10. Current state - navigate holds what was asked, and no goal instance"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R:5
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+rm -f /tmp/coraine_bridges.json
+
+--EXPECT--
+01. PATCH urn:R:1 navigate - the server rejects the goal: 422 goalRejected, and nothing is written
+===================================================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "the server of 'A1' on bridge 'loopback' rejected the goal - nothing was written",
+  "errorCode": "goalRejected",
+  "status": 422,
+  "title": "Goal Rejected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+
+02. PUT urn:R:1 navigate - the same: 422, nothing written
+=========================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "the server of 'A1' on bridge 'loopback' rejected the goal - nothing was written",
+  "errorCode": "goalRejected",
+  "status": 422,
+  "title": "Goal Rejected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+
+03. PATCH urn:R:2 navigate - never answered: 504 goalNotAnswered, nothing written, and the goal is cancelled
+============================================================================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 284
+
+{
+  "detail": "the goal was sent to 'A2' on bridge 'loopback', and not answered within 800 ms - it was cancelled - nothing was written",
+  "errorCode": "goalNotAnswered",
+  "status": 504,
+  "title": "Goal Not Answered",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+cancelled: 1
+
+
+04. PATCH urn:R:3 navigate (accepted) and dock (rejected) - 207: dock not updated, navigate written
+==================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 284
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/dock",
+      "reason": "the server of 'A4' on bridge 'loopback' rejected the goal - not written"
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/navigate"
+  ]
+}
+
+
+
+
+05. GET urn:R:3 - navigate: the request, and the goal's instance made BY THE REQUEST'S WRITE, holding the first event; dock unchanged
+=====================================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 435
+
+{
+  "dock": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:R:3",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "x": 4
+      }
+    },
+    {
+      "datasetId": "urn:goal:4",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 4
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+06. Batch update of urn:R:1 navigate - rejected: that entity's error is 422 Goal Rejected, and it is not written
+===============================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 331
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:1",
+      "error": {
+        "detail": "the server of 'A1' on bridge 'loopback' rejected the goal - not written",
+        "status": 422,
+        "title": "Goal Rejected",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+
+07. Batch update of urn:R:2 and urn:R:4 - neither answers: two 504s, within ONE --ddsSyncTimeout, both cancelled
+================================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 696
+
+{
+  "errors": [
+    {
+      "entityId": "urn:R:2",
+      "error": {
+        "detail": "the goal was sent to 'A2' on bridge 'loopback', and not answered within 800 ms - it was cancelled - not written",
+        "status": 504,
+        "title": "Goal Not Answered",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    },
+    {
+      "entityId": "urn:R:4",
+      "error": {
+        "detail": "the goal was sent to 'A5' on bridge 'loopback', and not answered within 800 ms - it was cancelled - not written",
+        "status": 504,
+        "title": "Goal Not Answered",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+      }
+    }
+  ],
+  "success": []
+}
+
+
+one deadline: yes
+A2 cancelled, step 03 included: 2
+A5 cancelled: 1
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:R:4",
+  "navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Robot"
+}
+
+
+
+08. PATCH urn:R:5 navigate with an endpoint - the goal is over with its first event: 202
+===========================================================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+09. The endpoint heard the goal's instance appear, with its result, and go
+==========================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:5",
+          "navigate": {
+            "datasetId": "urn:goal:9",
+            "result": {
+              "type": "Property",
+              "value": {
+                "x": 8
+              }
+            },
+            "type": "Property",
+            "value": {
+              "x": 8
+            }
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:9",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal8",
+    "verb": "POST"
+  },
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:R:5",
+          "navigate": {
+            "datasetId": "urn:goal:9",
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "type": "Robot"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(.*)",
+      "subscriptionId": "urn:coraine:goal-subscription:9",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/goal8",
+    "verb": "POST"
+  }
+]
+
+
+10. Current state - navigate holds what was asked, and no goal instance
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 216
+
+{
+  "id": "urn:R:5",
+  "navigate": {
+    "endpoint": {
+      "type": "Property",
+      "value": "http://localhost:7701/goal8"
+    },
+    "type": "Property",
+    "value": {
+      "x": 8
+    }
+  },
+  "type": "Robot"
+}
+
+
+

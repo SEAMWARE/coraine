@@ -203,7 +203,7 @@ bool patchEntityAttrs(void)
 //
 // patchEntityAttrsOn -
 //
-bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, uint64_t* goalTokenP)
+bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, char** goalIdP)
 {
   bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
@@ -537,16 +537,16 @@ bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, uint64_t* goalTo
     ddsAccepted = syncDone.accepted;
 
     //
-    // The goal this write sent, for a caller that waits for its answer
-    // (POST /channels/{id}/goals). Released by now - it may already have one.
+    // The transport's id of the goal this write sent - accepted, or the write
+    // would not have happened - for POST /channels/{id}/goals and its Location.
     //
-    if (goalTokenP != NULL)
+    if (goalIdP != NULL)
     {
       for (int ix = 0; ix < syncDone.count; ix++)
       {
-        if (syncDone.goalV[ix] != 0)
+        if (syncDone.goalIdV[ix] != NULL)
         {
-          *goalTokenP = syncDone.goalV[ix];
+          *goalIdP = syncDone.goalIdV[ix];
           break;
         }
       }
