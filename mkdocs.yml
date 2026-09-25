@@ -41,6 +41,7 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Installation & Administration: installation.md
+  - High Availability: high-availability.md
   - Performance and footprint: performance.md
   - API walkthrough: api-walkthrough.md
   - Plugin architecture: plugin-architecture.md
