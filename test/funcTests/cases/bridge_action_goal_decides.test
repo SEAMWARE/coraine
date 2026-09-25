@@ -145,8 +145,8 @@ echo
 echo
 
 
-echo "09. The endpoint heard the goal's instance appear, with its result, and go"
-echo "=========================================================================="
+echo "09. The endpoint heard the goal's instance appear, with its result - not its removal (as orion-ld)"
+echo "=================================================================================================="
 ftClientSettle
 ftClientDump
 echo
@@ -431,8 +431,8 @@ Content-Length: 0
 
 
 
-09. The endpoint heard the goal's instance appear, with its result, and go
-==========================================================================
+09. The endpoint heard the goal's instance appear, with its result - not its removal (as orion-ld)
+==================================================================================================
 [
   {
     "body": {
@@ -451,34 +451,6 @@ Content-Length: 0
             "value": {
               "x": 8
             }
-          },
-          "type": "Robot"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:coraine:goal-subscription:9",
-      "type": "Notification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/goal8",
-    "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "id": "urn:R:5",
-          "navigate": {
-            "datasetId": "urn:goal:9",
-            "type": "Property",
-            "value": "urn:ngsi-ld:null"
           },
           "type": "Robot"
         }

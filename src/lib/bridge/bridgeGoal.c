@@ -640,10 +640,19 @@ static void firstEventKeep(Goal*       goalP,
 
 // -----------------------------------------------------------------------------
 //
-// goalEnd - the goal has ended: its instance goes, then its subscription, then the goal. Caller holds goalMutex.
+// goalEnd - the goal has ended: its subscription goes, then its instance, then the goal. Caller holds goalMutex.
 //
 static void goalEnd(Goal* goalP)
 {
+  //
+  // The goal's own subscription goes FIRST, so its endpoint does not hear the
+  // instance's removal - the last thing it hears is the goal's final event.
+  // That is what Orion-LD does (it deletes the temporary subscription before
+  // pulling the instance), and its clients expect no removal notification.
+  // Ordinary subscriptions on the attribute still hear it.
+  //
+  goalUnsubscribe(goalP);
+
   //
   // Written, notified, recorded - and now the goal's instance goes. Only if it
   // was ever made: removing an instance that is not there would still be a
@@ -654,7 +663,6 @@ static void goalEnd(Goal* goalP)
 
   KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
 
-  goalUnsubscribe(goalP);                             // after the removal - its notification is the endpoint's last
   goalUnlink(goalP);
   goalFree(goalP);
 }

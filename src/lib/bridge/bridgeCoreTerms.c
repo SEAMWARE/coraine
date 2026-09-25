@@ -28,7 +28,6 @@ static const CorLdCoreTerm bridgeCoreTermV[] =
   { "ContextBridge",     NULL     },   // ⚠ provisional - "Bridge" is schema.org's
   { "Channel",           NULL     },
   { "Goal",              NULL     },
-  { "GoalNotification",  NULL     },
   { "bridgeId",          "@id"    },
   { "bridgeOptions",     "@json"  },   // its keys are the transport's vocabulary - verbatim, as core "json" is
   { "plugin",            NULL     },

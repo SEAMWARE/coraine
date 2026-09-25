@@ -8,8 +8,9 @@
 # A goal can say where its events are to be sent: an "endpoint" sub-Attribute
 # of the request, as orion-ld's goals do. The broker then subscribes that
 # endpoint to the goal's OWN instance - made on the goal's first event, gone
-# after its last - so it hears every event of that goal, in order, including the
-# instance going away, and nothing of any other goal on the same attribute. The
+# after its last - so it hears every event of that goal, in order, and nothing of
+# any other goal on the same attribute. Not the instance going away: as orion-ld,
+# the subscription goes first, so the goal's final event is the last it hears. The
 # subscription lives only in the broker's memory: GET /subscriptions never
 # lists it.
 #
@@ -316,34 +317,6 @@ Content-Length: 0
     },
     "url": "/goal1",
     "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "id": "urn:R:1",
-          "navigate": {
-            "datasetId": "urn:goal:1",
-            "type": "Property",
-            "value": "urn:ngsi-ld:null"
-          },
-          "type": "Robot"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:coraine:goal-subscription:1",
-      "type": "Notification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/goal1",
-    "verb": "POST"
   }
 ]
 
@@ -532,34 +505,6 @@ Content-Length: 0
             "value": {
               "x": 3
             }
-          },
-          "type": "Robot"
-        }
-      ],
-      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
-      "notifiedAt": "REGEX(.*)",
-      "subscriptionId": "urn:coraine:goal-subscription:3",
-      "type": "Notification"
-    },
-    "headers": {
-      "Content-Length": "REGEX(\d+)",
-      "Content-Type": "application/json",
-      "Host": "localhost:7701",
-      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "REGEX(Coraine/.*)"
-    },
-    "url": "/a",
-    "verb": "POST"
-  },
-  {
-    "body": {
-      "data": [
-        {
-          "id": "urn:R:2",
-          "navigate": {
-            "datasetId": "urn:goal:3",
-            "type": "Property",
-            "value": "urn:ngsi-ld:null"
           },
           "type": "Robot"
         }

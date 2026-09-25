@@ -88,6 +88,10 @@ Content-Length: REGEX(\d+)
   "sum": {
     "ddsServiceReply": {
       "observedAt": "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)",
+      "publishedAt": {
+        "type": "Property",
+        "value": REGEX(\d{10})
+      },
       "type": "Property",
       "value": {
         "sum": 7
