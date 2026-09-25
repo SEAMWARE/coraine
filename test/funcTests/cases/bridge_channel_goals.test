@@ -139,3 +139,232 @@ rm -f /tmp/coraine_bridges.json
 
 
 --EXPECT--
+01. POST a goal to A1 - accepted: 201, Location .../goals/<the transport's goal id>
+==================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1
+Content-Length: 0
+
+
+
+
+02. GET the Channel's goals - goal 1, executing, with its request and its latest feedback
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 217
+
+[
+  {
+    "goalFeedback": {
+      "progress": 50
+    },
+    "goalId": "1",
+    "goalRequest": {
+      "frame-id": "map",
+      "x": 1
+    },
+    "id": "urn:goal:1",
+    "status": "executing",
+    "type": "Goal"
+  }
+]
+
+
+
+03. GET goal 1 - the same, alone
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 187
+
+{
+  "goalFeedback": {
+    "progress": 50
+  },
+  "goalId": "1",
+  "goalRequest": {
+    "frame-id": "map",
+    "x": 1
+  },
+  "id": "urn:goal:1",
+  "status": "executing",
+  "type": "Goal"
+}
+
+
+
+04. The entity - goal 1 in its own instance of navigate, datasetId urn:goal:1, as in phase 1
+============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 530
+
+{
+  "id": "urn:R:1",
+  "navigate": [
+    {
+      "type": "Property",
+      "value": {
+        "frame-id": "map",
+        "x": 1
+      }
+    },
+    {
+      "datasetId": "urn:goal:1",
+      "feedback": {
+        "type": "Property",
+        "value": {
+          "progress": 50
+        }
+      },
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "frame-id": "map",
+        "x": 1
+      }
+    }
+  ],
+  "type": "Robot"
+}
+
+
+
+05. DELETE goal 1 - the cancel is on its way: 202
+=================================================
+HTTP/1.1 202 Accepted
+Date: REGEX(.*)
+Content-Length: 0
+
+
+
+
+06. GET goal 1 - it has ended, so it is gone: 404
+=================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "goal '1' is not in progress on this channel",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. POST a goal to A2 - the server rejects it: 422, errorCode goalRejected, and no instance
+===========================================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 239
+
+{
+  "detail": "the server of channel 'urn:ngsi-ld:Channel:loopback:A2' rejected the goal",
+  "errorCode": "goalRejected",
+  "status": 422,
+  "title": "Goal Rejected",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 120
+
+{
+  "id": "urn:R:2",
+  "navigate": {
+    "type": "Property",
+    "value": {
+      "x": 2
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+08. POST a goal to A3 - it succeeds at once: 201; it is over before a poll, so GET is 404
+=========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals/3
+Content-Length: 0
+
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "goal '3' is not in progress on this channel",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. Refusals: no goalRequest - 400; a topic Channel - 400; no such Channel - 404
+================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "a goal needs a goalRequest - the goal, as the transport takes it",
+  "status": 400,
+  "title": "Invalid Goal",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "channel 'urn:ngsi-ld:Channel:loopback:P1' carries no goals - a goal goes to a Channel whose channelKind is action",
+  "status": 400,
+  "title": "Not an Action Channel",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "channel 'urn:ngsi-ld:Channel:loopback:A9' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+

@@ -1840,6 +1840,25 @@ topics:
   still open. Off by default because it changes what a PATCH means (no server:
   504 and nothing stored, instead of 204 and stored) and its latency. The
   correlation it needs is ABI 3 — see the revision of 2026-09-23.
+- **An action: the transport decides before anything is stored** (agreed
+  2026-09-25, not yet built). A goal has a fast, explicit answer - accepted or
+  rejected - separate from its result. So a write to an action attribute, on
+  every route, sends the goal, waits for that answer (`--ddsSyncTimeout`), and
+  only then writes - the request value and the first event together:
+  - accepted: written, the goal's instance made by that one write;
+  - rejected: **nothing written**, 422 (`errorCode: goalRejected`); lost by
+    the transport: nothing written, 503;
+  - no answer in time: nothing written, 504, and the broker sends a cancel, so
+    that "not written" stays true - it never leaves behind a goal it did not
+    record;
+  - several attributes, a batch: every goal sent first, all answers awaited
+    against one deadline; each attribute or entity written or refused on its
+    own answer (207).
+
+  Services keep the send-first-and-short-wait above: a service has no
+  acceptance step, its reply *is* the result, and that can be slow. Topics stay
+  NGSI-LD first. And none of this is paid by a deployment without DDS: it is
+  reached only for a Channel of kind `service` or `action`.
 
 Port the DDS *mechanics* — type loading, `.bin` handling, goal
 correlation, cancel, feedback/status/result arrival. That is transport
@@ -2020,6 +2039,18 @@ that preceded it, are in a separate working document not published here.
 Oldest first would be tidier, but these were written newest-first as they
 happened and renumbering them invites transcription errors. Read § 1–§ 4 first;
 this section answers "why is it like that" rather than "what is it".
+
+> **Revision 2026-09-25** — an action's transport DECIDES before the broker
+> stores (§ 9.1). "DDS first" used to mean only that a goal was *sent* before the
+> write; the write then happened whatever the server said, so a rejected goal
+> left its request stored behind a 422 (found by the goal resource's test). Now
+> the write waits for the goal's first answer, and a refused, lost or unanswered
+> goal writes nothing. It also removes the window both 2026-09-24 races lived in
+> - an answer landing between send and write - and with it the holding of goal
+> events. Services and topics are unchanged. Bridge ABI 5 (same date) adds
+> `BridgeGoalPart` and `BridgeBroker.goalEventPartIn`: a plugin says which part
+> of a goal an event's payload is (status, feedback, result), so the broker can
+> show `goalFeedback` / `goalResult` whatever the transport calls them.
 
 > **Revision 2026-09-23** — `ddsSync`, and bridge ABI 3. A service request can
 > now be WAITED FOR (§ 9.1), which the seam could not express: an asynchronous
