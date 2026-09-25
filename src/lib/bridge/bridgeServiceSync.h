@@ -260,4 +260,19 @@ extern int bridgeReplyIn(const char* bridgeName,
                          const char* json,
                          int64_t     publishTime);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeReplyMetaIn - BridgeBroker.replyMetaIn, ABI 6: bridgeReplyIn, meta on the reply's sub-attribute
+//
+extern int bridgeReplyMetaIn(const char* bridgeName,
+                             const char* endpoint,
+                             uint64_t    token,
+                             const char* datasetId,
+                             const char* subAttrName,
+                             const char* json,
+                             const char* meta,
+                             int64_t     publishTime);
+
 #endif  // BRIDGE_BRIDGESERVICESYNC_H_

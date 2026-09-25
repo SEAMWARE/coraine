@@ -90,7 +90,8 @@ extern int bridgeGoalWrite(const char* bridgeName,
                            const char* subAttrName,
                            const char* json,
                            int64_t     publishTime,
-                           const char* requestJson);
+                           const char* requestJson,
+                           const char* meta);
 
 
 
@@ -106,12 +107,37 @@ extern int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint
 
 // -----------------------------------------------------------------------------
 //
+// bridgeSampleMetaIn - the broker's side of BridgeBroker::sampleMetaIn (ABI 6)
+//
+// bridgeSampleIn(), and each member of meta - the transport's curiosities about
+// the sample - becomes a Property sub-attribute of the attribute.
+//
+extern int bridgeSampleMetaIn(const char* bridgeName, const char* endpoint, const char* json, const char* meta, int64_t publishTime);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSampleQualifiedMetaIn - bridgeSampleQualifiedIn(), meta on the sub-attribute
+//
+extern int bridgeSampleQualifiedMetaIn(const char* bridgeName,
+                                       const char* endpoint,
+                                       const char* datasetId,
+                                       const char* subAttrName,
+                                       const char* json,
+                                       const char* meta,
+                                       int64_t     publishTime);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeReplySubAttr - a reply, as the sub-attribute it is stored as
 //
 // Shared by the asynchronous reply path and the synchronous one (ddsSync), so
 // that both store a reply identically. See bridgeSampleIn.c.
 //
-extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime);
+extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime, const char* meta);
 
 
 
@@ -129,6 +155,7 @@ extern KjNode* bridgeGoalInstance(const char* attrName,
                                   const char* requestJson,
                                   const char* subAttrName,
                                   const char* json,
-                                  int64_t     publishTime);
+                                  int64_t     publishTime,
+                                  const char* meta);
 
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

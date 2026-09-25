@@ -149,6 +149,28 @@ extern int bridgeGoalEventPartIn(const char* bridgeName,
 
 // -----------------------------------------------------------------------------
 //
+// bridgeGoalEventMetaIn - the broker's side of BridgeBroker::goalEventMetaIn (ABI 6)
+//
+// bridgeGoalEventPartIn(), and each member of meta becomes a Property
+// sub-attribute of the sub-attribute the event goes in.
+//
+extern int bridgeGoalEventMetaIn(const char* bridgeName,
+                                 const char* endpoint,
+                                 uint64_t    token,
+                                 const char* goalId,
+                                 const char* goalAlias,
+                                 int         state,
+                                 bool        final,
+                                 int         part,
+                                 const char* subAttrName,
+                                 const char* json,
+                                 const char* meta,
+                                 int64_t     publishTime);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // BridgeGoalAnswer - a goal's FIRST event, as the request that sent the goal gets it
 //
 // In the request's arena. subAttrName and json are NULL when the event carried
@@ -162,6 +184,7 @@ typedef struct BridgeGoalAnswer
   char*    goalAlias;                                 // the datasetId of the goal's instance
   char*    subAttrName;
   char*    json;
+  char*    meta;                                      // the transport's meta about it (ABI 6), or NULL
   int64_t  publishTime;
 } BridgeGoalAnswer;
 

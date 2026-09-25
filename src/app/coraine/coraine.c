@@ -557,7 +557,10 @@ static BridgeBroker bridgeBroker =
   bridgeSampleQualifiedIn,
   bridgeReplyIn,
   bridgeGoalEventIn,
-  bridgeGoalEventPartIn
+  bridgeGoalEventPartIn,
+  bridgeSampleMetaIn,
+  bridgeReplyMetaIn,
+  bridgeGoalEventMetaIn
 };
 
 
