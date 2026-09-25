@@ -77,7 +77,7 @@ corCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
 
 02. near [0,0] maxDistance=20km — only GD:1; geoDistance is a plain number
 =========================================================================
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
     "id": "urn:ngsi-ld:GD:1",
 
 
@@ -90,7 +90,7 @@ corCurl --url '/ngsi-ld/v1/entities?type=GD' | grep -c '"geoDistance"' || true
 
 04. same near query, options=keyValues — geoDistance still a plain number
 =========================================================================
-    "geoDistance": REGEX([0-9.]+),
+    "geoDistance": REGEX([0-9.e+-]+),
 3
 
 
