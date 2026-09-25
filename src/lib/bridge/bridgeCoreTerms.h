@@ -28,6 +28,13 @@
 // ContextBridge, bridgeId, channelTarget, channelDirection, goalResult.
 // ContextBridge is provisional.
 //
+// ⏳ TEMPORARY - until a published core context carries these terms. ETSI does
+// one or two releases a year and this feature is big, so expect a year or
+// more. Then: delete the table (and this call) rather than keep it beside the
+// new core - corLdCoreTermsAdd already leaves alone any term the core defines,
+// so until it is deleted it is dead weight, not a conflict. Check the names
+// ETSI settles on: any that differ from ours is a rename for our clients.
+//
 extern int bridgeCoreTermsAdd(KAlloc* kaP);
 
 #endif  // SRC_LIB_BRIDGE_BRIDGECORETERMS_H_
