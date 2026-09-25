@@ -48,6 +48,11 @@ SET(SOURCES
   postEntityTemporalAttrs.c
   patchEntityTemporalInstance.c
   deleteEntityTemporalInstance.c
+  # ContextBridges and Channels - every build: the routes are registered unconditionally
+  getBridges.c
+  getBridge.c
+  getChannels.c
+  getChannel.c
 )
 
 IF (COR_FEATURE_CONTEXT_HOSTING)
@@ -63,10 +68,6 @@ IF (COR_FEATURE_SUBSCRIPTIONS)
   LIST(APPEND SOURCES
     postSubscriptions.c
     getSubscription.c
-    getBridges.c
-    getBridge.c
-    getChannels.c
-    getChannel.c
     getSubscriptions.c
     patchSubscription.c
     deleteSubscription.c
