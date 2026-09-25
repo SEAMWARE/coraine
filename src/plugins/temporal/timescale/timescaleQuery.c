@@ -30,8 +30,12 @@
 //
 
 #include <stddef.h>                                       // NULL
-#include <string.h>                                       // strcmp
-#include <stdlib.h>                                       // strtol, strtod
+#include <stdint.h>                                       // uint64_t
+#include <stdio.h>                                        // snprintf
+#include <string.h>                                       // strcmp, strlen, memset
+#include <stdlib.h>                                       // strtol, strtoll, strtod
+#include <math.h>                                         // sqrt
+#include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
@@ -1034,6 +1038,415 @@ static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
 
 // -----------------------------------------------------------------------------
 //
+// AGGR_DECLINED - aggregatedDocsLocked cannot reproduce this aggregation
+// exactly; the caller builds the raw-instance docs and the renderHook
+// aggregates them, as for any query without aggrPushdown.
+//
+#define AGGR_DECLINED  2
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggrNsToIso - epoch-ns to ISO 8601 (UTC), `.SSS` only when the milliseconds
+// are non-zero.
+//
+// The bucket bounds must render exactly as ldToAggregatedValues renders them -
+// the two paths answer the same query, depending only on where it was
+// aggregated.
+//
+static char* aggrNsToIso(uint64_t ns, KAlloc* kaP)
+{
+  char*     buf = (char*) kaAlloc(kaP, 64);
+  time_t    t   = (time_t) (ns / 1000000000ULL);
+  long      ms  = (long) ((ns % 1000000000ULL) / 1000000);
+  struct tm tmv;
+
+  gmtime_r(&t, &tmv);
+
+  if (ms == 0)
+    snprintf(buf, 64, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+             tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+  else
+    snprintf(buf, 64, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
+             tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec, ms);
+
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggrPushdownOk - can this query be aggregated in SQL, with the very answer
+// the renderHook would give?
+//
+// ldToAggregatedValues buckets the rendered observedAt/modifiedAt, which carry
+// milliseconds (created_at/modified_at microseconds, truncated to ms when
+// rendered as observedAt). SQL sees the microseconds. The two agree on every
+// bucket as long as each bucket boundary sits on a whole millisecond - hence
+// the ms alignment of timeAt and of the period. Calendar periods (months,
+// years) have no constant width, so they stay with the renderHook, as do the
+// createdAt/deletedAt axes (not the column the renderHook reads) and temporal
+// pagination (which aggregates one page, not the window).
+//
+static bool aggrPushdownOk(TroeQueryFilter* fP)
+{
+  if (!fP->aggrPushdown || (fP->aggrMethodsV == NULL))                      return false;
+  if ((fP->timerel == NULL) || (strcmp(fP->timerel, "between") != 0))       return false;
+  if ((fP->timeAtNs == 0) || (fP->endTimeAtNs <= fP->timeAtNs))             return false;
+  if ((fP->timeAtNs % 1000000) != 0)                                        return false;
+  if ((fP->aggrPeriodMonths != 0) || ((fP->aggrPeriodNs % 1000000) != 0))   return false;
+  if ((fP->lastN != 0) || (fP->firstN != 0) || (fP->offsetN != 0))          return false;
+
+  const char* tp = fP->timeproperty;
+  if ((tp != NULL) && (strcmp(tp, "observedAt") != 0) && (strcmp(tp, "modifiedAt") != 0))
+    return false;
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggrPageIndex - index of entityId in the page (PQ result column 0), -1 if absent.
+//
+// Every result walked here is ORDER BY entity_id like the page, so the next
+// match is almost always at or right after *hintP - which makes the walk
+// linear. The wrap-around only guards against the two orders disagreeing.
+//
+static int aggrPageIndex(PGresult* pageRes, int pageN, const char* entityId, int* hintP)
+{
+  for (int n = 0; n < pageN; n++)
+  {
+    int i = (*hintP + n) % pageN;
+
+    if (strcmp(PQgetvalue(pageRes, i, 0), entityId) == 0)
+    {
+      *hintP = i;
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggrTuple - [value, bucket-start, bucket-end]
+//
+static KjNode* aggrTuple(Kjson* kjsonP, double v, uint64_t startNs, uint64_t endNs)
+{
+  KjNode* tupleP = kjArray(kjsonP, NULL);
+
+  kjChildAdd(tupleP, kjFloat(kjsonP, NULL, v));
+  kjChildAdd(tupleP, kjString(kjsonP, NULL, aggrNsToIso(startNs, &corRest.kalloc)));
+  kjChildAdd(tupleP, kjString(kjsonP, NULL, aggrNsToIso(endNs,   &corRest.kalloc)));
+
+  return tupleP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggrAttribute - the aggregated Attribute from its bucket rows [r0, r1) of sRes.
+//
+// Same methods, same formulas and the same empty-bucket rules as
+// ldToAggregatedValues::emitValueArray for a numeric Property. Returned inside a
+// dataset-keyed wrapper ({"@none": {...}}), the storage shape ldEntityToApi
+// unwraps back into a plain Attribute; ldToAggregatedValues skips it, as it is
+// no instance array.
+//
+// sRes columns: 0 entity_id, 1 attr_name, 2 bucket start (epoch us), 3 total, 4 distinct, 5 sum, 6 sumsq, 7 min, 8 max
+//
+static KjNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP, Kjson* kjsonP)
+{
+  KjNode* wrapperP = kjObject(kjsonP, kaStrdup(&corRest.kalloc, PQgetvalue(sRes, r0, 1)));
+  KjNode* attrP    = kjObject(kjsonP, "@none");
+
+  kjChildAdd(attrP, kjString(kjsonP, "type", "Property"));
+
+  bool     zeroPeriod = (fP->aggrPeriodNs == 0);
+  uint64_t endNs      = fP->endTimeAtNs;
+
+  for (int m = 0; fP->aggrMethodsV[m] != NULL; m++)
+  {
+    const char* method = fP->aggrMethodsV[m];
+    KjNode*     arrP   = kjArray(kjsonP, method);
+
+    for (int r = r0; r < r1; r++)
+    {
+      uint64_t  bStart  = (uint64_t) strtoll(PQgetvalue(sRes, r, 2), NULL, 10) * 1000;
+      double    n       = strtod(PQgetvalue(sRes, r, 3), NULL);
+      double    sum     = strtod(PQgetvalue(sRes, r, 5), NULL);
+      double    sumsq   = strtod(PQgetvalue(sRes, r, 6), NULL);
+      uint64_t  bEnd    = zeroPeriod ? endNs : bStart + fP->aggrPeriodNs;
+      double    v;
+
+      if (bEnd > endNs)   // clipped to the explicit endTimeAt
+        bEnd = endNs;
+
+      if      ((strcmp(method, "totalCount") == 0) || (strcmp(method, "count") == 0))  v = n;
+      else if (strcmp(method, "distinctCount") == 0)                                  v = strtod(PQgetvalue(sRes, r, 4), NULL);
+      else if (strcmp(method, "sum")           == 0)                                  v = sum;
+      else if (strcmp(method, "sumsq")         == 0)                                  v = sumsq;
+      else if (strcmp(method, "avg")           == 0)                                  v = sum / n;
+      else if (strcmp(method, "min")           == 0)                                  v = strtod(PQgetvalue(sRes, r, 7), NULL);
+      else if (strcmp(method, "max")           == 0)                                  v = strtod(PQgetvalue(sRes, r, 8), NULL);
+      else if (strcmp(method, "stddev")        == 0)
+      {
+        if (n < 2)
+          continue;
+
+        double mean = sum / n;
+        double var  = (sumsq / n) - (mean * mean);
+
+        v = (var > 0.0) ? sqrt(var) : 0.0;
+      }
+      else
+        continue;
+
+      kjChildAdd(arrP, aggrTuple(kjsonP, v, bStart, bEnd));
+    }
+
+    kjChildAdd(attrP, arrP);
+  }
+
+  kjChildAdd(wrapperP, attrP);
+  return wrapperP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// aggregatedDocsLocked - the page's EntityTemporal docs, already aggregated.
+//
+// Three statements for the whole page, where the raw-instance path runs three
+// PER ENTITY and ships every instance to the broker: the Entities' system
+// timestamps, and one GROUP BY (entity, attribute, bucket) that leaves only the
+// accumulators - count, distinct count, sum, sum of squares, min, max - to cross
+// the wire. The methods are computed from those exactly as ldToAggregatedValues
+// computes them.
+//
+// Returns AGGR_DECLINED when any instance in the window is something other than
+// a Number or Boolean Property value (strings, compounds, Relationships,
+// deletions, ...) or when an attribute holds more instances than the instance
+// cap - that path aggregates only the capped page. The caller then takes the
+// raw-instance path for the whole request.
+//
+static int aggregatedDocsLocked(PGresult*        pageRes,
+                                int              pageN,
+                                TroeQueryFilter* fP,
+                                const char*      whereTail,
+                                int              nParams,
+                                const char**     paramV,
+                                KjNode*          arrP,
+                                TroeRangeInfo*   rangeOut)
+{
+  if (pageN == 0)
+    return TROE_OK;
+
+  char** idV = (char**) kaAlloc(&corRest.kalloc, (pageN + 1) * sizeof(char*));
+  for (int i = 0; i < pageN; i++)
+    idV[i] = PQgetvalue(pageRes, i, 0);
+  idV[pageN] = NULL;
+
+  const char* idPred      = idsInClause(idV, &corRest.kalloc);
+  const char* tCol        = timeColumn(fP->timeproperty);
+  int         instanceCap = (fP->instanceCap > 0) ? fP->instanceCap : (timescaleInstanceCap > 0 ? timescaleInstanceCap : TROE_DEFAULT_INSTANCE_CAP);
+
+  //
+  // The bucket, as its start: date_bin with timeAt as origin is exactly the
+  // renderHook's timeAt + k * period. Plain postgres (14+), as this plugin also
+  // runs without the TimescaleDB extension - time_bucket is the same thing,
+  // only not always there. Zero period: one bucket, starting at timeAt.
+  //
+  char bucketExpr[160];
+  if (fP->aggrPeriodNs == 0)
+    snprintf(bucketExpr, sizeof(bucketExpr), "$1::timestamptz");
+  else
+    snprintf(bucketExpr, sizeof(bucketExpr), "date_bin('%llu microseconds'::interval, %s, $1::timestamptz)",
+             (unsigned long long) (fP->aggrPeriodNs / 1000), tCol);
+
+  //
+  // COUNT(DISTINCT) only when asked for: it sorts every instance and keeps the
+  // query from running in parallel - five times the cost of all the rest.
+  //
+  bool distinct = false;
+  for (int m = 0; fP->aggrMethodsV[m] != NULL; m++)
+  {
+    if (strcmp(fP->aggrMethodsV[m], "distinctCount") == 0)
+      distinct = true;
+  }
+
+  //
+  // num: the value as the renderHook's numeric accumulator sees it - a Boolean
+  // counts as 1 / 0 (§ 4.5.19.1). ok: the instance is one of those two kinds.
+  // The distinct count is capped at 64, the renderHook's distinct-set size.
+  //
+  // SUM adds in whatever order the scan (or the parallel workers) deliver, the
+  // renderHook in time order - floating point, so a sum can differ in its last
+  // bit. Forcing the order (SUM(num ORDER BY ...)) would forbid the parallel
+  // plan, which is most of the gain.
+  //
+  int   sSize = (int) strlen(idPred) + (int) strlen(whereTail) + 2048;
+  char* sSql  = (char*) kaAlloc(&corRest.kalloc, sSize);
+
+  snprintf(sSql, sSize,
+    "SELECT entity_id, attr_name, (EXTRACT(EPOCH FROM bucket) * 1000000)::bigint, COUNT(*), %s, SUM(num), SUM(num * num), MIN(num), MAX(num), BOOL_AND(ok) "
+    "FROM (SELECT entity_id, attr_name, %s AS bucket, "
+    "             COALESCE(v_number, CASE WHEN v_bool THEN 1.0::float8 WHEN NOT v_bool THEN 0.0::float8 END) AS num, "
+    "             (attr_kind = %d AND op <> 'deleted' AND v_compound IS NULL AND (v_number IS NOT NULL OR v_bool IS NOT NULL)) AS ok "
+    "      FROM troe_attrs WHERE TRUE%s%s) s "
+    "GROUP BY entity_id, attr_name, bucket "
+    "ORDER BY entity_id, attr_name, bucket",
+    distinct ? "LEAST(COUNT(DISTINCT num), 64)" : "0", bucketExpr, LdAttrProperty, idPred, whereTail);
+
+  PGresult* sRes = PQexecParams(timescaleConn, sSql, nParams, NULL, (nParams > 0) ? paramV : NULL, NULL, NULL, 0);
+  if (PQresultStatus(sRes) != PGRES_TUPLES_OK)
+  {
+    KT_E("timescale: aggregation SELECT failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(sRes);
+    return TROE_ERR;
+  }
+
+  int rowN = PQntuples(sRes);
+
+  // Anything the renderHook would aggregate differently: decline, before any doc is built
+  {
+    long long   attrTotal = 0;
+    const char* prevE     = NULL;
+    const char* prevA     = NULL;
+
+    for (int r = 0; r < rowN; r++)
+    {
+      if (PQgetvalue(sRes, r, 9)[0] != 't')
+      {
+        PQclear(sRes);
+        return AGGR_DECLINED;
+      }
+
+      const char* e = PQgetvalue(sRes, r, 0);
+      const char* a = PQgetvalue(sRes, r, 1);
+
+      if ((prevE == NULL) || (strcmp(e, prevE) != 0) || (strcmp(a, prevA) != 0))
+        attrTotal = 0;
+
+      attrTotal += strtoll(PQgetvalue(sRes, r, 3), NULL, 10);
+      if (attrTotal > instanceCap)
+      {
+        PQclear(sRes);
+        return AGGR_DECLINED;
+      }
+
+      prevE = e;
+      prevA = a;
+    }
+  }
+
+  // The Entities' system timestamps - see buildEntityTemporalDocLocked
+  int   tSize = (int) strlen(idPred) + 512;
+  char* tSql  = (char*) kaAlloc(&corRest.kalloc, tSize);
+
+  snprintf(tSql, tSize,
+    "SELECT entity_id, "
+    "       to_char(MIN(modified_at) FILTER (WHERE op = 'created') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
+    "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
+    "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1] "
+    "FROM troe_entities WHERE TRUE%s GROUP BY entity_id ORDER BY entity_id",
+    idPred);
+
+  PGresult* tRes = PQexecParams(timescaleConn, tSql, 0, NULL, NULL, NULL, NULL, 0);
+  if (PQresultStatus(tRes) != PGRES_TUPLES_OK)
+  {
+    KT_E("timescale: entity-timestamps SELECT failed: %s", PQerrorMessage(timescaleConn));
+    PQclear(tRes);
+    PQclear(sRes);
+    return TROE_ERR;
+  }
+
+  Kjson*   kjsonP = corRest.kjsonP;
+  KjNode** docV   = (KjNode**) kaAlloc(&corRest.kalloc, pageN * sizeof(KjNode*));
+  int      hint   = 0;
+
+  for (int i = 0; i < pageN; i++)
+  {
+    KjNode* docP = kjObject(kjsonP, NULL);
+
+    kjChildAdd(docP, kjString(kjsonP, "id", kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 0))));
+
+    if (!PQgetisnull(pageRes, i, 1))
+    {
+      KjNode* typeNodeP = typeNodeFromJson(kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 1)), kjsonP, &corRest.kalloc);
+      if (typeNodeP != NULL)
+        kjChildAdd(docP, typeNodeP);
+    }
+
+    docV[i] = docP;
+  }
+
+  for (int r = 0; r < PQntuples(tRes); r++)
+  {
+    int i = aggrPageIndex(pageRes, pageN, PQgetvalue(tRes, r, 0), &hint);
+    if (i < 0)
+      continue;
+
+    if (!PQgetisnull(tRes, r, 1))
+      kjChildAdd(docV[i], kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
+    if (!PQgetisnull(tRes, r, 2))
+      kjChildAdd(docV[i], kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+    if (!PQgetisnull(tRes, r, 2) && !PQgetisnull(tRes, r, 3) && (strcmp(PQgetvalue(tRes, r, 3), "deleted") == 0))
+      kjChildAdd(docV[i], kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+  }
+  PQclear(tRes);
+
+  // One Attribute per (entity, attr_name) run of bucket rows
+  bool* hasAttrsV = (bool*) kaAlloc(&corRest.kalloc, pageN * sizeof(bool));
+  memset(hasAttrsV, 0, pageN * sizeof(bool));
+
+  hint = 0;
+  for (int r0 = 0; r0 < rowN; )
+  {
+    const char* e  = PQgetvalue(sRes, r0, 0);
+    const char* a  = PQgetvalue(sRes, r0, 1);
+    int         r1 = r0 + 1;
+
+    while ((r1 < rowN) && (strcmp(PQgetvalue(sRes, r1, 0), e) == 0) && (strcmp(PQgetvalue(sRes, r1, 1), a) == 0))
+      r1++;
+
+    int i = aggrPageIndex(pageRes, pageN, e, &hint);
+    if (i >= 0)
+    {
+      kjChildAdd(docV[i], aggrAttribute(sRes, r0, r1, fP, kjsonP));
+      hasAttrsV[i] = true;
+    }
+
+    r0 = r1;
+  }
+  PQclear(sRes);
+
+  // Page order; an Entity without an Attribute in the window is left out, as in the raw path
+  for (int i = 0; i < pageN; i++)
+  {
+    if (hasAttrsV[i])
+      kjChildAdd(arrP, docV[i]);
+  }
+
+  if (rangeOut->size == 0)
+    rangeOut->size = instanceCap;
+
+  return TROE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleEntityTemporalQuery - § 5.7.4 multi-entity query.
 //
 // One set query selects exactly the matching entities — entity-level
@@ -1156,7 +1569,27 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   int pageN = (rowN > limit) ? limit : rowN;     // the extra row only signals "more"
   rangeOut->moreEntities = (rowN > limit);
 
-  for (int r = 0; r < pageN; r++)
+  // § 4.5.20 aggregatedValues aggregated here, in SQL - else the raw instances, one Entity at a time
+  int aggrRc = AGGR_DECLINED;
+
+  if (aggrPushdownOk(fP))
+  {
+    int   tailSize = (int) (strlen(timePred) + strlen(opPred) + strlen(attrPred) + strlen(dsPred)) + 1;
+    char* tail     = (char*) kaAlloc(&corRest.kalloc, tailSize);
+
+    snprintf(tail, tailSize, "%s%s%s%s", timePred, opPred, attrPred, dsPred);
+
+    aggrRc = aggregatedDocsLocked(eRes, pageN, fP, tail, nParams, paramV, arrP, rangeOut);
+    if (aggrRc == TROE_ERR)
+    {
+      PQclear(eRes);
+      timescaleConn = NULL;
+      timescaleConnRelease(cP);
+      return TROE_ERR;
+    }
+  }
+
+  for (int r = 0; (aggrRc == AGGR_DECLINED) && (r < pageN); r++)
   {
     const char* entityId   = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));

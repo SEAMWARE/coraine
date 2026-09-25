@@ -1,0 +1,181 @@
+#
+# FILE            troe_timescale_timeproperty_modifiedat_simplified.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?timeproperty=modifiedAt with the two simplified temporal representations,
+# WITHOUT ?sysAttrs.
+#
+# Both read each instance's timeproperty - and modifiedAt / createdAt are
+# sysAttrs, which the renderHook stripped BEFORE those representations were
+# made. Every instance had lost its timestamp: temporalValues answered with an
+# empty value list and aggregatedValues with empty aggregations. The strip now
+# waits until they have run; the Entity's own createdAt/modifiedAt are still
+# stripped (no ?sysAttrs).
+#
+--NAME--
+TRoE timescale - timeproperty=modifiedAt with temporalValues / aggregatedValues, no sysAttrs
+
+--TAGS--
+troe timescale postgres temporal timeproperty
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Create urn:E1 with P1=10, then update P1 to 20 and to 30"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","P1":{"type":"Property","value":10}}'
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":20}}'
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"P1":{"type":"Property","value":30}}'
+echo
+echo
+
+
+echo "02. temporalValues, timeproperty=modifiedAt - three values, each with its modifiedAt"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?format=temporalValues&timeproperty=modifiedAt&timerel=after&timeAt=2000-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "03. aggregatedValues, timeproperty=modifiedAt, one Entity - three instances aggregated"
+echo "====================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E1?format=aggregatedValues&aggrMethods=totalCount,sum&timeproperty=modifiedAt&timerel=between&timeAt=2000-01-01T00:00:00Z&endTimeAt=2100-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "04. aggregatedValues, timeproperty=modifiedAt, type query - three instances aggregated"
+echo "====================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=T&format=aggregatedValues&aggrMethods=totalCount,sum&timeproperty=modifiedAt&timerel=between&timeAt=2000-01-01T00:00:00Z&endTimeAt=2100-01-01T00:00:00Z'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 with P1=10, then update P1 to 20 and to 30
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+02. temporalValues, timeproperty=modifiedAt - three values, each with its modifiedAt
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": {
+    "type": "Property",
+    "values": [
+      [
+        10,
+        "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z)"
+      ],
+      [
+        20,
+        "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z)"
+      ],
+      [
+        30,
+        "REGEX(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z)"
+      ]
+    ]
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. aggregatedValues, timeproperty=modifiedAt, one Entity - three instances aggregated
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "P1": {
+    "sum": [
+      [
+        60,
+        "2000-01-01T00:00:00Z",
+        "2100-01-01T00:00:00Z"
+      ]
+    ],
+    "totalCount": [
+      [
+        3,
+        "2000-01-01T00:00:00Z",
+        "2100-01-01T00:00:00Z"
+      ]
+    ],
+    "type": "Property"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+04. aggregatedValues, timeproperty=modifiedAt, type query - three instances aggregated
+=====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "P1": {
+      "sum": [
+        [
+          60,
+          "2000-01-01T00:00:00Z",
+          "2100-01-01T00:00:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          3,
+          "2000-01-01T00:00:00Z",
+          "2100-01-01T00:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

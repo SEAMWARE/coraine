@@ -29,12 +29,14 @@
 #include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, memset, strlen, strcpy
+#include <pthread.h>                                 // pthread_rwlock_rdlock
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 #include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 #include "corNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
-#include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
+#include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid, ldIso8601DurationParse, LdDuration
+#include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "kjson/KjNode.h"                            // KjNode
 #include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
 #include "kjson/kjLookup.h"                          // kjLookup
@@ -384,6 +386,29 @@ static void stripInfoAttrsFromArray(KjNode* arrayP, LdRegInfo* riP)
 
 
 
+// -----------------------------------------------------------------------------
+//
+// distOpsPossible - can a registration contribute to this query's answer?
+//
+// The same gate as the distop dispatch below, plus: an empty registration cache
+// cannot contribute either.
+//
+static bool distOpsPossible(void* snapItem, Tenant* tenantP)
+{
+  if ((snapItem != NULL) || corNgsild.local || (tenantP == NULL) || (tenantP->regCacheP == NULL))
+    return false;
+
+  LdRegCache* cacheP = (LdRegCache*) tenantP->regCacheP;
+
+  pthread_rwlock_rdlock(&cacheP->lock);
+  bool registrations = (cacheP->itemList != NULL);
+  pthread_rwlock_unlock(&cacheP->lock);
+
+  return registrations;
+}
+
+
+
 bool getEntitiesTemporal(void)
 {
   // § 4.21 / § 6.4.3 — cross-parameter projection validation
@@ -589,6 +614,30 @@ bool getEntitiesTemporal(void)
   Tenant* tenantP = (snapItem != NULL)
                       ? (Tenant*) snapItem->snapTenantP
                       : (Tenant*) corNgsild.tenantP;
+
+  //
+  // § 4.5.20 aggregatedValues: let the store aggregate, instead of fetching
+  // every raw instance for the renderHook to bucket - for a type-wide query over
+  // a day of samples that is the difference between a few thousand rows and
+  // millions. Only when nothing below needs the raw instances: orderBy sorts on
+  // them, and a remote source's answer is merged instance by instance. The
+  // plugin can still decline (and does, for anything it cannot reproduce
+  // exactly); the renderHook then aggregates as always.
+  //
+  if ((corNgsild.format == LdFormatAggregatedValues) && (corNgsild.orderByV == NULL) && !distOpsPossible(snapItem, tenantP))
+  {
+    LdDuration period = { 0, 0 };
+
+    if ((corNgsild.aggrPeriodDuration == NULL) || ldIso8601DurationParse(corNgsild.aggrPeriodDuration, &period))
+    {
+      filter.aggrPushdown     = true;
+      filter.aggrMethodsV     = corNgsild.aggrMethodsV;
+      filter.aggrPeriodMonths = period.months;
+      filter.aggrPeriodNs     = period.ns;
+      filter.timeAtNs         = corNgsild.timeAtNs;
+      filter.endTimeAtNs      = corNgsild.endTimeAtNs;
+    }
+  }
 
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
