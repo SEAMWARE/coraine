@@ -51,7 +51,11 @@ bool bridgeSyncDefault   = false;
 // default 32 workers: at 3 ms a call that is some 2500 waited-for requests a
 // second, and a DDS side that answers nothing can tie up 8 workers, never 32.
 //
-int  bridgeSyncTimeoutMs = 200;
+// bridgeSyncTimeoutMs is 0 until settled: --ddsSyncTimeout if given, else the
+// bridge configuration's syncTimeoutMs (dds.ngsild.syncTimeoutMs, as Orion-LD
+// reads it), else BRIDGE_SYNC_TIMEOUT_DEFAULT - bridgeSyncTimeoutSettle.
+//
+int  bridgeSyncTimeoutMs = 0;
 int  bridgeSyncWaitMax   = 8;
 
 
@@ -84,11 +88,12 @@ int  bridgeSyncWaitMax   = 8;
 
 // -----------------------------------------------------------------------------
 //
-// RELEASE_WAIT_MS - how long a late reply waits for its request's write
+// RELEASE_WAIT_MS - how long a late reply waits for its request
 //
-// The write normally follows the timeout by a millisecond. This is the bound for
-// a handler that, through some fault, never says its write is done: the reply
-// lands anyway, a second late, rather than never.
+// Until the request's write is done and its notifications have gone out -
+// normally a few milliseconds after the timeout. This is the bound for a request
+// that, through some fault, never releases it: the reply lands anyway, a second
+// late, rather than never.
 //
 #define RELEASE_WAIT_MS  1000
 
@@ -108,7 +113,8 @@ int  bridgeSyncWaitMax   = 8;
 // waiting BEFORE its own write: were the reply written the moment it came, it
 // could land on the attribute's OLD value, and the request's write - a moment
 // later, replacing the instance - would take it away again. So a reply for a
-// detached request waits for the request to say its write is done (released).
+// detached request waits for the request to release it: after its write AND
+// its notifications, so that no subscriber hears the reply before the value.
 //
 typedef enum SyncState
 {
@@ -267,16 +273,47 @@ static SyncWaiter* waiterCreate(void)
 
 // -----------------------------------------------------------------------------
 //
-// GoalRelease - a goal the request holds until its notifications have gone out
+// GoalRelease - what the request holds until its notifications have gone out
 //
-// In the request's arena, listed in corNgsild.bridgeReleaseQ - see
-// bridgeRequestsWritten.
+// A goal, or the late reply of a service the request stopped waiting for. In the
+// request's arena, listed in corNgsild.bridgeReleaseQ - see bridgeRequestsWritten.
 //
 typedef struct GoalRelease
 {
   uint64_t             token;
+  bool                 service;                       // a detached service's token (SyncWaiter), not a goal's
   struct GoalRelease*  next;
 } GoalRelease;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutFromConfig -
+//
+void bridgeSyncTimeoutFromConfig(const char* alias, int ms)
+{
+  if (bridgeSyncTimeoutMs != 0)
+  {
+    KT_T(KtBridge, "bridge '%s': syncTimeoutMs %d in the configuration - --ddsSyncTimeout %d wins", alias, ms, bridgeSyncTimeoutMs);
+    return;
+  }
+
+  bridgeSyncTimeoutMs = ms;
+  KT_T(KtBridge, "bridge '%s': sync timeout %d ms, from the configuration", alias, ms);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutSettle -
+//
+void bridgeSyncTimeoutSettle(void)
+{
+  if (bridgeSyncTimeoutMs == 0)
+    bridgeSyncTimeoutMs = BRIDGE_SYNC_TIMEOUT_DEFAULT;
+}
 
 
 
@@ -985,6 +1022,29 @@ bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs
 
 // -----------------------------------------------------------------------------
 //
+// detachedRelease - the request that stopped waiting for this service is done: its late reply may land
+//
+static void detachedRelease(uint64_t token)
+{
+  pthread_mutex_lock(&syncMutex);
+
+  for (SyncWaiter* wP = waiters; wP != NULL; wP = wP->next)
+  {
+    if ((wP->token == token) && (wP->state == SyncDetached))
+    {
+      wP->state = SyncReleased;
+      pthread_cond_broadcast(&wP->cond);              // a reply may be waiting for exactly this
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&syncMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsWritten -
 //
 void bridgeRequestsWritten(const BridgeSyncDone* doneP)
@@ -1015,27 +1075,35 @@ void bridgeRequestsWritten(const BridgeSyncDone* doneP)
     }
 
     relP->token              = doneP->goalV[ix];
+    relP->service            = false;
     relP->next               = (GoalRelease*) corNgsild.bridgeReleaseQ;
     corNgsild.bridgeReleaseQ = relP;
   }
 
-  pthread_mutex_lock(&syncMutex);
+  //
+  // The late reply of a service the request stopped waiting for: the same, and
+  // for the same reason. Released now, it was written and notified at once on
+  // the plugin's thread - a subscriber heard the reply before the value it
+  // answers. It waits (replyIn, SyncDetached) until the notifications are out.
+  //
   for (int ix = 0; ix < doneP->count; ix++)
   {
     if (doneP->detachedV[ix] == 0)
       continue;
 
-    for (SyncWaiter* wP = waiters; wP != NULL; wP = wP->next)
+    GoalRelease* relP = (GoalRelease*) kaAlloc(&corRest.kalloc, sizeof(GoalRelease));
+
+    if (relP == NULL)
     {
-      if ((wP->token == doneP->detachedV[ix]) && (wP->state == SyncDetached))
-      {
-        wP->state = SyncReleased;
-        pthread_cond_broadcast(&wP->cond);            // a reply may be waiting for exactly this
-        break;
-      }
+      detachedRelease(doneP->detachedV[ix]);          // better early than never
+      continue;
     }
+
+    relP->token              = doneP->detachedV[ix];
+    relP->service            = true;
+    relP->next               = (GoalRelease*) corNgsild.bridgeReleaseQ;
+    corNgsild.bridgeReleaseQ = relP;
   }
-  pthread_mutex_unlock(&syncMutex);
 }
 
 
@@ -1051,7 +1119,12 @@ void bridgeRequestsReleasePending(void)
   corNgsild.bridgeReleaseQ = NULL;
 
   for (; relP != NULL; relP = relP->next)
-    bridgeGoalRelease(relP->token);
+  {
+    if (relP->service == true)
+      detachedRelease(relP->token);
+    else
+      bridgeGoalRelease(relP->token);
+  }
 }
 
 

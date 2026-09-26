@@ -29,7 +29,8 @@
 #   09     ?ddsSync is 'true' or 'false', nothing else
 #   10-11  the /attrs form waits too
 #   12-13  without the parameter: 202 at once, and the value is written
-#   14     a route that cannot wait refuses the parameter rather than ignore it
+#   14     a route that cannot wait takes the parameter and does not wait - as
+#          Orion-LD, which accepts ?ddsSync on every route
 #
 # --ddsSync, which makes waiting the default, is bridge_service_sync_default.
 #
@@ -153,8 +154,8 @@ echo
 echo
 
 
-echo "14. POST /entities/{id}/attrs?ddsSync=true - a route that cannot wait refuses the parameter"
-echo "==========================================================================================="
+echo "14. POST /entities/{id}/attrs?ddsSync=true - a route that cannot wait takes it, and does not wait"
+echo "===================================================================================================="
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:F/attrs?ddsSync=true" -X POST \
         --payload '{ "job": { "type": "Property", "value": { "a": 8 } } }'
 echo
@@ -386,19 +387,12 @@ Content-Length: 195
 
 
 
-14. POST /entities/{id}/attrs?ddsSync=true - a route that cannot wait refuses the parameter
-===========================================================================================
-HTTP/1.1 400 Bad Request
+14. POST /entities/{id}/attrs?ddsSync=true - a route that cannot wait takes it, and does not wait
+====================================================================================================
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 172
+Content-Length: 0
 
-{
-  "detail": "Unknown/unsupported URL parameter: ddsSync",
-  "status": 400,
-  "title": "Invalid Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
-}
 
 
 

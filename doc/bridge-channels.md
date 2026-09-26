@@ -1836,7 +1836,8 @@ topics:
   `--ddsSync` as the broker default, with `?ddsSync=false` to opt out) invokes
   BEFORE the write, waits for that invocation's reply, and writes value and
   reply together — or answers 503/504 and writes nothing. The timeout is
-  broker-wide for now, `--ddsSyncTimeout` (default 5000 ms); per Channel is
+  broker-wide for now, `--ddsSyncTimeout` (default 200 ms, or the file's
+  `dds.ngsild.syncTimeoutMs`, as Orion-LD reads it); per Channel is
   still open. Off by default because it changes what a PATCH means (no server:
   504 and nothing stored, instead of 204 and stored) and its latency. The
   correlation it needs is ABI 3 — see the revision of 2026-09-23.

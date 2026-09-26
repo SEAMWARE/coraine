@@ -698,7 +698,7 @@ bool postEntities(void)
 
     int r = db.entityCreate(tenantP, idP->value.s, entityP);
 
-    bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
+    bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
 
     if (r == DB_ALREADY_EXISTS)
     {

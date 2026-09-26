@@ -380,7 +380,7 @@ bool putEntityAttr(void)
         int r = db.entityAttrsSet(tenantP, entityId, entityFrag, true,
                                    corRest.requestStartTime, &report);
 
-        bridgeRequestsWritten(&syncDone);   // late replies and held goals may land now
+        bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
         ddsAccepted = syncDone.accepted;
 
         if (r == DB_GEO_TYPE_CONFLICT)

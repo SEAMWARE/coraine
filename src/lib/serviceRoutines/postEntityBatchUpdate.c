@@ -1318,7 +1318,7 @@ bool postEntityBatchUpdate(void)
     db.entityBulkUpdate(tenantP, finals, resultsV);
 
     for (int ix = 0; ix < doneN; ix++)
-      bridgeRequestsWritten(doneV[ix]);             // late replies and held goals may land now
+      bridgeRequestsWritten(doneV[ix]);             // late replies and goals: released after the notifications
 
     for (int k = 0; k < finalN; k++)
     {

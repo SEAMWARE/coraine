@@ -212,7 +212,7 @@ static KArg kargV[] =
   { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
   { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
   { "--ddsSync",            "-ddsSync",     KaBool,   _vp &bridgeSyncDefault,   KaOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
-  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 200, _vp 1, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes" },
+  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", KaInt, _vp &bridgeSyncWaitMax,   KaOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
@@ -516,7 +516,8 @@ static bool pluginsLoad(int argC, char* argV[])
 //
 // bridgeParams - the URL parameters the broker itself adds to NGSI-LD's
 //
-// ?ddsSync, on the three entity PATCH routes - see bridgeServiceSync.h.
+// ?ddsSync - accepted on every route (see main), acted on by the three entity
+// PATCH routes - see bridgeServiceSync.h.
 //
 static CorRestParam bridgeParams[] =
 {
@@ -1456,6 +1457,7 @@ int main(int argC, char* argV[])
   // later, once everything else is running.
   //
   bridgeChannelsInit();
+  bridgeSyncTimeoutSettle();   // --ddsSyncTimeout, else the bridge configuration's syncTimeoutMs, else 200
 
   kaBufferReset(&corRest.kalloc, false);
 
@@ -1497,6 +1499,18 @@ int main(int argC, char* argV[])
   CorRestServiceSimplified* allServices = serviceBuild(&totalServices);
   if (allServices == NULL)
     KT_X(1, "serviceBuild failed (out of memory)");
+
+  //
+  // ?ddsSync on EVERY route, as Orion-LD takes it: a client that sends it
+  // everywhere is not refused (400) where there is nothing to wait for. Only
+  // the three entity PATCH forms act on it - see bridgeServiceSync.h. A route
+  // that takes any parameter at all (~0) needs nothing.
+  //
+  for (int ix = 0; ix < totalServices; ix++)
+  {
+    if (allServices[ix].supportedParams != ~(uint64_t) 0)
+      allServices[ix].supportedParams |= BRIDGE_PARAM_DDS_SYNC;
+  }
 
   //
   // How many event loops the built-in server runs. A no-op on a libmicrohttpd
