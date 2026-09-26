@@ -26,6 +26,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | know what it costs to run, and how fast it is | [Performance and footprint](performance.md) |
 | judge how well it is tested | [Test coverage](coverage.md) |
 | know what is not built yet | [Roadmap](roadmap.md) |
+| connect it to DDS or ROS 2 | [DDS and ROS 2](dds.md) |
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
 
 ## Support
