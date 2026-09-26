@@ -318,6 +318,7 @@ repository, which is where to read them offline or alongside a checkout:
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [Building from source](doc/building.md) | the source layout, the dependency stack, system packages, make targets, compiling features out |
 | [Testing](doc/testing.md) | running the suite, and measuring coverage |
+| [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
 | [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
