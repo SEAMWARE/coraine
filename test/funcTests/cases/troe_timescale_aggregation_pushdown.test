@@ -1,0 +1,969 @@
+#
+# FILE            troe_timescale_aggregation_pushdown.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 4.5.20 aggregatedValues on a multi-entity query is aggregated IN SQL (one
+# GROUP BY entity, attribute, bucket for the whole page) instead of by the
+# renderHook over every raw instance. The answer must not change: every query
+# here is run twice, the second time with firstN = the default instance cap,
+# which keeps the aggregation in the renderHook without changing what it
+# aggregates. The two responses of each pair are identical.
+#
+# All values are exact in binary floating point, so the sums, whichever order
+# they are added in, are too.
+#
+#   urn:V1  speed 10 20 30 40 in two hours, moving true/false/true
+#   urn:V2  speed in two datasets (aggregated together, as the renderHook does)
+#   urn:V3  instances only before the window - no aggregation, Entity left out
+#   urn:V4  a String status - the store declines, the renderHook aggregates
+#
+--NAME--
+TRoE timescale - aggregatedValues aggregated in SQL, same answer as the renderHook
+
+--TAGS--
+troe timescale postgres temporal aggregation
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1, urn:V2, urn:V3 (type Vehicle), urn:V4 (type Robot)"
+echo "===================================================================="
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T10:30:00Z"},
+    {"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"},
+    {"type":"Property","value":40,"observedAt":"2026-04-28T11:45:00Z"}
+  ],
+  "moving":[
+    {"type":"Property","value":true,"observedAt":"2026-04-28T10:10:00Z"},
+    {"type":"Property","value":false,"observedAt":"2026-04-28T10:20:00Z"},
+    {"type":"Property","value":true,"observedAt":"2026-04-28T11:10:00Z"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+payload='{
+  "id":   "urn:V2",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":5,"observedAt":"2026-04-28T10:05:00Z"},
+    {"type":"Property","value":7,"observedAt":"2026-04-28T10:15:00Z","datasetId":"urn:ds:gps"},
+    {"type":"Property","value":5,"observedAt":"2026-04-28T11:05:00Z","datasetId":"urn:ds:gps"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+payload='{
+  "id":   "urn:V3",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":99,"observedAt":"2026-04-28T08:00:00Z"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+payload='{
+  "id":   "urn:V4",
+  "type": "Robot",
+  "status":[
+    {"type":"Property","value":"idle","observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":"busy","observedAt":"2026-04-28T10:40:00Z"}
+  ],
+  "battery":[
+    {"type":"Property","value":80,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":60,"observedAt":"2026-04-28T10:40:00Z"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload"
+echo
+echo
+
+
+W='timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T11:50:00Z&format=aggregatedValues'
+
+echo "02. All eight methods per PT1H - the last bucket clipped at endTimeAt (11:50)"
+echo "============================================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle&$W&aggrMethods=totalCount,distinctCount,sum,sumsq,avg,min,max,stddev&aggrPeriodDuration=PT1H"
+echo
+echo
+
+
+echo "03. The same, aggregated by the renderHook (firstN = the default cap)"
+echo "===================================================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle&$W&aggrMethods=totalCount,distinctCount,sum,sumsq,avg,min,max,stddev&aggrPeriodDuration=PT1H&firstN=1000000"
+echo
+echo
+
+
+echo "04. No aggrPeriodDuration - one bucket over the whole window, attrs=speed, limit=1"
+echo "=================================================================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle&$W&aggrMethods=avg,max&attrs=speed&limit=1"
+echo
+echo
+
+
+echo "05. The same, aggregated by the renderHook"
+echo "=========================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle&$W&aggrMethods=avg,max&attrs=speed&limit=1&firstN=1000000"
+echo
+echo
+
+
+echo "06. A String attribute in the window - the store declines, same answer as always"
+echo "================================================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Robot&$W&aggrMethods=totalCount,min,avg&aggrPeriodDuration=PT1H"
+echo
+echo
+
+
+echo "07. The same, aggregated by the renderHook"
+echo "=========================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?type=Robot&$W&aggrMethods=totalCount,min,avg&aggrPeriodDuration=PT1H&firstN=1000000"
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:V1, urn:V2, urn:V3 (type Vehicle), urn:V4 (type Robot)
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V1
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V2
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V3
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:V4
+Content-Length: REGEX(\d+)
+
+
+
+
+02. All eight methods per PT1H - the last bucket clipped at endTimeAt (11:50)
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "moving": {
+      "avg": [
+        [
+          0.5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          0,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          0.5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "speed": {
+      "avg": [
+        [
+          15,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          35,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          20,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          40,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          10,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          30,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          70,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          500,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2500,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "avg": [
+        [
+          6,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          7,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          12,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          74,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          25,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. The same, aggregated by the renderHook (firstN = the default cap)
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "moving": {
+      "avg": [
+        [
+          0.5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          0,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          0.5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "speed": {
+      "avg": [
+        [
+          15,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          35,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          20,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          40,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          10,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          30,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          70,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          500,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2500,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          2,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "avg": [
+        [
+          6,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "distinctCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          7,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "min": [
+        [
+          5,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "stddev": [
+        [
+          1,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "sum": [
+        [
+          12,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          5,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "sumsq": [
+        [
+          74,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          25,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ],
+        [
+          1,
+          "2026-04-28T11:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. No aggrPeriodDuration - one bucket over the whole window, attrs=speed, limit=1
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T11:50:00Z&format=aggregatedValues&aggrMethods=avg,max&attrs=speed&limit=1&offset=1>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "avg": [
+        [
+          25,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          40,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. The same, aggregated by the renderHook
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=between&timeAt=2026-04-28T10:00:00Z&endTimeAt=2026-04-28T11:50:00Z&format=aggregatedValues&aggrMethods=avg,max&attrs=speed&firstN=1000000&limit=1&offset=1>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "avg": [
+        [
+          25,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "max": [
+        [
+          40,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:50:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+06. A String attribute in the window - the store declines, same answer as always
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "battery": {
+      "avg": [
+        [
+          70,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "min": [
+        [
+          60,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "id": "urn:V4",
+    "status": {
+      "avg": [],
+      "min": [
+        [
+          "busy",
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Robot"
+  }
+]
+
+
+
+07. The same, aggregated by the renderHook
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "battery": {
+      "avg": [
+        [
+          70,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "min": [
+        [
+          60,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "id": "urn:V4",
+    "status": {
+      "avg": [],
+      "min": [
+        [
+          "busy",
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "totalCount": [
+        [
+          2,
+          "2026-04-28T10:00:00Z",
+          "2026-04-28T11:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Robot"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

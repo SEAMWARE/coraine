@@ -161,6 +161,19 @@ typedef struct TroeQueryFilter
   const char*  geoCoordinates;   // reference coordinates (JSON array string)
   const char*  geoProperty;      // geoproperty attr_name (expanded IRI; default "location")
 
+  // § 4.5.20 aggregatedValues, computed IN the store instead of by the
+  // renderHook (multi-entity query only). Set by the service routine only when
+  // nothing downstream needs the raw instances (no orderBy, no registrations to
+  // merge). The plugin may still decline - it then returns the raw instances
+  // as always and the renderHook aggregates them. An aggregated attribute comes
+  // back as an object, which ldToAggregatedValues leaves alone.
+  bool         aggrPushdown;
+  char**       aggrMethodsV;     // NULL-terminated, validated (§ 3.2.7)
+  uint32_t     aggrPeriodMonths; // aggrPeriodDuration, split as LdDuration
+  uint64_t     aggrPeriodNs;     //   both 0: one bucket over the whole window
+  uint64_t     timeAtNs;         // timeAtIso as epoch ns (0 = unset)
+  uint64_t     endTimeAtNs;      // endTimeAtIso as epoch ns (0 = unset)
+
   // scopeQ — grows as the read path lands
   void*        opaque;
 } TroeQueryFilter;

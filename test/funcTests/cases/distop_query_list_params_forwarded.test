@@ -1,0 +1,242 @@
+#
+# FILE            distop_query_list_params_forwarded.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A comma-separated URI parameter (attrs, id, aggrMethods, ...) reaches a
+# Context Source, and the pagination Links, WHOLE.
+#
+# The parse split the parameter's own value in place, and that value is read
+# again afterwards - for the query string forwarded to the Context Sources and
+# for rel="next"/"prev". Every list there was cut at its first comma:
+# attrs=temperature,humidity went to the source as attrs=temperature, and the
+# client got less than it asked for, silently.
+#
+# 01. Register CB->CP1 inclusive for type Room
+# 02. Create urn:R1 and urn:R2 on CP1, three Attributes each
+# 03. GET on CB, attrs=temperature,humidity - both Attributes, from CP1
+# 04. GET on CB, id=urn:R1,urn:R2 - both Entities, from CP1
+# 05. Create urn:L1, urn:L2 on CB, query local=true with attrs=a,b and limit=1 - rel="next" keeps attrs=a,b
+#
+--NAME--
+Distributed query - comma-separated list params forwarded, and in pagination Links, whole
+
+--TAGS--
+distop query registration pagination
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+echo "01. Register CB->CP1 inclusive for type Room"
+echo "============================================"
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "Room"
+        }
+      ]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:R1 and urn:R2 on CP1, three Attributes each"
+echo "=========================================================="
+payload='{"id":"urn:R1","type":"Room","temperature":{"type":"Property","value":21},"humidity":{"type":"Property","value":40},"pressure":{"type":"Property","value":1013}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+payload='{"id":"urn:R2","type":"Room","temperature":{"type":"Property","value":22},"humidity":{"type":"Property","value":45},"pressure":{"type":"Property","value":1012}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET on CB, attrs=temperature,humidity - both Attributes, from CP1"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Room&attrs=temperature,humidity'
+echo
+echo
+
+
+echo "04. GET on CB, id=urn:R1,urn:R2 - both Entities, from CP1"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Room&id=urn:R1,urn:R2'
+echo
+echo
+
+
+echo "05. Create urn:L1, urn:L2 on CB, query local=true with attrs=a,b and limit=1 - rel=next keeps attrs=a,b"
+echo "======================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Lamp","a":{"type":"Property","value":1},"b":{"type":"Property","value":2}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L2","type":"Lamp","a":{"type":"Property","value":3},"b":{"type":"Property","value":4}}'
+corCurl --url '/ngsi-ld/v1/entities?type=Lamp&attrs=a,b&limit=1&local=true'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 inclusive for type Room
+============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Content-Length: REGEX(\d+)
+
+
+
+
+02. Create urn:R1 and urn:R2 on CP1, three Attributes each
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R1
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R2
+Content-Length: REGEX(\d+)
+
+
+
+
+03. GET on CB, attrs=temperature,humidity - both Attributes, from CP1
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "humidity": {
+      "type": "Property",
+      "value": 40
+    },
+    "id": "urn:R1",
+    "temperature": {
+      "type": "Property",
+      "value": 21
+    },
+    "type": "Room"
+  },
+  {
+    "humidity": {
+      "type": "Property",
+      "value": 45
+    },
+    "id": "urn:R2",
+    "temperature": {
+      "type": "Property",
+      "value": 22
+    },
+    "type": "Room"
+  }
+]
+
+
+
+04. GET on CB, id=urn:R1,urn:R2 - both Entities, from CP1
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "humidity": {
+      "type": "Property",
+      "value": 40
+    },
+    "id": "urn:R1",
+    "pressure": {
+      "type": "Property",
+      "value": 1013
+    },
+    "temperature": {
+      "type": "Property",
+      "value": 21
+    },
+    "type": "Room"
+  },
+  {
+    "humidity": {
+      "type": "Property",
+      "value": 45
+    },
+    "id": "urn:R2",
+    "pressure": {
+      "type": "Property",
+      "value": 1012
+    },
+    "temperature": {
+      "type": "Property",
+      "value": 22
+    },
+    "type": "Room"
+  }
+]
+
+
+
+05. Create urn:L1, urn:L2 on CB, query local=true with attrs=a,b and limit=1 - rel=next keeps attrs=a,b
+=======================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:L1
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:L2
+Content-Length: REGEX(\d+)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/entities?type=Lamp&attrs=a,b&local=true&limit=1&offset=1>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "a": {
+      "type": "Property",
+      "value": 1
+    },
+    "b": {
+      "type": "Property",
+      "value": 2
+    },
+    "id": "urn:L1",
+    "type": "Lamp"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
