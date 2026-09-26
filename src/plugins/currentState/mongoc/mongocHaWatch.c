@@ -271,7 +271,13 @@ static void eventTreat(const bson_t* bsonP)
 static mongoc_client_t*        haClientP  = NULL;
 static mongoc_change_stream_t* haStreamP  = NULL;
 static bson_t                  haPipeline = BSON_INITIALIZER;   // Empty: everything. The filtering is done in eventTreat
-static bson_t*                 haOptsP    = NULL;
+//
+// haOpts lives in static storage, like haPipeline, not on the heap: the plugin is
+// unloaded at exit, and a heap bson_t whose only pointer was one of the plugin's
+// statics is then reported "definitely lost" (valgrind, ha_cache_sync). One small
+// key fits the bson_t's inline buffer - nothing is allocated.
+//
+static bson_t                  haOpts     = BSON_INITIALIZER;
 
 
 
@@ -286,7 +292,7 @@ static bson_t*                 haOptsP    = NULL;
 static mongoc_change_stream_t* streamOpen(bson_error_t* errorP)
 {
   const bson_t*           replyP;
-  mongoc_change_stream_t* streamP = mongoc_client_watch(haClientP, &haPipeline, haOptsP);
+  mongoc_change_stream_t* streamP = mongoc_client_watch(haClientP, &haPipeline, &haOpts);
 
   if (mongoc_change_stream_error_document(streamP, errorP, &replyP) == true)
   {
@@ -414,7 +420,9 @@ int mongocHaWatchStart(HaApplyFunc applyF)
   //
   bson_error_t error;
 
-  haOptsP   = BCON_NEW("maxAwaitTimeMS", BCON_INT32(1000));
+  if (bson_empty(&haOpts))
+    BSON_APPEND_INT32(&haOpts, "maxAwaitTimeMS", 1000);
+
   haStreamP = streamOpen(&error);
 
   if (haStreamP == NULL)
