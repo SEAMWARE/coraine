@@ -131,23 +131,6 @@ DDS is the bus and HTTP is the foreign body.
   under `@vocab` directly - and *that* @vocab should become the duc's when
   there is one, since a user context may define its own.
 
-- **`--ddsFirst` — publish BEFORE storing, and fail the request if the publish
-  fails.** Off by default, and it stays off: eProsima's position is that the DDS
-  side goes first and an NGSI-LD request whose DDS publish failed has failed.
-  That is the right order for a broker that exists to serve a bus. It is not
-  this one - coraine is **NGSI-LD first and DDS is a nice-to-have**, so a
-  transport that is down must not turn a valid PATCH into an error. Worth having
-  as a switch for the deployments that see it the other way round.
-
-  ⚠️ It is a bigger change than a flag. Today the publish happens after a
-  successful store, and the store is what decides the response: making the
-  publish decide it means the bridge has to be reached *before* the write, its
-  failure has to become a ProblemDetails, and - the hard half - a publish that
-  succeeded when the store then fails has to be undone, which DDS cannot do. So
-  the honest version of the flag is probably "publish first, and refuse the
-  request if it fails", with the store's own failure still leaving a sample on
-  the wire. Not a priority (KZ, 2026-09-22): *"perhaps some day"*.
-
 ## 3. OPC UA
 
 The same shape as DDS, for the other half of the factory floor. An OPC UA
