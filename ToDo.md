@@ -131,6 +131,21 @@ DDS is the bus and HTTP is the foreign body.
   under `@vocab` directly - and *that* @vocab should become the duc's when
   there is one, since a user context may define its own.
 
+- **Use the forwarding window: harvest what DDS answered while the forwards
+  ran.** A write that is also forwarded to other brokers (distributed
+  operations, via registrations) already waits for those forwards before it
+  answers. DDS goes first anyway, so that wait is free time for the DDS side:
+  whatever has come back by the time the last forward returns is written and
+  answered with, instead of a 202 -
+  - a **service** reply, even without `?ddsSync`;
+  - an **action** goal that has already FINISHED, with its result. Some actions
+    are fast, and some brokers or connections slow (KZ).
+
+  Nothing lost, only gains (KZ 2026-09-27): no forwards, no change - and no
+  worker cap either (`--ddsSyncWaitMax`), since the worker is held by the
+  forward anyway. Open: the status for an action that finished inside the
+  request - 202 says "accepted, not done", and it is done (200/204?).
+
 ## 3. OPC UA
 
 The same shape as DDS, for the other half of the factory floor. An OPC UA
