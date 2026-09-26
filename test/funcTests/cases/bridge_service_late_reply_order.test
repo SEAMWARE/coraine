@@ -1,0 +1,108 @@
+#
+# FILE            bridge_service_late_reply_order.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A service's LATE reply is notified AFTER the value it answers - never before.
+#
+# ?ddsSync=true waits --ddsSyncTimeout for the reply; one that comes later lands
+# in the attribute as an ordinary reply (bridge_service_sync 07-08). It was held
+# only until the request's WRITE - and then written and notified at once on the
+# plugin's thread, while the request's own notification of that write goes out
+# after its response. A subscriber could hear the reply before the value.
+#
+# The window is the request's notification dispatch, so this test widens it:
+# 100 subscriptions on the attribute, notified one after the other, and a reply
+# timed to arrive while they are going out. Every notification WITHOUT the
+# reply (the request's write) must reach the endpoint before any WITH it.
+#
+# The same race for an action goal's events was fixed in #142
+# (bridge_action_goal_decides); a late reply now waits the same way.
+#
+--NAME--
+Bridges: a service's late reply is notified after the value it answers
+
+--TAGS--
+bridge service ddsSync notification
+
+--INIT--
+corDbDrop
+ftClientStart
+BRIDGE_CONFIG=$(bridgeConfig \
+  --replyDelay "late=108" \
+  --service "late,Calculator,urn:ngsi-ld:Calculator:L,job")
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 100
+
+--RUN--
+
+echo "01. 100 subscriptions on urn:ngsi-ld:Calculator:L job"
+echo "===================================================="
+for n in $(seq 1 100)
+do
+  payload='{
+    "id": "urn:S:'$n'",
+    "type": "Subscription",
+    "entities": [ { "id": "urn:ngsi-ld:Calculator:L", "type": "Calculator" } ],
+    "watchedAttributes": [ "job" ],
+    "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+  }'
+  corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload" | grep -c "201 Created"
+done | sort | uniq -c | sed 's/^ *//'
+echo
+echo
+
+
+echo "02. PATCH ?ddsSync=true - the reply is late (108 ms, the wait is 100 ms): 202"
+echo "============================================================================="
+corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:L/attrs/job?ddsSync=true" -X PATCH \
+        --payload '{ "type": "Property", "value": { "a": 7 } }' | head -1
+echo
+echo
+
+
+echo "03. Every notification of the value came before any of the reply"
+echo "================================================================="
+ftClientSettle 1500
+ftClientDump > /tmp/lateReplyOrder.dump
+python3 - /tmp/lateReplyOrder.dump <<'EOF'
+import json, sys
+text   = open(sys.argv[1]).read()
+kinds  = []
+for n in json.loads(text[text.index("["):]):            # arrival order
+    for e in n.get("body", {}).get("data", []):
+        if "job" in e:
+            kinds.append("reply" if "reply" in e["job"] else "value")
+values  = kinds.count("value")
+replies = kinds.count("reply")
+firstReply = kinds.index("reply") if "reply" in kinds else len(kinds)
+late = kinds[firstReply:].count("value")
+print("value notifications: %d, reply notifications: %d" % (values, replies))
+print("values notified after a reply: %d" % late)
+EOF
+echo
+echo
+
+
+--EXPECT--
+01. 100 subscriptions on urn:ngsi-ld:Calculator:L job
+====================================================
+100 1
+
+
+02. PATCH ?ddsSync=true - the reply is late (108 ms, the wait is 100 ms): 202
+=============================================================================
+HTTP/1.1 202 Accepted
+
+
+03. Every notification of the value came before any of the reply
+=================================================================
+value notifications: 100, reply notifications: 100
+values notified after a reply: 0
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

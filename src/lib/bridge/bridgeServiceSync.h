@@ -220,11 +220,13 @@ extern int64_t bridgeRequestsDeadline(void);
 
 // -----------------------------------------------------------------------------
 //
-// bridgeRequestsWritten - the request's write is done: late replies may land now
+// bridgeRequestsWritten - the request's write is done
 //
 // A service that did not answer in time answers later, and its reply must not
-// be written before the request's own write, which would replace it away. Call
-// this right after the write - whether it succeeded or not.
+// be written before the request's own write, which would replace it away - nor
+// notified before the request's notification of that write. Call this right
+// after the write - whether it succeeded or not: it queues the request's goals
+// and late replies for bridgeRequestsReleasePending.
 //
 extern void bridgeRequestsWritten(const BridgeSyncDone* doneP);
 
@@ -232,12 +234,13 @@ extern void bridgeRequestsWritten(const BridgeSyncDone* doneP);
 
 // -----------------------------------------------------------------------------
 //
-// bridgeRequestsReleasePending - the request's notifications have gone out: its goals may speak
+// bridgeRequestsReleasePending - the request's notifications have gone out: its goals and late replies may speak
 //
 // For the post-response hook, AFTER ldNotifyDispatchPending (which sends
-// inline). bridgeRequestsWritten queued the goals the request holds; their
-// events wait until now, so that none of them reaches a subscriber before the
-// request's own notification of the write that made the goal's instance.
+// inline). bridgeRequestsWritten queued the goals the request holds and the
+// services it stopped waiting for; their events and replies wait until now, so
+// that none of them reaches a subscriber before the request's own notification
+// of the write they belong to.
 //
 extern void bridgeRequestsReleasePending(void);
 
