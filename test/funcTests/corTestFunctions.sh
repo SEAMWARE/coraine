@@ -1068,6 +1068,7 @@ bridgeConfig() {
   local bridge="loopback"
   local defaultEntity=""
   local typesDirectory=""
+  local syncTimeoutMs=""
   local -a topics
   local -a services
   local -a actions
@@ -1085,6 +1086,7 @@ bridgeConfig() {
       -o)       outFile="$2"; shift ;;
       -b)       bridge="$2";  shift ;;
       --typesDirectory) typesDirectory="$2"; shift ;;
+      --syncTimeoutMs) syncTimeoutMs="$2"; shift ;;    # dds.ngsild.syncTimeoutMs, as Orion-LD reads it
       --topic)  topics+=("$2"); shift ;;
       #
       # A service entry is a topic entry plus, optionally, the names of its two
@@ -1212,6 +1214,10 @@ bridgeConfig() {
     fi
 
     echo "    \"ngsild\": {"
+
+    if [ -n "$syncTimeoutMs" ]; then
+      echo "      \"syncTimeoutMs\": $syncTimeoutMs,"
+    fi
 
     if [ -n "$typesDirectory" ]; then
       echo "      \"typesDirectory\": \"$typesDirectory\","

@@ -212,7 +212,7 @@ static KArg kargV[] =
   { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
   { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
   { "--ddsSync",            "-ddsSync",     KaBool,   _vp &bridgeSyncDefault,   KaOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
-  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 200, _vp 1, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes" },
+  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", KaInt, _vp &bridgeSyncWaitMax,   KaOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
   { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
@@ -1455,6 +1455,7 @@ int main(int argC, char* argV[])
   // later, once everything else is running.
   //
   bridgeChannelsInit();
+  bridgeSyncTimeoutSettle();   // --ddsSyncTimeout, else the bridge configuration's syncTimeoutMs, else 200
 
   kaBufferReset(&corRest.kalloc, false);
 

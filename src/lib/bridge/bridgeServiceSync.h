@@ -100,6 +100,28 @@
 //
 extern bool bridgeSyncDefault;
 extern int  bridgeSyncTimeoutMs;
+
+#define BRIDGE_SYNC_TIMEOUT_DEFAULT  200              // ms - see bridgeServiceSync.c
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutFromConfig - the bridge configuration's syncTimeoutMs
+//
+// Orion-LD reads dds.ngsild.syncTimeoutMs from the same file, and a deployment
+// moving over keeps it. An explicit --ddsSyncTimeout wins: this only sets a
+// timeout nobody gave on the command line.
+//
+extern void bridgeSyncTimeoutFromConfig(const char* alias, int ms);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutSettle - neither the command line nor the file gave one: the default
+//
+extern void bridgeSyncTimeoutSettle(void);
 extern int  bridgeSyncWaitMax;
 
 

@@ -35,6 +35,7 @@
 #include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
+#include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
 #include "bridge/channelConfigLoad.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -452,6 +453,20 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 
       if (notificationParse(alias, "its ngsild section", bridgeNotificationP, &uri, &accept) == true)
         bridgeGoalNotifyDefaultSet(alias, uri, accept);
+    }
+
+    //
+    // syncTimeoutMs - Orion-LD's dds.ngsild.syncTimeoutMs, the one global of the
+    // section besides typesDirectory (the plugin's). A positive integer.
+    //
+    KjNode* syncTimeoutP = kjLookup(ngsildP, "syncTimeoutMs");
+
+    if (syncTimeoutP != NULL)
+    {
+      if ((syncTimeoutP->type == KjInt) && (syncTimeoutP->value.i > 0) && (syncTimeoutP->value.i <= 600000))
+        bridgeSyncTimeoutFromConfig(alias, (int) syncTimeoutP->value.i);
+      else
+        KT_W("bridge '%s': 'syncTimeoutMs' must be an integer from 1 to 600000 - ignored", alias);
     }
 
     KjNode* topicsP = kjLookup(ngsildP, "topics");
