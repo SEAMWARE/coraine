@@ -904,7 +904,7 @@ bool postEntityBatchCreate(void)
     for (int k = 0; (doneV != NULL) && (k < localN); k++)
     {
       if (doneV[k] != NULL)
-        bridgeRequestsWritten(doneV[k]);            // late replies and held goals may land now
+        bridgeRequestsWritten(doneV[k]);            // late replies and goals: released after the notifications
     }
 
     LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;

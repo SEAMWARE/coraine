@@ -423,7 +423,7 @@ bool patchEntityAttr(void)
 
         int car = db.entityChangesApply(tenantP, entityId, targetEntity, &report);
 
-        bridgeRequestsWritten(&syncDone);   // late replies may land now - see bridgeServiceSync.h
+        bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
         ddsAccepted = syncDone.accepted;
         if (car == DB_GEO_TYPE_CONFLICT)
         {

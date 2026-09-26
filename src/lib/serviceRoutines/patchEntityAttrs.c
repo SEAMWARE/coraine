@@ -533,7 +533,7 @@ bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, char** goalIdP)
       written = true;
     }
 
-    bridgeRequestsWritten(&syncDone);   // late replies may land now - see bridgeServiceSync.h
+    bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
     ddsAccepted = syncDone.accepted;
 
     //
