@@ -1874,7 +1874,12 @@ topics:
     is written (207).
 
   The Enabler's refusal is a bare `false`; the plugin tells the two apart by
-  whether it has learned the topic. The sample is the value that will be
+  whether it has learned the topic. And the Enabler is strict both ways
+  (probed on a real `geometry_msgs/Twist`, `bridge_dds_topic_dds_first`):
+  every member of every nested struct must be there, with its JSON type, and
+  no member the type does not have may be - so the broker needs no type
+  knowledge of its own, and an entity can never hold a key the wire did not
+  carry. The sample is the value that will be
   STORED: on Merge Entity (`PATCH /entities/{id}`, batch merge) that is the
   fragment merged into the stored value (RFC 7396) - a sample is always the
   whole value, never the part of it a request changed. A transport with no

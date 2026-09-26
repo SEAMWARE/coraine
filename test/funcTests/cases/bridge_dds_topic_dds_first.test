@@ -1,0 +1,226 @@
+#
+# FILE            bridge_dds_topic_dds_first.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Topics are DDS first, over a REAL DDS transport: what the DDS Enabler makes of
+# a sample decides whether the write stores anything. bridge_topic_dds_first
+# proves the broker's side through the loopback; this is the transport's.
+#
+# A ROS 2 'ros2 topic echo' of /cmd_vel (geometry_msgs/msg/Twist) announces
+# the topic and its type - the Enabler can serialize for it - and prints what
+# it hears, which is the oracle for what went out on the wire.
+#
+#   01  a complete Twist: 204, and the echo hears it
+#   02  a Twist with a field missing: the Enabler refuses it - 400, nothing
+#       stored, nothing heard
+#   03  a complete Twist plus a member Twist does not have: the Enabler refuses
+#       that too - 400, nothing stored, nothing heard. So the entity can never
+#       hold a key the wire did not carry.
+#   04  a member of the wrong JSON type, one struct down: 400, nothing stored
+#
+# The Enabler is strict both ways (probed 2026-09-27): every member of every
+# nested struct must be there, with its type, and nothing else may.
+#
+# REQUIRE_DDS: yes
+#
+--NAME--
+Bridges (DDS): topics are DDS first - a value that does not fit the real topic's type writes nothing
+
+--TAGS--
+bridge dds topic
+
+--INIT--
+corDbDrop
+docker rm -f cor_ros2_echo >/dev/null 2>&1
+#
+# The echo FIRST, so that the topic is announced by the time the broker's
+# DDS participant starts discovering
+#
+docker run --rm -d --name cor_ros2_echo --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+  bash -c 'source /opt/ros/$ROS_DISTRO/setup.bash; exec ros2 topic echo --no-daemon /cmd_vel geometry_msgs/msg/Twist' > /dev/null
+sleep 3
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --topic "rt/cmd_vel,Robot,urn:ngsi-ld:Robot:1,velocity")
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+TWIST='{ "linear": { "x": 1.5, "y": 0.0, "z": 0.0 }, "angular": { "x": 0.0, "y": 0.0, "z": 0.25 } }'
+
+echo "01. A complete Twist - 204, and the echo hears it"
+echo "================================================="
+#
+# Until the broker's participant has discovered the topic it cannot serialize
+# for it (503) - wait for that, not for a fixed time
+#
+for i in $(seq 1 100); do
+  s=$(corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1/attrs/velocity -X PATCH --payload "{ \"type\": \"Property\", \"value\": $TWIST }" 2>/dev/null | head -1)
+  echo "$s" | grep -q ' 503 ' || break
+  sleep 0.1
+done
+echo "$s"
+for i in $(seq 1 100); do docker logs cor_ros2_echo 2>&1 | grep -q 'x: 1.5' && break; sleep 0.1; done
+echo "heard linear.x 1.5: $(docker logs cor_ros2_echo 2>&1 | grep -c 'x: 1.5')"
+echo
+echo
+
+
+echo "02. A Twist with 'angular' missing - 400, nothing stored"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1/attrs/velocity -X PATCH --payload '{ "type": "Property", "value": { "linear": { "x": 2.5, "y": 0.0, "z": 0.0 } } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1?format=keyValues'
+echo
+echo
+
+
+echo "03. A complete Twist plus a member Twist does not have - 400, nothing stored, nothing heard"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1/attrs/velocity -X PATCH --payload '{ "type": "Property", "value": { "linear": { "x": 3.5, "y": 0.0, "z": 0.0 }, "angular": { "x": 0.0, "y": 0.0, "z": 0.0 }, "extra": 7 } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1?format=keyValues'
+sleep 1
+echo "heard linear.x 3.5: $(docker logs cor_ros2_echo 2>&1 | grep -c 'x: 3.5')"
+echo
+echo
+
+
+echo "04. A member of the wrong JSON type - 400, nothing stored"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1/attrs/velocity -X PATCH --payload '{ "type": "Property", "value": { "linear": { "x": "fast", "y": 0.0, "z": 0.0 }, "angular": { "x": 0.0, "y": 0.0, "z": 0.0 } } }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Robot:1?format=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. A complete Twist - 204, and the echo hears it
+=================================================
+HTTP/1.1 204 No Content
+heard linear.x 1.5: 1
+
+
+02. A Twist with 'angular' missing - 400, nothing stored
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/velocity' does not fit the type of 'rt/cmd_vel'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Robot:1",
+  "type": "Robot",
+  "velocity": {
+    "angular": {
+      "x": 0,
+      "y": 0,
+      "z": 0.25
+    },
+    "linear": {
+      "x": 1.5,
+      "y": 0,
+      "z": 0
+    }
+  }
+}
+
+
+
+03. A complete Twist plus a member Twist does not have - 400, nothing stored, nothing heard
+===========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/velocity' does not fit the type of 'rt/cmd_vel'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Robot:1",
+  "type": "Robot",
+  "velocity": {
+    "angular": {
+      "x": 0,
+      "y": 0,
+      "z": 0.25
+    },
+    "linear": {
+      "x": 1.5,
+      "y": 0,
+      "z": 0
+    }
+  }
+}
+
+heard linear.x 3.5: 0
+
+
+04. A member of the wrong JSON type - 400, nothing stored
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/velocity' does not fit the type of 'rt/cmd_vel'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Robot:1",
+  "type": "Robot",
+  "velocity": {
+    "angular": {
+      "x": 0,
+      "y": 0,
+      "z": 0.25
+    },
+    "linear": {
+      "x": 1.5,
+      "y": 0,
+      "z": 0
+    }
+  }
+}
+
+
+
+--TEARDOWN--
+docker rm -f cor_ros2_echo >/dev/null 2>&1
+coraineStop
+corDbDrop
