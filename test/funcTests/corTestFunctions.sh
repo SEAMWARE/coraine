@@ -1076,6 +1076,7 @@ bridgeConfig() {
   local -a replyDelays
   local -a goalModes
   local -a discovers
+  local -a topicModes
   local -a actionNotifies
   local -a metas
   local -a echoRequests
@@ -1104,6 +1105,12 @@ bridgeConfig() {
       --action) actions+=("$2"); shift ;;
       --goalMode) goalModes+=("$2"); shift ;;
       --discover) discovers+=("$2"); shift ;;    # loopback: "<endpoint>=service|action" - reported as discovered (ABI 8)
+      #
+      # --topicMode "<endpoint>=accept|refuse|unannounced" - what the loopback
+      # bridge answers a sample published there (accept if unsaid): refuse is a
+      # value that does not fit (400), unannounced one that cannot be sent (503)
+      #
+      --topicMode) topicModes+=("$2"); shift ;;
       #
       # Default goal endpoints, for goals that name none: --actionNotify
       # "<endpoint>=<uri>" is that action Channel's, --notify "<uri>" the
@@ -1223,6 +1230,19 @@ bridgeConfig() {
         i=$((i + 1))
         local comma=","
         [ $i -eq ${#goalModes[@]} ] && comma=""
+        echo "      \"${g%%=*}\": \"${g#*=}\"$comma"
+      done
+      echo "    },"
+    fi
+
+    if [ ${#topicModes[@]} -gt 0 ]; then
+      echo "    \"topicMode\": {"
+      local i=0
+      local g
+      for g in "${topicModes[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#topicModes[@]} ] && comma=""
         echo "      \"${g%%=*}\": \"${g#*=}\"$comma"
       done
       echo "    },"

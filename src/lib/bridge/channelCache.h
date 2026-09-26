@@ -102,14 +102,14 @@ extern int      channelCount(void);
 
 // -----------------------------------------------------------------------------
 //
-// channelRequestCount - how many Channels ASK something: a service or an action
+// channelOutCount - how many Channels SEND: every one that is not inbound only
 //
-// What decides whether a write has to look for requests to send before it
-// stores (bridgeRequestsBeforeWrite). Not channelCount(): a bridge carrying only
-// topics - MQTT, say - would make every write, every batch fragment, look up a
-// Channel per attribute for requests that cannot exist. Topics are published
-// after the write and never go through that step.
+// What decides whether a write has to look for something to send before it
+// stores (bridgeRequestsBeforeWrite - a service request, a goal, a topic's
+// sample: DDS first). Not channelCount(): a bridge that only listens - an MQTT
+// subscription, say - would make every write, every batch fragment, look up a
+// Channel per attribute for sends that cannot happen.
 //
-extern int      channelRequestCount(void);
+extern int      channelOutCount(void);
 
 #endif  // BRIDGE_CHANNELCACHE_H_

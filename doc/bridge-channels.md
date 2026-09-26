@@ -1857,9 +1857,28 @@ topics:
     own answer (207).
 
   Services keep the send-first-and-short-wait above: a service has no
-  acceptance step, its reply *is* the result, and that can be slow. Topics stay
-  NGSI-LD first. And none of this is paid by a deployment without DDS: it is
-  reached only for a Channel of kind `service` or `action`.
+  acceptance step, its reply *is* the result, and that can be slow. And none
+  of this is paid by a deployment without DDS: it is reached only for a
+  Channel that sends.
+
+- **A topic: DDS first too** (KZ 2026-09-26). A write to an attribute an
+  outbound topic carries publishes the sample BEFORE anything is stored; one
+  the transport refuses writes nothing. The entity mirrors the wire, and a
+  value no DDS participant ever saw is a record of something that did not
+  happen. Until now topics were NGSI-LD first - stored, then published, and a
+  refused publish was a warning in the log behind a 204 - as Orion-LD does:
+  - the value does not fit the topic's type: **400**, nothing written;
+  - the topic has not been announced on the domain (nothing to serialize for):
+    **503**, nothing written;
+  - several attributes, a batch: the refused attribute is left out, the rest
+    is written (207).
+
+  The Enabler's refusal is a bare `false`; the plugin tells the two apart by
+  whether it has learned the topic. The sample is the value that will be
+  STORED: on Merge Entity (`PATCH /entities/{id}`, batch merge) that is the
+  fragment merged into the stored value (RFC 7396) - a sample is always the
+  whole value, never the part of it a request changed. A transport with no
+  `publish` stores as ever.
 
 - **A goal's notifications: a normal `Notification`, from a subscription**
   (agreed 2026-09-25, not yet built). Orion-LD serves a goal's endpoint with a
@@ -2078,6 +2097,18 @@ that preceded it, are in a separate working document not published here.
 Oldest first would be tidier, but these were written newest-first as they
 happened and renumbering them invites transcription errors. Read § 1–§ 4 first;
 this section answers "why is it like that" rather than "what is it".
+
+> **Revision 2026-09-26** — topics are DDS first (§ 9.1). A value that did not
+> fit its topic's type was stored and answered 204, and only the log said it
+> never reached DDS - Orion-LD's behaviour too (its functest
+> `dds_publish_patch_attribute-with-invalid-value` pins it). Now the sample is
+> published before the write, by the same step that sends service requests and
+> goals (`bridgeRequestsBeforeWrite`), and a refused one writes nothing: 400 for
+> a value that does not fit, 503 for a topic not yet announced. Nothing is sent
+> after a write any more; `bridgeAttrOut` / `bridgeAttrsOut` are gone, and with
+> them the batch paths' "publish only on DB_OK" - a batch now sends for Entities
+> known to exist (or, for create, known not to), before the bulk write, as it
+> already did for goals.
 
 > **Revision 2026-09-25** — an action's transport DECIDES before the broker
 > stores (§ 9.1). "DDS first" used to mean only that a goal was *sent* before the

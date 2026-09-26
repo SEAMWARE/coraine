@@ -647,8 +647,8 @@ static bool postBridgePublish(void)
 
   //
   // The payload goes on the wire as the application's own JSON, so the member
-  // name and the sibling link come off for the render - see bridgeAttrOut in
-  // the broker, where the same two things bit.
+  // name and the sibling link come off for the render - see
+  // bridgeRequestsBeforeWrite in the broker, where the same two things bit.
   //
   static char   rendered[16384];
   char*         savedName = payloadP->name;

@@ -64,9 +64,8 @@
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
 #include "corNgsild/ldIsEntityKeyword.h"               // ldIsNotAttributeName
-#include "bridge/channelCache.h"                      // channelRequestCount
+#include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
@@ -766,7 +765,7 @@ bool postEntityBatchMerge(void)
     LdMergeReport*  reportsV    = (LdMergeReport*)  kaAlloc(&corRest.kalloc, sizeof(LdMergeReport)   * localN);
     KjNode**        snapshotsV  = (KjNode**)        kaAlloc(&corRest.kalloc, sizeof(KjNode*)         * localN);
     KjNode**        targetsV    = (KjNode**)        kaAlloc(&corRest.kalloc, sizeof(KjNode*)         * localN);
-    bool            requestsFirst    = (channelRequestCount() > 0);
+    bool            requestsFirst    = (channelOutCount() > 0);
     BridgeSyncDone** doneV      = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN) : NULL;   // nothing without a bridge
 
     for (int k = 0; k < localN; k++)
@@ -812,7 +811,7 @@ bool postEntityBatchMerge(void)
         doneV[fk] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[fk], 0, sizeof(BridgeSyncDone));
 
-        bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneV[fk]);
+        bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, doneV[fk]);
       }
 
       int64_t dueMs = bridgeRequestsDeadline();
@@ -897,8 +896,6 @@ bool postEntityBatchMerge(void)
           // Mark success on the unique-id slot
           for (int ui = 0; ui < uniqueIdN; ui++)
             if (strcmp(uniqueIdV[ui], eid) == 0) { anySuccessV[ui] = true; break; }
-
-          bridgeAttrsOutFromMerge(tenantP, eid, snapshotsV[k], &reportsV[k]);
 
           if (subCacheP != NULL && snapshotsV[k] != NULL)
             ldNotifyDefer(subCacheP, snapshotsV[k],

@@ -19,15 +19,18 @@
 #include "kjson/KjNode.h"                             // KjNode
 #include "kjson/kjLookup.h"                           // kjLookup
 #include "kjson/kjRender.h"                           // kjFastRender
-#include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
+#include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove, kjObject
+#include "kjson/kjClone.h"                            // kjClone
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
 #include "corNgsild/ldError.h"                        // ldErrorExtraString
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
+#include "corNgsild/ldEntityMerge.h"                  // ldEntityMerge, LdMergeReport
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
+#include "db/DbDriver.h"                              // db, DB_OK
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
 #include "bridge/bridgeGoal.h"                        // bridgeGoalSend, bridgeGoalAwait, bridgeGoalAbandon, BridgeGoalAnswer
@@ -64,7 +67,8 @@ int  bridgeSyncWaitMax   = 8;
 //
 // SYNC_OUT_MAX - the largest request payload a synchronous invocation renders
 //
-// As bridgeAttrOut's buffer, and for the same reason: a service request is the
+// kjFastRender does not know the size of the buffer it writes into, so the size
+// is decided here: a service request, a goal and a topic's sample are each the
 // value of one attribute.
 //
 #define SYNC_OUT_MAX  (64 * 1024)
@@ -661,6 +665,50 @@ static bool requestsFailed(BridgeSyncDone* doneP)
 
 // -----------------------------------------------------------------------------
 //
+// mergedValue - the value a Merge Entity will store for one attribute
+//
+// PATCH /entities/{id} and the batch merge deep-merge an object value (RFC
+// 7396): { "x": 1 } onto a stored { "x": 0, "y": 2 } stores { "x": 1, "y": 2 }.
+// A topic's sample is the WHOLE value, so what is published is what will be
+// stored - computed by the very merge the write then does, on the stored
+// entity (*storedPP, fetched once per request, a request-local clone).
+//
+// @return NULL when there is no value to publish: the entity is not there (the
+//         write is a 404), or the merge deletes the attribute. *failedP is set
+//         when the merge itself refuses the fragment - with the error the write
+//         would have set.
+//
+static KjNode* mergedValue(Tenant* tenantP, const char* entityId, KjNode* attrP, KjNode** storedPP, bool* failedP)
+{
+  *failedP = false;
+
+  if (*storedPP == NULL)
+  {
+    if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, entityId, storedPP) != DB_OK) || (*storedPP == NULL))
+      return NULL;
+  }
+
+  KjNode*       oneP   = kjObject(corRest.kjsonP, NULL);
+  LdMergeReport report = { NULL };
+
+  kjChildAdd(oneP, kjClone(corRest.kjsonP, attrP));
+
+  if (ldEntityMerge(*storedPP, oneP, &report, corRest.requestStartTime, corRest.kjsonP) == false)
+  {
+    *failedP = true;
+    return NULL;
+  }
+
+  KjNode* storedAttrP = kjLookup(*storedPP, attrP->name);
+  KjNode* instanceP   = (storedAttrP != NULL) ? kjLookup(storedAttrP, "@none") : NULL;
+
+  return (instanceP != NULL) ? kjLookup(instanceP, "value") : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsBeforeWrite -
 //
 bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP)
@@ -670,8 +718,10 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   doneP->failedN  = 0;
   doneP->several  = false;
 
-  if ((channelRequestCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
+  if ((channelOutCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
+
+  KjNode* storedP = NULL;                             // BRIDGE_REQ_MERGE: the entity as stored, fetched once
 
   bool wait;
 
@@ -712,15 +762,17 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
 
     Channel* channelP = channelLookupByTarget(tenantP, entityId, attrP->name);
 
-    if ((channelP == NULL) || (channelP->kind == BridgeChannelTopic))
+    if (channelP == NULL)
       continue;
 
     if ((channelP->direction == BridgeDirectionIn) || (channelP->status != ChannelStatusAvailable))
       continue;
 
     //
-    // The default instance only - it is what a service is sent and what a goal
-    // is made of, as after the write (bridgeAttrOut).
+    // The default instance only - it is what a service is sent, what a goal is
+    // made of and what a topic carries. A datasetId names a particular reading
+    // among several, and which of those a topic should carry is not a question
+    // a Channel's configuration answers.
     //
     KjNode* instanceP = kjLookup(attrP, "@none");
     KjNode* valueP    = (instanceP != NULL) ? kjLookup(instanceP, "value") : NULL;
@@ -728,6 +780,30 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     if (valueP == NULL)
       continue;
 
+    //
+    // A topic's sample is the value that will be STORED - on a merge route, the
+    // fragment merged into what is there (mergedValue)
+    //
+    if ((channelP->kind == BridgeChannelTopic) && ((flags & BRIDGE_REQ_MERGE) != 0))
+    {
+      bool failed;
+
+      valueP = mergedValue(tenantP, entityId, attrP, &storedP, &failed);
+
+      if (failed == true)
+        return requestsFailed(doneP);             // the write would refuse it too - ldError is set
+
+      if (valueP == NULL)
+        continue;
+    }
+
+    //
+    // The wire carries the VALUE, as the application's own JSON - not the
+    // NGSI-LD wrapper, and detached from its surroundings for the render: its
+    // NAME, or the output is  "value":250  instead of  250 , and its NEXT, or
+    // kjFastRender follows the sibling chain and emits  250,  - which parses as
+    // nothing at all.
+    //
     static __thread char buf[SYNC_OUT_MAX];
     char*   savedName = valueP->name;
     KjNode* savedNext = valueP->next;
@@ -737,6 +813,37 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     kjFastRender(valueP, buf);
     valueP->name = savedName;
     valueP->next = savedNext;
+
+    //
+    // A topic: the sample is published now. One the transport refuses - a value
+    // that does not fit the topic's type, most of all - is not stored either:
+    // the entity mirrors what is on the wire, and a value nobody on the DDS side
+    // ever saw would be a record of something that did not happen.
+    //
+    if (channelP->kind == BridgeChannelTopic)
+    {
+      BridgeDriver* driverP = driverFor(channelP);
+
+      if ((driverP == NULL) || (driverP->publish == NULL))
+        continue;                                     // this transport does not send - the value is stored as ever
+
+      int r = driverP->publish(channelP->endpoint, buf);
+
+      if (r != BRIDGE_OK)
+      {
+        if (several == true)
+        {
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "type");
+          continue;
+        }
+
+        sendError(r, attrP->name, channelP, "type");
+        return requestsFailed(doneP);
+      }
+
+      KT_T(KtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrP->name, channelP->endpoint, channelP->bridgeName);
+      continue;
+    }
 
     //
     // An action: the goal is sent now, and waited for once every goal of the

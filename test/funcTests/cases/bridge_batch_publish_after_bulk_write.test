@@ -5,32 +5,38 @@
 #
 # Copyright 2026 Seamware
 #
-# Batch update and batch upsert merge every fragment into an in-memory state
-# and write all entities in one bulk call at the end. They used to publish to
-# the bridges from the merge, BEFORE that write - so an entity the bulk write
-# then refused had its sample on the bus anyway, while NGSI-LD reported the
-# failure in errors[]. Every other write path publishes on DB_OK.
+# Batch update and batch upsert, with topics DDS first (KZ 2026-09-26): every
+# fragment's sample is published BEFORE the bulk write - the step that sends
+# service requests and goals - so a value that does not fit its topic is refused
+# with nothing written. The price, accepted: a refusal that only the bulk write
+# itself can make comes after the sample is out.
 #
-# The failure used here is the mongoc geo-type conflict: 'a' is a GeoProperty
-# on another entity of the tenant, so a fragment carrying 'a' as a Property
-# merges cleanly and is refused only by the bulk write. mongoc only - corDB
-# has no such conflict (see geo_attr_type_conflict_corDB).
+# That refusal, here, is the mongoc geo-type conflict: 'a' is a GeoProperty on
+# another entity of the tenant, so a fragment carrying 'a' as a Property is
+# refused only by the bulk write. mongoc only - corDB has no such conflict (see
+# geo_attr_type_conflict_corDB). Every refusal the broker CAN see before the
+# write (404, 409 on create, noOverwrite, a merge's type change) sends nothing.
+#
+# Until then samples were published from the stored state on DB_OK - one per
+# written entity, of its final value, none for a refused one. Now:
+#
+#   05  a sample per FRAGMENT that reached the send - the refused Machine:1, :3
+#       and :5 included, and two for Machine:2, in the batch's order
+#   06  the loopback hands its samples back in and stores them: the refused
+#       Machine:1 and :3 hold the refused value after all, behind the 409 - the
+#       transport saw it, and the entity mirrors the transport. Machine:5 was
+#       never created, and a sample does not create an entity. Machine:2 holds
+#       the last of its two.
 #
 # ⭐ THE ORACLE IS THE TRACE, as in bridge_all_write_endpoints: one publish line
-# per topic that was written, none for one that was refused. The loopback also
-# hands the sample back in and STORES it, so an early publish is not only
-# noise on a bus: the refused value would end up in the entity after all,
-# behind a 409. Step 06 reads the entities for that.
-#
-# Step 02 also pins the other half of publishing from the stored state: two
-# fragments for one entity are one write, and one sample, of the final value.
+# per sample sent.
 #
 # ⚠ Traces are narrowed to 402 (KtBridge) so the grep matches nothing else.
 #
 # REQUIRE_DB: mongoc
 #
 --NAME--
-Bridges: batch update and upsert publish after the bulk write, never for an entity it refused
+Bridges: batch update and upsert publish before the bulk write - a refusal only the write makes comes after the sample
 
 --TAGS--
 bridge channel plugins batch geo
@@ -92,21 +98,20 @@ echo
 echo
 
 
-echo "05. One publish per written entity, none for a refused one"
-echo "=========================================================="
-for i in $(seq 1 50); do
-  n=$(grep -c "on bridge 'loopback'" /tmp/coraine.CB.log 2>/dev/null)
-  [ "${n:-0}" -ge 3 ] && break
-  sleep 0.2
-done
-sleep 0.5
+echo "05. One publish per fragment sent - the refused entities' included"
+echo "===================================================================="
 grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
 echo
 echo
 
 
-echo "06. The refused entities hold no refused value - the loopback never got one to hand back"
-echo "========================================================================================"
+echo "06. The loopback handed the refused values back - stored behind the 409; Machine:5 not created"
+echo "=============================================================================================="
+for i in $(seq 1 50); do
+  corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?attrs=temperature&format=keyValues' 2>/dev/null | grep -q '"temperature": 11' && \
+  corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3?attrs=temperature&format=keyValues' 2>/dev/null | grep -q '"temperature": 33' && break
+  sleep 0.1
+done
 corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?attrs=temperature&format=keyValues'
 echo
 corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2?attrs=temperature&format=keyValues'
@@ -218,24 +223,27 @@ Content-Length: 456
 
 
 
-05. One publish per written entity, none for a refused one
-==========================================================
-1 -> 'P2' on bridge 'loopback'
+05. One publish per fragment sent - the refused entities' included
+====================================================================
+1 -> 'P1' on bridge 'loopback'
+2 -> 'P2' on bridge 'loopback'
+1 -> 'P3' on bridge 'loopback'
 1 -> 'P4' on bridge 'loopback'
+1 -> 'P5' on bridge 'loopback'
 1 -> 'P6' on bridge 'loopback'
 
 
-06. The refused entities hold no refused value - the loopback never got one to hand back
-========================================================================================
+06. The loopback handed the refused values back - stored behind the 409; Machine:5 not created
+==============================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 91
+Content-Length: 78
 
 {
   "id": "urn:ngsi-ld:Machine:1",
-  "temperature": "uninitialized",
+  "temperature": 11,
   "type": "Machine"
 }
 
@@ -257,11 +265,11 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 91
+Content-Length: 78
 
 {
   "id": "urn:ngsi-ld:Machine:3",
-  "temperature": "uninitialized",
+  "temperature": 33,
   "type": "Machine"
 }
 

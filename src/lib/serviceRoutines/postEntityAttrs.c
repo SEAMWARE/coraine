@@ -37,7 +37,6 @@
 #include "corNgsild/LdSubCache.h"                      // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromMerge
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
@@ -564,10 +563,6 @@ bool postEntityAttrs(void)
       KjNode* mergedEntity = NULL;
       if (tenantP->subCacheP != NULL)
         db.entityRetrieve(tenantP, entityId, &mergedEntity);
-
-      // NULL when nothing subscribes — bridgeAttrOut fetches its own, and only
-      // once a Channel has been found to want the attribute.
-      bridgeAttrsOutFromMerge(tenantP, entityId, mergedEntity, &report);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);

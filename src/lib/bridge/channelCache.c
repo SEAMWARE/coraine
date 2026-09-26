@@ -56,7 +56,7 @@ static Channel*     channelList   = NULL;
 //
 static pthread_rwlock_t cacheLock = PTHREAD_RWLOCK_INITIALIZER;
 static int          channelCounter = 0;
-static int          requestCounter = 0;          // Channels that ASK something - a service or an action
+static int          outCounter     = 0;          // Channels that SEND - anything not inbound only
 
 
 
@@ -137,7 +137,7 @@ int channelCacheInit(void)
 
   channelList    = NULL;
   channelCounter = 0;
-  requestCounter = 0;
+  outCounter = 0;
 
   return CHANNEL_OK;
 }
@@ -332,8 +332,8 @@ static int createLocked
   __atomic_store_n(&channelList, channelP, __ATOMIC_RELEASE);   // published complete - see cacheLock
   channelCounter++;
 
-  if (channelP->kind != BridgeChannelTopic)
-    requestCounter++;
+  if (channelP->direction != BridgeDirectionIn)
+    outCounter++;
 
   KT_T(KtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
        endpoint, bridgeName, entityId, attrName,
@@ -406,8 +406,8 @@ static int deleteLocked(const char* bridgeName, const char* endpoint)
     prevPP = &(*prevPP)->next;
   }
 
-  if (channelP->kind != BridgeChannelTopic)
-    requestCounter--;
+  if (channelP->direction != BridgeDirectionIn)
+    outCounter--;
 
   free(channelP->id);
   free(channelP->bridgeName);
@@ -463,9 +463,9 @@ int channelCount(void)
 
 // -----------------------------------------------------------------------------
 //
-// channelRequestCount -
+// channelOutCount -
 //
-int channelRequestCount(void)
+int channelOutCount(void)
 {
-  return requestCounter;
+  return outCounter;
 }
