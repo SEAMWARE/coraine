@@ -483,6 +483,16 @@ jobs:
             https://forge.etsi.org/rep/cim/ngsi-ld-test-suite.git etsi-suite
           cd etsi-suite && git log --oneline -1
 
+      - name: The suite's @context from the context server, not forge
+        #
+        # The suite names its @context by forge URL in 345 files, and the broker
+        # downloads it on nearly every request: with forge answering 500
+        # (2026-09-26) every test failed on 504. The contexts are kept in
+        # test/etsi/contexts, pushed to the context server (localhost:7080, the
+        # socat above) and the CLONE is rewritten to name it - see the script.
+        #
+        run: stack/coraine/test/etsi/etsiForgeFree.sh etsi-suite http://localhost:7080
+
       - name: Python environment for Robot Framework
         working-directory: etsi-suite
         run: |
@@ -545,6 +555,7 @@ jobs:
             --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
+            --variable ngsild_test_suite_context:http://localhost:7080/jsonldContexts/ngsi-ld-test-suite-compound.jsonld \
             TP/NGSI-LD/
           set -e
 
@@ -565,6 +576,7 @@ jobs:
             --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
+            --variable ngsild_test_suite_context:http://localhost:7080/jsonldContexts/ngsi-ld-test-suite-compound.jsonld \
             --rerunfailed /tmp/etsi-out/output.xml \
             TP/NGSI-LD/
           set -e
