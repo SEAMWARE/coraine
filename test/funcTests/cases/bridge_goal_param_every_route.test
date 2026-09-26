@@ -1,0 +1,200 @@
+#
+# FILE            bridge_goal_param_every_route.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# ?goal=<id> is ?datasetId=urn:goal:<id> on EVERY route that takes a datasetId -
+# as Orion-LD takes it, which parses ?goal anywhere. It was DELETE-only; a client
+# that read a goal's instance with ?goal= got 400.
+#
+#   02  retrieve the Entity, ?goal=1       only goal 1's instance
+#   03  retrieve the Attribute, ?goal=1    the same
+#   04  query Entities, ?goal=1            the same, in the Entity it lives in
+#   05  ?goal=2 - no such goal             the Attribute is not there for it
+#   06  ?goal= AND ?datasetId=             still one thing named twice: 400
+#
+--NAME--
+Bridges: ?goal=<id> on every route that takes a datasetId, as Orion-LD
+
+--TAGS--
+bridge plugins action goal
+
+--INIT--
+corDbDrop
+BRIDGE_CONFIG=$(bridgeConfig \
+  --action "A1,Robot,urn:R:1,navigate" \
+  --goalMode "A1=hold")
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. Send goal 1 to A1 - accepted and held, in its instance urn:goal:1"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }' | head -1
+for i in $(seq 1 50); do
+  grep -q "'status' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "02. GET /entities/urn:R:1?goal=1 - goal 1's instance only"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1?goal=1'
+echo
+echo
+
+
+echo "03. GET /entities/urn:R:1/attrs/navigate?goal=1"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1/attrs/navigate?goal=1'
+echo
+echo
+
+
+echo "04. GET /entities?type=Robot&goal=1"
+echo "==================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Robot&goal=1'
+echo
+echo
+
+
+echo "05. GET /entities/urn:R:1?goal=2 - no such goal: no navigate in the answer"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1?goal=2'
+echo
+echo
+
+
+echo "06. GET /entities/urn:R:1?goal=1&datasetId=urn:goal:1 - named twice: 400"
+echo "========================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R:1?goal=1&datasetId=urn:goal:1'
+echo
+echo
+
+
+--EXPECT--
+01. Send goal 1 to A1 - accepted and held, in its instance urn:goal:1
+====================================================================
+HTTP/1.1 202 Accepted
+
+
+02. GET /entities/urn:R:1?goal=1 - goal 1's instance only
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:R:1",
+  "navigate": {
+    "datasetId": "urn:goal:1",
+    "status": {
+      "type": "Property",
+      "value": {
+        "code": "ACCEPTED"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "x": 1
+    }
+  },
+  "type": "Robot"
+}
+
+
+
+03. GET /entities/urn:R:1/attrs/navigate?goal=1
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "datasetId": "urn:goal:1",
+  "status": {
+    "type": "Property",
+    "value": {
+      "code": "ACCEPTED"
+    }
+  },
+  "type": "Property",
+  "value": {
+    "x": 1
+  }
+}
+
+
+
+04. GET /entities?type=Robot&goal=1
+===================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:R:1",
+    "navigate": {
+      "datasetId": "urn:goal:1",
+      "status": {
+        "type": "Property",
+        "value": {
+          "code": "ACCEPTED"
+        }
+      },
+      "type": "Property",
+      "value": {
+        "x": 1
+      }
+    },
+    "type": "Robot"
+  }
+]
+
+
+
+05. GET /entities/urn:R:1?goal=2 - no such goal: no navigate in the answer
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:R:1",
+  "type": "Robot"
+}
+
+
+
+06. GET /entities/urn:R:1?goal=1&datasetId=urn:goal:1 - named twice: 400
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "goal and datasetId name the same thing - give one of them",
+  "status": 400,
+  "title": "Invalid URL parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
