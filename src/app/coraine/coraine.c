@@ -11,6 +11,7 @@
 #include <stdlib.h>                               // _exit
 #include <unistd.h>                               // pause
 #include <signal.h>                               // signal, SIGINT, SIGTERM
+#include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
 #include <string.h>                               // strcmp, memcpy
 #include <time.h>                                 // time
 #include <stdint.h>                               // uint32_t
@@ -29,6 +30,7 @@
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
 #include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet
+#include "corRest/corRestStop.h"                     // corRestStop
 #include "corRest/corRestClient.h"                  // corRestClientInit, CorRestClientRequest/Response
 #include "corJsonld/corJsonld.h"                    // corLdInit, CORJSONLD_VERSION
 #include "corJsonld/CorLdContext.h"                 // CorLdContext, CorLdContextKind
@@ -259,22 +261,53 @@ static void onCrash(int sigNo)
 
 
 
-// onSignal -
+// shutdownSem - posted by the signal handler, waited on by main
 //
-// bridgesClose is defined further down, beside bridgesInit and the rest of the
-// bridge seam; the signal handler is the one caller that comes before it.
-//
-static void bridgesClose(void);
+static sem_t shutdownSem;
 
+
+
+// -----------------------------------------------------------------------------
+//
+// onSignal - SIGINT / SIGTERM: wake main, which shuts down in order
+//
+// Nothing but sem_post here. The handler runs in whichever thread the kernel
+// picked - a request worker, quite possibly - and the shutdown joins those
+// workers; a worker cannot join itself. sem_post is async-signal-safe.
+//
 static void onSignal(int sigNo)
 {
   (void) sigNo;
+  sem_post(&shutdownSem);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// shutdownInOrder -
+//
+// bridgesClose is defined further down, beside bridgesInit and the rest of the
+// bridge seam; this is the one caller that comes before it.
+//
+static void bridgesClose(void);
+
+static void shutdownInOrder(void)
+{
+  //
+  // The HTTP side FIRST: stop taking requests, let the queued ones finish, join
+  // the request workers. Everything after this tears down what a request uses -
+  // stopped with requests still in flight, a worker inside a PATCH was reading a
+  // mongoc pool that dbClose had destroyed, and the broker died of SIGSEGV on its
+  // way out (under load, one stop in two).
+  //
+  corRestStop();
 
   //
-  // Stop the periodic loop FIRST. Its dispatch thread calls into the DB plugin
-  // (pernot re-queries the entities a periodic subscription watches), so tearing
-  // the plugin down underneath it leaves whatever that thread had checked out
-  // unreturned - a mongoc client and its guts, ~8.8 KB, which is what the
+  // Stop the periodic loop before the DB. Its dispatch thread calls into the DB
+  // plugin (pernot re-queries the entities a periodic subscription watches), so
+  // tearing the plugin down underneath it leaves whatever that thread had checked
+  // out unreturned - a mongoc client and its guts, ~8.8 KB, which is what the
   // nightly valgrind run reported against subscription_pernot. Worse than the
   // leak: a thread still inside entityQuery would be reading a pool that
   // dbClose has already destroyed.
@@ -1290,6 +1323,7 @@ int main(int argC, char* argV[])
   KT_V("coraine  %s", CORAINE_VERSION);
   KT_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
 
+  sem_init(&shutdownSem, 0, 0);
   signal(SIGINT,  onSignal);
   signal(SIGTERM, onSignal);
   signal(SIGSEGV, onCrash);
@@ -1507,7 +1541,11 @@ int main(int argC, char* argV[])
 
   KT_I("coraine running on port %u", port);
 
-  pause();
+  // Until SIGINT / SIGTERM (onSignal) - sem_wait returns early on EINTR, so wait again
+  while (sem_wait(&shutdownSem) != 0)
+    ;
+
+  shutdownInOrder();
 
   return 0;
 }
