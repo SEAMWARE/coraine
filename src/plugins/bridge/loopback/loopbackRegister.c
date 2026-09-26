@@ -86,6 +86,8 @@ typedef struct LoopbackSample
   bool        goal;                                   // an event of a goal: goalEventIn, not sampleIn
   int         goalState;                              // BridgeGoalState, for a goal's event
   bool        goalFinal;                              // the goal's last event
+  bool        discover;                               // not a payload: "the transport found this endpoint" (ABI 8)
+  int         discoverKind;                           // BridgeChannelKind of what was found
 } LoopbackSample;
 
 
@@ -329,7 +331,17 @@ static void* loopbackDelivery(void* vP)
     }
     pthread_mutex_unlock(&queueMutex);
 
-    if (sample.endpoint != NULL)
+    if ((sample.endpoint != NULL) && (sample.discover == true))
+    {
+      if ((brokerP->abiVersion >= 8) && (brokerP->endpointDiscoveredIn != NULL))
+        brokerP->endpointDiscoveredIn("loopback", sample.endpoint, sample.discoverKind);
+      else
+        KT_W("loopback: '%s' discovered, but the host predates ABI 8 - not reported", sample.endpoint);
+
+      free(sample.endpoint);
+      free(sample.json);
+    }
+    else if (sample.endpoint != NULL)
     {
       //
       // A reply goes back QUALIFIED - it belongs to the attribute that was
@@ -460,6 +472,7 @@ static char loopbackConfigPath[512];
 // that a test bridge does not acquire a JSON dependency of its own.
 //
 static void loopbackEmitAtStart(void);
+static void loopbackDiscoverAtStart(void);
 static void loopbackReplyDelaysLoad(void);
 static void loopbackMetasLoad(void);
 static void loopbackEchoesLoad(void);
@@ -502,6 +515,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackEchoesLoad();
   loopbackGoalModesLoad();
   loopbackEmitAtStart();
+  loopbackDiscoverAtStart();
 
   return BRIDGE_OK;
 }
@@ -527,6 +541,41 @@ static bool loopbackQueue(const char* endpoint, const char* json, const char* su
     queue[queueCount].goal        = false;              // slots are reused - a goal's event may have been here
     queue[queueCount].goalState   = 0;
     queue[queueCount].goalFinal   = false;
+    queue[queueCount].discover    = false;
+    queueCount++;
+    queued = true;
+  }
+  pthread_mutex_unlock(&queueMutex);
+
+  return queued;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackDiscoverQueue - queue "this endpoint was found on the bus" (ABI 8)
+//
+// Through the delivery thread, as a real transport must: the broker calls back
+// into the plugin (channelAdd) before endpointDiscoveredIn returns.
+//
+static bool loopbackDiscoverQueue(const char* endpoint, int kind)
+{
+  bool queued = false;
+
+  pthread_mutex_lock(&queueMutex);
+  if (queueCount < LOOPBACK_CHANNELS_MAX)
+  {
+    queue[queueCount].endpoint     = strdup(endpoint);
+    queue[queueCount].json         = strdup("");
+    queue[queueCount].subAttrName  = NULL;
+    queue[queueCount].token        = 0;
+    queue[queueCount].dueMs        = loopbackNowMs();
+    queue[queueCount].goal         = false;
+    queue[queueCount].goalState    = 0;
+    queue[queueCount].goalFinal    = false;
+    queue[queueCount].discover     = true;
+    queue[queueCount].discoverKind = kind;
     queueCount++;
     queued = true;
   }
@@ -556,6 +605,7 @@ static bool loopbackGoalEvent(const char* endpoint, uint64_t token, int state, b
     queue[queueCount].goal        = true;
     queue[queueCount].goalState   = state;
     queue[queueCount].goalFinal   = final;
+    queue[queueCount].discover    = false;
     queueCount++;
     queued = true;
   }
@@ -674,6 +724,31 @@ static void loopbackEmitPair(const char* endpoint, const char* value)
 static void loopbackEmitAtStart(void)
 {
   loopbackConfigPairs("\"emitAtStart\"", loopbackEmitPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackDiscoverPair / loopbackDiscoverAtStart - "discover": { "<endpoint>": "service" | "action" }
+//
+// What a transport that discovers its bus would report: these endpoints are
+// out there (ABI 8, endpointDiscoveredIn). The loopback serves them like any
+// other once the broker hands them back (channelAdd).
+//
+static void loopbackDiscoverPair(const char* endpoint, const char* value)
+{
+  if (strcmp(value, "service") == 0)
+    loopbackDiscoverQueue(endpoint, BridgeChannelService);
+  else if (strcmp(value, "action") == 0)
+    loopbackDiscoverQueue(endpoint, BridgeChannelAction);
+  else
+    KT_W("loopback: discover '%s': '%s' is neither 'service' nor 'action' - ignored", endpoint, value);
+}
+
+static void loopbackDiscoverAtStart(void)
+{
+  loopbackConfigPairs("\"discover\"", loopbackDiscoverPair);
 }
 
 

@@ -10,6 +10,7 @@
 #include <stdlib.h>                                   // malloc, free
 #include <string.h>                                   // strcmp, strdup, snprintf
 #include <stdio.h>                                    // snprintf
+#include <pthread.h>                                  // pthread_rwlock_*
 
 #include "khash/khash.h"                              // KHashTable, khashTableCreate, khashItemAdd, khashItemLookup, khashItemRemove
 #include "ktrace/kTrace.h"                            // KT_I, KT_T
@@ -41,6 +42,19 @@
 //
 static KHashTable*  endpointHash  = NULL;
 static Channel*     channelList   = NULL;
+
+//
+// ⭐ CHANNELS ARE MADE AT RUN TIME TOO - a service or an action a transport
+// discovers (bridgeEndpointDiscoveredIn) - while plugin threads look them up
+// on every sample and request threads walk them. So:
+//   - the HASH is read under cacheLock (read), changed under it (write);
+//   - the LIST is walked with no lock: a Channel is complete before it is
+//     linked in, it is linked in at the HEAD with a release store, and a
+//     reader loads the head with acquire - it sees the list as it was, or with
+//     the new Channel, never half of one. Nothing already linked changes.
+//   - a Channel is never freed while the bridges run (channelDelete below).
+//
+static pthread_rwlock_t cacheLock = PTHREAD_RWLOCK_INITIALIZER;
 static int          channelCounter = 0;
 static int          requestCounter = 0;          // Channels that ASK something - a service or an action
 
@@ -134,15 +148,24 @@ int channelCacheInit(void)
 //
 // channelLookup - THE HOT PATH
 //
+static Channel* lookupLocked(const char* bridgeName, const char* endpoint)
+{
+  char key[512];
+  channelKey(bridgeName, endpoint, key, sizeof(key));
+
+  return (Channel*) khashItemLookup(endpointHash, key);
+}
+
 Channel* channelLookup(const char* bridgeName, const char* endpoint)
 {
   if ((endpointHash == NULL) || (bridgeName == NULL) || (endpoint == NULL))
     return NULL;
 
-  char key[512];
-  channelKey(bridgeName, endpoint, key, sizeof(key));
+  pthread_rwlock_rdlock(&cacheLock);
+  Channel* channelP = lookupLocked(bridgeName, endpoint);
+  pthread_rwlock_unlock(&cacheLock);
 
-  return (Channel*) khashItemLookup(endpointHash, key);
+  return channelP;
 }
 
 
@@ -156,7 +179,7 @@ Channel* channelLookupByTarget(Tenant* tenantP, const char* entityId, const char
   if ((entityId == NULL) || (attrName == NULL))
     return NULL;
 
-  for (Channel* channelP = channelList; channelP != NULL; channelP = channelP->next)
+  for (Channel* channelP = __atomic_load_n(&channelList, __ATOMIC_ACQUIRE); channelP != NULL; channelP = channelP->next)
   {
     if (channelP->tenantP != tenantP)
       continue;
@@ -191,7 +214,7 @@ static BridgeDriver* bridgeLookup(const char* bridgeName)
 //
 // channelCreate -
 //
-int channelCreate
+static int createLocked
 (
   const char*        id,
   const char*        bridgeName,
@@ -231,7 +254,7 @@ int channelCreate
   // The second Channel could never be reached: a lookup answers with one of
   // them and nothing says which.
   //
-  Channel* clashP = channelLookup(bridgeName, endpoint);
+  Channel* clashP = lookupLocked(bridgeName, endpoint);
   if (clashP != NULL)
   {
     if (clashPP != NULL)
@@ -306,7 +329,7 @@ int channelCreate
   }
 
   channelP->next = channelList;
-  channelList    = channelP;
+  __atomic_store_n(&channelList, channelP, __ATOMIC_RELEASE);   // published complete - see cacheLock
   channelCounter++;
 
   if (channelP->kind != BridgeChannelTopic)
@@ -323,9 +346,37 @@ int channelCreate
 
 // -----------------------------------------------------------------------------
 //
-// channelDelete -
+// channelCreate - see channelCache.h; createLocked under cacheLock (write)
 //
-int channelDelete(const char* bridgeName, const char* endpoint)
+int channelCreate
+(
+  const char*        id,
+  const char*        bridgeName,
+  const char*        endpoint,
+  BridgeChannelKind  kind,
+  BridgeDirection    direction,
+  ChannelRetention   retention,
+  Tenant*            tenantP,
+  const char*        entityId,
+  const char*        entityType,
+  const char*        attrName,
+  Channel**          clashPP
+)
+{
+  pthread_rwlock_wrlock(&cacheLock);
+  int r = createLocked(id, bridgeName, endpoint, kind, direction, retention, tenantP, entityId, entityType, attrName, clashPP);
+  pthread_rwlock_unlock(&cacheLock);
+
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// deleteLocked - channelDelete's body, under cacheLock (write)
+//
+static int deleteLocked(const char* bridgeName, const char* endpoint)
 {
   if ((endpointHash == NULL) || (bridgeName == NULL) || (endpoint == NULL))
     return CHANNEL_BAD_INPUT;
@@ -378,11 +429,29 @@ int channelDelete(const char* bridgeName, const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// channelDelete -
+//
+// ⚠ FREES the Channel, and the list is walked without a lock (see cacheLock):
+// never while the bridges run. Nothing calls it at run time today.
+//
+int channelDelete(const char* bridgeName, const char* endpoint)
+{
+  pthread_rwlock_wrlock(&cacheLock);
+  int r = deleteLocked(bridgeName, endpoint);
+  pthread_rwlock_unlock(&cacheLock);
+
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelCacheFirst / channelCount -
 //
 Channel* channelCacheFirst(void)
 {
-  return channelList;
+  return __atomic_load_n(&channelList, __ATOMIC_ACQUIRE);
 }
 
 int channelCount(void)
