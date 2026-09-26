@@ -4,8 +4,6 @@ SET(SOURCES
   channelConfigLoad.c
   channelPrePopulate.c
   bridgeSampleIn.c
-  bridgeAttrOut.c
-  bridgeAttrsOut.c
   bridgeServiceSync.c
   bridgeGoal.c
   bridgeDefaultEntity.c

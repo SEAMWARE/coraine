@@ -23,16 +23,27 @@
 //
 // Requests to the DDS side - DDS FIRST
 //
-// ⭐ A TOPIC REPORTS A FACT; A SERVICE OR AN ACTION ASKS FOR SOMETHING TO BE DONE.
-// A write that publishes on a topic is NGSI-LD first: the value is stored, then
-// published, and a publish that fails is the transport's problem. A write bound
-// to a service or an action asks somebody on the DDS side to act, and that side
-// is the master of it: storing the request as made when it never went out would
-// be a lie. So the request is sent BEFORE anything is stored, and one that
-// cannot be sent fails the NGSI-LD request with nothing written:
+// ⭐ DDS FIRST, FOR EVERYTHING. A write bound to a service or an action asks
+// somebody on the DDS side to act, and that side is the master of it: storing
+// the request as made when it never went out would be a lie. A write bound to a
+// topic is a sample, and the entity mirrors what is on the wire: storing a value
+// nobody on the DDS side ever saw - one that does not fit the topic's type, most
+// of all - would be a lie too. (Topics were NGSI-LD first until KZ 2026-09-26:
+// the value was stored, then published, and a refused publish was a line in
+// the log while the client got a 204.) So the request or the sample is sent
+// BEFORE anything is stored, and one that cannot be sent fails the NGSI-LD
+// request with nothing written:
 //
 //   503  nobody serves the endpoint        400  the value does not fit its type
 //   422  the bridge cannot carry this at all
+//
+// ⚠ The DDS Enabler answers a refused publish, and a refused service request,
+// with a bare false: "does not fit" and "cannot be sent" look the same from here.
+// What the plugin makes of that decides between the 400 and the 503.
+//
+// A topic's sample is the value that will be stored. On the merge routes
+// (BRIDGE_REQ_MERGE) that is the fragment merged into the stored value - a
+// sample is always the WHOLE value, never the part of it a request changed.
 //
 // ⭐ ONE ATTRIBUTE OR SEVERAL. The above is a request that writes ONE attribute.
 // One that writes several is not held hostage by one of them: it never waits,
@@ -74,8 +85,8 @@
 // EVERY write sends before it stores: create, append, the three PATCH forms,
 // replace of an Attribute and of an Entity, and the batch operations (per
 // Entity, released after the bulk write, BRIDGE_REQ_PER_ENTITY). Nothing is sent
-// to a service or an action after a write any more - bridgeAttrOut publishes
-// topics only. Only the PATCH forms may WAIT (?ddsSync is theirs; on any other
+// after a write any more - not even a topic's sample. (A batch that writes one
+// Attribute in two of its fragments publishes two samples, in order.) Only the PATCH forms may WAIT (?ddsSync is theirs; on any other
 // route it is an unknown parameter, refused with 400).
 //
 
@@ -196,10 +207,8 @@ extern bool bridgeSyncRequested(bool* syncP);
 // attribute as the sub-attribute the plugin names, so the ordinary write stores
 // both.
 //
-// @param doneP  filled with what was sent. Hand it to the post-write
-//               bridgeAttrOut / bridgeAttrsOutFromMerge so nothing is sent
-//               twice, to bridgeRequestsWritten once the write is done, and read
-//               doneP->accepted for 202.
+// @param doneP  filled with what was sent. Hand it to bridgeRequestsWritten
+//               once the write is done, and read doneP->accepted for 202.
 //
 // @return false, with the error set, when a request could not be sent. The
 //         handler then returns without writing anything.
@@ -207,6 +216,7 @@ extern bool bridgeSyncRequested(bool* syncP);
 #define BRIDGE_REQ_MAY_WAIT    0x1                    // a service may be waited for (?ddsSync) - the PATCH forms
 #define BRIDGE_REQ_PER_ENTITY  0x2                    // a batch: nothing fails the call - see below
 #define BRIDGE_REQ_SEND_ONLY   0x4                    // goals are sent, not waited for - the caller calls bridgeRequestsAwait
+#define BRIDGE_REQ_MERGE       0x8                    // Merge Entity: a topic's sample is the fragment merged into the stored value
 
 extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP);
 

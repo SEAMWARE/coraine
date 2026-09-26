@@ -1,0 +1,248 @@
+#
+# FILE            bridge_topic_dds_first.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Topics are DDS first (KZ 2026-09-26): a write to an attribute an outbound
+# topic carries publishes the sample BEFORE anything is stored, and a sample the
+# transport refuses stores nothing. Orion-LD stores it and answers 204
+# (dds_publish_patch_attribute-with-invalid-value) - and so did coraine.
+#
+# The loopback refuses per endpoint (--topicMode): P2 as a value that does not
+# fit its type (what the DDS plugin answers when the Enabler cannot serialize
+# the sample - 400), P3 as a topic nobody has announced (503).
+#
+#   01  PATCH a refused value: 400, and the attribute is untouched
+#   02  PATCH on an unannounced topic: 503, and the attribute is untouched
+#   03  PATCH an accepted value: 204, published, stored
+#   04  several attributes, one refused: 207 - the refused one is not written,
+#       the other is
+#   05  Merge Entity publishes the WHOLE value that will be stored, not the
+#       fragment: { "x": 1 } merged into { "x": 0, "y": 2 } goes out as
+#       { "x": 1, "y": 2 }. The oracle is the loopback, which hands every
+#       sample back in and REPLACES the attribute's value with it - a published
+#       fragment would leave { "x": 1 } behind.
+#   06  the publish trace: P1 once (03), P4 twice (05: the seed and the
+#       merge), and nothing ever for P2 or P3 - a refused sample is not
+#       published
+#
+# ⚠ Traces are narrowed to 402 (KtBridge) so the grep matches nothing else.
+#
+--NAME--
+Bridges: topics are DDS first - a sample the transport refuses writes nothing (400/503), and a merge publishes the merged value
+
+--TAGS--
+bridge channel plugins topic
+
+--INIT--
+corDbDrop
+export COR_TRACE_LEVELS=402
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
+  --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
+  --topic "P3,Machine,urn:ngsi-ld:Machine:3,temperature" \
+  --topic "P4,Machine,urn:ngsi-ld:Machine:1,pose" \
+  --topicMode "P2=refuse" \
+  --topicMode "P3=unannounced")
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. PATCH a value P2 refuses - 400, and temperature is untouched"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2/attrs/temperature -X PATCH --payload '{ "type": "Property", "value": 5 }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2?format=keyValues'
+echo
+echo
+
+
+echo "02. PATCH on P3, a topic nobody has announced - 503, and temperature is untouched"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3/attrs/temperature -X PATCH --payload '{ "type": "Property", "value": 6 }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:3?format=keyValues'
+echo
+echo
+
+
+echo "03. PATCH a value P1 accepts - 204, and it is stored"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1/attrs/temperature -X PATCH --payload '{ "type": "Property", "value": 7 }'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?attrs=temperature&format=keyValues'
+echo
+echo
+
+
+echo "04. Two attributes, one refused by P2 - 207: 'note' written, temperature not"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2/attrs -X PATCH --payload '{
+  "temperature": { "type": "Property", "value": 8 },
+  "note":        { "type": "Property", "value": "hello" }
+}'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:2?format=keyValues'
+echo
+echo
+
+
+echo "05. Merge Entity publishes the merged value - { x: 1 } into { x: 0, y: 2 } goes out whole"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1/attrs/pose -X PATCH --payload '{ "type": "Property", "value": { "x": 0, "y": 2 } }' > /dev/null
+sleep 0.3
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 -X PATCH --payload '{ "pose": { "type": "Property", "value": { "x": 1 } } }'
+sleep 0.5
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?attrs=pose&format=keyValues'
+echo
+echo
+
+
+echo "06. What was published - never P2, never P3"
+echo "==========================================="
+grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+echo
+echo
+
+
+--EXPECT--
+01. PATCH a value P2 refuses - 400, and temperature is untouched
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/temperature' does not fit the type of 'P2'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:2",
+  "temperature": "uninitialized",
+  "type": "Machine"
+}
+
+
+
+02. PATCH on P3, a topic nobody has announced - 503, and temperature is untouched
+=================================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "detail": "'P3' on bridge 'loopback' could not be reached - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:3",
+  "temperature": "uninitialized",
+  "type": "Machine"
+}
+
+
+
+03. PATCH a value P1 accepts - 204, and it is stored
+====================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "temperature": 7,
+  "type": "Machine"
+}
+
+
+
+04. Two attributes, one refused by P2 - 207: 'note' written, temperature not
+============================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: REGEX(\d+)
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/temperature",
+      "reason": "the value does not fit the type of 'P2' - not written"
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/note"
+  ]
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:2",
+  "note": "hello",
+  "temperature": "uninitialized",
+  "type": "Machine"
+}
+
+
+
+05. Merge Entity publishes the merged value - { x: 1 } into { x: 0, y: 2 } goes out whole
+==========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:ngsi-ld:Machine:1",
+  "pose": {
+    "x": 1,
+    "y": 2
+  },
+  "type": "Machine"
+}
+
+
+
+06. What was published - never P2, never P3
+===========================================
+1 -> 'P1' on bridge 'loopback'
+2 -> 'P4' on bridge 'loopback'
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

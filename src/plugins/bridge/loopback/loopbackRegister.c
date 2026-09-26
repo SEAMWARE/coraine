@@ -163,6 +163,27 @@ typedef struct LoopbackGoalMode
 static LoopbackGoalMode  goalModes[LOOPBACK_CHANNELS_MAX];
 static int               goalModeCount = 0;
 
+
+
+// -----------------------------------------------------------------------------
+//
+// Topics - what the loopback does with a sample, per endpoint
+//
+// "topicMode": { "<endpoint>": "accept" | "refuse" | "unannounced" }
+//
+//   accept       published - and handed back in. The default.
+//   refuse       refused as a value that does not fit the topic's type
+//                (BRIDGE_BAD_INPUT) - what the DDS plugin answers when the
+//                Enabler cannot serialize a sample for a topic it knows
+//   unannounced  refused as a sample that cannot be sent at all (BRIDGE_ERR) -
+//                the DDS plugin's answer for a topic nobody has announced
+//
+// The broker publishes BEFORE it stores (DDS first), so either refusal is a
+// write that stores nothing.
+//
+static LoopbackGoalMode  topicModes[LOOPBACK_CHANNELS_MAX];
+static int               topicModeCount = 0;
+
 typedef struct LoopbackHeldGoal
 {
   char*     endpoint;
@@ -477,6 +498,7 @@ static void loopbackReplyDelaysLoad(void);
 static void loopbackMetasLoad(void);
 static void loopbackEchoesLoad(void);
 static void loopbackGoalModesLoad(void);
+static void loopbackTopicModesLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -514,6 +536,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackMetasLoad();
   loopbackEchoesLoad();
   loopbackGoalModesLoad();
+  loopbackTopicModesLoad();
   loopbackEmitAtStart();
   loopbackDiscoverAtStart();
 
@@ -850,6 +873,38 @@ static const char* loopbackGoalMode(const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// loopbackTopicModePair / loopbackTopicModesLoad / loopbackTopicMode - "topicMode", see topicModes
+//
+static void loopbackTopicModePair(const char* endpoint, const char* value)
+{
+  if (topicModeCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  topicModes[topicModeCount].endpoint = strdup(endpoint);
+  topicModes[topicModeCount].mode     = strdup(value);
+  ++topicModeCount;
+}
+
+static void loopbackTopicModesLoad(void)
+{
+  loopbackConfigPairs("\"topicMode\"", loopbackTopicModePair);
+}
+
+static const char* loopbackTopicMode(const char* endpoint)
+{
+  for (int ix = 0; ix < topicModeCount; ix++)
+  {
+    if (strcmp(topicModes[ix].endpoint, endpoint) == 0)
+      return topicModes[ix].mode;
+  }
+
+  return "accept";
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackClose -
 //
 // Joins the delivery thread before returning. The broker tears down what
@@ -908,6 +963,13 @@ static void loopbackClose(void)
     free(goalModes[i].mode);
   }
   goalModeCount = 0;
+
+  for (int i = 0; i < topicModeCount; i++)
+  {
+    free(topicModes[i].endpoint);
+    free(topicModes[i].mode);
+  }
+  topicModeCount = 0;
 
   pthread_mutex_lock(&heldGoalMutex);
   for (int i = 0; i < heldGoalCount; i++)
@@ -1001,6 +1063,14 @@ static int loopbackPublish(const char* endpoint, const char* json)
 
   if (known == false)
     return BRIDGE_NOT_FOUND;
+
+  const char* mode = loopbackTopicMode(endpoint);
+
+  if (strcmp(mode, "refuse") == 0)
+    return BRIDGE_BAD_INPUT;
+
+  if (strcmp(mode, "unannounced") == 0)
+    return BRIDGE_ERR;
 
   return (loopbackQueue(endpoint, json, NULL, 0, 0) == true) ? BRIDGE_OK : BRIDGE_ERR;
 }

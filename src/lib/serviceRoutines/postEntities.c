@@ -38,7 +38,6 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
@@ -711,9 +710,6 @@ bool postEntities(void)
       // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
       if (idP->name[0] == '_')
         idP->name = "id";
-
-      // A create has no change report: every attribute in it is new.
-      bridgeAttrsOutFromEntity(tenantP, idP->value.s, entityP);
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);

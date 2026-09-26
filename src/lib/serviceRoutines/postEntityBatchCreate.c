@@ -62,8 +62,7 @@
 
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
-#include "bridge/bridgeAttrsOut.h"                    // bridgeAttrsOutFromEntity
-#include "bridge/channelCache.h"                      // channelRequestCount
+#include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
@@ -844,7 +843,7 @@ bool postEntityBatchCreate(void)
     // that already exists - its create is refused, and a goal must not go out for
     // it. Only when a bridge carries anything.
     //
-    bool             requestsFirst = (channelRequestCount() > 0);
+    bool             requestsFirst = (channelOutCount() > 0);
     BridgeSyncDone** doneV    = NULL;
 
     if (requestsFirst == true)                            // nothing at all without a bridge
@@ -918,10 +917,6 @@ bool postEntityBatchCreate(void)
       {
         case DB_OK:
           anySuccessV[origIdx] = true;
-
-          // Created, so every attribute in it is new - the whole entity.
-          if (entP != NULL)
-            bridgeAttrsOutFromEntity(tenantP, eid, entP);
 
           if (subCacheP != NULL && entP != NULL)
             ldNotifyDefer(subCacheP, entP, LdNotifyEntityCreate, NULL);
