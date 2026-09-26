@@ -45,8 +45,9 @@
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOpAttrReplaced, troeDispatchPending
 #include "troe/troeDispatch.h"                        // troeDeferAttrEvent
 #include "bridge/Channel.h"                           // Channel
-#include "bridge/channelCache.h"                      // channelLookup, channelLookupByTarget
-#include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet
+#include "bridge/channelCache.h"                      // channelLookup, channelLookupByTarget, channelCreate
+#include "bridge/channelPrePopulate.h"                 // channelPrePopulate
+#include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet, bridgeDefaultEntityCreated
 #include "bridge/bridgeSampleIn.h"                    // Own interface
 #include "coraineTraceLevels.h"                       // KtBridge
 
@@ -378,6 +379,42 @@ static void instanceCarryOver(KjNode* newInstanceP, KjNode* oldInstanceP)
 
 // -----------------------------------------------------------------------------
 //
+// catchAllAttrName - the attribute an unclaimed endpoint names on the catch-all
+//
+// The endpoint under @vocab, quoted rather than expanded - see sampleIn, where
+// the reasons are. The @vocab of whatever context this deployment expands with:
+// the default user context when it has one, core otherwise. A user context may
+// define its own @vocab, and an endpoint quoted under the wrong one is an
+// attribute nobody else names the same way.
+//
+// In the thread's arena (threadBind first). NULL, traced, when there is no @vocab.
+//
+static char* catchAllAttrName(const char* bridgeName, const char* endpoint)
+{
+  CorLdContext* coreP = ldDefaultContext(&corRest.kalloc);
+
+  if ((coreP == NULL) || (coreP->vocab == NULL))
+  {
+    KT_W("bridge '%s': no @vocab to name '%s' under - ignored", bridgeName, endpoint);
+    return NULL;
+  }
+
+  int   len   = strlen(coreP->vocab) + strlen(endpoint) + 1;
+  char* nameP = (char*) kaAlloc(&corRest.kalloc, len);
+
+  if (nameP == NULL)
+    return NULL;
+
+  strcpy(nameP, coreP->vocab);
+  strcat(nameP, endpoint);
+
+  return nameP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // sampleIn - the one inbound path, qualified or not
 //
 // bridgeSampleIn() and bridgeSampleQualifiedIn() are this function with and
@@ -501,28 +538,10 @@ static int sampleIn(const char* bridgeName,
   //
   if (catchAll == true)
   {
-    //
-    // The @vocab of whatever context this deployment expands with - the
-    // default user context when it has one, core otherwise. A user context may
-    // define its own @vocab, and an endpoint quoted under the wrong one is an
-    // attribute nobody else names the same way.
-    //
-    CorLdContext* coreP = ldDefaultContext(&corRest.kalloc);
-
-    if ((coreP == NULL) || (coreP->vocab == NULL))
-    {
-      KT_W("bridge '%s': no @vocab to name '%s' under - sample dropped", bridgeName, endpoint);
-      return BRIDGE_BAD_INPUT;
-    }
-
-    int   len   = strlen(coreP->vocab) + strlen(endpoint) + 1;
-    char* nameP = (char*) kaAlloc(&corRest.kalloc, len);
+    char* nameP = catchAllAttrName(bridgeName, endpoint);
 
     if (nameP == NULL)
-      return BRIDGE_ERR;
-
-    strcpy(nameP, coreP->vocab);
-    strcat(nameP, endpoint);
+      return BRIDGE_BAD_INPUT;
 
     attrName = nameP;
 
@@ -1070,6 +1089,107 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   corNgsildFallbackRelease();                         // this thread's queues - see sampleIn()
 
   KT_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeEndpointDiscoveredIn - BridgeBroker.endpointDiscoveredIn, ABI 8
+//
+// A service or an action the transport found and no Channel carries gets one,
+// on the bridge's catch-all entity, with the endpoint as its attribute - named
+// as an unclaimed topic's sample names it. As Orion-LD, whose DDS clients find
+// every discovered action on urn:ngsi-ld:dds:default and send it goals there -
+// and here a discovered SERVICE is invocable the same way, where Orion-LD only
+// lists it. Without a catch-all nothing is made: the configuration then says
+// exactly what the broker carries.
+//
+// ⚠ An endpoint with a '/' (a namespaced ROS name) makes an attribute that the
+// URL form /entities/{id}/attrs/{attr} cannot name - see sampleIn. The body of
+// PATCH /entities/{id}/attrs can.
+//
+// On the plugin's own thread: the Channel is handed back to it (channelAdd)
+// before this returns.
+//
+int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int kind)
+{
+  if ((bridgeName == NULL) || (endpoint == NULL) || (*endpoint == 0))
+    return BRIDGE_BAD_INPUT;
+
+  if ((kind != BridgeChannelService) && (kind != BridgeChannelAction))
+    return BRIDGE_BAD_INPUT;
+
+  if (channelLookup(bridgeName, endpoint) != NULL)
+  {
+    KT_T(KtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
+    return BRIDGE_OK;
+  }
+
+  const char* entityId   = NULL;
+  const char* entityType = NULL;
+  Tenant*     tenantP    = NULL;
+
+  if (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == false)
+  {
+    KT_T(KtBridge, "bridge '%s': '%s' discovered - no catch-all to carry it on, left alone", bridgeName, endpoint);
+    return BRIDGE_NOT_FOUND;
+  }
+
+  threadBind(tenantP);
+
+  char* attrName = catchAllAttrName(bridgeName, endpoint);
+
+  if (attrName == NULL)
+    return BRIDGE_BAD_INPUT;
+
+  Channel* clashP = NULL;
+  int      r      = channelCreate(NULL, bridgeName, endpoint, (BridgeChannelKind) kind, BridgeDirectionOut,
+                                  ChannelRetentionMirror, tenantP, entityId, entityType, attrName, &clashP);
+
+  if (r == CHANNEL_DUP_ENDPOINT)            // discovered twice at once - the other made it
+    return BRIDGE_OK;
+
+  if (r == CHANNEL_DUP_TARGET)
+  {
+    KT_W("bridge '%s': '%s' discovered, but '%s' already writes %s/%s - not carried",
+         bridgeName, endpoint, (clashP != NULL) ? clashP->endpoint : "?", entityId, attrName);
+    return BRIDGE_NOT_FOUND;
+  }
+
+  if (r != CHANNEL_OK)
+  {
+    KT_W("bridge '%s': '%s' discovered, but no Channel could be made for it (%d)", bridgeName, endpoint, r);
+    return BRIDGE_ERR;
+  }
+
+  //
+  // Its attribute, as a configured Channel's at startup: "uninitialized" until
+  // used. Only what is missing is added - nothing else on the entity changes.
+  //
+  channelPrePopulate(tenantP);
+  bridgeDefaultEntityCreated(bridgeName);
+
+  for (int ix = 0; ix < bridgeCount; ix++)
+  {
+    if ((bridges[ix].alias == NULL) || (strcmp(bridges[ix].alias, bridgeName) != 0))
+      continue;
+
+    if (bridges[ix].channelAdd != NULL)
+    {
+      r = bridges[ix].channelAdd(endpoint, (BridgeChannelKind) kind, BridgeDirectionOut);
+
+      if (r != BRIDGE_OK)
+        KT_W("bridge '%s' would not carry the discovered '%s' (%d)", bridgeName, endpoint, r);
+    }
+
+    break;
+  }
+
+  KT_I("bridge '%s': %s '%s' discovered - carried on %s, attribute '%s'",
+       bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, endpoint);
 
   return BRIDGE_OK;
 }

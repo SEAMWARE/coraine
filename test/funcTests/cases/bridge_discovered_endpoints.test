@@ -1,0 +1,146 @@
+#
+# FILE            bridge_discovered_endpoints.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A service or an action the transport DISCOVERS, that no Channel carries, is
+# carried on the bridge's catch-all entity (ABI 8, endpointDiscoveredIn) - with
+# the endpoint as its attribute, as Orion-LD puts every discovered action on
+# urn:ngsi-ld:dds:default. Here a discovered service is invocable too.
+#
+# The loopback reports three: 'calc' (configured already - nothing changes),
+# 'adder' (a service) and 'fib' (an action).
+#
+#   01  the catch-all has 'adder' and 'fib', "uninitialized" - not 'calc'
+#   02  PATCH adder, waiting: the loopback's reply is written with the value
+#   03  PATCH fib: a goal, accepted - 202
+#   04  a broker whose configuration says "defaultEntity": false carries
+#       nothing it was not told to - the catch-all entity is not even made
+#
+--NAME--
+Bridges: discovered services and actions are carried on the catch-all entity (ABI 8)
+
+--TAGS--
+bridge plugins service action discovery
+
+--INIT--
+corDbDrop
+BRIDGE_CONFIG=$(bridgeConfig \
+  --service "calc,Calculator,urn:C:1,job" \
+  --discover "calc=service" \
+  --discover "adder=service" \
+  --discover "fib=action")
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The catch-all entity - adder and fib, discovered; calc is a configured Channel's"
+echo "==================================================================================="
+for i in $(seq 1 50); do
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default 2>/dev/null | grep -q '"fib"' && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
+echo
+echo
+
+
+echo "02. PATCH adder ?ddsSync=true - a discovered service answers, written with the value"
+echo "==================================================================================="
+corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/adder?ddsSync=true" -X PATCH \
+        --payload '{ "type": "Property", "value": { "a": 2, "b": 3 } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/adder
+echo
+echo
+
+
+echo "03. PATCH fib - a goal to a discovered action: accepted, 202"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/fib -X PATCH \
+        --payload '{ "type": "Property", "value": { "order": 5 } }' | head -1
+echo
+echo
+
+
+echo "04. \"defaultEntity\": false - discovered endpoints are left alone"
+echo "================================================================"
+coraineStop
+corDbDrop
+BRIDGE_CONFIG2=$(bridgeConfig \
+  --defaultEntity false \
+  --discover "adder=service")
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG2
+sleep 0.5
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default | head -1
+echo
+echo
+
+
+--EXPECT--
+01. The catch-all entity - adder and fib, discovered; calc is a configured Channel's
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "adder": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "fib": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "id": "urn:ngsi-ld:loopback:default",
+  "type": "LOOPBACK"
+}
+
+
+
+02. PATCH adder ?ddsSync=true - a discovered service answers, written with the value
+===================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "reply": {
+    "type": "Property",
+    "value": {
+      "a": 2,
+      "b": 3
+    }
+  },
+  "type": "Property",
+  "value": {
+    "a": 2,
+    "b": 3
+  }
+}
+
+
+
+03. PATCH fib - a goal to a discovered action: accepted, 202
+============================================================
+HTTP/1.1 202 Accepted
+
+
+04. "defaultEntity": false - discovered endpoints are left alone
+================================================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

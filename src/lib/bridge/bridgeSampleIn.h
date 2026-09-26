@@ -173,4 +173,15 @@ extern KjNode* bridgeGoalInstance(const char* attrName,
                                   int64_t     publishTime,
                                   const char* meta);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeEndpointDiscoveredIn - BridgeBroker.endpointDiscoveredIn, ABI 8
+//
+// A service or an action the transport found and no Channel carries gets a
+// Channel on the bridge's catch-all entity - see bridgeSampleIn.c.
+//
+extern int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int kind);
+
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

@@ -594,7 +594,8 @@ static BridgeBroker bridgeBroker =
   bridgeSampleMetaIn,
   bridgeReplyMetaIn,
   bridgeGoalEventMetaIn,
-  bridgeReplyExchangeIn
+  bridgeReplyExchangeIn,
+  bridgeEndpointDiscoveredIn
 };
 
 

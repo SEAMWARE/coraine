@@ -1,0 +1,90 @@
+#
+# FILE            bridge_dds_discovered_action.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A REAL ROS 2 action server that the configuration does NOT name: the Enabler
+# discovers it, the plugin reports it (ABI 8, endpointDiscoveredIn), and the
+# broker carries it on the catch-all urn:ngsi-ld:dds:default - as Orion-LD
+# does. A goal written there reaches the server and ends.
+#
+# The server is the Fibonacci example, as in bridge_dds_action_roundtrip - but
+# the bridge configuration has no "actions" at all. The node's parameter
+# services are discovered and carried too (as in Orion-LD); only 'fibonacci' is
+# looked at here.
+#
+#   01  the catch-all has 'fibonacci', "uninitialized"
+#   02  a goal of order 3: 202 - and it SUCCEEDED (4), with a result
+#
+# REQUIRE_DDS: yes
+#
+--NAME--
+Bridges (DDS): a discovered, unconfigured ROS 2 action is carried on urn:ngsi-ld:dds:default
+
+--TAGS--
+bridge dds action discovery
+
+--INIT--
+corDbDrop
+docker rm -f cor_ros2_action_server >/dev/null 2>&1
+export COR_TRACE_LEVELS=0,402
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }")
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The Fibonacci server comes up - discovered, and carried on the catch-all"
+echo "==========================================================================="
+docker run --rm -d --name cor_ros2_action_server --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+  bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/examples_rclpy_minimal_action_server/server' > /dev/null
+for i in $(seq 1 300); do
+  corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:dds:default?pick=fibonacci' 2>/dev/null | grep -q '"fibonacci"' && break
+  sleep 0.1
+done
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:dds:default?pick=fibonacci'
+echo
+echo
+
+
+echo "02. A goal of order 3 to it - 202, and it SUCCEEDED (4), with a result"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:dds:default/attrs/fibonacci -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }' | head -1
+for i in $(seq 1 200); do grep -q "goal 1 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
+grep -oE "goal 1 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
+echo "result written: $(grep -c "'ddsActionResult' on 'fibonacci'" /tmp/coraine.CB.log)"
+echo
+echo
+
+
+--EXPECT--
+01. The Fibonacci server comes up - discovered, and carried on the catch-all
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "fibonacci": {
+    "type": "Property",
+    "value": "uninitialized"
+  }
+}
+
+
+
+02. A goal of order 3 to it - 202, and it SUCCEEDED (4), with a result
+======================================================================
+HTTP/1.1 202 Accepted
+goal 1 on 'fibonacci' (urn:goal:<uuid>) ended, state 4
+result written: 1
+
+
+--TEARDOWN--
+docker rm -f cor_ros2_action_server >/dev/null 2>&1
+coraineStop
+corDbDrop

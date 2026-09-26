@@ -1074,6 +1074,7 @@ bridgeConfig() {
   local -a emits
   local -a replyDelays
   local -a goalModes
+  local -a discovers
   local -a actionNotifies
   local -a metas
   local -a echoRequests
@@ -1100,6 +1101,7 @@ bridgeConfig() {
       #
       --action) actions+=("$2"); shift ;;
       --goalMode) goalModes+=("$2"); shift ;;
+      --discover) discovers+=("$2"); shift ;;    # loopback: "<endpoint>=service|action" - reported as discovered (ABI 8)
       #
       # Default goal endpoints, for goals that name none: --actionNotify
       # "<endpoint>=<uri>" is that action Channel's, --notify "<uri>" the
@@ -1194,6 +1196,19 @@ bridgeConfig() {
         local comma=","
         [ $i -eq ${#replyDelays[@]} ] && comma=""
         echo "      \"${d%%=*}\": ${d#*=}$comma"
+      done
+      echo "    },"
+    fi
+
+    if [ ${#discovers[@]} -gt 0 ]; then
+      echo "    \"discover\": {"
+      local i=0
+      local d
+      for d in "${discovers[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#discovers[@]} ] && comma=""
+        echo "      \"${d%%=*}\": \"${d#*=}\"$comma"
       done
       echo "    },"
     fi
