@@ -24,6 +24,9 @@
 #include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
 #include "kjson/kjParse.h"                            // kjParse
 #include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "kalloc/kaBufferInit.h"                      // kaBufferInit
+#include "kalloc/kaBufferReset.h"                     // kaBufferReset
+#include "kjson/kjBufferCreate.h"                     // kjBufferCreate
 #include "corBridge/BridgeBroker.h"                   // BridgeGoalState, BridgeGoalPart
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
@@ -224,7 +227,13 @@ static void goalUnlink(Goal* goalP)
 // itself. The periodic statistics flush reaches it like any cached
 // subscription: mongoc's is an update that matches nothing, corDB has none.
 //
-// Caller holds goalMutex. On a plugin thread: corRest.kjsonP is its arena.
+// The tree is built in an arena of its own and dropped once the cache has cloned
+// it. corRest.kjsonP is no arena here: a goal event arrives on a plugin thread
+// that may never have handled a sample (threadBind, bridgeSampleIn.c), and there
+// every node was a malloc of its own, never freed - 1,301 bytes per goal with an
+// endpoint (nightly valgrind, bridge_action_goal_*).
+//
+// Caller holds goalMutex.
 //
 static void goalSubscribe(Goal* goalP)
 {
@@ -247,37 +256,44 @@ static void goalSubscribe(Goal* goalP)
 
   snprintf(watched, watchedLen, "%s@%s", goalP->attrName, goalP->goalAlias);
 
-  KjNode* subP      = kjObject(corRest.kjsonP, NULL);
-  KjNode* entitiesP = kjArray(corRest.kjsonP, LD_VOCAB_ENTITIES);
-  KjNode* selectorP = kjObject(corRest.kjsonP, NULL);
-  KjNode* watchedP  = kjArray(corRest.kjsonP, LD_VOCAB_WATCHED_ATTRS);
-  KjNode* datasetP  = kjArray(corRest.kjsonP, LD_VOCAB_DATASET_ID);
-  KjNode* triggerP  = kjArray(corRest.kjsonP, "notificationTrigger");
-  KjNode* notifP    = kjObject(corRest.kjsonP, LD_VOCAB_NOTIFICATION);
-  KjNode* endpointP = kjObject(corRest.kjsonP, LD_VOCAB_ENDPOINT);
+  char    kaBuffer[4096];
+  KAlloc  kalloc;
+  Kjson   kjson;
 
-  kjChildAdd(subP, kjString(corRest.kjsonP, "id",   subId));
-  kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Subscription"));
+  kaBufferInit(&kalloc, kaBuffer, sizeof(kaBuffer), 4096, NULL, "goal-subscription");
+  Kjson*  kjsonP = kjBufferCreate(&kjson, &kalloc);
 
-  kjChildAdd(selectorP, kjString(corRest.kjsonP, "id", goalP->entityId));
+  KjNode* subP      = kjObject(kjsonP, NULL);
+  KjNode* entitiesP = kjArray(kjsonP, LD_VOCAB_ENTITIES);
+  KjNode* selectorP = kjObject(kjsonP, NULL);
+  KjNode* watchedP  = kjArray(kjsonP, LD_VOCAB_WATCHED_ATTRS);
+  KjNode* datasetP  = kjArray(kjsonP, LD_VOCAB_DATASET_ID);
+  KjNode* triggerP  = kjArray(kjsonP, "notificationTrigger");
+  KjNode* notifP    = kjObject(kjsonP, LD_VOCAB_NOTIFICATION);
+  KjNode* endpointP = kjObject(kjsonP, LD_VOCAB_ENDPOINT);
+
+  kjChildAdd(subP, kjString(kjsonP, "id",   subId));
+  kjChildAdd(subP, kjString(kjsonP, "type", "Subscription"));
+
+  kjChildAdd(selectorP, kjString(kjsonP, "id", goalP->entityId));
   if (goalP->entityType != NULL)
-    kjChildAdd(selectorP, kjString(corRest.kjsonP, "type", goalP->entityType));
+    kjChildAdd(selectorP, kjString(kjsonP, "type", goalP->entityType));
   kjChildAdd(entitiesP, selectorP);
   kjChildAdd(subP, entitiesP);
 
-  kjChildAdd(watchedP, kjString(corRest.kjsonP, NULL, watched));
+  kjChildAdd(watchedP, kjString(kjsonP, NULL, watched));
   kjChildAdd(subP, watchedP);
 
-  kjChildAdd(datasetP, kjString(corRest.kjsonP, NULL, goalP->goalAlias));
+  kjChildAdd(datasetP, kjString(kjsonP, NULL, goalP->goalAlias));
   kjChildAdd(subP, datasetP);
 
-  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeCreated"));
-  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
-  kjChildAdd(triggerP, kjString(corRest.kjsonP, NULL, "attributeDeleted"));
+  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeCreated"));
+  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeUpdated"));
+  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeDeleted"));
   kjChildAdd(subP, triggerP);
 
-  kjChildAdd(endpointP, kjString(corRest.kjsonP, LD_VOCAB_URI, goalP->notifyEndpoint));
-  kjChildAdd(endpointP, kjString(corRest.kjsonP, "accept", (goalP->notifyAccept != NULL) ? goalP->notifyAccept : "application/json"));
+  kjChildAdd(endpointP, kjString(kjsonP, LD_VOCAB_URI, goalP->notifyEndpoint));
+  kjChildAdd(endpointP, kjString(kjsonP, "accept", (goalP->notifyAccept != NULL) ? goalP->notifyAccept : "application/json"));
   kjChildAdd(notifP, endpointP);
   kjChildAdd(subP, notifP);
 
@@ -285,6 +301,7 @@ static void goalSubscribe(Goal* goalP)
   LdSubCacheItem* itemP = ldSubCacheItemAdd(cacheP, subP, NULL, LdFormatUnset);   // clones the tree
   ldSubCacheUnlock(cacheP);
 
+  kaBufferReset(&kalloc, KFALSE);   // the tree - the cache holds its own clone
   free(watched);
 
   if (itemP == NULL)
