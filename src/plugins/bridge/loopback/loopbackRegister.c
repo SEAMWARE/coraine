@@ -813,6 +813,20 @@ static void loopbackClose(void)
     free(replyDelays[i].endpoint);
   replyDelayCount = 0;
 
+  for (int i = 0; i < metaCount; i++)
+  {
+    free(metas[i].endpoint);
+    free(metas[i].meta);
+  }
+  metaCount = 0;
+
+  for (int i = 0; i < echoCount; i++)
+  {
+    free(echoes[i].endpoint);
+    free(echoes[i].meta);
+  }
+  echoCount = 0;
+
   for (int i = 0; i < goalModeCount; i++)
   {
     free(goalModes[i].endpoint);
