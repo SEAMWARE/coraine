@@ -77,8 +77,8 @@ echo
 echo
 
 
-echo "06. ?goal=1 on GET /entities/{id} - not a parameter of that route: 400"
-echo "======================================================================"
+echo "06. ?goal=1 on GET /entities/{id} - goal 1's instance, as Orion-LD"
+echo "=================================================================="
 corCurl --url '/ngsi-ld/v1/entities/urn:R:1?goal=1'
 echo
 echo
@@ -216,18 +216,30 @@ Content-Length: 160
 
 
 
-06. ?goal=1 on GET /entities/{id} - not a parameter of that route: 400
-======================================================================
-HTTP/1.1 400 Bad Request
+06. ?goal=1 on GET /entities/{id} - goal 1's instance, as Orion-LD
+==================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 169
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "Unknown/unsupported URL parameter: goal",
-  "status": 400,
-  "title": "Invalid Request",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+  "id": "urn:R:1",
+  "navigate": {
+    "datasetId": "urn:goal:1",
+    "status": {
+      "type": "Property",
+      "value": {
+        "code": "ACCEPTED"
+      }
+    },
+    "type": "Property",
+    "value": {
+      "x": 1
+    }
+  },
+  "type": "Robot"
 }
 
 

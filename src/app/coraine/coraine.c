@@ -516,7 +516,8 @@ static bool pluginsLoad(int argC, char* argV[])
 //
 // bridgeParams - the URL parameters the broker itself adds to NGSI-LD's
 //
-// ?ddsSync, on the three entity PATCH routes - see bridgeServiceSync.h.
+// ?ddsSync - accepted on every route (see main), acted on by the three entity
+// PATCH routes - see bridgeServiceSync.h.
 //
 static CorRestParam bridgeParams[] =
 {
@@ -1496,6 +1497,18 @@ int main(int argC, char* argV[])
   CorRestServiceSimplified* allServices = serviceBuild(&totalServices);
   if (allServices == NULL)
     KT_X(1, "serviceBuild failed (out of memory)");
+
+  //
+  // ?ddsSync on EVERY route, as Orion-LD takes it: a client that sends it
+  // everywhere is not refused (400) where there is nothing to wait for. Only
+  // the three entity PATCH forms act on it - see bridgeServiceSync.h. A route
+  // that takes any parameter at all (~0) needs nothing.
+  //
+  for (int ix = 0; ix < totalServices; ix++)
+  {
+    if (allServices[ix].supportedParams != ~(uint64_t) 0)
+      allServices[ix].supportedParams |= BRIDGE_PARAM_DDS_SYNC;
+  }
 
   //
   // How many event loops the built-in server runs. A no-op on a libmicrohttpd
