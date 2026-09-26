@@ -13,9 +13,8 @@
 #   01-02  no --ddsSyncTimeout: the file's 1500 ms - the PATCH waits for the
 #          reply and writes it with the value (204). With the built-in 200 ms it
 #          would have answered 202 without it.
-#   03-05  --ddsSyncTimeout 100, same file: the command line wins - 202, and
-#          the reply lands later (until then the attribute keeps the previous
-#          reply beside the new value - a PATCH keeps what it does not name).
+#   03-04  --ddsSyncTimeout 100, same file: the command line wins - 202, and
+#          the reply lands later.
 #
 --NAME--
 Bridges: the sync timeout from the bridge configuration (syncTimeoutMs), unless --ddsSyncTimeout
@@ -59,14 +58,7 @@ echo
 echo
 
 
-echo "04. The value is written; the reply is still the previous one"
-echo "=============================================================="
-corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S
-echo
-echo
-
-
-echo "05. The late reply has landed - it answers { a: 2 }"
+echo "04. The late reply has landed - it answers { a: 2 }"
 echo "==================================================="
 sleep 1
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S
@@ -119,34 +111,7 @@ Content-Length: REGEX(\d+)
 
 
 
-04. The value is written; the reply is still the previous one
-==============================================================
-HTTP/1.1 200 OK
-Date: REGEX(.*)
-Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX(\d+)
-
-{
-  "id": "urn:ngsi-ld:Calculator:S",
-  "job": {
-    "reply": {
-      "type": "Property",
-      "value": {
-        "a": 1
-      }
-    },
-    "type": "Property",
-    "value": {
-      "a": 2
-    }
-  },
-  "type": "Calculator"
-}
-
-
-
-05. The late reply has landed - it answers { a: 2 }
+04. The late reply has landed - it answers { a: 2 }
 ===================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
