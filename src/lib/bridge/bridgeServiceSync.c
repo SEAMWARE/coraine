@@ -51,7 +51,11 @@ bool bridgeSyncDefault   = false;
 // default 32 workers: at 3 ms a call that is some 2500 waited-for requests a
 // second, and a DDS side that answers nothing can tie up 8 workers, never 32.
 //
-int  bridgeSyncTimeoutMs = 200;
+// bridgeSyncTimeoutMs is 0 until settled: --ddsSyncTimeout if given, else the
+// bridge configuration's syncTimeoutMs (dds.ngsild.syncTimeoutMs, as Orion-LD
+// reads it), else BRIDGE_SYNC_TIMEOUT_DEFAULT - bridgeSyncTimeoutSettle.
+//
+int  bridgeSyncTimeoutMs = 0;
 int  bridgeSyncWaitMax   = 8;
 
 
@@ -277,6 +281,36 @@ typedef struct GoalRelease
   uint64_t             token;
   struct GoalRelease*  next;
 } GoalRelease;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutFromConfig -
+//
+void bridgeSyncTimeoutFromConfig(const char* alias, int ms)
+{
+  if (bridgeSyncTimeoutMs != 0)
+  {
+    KT_T(KtBridge, "bridge '%s': syncTimeoutMs %d in the configuration - --ddsSyncTimeout %d wins", alias, ms, bridgeSyncTimeoutMs);
+    return;
+  }
+
+  bridgeSyncTimeoutMs = ms;
+  KT_T(KtBridge, "bridge '%s': sync timeout %d ms, from the configuration", alias, ms);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSyncTimeoutSettle -
+//
+void bridgeSyncTimeoutSettle(void)
+{
+  if (bridgeSyncTimeoutMs == 0)
+    bridgeSyncTimeoutMs = BRIDGE_SYNC_TIMEOUT_DEFAULT;
+}
 
 
 
