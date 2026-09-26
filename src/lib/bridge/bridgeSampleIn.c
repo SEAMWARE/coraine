@@ -1107,9 +1107,13 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 // lists it. Without a catch-all nothing is made: the configuration then says
 // exactly what the broker carries.
 //
-// ⚠ An endpoint with a '/' (a namespaced ROS name) makes an attribute that the
-// URL form /entities/{id}/attrs/{attr} cannot name - see sampleIn. The body of
-// PATCH /entities/{id}/attrs can.
+// ⭐ ITS ATTRIBUTE MUST BE ONE A CLIENT CAN NAME - invoking it IS writing it. A
+// namespaced ROS name has a '/', which no NGSI-LD short name can (§ 4.6.2,
+// refused in the URL, %2F included, and in a body alike). So each '/' becomes
+// '_': robot1/navigate is written as robot1_navigate, and the Channel still
+// sends to robot1/navigate - the endpoint and the attribute are separate
+// fields of it. A catch-all TOPIC keeps its name verbatim: it is only ever
+// read (KZ 2026-09-26).
 //
 // On the plugin's own thread: the Channel is handed back to it (channelAdd)
 // before this returns.
@@ -1140,7 +1144,15 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   threadBind(tenantP);
 
-  char* attrName = catchAllAttrName(bridgeName, endpoint);
+  char* shortName = kaStrdup(&corRest.kalloc, endpoint);
+
+  for (char* cP = shortName; *cP != 0; cP++)
+  {
+    if (*cP == '/')
+      *cP = '_';
+  }
+
+  char* attrName = catchAllAttrName(bridgeName, shortName);
 
   if (attrName == NULL)
     return BRIDGE_BAD_INPUT;
@@ -1189,7 +1201,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
   }
 
   KT_I("bridge '%s': %s '%s' discovered - carried on %s, attribute '%s'",
-       bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, endpoint);
+       bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, shortName);
 
   return BRIDGE_OK;
 }

@@ -10,13 +10,16 @@
 # the endpoint as its attribute, as Orion-LD puts every discovered action on
 # urn:ngsi-ld:dds:default. Here a discovered service is invocable too.
 #
-# The loopback reports three: 'calc' (configured already - nothing changes),
-# 'adder' (a service) and 'fib' (an action).
+# The loopback reports four: 'calc' (configured already - nothing changes),
+# 'adder' (a service), 'fib' (an action) and 'robot1/navigate' (a namespaced
+# action - no short name can have a '/', so its attribute is robot1_navigate).
 #
-#   01  the catch-all has 'adder' and 'fib', "uninitialized" - not 'calc'
+#   01  the catch-all has 'adder', 'fib' and 'robot1_navigate', "uninitialized"
+#       - not 'calc'
 #   02  PATCH adder, waiting: the loopback's reply is written with the value
 #   03  PATCH fib: a goal, accepted - 202
-#   04  a broker whose configuration says "defaultEntity": false carries
+#   04  PATCH robot1_navigate: a goal, accepted - 202 (sent to robot1/navigate)
+#   05  a broker whose configuration says "defaultEntity": false carries
 #       nothing it was not told to - the catch-all entity is not even made
 #
 --NAME--
@@ -31,7 +34,8 @@ BRIDGE_CONFIG=$(bridgeConfig \
   --service "calc,Calculator,urn:C:1,job" \
   --discover "calc=service" \
   --discover "adder=service" \
-  --discover "fib=action")
+  --discover "fib=action" \
+  --discover "robot1/navigate=action")
 coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
@@ -39,7 +43,7 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 echo "01. The catch-all entity - adder and fib, discovered; calc is a configured Channel's"
 echo "==================================================================================="
 for i in $(seq 1 50); do
-  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default 2>/dev/null | grep -q '"fib"' && break
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default 2>/dev/null | grep -q '"robot1_navigate"' && break
   sleep 0.1
 done
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default
@@ -64,7 +68,17 @@ echo
 echo
 
 
-echo "04. \"defaultEntity\": false - discovered endpoints are left alone"
+echo "04. PATCH robot1_navigate - the goal goes to the action robot1/navigate: 202"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/robot1_navigate -X PATCH \
+        --payload '{ "type": "Property", "value": { "x": 1 } }' | head -1
+sleep 0.3
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default/attrs/robot1_navigate
+echo
+echo
+
+
+echo "05. \"defaultEntity\": false - discovered endpoints are left alone"
 echo "================================================================"
 coraineStop
 corDbDrop
@@ -97,6 +111,10 @@ Content-Length: REGEX(\d+)
     "value": "uninitialized"
   },
   "id": "urn:ngsi-ld:loopback:default",
+  "robot1_navigate": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
   "type": "LOOPBACK"
 }
 
@@ -136,7 +154,25 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 202 Accepted
 
 
-04. "defaultEntity": false - discovered endpoints are left alone
+04. PATCH robot1_navigate - the goal goes to the action robot1/navigate: 202
+============================================================================
+HTTP/1.1 202 Accepted
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "type": "Property",
+  "value": {
+    "x": 1
+  }
+}
+
+
+
+05. "defaultEntity": false - discovered endpoints are left alone
 ================================================================
 HTTP/1.1 404 Not Found
 
