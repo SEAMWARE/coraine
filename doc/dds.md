@@ -20,7 +20,7 @@ places it deliberately does it differently. This page says what, in short.
 - **Discovery.** Topics, services and actions that nobody configured are shown
   on one catch-all entity (`urn:ngsi-ld:dds:default`, as in Orion-LD), so the
   first question - *what is on this bus?* - answers itself.
-- **Pre-population.** Every configured entity exists from startup, with the
+- **Pre-population.** Every configured attribute exists from startup, with the
   value `"uninitialized"` until the first sample.
 - **History.** DDS updates go into temporal history like any other write.
 - **The same configuration file.** A deployment moving from Orion-LD keeps its
