@@ -9,7 +9,7 @@
 
 #include <stddef.h>                                      // NULL
 
-#include "kalloc/kalloc.h"                               // kaBufferInit, kaBufferReset
+#include "corAlloc/corAlloc.h"                           // corAllocBufferInit, corAllocBufferReset
 #include "corJson/CorJson.h"                             // CorJson
 #include "corJson/corJsonCreate.h"                       // corJsonCreate
 #include "corLog/corLog.h"                               // KT_*
@@ -30,7 +30,7 @@
 // stateBind - bring this thread's request state up to working order
 //
 // A channel runs in a thread of its own, with no request behind it, and the DB
-// driver allocates what it reads through corRest.kalloc/kallocP. Both are __thread
+// driver allocates what it reads through corRest.corAlloc/kallocP. Both are __thread
 // (via the per-connection fallback), so the channel thread gets its own - zeroed
 // until somebody sets them up, which is what this does, once.
 //
@@ -44,20 +44,20 @@ static void stateBind(Tenant* tenantP)
 
   if (inited == false)
   {
-    kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "ha");
+    corAllocBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "ha");
     corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
     corRest.kallocP  = &corRest.kalloc;
     inited = true;
   }
   else
     //
-    // ⚠️ KTRUE = REUSE, and it is not optional. kaBufferReset(kaP, KFALSE) frees
+    // ⚠️ true = REUSE, and it is not optional. corAllocBufferReset(kaP, false) frees
     // every extra block but leaves kaP->allocList pointing at them - it is the
     // TEARDOWN call. Reaching it a second time on the same arena walks that
     // dangling list and frees the same pointers again: "double free or
     // corruption", in whatever thread happens to be there.
     //
-    kaBufferReset(&corRest.kalloc, KTRUE);
+    corAllocBufferReset(&corRest.kalloc, true);
 
   //
   // The apply runs AS the event's tenant. Not everything downstream takes the

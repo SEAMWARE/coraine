@@ -60,6 +60,8 @@ Content-Length: REGEX([0-9]+)
 {
   "product": "coraine",
   "stack": {
+    "corAlloc": "REGEX([0-9a-f]{40})",
+    "corArgs": "REGEX([0-9a-f]{40})",
     "corBridge": "REGEX([0-9a-f]{40})",
     "corHttp": "REGEX([0-9a-f]{40})",
     "corHash": "REGEX([0-9a-f]{40})",
@@ -71,8 +73,6 @@ Content-Length: REGEX([0-9]+)
     "corProm": "REGEX([0-9a-f]{40})",
     "corRest": "REGEX([0-9a-f]{40})",
     "corTree": "REGEX([0-9a-f]{40})",
-    "kalloc": "REGEX([0-9a-f]{40})",
-    "kargs": "REGEX([0-9a-f]{40})",
     "kbase": "REGEX([0-9a-f]{40})"
   },
   "version": "0.4.0"

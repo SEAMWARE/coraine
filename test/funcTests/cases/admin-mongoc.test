@@ -209,6 +209,8 @@ Content-Length: REGEX(\d+)
 
 {
   "Next File Descriptor": REGEX(\d+),
+  "corAlloc": "0.1.0",
+  "corArgs": "0.1.0",
   "corHash": "0.1.0",
   "corJson": "0.1.0",
   "corJsonld": "0.1.0",
@@ -218,8 +220,6 @@ Content-Length: REGEX(\d+)
   "corRest": "0.1.0",
   "corTree": "0.1.0",
   "coraine version": "REGEX(\d+\.\d+\.\d+)",
-  "kalloc": "0.10.2",
-  "kargs": "0.10.1",
   "kbase": "0.11.1",
   "mongoc driver": "2.2.2",
   "mongoc plugin": "0.1.0",

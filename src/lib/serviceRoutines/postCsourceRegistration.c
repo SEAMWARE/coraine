@@ -18,8 +18,8 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
 #include "corTree/CorNode.h"                         // CorNode
-#include "kalloc/KAlloc.h"                           // KAlloc
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckRegistration.h"            // ldCheckRegistration
 #include "corNgsild/LdOp.h"                           // LdOpCreateRegistration
@@ -61,10 +61,10 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 // regIdGenerate - generate a registration id when none is provided
 //
-static char* regIdGenerate(KAlloc* allocP)
+static char* regIdGenerate(CorAlloc* allocP)
 {
   static int counter = 0;
-  char*      buf     = kaAlloc(allocP, 128);
+  char*      buf     = corAlloc(allocP, 128);
 
   snprintf(buf, 128, "urn:ngsi-ld:ContextSourceRegistration:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
 
@@ -180,7 +180,7 @@ bool postCsourceRegistration(void)
 
   const char* prefix = "/ngsi-ld/v1/csourceRegistrations/";
   int         locLen = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf = kaAlloc(&corRest.kalloc, locLen);
+  char*       locBuf = corAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);

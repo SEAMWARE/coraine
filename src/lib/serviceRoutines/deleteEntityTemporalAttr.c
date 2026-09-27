@@ -27,7 +27,7 @@
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/CorNgsild.h"                       // corNgsild fields
@@ -99,7 +99,7 @@ bool deleteEntityTemporalAttr(void)
   const char* datasetIdEnc = (datasetId != NULL) ? corRestUrlValueEncode(datasetId, &corRest.kalloc) : NULL;
   int         fwdQsSize    = ((datasetIdEnc != NULL) ? strlen(datasetIdEnc) : 0) + 64;
 
-  char* fwdQs = (char*) kaAlloc(&corRest.kalloc, fwdQsSize);
+  char* fwdQs = (char*) corAlloc(&corRest.kalloc, fwdQsSize);
   int   qpos  = 0;
   if (datasetIdEnc != NULL)
     qpos += snprintf(fwdQs + qpos, fwdQsSize - qpos, "datasetId=%s", datasetIdEnc);
@@ -161,7 +161,7 @@ bool deleteEntityTemporalAttr(void)
       for (int i = 0; i < n; i++)
       {
         int   baseLen = strlen(items[i].csr->endpoint);
-        char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
+        char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + qsLen + 1);
         int pos = 0;
         memcpy(url + pos, items[i].csr->endpoint, baseLen); pos += baseLen;
         memcpy(url + pos, prefix, prefLen);                 pos += prefLen;

@@ -14,9 +14,9 @@
 #include <stdlib.h>                                   // malloc, free
 #include <unistd.h>                                   // access, R_OK
 
-#include "kalloc/KAlloc.h"                            // KAlloc
-#include "kalloc/kaBufferInit.h"                      // kaBufferInit
-#include "kalloc/kaBufferReset.h"                     // kaBufferReset
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
+#include "corAlloc/corAllocBufferInit.h"              // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"             // corAllocBufferReset
 #include "corJson/CorJson.h"                          // CorJson
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonParse.h"                     // corJsonParse
@@ -122,7 +122,7 @@ static int channelsLoad(const char*        alias,
                         BridgeChannelKind  kind,
                         BridgeDirection    direction,
                         Tenant*            tenantP,
-                        KAlloc*            kaP)
+                        CorAlloc*          kaP)
 {
   int created = 0;
 
@@ -275,7 +275,7 @@ static int channelsLoad(const char*        alias,
 // else in that member is a file saying something this broker does not
 // understand, which is warned about rather than guessed at.
 //
-static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP, KAlloc* kaP)
+static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP, CorAlloc* kaP)
 {
   const char* entityId   = NULL;
   const char* entityType = NULL;
@@ -394,11 +394,11 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   // Channel, so nothing parsed here outlives this function, and the parse
   // does not have to share - or wait for - the broker's startup allocator.
   //
-  char    kallocBuffer[8192];
-  KAlloc  kalloc;
-  CorJson corJson;
+  char      kallocBuffer[8192];
+  CorAlloc  kalloc;
+  CorJson   corJson;
 
-  kaBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "bridge config");
+  corAllocBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "bridge config");
 
   CorJson* corJsonP = corJsonCreate(&corJson, &kalloc);
   CorNode* treeP = corJsonParse(corJsonP, buf);
@@ -410,7 +410,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   //
   if (treeP == NULL)
   {
-    kaBufferReset(&kalloc, true);
+    corAllocBufferReset(&kalloc, true);
     free(buf);
     COR_X(1, "the bridge configuration '%s' is not valid JSON", path);
   }
@@ -509,7 +509,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     defaultEntityLoad(alias, defaultEntityP, tenantP, &kalloc);
   }
 
-  kaBufferReset(&kalloc, true);
+  corAllocBufferReset(&kalloc, true);
   free(buf);
 
   COR_T(CtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);

@@ -30,9 +30,9 @@
 #include "corJson/corJsonCreate.h"                     // corJsonCreate
 #include "corJson/corJsonParse.h"                      // corJsonParse
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
-#include "kalloc/kaAlloc.h"                            // kaAlloc
-#include "kalloc/kaStrdup.h"                           // kaStrdup
-#include "kalloc/KAlloc.h"                               // KAlloc
+#include "corAlloc/corAlloc.h"                         // corAlloc
+#include "corAlloc/corAllocStrdup.h"                   // corAllocStrdup
+#include "corAlloc/CorAlloc.h"                           // CorAlloc
 #include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
 #include "corJsonld/CorLdContextCache.h"                 // CorLdContextCache
 #include "corJsonld/corLdCache.h"                        // corLdCacheLookup, corLdCacheInsert
@@ -78,7 +78,7 @@ static char* epochToIso(double t)
   time_t   secs = (time_t) t;
   struct tm tm;
   gmtime_r(&secs, &tm);
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -106,7 +106,7 @@ static CorLdContext* loadFromDb(const char* contextId)
   if (db.contextGet == NULL)
     return NULL;
 
-  KAlloc* storeP = corLdCacheGet()->kaP;
+  CorAlloc* storeP = corLdCacheGet()->kaP;
 
   DbContextRow row;
   if (db.contextGet(contextId, storeP, &row) != DB_OK)
@@ -119,7 +119,7 @@ static CorLdContext* loadFromDb(const char* contextId)
   // corJsonParse is destructive — keep a pristine copy for contextP->body
   // before handing the original to the parser.
   //
-  char*  bodyCopy = kaStrdup(storeP, row.body);
+  char*  bodyCopy = corAllocStrdup(storeP, row.body);
 
   CorJson corJson;
   CorJson* corJsonP = corJsonCreate(&corJson, storeP);
@@ -148,7 +148,7 @@ static CorLdContext* loadFromDb(const char* contextId)
   if (contextP == NULL)
     return NULL;
 
-  contextP->id   = (row.id != NULL) ? row.id : kaStrdup(storeP, contextId);
+  contextP->id   = (row.id != NULL) ? row.id : corAllocStrdup(storeP, contextId);
   contextP->body = bodyCopy;
   contextP->kind = (row.kind == DB_CONTEXT_KIND_HOSTED)   ? CorLdKindHosted
                   : (row.kind == DB_CONTEXT_KIND_IMPLICIT) ? CorLdKindImplicit
@@ -228,7 +228,7 @@ bool getJsonldContext(void)
       int   baseLen      = strlen(base);
       int   prefixLen    = strlen(prefix);
       int   idLen        = strlen(localId);
-      char* buf          = (char*) kaAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
+      char* buf          = (char*) corAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
       memcpy(buf, base, baseLen);
       memcpy(buf + baseLen, prefix, prefixLen);
       memcpy(buf + baseLen + prefixLen, localId, idLen);

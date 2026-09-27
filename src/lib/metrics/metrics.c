@@ -13,7 +13,7 @@
 #include <string.h>                                // strlen
 #include <time.h>                                  // clock_gettime
 
-#include "kalloc/kaAlloc.h"                        // kaAlloc
+#include "corAlloc/corAlloc.h"                     // corAlloc
 #include "corTree/CorNode.h"                       // CorNode, CorArray
 #include "corProm/corProm.h"                       // corProm*
 
@@ -395,7 +395,7 @@ bool metricsRender(void)
   // returns the same length it would have returned had everything fitted.
   //
   int   bufSize = corPromRenderSize();
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize + 1);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize + 1);
 
   if (buf == NULL)
   {

@@ -23,10 +23,10 @@
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corJson/corJsonParse.h"                     // corJsonParse
-#include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kalloc/kaBufferInit.h"                      // kaBufferInit
-#include "kalloc/kaBufferReset.h"                     // kaBufferReset
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
+#include "corAlloc/corAllocBufferInit.h"              // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"             // corAllocBufferReset
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corBridge/BridgeBroker.h"                   // BridgeGoalState, BridgeGoalPart
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
@@ -256,11 +256,11 @@ static void goalSubscribe(Goal* goalP)
 
   snprintf(watched, watchedLen, "%s@%s", goalP->attrName, goalP->goalAlias);
 
-  char    kaBuffer[4096];
-  KAlloc  kalloc;
+  char      kaBuffer[4096];
+  CorAlloc  kalloc;
 
-  kaBufferInit(&kalloc, kaBuffer, sizeof(kaBuffer), 4096, NULL, "goal-subscription");
-  KAlloc*  allocP = &kalloc;
+  corAllocBufferInit(&kalloc, kaBuffer, sizeof(kaBuffer), 4096, NULL, "goal-subscription");
+  CorAlloc*  allocP = &kalloc;
 
   CorNode* subP     = corTreeObject(allocP, NULL);
   CorNode* entitiesP = corTreeArray(allocP, LD_VOCAB_ENTITIES);
@@ -300,7 +300,7 @@ static void goalSubscribe(Goal* goalP)
   LdSubCacheItem* itemP = ldSubCacheItemAdd(cacheP, subP, NULL, LdFormatUnset);   // clones the tree
   ldSubCacheUnlock(cacheP);
 
-  kaBufferReset(&kalloc, KFALSE);   // the tree - the cache holds its own clone
+  corAllocBufferReset(&kalloc, false);   // the tree - the cache holds its own clone
   free(watched);
 
   if (itemP == NULL)
@@ -1088,11 +1088,11 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
 
   answerP->state       = goalP->state;
   answerP->final       = goalP->firstFinal;
-  answerP->goalId      = (goalP->goalId       != NULL) ? kaStrdup(&corRest.kalloc, goalP->goalId)       : NULL;
-  answerP->goalAlias   = kaStrdup(&corRest.kalloc, goalP->goalAlias);
-  answerP->subAttrName = (goalP->firstSubAttr != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstSubAttr) : NULL;
-  answerP->json        = (goalP->firstJson    != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstJson)    : NULL;
-  answerP->meta        = (goalP->firstMeta    != NULL) ? kaStrdup(&corRest.kalloc, goalP->firstMeta)    : NULL;
+  answerP->goalId      = (goalP->goalId       != NULL) ? corAllocStrdup(&corRest.kalloc, goalP->goalId) : NULL;
+  answerP->goalAlias   = corAllocStrdup(&corRest.kalloc, goalP->goalAlias);
+  answerP->subAttrName = (goalP->firstSubAttr != NULL) ? corAllocStrdup(&corRest.kalloc, goalP->firstSubAttr) : NULL;
+  answerP->json        = (goalP->firstJson    != NULL) ? corAllocStrdup(&corRest.kalloc, goalP->firstJson)    : NULL;
+  answerP->meta        = (goalP->firstMeta    != NULL) ? corAllocStrdup(&corRest.kalloc, goalP->firstMeta)    : NULL;
   answerP->publishTime = goalP->firstTime;
 
   free(goalP->firstSubAttr);
@@ -1184,11 +1184,11 @@ const char* bridgeGoalStateName(int state)
 //
 static CorNode* jsonNode(const char* name, const char* json)
 {
-  char*   copy  = kaStrdup(&corRest.kalloc, json);
+  char*   copy  = corAllocStrdup(&corRest.kalloc, json);
   CorNode* nodeP = corJsonParse(corRest.corJsonP, copy);
 
   if (nodeP == NULL)
-    return corTreeString(corRest.kallocP, name, kaStrdup(&corRest.kalloc, json));
+    return corTreeString(corRest.kallocP, name, corAllocStrdup(&corRest.kalloc, json));
 
   nodeP->name = (char*) name;
   return nodeP;
@@ -1202,12 +1202,12 @@ static CorNode* jsonNode(const char* name, const char* json)
 //
 static CorNode* goalRender(Goal* goalP)
 {
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* bodyP = corTreeObject(allocP, NULL);
 
-  corTreeChildAdd(bodyP, corTreeString(allocP, "id", kaStrdup(&corRest.kalloc, goalP->goalAlias)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "id", corAllocStrdup(&corRest.kalloc, goalP->goalAlias)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "type", "Goal"));
-  corTreeChildAdd(bodyP, corTreeString(allocP, "goalId", kaStrdup(&corRest.kalloc, goalP->goalId)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "goalId", corAllocStrdup(&corRest.kalloc, goalP->goalId)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "status", (char*) bridgeGoalStateName(goalP->state)));
 
   if (goalP->request != NULL)   corTreeChildAdd(bodyP, jsonNode("goalRequest", goalP->request));
@@ -1290,7 +1290,7 @@ char* bridgeGoalAliasOf(Channel* channelP, const char* goalId)
   {
     if ((goalOfChannel(goalP, channelP) == true) && (strcmp(goalP->goalId, goalId) == 0))
     {
-      aliasP = kaStrdup(&corRest.kalloc, goalP->goalAlias);
+      aliasP = corAllocStrdup(&corRest.kalloc, goalP->goalAlias);
       break;
     }
   }

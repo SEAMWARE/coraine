@@ -33,7 +33,7 @@
 #include <stdio.h>                                    // snprintf
 #include <string.h>                                   // strlen
 
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
@@ -86,7 +86,7 @@ static CorNode* goalFragment(Channel* channelP, CorNode* requestP, CorNode* endp
 
   corTreeChildAdd(fragP, attrP);
 
-  char* text = (char*) kaAlloc(&corRest.kalloc, corJsonFastRenderSize(fragP) + 1);
+  char* text = (char*) corAlloc(&corRest.kalloc, corJsonFastRenderSize(fragP) + 1);
   corJsonFastRender(fragP, text);
 
   CorNode* parsedP = corJsonParse(corJsonP, text);
@@ -156,7 +156,7 @@ bool postChannelGoals(void)
 
   const char* cId = channelIdOf(channelP);
   int         len = 21 + strlen(cId) + 7 + strlen(goalId) + 1;   // "/ngsi-ld/v1/channels/" + "/goals/"
-  char*       loc = (char*) kaAlloc(&corRest.kalloc, len);
+  char*       loc = (char*) corAlloc(&corRest.kalloc, len);
 
   snprintf(loc, len, "/ngsi-ld/v1/channels/%s/goals/%s", cId, goalId);
 

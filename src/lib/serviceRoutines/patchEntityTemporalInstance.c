@@ -28,7 +28,7 @@
 #include "corTree/corTreeClone.h"                    // corTreeClone
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
@@ -95,7 +95,7 @@ static char* renderBodyWithContext(CorNode* bodyP)
     corTreeChildRemove(cloneP, atCtx);
 
   int   sz  = corJsonFastRenderSize(cloneP) + 1;
-  char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
+  char* buf = (char*) corAlloc(&corRest.kalloc, sz);
   corJsonFastRender(cloneP, buf);
   return buf;
 }
@@ -270,7 +270,7 @@ bool patchEntityTemporalInstance(void)
       for (int i = 0; i < n; i++)
       {
         int   baseLen = strlen(items[i].csr->endpoint);
-        char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
+        char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
         int pos = 0;
         memcpy(url + pos, items[i].csr->endpoint, baseLen); pos += baseLen;
         memcpy(url + pos, prefix, prefLen);                 pos += prefLen;

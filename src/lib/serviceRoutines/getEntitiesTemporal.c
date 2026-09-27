@@ -42,8 +42,8 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonParse.h"                    // corJsonParse
 #include "corTree/corTreeClone.h"                    // corTreeClone
-#include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kalloc/KAlloc.h"                             // KAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corAlloc/CorAlloc.h"                         // CorAlloc
 
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 
@@ -191,7 +191,7 @@ static void mergeTemporalEntity(CorNode* destP, CorNode* upP, bool keepOnlyMissi
 // orderBy/options/local/entityMap). Filters that constrain the candidate set
 // (id/idPattern/type/q/timerel/timeAt/.../georel/...) all forward verbatim.
 //
-static const char* buildTemporalQueryQs(KAlloc* kaP)
+static const char* buildTemporalQueryQs(CorAlloc* kaP)
 {
   // Worst-case length: each (key=value&) plus NUL, plus "&sysAttrs=true".
   int len = 1 + 15;
@@ -215,7 +215,7 @@ static const char* buildTemporalQueryQs(KAlloc* kaP)
     len += strlen(k) + 1 + (v ? 3 * strlen(v) : 0) + 1;
   }
 
-  char* buf = (char*) kaAlloc(kaP, len);
+  char* buf = (char*) corAlloc(kaP, len);
   int pos = 0;
 
   for (int i = 0; i < corRest.in.uriParamCount; i++)
@@ -700,10 +700,10 @@ bool getEntitiesTemporal(void)
         }
       }
 
-      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
       memset(items, 0, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      int*                 itemMode  = (int*)                 kaAlloc(&corRest.kalloc, total * sizeof(int));
+      LdDistOpBatchResult* results   = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      int*                 itemMode  = (int*)                 corAlloc(&corRest.kalloc, total * sizeof(int));
       int                  itemCount = 0;
       memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -722,7 +722,7 @@ bool getEntitiesTemporal(void)
           if (!csfCsrMatch(csr)) continue;
 
           int baseLen = strlen(csr->endpoint);
-          char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
+          char* url = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
           if (qsLen > 0)
@@ -822,7 +822,7 @@ bool getEntitiesTemporal(void)
   // the temporal-interval links below (distinguished by rel, RFC 8288).
   if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (rangeInfo.entityCount >= 0) ? rangeInfo.entityCount : 0L);
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }

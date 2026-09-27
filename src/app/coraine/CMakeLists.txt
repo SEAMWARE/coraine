@@ -19,7 +19,7 @@ ENDIF()
 # And it stays whole-archive rather than becoming a --gc-sections + --dynamic-list
 # export list, which would be the precise tool. The set of symbols to export is
 # the plugin ABI, and we do not know it: a plugin written by someone else, against
-# a future version, may reach for any of corTree, kalloc or corRest. An export list
+# a future version, may reach for any of corTree, corAlloc or corRest. An export list
 # is a guess about that, and a wrong guess fails at dlopen in someone else's
 # deployment rather than at link in ours. The cost of being blunt here is bounded
 # - it is measured in KiB of a ~1 MiB binary - and the cost of being wrong is not.

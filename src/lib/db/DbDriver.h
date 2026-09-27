@@ -13,8 +13,8 @@
 #include <stdint.h>                                       // uint64_t
 #include <stdbool.h>                                      // bool
 
-#include "kalloc/KAlloc.h"                                // KAlloc
-#include "kargs/KArg.h"                                   // KArg
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
+#include "corArgs/CorArg.h"                               // CorArg
 #include "corTree/CorNode.h"                              // CorNode
 
 #include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
@@ -87,8 +87,8 @@ typedef struct DbContextRow
 
 typedef int (*DbContextSaveFunc)(const char* id, const char* url, int kind, const char* body);
 typedef int (*DbContextDeleteFunc)(const char* id);
-typedef int (*DbContextListFunc)(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
-typedef int (*DbContextGetFunc)(const char* id, KAlloc* allocP, DbContextRow* rowOut);
+typedef int (*DbContextListFunc)(CorAlloc* allocP, DbContextRow** rowsPP, int* countP);
+typedef int (*DbContextGetFunc)(const char* id, CorAlloc* allocP, DbContextRow* rowOut);
 
 typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, CorNode* entityP);
 
@@ -284,7 +284,7 @@ typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
 
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
-typedef void (*DbVersionInfoFunc)(KAlloc* allocP, CorNode* root);
+typedef void (*DbVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 
 //
 // DbHaWatchStartFunc - start watching the store for what OTHER broker instances
@@ -311,7 +311,7 @@ typedef struct DbDriver
 {
   const char*             alias;           // short plugin name, e.g. "mongoc" (for usage text)
   const char*             version;         // plugin version string
-  KArg*                   args;            // plugin-contributed CLI args (NULL if none)
+  CorArg*                 args;            // plugin-contributed CLI args (NULL if none)
   DbInitFunc              init;
   DbCloseFunc             close;
   DbEntityCreateFunc      entityCreate;

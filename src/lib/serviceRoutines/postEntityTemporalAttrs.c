@@ -31,7 +31,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
@@ -90,7 +90,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   sz  = corJsonFastRenderSize(fragP) + 1;
-  char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
+  char* buf = (char*) corAlloc(&corRest.kalloc, sz);
   corJsonFastRender(fragP, buf);
   return buf;
 }
@@ -155,9 +155,9 @@ bool postEntityTemporalAttrs(void)
         for (int i = 0; i < matchN[m]; i++)
           for (LdRegInfo* riP = matchV[m][i]->infoV; riP != NULL; riP = riP->next) riCap++;
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, riCap * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, riCap * sizeof(LdDistOpBatchItem));
       memset(items, 0, riCap * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, riCap * sizeof(LdDistOpBatchResult));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, riCap * sizeof(LdDistOpBatchResult));
       int                  itemCount = 0;
       memset(results, 0, riCap * sizeof(LdDistOpBatchResult));
 
@@ -193,7 +193,7 @@ bool postEntityTemporalAttrs(void)
             int prefLen = strlen(prefix);
             int idLen   = strlen(entityId);
             int sufLen  = strlen(suffix);
-            char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + sufLen + 1);
+            char* url = (char*) corAlloc(&corRest.kalloc, baseLen + prefLen + idLen + sufLen + 1);
             int pos = 0;
             memcpy(url + pos, csr->endpoint, baseLen); pos += baseLen;
             memcpy(url + pos, prefix, prefLen);        pos += prefLen;

@@ -34,7 +34,7 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 
@@ -85,7 +85,7 @@ static char* rebuildQueryString(void)
     total += 1;                               // '&'
   }
 
-  char* buf = (char*) kaAlloc(&corRest.kalloc, total);
+  char* buf = (char*) corAlloc(&corRest.kalloc, total);
   buf[0] = '\0';
 
   bool first = true;
@@ -126,7 +126,7 @@ static char* forwardUrl(const char* endpoint)
   int         qLen    = strlen(query);
   int         total   = baseLen + pathLen + (qLen > 0 ? 1 + qLen : 0) + 1;
 
-  char* url = (char*) kaAlloc(&corRest.kalloc, total);
+  char* url = (char*) corAlloc(&corRest.kalloc, total);
   strcpy(url, endpoint);
   strcpy(url + baseLen, path);
   if (qLen > 0)
@@ -191,7 +191,7 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
     int    keepN = 0;
     while (keepV[keepN] != NULL) keepN++;
 
-    const char** keepIri = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * (keepN + 1));
+    const char** keepIri = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * (keepN + 1));
     for (int i = 0; i < keepN; i++)
     {
       const char* iri = corLdExpand(corNgsild.contextP, keepV[i], &corRest.kalloc, NULL, NULL);
@@ -309,9 +309,9 @@ bool purgeEntities(void)
     bool             opConflict[] = { true,        true,       false      };
 
     int total = exclN + redirN + inclN;
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 

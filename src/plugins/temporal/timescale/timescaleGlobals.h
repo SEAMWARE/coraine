@@ -17,7 +17,7 @@
 
 #include <libpq-fe.h>                                     // PGconn
 
-#include "kargs/KArg.h"                                   // KArg
+#include "corArgs/CorArg.h"                               // CorArg
 
 
 // Per-thread connection in use by the current entry-point call. Set from the
@@ -32,6 +32,6 @@ extern int               timescaleDbPort;
 extern int               timescalePoolSize;
 extern int               timescaleInstanceCap;
 
-extern KArg              timescaleArgV[];
+extern CorArg            timescaleArgV[];
 
 #endif  // TIMESCALE_TIMESCALEGLOBALS_H_

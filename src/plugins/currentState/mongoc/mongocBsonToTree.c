@@ -11,8 +11,8 @@
 
 #include <bson/bson.h>                               // bson_t, bson_iter_t
 
-#include "kalloc/KAlloc.h"                           // KAlloc
-#include "kalloc/kaStrdup.h"                         // kaStrdup
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
+#include "corAlloc/corAllocStrdup.h"                 // corAllocStrdup
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeNull, corTreeObject, corTreeArray, corTreeChildAdd
 
@@ -25,7 +25,7 @@
 //
 // bsonIterToNode - recursive helper to convert a bson_iter_t to CorNode children
 //
-static void bsonIterToNode(KAlloc* allocP, KAlloc* kaP, bson_iter_t* iterP, CorNode* containerP)
+static void bsonIterToNode(CorAlloc* allocP, CorAlloc* kaP, bson_iter_t* iterP, CorNode* containerP)
 {
   while (bson_iter_next(iterP))
   {
@@ -108,12 +108,12 @@ static void bsonIterToNode(KAlloc* allocP, KAlloc* kaP, bson_iter_t* iterP, CorN
 //
 // mongocBsonToTree - convert a bson_t document to a CorNode tree
 //
-CorNode* mongocBsonToTree(KAlloc* kaP, const bson_t* bsonP)
+CorNode* mongocBsonToTree(CorAlloc* kaP, const bson_t* bsonP)
 {
   //
-  // Create a local CorJson backed by the KAlloc
+  // Create a local CorJson backed by the CorAlloc
   //
-  KAlloc*       allocP = kaP;
+  CorAlloc*     allocP = kaP;
 
   CorNode*     treeP = corTreeObject(allocP, NULL);
   bson_iter_t  iter;

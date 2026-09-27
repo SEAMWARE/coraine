@@ -29,7 +29,7 @@
 #include <string.h>                                  // strcmp
 
 #include "corLog/corLog.h"                           // COR_E, COR_T
-#include "kalloc/kaStrdup.h"                         // kaStrdup
+#include "corAlloc/corAllocStrdup.h"                 // corAllocStrdup
 
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/corTreeBuilder.h"                   // corTreeChildRemove
@@ -67,7 +67,7 @@ void dbExpiredEntityDefer(Tenant* tenantP, const char* entityId)
     return;
 
   corNgsild.expiredV[corNgsild.expiredN].tenantP  = tenantP;
-  corNgsild.expiredV[corNgsild.expiredN].entityId = kaStrdup(&corRest.kalloc, entityId);
+  corNgsild.expiredV[corNgsild.expiredN].entityId = corAllocStrdup(&corRest.kalloc, entityId);
   corNgsild.expiredN++;
 }
 

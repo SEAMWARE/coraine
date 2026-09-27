@@ -6,7 +6,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kargs/KArg.h"                              // KArg, _vp, KARGS_END
+#include "corArgs/CorArg.h"                          // CorArg, _vp, CORARGS_END
 
 #include "currentState/mongoc/mongocGlobals.h"                      // Own interface
 
@@ -49,15 +49,15 @@ char            mongocUriString[512] = { 0 };
 //
 // mongocArgV - plugin-contributed CLI args
 //
-KArg mongocArgV[] =
+CorArg mongocArgV[] =
 {
-  { "--dbHost", "-dbHost", KaString, _vp &mongocDbHost, KaOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
-  { "--dbName", "-dbName", KaString, _vp &mongocDbName, KaOpt, _vp "cor",  NULL,  NULL,      "database name"         },
-  { "--globalDb", "-globalDb", KaString, _vp &mongocGlobalDb, KaOpt, _vp "coraine", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
-  { "--dbPort", "-dbPort", KaUShort, _vp &mongocDbPort, KaOpt, _vp 27017,       _vp 1, _vp 65535, "database server port"  },
-  { "--dbUser", "-dbUser", KaString, _vp &mongocDbUser, KaOpt, NULL,            NULL,  NULL,      "database user"         },
-  { "--dbPwd",  "-dbPwd",  KaString, _vp &mongocDbPwd,  KaOpt, NULL,            NULL,  NULL,      "database password"     },
-  { "--dbURI",     "-dbURI",     KaString, _vp &mongocDbURI,     KaOpt, NULL,      NULL,  NULL,      "full database URI"              },
-  { "--dbTimeout", "-dbTimeout", KaUShort, _vp &mongocDbTimeout, KaOpt, _vp 30,    _vp 1, _vp 3600,  "database connection timeout (s)" },
-  KARGS_END
+  { "--dbHost", "-dbHost", CorArgString, _vp &mongocDbHost, CorArgOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
+  { "--dbName", "-dbName", CorArgString, _vp &mongocDbName, CorArgOpt, _vp "cor",  NULL,  NULL,      "database name"         },
+  { "--globalDb", "-globalDb", CorArgString, _vp &mongocGlobalDb, CorArgOpt, _vp "coraine", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
+  { "--dbPort", "-dbPort", CorArgUShort, _vp &mongocDbPort, CorArgOpt, _vp 27017,   _vp 1, _vp 65535, "database server port"  },
+  { "--dbUser", "-dbUser", CorArgString, _vp &mongocDbUser, CorArgOpt, NULL,    NULL,  NULL,      "database user"         },
+  { "--dbPwd",  "-dbPwd",  CorArgString, _vp &mongocDbPwd,  CorArgOpt, NULL,        NULL,  NULL,      "database password"     },
+  { "--dbURI",     "-dbURI",     CorArgString, _vp &mongocDbURI, CorArgOpt, NULL,  NULL,  NULL,      "full database URI"              },
+  { "--dbTimeout", "-dbTimeout", CorArgUShort, _vp &mongocDbTimeout, CorArgOpt, _vp 30,    _vp 1, _vp 3600,  "database connection timeout (s)" },
+  CORARGS_END
 };

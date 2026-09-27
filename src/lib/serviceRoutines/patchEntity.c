@@ -21,7 +21,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
@@ -114,7 +114,7 @@ static char* mergeUrl(const char* endpoint, const char* entityId)
   if (lang != NULL)  qLen += 1 + 5 + strlen(lang);          // "&lang=" + value
   if (obs  != NULL)  qLen += 1 + 11 + strlen(obs);          // "&observedAt=" + value
 
-  char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qLen + 1);
+  char* url = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qLen + 1);
   char* p   = url;
 
   memcpy(p, endpoint, baseLen);  p += baseLen;
@@ -158,7 +158,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   bufSize = corJsonFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
 
   corJsonFastRender(fragP, buf);
   return buf;

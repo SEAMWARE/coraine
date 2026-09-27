@@ -13,7 +13,7 @@
 
 #include "corRest/CorRestState.h"                          // corRest
 
-#include "kalloc/kaAlloc.h"                              // kaAlloc
+#include "corAlloc/corAlloc.h"                           // corAlloc
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corTree/corTreeBuilder.h"                      // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd, corTreeChildRemove
@@ -97,8 +97,8 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
       if (corTreeLookup(selP, "type") != NULL) typeCap++;
     }
 
-    char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
-    char** typeV = (typeCap > 0) ? (char**) kaAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
+    char** idV   = (idCap   > 0) ? (char**) corAlloc(&corRest.kalloc, (idCap  + 1) * sizeof(char*)) : NULL;
+    char** typeV = (typeCap > 0) ? (char**) corAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
     int    nId = 0, nType = 0;
     const char* idPattern = NULL;
 

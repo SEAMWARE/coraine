@@ -1166,14 +1166,14 @@ typedef struct BridgeDriver
                                 //   applying at the first release.)
   const char*   alias;          // "dds"  / "opcua" / …
   const char*   pluginVersion;  // free-form plugin build version
-  KArg*         args;           // plugin-specific CLI args
+  CorArg*         args;         // plugin-specific CLI args
 
   // URI schemes this plugin handles. The dispatcher matches an endpoint
   // by scheme prefix — a CSR's endpoint for an NGSI-LD peer, a
   // Channel's for a foreign one. NULL-terminated.
   const char**  uriSchemes;
 
-  // Lifecycle. init runs once at broker startup after kargsParse, and
+  // Lifecycle. init runs once at broker startup after corArgsParse, and
   // brings the transport up — it receives the Bridge config (domain,
   // QoS, threads, typesDirectory for DDS). close runs at shutdown.
   // Plugin owns its own threads between.
@@ -1508,7 +1508,7 @@ out to NGSI-LD service routines. See §7.
 // corBridge/BridgeBroker.h
 //
 // Functions a bridge plugin may call on its own thread. Each call
-// initialises the per-thread broker state (kalloc / FaAlloc, http
+// initialises the per-thread broker state (corAlloc / FaAlloc, http
 // allocator, tenant pointer) before running through the normal hooks,
 // so subscriptions / TRoE / metrics fire as if the update had arrived
 // over REST.
@@ -1555,7 +1555,7 @@ Implementation notes:
   be published straight back out of the transport it came from; the flag
   is what makes that decidable at the dispatcher.
 - Threads created by plugins MUST call a `bridgeThreadInit(pluginP)`
-  before any other broker API. Initialises kalloc, http allocator,
+  before any other broker API. Initialises corAlloc, http allocator,
   tenant lookup. This is the broker-wide rule for any new pthread, not
   something the bridge family invents. The
   init function is wired through the broker API header.

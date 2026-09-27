@@ -13,8 +13,8 @@
 
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corTree/CorNode.h"                         // CorNode
-#include "kalloc/KAlloc.h"                           // KAlloc
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "kbase/kStringInArray.h"                    // kStringInArray
 #include "corJsonld/corLdExpand.h"                     // corLdExpand, corLdAlreadyExpanded
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -64,7 +64,7 @@ static bool attrSetsOverlap(char** attrsA, char** attrsB)
 // stored expanded (ldRegCache.c attrIRIArrayExtract) so we expand the new
 // reg's names on-the-fly to compare apples-to-apples.
 //
-static char** attrIRIArray(CorNode* arrP, KAlloc* allocP)
+static char** attrIRIArray(CorNode* arrP, CorAlloc* allocP)
 {
   if (arrP == NULL || arrP->type != CorArray)
     return NULL;
@@ -77,7 +77,7 @@ static char** attrIRIArray(CorNode* arrP, KAlloc* allocP)
   if (count == 0)
     return NULL;
 
-  char** v = (char**) kaAlloc(allocP, (count + 1) * sizeof(char*));
+  char** v = (char**) corAlloc(allocP, (count + 1) * sizeof(char*));
   int    ix = 0;
   for (CorNode* sP = arrP->value.head; sP != NULL; sP = sP->next)
   {
@@ -269,7 +269,7 @@ LdRegMode regModeOf(CorNode* regP)
 //
 // Auxiliary + inclusive regs: spec defines no creation conflicts; skip.
 //
-bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP)
+bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, CorAlloc* allocP)
 {
   if (newMode != LdRegModeExclusive && newMode != LdRegModeRedirect)
     return false;

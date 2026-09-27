@@ -41,7 +41,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
 #include "corTree/corTreeClone.h"                    // corTreeClone
@@ -77,7 +77,7 @@
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 
-#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_BAD_INPUT
 #include "db/Tenant.h"                               // Tenant
 
@@ -132,7 +132,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   }
 
   int   bufSize = corJsonFastRenderSize(batchArr) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(batchArr, buf);
   return buf;
 }
@@ -233,7 +233,7 @@ static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
   if (*aN >= *aCap)
   {
     int newCap = (*aCap == 0) ? 4 : *aCap * 2;
-    CsrAccum* newV = (CsrAccum*) kaAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
+    CsrAccum* newV = (CsrAccum*) corAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
     for (int i = 0; i < *aN; i++) newV[i] = (*aV)[i];
     *aV   = newV;
     *aCap = newCap;
@@ -255,8 +255,8 @@ static void csrAccumAppend(CsrAccum* a, CorNode* fragP, const char* id)
   if (a->count >= a->capacity)
   {
     int newCap = (a->capacity == 0) ? 4 : a->capacity * 2;
-    CorNode**    newF  = (CorNode**)    kaAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
-    const char** newId = (const char**) kaAlloc(&corRest.kalloc, newCap * sizeof(char*));
+    CorNode**    newF  = (CorNode**)    corAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
+    const char** newId = (const char**) corAlloc(&corRest.kalloc, newCap * sizeof(char*));
     for (int i = 0; i < a->count; i++)
     {
       newF[i]  = a->fragV[i];
@@ -450,8 +450,8 @@ bool postEntityBatchMerge(void)
   // and the fragment list flat; same-id duplicates are applied in order
   // by the DB plugin.
   //
-  CorNode**    fragV   = (CorNode**)    kaAlloc(&corRest.kalloc, sizeof(CorNode*) * total);
-  const char** idV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*)  * total);
+  CorNode**    fragV   = (CorNode**)    corAlloc(&corRest.kalloc, sizeof(CorNode*) * total);
+  const char** idV     = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * total);
   int          fragN   = 0;
 
   for (CorNode* inP = bodyP->value.head; inP != NULL; inP = inP->next)
@@ -585,13 +585,13 @@ bool postEntityBatchMerge(void)
   int       csrAccumsCap = 0;
 
   CorNode*     localFragsArr = corTreeArray(corRest.kallocP, NULL);
-  const char** localIdV      = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * fragN);
+  const char** localIdV      = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * fragN);
   int          localN        = 0;
 
   // anySuccessV: per unique id flag — true if any local or distop succeeded for that id.
   // Unique ids live in uniqueIdV; uniqueIdN is the count.
-  const char** uniqueIdV  = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * fragN);
-  bool*        anySuccessV = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * fragN);
+  const char** uniqueIdV  = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * fragN);
+  bool*        anySuccessV = (bool*)        corAlloc(&corRest.kalloc, sizeof(bool) * fragN);
   int          uniqueIdN  = 0;
 
   for (int i = 0; i < fragN; i++)
@@ -656,9 +656,9 @@ bool postEntityBatchMerge(void)
   // Pass 3 — concurrent distops forward per CSR via ldDistOpSendMulti.
   //
   {
-    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
     memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
     int                  bIdx[csrAccumsN];
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
@@ -692,7 +692,7 @@ bool postEntityBatchMerge(void)
         corTreeChildAdd(batchArr, a->fragV[i]);
 
       int   baseLen = strlen(csr->endpoint);
-      char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
+      char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
       strcpy(url, csr->endpoint);
       strcpy(url + baseLen, batchPath);
 
@@ -725,7 +725,7 @@ bool postEntityBatchMerge(void)
           }
         }
 
-        bool* groupOk = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * a->count);
+        bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * a->count);
         for (int k = 0; k < a->count; k++) groupOk[k] = false;
 
         applyRemoteBatchResult(bResults[bi].statusCode, respTreeP, bItems[bi].csr->regId,
@@ -761,12 +761,12 @@ bool postEntityBatchMerge(void)
       return true;
     }
 
-    int*            resultsV    = (int*)            kaAlloc(&corRest.kalloc, sizeof(int)             * localN);
-    LdMergeReport*  reportsV    = (LdMergeReport*)  kaAlloc(&corRest.kalloc, sizeof(LdMergeReport)   * localN);
-    CorNode**       snapshotsV  = (CorNode**)       kaAlloc(&corRest.kalloc, sizeof(CorNode*)        * localN);
-    CorNode**       targetsV    = (CorNode**)       kaAlloc(&corRest.kalloc, sizeof(CorNode*)        * localN);
+    int*            resultsV    = (int*)            corAlloc(&corRest.kalloc, sizeof(int)            * localN);
+    LdMergeReport*  reportsV    = (LdMergeReport*)  corAlloc(&corRest.kalloc, sizeof(LdMergeReport)  * localN);
+    CorNode**       snapshotsV  = (CorNode**)       corAlloc(&corRest.kalloc, sizeof(CorNode*)       * localN);
+    CorNode**       targetsV    = (CorNode**)       corAlloc(&corRest.kalloc, sizeof(CorNode*)       * localN);
     bool            requestsFirst    = (channelOutCount() > 0);
-    BridgeSyncDone** doneV      = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN) : NULL;   // nothing without a bridge
+    BridgeSyncDone** doneV      = (requestsFirst == true) ? (BridgeSyncDone**) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN) : NULL;  // nothing without a bridge
 
     for (int k = 0; k < localN; k++)
     {
@@ -808,7 +808,7 @@ bool postEntityBatchMerge(void)
         if (targetsV[fk] == NULL)
           continue;
 
-        doneV[fk] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        doneV[fk] = (BridgeSyncDone*) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[fk], 0, sizeof(BridgeSyncDone));
 
         bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, doneV[fk]);
@@ -865,7 +865,7 @@ bool postEntityBatchMerge(void)
         const char* fid  = (fidP != NULL && fidP->type == CorString) ? fidP->value.s : "";
         int         st   = (corRest.out.httpStatusCode >= 400) ? corRest.out.httpStatusCode : 400;
         addBatchError(errorsP, fid, st, corRest.out.problemType, corRest.out.problemTitle,
-                      kaStrdup(&corRest.kalloc, corRest.out.problemDetail), NULL);
+                      corAllocStrdup(&corRest.kalloc, corRest.out.problemDetail), NULL);
         resultsV[fi] = DB_BAD_INPUT;   // != DB_OK → bulk write skips; switch skips (already reported)
         continue;
       }

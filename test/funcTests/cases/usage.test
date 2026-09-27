@@ -34,7 +34,7 @@ usage
 # for its own invocations rather than reporting whatever the environment had.
 #
 # -U used to SEGFAULT before printing a single line: its column-width helper
-# ran strlen() over every longName, and a KARGS_SEPARATOR (the section headings
+# ran strlen() over every longName, and a CORARGS_SEPARATOR (the section headings
 # in the -u listing) legitimately has none. Separators are skipped here — they
 # head a section of the plain listing and have no columns to fill — and every
 # field is padded as a unit, so the columns actually line up.

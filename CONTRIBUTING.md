@@ -41,7 +41,7 @@ message says *why*, not only *what*.
 
 C style for the whole stack — the k-libs, the Cor-Libs and the broker — is one
 document: [`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md)
-in the `corLibs` umbrella. It covers includes, layout, naming, the kalloc arenas,
+in the `corLibs` umbrella. It covers includes, layout, naming, the corAlloc arenas,
 the corTree rules and the concurrency invariants.
 
 Read at least the first section before a first pull request. Every rule in it is

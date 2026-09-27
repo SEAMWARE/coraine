@@ -34,8 +34,8 @@
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeChildAdd
 #include "corJson/corJsonRender.h"                        // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                    // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                               // kaAlloc
-#include "kalloc/kaStrdup.h"                              // kaStrdup
+#include "corAlloc/corAlloc.h"                            // corAlloc
+#include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
 
 #include "corRest/CorRestState.h"                           // corRest
 
@@ -609,13 +609,13 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
       v_text = valueP->value.s;
     else if (valueP->type == CorInt)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 32);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 32);
       snprintf(buf, 32, "%lld", (long long) valueP->value.i);
       v_number = buf;
     }
     else if (valueP->type == CorFloat)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, "%.17g", valueP->value.f);
       v_number = buf;
     }
@@ -626,7 +626,7 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
     else if (valueP->type == CorObject || valueP->type == CorArray)
     {
       int   sz  = corJsonFastRenderSize(valueP) + 1;
-      char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
+      char* buf = (char*) corAlloc(&corRest.kalloc, sz);
       corJsonFastRender(valueP, buf);
       v_compnd = buf;
     }

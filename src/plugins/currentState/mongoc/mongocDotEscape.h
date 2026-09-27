@@ -12,7 +12,7 @@
 // MongoDB does not allow '.' in field names.
 // These functions convert between regular dots and fullwidth period U+FF0E.
 //
-#include "kalloc/KAlloc.h"                               // KAlloc
+#include "corAlloc/CorAlloc.h"                           // CorAlloc
 
 
 
@@ -32,6 +32,6 @@ extern const char* mongocEscapeDotsInKey(const char* key);
 //
 // Returns the original key if no fullwidth periods, or a kaP-allocated copy.
 //
-extern const char* mongocUnescapeDotsInKey(KAlloc* kaP, const char* key);
+extern const char* mongocUnescapeDotsInKey(CorAlloc* kaP, const char* key);
 
 #endif  // MONGOC_MONGOCDOTESCAPE_H_

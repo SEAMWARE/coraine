@@ -39,7 +39,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
 
@@ -114,7 +114,7 @@ static char* renderTemporalFragment(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   bufSize = corJsonFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(fragP, buf);
   return buf;
 }
@@ -212,7 +212,7 @@ bool postEntitiesTemporal(void)
         typeCount++;
     }
 
-    char**  typeArr = (char**) kaAlloc(&corRest.kalloc, sizeof(char*) * (typeCount + 1));
+    char**  typeArr = (char**) corAlloc(&corRest.kalloc, sizeof(char*) * (typeCount + 1));
     int     tIx     = 0;
 
     if (typeP->type == CorArray)
@@ -254,9 +254,9 @@ bool postEntitiesTemporal(void)
       for (int i = 0; i < counts[g]; i++)
         for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -305,7 +305,7 @@ bool postEntitiesTemporal(void)
 
           int baseLen = strlen(csr->endpoint);
           int pathLen = strlen(tpath);
-          char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
+          char* url   = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
           char* body = renderTemporalFragment(fragP);
@@ -408,7 +408,7 @@ bool postEntitiesTemporal(void)
     {
       const char* prefix = "/ngsi-ld/v1/temporal/entities/";
       int   locLen = (int) strlen(prefix) + (int) strlen(entityId) + 1;
-      char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
+      char* locBuf = (char*) corAlloc(&corRest.kalloc, locLen);
       strcpy(locBuf, prefix);
       strcat(locBuf, entityId);
       corRestOutHeaderAdd("Location", locBuf);

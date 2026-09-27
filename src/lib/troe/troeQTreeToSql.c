@@ -13,7 +13,7 @@
 #include <string.h>                                   // strlen, memcpy, strchr, strrchr
 #include <stdbool.h>                                  // bool
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/LdQ.h"                             // LdQNode
 
@@ -113,7 +113,7 @@ static int jsonbPath(LdQTerm* tP, char* dst, int max)
 // refuse the query rather than run it unfiltered — an ignored filter answers
 // with entities that do not match, which is worse than an error.
 //
-static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
+static const char* termToSql(LdQTerm* tP, CorAlloc* allocP)
 {
   char attrEsc[1024];
   escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
@@ -141,7 +141,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
     }
 
     int   sz  = (int) strlen(attrEsc) + (int) strlen(pathBuf) + 192;
-    char* buf = (char*) kaAlloc(allocP, sz);
+    char* buf = (char*) corAlloc(allocP, sz);
 
     if (observedAtPath)
       snprintf(buf, sz,
@@ -356,7 +356,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
   }
 
   int   sz  = (int) strlen(attrEsc) + (int) strlen(guard) + (int) strlen(cond) + 128;
-  char* buf = (char*) kaAlloc(allocP, sz);
+  char* buf = (char*) corAlloc(allocP, sz);
   snprintf(buf, sz,
            "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s%s)",
            attrEsc, guard, cond);
@@ -369,7 +369,7 @@ static const char* termToSql(LdQTerm* tP, KAlloc* allocP)
 //
 // nodeToSql - recursive walker.
 //
-static const char* nodeToSql(LdQNode* qP, KAlloc* allocP)
+static const char* nodeToSql(LdQNode* qP, CorAlloc* allocP)
 {
   if (qP == NULL) return NULL;
 
@@ -384,7 +384,7 @@ static const char* nodeToSql(LdQNode* qP, KAlloc* allocP)
     const char* sep = (qP->type == LdQAndNode) ? " AND " : " OR ";
 
     // Compile children first to know total size.
-    const char** parts = (const char**) kaAlloc(allocP, sizeof(char*) * qP->group.count);
+    const char** parts = (const char**) corAlloc(allocP, sizeof(char*) * qP->group.count);
     int totalLen = 4;  // "(" + ")" + slack
     for (int i = 0; i < qP->group.count; i++)
     {
@@ -393,7 +393,7 @@ static const char* nodeToSql(LdQNode* qP, KAlloc* allocP)
       totalLen += (int) strlen(parts[i]) + (int) strlen(sep);
     }
 
-    char* buf = (char*) kaAlloc(allocP, totalLen);
+    char* buf = (char*) corAlloc(allocP, totalLen);
     int   p   = 0;
     buf[p++] = '(';
     for (int i = 0; i < qP->group.count; i++)
@@ -422,7 +422,7 @@ static const char* nodeToSql(LdQNode* qP, KAlloc* allocP)
 //
 // troeQTreeToSql -
 //
-const char* troeQTreeToSql(LdQNode* qTree, KAlloc* allocP)
+const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP)
 {
   return nodeToSql(qTree, allocP);
 }

@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kargs/KArg.h"                              // KArg
+#include "corArgs/CorArg.h"                          // CorArg
 
 
 
@@ -33,6 +33,6 @@ extern char            mongocUriString[512];   // the connection URI as built by
 //
 // mongocArgV - plugin-contributed CLI args
 //
-extern KArg mongocArgV[];
+extern CorArg mongocArgV[];
 
 #endif  // MONGOC_MONGOCGLOBALS_H_

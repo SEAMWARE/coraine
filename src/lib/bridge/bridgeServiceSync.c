@@ -15,7 +15,7 @@
 #include <string.h>                                   // strcmp, strdup
 #include <time.h>                                     // clock_gettime
 
-#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
@@ -428,7 +428,7 @@ static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* at
   {
     doneP->failedAttrV[doneP->failedN]   = attrP->name;
     doneP->failedStatusV[doneP->failedN] = status;
-    doneP->failedReasonV[doneP->failedN] = kaStrdup(&corRest.kalloc, reason);
+    doneP->failedReasonV[doneP->failedN] = corAllocStrdup(&corRest.kalloc, reason);
     doneP->failedTitleV[doneP->failedN]  = title;
     doneP->failedTypeV[doneP->failedN]   = type;
     doneP->failedN++;
@@ -465,7 +465,7 @@ static bool goalNotTaken(BridgeSyncDone* doneP, CorNode* fragmentP, int ix, int 
   if (doneP->failedN < BRIDGE_SYNC_MAX)
   {
     int   len = strlen(reason) + 20;
-    char* buf = (char*) kaAlloc(&corRest.kalloc, len);
+    char* buf = (char*) corAlloc(&corRest.kalloc, len);
 
     snprintf(buf, len, "%s - not written", reason);
 
@@ -627,7 +627,7 @@ static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedT
   doneP->detachedV[doneP->count]     = detachedToken;
   doneP->goalV[doneP->count]         = goalToken;
   doneP->goalAttrV[doneP->count]     = goalAttrP;
-  doneP->goalRequestV[doneP->count]  = (goalRequest != NULL) ? kaStrdup(&corRest.kalloc, goalRequest) : NULL;
+  doneP->goalRequestV[doneP->count]  = (goalRequest != NULL) ? corAllocStrdup(&corRest.kalloc, goalRequest) : NULL;
   doneP->goalIdV[doneP->count]       = NULL;
   doneP->count++;
 
@@ -1173,7 +1173,7 @@ void bridgeRequestsWritten(const BridgeSyncDone* doneP)
     if (doneP->goalV[ix] == 0)
       continue;
 
-    GoalRelease* relP = (GoalRelease*) kaAlloc(&corRest.kalloc, sizeof(GoalRelease));
+    GoalRelease* relP = (GoalRelease*) corAlloc(&corRest.kalloc, sizeof(GoalRelease));
 
     if (relP == NULL)
     {
@@ -1198,7 +1198,7 @@ void bridgeRequestsWritten(const BridgeSyncDone* doneP)
     if (doneP->detachedV[ix] == 0)
       continue;
 
-    GoalRelease* relP = (GoalRelease*) kaAlloc(&corRest.kalloc, sizeof(GoalRelease));
+    GoalRelease* relP = (GoalRelease*) corAlloc(&corRest.kalloc, sizeof(GoalRelease));
 
     if (relP == NULL)
     {

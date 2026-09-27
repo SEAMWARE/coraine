@@ -17,7 +17,7 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbPost
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
@@ -99,7 +99,7 @@ static char* attrsUrl(const char* endpoint, const char* entityId, bool noOverwri
   int         idLen   = strlen(entityId);
   int         sufLen  = strlen(suffix);
   int         qsLen   = strlen(qs);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc,
+  char*       url     = (char*) corAlloc(&corRest.kalloc,
                                          baseLen + pathLen + idLen + sufLen + qsLen + 1);
   char*       p       = url;
   memcpy(p, endpoint, baseLen); p += baseLen;
@@ -125,7 +125,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   bufSize = corJsonFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(fragP, buf);
   return buf;
 }
@@ -323,10 +323,10 @@ bool postEntityAttrs(void)
       for (int i = 0; i < counts[g]; i++)
         for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    CorNode**            itemFrag = (CorNode**) kaAlloc(&corRest.kalloc, total * sizeof(CorNode*));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    CorNode**            itemFrag = (CorNode**) corAlloc(&corRest.kalloc, total * sizeof(CorNode*));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 

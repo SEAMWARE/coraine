@@ -36,7 +36,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
@@ -119,7 +119,7 @@ static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
   if (*aN >= *aCap)
   {
     int newCap = (*aCap == 0) ? 4 : *aCap * 2;
-    CsrAccum* newV = (CsrAccum*) kaAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
+    CsrAccum* newV = (CsrAccum*) corAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
     for (int i = 0; i < *aN; i++) newV[i] = (*aV)[i];
     *aV   = newV;
     *aCap = newCap;
@@ -140,7 +140,7 @@ static void csrAccumAppend(CsrAccum* a, const char* id)
   if (a->count >= a->capacity)
   {
     int newCap = (a->capacity == 0) ? 4 : a->capacity * 2;
-    const char** newV = (const char**) kaAlloc(&corRest.kalloc, newCap * sizeof(char*));
+    const char** newV = (const char**) corAlloc(&corRest.kalloc, newCap * sizeof(char*));
     for (int i = 0; i < a->count; i++) newV[i] = a->idV[i];
     a->idV      = newV;
     a->capacity = newCap;
@@ -284,7 +284,7 @@ bool postEntityBatchDelete(void)
   //
   // Pass 1 — validate each entry is a URI string, collect ids.
   //
-  const char** idV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * total);
+  const char** idV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * total);
   int          n   = 0;
 
   for (CorNode* inP = bodyP->value.head; inP != NULL; inP = inP->next)
@@ -340,7 +340,7 @@ bool postEntityBatchDelete(void)
     dispatch = false;
 
   // anySuccessV: per-id overall-success flag (local OR any distop).
-  bool* anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * n);
+  bool* anySuccessV = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * n);
   for (int i = 0; i < n; i++) anySuccessV[i] = false;
 
   //
@@ -368,9 +368,9 @@ bool postEntityBatchDelete(void)
   // Pass 3 — concurrent distops forward per CSR via ldDistOpSendMulti.
   //
   {
-    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
     memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
     int                  bIdx[csrAccumsN];
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
@@ -400,7 +400,7 @@ bool postEntityBatchDelete(void)
       }
 
       int   baseLen = strlen(csr->endpoint);
-      char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
+      char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
       strcpy(url, csr->endpoint);
       strcpy(url + baseLen, batchPath);
 
@@ -408,7 +408,7 @@ bool postEntityBatchDelete(void)
       for (int i = 0; i < a->count; i++)
         corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, (char*) a->idV[i]));
       int   bufSize = corJsonFastRenderSize(arr) + 1;
-      char* body    = (char*) kaAlloc(&corRest.kalloc, bufSize);
+      char* body    = (char*) corAlloc(&corRest.kalloc, bufSize);
       corJsonFastRender(arr, body);
 
       bItems[bCount].csr     = csr;
@@ -438,7 +438,7 @@ bool postEntityBatchDelete(void)
           }
         }
 
-        bool* groupOk = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * a->count);
+        bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * a->count);
         for (int k = 0; k < a->count; k++) groupOk[k] = false;
 
         applyRemoteBatchResult(bResults[bi].statusCode, respTreeP, bItems[bi].csr->regId,
@@ -470,8 +470,8 @@ bool postEntityBatchDelete(void)
     return true;
   }
 
-  int*     resultsV   = (int*)     kaAlloc(&corRest.kalloc, sizeof(int)     * n);
-  CorNode** snapshotsV = (CorNode**) kaAlloc(&corRest.kalloc, sizeof(CorNode*) * n);
+  int*     resultsV   = (int*)     corAlloc(&corRest.kalloc, sizeof(int)    * n);
+  CorNode** snapshotsV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * n);
   for (int i = 0; i < n; i++)
   {
     resultsV[i]   = DB_NOT_FOUND;
@@ -504,7 +504,7 @@ bool postEntityBatchDelete(void)
             CorNode* tn = corTreeLookup(snapshotsV[i], "type");
             if (tn != NULL && tn->type == CorString) etype = tn->value.s;
           }
-          TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+          TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(tevP, 0, sizeof(*tevP));
           tevP->op             = TroeOpEntityDeleted;
           tevP->tenantP        = tenantP;

@@ -16,8 +16,8 @@
 #include <time.h>                                      // clock_gettime
 
 #include "corLog/corLog.h"                             // COR_E
-#include "kalloc/KAlloc.h"                             // KAlloc
-#include "kalloc/kaAlloc.h"                            // kaAlloc
+#include "corAlloc/CorAlloc.h"                         // CorAlloc
+#include "corAlloc/corAlloc.h"                         // corAlloc
 
 #include "corRest/corRestClient.h"                       // CorRestClientRequest, corRestClientSend, ...
 #include "corNgsild/LdForwarding.h"                     // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
@@ -33,14 +33,14 @@
 //
 // strdupInto - copy a NUL-terminated string into the response arena
 //
-static char* strdupInto(KAlloc* allocP, const char* s)
+static char* strdupInto(CorAlloc* allocP, const char* s)
 {
   if (s == NULL) return NULL;
 
   int len = 0;
   while (s[len] != 0) len++;
 
-  char* dst = (char*) kaAlloc(allocP, len + 1);
+  char* dst = (char*) corAlloc(allocP, len + 1);
   if (dst == NULL) return NULL;
 
   for (int i = 0; i <= len; i++)
@@ -55,11 +55,11 @@ static char* strdupInto(KAlloc* allocP, const char* s)
 //
 // memdupInto - copy a byte buffer (possibly with embedded NULs) into the arena
 //
-static char* memdupInto(KAlloc* allocP, const char* src, int len)
+static char* memdupInto(CorAlloc* allocP, const char* src, int len)
 {
   if (src == NULL || len <= 0) return NULL;
 
-  char* dst = (char*) kaAlloc(allocP, len + 1);
+  char* dst = (char*) corAlloc(allocP, len + 1);
   if (dst == NULL) return NULL;
 
   for (int i = 0; i < len; i++)
@@ -129,7 +129,7 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
   resp->headerCount = cResp.headerCount;
   if (cResp.headerCount > 0)
   {
-    resp->headerV = (CorRestKeyValue*) kaAlloc(resp->allocP, cResp.headerCount * sizeof(CorRestKeyValue));
+    resp->headerV = (CorRestKeyValue*) corAlloc(resp->allocP, cResp.headerCount * sizeof(CorRestKeyValue));
     for (int i = 0; i < cResp.headerCount; i++)
     {
       resp->headerV[i].key   = strdupInto(resp->allocP, cResp.headerV[i].key);

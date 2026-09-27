@@ -9,7 +9,7 @@
 #include <stddef.h>                               // NULL
 #include <string.h>                               // strcmp
 
-#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeBoolean, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 #include "corLog/corLogGlobals.h"                 // corLogVerbose, corLogDebug, corLogInfo
@@ -57,7 +57,7 @@ static int boolFromOnOff(const char* s)
 //
 bool adminGetLog(void)
 {
-  KAlloc*     allocP = corRest.kallocP;
+  CorAlloc*   allocP = corRest.kallocP;
   CorNode*    root   = corTreeObject(allocP, NULL);
   const char* levels = corLogTraceLevelGet();
 

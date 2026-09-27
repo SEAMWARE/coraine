@@ -33,13 +33,13 @@
 //
 
 #include "corNgsild/LdQ.h"                                 // LdQNode
-#include "kalloc/KAlloc.h"                                // KAlloc
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
 
 
 //
 // Compile qTree → SQL WHERE fragment. Returns NULL when the tree uses
 // an unsupported feature (caller falls back: skip the precondition).
 //
-extern const char* troeQTreeToSql(LdQNode* qTree, KAlloc* allocP);
+extern const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP);
 
 #endif  // TROE_TROEQTREETOSQL_H_

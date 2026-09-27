@@ -12,7 +12,7 @@
 #include <string.h>                                  // strcmp, strlen, strcpy
 
 #include "corLog/corLog.h"                           // COR_T
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonParse.h"                    // corJsonParse
@@ -31,8 +31,8 @@
 #include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "corNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "corNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
-#include "kalloc/kaStrdup.h"                        // kaStrdup
-#include "kalloc/KAlloc.h"                           // KAlloc
+#include "corAlloc/corAllocStrdup.h"                // corAllocStrdup
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
@@ -215,7 +215,7 @@ static void applyResultFilters(CorNode* arrayP)
 // (pickV and ldQAttrs results are already in the arena), expanded on
 // demand for the geo property short-name fallback.
 //
-static char** computeWantedAttrs(KAlloc* kaP)
+static char** computeWantedAttrs(CorAlloc* kaP)
 {
   // `attrs` (the deprecated selection+projection alias) narrows the
   // forward exactly like pick does — the per-source projection is safe
@@ -241,7 +241,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
   bool acceptGeoJson  = (corAcceptParse(corRest.in.accept) == CorMimeGeoJson);
 
   int cap = pickN + qN + 2 + corNgsild.orderByCount;
-  char** wanted = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
+  char** wanted = (char**) corAlloc(kaP, (cap + 1) * sizeof(char*));
   int    n      = 0;
 
   // Helper: append if not already present (linear dedupe; n always small)
@@ -318,7 +318,7 @@ static char** computeWantedAttrs(KAlloc* kaP)
 // `ctx` MUST NOT be NULL — callers ensure that (e.g. CSR's forwardCtxP
 // is initialised to core at registration time).
 //
-static const char* compactForUrl(CorLdContext* ctx, const char* iri, KAlloc* kaP)
+static const char* compactForUrl(CorLdContext* ctx, const char* iri, CorAlloc* kaP)
 {
   if (iri == NULL || iri[0] == 0)
     return "";
@@ -331,7 +331,7 @@ static const char* compactForUrl(CorLdContext* ctx, const char* iri, KAlloc* kaP
 }
 
 
-static const char* buildPickParam(char** vec, KAlloc* kaP, CorLdContext* csrCtx)
+static const char* buildPickParam(char** vec, CorAlloc* kaP, CorLdContext* csrCtx)
 {
   if (vec == NULL || vec[0] == NULL)
     return "";
@@ -346,7 +346,7 @@ static const char* buildPickParam(char** vec, KAlloc* kaP, CorLdContext* csrCtx)
   }
   totalLen += sizeof("id,type,scope,");  // upper bound on the appended suffix
 
-  char* buf = (char*) kaAlloc(kaP, 6 + totalLen + 1);
+  char* buf = (char*) corAlloc(kaP, 6 + totalLen + 1);
   strcpy(buf, "&pick=");
   int pos = 6;
   for (int i = 0; vec[i] != NULL; i++)
@@ -380,7 +380,7 @@ static const char* buildPickParam(char** vec, KAlloc* kaP, CorLdContext* csrCtx)
 // Returns the rendered "&pick=A,B,C" fragment, "" when no pick should
 // be sent (source exports everything AND user wants everything).
 //
-static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, bool* outSkipP, CorLdContext* csrCtx)
+static const char* intersectAndPick(char** exportV, char** wanted, CorAlloc* kaP, bool* outSkipP, CorLdContext* csrCtx)
 {
   *outSkipP = false;
 
@@ -404,7 +404,7 @@ static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, 
   while (wanted[wantedN] != NULL)
     wantedN++;
 
-  char** narrowed = (char**) kaAlloc(kaP, (wantedN + 1) * sizeof(char*));
+  char** narrowed = (char**) corAlloc(kaP, (wantedN + 1) * sizeof(char*));
   int    nN       = 0;
 
   for (int w = 0; w < wantedN; w++)
@@ -441,7 +441,7 @@ static const char* intersectAndPick(char** exportV, char** wanted, KAlloc* kaP, 
 // allocated in kaP, or NULL when the CSR has no restriction at all
 // (every info entry has attributeNamesV == NULL).
 //
-static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
+static char** csrUnionExports(LdRegCacheItem* csr, CorAlloc* kaP)
 {
   // Worst-case capacity
   int cap = 0;
@@ -457,7 +457,7 @@ static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
   if (!anyRestricts)
     return NULL;
 
-  char** out = (char**) kaAlloc(kaP, (cap + 1) * sizeof(char*));
+  char** out = (char**) corAlloc(kaP, (cap + 1) * sizeof(char*));
   int    n   = 0;
   for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
   {
@@ -596,7 +596,7 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   int pathLen = strlen(path);
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
-  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + 1);
+  char* url   = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
@@ -660,7 +660,7 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 // when EVERY type-matching EntityInfo is id-specific (one id-less or
 // idPattern entry means the source legitimately holds more).
 //
-static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
+static const char* csrPinnedIdsParam(LdRegCacheItem* csr, CorAlloc* kaP)
 {
   if (corNgsild.id != NULL && corNgsild.id[0] != 0)
     return "";
@@ -668,7 +668,7 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
     return "";
 
   int   cap  = 512;
-  char* buf  = (char*) kaAlloc(kaP, cap);
+  char* buf  = (char*) corAlloc(kaP, cap);
   int   pos  = 0;
   int   ids  = 0;
 
@@ -694,7 +694,7 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
       if (pos + vLen + 8 >= cap)
       {
         int   newCap = cap * 2 + vLen;
-        char* nb     = (char*) kaAlloc(kaP, newCap);
+        char* nb     = (char*) corAlloc(kaP, newCap);
         memcpy(nb, buf, pos);
         buf = nb;
         cap = newCap;
@@ -726,9 +726,9 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
 // the id/type/scope keywords pick carries for projection-survival — the
 // Query.attrs member never strips entity members).
 //
-static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
+static const char* buildQueryBodyFromQs(const char* qs, CorAlloc* kaP)
 {
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* bodyP = corTreeObject(allocP, NULL);
   corTreeChildAdd(bodyP, corTreeString(allocP, "type", "Query"));
 
@@ -738,7 +738,7 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
   char* q         = NULL;
   char* pick      = NULL;
 
-  char* dup = kaStrdup(kaP, qs);
+  char* dup = corAllocStrdup(kaP, qs);
   char* sp  = NULL;
   for (char* tok = strtok_r(dup, "&", &sp); tok != NULL; tok = strtok_r(NULL, "&", &sp))
   {
@@ -812,7 +812,7 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
   }
 
   int   sz  = corJsonFastRenderSize(bodyP) + 1;
-  char* buf = (char*) kaAlloc(kaP, sz);
+  char* buf = (char*) corAlloc(kaP, sz);
   corJsonFastRender(bodyP, buf);
   return buf;
 }
@@ -857,7 +857,7 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     int cap = 2;
     for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
       cap += strlen(corNgsild.attrsV[i]) * 3 + 1;
-    attrsExists = (char*) kaAlloc(&corRest.kalloc, cap);
+    attrsExists = (char*) corAlloc(&corRest.kalloc, cap);
     int apos = 0;
     for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
     {
@@ -892,7 +892,7 @@ static const char* buildQueryString(CorLdContext* csrCtx)
   if (corNgsild.geoproperty      != NULL)  need += 3 * strlen(corNgsild.geoproperty) + 16;
   if (corNgsild.geometryProperty != NULL)  need += 3 * strlen(corNgsild.geometryProperty) + 20;
 
-  char* qs = (char*) kaAlloc(&corRest.kalloc, need);
+  char* qs = (char*) corAlloc(&corRest.kalloc, need);
   int   pos = 0;
 
   // type — alias-bearing → emit from corNgsild.typeV via CSR ctx
@@ -1044,7 +1044,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
   if (corNgsild.id        != NULL)  need += 3 * strlen(corNgsild.id) + 4;
   if (corNgsild.idPattern != NULL)  need += 3 * strlen(corNgsild.idPattern) + 11;
 
-  char* qs = (char*) kaAlloc(&corRest.kalloc, need);
+  char* qs = (char*) corAlloc(&corRest.kalloc, need);
   int   pos = 0;
 
   if (csrCtx == NULL) csrCtx = corLdCoreContext();
@@ -1155,7 +1155,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
 //
 static bool bindEntityMapFilters(LdEntityMap* mapP)
 {
-  KAlloc* kaP = &corRest.kalloc;
+  CorAlloc* kaP = &corRest.kalloc;
 
   struct { const char* name; const char* req; const char* bound; } f[] = {
     { "type",        corNgsild.type,        mapP->boundType        },
@@ -1366,7 +1366,7 @@ static bool entityMapPaginate(void)
 
   if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", mapP->entryCount);
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
@@ -1376,7 +1376,7 @@ static bool entityMapPaginate(void)
   bool hasPrev = (offset > 0);
   if (hasMore || hasPrev)
   {
-    char* link = (char*) kaAlloc(&corRest.kalloc, 1024);
+    char* link = (char*) corAlloc(&corRest.kalloc, 1024);
     int   pos  = 0;
     // § 6.4.7.2: the Link "type" attribute mirrors the original request's
     // media type, not a fixed value (same rule as ldPaginationLinkHeader).
@@ -1844,7 +1844,7 @@ bool getEntities(void)
       // baseQs is per-CSR (alias-bearing params are compacted via ldDistOpForwardContext)
       // so it gets computed inside the loop now.
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
       memset(items, 0, totalMatch * sizeof(LdDistOpBatchItem));
 
       // § 9.2 operations: a CSR may support queryEntity (GET /entities),
@@ -1852,7 +1852,7 @@ bool getEntities(void)
       // Prefer mirroring the incoming form; fall back to the other; skip
       // CSRs that support neither query op.
       bool incomingBatch = (corRest.in.verb == CorVerbPost);
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchResult));
       int                  itemCount = 0;
       memset(results, 0, totalMatch * sizeof(LdDistOpBatchResult));
 
@@ -1923,7 +1923,7 @@ bool getEntities(void)
             const char* splitBase = buildSplitForwardQueryString(ldDistOpForwardContext(csr));
             const char* idParam   = csrPinnedIdsParam(csr, &corRest.kalloc);
             int   bLen = strlen(splitBase), pLen = strlen(pickParam), iLen = strlen(idParam);
-            char* combined = (char*) kaAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
+            char* combined = (char*) corAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
             strcpy(combined, splitBase);
             if (iLen > 0) strcpy(combined + bLen, idParam);
             if (pLen > 0) strcpy(combined + bLen + iLen, pickParam);
@@ -1957,7 +1957,7 @@ bool getEntities(void)
 
               const char* idParam = csrPinnedIdsParam(csr, &corRest.kalloc);
               int   bLen = strlen(baseQs), pLen = strlen(pickParam), iLen = strlen(idParam);
-              char* combined = (char*) kaAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
+              char* combined = (char*) corAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
               strcpy(combined, baseQs);
               if (iLen > 0) strcpy(combined + bLen, idParam);
               strcpy(combined + bLen + iLen, pickParam);
@@ -1982,7 +1982,7 @@ bool getEntities(void)
                                     ? "/ngsi-ld/v1/entityOperations/query?sysAttrs=true"
                                     : "/ngsi-ld/v1/entityOperations/query";
             int   baseLen = strlen(csr->endpoint);
-            char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
+            char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
             strcpy(url, csr->endpoint);
             strcpy(url + baseLen, path);
 
@@ -2004,7 +2004,7 @@ bool getEntities(void)
           int   baseLen = strlen(csr->endpoint);
           int   pathLen = strlen(path);
           int   qsLen   = strlen(fullQs);
-          char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
+          char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
@@ -2034,7 +2034,7 @@ bool getEntities(void)
           if (results[i].responseTree != NULL)
           {
             int   rsz  = corJsonFastRenderSize(results[i].responseTree) + 1;
-            char* rbuf = (char*) kaAlloc(&corRest.kalloc, rsz);
+            char* rbuf = (char*) corAlloc(&corRest.kalloc, rsz);
             corJsonFastRender(results[i].responseTree, rbuf);
             renderedBody = rbuf;
           }
@@ -2277,7 +2277,7 @@ bool getEntities(void)
         }
         else
         {
-          const char** srcV = (const char**) kaAlloc(&corRest.kalloc, n * sizeof(char*));
+          const char** srcV = (const char**) corAlloc(&corRest.kalloc, n * sizeof(char*));
           int i = 0;
           for (CorNode* s = srcArr->value.head; s != NULL; s = s->next)
             if (s->type == CorString)
@@ -2298,7 +2298,7 @@ bool getEntities(void)
       }
 
       // Add NGSILD-EntityMap header with the map's URL
-      char* mapUrl = (char*) kaAlloc(&corRest.kalloc, 128);
+      char* mapUrl = (char*) corAlloc(&corRest.kalloc, 128);
       snprintf(mapUrl, 128, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
 
       corRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
@@ -2361,7 +2361,7 @@ bool getEntities(void)
   //
   if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%ld", (long) filter.totalCount);
 
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);

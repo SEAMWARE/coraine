@@ -23,9 +23,9 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
-#include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kalloc/KAlloc.h"                              // KAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
+#include "corAlloc/CorAlloc.h"                          // CorAlloc
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/CorNode.h"                          // CorNode
 #include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
@@ -77,7 +77,7 @@ bool postJsonldContexts(void)
   CorNode* urlP      = corTreeLookup(bodyP, "url");
 
   CorLdContextCache* cacheP   = corLdCacheGet();
-  KAlloc*           storeP   = cacheP->kaP;
+  CorAlloc*         storeP   = cacheP->kaP;
   const char*       location = NULL;
 
   if (atContextP != NULL)
@@ -152,7 +152,7 @@ bool postJsonldContexts(void)
     contextP->kind = CorLdKindHosted;
 
     int   bodyLen = corJsonFastRenderSize(bodyP) + 1;
-    char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
+    char* bodyBuf = (char*) corAlloc(storeP, bodyLen);
     if (bodyBuf != NULL)
     {
       corJsonFastRender(bodyP, bodyBuf);
@@ -234,7 +234,7 @@ bool postJsonldContexts(void)
   //
   static const char prefix[] = "/ngsi-ld/v1/jsonldContexts/";
   int   locLen = sizeof(prefix) - 1 + strlen(location) + 1;
-  char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
+  char* locBuf = (char*) corAlloc(&corRest.kalloc, locLen);
   if (locBuf != NULL)
   {
     strcpy(locBuf, prefix);

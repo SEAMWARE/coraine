@@ -17,8 +17,8 @@
 #include "corTree/corTreeClone.h"                    // corTreeClone
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
 #include "corTree/CorNode.h"                         // CorNode, CorString
-#include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kalloc/KAlloc.h"                             // KAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corAlloc/CorAlloc.h"                         // CorAlloc
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/CorLdContext.h"                    // CorLdContext
 #include "corJsonld/CorLdContextCache.h"               // CorLdContextCache
@@ -81,10 +81,10 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 // subIdGenerate - generate a subscription id if none provided
 //
-static char* subIdGenerate(KAlloc* allocP)
+static char* subIdGenerate(CorAlloc* allocP)
 {
   static int counter = 0;
-  char*      buf     = kaAlloc(allocP, 128);
+  char*      buf     = corAlloc(allocP, 128);
 
   snprintf(buf, 128, "urn:ngsi-ld:Subscription:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
 
@@ -160,7 +160,7 @@ bool postSubscriptions(void)
   if (qP != NULL && qP->type == CorString)
   {
     Tenant* tP = (Tenant*) corNgsild.tenantP;
-    KAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
+    CorAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
 
     // Single parse — expands attr names via corNgsild.contextP, allocates with cache allocator
     qExprForCache = ldQParse(qP->value.s, cacheAllocP);
@@ -273,7 +273,7 @@ bool postSubscriptions(void)
       // @context) — not the internal `_jcResolved` alias used by the
       // other auto-fill branches.
       CorLdContextCache* cacheP = corLdCacheGet();
-      KAlloc*           storeP = (cacheP != NULL) ? cacheP->kaP : &corRest.kalloc;
+      CorAlloc*         storeP = (cacheP != NULL) ? cacheP->kaP : &corRest.kalloc;
       char* implicitId = corLdIdGenerate(storeP);
       if (implicitId != NULL)
       {
@@ -284,7 +284,7 @@ bool postSubscriptions(void)
           implicitP = corLdContextFromTree(corNgsild.userContextBody, storeP, NULL);  // @context from the request - no URL of its own
 
         int   bodyLen = corJsonFastRenderSize(corNgsild.userContextBody) + 32;
-        char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
+        char* bodyBuf = (char*) corAlloc(storeP, bodyLen);
         if (bodyBuf != NULL && implicitP != NULL)
         {
           // The body we persist is the wrapper {"@context": <orig>} so
@@ -308,7 +308,7 @@ bool postSubscriptions(void)
         int   baseLen      = strlen(base);
         int   prefixLen    = strlen(prefix);
         int   idLen        = strlen(implicitId);
-        char* urlBuf       = (char*) kaAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
+        char* urlBuf       = (char*) corAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
         memcpy(urlBuf, base, baseLen);
         memcpy(urlBuf + baseLen, prefix, prefixLen);
         memcpy(urlBuf + baseLen + prefixLen, implicitId, idLen);
@@ -426,7 +426,7 @@ bool postSubscriptions(void)
   //
   const char* prefix  = "/ngsi-ld/v1/subscriptions/";
   int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
+  char*       locBuf  = corAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);

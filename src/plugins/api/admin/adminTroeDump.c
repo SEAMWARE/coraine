@@ -12,7 +12,7 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 #include "corNgsild/corNgsild.h"                    // ldError, LD_ERROR_*
@@ -33,7 +33,7 @@ bool adminGetTroeDump(void)
     return true;
   }
 
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* root  = corTreeObject(allocP, NULL);
 
   troe.dumpInfo(&corRest.kalloc, root);

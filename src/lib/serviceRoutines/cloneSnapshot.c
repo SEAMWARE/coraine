@@ -24,7 +24,7 @@
 #include "corRest/CorRestState.h"                          // corRest
 #include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
 
-#include "kalloc/kaAlloc.h"                              // kaAlloc
+#include "corAlloc/corAlloc.h"                           // corAlloc
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corTree/corTreeBuilder.h"                      // corTreeString, corTreeInteger, corTreeChildAdd, corTreeChildRemove
@@ -56,7 +56,7 @@ static char* nsToIso(uint64_t ns)
   struct tm tm;
   gmtime_r(&s, &tm);
 
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
@@ -68,7 +68,7 @@ static char* nsToIso(uint64_t ns)
 static char* generateSnapshotId(void)
 {
   static int counter = 0;
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 64);
   snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
            (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
   return buf;
@@ -311,7 +311,7 @@ bool cloneSnapshot(void)
   corRest.out.httpStatusCode = 201;
   const char* prefix = "/ngsi-ld/v1/snapshots/";
   int locLen = strlen(prefix) + strlen(newId) + 1;
-  char* locBuf = (char*) kaAlloc(&corRest.kalloc, locLen);
+  char* locBuf = (char*) corAlloc(&corRest.kalloc, locLen);
   strcpy(locBuf, prefix);
   strcat(locBuf, newId);
   corRestOutHeaderAdd("Location", locBuf);

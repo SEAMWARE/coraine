@@ -8,10 +8,10 @@
 # Every option has an environment variable - CORAINE_<OPTION>, listed by
 # `coraine -U` - and CORAINE_APIPLUGINS was the one that did nothing.
 #
-# Which plugins to load must be decided BEFORE kargsParse, because plugins
+# Which plugins to load must be decided BEFORE corArgsParse, because plugins
 # contribute options that parse then resolves. pluginsLoad therefore takes each
-# of the three plugin-selecting options from the command line with kargsPeek,
-# falling back to the variable behind the option - which kargsInit has already
+# of the three plugin-selecting options from the command line with corArgsPeek,
+# falling back to the variable behind the option - which corArgsInit has already
 # filled in from the environment. --database and --troe had that fallback;
 # --apiPlugins did not, and nothing noticed, because dbName and troeName carry
 # compiled-in defaults that hide a missing fallback while apiNames starts NULL.

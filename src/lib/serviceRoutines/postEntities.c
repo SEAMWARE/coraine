@@ -24,7 +24,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/CorLdContext.h"                    // CorLdContext
@@ -197,7 +197,7 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, CorNode* entityP)
       return false;   // entity has no matching geo property → fail this CSR
 
     int   cbSize = corJsonFastRenderSize(coordsP) + 1;
-    char* cbuf   = (char*) kaAlloc(&corRest.kalloc, cbSize);
+    char* cbuf   = (char*) corAlloc(&corRest.kalloc, cbSize);
     corJsonFastRender(coordsP, cbuf);
 
     if (!db.geoMatchFunc(synthetic, &georel, typeP->value.s, cbuf, pairs[i].storageIri))
@@ -230,7 +230,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   bufSize = corJsonFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
 
   corJsonFastRender(fragP, buf);
   return buf;
@@ -414,7 +414,7 @@ bool postEntities(void)
           if (t->type == CorString) n++;
         if (n > 0)
         {
-          typeArr = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+          typeArr = (char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
           for (CorNode* t = typeP->value.head; t != NULL; t = t->next)
             if (t->type == CorString)
@@ -446,7 +446,7 @@ bool postEntities(void)
           if (s->type == CorString) n++;
         if (n > 0)
         {
-          entityScopeV = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+          entityScopeV = (char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
           for (CorNode* s = scopeP->value.head; s != NULL; s = s->next)
             if (s->type == CorString)
@@ -501,10 +501,10 @@ bool postEntities(void)
         for (int i = 0; i < counts[g]; i++)
           for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+      LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
       memset(items, 0, total * sizeof(LdDistOpBatchItem));
-      LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      CorNode**            itemFrag = (CorNode**) kaAlloc(&corRest.kalloc, total * sizeof(CorNode*));
+      LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+      CorNode**            itemFrag = (CorNode**) corAlloc(&corRest.kalloc, total * sizeof(CorNode*));
       int                  itemCount = 0;
       memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -574,7 +574,7 @@ bool postEntities(void)
             }
 
             int   baseLen = strlen(csr->endpoint);
-            char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + 1);
+            char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + 1);
             strcpy(url, csr->endpoint);
             strcpy(url + baseLen, path);
 
@@ -718,7 +718,7 @@ bool postEntities(void)
       // entitySnapshot at dispatch time to materialize per-attribute rows.
       CorNode* typeNode = corTreeLookup(entityP, "type");
       const char* etype = (typeNode != NULL && typeNode->type == CorString) ? typeNode->value.s : NULL;
-      TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+      TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
       tevP->op             = TroeOpEntityCreated;
       tevP->tenantP        = tenantP;
@@ -814,7 +814,7 @@ bool postEntities(void)
     // That means the full API path /ngsi-ld/v1/entities/{id}, not just the id.
     const char* prefix  = "/ngsi-ld/v1/entities/";
     int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-    char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
+    char*       locBuf  = corAlloc(&corRest.kalloc, locLen);
     strcpy(locBuf, prefix);
     strcat(locBuf, idP->value.s);
     corRestOutHeaderAdd("Location", locBuf);

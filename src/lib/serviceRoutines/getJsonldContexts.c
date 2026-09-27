@@ -25,7 +25,7 @@
 
 #include "corRest/CorRestState.h"                        // corRest
 #include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
-#include "kalloc/kaAlloc.h"                            // kaAlloc
+#include "corAlloc/corAlloc.h"                         // corAlloc
 #include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
 #include "corJsonld/corLdCache.h"                        // corLdCacheSnapshot
@@ -101,7 +101,7 @@ bool getJsonldContexts(void)
 
   if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", totalCount);
 
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
@@ -155,7 +155,7 @@ bool getJsonldContexts(void)
       int   baseLen      = strlen(base);
       int   prefixLen    = strlen(prefix);
       int   idLen        = strlen(contextId);
-      char* buf          = (char*) kaAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
+      char* buf          = (char*) corAlloc(&corRest.kalloc, baseLen + prefixLen + idLen + 1);
       memcpy(buf, base, baseLen);
       memcpy(buf + baseLen, prefix, prefixLen);
       memcpy(buf + baseLen + prefixLen, contextId, idLen);
@@ -179,7 +179,7 @@ bool getJsonldContexts(void)
       {
         time_t  secs;
         struct  tm tm;
-        char*   ca = (char*) kaAlloc(&corRest.kalloc, 80);
+        char*   ca = (char*) corAlloc(&corRest.kalloc, 80);
         secs = (time_t) c->createdAt;
         gmtime_r(&secs, &tm);
         snprintf(ca, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
@@ -187,7 +187,7 @@ bool getJsonldContexts(void)
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
         corTreeChildAdd(obj, corTreeString(corRest.kallocP, "createdAt", ca));
 
-        char* lu = (char*) kaAlloc(&corRest.kalloc, 80);
+        char* lu = (char*) corAlloc(&corRest.kalloc, 80);
         secs = (time_t) c->usedAt;
         gmtime_r(&secs, &tm);
         snprintf(lu, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",

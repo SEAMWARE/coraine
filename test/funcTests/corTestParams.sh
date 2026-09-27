@@ -40,7 +40,7 @@ corCliParamAdd "-ha" "COR_HA" \
 #
 corCliParamAdd "-traceLevels" "COR_TRACE_LEVELS" \
               "200-222,224,225,227,230,231,232,234,235,240-255" \
-              "Broker trace levels (kargs syntax); empty for none" "TRACELEVELS"
+              "Broker trace levels (corArgs syntax); empty for none" "TRACELEVELS"
 
 
 #

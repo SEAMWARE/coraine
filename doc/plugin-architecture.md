@@ -70,14 +70,14 @@ both directions and nothing else: inbound through `BridgeBroker::sampleIn`,
 outbound through `BridgeDriver::publish`.
 
 **Everything crossing it is plain data** — `const char*`, `int64_t`. No
-`KjNode`, no `KAlloc`, no NGSI-LD type. That is not a style preference:
+`KjNode`, no `CorAlloc`, no NGSI-LD type. That is not a style preference:
 
 - a bridge plugin need not be a C program. The DDS one *cannot* be: the DDS
   Enabler's API takes `std::string` and `std::shared_ptr`, which no amount of
   declaring mangled symbols reaches from C. It is C++, compiled separately, and
   the broker — still `PROJECT(coraine C)` — `dlopen`s it and never sees a C++
   token.
-- calls arrive on **threads the broker did not create**. Handing a kalloc buffer
+- calls arrive on **threads the broker did not create**. Handing a corAlloc buffer
   across that line would be a bug the day it was written.
 
 ⭐ There is also no loop, and not because of a guard: an arriving sample is
@@ -137,7 +137,7 @@ broker at `dlopen` time. Keep that in mind: a plugin must be built against the
 ## Plugin-contributed CLI args
 
 A plugin can publish its own command-line options. It sets `driverP->args`
-(a `KArg*` array) in its register function; the broker **peeks** at
+(a `CorArg*` array) in its register function; the broker **peeks** at
 `--database`/`--troe`/`--apiPlugins`/`--bridges` *before* the main parse, loads the
 plugins,
 then splices each plugin's `args` into the global arg table so they show up in

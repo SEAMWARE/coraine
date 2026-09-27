@@ -26,9 +26,9 @@
 #include <stdlib.h>                                       // strtol — unused but safe
 #include <stdio.h>                                        // snprintf
 
-#include "kalloc/kalloc.h"                                // kaBufferInit
-#include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kalloc/kaStrdup.h"                              // kaStrdup
+#include "corAlloc/corAlloc.h"                            // corAllocBufferInit
+#include "corAlloc/corAlloc.h"                           // corAlloc
+#include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
 #include "corTree/corTreeBuilder.h"                       // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corTree/CorNode.h"                              // CorNode
 
@@ -41,7 +41,7 @@
 // Captured event - simplified copy-out of TroeEvent.
 //
 // We don't keep the original TroeEvent because its allocator is
-// per-request and gets reset. Strings get kaStrdup'd and the snapshot
+// per-request and gets reset. Strings get corAllocStrdup'd and the snapshot
 // corTreeClone'd onto the plugin's own allocator.
 //
 typedef struct
@@ -68,7 +68,7 @@ static CapturedEvent     ring[RING_SIZE];
 static int               ringHead  = 0;     // next slot to write
 static int               ringCount = 0;     // number of valid entries (0..RING_SIZE)
 static pthread_mutex_t   corDbTroeMutex = PTHREAD_MUTEX_INITIALIZER;
-static KAlloc            corDbTroeAlloc;
+static CorAlloc          corDbTroeAlloc;
 static char              corDbTroeAllocBuf[64 * 1024];
 
 
@@ -79,7 +79,7 @@ static char              corDbTroeAllocBuf[64 * 1024];
 //
 static int corDbTroeInit(void)
 {
-  kaBufferInit(&corDbTroeAlloc, corDbTroeAllocBuf, sizeof(corDbTroeAllocBuf), 16 * 1024, NULL, "troeCorDb");
+  corAllocBufferInit(&corDbTroeAlloc, corDbTroeAllocBuf, sizeof(corDbTroeAllocBuf), 16 * 1024, NULL, "troeCorDb");
   return TROE_OK;
 }
 
@@ -101,10 +101,10 @@ static void captureEvent(const TroeEvent* evP)
   slot->used         = true;
   slot->op           = evP->op;
   slot->modifiedAtNs = evP->modifiedAtNs;
-  slot->entityId     = (evP->entityId != NULL)   ? kaStrdup(&corDbTroeAlloc, evP->entityId)   : NULL;
-  slot->entityType   = (evP->entityType != NULL) ? kaStrdup(&corDbTroeAlloc, evP->entityType) : NULL;
-  slot->attrName     = (evP->attrName != NULL)   ? kaStrdup(&corDbTroeAlloc, evP->attrName)   : NULL;
-  slot->datasetId    = (evP->datasetId != NULL)  ? kaStrdup(&corDbTroeAlloc, evP->datasetId)  : NULL;
+  slot->entityId     = (evP->entityId != NULL)   ? corAllocStrdup(&corDbTroeAlloc, evP->entityId)   : NULL;
+  slot->entityType   = (evP->entityType != NULL) ? corAllocStrdup(&corDbTroeAlloc, evP->entityType) : NULL;
+  slot->attrName     = (evP->attrName != NULL)   ? corAllocStrdup(&corDbTroeAlloc, evP->attrName)   : NULL;
+  slot->datasetId    = (evP->datasetId != NULL)  ? corAllocStrdup(&corDbTroeAlloc, evP->datasetId)  : NULL;
 
   ringHead = (ringHead + 1) % RING_SIZE;
   if (ringCount < RING_SIZE) ringCount++;
@@ -148,7 +148,7 @@ static const char* opName(TroeOp op)
 // request arena), so nothing in the produced tree references the
 // plugin's own buffer.
 //
-static void corDbTroeDumpInfo(KAlloc* allocP, CorNode* root)
+static void corDbTroeDumpInfo(CorAlloc* allocP, CorNode* root)
 {
   CorNode* arr = corTreeArray(allocP, "events");
 

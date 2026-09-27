@@ -44,7 +44,7 @@
 
 #include <regex.h>                                   // regcomp, regfree
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd, corTreeChildRemove
@@ -464,7 +464,7 @@ bool getCsourceRegistrations(void)
     // § 6.3.5 NGSILD-Results-Count header when ?count=true.
     if (corNgsild.count)
     {
-      char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+      char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
       snprintf(countStr, 32, "%d", passN);
       corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
     }

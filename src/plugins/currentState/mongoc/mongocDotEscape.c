@@ -9,7 +9,7 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strchr
 
-#include "kalloc/kaStrdup.h"                             // kaStrdup
+#include "corAlloc/corAllocStrdup.h"                     // corAllocStrdup
 
 #include "currentState/mongoc/mongocDotEscape.h"         // Own interface
 
@@ -56,7 +56,7 @@ const char* mongocEscapeDotsInKey(const char* key)
 //
 // Returns the original key if no fullwidth periods, or a kaP-allocated copy.
 //
-const char* mongocUnescapeDotsInKey(KAlloc* kaP, const char* key)
+const char* mongocUnescapeDotsInKey(CorAlloc* kaP, const char* key)
 {
   // Quick scan for the 0xEF byte that starts U+FF0E
   bool hasEscaped = false;
@@ -75,7 +75,7 @@ const char* mongocUnescapeDotsInKey(KAlloc* kaP, const char* key)
   if (!hasEscaped)
     return key;
 
-  char* buf = kaStrdup(kaP, key);
+  char* buf = corAllocStrdup(kaP, key);
   char* out = buf;
 
   for (const char* p = key; *p != '\0'; )

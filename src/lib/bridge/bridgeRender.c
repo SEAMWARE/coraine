@@ -10,8 +10,8 @@
 #include <stdio.h>                                    // snprintf
 #include <string.h>                                   // strlen, strcmp
 
-#include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
@@ -46,7 +46,7 @@ const char* channelIdOf(Channel* channelP)
     return channelP->id;
 
   int   len = 20 + strlen(channelP->bridgeName) + 1 + strlen(channelP->endpoint) + 1;   // "urn:ngsi-ld:Channel:" = 20
-  char* id  = (char*) kaAlloc(&corRest.kalloc, len);
+  char* id  = (char*) corAlloc(&corRest.kalloc, len);
 
   snprintf(id, len, "urn:ngsi-ld:Channel:%s:%s", channelP->bridgeName, channelP->endpoint);
   return id;
@@ -78,7 +78,7 @@ Channel* channelOfTenant(Tenant* tenantP, const char* channelId)
 const char* bridgeIdOf(const char* bridgeName)
 {
   int   len = 26 + strlen(bridgeName) + 1;   // "urn:ngsi-ld:ContextBridge:" = 26
-  char* id  = (char*) kaAlloc(&corRest.kalloc, len);
+  char* id  = (char*) corAlloc(&corRest.kalloc, len);
 
   snprintf(id, len, "urn:ngsi-ld:ContextBridge:%s", bridgeName);
   return id;
@@ -127,7 +127,7 @@ static const char* retentionName(ChannelRetention retention)
 //
 static void notificationRender(CorNode* bodyP, const char* uri, const char* accept)
 {
-  KAlloc* allocP        = corRest.kallocP;
+  CorAlloc* allocP      = corRest.kallocP;
   CorNode* notificationP = corTreeObject(allocP, "notification");
   CorNode* endpointP    = corTreeObject(allocP, "endpoint");
 
@@ -145,7 +145,7 @@ static void notificationRender(CorNode* bodyP, const char* uri, const char* acce
 //
 CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 {
-  KAlloc* allocP  = corRest.kallocP;
+  CorAlloc* allocP  = corRest.kallocP;
   CorNode* bodyP  = corTreeObject(allocP, NULL);
   CorNode* entityP = corTreeObject(allocP, "entity");
 
@@ -181,7 +181,7 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 //
 CorNode* bridgeRender(const char* bridgeName, bool loaded)
 {
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* bodyP = corTreeObject(allocP, NULL);
 
   corTreeChildAdd(bodyP, corTreeString(allocP, "id", (char*) bridgeIdOf(bridgeName)));
@@ -192,7 +192,7 @@ CorNode* bridgeRender(const char* bridgeName, bool loaded)
   if (loaded == false)
   {
     int   len    = strlen(bridgeName) + 64;
-    char* reason = (char*) kaAlloc(&corRest.kalloc, len);
+    char* reason = (char*) corAlloc(&corRest.kalloc, len);
 
     snprintf(reason, len, "plugin '%s' not loaded - not named on --bridges", bridgeName);
     corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", reason));

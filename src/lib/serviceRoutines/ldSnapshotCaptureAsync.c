@@ -15,8 +15,8 @@
 #include <time.h>                                        // clock_gettime
 
 #include "corLog/corLog.h"                               // COR_E
-#include "kalloc/kaBufferInit.h"                         // kaBufferInit
-#include "kalloc/kaBufferReset.h"                        // kaBufferReset
+#include "corAlloc/corAllocBufferInit.h"                 // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"                // corAllocBufferReset
 #include "corTree/CorNode.h"                             // CorNode
 #include "corJson/corJsonCreate.h"                       // corJsonCreate
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
@@ -68,8 +68,8 @@ static void* snapshotWorkerThread(void* arg)
   // so we skip corRestStateInit and set up only what the DB / notify code
   // touches: kalloc, corJsonP, kallocP, requestStartTime.
   memset(&corRest, 0, sizeof(corRest));
-  kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer),
-               256 * 1024, NULL, "snap-async");
+  corAllocBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer),
+                     256 * 1024, NULL, "snap-async");
   corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
   corRest.kallocP  = &corRest.kalloc;
 
@@ -112,8 +112,8 @@ static void* snapshotWorkerThread(void* arg)
   // stack — wait, no, it's __thread, so it persists with the thread.
   // The thread is about to exit so nothing to free explicitly; the OS
   // reclaims thread-locals. kaBuffer's malloc-overflow blocks need to be
-  // freed via kaBufferReset.
-  kaBufferReset(&corRest.kalloc, true);
+  // freed via corAllocBufferReset.
+  corAllocBufferReset(&corRest.kalloc, true);
 
   free(ctx);
   return NULL;

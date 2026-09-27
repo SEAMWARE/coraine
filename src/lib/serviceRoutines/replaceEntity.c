@@ -25,7 +25,7 @@
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 
 #include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdCompactTree.h"                 // corLdCompactTreeWith
@@ -128,7 +128,7 @@ static char* replaceUrl(const char* endpoint, const char* entityId)
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
+  char*       url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
   strcpy(url, endpoint);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, entityId);
@@ -149,7 +149,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
     corTreeChildRemove(fragP, atCtx);
 
   int   bufSize = corJsonFastRenderSize(fragP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
 
   corJsonFastRender(fragP, buf);
   return buf;
@@ -488,7 +488,7 @@ bool replaceEntity(void)
         CorNode* typeNode = corTreeLookup(entityP, "type");
         const char* etype = (typeNode != NULL && typeNode->type == CorString) ? typeNode->value.s : NULL;
 
-        TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+        TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
         memset(tevP, 0, sizeof(*tevP));
         tevP->op             = TroeOpEntityReplaced;
         tevP->tenantP        = tenantP;
@@ -509,7 +509,7 @@ bool replaceEntity(void)
           if (strcmp(attrP->name, "createdAt")  == 0)    continue;
           if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
 
-          TroeEvent* aevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+          TroeEvent* aevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(aevP, 0, sizeof(*aevP));
           aevP->op             = TroeOpAttrReplaced;
           aevP->tenantP        = tenantP;

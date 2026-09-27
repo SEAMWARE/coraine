@@ -28,7 +28,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
@@ -156,7 +156,7 @@ bool getEntityAttrValue(void)
   valueP->name = NULL;
   valueP->next = NULL;
   int   len = corJsonFastRenderSize(valueP) + 1;
-  char* buf = (char*) kaAlloc(&corRest.kalloc, len);
+  char* buf = (char*) corAlloc(&corRest.kalloc, len);
   if (buf == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering attribute value");

@@ -49,7 +49,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
 #include "corTree/corTreeClone.h"                    // corTreeClone
@@ -222,7 +222,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   }
 
   int   bufSize = corJsonFastRenderSize(batchArr) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(batchArr, buf);
   return buf;
 }
@@ -339,7 +339,7 @@ static Group* groupFindOrCreate(Group** groupsP, int* gNp, int* gCapP, const cha
   if (*gNp >= *gCapP)
   {
     int newCap = (*gCapP == 0) ? 8 : *gCapP * 2;
-    Group* newV = (Group*) kaAlloc(&corRest.kalloc, newCap * sizeof(Group));
+    Group* newV = (Group*) corAlloc(&corRest.kalloc, newCap * sizeof(Group));
     for (int i = 0; i < *gNp; i++) newV[i] = (*groupsP)[i];
     *groupsP = newV;
     *gCapP   = newCap;
@@ -358,7 +358,7 @@ static void groupFragAppend(Group* g, CorNode* fragP)
   if (g->count >= g->capacity)
   {
     int newCap = (g->capacity == 0) ? 4 : g->capacity * 2;
-    CorNode** newV = (CorNode**) kaAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
+    CorNode** newV = (CorNode**) corAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
     for (int i = 0; i < g->count; i++) newV[i] = g->fragV[i];
     g->fragV    = newV;
     g->capacity = newCap;
@@ -377,7 +377,7 @@ static CsrAccum* csrAccumFindOrCreate(CsrAccum** aV, int* aN, int* aCap,
   if (*aN >= *aCap)
   {
     int newCap = (*aCap == 0) ? 4 : *aCap * 2;
-    CsrAccum* newV = (CsrAccum*) kaAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
+    CsrAccum* newV = (CsrAccum*) corAlloc(&corRest.kalloc, newCap * sizeof(CsrAccum));
     for (int i = 0; i < *aN; i++) newV[i] = (*aV)[i];
     *aV   = newV;
     *aCap = newCap;
@@ -398,8 +398,8 @@ static void csrAccumAppend(CsrAccum* a, CorNode* fragP, const char* id)
   if (a->count >= a->capacity)
   {
     int newCap = (a->capacity == 0) ? 4 : a->capacity * 2;
-    CorNode**    newF  = (CorNode**)    kaAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
-    const char** newId = (const char**) kaAlloc(&corRest.kalloc, newCap * sizeof(char*));
+    CorNode**    newF  = (CorNode**)    corAlloc(&corRest.kalloc, newCap * sizeof(CorNode*));
+    const char** newId = (const char**) corAlloc(&corRest.kalloc, newCap * sizeof(char*));
     for (int i = 0; i < a->count; i++)
     {
       newF[i]  = a->fragV[i];
@@ -787,8 +787,8 @@ bool postEntityBatchUpdate(void)
   int          csrAccumsCap = 0;
 
   CorNode*     finals   = corTreeArray(corRest.kallocP, NULL);
-  const char** finalIdV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
-  CorNode**    finalEntityV = (CorNode**) kaAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
+  const char** finalIdV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  CorNode**    finalEntityV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
 
   //
   // Requests to the DDS side go FIRST, per fragment, before the bulk write -
@@ -806,10 +806,10 @@ bool postEntityBatchUpdate(void)
     for (int gi = 0; gi < gN; gi++)
       fragN += groups[gi].count;
 
-    doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragN + 1));
+    doneV = (BridgeSyncDone**) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragN + 1));
   }
-  bool*        anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * gN);
-  const char** allIdV   = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  bool*        anySuccessV = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * gN);
+  const char** allIdV   = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * gN);
   int          finalN   = 0;
 
   //
@@ -828,13 +828,13 @@ bool postEntityBatchUpdate(void)
   for (int gi = 0; gi < gN; gi++)
     fragTotal += groups[gi].count;
 
-  CorNode**        existingDbV      = (CorNode**)        kaAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
-  CorNode**        groupErrorsV     = (CorNode**)        kaAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
-  bool*            groupLiveV       = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);   // got past the retrieve
-  bool*            noOverwriteSkipV = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * gN);
-  int*             fragBaseV        = (int*)             kaAlloc(&corRest.kalloc, sizeof(int)     * gN);   // a group's first fragment, in the per-fragment arrays
-  bool*            readyV           = (bool*)            kaAlloc(&corRest.kalloc, sizeof(bool)    * (fragTotal + 1));   // made it through loop 1
-  BridgeSyncDone** fragDoneV        = (requestsFirst == true) ? (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragTotal + 1)) : NULL;
+  CorNode**        existingDbV      = (CorNode**)        corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
+  CorNode**        groupErrorsV     = (CorNode**)        corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
+  bool*            groupLiveV       = (bool*)            corAlloc(&corRest.kalloc, sizeof(bool)   * gN);   // got past the retrieve
+  bool*            noOverwriteSkipV = (bool*)            corAlloc(&corRest.kalloc, sizeof(bool)   * gN);
+  int*             fragBaseV        = (int*)             corAlloc(&corRest.kalloc, sizeof(int)    * gN);   // a group's first fragment, in the per-fragment arrays
+  bool*            readyV           = (bool*)            corAlloc(&corRest.kalloc, sizeof(bool)   * (fragTotal + 1));   // made it through loop 1
+  BridgeSyncDone** fragDoneV        = (requestsFirst == true) ? (BridgeSyncDone**) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * (fragTotal + 1)) : NULL;
 
   memset(groupErrorsV, 0, sizeof(CorNode*) * gN);
   memset(groupLiveV,   0, sizeof(bool)    * gN);
@@ -1045,7 +1045,7 @@ bool postEntityBatchUpdate(void)
 
       if (requestsFirst == true)
       {
-        BridgeSyncDone* doneP = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        BridgeSyncDone* doneP = (BridgeSyncDone*) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
 
         memset(doneP, 0, sizeof(BridgeSyncDone));
         doneV[doneN++]                = doneP;
@@ -1193,9 +1193,9 @@ bool postEntityBatchUpdate(void)
   // per accumulating CSR, all in flight at once via ldDistOpSendMulti.
   //
   {
-    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
     memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
+    LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
     int                  bIdx[csrAccumsN];   // map batch index → csrAccums index
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
@@ -1233,7 +1233,7 @@ bool postEntityBatchUpdate(void)
         corTreeChildAdd(batchArr, a->fragV[i]);
 
       int   baseLen = strlen(csr->endpoint);
-      char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
+      char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
       strcpy(url, csr->endpoint);
       strcpy(url + baseLen, batchPath);
 
@@ -1266,7 +1266,7 @@ bool postEntityBatchUpdate(void)
           }
         }
 
-        bool* groupOk = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * a->count);
+        bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * a->count);
         for (int k = 0; k < a->count; k++) groupOk[k] = false;
 
         applyRemoteBatchResult(bResults[bi].statusCode, respTreeP, bItems[bi].csr->regId,
@@ -1300,7 +1300,7 @@ bool postEntityBatchUpdate(void)
       return true;
     }
 
-    int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * finalN);
+    int* resultsV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * finalN);
     db.entityBulkUpdate(tenantP, finals, resultsV);
 
     for (int ix = 0; ix < doneN; ix++)

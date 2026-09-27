@@ -17,8 +17,8 @@
 #include <stdint.h>                                       // uint64_t
 #include <stdbool.h>                                      // bool
 
-#include "kalloc/KAlloc.h"                                // KAlloc
-#include "kargs/KArg.h"                                   // KArg
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
+#include "corArgs/CorArg.h"                               // CorArg
 #include "corTree/CorNode.h"                              // CorNode
 
 #include "db/Tenant.h"                                    // Tenant
@@ -297,14 +297,14 @@ typedef int  (*TroeEntityTemporalInstanceDeleteFunc)(Tenant* tenantP,
                                                      const char* attrName,
                                                      const char* instanceId);
 
-typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, CorNode* root);
+typedef void (*TroeVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 
 //
 // Dev/test helper: dump recent events captured by the plugin (e.g. corDB).
 // Production plugins (timescale, parquet) leave it NULL — admin route
 // returns 501. Allocates onto allocP, appends children to root.
 //
-typedef void (*TroeDumpInfoFunc)(KAlloc* allocP, CorNode* root);
+typedef void (*TroeDumpInfoFunc)(CorAlloc* allocP, CorNode* root);
 
 
 
@@ -316,7 +316,7 @@ typedef struct TroeDriver
 {
   const char*                       alias;        // short plugin name (e.g. "timescale")
   const char*                       version;
-  KArg*                             args;         // plugin-contributed CLI args (NULL if none)
+  CorArg*                           args;         // plugin-contributed CLI args (NULL if none)
 
   TroeInitFunc                      init;
   TroeCloseFunc                     close;

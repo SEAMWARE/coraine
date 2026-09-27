@@ -37,8 +37,8 @@
 #include "corTree/corTreeBuilder.h"                  // corTreeChildAdd
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonParse.h"                    // corJsonParse
-#include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kalloc/KAlloc.h"                             // KAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corAlloc/CorAlloc.h"                         // CorAlloc
 
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 
@@ -167,7 +167,7 @@ static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing
 // the broker applies those on the merged result. Forwards: timerel, timeAt,
 // endTimeAt, timeproperty, attrs, lastN, datasetId.
 //
-static const char* buildTemporalForwardQuery(KAlloc* kaP)
+static const char* buildTemporalForwardQuery(CorAlloc* kaP)
 {
   static const char* forwardKeys[] = {
     "timerel", "timeAt", "endTimeAt", "timeproperty",
@@ -191,7 +191,7 @@ static const char* buildTemporalForwardQuery(KAlloc* kaP)
     len += strlen(key) + 1 + (val ? 3 * strlen(val) : 0) + 1;  // key=val&
   }
 
-  char* buf = (char*) kaAlloc(kaP, len);
+  char* buf = (char*) corAlloc(kaP, len);
   buf[0] = 0;
   int pos = 0;
 
@@ -458,10 +458,10 @@ bool getEntityTemporal(void)
         for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
       }
 
-    LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+    LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
-    LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    int*                 itemGroup = (int*)                 kaAlloc(&corRest.kalloc, total * sizeof(int));
+    LdDistOpBatchResult* results   = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+    int*                 itemGroup = (int*)                 corAlloc(&corRest.kalloc, total * sizeof(int));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -482,7 +482,7 @@ bool getEntityTemporal(void)
           int baseLen = strlen(csr->endpoint);
           int pathLen = strlen(tpath);
           int idLen   = strlen(entityId);
-          char* url = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1 + qsLen + 1);
+          char* url = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1 + qsLen + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
           strcpy(url + baseLen + pathLen, entityId);
