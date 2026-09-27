@@ -642,7 +642,7 @@ added libraries** after persistence, and both of those are optional features
 Floated, and **not** on the critical path. Mapping the store file would make a
 restart free, but it forces offsets instead of pointers and no allocation
 during load, which is a different data structure rather than an edit to the
-current one - a kjson-level change. The log-and-snapshot design above does not
+current one - a corTree-level change. The log-and-snapshot design above does not
 foreclose it: if the record format is defined without pointer assumptions, a
 mapped load can be added later as an optimisation rather than a rewrite.
 

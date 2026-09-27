@@ -15,7 +15,7 @@
 
 #include "kalloc/KAlloc.h"                                // KAlloc
 #include "kargs/KArg.h"                                   // KArg
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/CorNode.h"                              // CorNode
 
 #include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
 #include "corNgsild/LdSubCache.h"                          // LdGeoMatchFunc
@@ -90,13 +90,13 @@ typedef int (*DbContextDeleteFunc)(const char* id);
 typedef int (*DbContextListFunc)(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
 typedef int (*DbContextGetFunc)(const char* id, KAlloc* allocP, DbContextRow* rowOut);
 
-typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode* entityP);
+typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, CorNode* entityP);
 
 //
 // DbEntityBulkCreateFunc - batch insert of N entities in a single DB
 // round-trip where the driver supports it (mongoc: insert_many).
 //
-// entitiesArr is a KjArray of DB-format entities (each already an object
+// entitiesArr is a CorArray of DB-format entities (each already an object
 // with _id / type / attrs wrappers — ldApiEntityToDbModel already ran).
 //
 // resultsV is a caller-allocated int[N], populated per-entity with one
@@ -107,14 +107,14 @@ typedef int  (*DbEntityCreateFunc)(Tenant* tenantP, const char* entityId, KjNode
 // DB_ERR. The per-entity outcome is carried in resultsV; callers map
 // that to the BatchOperationResult body.
 //
-typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, CorNode* entitiesArr, int* resultsV);
 
 //
 // DbEntityBulkUpdateFunc - batch replace of N already-merged entities in a
 // single DB round-trip where the driver supports it (mongoc: bulk_write
 // with replace_one operations).
 //
-// entitiesArr is a KjArray of DB-format entities — each one the final
+// entitiesArr is a CorArray of DB-format entities — each one the final
 // merged state as computed by the service routine (post multi-instance
 // merge). The caller has already run ldApiEntityToDbModel and each
 // entity carries its id (or _id).
@@ -123,7 +123,7 @@ typedef int  (*DbEntityBulkCreateFunc)(Tenant* tenantP, KjNode* entitiesArr, int
 // of: DB_OK on success, DB_NOT_FOUND if the id doesn't exist (batch
 // update requires pre-existence), DB_ERR on anything else.
 //
-typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, CorNode* entitiesArr, int* resultsV);
 
 //
 // Batch Merge (§ 5.6.10) is done in two driver calls bracketing the merge,
@@ -132,13 +132,13 @@ typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, KjNode* entitiesArr, int
 //
 // DbEntityBulkRetrieveFunc - fetch the current DB-form trees for a batch of
 // fragments in one round-trip where the driver supports it (mongoc: one $in).
-// targetsV is a caller-allocated, zeroed KjNode*[N] parallel to fragmentsArr;
+// targetsV is a caller-allocated, zeroed CorNode*[N] parallel to fragmentsArr;
 // each slot receives the request-arena tree of the current entity, or stays
 // NULL when the id does not exist. Fragments that share an id share ONE target
 // tree so the broker's sequential merges accumulate (array-order semantics).
 //
-typedef int  (*DbEntityBulkRetrieveFunc)(Tenant* tenantP, KjNode* fragmentsArr,
-                                         KjNode** targetsV);
+typedef int  (*DbEntityBulkRetrieveFunc)(Tenant* tenantP, CorNode* fragmentsArr,
+                                         CorNode** targetsV);
 
 //
 // DbEntityBulkChangesApplyFunc - persist a batch of already-merged entities.
@@ -151,12 +151,12 @@ typedef int  (*DbEntityBulkRetrieveFunc)(Tenant* tenantP, KjNode* fragmentsArr,
 // (others are skipped here); staged slots may be demoted to DB_ERR on failure.
 // mergedTargetsV are the post-merge trees (= targetsV from the retrieve).
 //
-typedef int  (*DbEntityBulkChangesApplyFunc)(Tenant* tenantP, KjNode* fragmentsArr,
-                                             KjNode** mergedTargetsV,
+typedef int  (*DbEntityBulkChangesApplyFunc)(Tenant* tenantP, CorNode* fragmentsArr,
+                                             CorNode** mergedTargetsV,
                                              LdMergeReport* reportsV, int* resultsV);
 
-typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, KjNode** entityPP);
-typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
+typedef int  (*DbEntityRetrieveFunc)(Tenant* tenantP, const char* entityId, CorNode** entityPP);
+typedef int  (*DbEntityQueryFunc)(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP);
 typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 
 //
@@ -172,7 +172,7 @@ typedef int  (*DbEntityDeleteFunc)(Tenant* tenantP, const char* entityId);
 // (2 round-trips total). corDB just loops.
 //
 typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
-                                       int* resultsV, KjNode** snapshotsV);
+                                       int* resultsV, CorNode** snapshotsV);
 //
 // DbEntityChangesApplyFunc - persist a merged single entity (Merge Entity §
 // 10.2.9 / Partial Attribute Update § 10.2.5). The broker has already merged
@@ -182,9 +182,9 @@ typedef int  (*DbEntityBulkDeleteFunc)(Tenant* tenantP, const char** idV, int N,
 // report into a surgical write (mongoc: $set/$unset) — no merge logic here.
 //
 typedef int  (*DbEntityChangesApplyFunc)(Tenant* tenantP, const char* entityId,
-                                         KjNode* mergedEntity, LdMergeReport* reportP);
+                                         CorNode* mergedEntity, LdMergeReport* reportP);
 typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
-                                    KjNode* newEntityP, KjNode** oldEntityPP);
+                                    CorNode* newEntityP, CorNode** oldEntityPP);
 //
 // DbEntityAttrsSetFunc - generic "set attrs/dsKeys on an entity".
 //
@@ -205,13 +205,13 @@ typedef int  (*DbEntityReplaceFunc)(Tenant* tenantP, const char* entityId,
 // Returns DB_OK / DB_NOT_FOUND / DB_ERR.
 //
 typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
-                                     KjNode* fragmentP, bool overwriteScope,
+                                     CorNode* fragmentP, bool overwriteScope,
                                      uint64_t ts, LdMergeReport* reportP);
 
 //
 // DbTypeListFunc - aggregate distinct entity types and their attribute sets.
 //
-// Returns a KjArray of objects, each:
+// Returns a CorArray of objects, each:
 //   { "typeIri":    "<IRI>",
 //     "attrs":      [ "<attrIri>", ... ],
 //     "attrTypes":  { "<attrIri>": [ "Property", "Relationship", ... ] },
@@ -220,28 +220,28 @@ typedef int  (*DbEntityAttrsSetFunc)(Tenant* tenantP, const char* entityId,
 // attrTypes and entityCount are only populated when details is true —
 // the simple list case short-circuits the heavier per-type scan.
 //
-// Nodes are allocated via corRest.kjsonP.
+// Nodes are allocated via corRest.kallocP.
 //
-typedef int  (*DbTypeListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
+typedef int  (*DbTypeListFunc)(Tenant* tenantP, bool details, CorNode** arrayPP);
 
 //
 // DbAttrListFunc - aggregate distinct attribute names and the entity
 // types they appear on.
 //
-// Returns a KjArray of objects, each:
+// Returns a CorArray of objects, each:
 //   { "attrIri":       "<IRI>",
 //     "typeNames":     [ "<typeIri>", ... ],
 //     "attrTypes":     [ "Property", "Relationship", ... ],
 //     "attrCount":     <int> }
 //
-typedef int  (*DbAttrListFunc)(Tenant* tenantP, bool details, KjNode** arrayPP);
-typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
-typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, KjNode** subPP);
-typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
-typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, KjNode* fragmentP);
-typedef int  (*DbSubscriptionReplaceFunc)(Tenant* tenantP, const char* subId, KjNode* subP);
+typedef int  (*DbAttrListFunc)(Tenant* tenantP, bool details, CorNode** arrayPP);
+typedef int  (*DbSubscriptionCreateFunc)(Tenant* tenantP, const char* subId, CorNode* subP);
+typedef int  (*DbSubscriptionRetrieveFunc)(Tenant* tenantP, const char* subId, CorNode** subPP);
+typedef int  (*DbSubscriptionQueryFunc)(Tenant* tenantP, int limit, int offset, CorNode** arrayPP);
+typedef int  (*DbSubscriptionUpdateFunc)(Tenant* tenantP, const char* subId, CorNode* fragmentP);
+typedef int  (*DbSubscriptionReplaceFunc)(Tenant* tenantP, const char* subId, CorNode* subP);
 typedef int  (*DbSubscriptionDeleteFunc)(Tenant* tenantP, const char* subId);
-typedef KjNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
+typedef CorNode* (*DbSubscriptionListFunc)(Tenant* tenantP);
 
 // Subscription stats flush — HA-safe: deltas are added via $inc (never
 // read-modify-write), "last*" timestamps are set unconditionally.
@@ -255,12 +255,12 @@ typedef int  (*DbSubscriptionStatsFlushFunc)(Tenant*      tenantP,
                                              uint64_t     lastSuccess,
                                              uint64_t     lastFailure);
 
-typedef int  (*DbRegistrationCreateFunc)(Tenant* tenantP, const char* regId, KjNode* regP);
-typedef int  (*DbRegistrationRetrieveFunc)(Tenant* tenantP, const char* regId, KjNode** regPP);
-typedef int  (*DbRegistrationQueryFunc)(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
-typedef int  (*DbRegistrationUpdateFunc)(Tenant* tenantP, const char* regId, KjNode* fragmentP);
+typedef int  (*DbRegistrationCreateFunc)(Tenant* tenantP, const char* regId, CorNode* regP);
+typedef int  (*DbRegistrationRetrieveFunc)(Tenant* tenantP, const char* regId, CorNode** regPP);
+typedef int  (*DbRegistrationQueryFunc)(Tenant* tenantP, int limit, int offset, CorNode** arrayPP);
+typedef int  (*DbRegistrationUpdateFunc)(Tenant* tenantP, const char* regId, CorNode* fragmentP);
 typedef int  (*DbRegistrationDeleteFunc)(Tenant* tenantP, const char* regId);
-typedef KjNode* (*DbRegistrationListFunc)(Tenant* tenantP);
+typedef CorNode* (*DbRegistrationListFunc)(Tenant* tenantP);
 
 //
 // Snapshot persistence (§ 5.16). The snapshot's *metadata* (tree:
@@ -270,9 +270,9 @@ typedef KjNode* (*DbRegistrationListFunc)(Tenant* tenantP);
 // tenant's "snapshots" collection. Entity bodies live in the
 // per-snapshot tenant DB (see snapshotTenant.{c,h}).
 //
-typedef int  (*DbSnapshotCreateFunc)(Tenant* tenantP, const char* snapId, KjNode* snapP);
-typedef int  (*DbSnapshotQueryFunc)(Tenant* tenantP, KjNode** arrayPP);
-typedef int  (*DbSnapshotUpdateFunc)(Tenant* tenantP, const char* snapId, KjNode* fragmentP);
+typedef int  (*DbSnapshotCreateFunc)(Tenant* tenantP, const char* snapId, CorNode* snapP);
+typedef int  (*DbSnapshotQueryFunc)(Tenant* tenantP, CorNode** arrayPP);
+typedef int  (*DbSnapshotUpdateFunc)(Tenant* tenantP, const char* snapId, CorNode* fragmentP);
 typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 
 //
@@ -284,7 +284,7 @@ typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
 
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
-typedef void (*DbVersionInfoFunc)(KAlloc* allocP, KjNode* root);
+typedef void (*DbVersionInfoFunc)(KAlloc* allocP, CorNode* root);
 
 //
 // DbHaWatchStartFunc - start watching the store for what OTHER broker instances

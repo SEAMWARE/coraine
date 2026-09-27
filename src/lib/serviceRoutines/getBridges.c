@@ -18,8 +18,8 @@
 #include <stdbool.h>                                  // bool
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                     // corRest
 #include "corNgsild/corNgsild.h"                      // corNgsild
 #include "corBridge/BridgeDriver.h"                   // bridges, bridgeCount
@@ -71,19 +71,19 @@ static bool unloadedNamedEarlier(Channel* channelP)
 //
 bool getBridges(void)
 {
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
 
   // Not an Entity - ldEntityToApi would read the "entity" member as an
   // Attribute keyed by datasetId and render it as an array of instances
   corNgsild.rawResponse = true;
 
   for (int ix = 0; ix < bridgeCount; ix++)
-    kjChildAdd(arrayP, bridgeRender(bridges[ix].alias, true));
+    corTreeChildAdd(arrayP, bridgeRender(bridges[ix].alias, true));
 
   for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
   {
     if ((bridgeLoaded(channelP->bridgeName) == false) && (unloadedNamedEarlier(channelP) == false))
-      kjChildAdd(arrayP, bridgeRender(channelP->bridgeName, false));
+      corTreeChildAdd(arrayP, bridgeRender(channelP->bridgeName, false));
   }
 
   corRest.out.responseTree = arrayP;

@@ -12,10 +12,10 @@
 #include <string.h>                                   // strcmp, memset
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjChildAdd
-#include "kjson/kjClone.h"                            // kjClone
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeChildAdd
+#include "corTree/corTreeClone.h"                     // corTreeClone
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "corNgsild/ldInstanceWritten.h"              // ldInstanceWritten
@@ -44,9 +44,9 @@ static TroeOp reasonToOp(const char* reason)
 //
 // multiInstance - is this dataset-keyed Attribute more than one instance?
 //
-static bool multiInstance(KjNode* attrP)
+static bool multiInstance(CorNode* attrP)
 {
-  return (attrP != NULL) && (attrP->type == KjObject) &&
+  return (attrP != NULL) && (attrP->type == CorObject) &&
          (attrP->value.firstChildP != NULL) && (attrP->value.firstChildP->next != NULL);
 }
 
@@ -61,15 +61,15 @@ static bool multiInstance(KjNode* attrP)
 // instance's ->next with the entity.
 //
 static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, const char* entityType, const char* attrName,
-                          KjNode* mergedEntity, KjNode* attrP, KjNode* instP, uint64_t modifiedAtNs)
+                          CorNode* mergedEntity, CorNode* attrP, CorNode* instP, uint64_t modifiedAtNs)
 {
-  KjNode* wrapperP = (KjNode*) kaAlloc(&corRest.kalloc, sizeof(KjNode));
+  CorNode* wrapperP = (CorNode*) kaAlloc(&corRest.kalloc, sizeof(CorNode));
 
   *wrapperP = *attrP;
   wrapperP->next              = NULL;
   wrapperP->value.firstChildP = NULL;
   wrapperP->lastChild         = NULL;
-  kjChildAdd(wrapperP, kjClone(corRest.kjsonP, instP));
+  corTreeChildAdd(wrapperP, corTreeClone(corRest.kallocP, instP));
 
   TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
   memset(tevP, 0, sizeof(*tevP));
@@ -92,17 +92,17 @@ static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, cons
 // removedInstances - a deletion event for each instance of preP that postP lacks
 //
 static void removedInstances(Tenant* tenantP, const char* entityId, const char* entityType, const char* attrName,
-                             KjNode* entityP, KjNode* preP, KjNode* postP, uint64_t modifiedAtNs)
+                             CorNode* entityP, CorNode* preP, CorNode* postP, uint64_t modifiedAtNs)
 {
-  if ((preP == NULL) || (preP->type != KjObject))
+  if ((preP == NULL) || (preP->type != CorObject))
     return;
 
-  for (KjNode* instP = preP->value.firstChildP; instP != NULL; instP = instP->next)
+  for (CorNode* instP = preP->value.firstChildP; instP != NULL; instP = instP->next)
   {
-    if ((instP->name == NULL) || (instP->type != KjObject))
+    if ((instP->name == NULL) || (instP->type != CorObject))
       continue;
 
-    if ((postP == NULL) || (kjLookup(postP, instP->name) == NULL))
+    if ((postP == NULL) || (corTreeLookup(postP, instP->name) == NULL))
       instanceEvent(TroeOpAttrDeleted, tenantP, entityId, entityType, attrName, entityP, preP, instP, modifiedAtNs);
   }
 }
@@ -117,16 +117,16 @@ static void removedInstances(Tenant* tenantP, const char* entityId, const char* 
 // watching attr@datasetId gets too. An instance only in preP went away.
 //
 static void instanceEvents(Tenant* tenantP, const char* entityId, const char* entityType, const char* attrName,
-                           KjNode* mergedEntity, KjNode* preP, KjNode* postP, uint64_t modifiedAtNs)
+                           CorNode* mergedEntity, CorNode* preP, CorNode* postP, uint64_t modifiedAtNs)
 {
-  if ((postP != NULL) && (postP->type == KjObject))
+  if ((postP != NULL) && (postP->type == CorObject))
   {
-    for (KjNode* instP = postP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = postP->value.firstChildP; instP != NULL; instP = instP->next)
     {
-      if ((instP->name == NULL) || (instP->type != KjObject) || (ldInstanceWritten(preP, postP, instP->name) == false))
+      if ((instP->name == NULL) || (instP->type != CorObject) || (ldInstanceWritten(preP, postP, instP->name) == false))
         continue;
 
-      bool   isNew = (preP == NULL) || (kjLookup(preP, instP->name) == NULL);
+      bool   isNew = (preP == NULL) || (corTreeLookup(preP, instP->name) == NULL);
       TroeOp op    = (isNew == true) ? TroeOpAttrCreated : TroeOpAttrModified;
 
       instanceEvent(op, tenantP, entityId, entityType, attrName, mergedEntity, postP, instP, modifiedAtNs);
@@ -145,34 +145,34 @@ static void instanceEvents(Tenant* tenantP, const char* entityId, const char* en
 void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
                                   const char*     entityId,
                                   const char*     entityType,
-                                  KjNode*         mergedEntity,
+                                  CorNode*        mergedEntity,
                                   LdMergeReport*  reportP,
                                   uint64_t        modifiedAtNs)
 {
   if (reportP == NULL || reportP->changes == NULL)
     return;
 
-  for (KjNode* changeP = reportP->changes->value.firstChildP; changeP != NULL; changeP = changeP->next)
+  for (CorNode* changeP = reportP->changes->value.firstChildP; changeP != NULL; changeP = changeP->next)
   {
-    KjNode* attrP   = kjLookup(changeP, "attr");
-    KjNode* reasonP = kjLookup(changeP, "reason");
+    CorNode* attrP  = corTreeLookup(changeP, "attr");
+    CorNode* reasonP = corTreeLookup(changeP, "reason");
 
-    const char* attrName = (attrP   != NULL && attrP->type   == KjString) ? attrP->value.s   : NULL;
-    const char* reason   = (reasonP != NULL && reasonP->type == KjString) ? reasonP->value.s : NULL;
+    const char* attrName = (attrP   != NULL && attrP->type   == CorString) ? attrP->value.s  : NULL;
+    const char* reason   = (reasonP != NULL && reasonP->type == CorString) ? reasonP->value.s : NULL;
 
     if (attrName == NULL)
       continue;
 
-    KjNode* attrSnapshot = NULL;
+    CorNode* attrSnapshot = NULL;
     if (mergedEntity != NULL)
-      attrSnapshot = kjLookup(mergedEntity, attrName);
+      attrSnapshot = corTreeLookup(mergedEntity, attrName);
 
     // A deleted attr is gone from mergedEntity; the report's preValue clone
     // (the pre-delete wrapper) still knows the attr kind — needed for the
     // tombstone row's attr_kind (§ 5.3.2.5: a deleted instance keeps the
     // Attribute's type).
     if (attrSnapshot == NULL)
-      attrSnapshot = kjLookup(changeP, "preValue");
+      attrSnapshot = corTreeLookup(changeP, "preValue");
 
     //
     // An Attribute with several instances: a row for each instance the write
@@ -180,8 +180,8 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
     // instance - so a single event would record them all (or, read by its
     // first instance, the wrong one).
     //
-    KjNode* preP  = kjLookup(changeP, "preValue");
-    KjNode* postP = (mergedEntity != NULL) ? kjLookup(mergedEntity, attrName) : NULL;
+    CorNode* preP = corTreeLookup(changeP, "preValue");
+    CorNode* postP = (mergedEntity != NULL) ? corTreeLookup(mergedEntity, attrName) : NULL;
 
     if (multiInstance(preP) || multiInstance(postP))
     {
@@ -209,14 +209,14 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
 //
 // troeDeferRemovedByReplace -
 //
-void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char* entityType, KjNode* oldEntity, KjNode* newEntity, uint64_t modifiedAtNs)
+void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char* entityType, CorNode* oldEntity, CorNode* newEntity, uint64_t modifiedAtNs)
 {
-  if ((oldEntity == NULL) || (oldEntity->type != KjObject))
+  if ((oldEntity == NULL) || (oldEntity->type != CorObject))
     return;
 
-  for (KjNode* oldAttrP = oldEntity->value.firstChildP; oldAttrP != NULL; oldAttrP = oldAttrP->next)
+  for (CorNode* oldAttrP = oldEntity->value.firstChildP; oldAttrP != NULL; oldAttrP = oldAttrP->next)
   {
-    if ((oldAttrP->name == NULL) || (oldAttrP->name[0] == '@') || (oldAttrP->type != KjObject))  continue;
+    if ((oldAttrP->name == NULL) || (oldAttrP->name[0] == '@') || (oldAttrP->type != CorObject)) continue;
     if (strcmp(oldAttrP->name, "id")         == 0)    continue;
     if (strcmp(oldAttrP->name, "_id")        == 0)    continue;
     if (strcmp(oldAttrP->name, "type")       == 0)    continue;
@@ -224,7 +224,7 @@ void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char
     if (strcmp(oldAttrP->name, "createdAt")  == 0)    continue;
     if (strcmp(oldAttrP->name, "modifiedAt") == 0)    continue;
 
-    KjNode* newAttrP = (newEntity != NULL) ? kjLookup(newEntity, oldAttrP->name) : NULL;
+    CorNode* newAttrP = (newEntity != NULL) ? corTreeLookup(newEntity, oldAttrP->name) : NULL;
 
     removedInstances(tenantP, entityId, entityType, oldAttrP->name, newEntity, oldAttrP, newAttrP, modifiedAtNs);
   }

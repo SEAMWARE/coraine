@@ -38,11 +38,11 @@
 #include "corJsonld/corLdCache.h"                   // corLdCacheInsert
 #include "corJsonld/corLdContextParse.h"            // corLdContextFromObject
 
-#include "kjson/kjson.h"                          // Kjson
-#include "kjson/kjBufferCreate.h"                 // kjBufferCreate
-#include "kjson/kjParse.h"                        // kjParse
-#include "kjson/kjLookup.h"                       // kjLookup
-#include "kjson/kjClone.h"                        // kjClone
+#include "corJson/CorJson.h"                      // CorJson
+#include "corJson/corJsonCreate.h"                // corJsonCreate
+#include "corJson/corJsonParse.h"                 // corJsonParse
+#include "corTree/corTreeLookup.h"                // corTreeLookup
+#include "corTree/corTreeClone.h"                 // corTreeClone
 #include "kalloc/kaAlloc.h"                       // kaAlloc
 #include "kalloc/kaStrdup.h"                      // kaStrdup
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
@@ -739,14 +739,14 @@ static void bridgesClose(void)
 // Called by the pernot loop thread. Builds a DbQueryFilter from the
 // pernot item's entity selectors and calls db.entityQuery.
 //
-// db.entityQuery (mongoc, corDB) allocates through corRest.kjsonP/kalloc.
+// db.entityQuery (mongoc, corDB) allocates through corRest.kallocP.
 // corRest is __thread; the pernot thread's copy is zero-initialised so we
 // bring it up to working state on first call. Between pernot cycles we
 // reset it — the produced entity array is cloned by the caller (through
 // ldEntityToApi onto its own kaBuffer) before we return, so nothing
 // outside this function holds pointers into corRest afterwards.
 //
-static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* allocP)
+static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* allocP)
 {
   if (db.entityQuery == NULL)
     return NULL;
@@ -755,7 +755,8 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
   if (!pernotCorRestInited)
   {
     kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "pernot");
-    corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+    corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+    corRest.kallocP  = &corRest.kalloc;
     pernotCorRestInited = true;
   }
   else
@@ -796,7 +797,7 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
   filter.geoRel    = itemP->geoRel;
   filter.limit     = 20;
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int r = db.entityQuery((Tenant*) tenantP, &filter, &arrayP);
 
   return (r == DB_OK) ? arrayP : NULL;
@@ -816,13 +817,13 @@ static KjNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* all
 // be unaffordable on the write path; here it would be once-per-window, but the
 // requirement itself is unsettled). Single-tenant (tenant0) for now, like pernot.
 //
-static KjNode* throttleRetrieveCallback(const char* entityId, void* allocP)
+static CorNode* throttleRetrieveCallback(const char* entityId, void* allocP)
 {
   (void) allocP;
   if (db.entityRetrieve == NULL)
     return NULL;
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   if (db.entityRetrieve(&tenant0, entityId, &entityP) != DB_OK)
     return NULL;
 
@@ -968,7 +969,7 @@ static void brokerNotifyStatsHook(bool csrSub, bool success)
 //
 // brokerLinkedEntitiesHook - called by corNgsild when notification.join is set
 //
-static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int joinLevel, bool sysAttrs, void* tenantP)
+static void brokerLinkedEntitiesHook(CorNode* dataArrayP, const char* mode, int joinLevel, bool sysAttrs, void* tenantP)
 {
   ldLinkedEntitiesNotifApiArray(dataArrayP, mode, joinLevel, sysAttrs, (Tenant*) tenantP);
 }
@@ -985,7 +986,7 @@ static void brokerLinkedEntitiesHook(KjNode* dataArrayP, const char* mode, int j
 //
 // Parses with the startup pool (corRest.kalloc) so the raw text and the
 // transient parse tree are freed by the pool reset that the caller does
-// right after; kjClone(NULL, parsed) deep-copies into malloc-backed
+// right after; corTreeClone(NULL, parsed) deep-copies into malloc-backed
 // storage that persists for the broker's lifetime.
 //
 // CLI override: parse / open / read errors are fatal — misconfiguration
@@ -1026,11 +1027,11 @@ static void contextSourceExtrasLoad(const char* cliPath)
   fclose(fp);
   buf[fsz] = 0;
 
-  KjNode* parsed = kjParse(corRest.kjsonP, buf);
+  CorNode* parsed = corJsonParse(corRest.corJsonP, buf);
   if (parsed == NULL)
     KT_X(1, "contextSourceExtras: '%s' is not valid JSON", path);
 
-  ldContextSourceExtras = kjClone(NULL, parsed);
+  ldContextSourceExtras = corTreeClone(NULL, parsed);
 }
 
 
@@ -1416,7 +1417,8 @@ int main(int argC, char* argV[])
   //
   static char startupKallocBuf[16384];
   kaBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
-  corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+  corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+  corRest.kallocP  = &corRest.kalloc;
 
   //
   // "Now", for anything written before the first request arrives.

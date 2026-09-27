@@ -10,8 +10,8 @@
 #include <string.h>                                  // strcmp
 
 #include "khash/khash.h"                             // khashTableCreate, khashItemAdd, ...
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "currentState/corDB/corDbIndex.h"           // Own interface
 
@@ -37,12 +37,12 @@
 //
 // corDbEntityId -
 //
-const char* corDbEntityId(KjNode* entityP)
+const char* corDbEntityId(CorNode* entityP)
 {
   if (entityP == NULL)
     return NULL;
 
-  KjNode* idP = entityP->value.firstChildP;
+  CorNode* idP = entityP->value.firstChildP;
 
   //
   // The invariant says this IS "id". The check is cheap and the alternative -
@@ -50,9 +50,9 @@ const char* corDbEntityId(KjNode* entityP)
   // store that silently cannot find its own entities.
   //
   if ((idP == NULL) || (idP->name == NULL) || (strcmp(idP->name, "id") != 0))
-    idP = kjLookup(entityP, "id");
+    idP = corTreeLookup(entityP, "id");
 
-  return ((idP != NULL) && (idP->type == KjString)) ? idP->value.s : NULL;
+  return ((idP != NULL) && (idP->type == CorString)) ? idP->value.s : NULL;
 }
 
 
@@ -87,7 +87,7 @@ static unsigned int idHash(const char* name)
 //
 static int idCompare(const char* name, void* itemP)
 {
-  const char* id = corDbEntityId((KjNode*) itemP);
+  const char* id = corDbEntityId((CorNode*) itemP);
 
   return (id != NULL) ? strcmp(name, id) : 1;
 }
@@ -101,16 +101,16 @@ static int idCompare(const char* name, void* itemP)
 // Done ONCE, on the way in. Attribute writes append and attribute deletes never
 // touch "id", so nothing afterwards can break it.
 //
-static void idFirst(KjNode* entityP)
+static void idFirst(CorNode* entityP)
 {
-  KjNode* first = entityP->value.firstChildP;
+  CorNode* first = entityP->value.firstChildP;
 
   if ((first != NULL) && (first->name != NULL) && (strcmp(first->name, "id") == 0))
     return;
 
-  KjNode* prev = NULL;
+  CorNode* prev = NULL;
 
-  for (KjNode* p = first; p != NULL; prev = p, p = p->next)
+  for (CorNode* p = first; p != NULL; prev = p, p = p->next)
   {
     if ((p->name == NULL) || (strcmp(p->name, "id") != 0))
       continue;
@@ -140,11 +140,11 @@ static void indexRebuild(CorDbStore* storeP, int slots)
   if (newP == NULL)
     return;                                          // keep the old one; slower, not wrong
 
-  KjNode* entities = kjLookup(storeP->tree, "entities");
+  CorNode* entities = corTreeLookup(storeP->tree, "entities");
 
   if (entities != NULL)
   {
-    for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
     {
       const char* id = corDbEntityId(eP);
 
@@ -166,7 +166,7 @@ static void indexRebuild(CorDbStore* storeP, int slots)
 //
 // corDbIndexAdd -
 //
-void corDbIndexAdd(CorDbStore* storeP, KjNode* entityP)
+void corDbIndexAdd(CorDbStore* storeP, CorNode* entityP)
 {
   if ((storeP == NULL) || (entityP == NULL))
     return;
@@ -215,7 +215,7 @@ void corDbIndexAdd(CorDbStore* storeP, KjNode* entityP)
 //
 // corDbIndexRemove -
 //
-void corDbIndexRemove(CorDbStore* storeP, KjNode* entityP)
+void corDbIndexRemove(CorDbStore* storeP, CorNode* entityP)
 {
   if ((storeP == NULL) || (storeP->idIndex == NULL) || (entityP == NULL))
     return;
@@ -235,10 +235,10 @@ void corDbIndexRemove(CorDbStore* storeP, KjNode* entityP)
 //
 // corDbIndexLookup -
 //
-KjNode* corDbIndexLookup(CorDbStore* storeP, const char* entityId)
+CorNode* corDbIndexLookup(CorDbStore* storeP, const char* entityId)
 {
   if ((storeP == NULL) || (storeP->idIndex == NULL) || (entityId == NULL))
     return NULL;
 
-  return (KjNode*) khashItemLookup(storeP->idIndex, entityId);
+  return (CorNode*) khashItemLookup(storeP->idIndex, entityId);
 }

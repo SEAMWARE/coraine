@@ -26,11 +26,11 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -48,11 +48,11 @@
 
 
 
-static bool hasNonKeywordAttr(KjNode* entityP)
+static bool hasNonKeywordAttr(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return false;
-  for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
   {
     if (c->name == NULL)             continue;
     if (c->name[0] == '@')           continue;
@@ -82,16 +82,16 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 
 
 
-static char* renderFragmentWithContext(KjNode* fragP)
+static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   sz  = kjFastRenderSize(fragP) + 1;
+  int   sz  = corJsonFastRenderSize(fragP) + 1;
   char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -100,14 +100,14 @@ static char* renderFragmentWithContext(KjNode* fragP)
 bool postEntityTemporalAttrs(void)
 {
   const char* entityId = corRest.in.wildcard[0];
-  KjNode*     bodyP    = corRest.in.requestTree;
+  CorNode*    bodyP    = corRest.in.requestTree;
 
   if (entityId == NULL || entityId[0] == 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing entity id in URL");
     return true;
   }
-  if (bodyP == NULL || bodyP->type != KjObject)
+  if (bodyP == NULL || bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "request body must be a JSON-LD object (EntityTemporal Fragment)");
@@ -123,7 +123,7 @@ bool postEntityTemporalAttrs(void)
   Tenant* tenantP    = (Tenant*) corNgsild.tenantP;
   bool    inputHadAttrs = hasNonKeywordAttr(bodyP);
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // Distop dispatch (§ 4.3.6 / § 5.6.12.4). No type known from URL — match
@@ -175,7 +175,7 @@ bool postEntityTemporalAttrs(void)
           {
             if (!entityInfoCoversId(riP, entityId)) continue;
 
-            KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kjsonP, detachOnMode[m]);
+            CorNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kallocP, detachOnMode[m]);
             if (fragP == NULL) continue;
 
             if (!opSupported)
@@ -270,7 +270,7 @@ bool postEntityTemporalAttrs(void)
   }
 
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {
@@ -278,12 +278,12 @@ bool postEntityTemporalAttrs(void)
     return true;
   }
 
-  KjNode* result     = kjObject(corRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(corRest.kjsonP, "success");
+  CorNode* result    = corTreeObject(corRest.kallocP, NULL);
+  CorNode* successArr = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
-  kjChildAdd(result, successArr);
-  kjChildAdd(result, errorsArrayP);
+    corTreeChildAdd(successArr, corTreeString(corRest.kallocP, NULL, entityId));
+  corTreeChildAdd(result, successArr);
+  corTreeChildAdd(result, errorsArrayP);
 
   corRest.out.responseTree   = result;
   corRest.out.httpStatusCode = anySucceeded ? 207 : 502;

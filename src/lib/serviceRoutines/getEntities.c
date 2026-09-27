@@ -13,11 +13,11 @@
 
 #include "ktrace/kTrace.h"                           // KT_T
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjParse.h"                           // kjParse
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjChildAdd, kjChildRemove
-#include "kjson/kjChildReplace.h"                    // kjChildReplace
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonParse.h"                    // corJsonParse
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeChildReplace.h"             // corTreeChildReplace
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestClient.h"                     // CorRestClientRequest, corRestClientSend
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
@@ -32,8 +32,9 @@
 #include "corNgsild/ldOrderSort.h"                    // ldOrderSort
 #include "corNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
 #include "kalloc/kaStrdup.h"                        // kaStrdup
-#include "kjson/kjRender.h"                         // kjFastRender
-#include "kjson/kjRenderSize.h"                     // kjFastRenderSize
+#include "kalloc/KAlloc.h"                           // KAlloc
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corNgsild/ldStripAtContext.h"              // ldStripAtContext
 #include "corNgsild/ldExpiresAtPropagate.h"          // ldExpiresAtPropagate
 #include "corRest/CorRestIn.h"                 // corAcceptParse, CorMimeType
@@ -74,7 +75,7 @@
 // CSR covering the entity id and forwards a GET via dist-op. The result
 // is in storage shape, ready for the q-evaluator's reads.
 //
-static int linkedFetcher(const char* entityId, KjNode** entityPP, void* userData)
+static int linkedFetcher(const char* entityId, CorNode** entityPP, void* userData)
 {
   // q-filter evaluation must follow the relationship to test the predicate,
   // so it uses the legacy fetch-by-id path (typedRemoteOnly=false); the
@@ -108,22 +109,22 @@ static bool qHasLinked(LdQNode* nodeP)
 // applyLinkedQPostFilter - prune arrayP entries whose q-expression has
 // a LinkedNode that doesn't match (BSON layer can't evaluate it).
 //
-static void applyLinkedQPostFilter(KjNode* arrayP)
+static void applyLinkedQPostFilter(CorNode* arrayP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray)
+  if (arrayP == NULL || arrayP->type != CorArray)
     return;
   if (corNgsild.qExpr == NULL || !qHasLinked(corNgsild.qExpr))
     return;
 
   Tenant* tP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* entityP = arrayP->value.firstChildP;
+  CorNode* entityP = arrayP->value.firstChildP;
   while (entityP != NULL)
   {
-    KjNode* nextP = entityP->next;
+    CorNode* nextP = entityP->next;
 
     if (!ldEntityMatchQEx(entityP, corNgsild.qExpr, linkedFetcher, tP))
-      kjChildRemove(arrayP, entityP);
+      corTreeChildRemove(arrayP, entityP);
 
     entityP = nextP;
   }
@@ -146,20 +147,20 @@ static void applyLinkedQPostFilter(KjNode* arrayP)
 // resolve their Relationship target correctly. Entities are in storage
 // shape on entry (post-merge / post-apiAttrToStorageWrap).
 //
-static void applyResultFilters(KjNode* arrayP)
+static void applyResultFilters(CorNode* arrayP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray)
+  if (arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  KjNode* entityP = arrayP->value.firstChildP;
+  CorNode* entityP = arrayP->value.firstChildP;
   while (entityP != NULL)
   {
-    KjNode* nextP = entityP->next;
+    CorNode* nextP = entityP->next;
     bool    keep  = true;
 
     if (keep && corNgsild.typeExpr != NULL)
     {
-      KjNode* typeP = kjLookup(entityP, "type");
+      CorNode* typeP = corTreeLookup(entityP, "type");
       if (!ldEntityMatchType(typeP, corNgsild.typeExpr))
         keep = false;
     }
@@ -172,7 +173,7 @@ static void applyResultFilters(KjNode* arrayP)
 
     if (keep && corNgsild.scopeExpr != NULL)
     {
-      KjNode* scopeP = kjLookup(entityP, "scope");
+      CorNode* scopeP = corTreeLookup(entityP, "scope");
       if (!ldEntityMatchScope(scopeP, corNgsild.scopeExpr))
         keep = false;
     }
@@ -186,7 +187,7 @@ static void applyResultFilters(KjNode* arrayP)
     }
 
     if (!keep)
-      kjChildRemove(arrayP, entityP);
+      corTreeChildRemove(arrayP, entityP);
 
     entityP = nextP;
   }
@@ -480,30 +481,30 @@ static char** csrUnionExports(LdRegCacheItem* csr, KAlloc* kaP)
 //
 // Wraps each attribute: "speed": {type,value} → "speed": {"@none": {type,value}}
 //
-static void apiAttrToStorageWrap(KjNode* entityP)
+static void apiAttrToStorageWrap(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return;
 
-  KjNode* curP = entityP->value.firstChildP;
+  CorNode* curP = entityP->value.firstChildP;
   while (curP != NULL)
   {
-    KjNode* nextP = curP->next;
+    CorNode* nextP = curP->next;
 
     if (curP->name == NULL || curP->name[0] == '@' ||
         strcmp(curP->name, "id")   == 0 ||
         strcmp(curP->name, "type") == 0 ||
-        curP->type != KjObject)
+        curP->type != CorObject)
     {
       curP = nextP;
       continue;
     }
 
-    KjNode* wrapperP = kjObject(corRest.kjsonP, curP->name);
-    kjChildReplace(entityP, curP, wrapperP);
+    CorNode* wrapperP = corTreeObject(corRest.kallocP, curP->name);
+    corTreeChildReplace(entityP, curP, wrapperP);
     curP->name = (char*) "@none";
     curP->next = NULL;
-    kjChildAdd(wrapperP, curP);
+    corTreeChildAdd(wrapperP, curP);
 
     curP = nextP;
   }
@@ -515,7 +516,7 @@ static void apiAttrToStorageWrap(KjNode* entityP)
 //
 // srcMapAdd - record that `source` contributes to `entityId`
 //
-// The srcMap is a KjObject keyed by entityId whose value is a KjArray of
+// The srcMap is a CorObject keyed by entityId whose value is a CorArray of
 // source strings ("@none" for local, CSR's regId otherwise). Duplicates
 // are suppressed — the same source contributing the same entity twice is
 // collapsed into one list entry.
@@ -523,25 +524,25 @@ static void apiAttrToStorageWrap(KjNode* entityP)
 // Pass srcMap=NULL to skip (tracking is only needed when an EntityMap is
 // being built, so the common query path pays zero cost).
 //
-static void srcMapAdd(KjNode* srcMap, const char* entityId, const char* source)
+static void srcMapAdd(CorNode* srcMap, const char* entityId, const char* source)
 {
   if (srcMap == NULL || entityId == NULL || source == NULL)
     return;
 
-  KjNode* arrP = kjLookup(srcMap, entityId);
+  CorNode* arrP = corTreeLookup(srcMap, entityId);
   if (arrP == NULL)
   {
-    arrP = kjArray(corRest.kjsonP, entityId);
-    kjChildAdd(srcMap, arrP);
+    arrP = corTreeArray(corRest.kallocP, entityId);
+    corTreeChildAdd(srcMap, arrP);
   }
 
-  for (KjNode* s = arrP->value.firstChildP; s != NULL; s = s->next)
+  for (CorNode* s = arrP->value.firstChildP; s != NULL; s = s->next)
   {
-    if (s->type == KjString && strcmp(s->value.s, source) == 0)
+    if (s->type == CorString && strcmp(s->value.s, source) == 0)
       return;
   }
 
-  kjChildAdd(arrP, kjString(corRest.kjsonP, NULL, source));
+  corTreeChildAdd(arrP, corTreeString(corRest.kallocP, NULL, source));
 }
 
 
@@ -553,15 +554,15 @@ static void srcMapAdd(KjNode* srcMap, const char* entityId, const char* source)
 // Called after the local DB query (initial or split-mode re-query) so the
 // srcMap reflects the current set of locally-held entity IDs.
 //
-static void srcMapStampLocalFrom(KjNode* srcMap, KjNode* arrayP)
+static void srcMapStampLocalFrom(CorNode* srcMap, CorNode* arrayP)
 {
-  if (srcMap == NULL || arrayP == NULL || arrayP->type != KjArray)
+  if (srcMap == NULL || arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
   {
-    KjNode* idP = kjLookup(ep, "id");
-    if (idP != NULL && idP->type == KjString)
+    CorNode* idP = corTreeLookup(ep, "id");
+    if (idP != NULL && idP->type == CorString)
       srcMapAdd(srcMap, idP->value.s, "@none");
   }
 }
@@ -580,7 +581,7 @@ static void srcMapStampLocalFrom(KjNode* srcMap, KjNode* arrayP)
 // Returns the expanded, storage-format entity tree on success, NULL on
 // any failure (network error, non-2xx status, parse error).
 //
-static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
+static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
                                       const char*     entityId,
                                       const char*     ownAlias,
                                       const char*     remoteMapId)
@@ -628,7 +629,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
   if (status < 200 || status >= 300 || respBody == NULL || respBodyLen == 0)
     return NULL;
 
-  KjNode* treeP = kjParse(corRest.kjsonP, respBody);
+  CorNode* treeP = corJsonParse(corRest.corJsonP, respBody);
   if (treeP == NULL)
     return NULL;
 
@@ -638,7 +639,7 @@ static KjNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 
   // § 4.5.5.2 — entity-level expiresAt cascades to each Attribute, with
   // attr-level values further in the future shortened to entity-level.
-  ldExpiresAtPropagate(treeP, corRest.kjsonP);
+  ldExpiresAtPropagate(treeP, corRest.kallocP);
   return treeP;
 }
 
@@ -727,9 +728,9 @@ static const char* csrPinnedIdsParam(LdRegCacheItem* csr, KAlloc* kaP)
 //
 static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* bodyP  = kjObject(kjsonP, NULL);
-  kjChildAdd(bodyP, kjString(kjsonP, "type", "Query"));
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* bodyP = corTreeObject(allocP, NULL);
+  corTreeChildAdd(bodyP, corTreeString(allocP, "type", "Query"));
 
   char* types     = NULL;
   char* ids       = NULL;
@@ -767,17 +768,17 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
 
   // entities[] — one selector per type (carrying id/idPattern when given).
   // With ids but no type, one selector per id.
-  KjNode* entitiesP = kjArray(kjsonP, "entities");
+  CorNode* entitiesP = corTreeArray(allocP, "entities");
   if (types != NULL)
   {
     char* tsp = NULL;
     for (char* t = strtok_r(types, ",", &tsp); t != NULL; t = strtok_r(NULL, ",", &tsp))
     {
-      KjNode* selP = kjObject(kjsonP, NULL);
-      kjChildAdd(selP, kjString(kjsonP, "type", t));
-      if (ids != NULL)       kjChildAdd(selP, kjString(kjsonP, "id", ids));            // CSV is legal in the selector? No — id is a single URI; multiple ids → idPattern... keep first
-      if (idPattern != NULL) kjChildAdd(selP, kjString(kjsonP, "idPattern", idPattern));
-      kjChildAdd(entitiesP, selP);
+      CorNode* selP = corTreeObject(allocP, NULL);
+      corTreeChildAdd(selP, corTreeString(allocP, "type", t));
+      if (ids != NULL)       corTreeChildAdd(selP, corTreeString(allocP, "id", ids));  // CSV is legal in the selector? No — id is a single URI; multiple ids → idPattern... keep first
+      if (idPattern != NULL) corTreeChildAdd(selP, corTreeString(allocP, "idPattern", idPattern));
+      corTreeChildAdd(entitiesP, selP);
     }
   }
   else if (ids != NULL)
@@ -785,34 +786,34 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
     char* isp = NULL;
     for (char* iv = strtok_r(ids, ",", &isp); iv != NULL; iv = strtok_r(NULL, ",", &isp))
     {
-      KjNode* selP = kjObject(kjsonP, NULL);
-      kjChildAdd(selP, kjString(kjsonP, "id", iv));
-      kjChildAdd(entitiesP, selP);
+      CorNode* selP = corTreeObject(allocP, NULL);
+      corTreeChildAdd(selP, corTreeString(allocP, "id", iv));
+      corTreeChildAdd(entitiesP, selP);
     }
   }
   if (entitiesP->value.firstChildP != NULL)
-    kjChildAdd(bodyP, entitiesP);
+    corTreeChildAdd(bodyP, entitiesP);
 
   if (q != NULL)
-    kjChildAdd(bodyP, kjString(kjsonP, "q", q));
+    corTreeChildAdd(bodyP, corTreeString(allocP, "q", q));
 
   if (pick != NULL)
   {
-    KjNode* attrsP = kjArray(kjsonP, "attrs");
+    CorNode* attrsP = corTreeArray(allocP, "attrs");
     char*   psp    = NULL;
     for (char* a = strtok_r(pick, ",", &psp); a != NULL; a = strtok_r(NULL, ",", &psp))
     {
       if (strcmp(a, "id") == 0 || strcmp(a, "type") == 0 || strcmp(a, "scope") == 0)
         continue;
-      kjChildAdd(attrsP, kjString(kjsonP, NULL, a));
+      corTreeChildAdd(attrsP, corTreeString(allocP, NULL, a));
     }
     if (attrsP->value.firstChildP != NULL)
-      kjChildAdd(bodyP, attrsP);
+      corTreeChildAdd(bodyP, attrsP);
   }
 
-  int   sz  = kjFastRenderSize(bodyP) + 1;
+  int   sz  = corJsonFastRenderSize(bodyP) + 1;
   char* buf = (char*) kaAlloc(kaP, sz);
-  kjFastRender(bodyP, buf);
+  corJsonFastRender(bodyP, buf);
   return buf;
 }
 
@@ -1230,14 +1231,14 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
 // results." The DB-side path reaches that by re-querying at offset N-1; here
 // the whole set is already in hand, so it is the last child and no query.
 //
-static void orderBySkip(KjNode* arrayP, int offset)
+static void orderBySkip(CorNode* arrayP, int offset)
 {
   if ((arrayP == NULL) || (offset <= 0) || (arrayP->value.firstChildP == NULL))
     return;
 
   int count = 0;
 
-  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
     ++count;
 
   if (offset >= count)
@@ -1247,7 +1248,7 @@ static void orderBySkip(KjNode* arrayP, int offset)
     return;
   }
 
-  KjNode* eP = arrayP->value.firstChildP;
+  CorNode* eP = arrayP->value.firstChildP;
 
   for (int ix = 0; ix < offset; ix++)
     eP = eP->next;
@@ -1287,7 +1288,7 @@ static bool entityMapPaginate(void)
     return true;
 
   // Build result array from map entries at [offset..offset+limit]
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
   int offset = corNgsild.offset;
   int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
   int ix     = 0;
@@ -1307,12 +1308,12 @@ static bool entityMapPaginate(void)
   {
     if (ix < offset) { ix++; continue; }
 
-    KjNode* mergedEntity = NULL;
+    CorNode* mergedEntity = NULL;
 
     for (int s = 0; s < entryP->sourceCount; s++)
     {
       const char* src      = entryP->sourceIdV[s];
-      KjNode*     partialP = NULL;
+      CorNode*    partialP = NULL;
 
       if (strcmp(src, "@none") == 0)
       {
@@ -1347,12 +1348,12 @@ static bool entityMapPaginate(void)
         // retrieve this path uses (retrieveEntityFromCSR) already asks for
         // sysAttrs, so the real rule has everything it needs.
         //
-        ldDistMergeSourceInto(mergedEntity, partialP, corRest.requestStartTime, corRest.kjsonP, false);
+        ldDistMergeSourceInto(mergedEntity, partialP, corRest.requestStartTime, corRest.kallocP, false);
       }
     }
 
     if (mergedEntity != NULL)
-      kjChildAdd(arrayP, mergedEntity);
+      corTreeChildAdd(arrayP, mergedEntity);
     // else: all recorded sources failed — skip, client gets fewer
     // results than requested (§ 5.5.9 allows this).
 
@@ -1405,7 +1406,7 @@ static bool entityMapPaginate(void)
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+    for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
       ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — § 4.21 / § 5.7.2 are
@@ -1416,13 +1417,13 @@ static bool entityMapPaginate(void)
     // the dropped ones — a count mismatch the spec is yet to address.
     if (corNgsild.pickV != NULL)
     {
-      KjNode* ep = arrayP->value.firstChildP;
-      KjNode* prev = NULL;
+      CorNode* ep = arrayP->value.firstChildP;
+      CorNode* prev = NULL;
       while (ep != NULL)
       {
-        KjNode* next = ep->next;
-        if (ep->type == KjObject && ep->value.firstChildP == NULL)
-          kjChildRemove(arrayP, ep);
+        CorNode* next = ep->next;
+        if (ep->type == CorObject && ep->value.firstChildP == NULL)
+          corTreeChildRemove(arrayP, ep);
         else
           prev = ep;
         ep = next;
@@ -1436,20 +1437,20 @@ static bool entityMapPaginate(void)
     // an entity carrying NONE of the listed attributes does not match
     // the query at all. Project each entity, then drop the ones left
     // with no attributes (only keywords like id/type/scope remain).
-    KjNode* ep   = arrayP->value.firstChildP;
-    KjNode* prev = NULL;
+    CorNode* ep  = arrayP->value.firstChildP;
+    CorNode* prev = NULL;
     while (ep != NULL)
     {
-      KjNode* next = ep->next;
+      CorNode* next = ep->next;
       ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
-      for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      for (CorNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
       {
         if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
       }
       if (!hasAttr)
-        kjChildRemove(arrayP, ep);
+        corTreeChildRemove(arrayP, ep);
       else
         prev = ep;
       ep = next;
@@ -1715,7 +1716,7 @@ bool getEntities(void)
   // Query the local database (full filters for now — re-queried without
   // filters if split mode activates below)
   //
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int     r      = db.entityQuery((Tenant*) corNgsild.tenantP, &filter, &arrayP);
 
   if (r != DB_OK)
@@ -1751,13 +1752,13 @@ bool getEntities(void)
   // this, paged follow-up via ?entityMap=<id> cannot route to the right
   // source for a given entity.
   //
-  KjNode* srcMap = corNgsild.entityMapCreate ? kjObject(corRest.kjsonP, NULL) : NULL;
+  CorNode* srcMap = corNgsild.entityMapCreate ? corTreeObject(corRest.kallocP, NULL) : NULL;
   srcMapStampLocalFrom(srcMap, arrayP);
 
-  // Linked-maps tracker (§ 5.14.4.4) — KjObject keyed by CSR regId, value =
+  // Linked-maps tracker (§ 5.14.4.4) — CorObject keyed by CSR regId, value =
   // remote EntityMap id. Populated as each per-CSR forward returns its
   // own EntityMap; flushed into mapP after the local map is created.
-  KjNode* linkedMapsTracker = corNgsild.entityMapCreate ? kjObject(corRest.kjsonP, NULL) : NULL;
+  CorNode* linkedMapsTracker = corNgsild.entityMapCreate ? corTreeObject(corRest.kallocP, NULL) : NULL;
 
   //
   // Distributed query: if registrations match and ?local=true is not set,
@@ -1896,7 +1897,7 @@ bool getEntities(void)
           if (corNgsild.geoRel != NULL && ((LdRegCache*) tP->regCacheP)->csrGeoMatchFunc != NULL)
           {
             const char* prop = corNgsild.geoproperty;
-            KjNode* csrGeoP = csr->locationP;
+            CorNode* csrGeoP = csr->locationP;
             if (prop != NULL)
             {
               if (strcmp(prop, "observationSpace") == 0 ||
@@ -2032,9 +2033,9 @@ bool getEntities(void)
           const char* renderedBody = "(none)";
           if (results[i].responseTree != NULL)
           {
-            int   rsz  = kjFastRenderSize(results[i].responseTree) + 1;
+            int   rsz  = corJsonFastRenderSize(results[i].responseTree) + 1;
             char* rbuf = (char*) kaAlloc(&corRest.kalloc, rsz);
-            kjFastRender(results[i].responseTree, rbuf);
+            corJsonFastRender(results[i].responseTree, rbuf);
             renderedBody = rbuf;
           }
           KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
@@ -2045,30 +2046,30 @@ bool getEntities(void)
           if (code < 200 || code >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
-          KjNode* remoteArray;
+          CorNode* remoteArray;
 
           if (corNgsild.entityMapCreate)
           {
             // § 5.14.4.4: response is a single EntityMap object. Pull out
             // remote map id + synthesise an array of { "id": <entityId> }
             // entries so the dedup loop below stays format-agnostic.
-            KjNode* mapTreeP = results[i].responseTree;
-            if (mapTreeP == NULL || mapTreeP->type != KjObject) continue;
+            CorNode* mapTreeP = results[i].responseTree;
+            if (mapTreeP == NULL || mapTreeP->type != CorObject) continue;
 
-            KjNode* idP = kjLookup(mapTreeP, "id");
-            if (linkedMapsTracker != NULL && idP != NULL && idP->type == KjString && csr->regId != NULL)
-              kjChildAdd(linkedMapsTracker, kjString(corRest.kjsonP, csr->regId, idP->value.s));
+            CorNode* idP = corTreeLookup(mapTreeP, "id");
+            if (linkedMapsTracker != NULL && idP != NULL && idP->type == CorString && csr->regId != NULL)
+              corTreeChildAdd(linkedMapsTracker, corTreeString(corRest.kallocP, csr->regId, idP->value.s));
 
-            KjNode* emObj = kjLookup(mapTreeP, "entityMap");
-            if (emObj == NULL || emObj->type != KjObject) continue;
+            CorNode* emObj = corTreeLookup(mapTreeP, "entityMap");
+            if (emObj == NULL || emObj->type != CorObject) continue;
 
-            remoteArray = kjArray(corRest.kjsonP, NULL);
-            for (KjNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
+            remoteArray = corTreeArray(corRest.kallocP, NULL);
+            for (CorNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
             {
               if (entryP->name == NULL) continue;
-              KjNode* synth = kjObject(corRest.kjsonP, NULL);
-              kjChildAdd(synth, kjString(corRest.kjsonP, "id", entryP->name));
-              kjChildAdd(remoteArray, synth);
+              CorNode* synth = corTreeObject(corRest.kallocP, NULL);
+              corTreeChildAdd(synth, corTreeString(corRest.kallocP, "id", entryP->name));
+              corTreeChildAdd(remoteArray, synth);
             }
           }
           else
@@ -2082,15 +2083,15 @@ bool getEntities(void)
             // unwrapped to its member alone. Accept a bare entity object
             // and re-wrap it so the rest of the merge loop stays array-
             // typed.
-            if (remoteArray != NULL && remoteArray->type == KjObject)
+            if (remoteArray != NULL && remoteArray->type == CorObject)
             {
-              KjNode* wrap = kjArray(corRest.kjsonP, NULL);
-              kjChildAdd(wrap, remoteArray);
+              CorNode* wrap = corTreeArray(corRest.kallocP, NULL);
+              corTreeChildAdd(wrap, remoteArray);
               remoteArray = wrap;
             }
           }
 
-          if (remoteArray == NULL || remoteArray->type != KjArray) continue;
+          if (remoteArray == NULL || remoteArray->type != CorArray) continue;
 
           // Expand each forwarded entity via the context that travels WITH the
           // response — the URL in its json-ld#context Link header, else core.
@@ -2102,22 +2103,22 @@ bool getEntities(void)
           if (respCtxP == NULL)
             respCtxP = corLdCoreContext();
 
-          for (KjNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
+          for (CorNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
           {
-            KjNode* nextRemote = remoteEntity->next;
+            CorNode* nextRemote = remoteEntity->next;
 
-            KjNode* remoteIdP = kjLookup(remoteEntity, "id");
-            if (remoteIdP == NULL || remoteIdP->type != KjString)
+            CorNode* remoteIdP = corTreeLookup(remoteEntity, "id");
+            if (remoteIdP == NULL || remoteIdP->type != CorString)
             {
               remoteEntity = nextRemote;
               continue;
             }
 
-            KjNode* existingP = NULL;
-            for (KjNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+            CorNode* existingP = NULL;
+            for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
             {
-              KjNode* eidP = kjLookup(ep, "id");
-              if (eidP != NULL && eidP->type == KjString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
+              CorNode* eidP = corTreeLookup(ep, "id");
+              if (eidP != NULL && eidP->type == CorString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
               {
                 existingP = ep;
                 break;
@@ -2133,7 +2134,7 @@ bool getEntities(void)
             // each of its Attributes (shortening any attr-level value further
             // in the future) BEFORE the entity-level values are reconciled
             // across versions below. Same as the retrieve-one path.
-            ldExpiresAtPropagate(remoteEntity, corRest.kjsonP);
+            ldExpiresAtPropagate(remoteEntity, corRest.kallocP);
 
             // Runtime exclusive-priority: an attribute exclusively claimed by another
             // registration is authoritative from that (exclusive) source alone. Discard any
@@ -2144,22 +2145,22 @@ bool getEntities(void)
             if (csr->mode != LdRegModeExclusive)
             {
               LdRegCache* excRc  = (LdRegCache*) ((Tenant*) corNgsild.tenantP)->regCacheP;
-              KjNode*     etP    = kjLookup(remoteEntity, "type");
-              char*       etV[2] = { (etP != NULL && etP->type == KjString) ? etP->value.s : NULL, NULL };
-              for (KjNode* aP = remoteEntity->value.firstChildP; aP != NULL; )
+              CorNode*    etP    = corTreeLookup(remoteEntity, "type");
+              char*       etV[2] = { (etP != NULL && etP->type == CorString) ? etP->value.s : NULL, NULL };
+              for (CorNode* aP = remoteEntity->value.firstChildP; aP != NULL; )
               {
-                KjNode* nextAP = aP->next;
+                CorNode* nextAP = aP->next;
                 if (aP->name != NULL && aP->name[0] != '@' &&
                     strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
                     ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, corRest.requestStartTime))
-                  kjChildRemove(remoteEntity, aP);
+                  corTreeChildRemove(remoteEntity, aP);
                 aP = nextAP;
               }
             }
 
             if (existingP == NULL)
             {
-              kjChildAdd(arrayP, remoteEntity);
+              corTreeChildAdd(arrayP, remoteEntity);
               srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
             }
             else if (splitMode)
@@ -2174,7 +2175,7 @@ bool getEntities(void)
               // drift apart again. clone=false: remoteEntity is a per-request
               // tree, its instances move rather than being copied.
               //
-              ldDistMergeSourceInto(existingP, remoteEntity, corRest.requestStartTime, corRest.kjsonP, false);
+              ldDistMergeSourceInto(existingP, remoteEntity, corRest.requestStartTime, corRest.kallocP, false);
             }
 
             remoteEntity = nextRemote;
@@ -2218,7 +2219,7 @@ bool getEntities(void)
 
     if (arrayP != NULL)
     {
-      for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
         ++brokerTotal;
     }
 
@@ -2253,19 +2254,19 @@ bool getEntities(void)
       //
       // Walk the sorted array, add each entity ID to the map along with
       // its provenance: look up the entity in srcMap and flatten the
-      // KjArray of source strings into a char** for ldEntityMapAddEntry.
+      // CorArray of source strings into a char** for ldEntityMapAddEntry.
       //
-      for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+      for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       {
-        KjNode* idP = kjLookup(entityP, "id");
-        if (idP == NULL || idP->type != KjString)
+        CorNode* idP = corTreeLookup(entityP, "id");
+        if (idP == NULL || idP->type != CorString)
           continue;
 
-        KjNode* srcArr = (srcMap != NULL) ? kjLookup(srcMap, idP->value.s) : NULL;
+        CorNode* srcArr = (srcMap != NULL) ? corTreeLookup(srcMap, idP->value.s) : NULL;
 
         int n = 0;
-        if (srcArr != NULL && srcArr->type == KjArray)
-          for (KjNode* s = srcArr->value.firstChildP; s != NULL; s = s->next) n++;
+        if (srcArr != NULL && srcArr->type == CorArray)
+          for (CorNode* s = srcArr->value.firstChildP; s != NULL; s = s->next) n++;
 
         if (n == 0)
         {
@@ -2278,8 +2279,8 @@ bool getEntities(void)
         {
           const char** srcV = (const char**) kaAlloc(&corRest.kalloc, n * sizeof(char*));
           int i = 0;
-          for (KjNode* s = srcArr->value.firstChildP; s != NULL; s = s->next)
-            if (s->type == KjString)
+          for (CorNode* s = srcArr->value.firstChildP; s != NULL; s = s->next)
+            if (s->type == CorString)
               srcV[i++] = s->value.s;
           ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
         }
@@ -2288,9 +2289,9 @@ bool getEntities(void)
       // Flush per-CSR linkedMaps tracker (§ 5.14.4.4) into the map.
       if (linkedMapsTracker != NULL)
       {
-        for (KjNode* p = linkedMapsTracker->value.firstChildP; p != NULL; p = p->next)
+        for (CorNode* p = linkedMapsTracker->value.firstChildP; p != NULL; p = p->next)
         {
-          if (p->name == NULL || p->type != KjString)
+          if (p->name == NULL || p->type != CorString)
             continue;
           ldEntityMapAddLinkedMap(mapP, p->name, p->value.s);
         }
@@ -2339,7 +2340,7 @@ bool getEntities(void)
       DbQueryFilter countFilter = filter;
       countFilter.count = true;
       countFilter.limit = 0;   // count-only, no entities materialized
-      KjNode* dummyP    = NULL;
+      CorNode* dummyP   = NULL;
       db.entityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
       n = countFilter.totalCount;
     }
@@ -2393,19 +2394,19 @@ bool getEntities(void)
   //
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — see the earlier
     // identical block; spec is silent, ETSI plenary chose to drop.
     if (corNgsild.pickV != NULL)
     {
-      KjNode* ep = arrayP->value.firstChildP;
+      CorNode* ep = arrayP->value.firstChildP;
       while (ep != NULL)
       {
-        KjNode* next = ep->next;
-        if (ep->type == KjObject && ep->value.firstChildP == NULL)
-          kjChildRemove(arrayP, ep);
+        CorNode* next = ep->next;
+        if (ep->type == CorObject && ep->value.firstChildP == NULL)
+          corTreeChildRemove(arrayP, ep);
         ep = next;
       }
     }
@@ -2414,19 +2415,19 @@ bool getEntities(void)
   {
     // attrs = selection + projection: drop entities with none of the
     // listed attributes (see the identical block in the local path).
-    KjNode* ep = arrayP->value.firstChildP;
+    CorNode* ep = arrayP->value.firstChildP;
     while (ep != NULL)
     {
-      KjNode* next = ep->next;
+      CorNode* next = ep->next;
       ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
-      for (KjNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      for (CorNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
       {
         if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
       }
       if (!hasAttr)
-        kjChildRemove(arrayP, ep);
+        corTreeChildRemove(arrayP, ep);
       ep = next;
     }
   }

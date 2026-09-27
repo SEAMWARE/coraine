@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
@@ -22,7 +22,7 @@
 // copying changed attributes (and refreshed modifiedAt/type/scope) from the
 // already-merged `merged` tree. Shared by the single-entity and batch paths.
 //
-extern void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP);
+extern void corDbApplyReportToLive(CorNode* live, CorNode* merged, LdMergeReport* reportP);
 
 
 
@@ -34,6 +34,6 @@ extern void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* 
 // produced `reportP`; this applies the change report to the live stored tree.
 //
 extern int corDbEntityChangesApply(Tenant* tenantP, const char* entityId,
-                                   KjNode* mergedEntity, LdMergeReport* reportP);
+                                   CorNode* mergedEntity, LdMergeReport* reportP);
 
 #endif  // CORDB_CORDBENTITYMERGE_H_

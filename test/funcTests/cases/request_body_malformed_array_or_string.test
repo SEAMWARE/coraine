@@ -1,0 +1,142 @@
+#
+# FILE            request_body_malformed_array_or_string.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.2.3 — a syntactically invalid JSON request body is rejected with
+# 400 InvalidRequest. These three are the shapes the JSON parser rejects on
+# its own error paths rather than on the common one - a double comma in an
+# array, an array with a missing value, a string with no closing quote - and
+# the last step shows the broker goes on serving afterwards.
+#
+--NAME--
+Double comma, missing array value, unterminated string -> 400 InvalidRequest
+
+--TAGS--
+entity error validation create parse
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. POST /entities with a double comma in an array value -> 400 InvalidRequest"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:1","type":"T","a":{"type":"Property","value":[1,,2]}}'
+echo
+echo
+
+
+echo "02. POST /entities with an array that starts with a comma -> 400 InvalidRequest"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:2","type":"T","a":{"type":"Property","value":[ , 1]}}'
+echo
+echo
+
+
+echo "03. POST /entities with a string value that is never closed -> 400 InvalidRequest"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:3","type":"T","a":{"type":"Property","value":"abc}}'
+echo
+echo
+
+
+echo "04. POST /entities with a well-formed body - the broker is still serving -> 201"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities -X POST --header 'Content-Type: application/json' --payload '{"id":"urn:ngsi-ld:T:4","type":"T","a":{"type":"Property","value":[1,2]}}'
+echo
+echo
+
+
+echo "05. GET the entity of step 04"
+echo "============================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:4'
+echo
+echo
+
+--EXPECT--
+01. POST /entities with a double comma in an array value -> 400 InvalidRequest
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+02. POST /entities with an array that starts with a comma -> 400 InvalidRequest
+================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+03. POST /entities with a string value that is never closed -> 400 InvalidRequest
+==================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "request body is not valid JSON",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+04. POST /entities with a well-formed body - the broker is still serving -> 201
+================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:4
+Content-Length: 0
+
+
+
+
+05. GET the entity of step 04
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "a": {
+    "type": "Property",
+    "value": [
+      1,
+      2
+    ]
+  },
+  "id": "urn:ngsi-ld:T:4",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop

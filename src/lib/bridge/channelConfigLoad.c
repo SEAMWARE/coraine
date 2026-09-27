@@ -17,12 +17,12 @@
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "kalloc/kaBufferInit.h"                      // kaBufferInit
 #include "kalloc/kaBufferReset.h"                     // kaBufferReset
-#include "kjson/kjson.h"                              // Kjson
-#include "kjson/kjBufferCreate.h"                     // kjBufferCreate
-#include "kjson/kjParse.h"                            // kjParse
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjBoolean
-#include "kjson/KjNode.h"                             // KjNode
+#include "corJson/CorJson.h"                          // CorJson
+#include "corJson/corJsonCreate.h"                    // corJsonCreate
+#include "corJson/corJsonParse.h"                     // corJsonParse
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeBoolean
+#include "corTree/CorNode.h"                          // CorNode
 #include "ktrace/kTrace.h"                            // KT_W, KT_X, KT_T
 
 #include "corJsonld/corLdInit.h"                      // corLdCoreContext
@@ -53,11 +53,11 @@
 //
 // stringMember - a string-valued member, or NULL
 //
-static const char* stringMember(KjNode* objectP, const char* name)
+static const char* stringMember(CorNode* objectP, const char* name)
 {
-  KjNode* nodeP = kjLookup(objectP, name);
+  CorNode* nodeP = corTreeLookup(objectP, name);
 
-  if ((nodeP == NULL) || (nodeP->type != KjString) || (nodeP->value.s == NULL) || (nodeP->value.s[0] == 0))
+  if ((nodeP == NULL) || (nodeP->type != CorString) || (nodeP->value.s == NULL) || (nodeP->value.s[0] == 0))
     return NULL;
 
   return nodeP->value.s;
@@ -79,11 +79,11 @@ static const char* stringMember(KjNode* objectP, const char* name)
 //
 // @return true with *uriP (and *acceptP, NULL for the default) set
 //
-static bool notificationParse(const char* alias, const char* where, KjNode* notificationP, const char** uriP, const char** acceptP)
+static bool notificationParse(const char* alias, const char* where, CorNode* notificationP, const char** uriP, const char** acceptP)
 {
-  KjNode*     endpointP = (notificationP->type == KjObject) ? kjLookup(notificationP, "endpoint") : NULL;
-  const char* uri       = ((endpointP != NULL) && (endpointP->type == KjObject)) ? stringMember(endpointP, "uri")    : NULL;
-  const char* accept    = ((endpointP != NULL) && (endpointP->type == KjObject)) ? stringMember(endpointP, "accept") : NULL;
+  CorNode*    endpointP = (notificationP->type == CorObject) ? corTreeLookup(notificationP, "endpoint") : NULL;
+  const char* uri       = ((endpointP != NULL) && (endpointP->type == CorObject)) ? stringMember(endpointP, "uri")   : NULL;
+  const char* accept    = ((endpointP != NULL) && (endpointP->type == CorObject)) ? stringMember(endpointP, "accept") : NULL;
 
   if ((uri == NULL) || ((strncmp(uri, "http://", 7) != 0) && (strncmp(uri, "https://", 8) != 0)))
   {
@@ -118,7 +118,7 @@ static bool notificationParse(const char* alias, const char* where, KjNode* noti
 // collision, which is deliberate - see channelConfigLoad below.
 //
 static int channelsLoad(const char*        alias,
-                        KjNode*            sectionP,
+                        CorNode*           sectionP,
                         BridgeChannelKind  kind,
                         BridgeDirection    direction,
                         Tenant*            tenantP,
@@ -126,11 +126,11 @@ static int channelsLoad(const char*        alias,
 {
   int created = 0;
 
-  for (KjNode* entryP = sectionP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+  for (CorNode* entryP = sectionP->value.firstChildP; entryP != NULL; entryP = entryP->next)
   {
     const char* endpoint = entryP->name;
 
-    if (entryP->type != KjObject)
+    if (entryP->type != CorObject)
     {
       KT_W("bridge '%s': entry '%s' is not an object - skipped", alias, endpoint);
       continue;
@@ -239,7 +239,7 @@ static int channelsLoad(const char*        alias,
     // own is notified. Only goals are notified this way: on a topic or a
     // service it would mean nothing, and saying so beats silently dropping it.
     //
-    KjNode* notificationP = kjLookup(entryP, "notification");
+    CorNode* notificationP = corTreeLookup(entryP, "notification");
 
     if ((notificationP != NULL) && (kind != BridgeChannelAction))
       KT_W("bridge '%s': endpoint '%s' - 'notification' is for actions only - ignored", alias, endpoint);
@@ -275,17 +275,17 @@ static int channelsLoad(const char*        alias,
 // else in that member is a file saying something this broker does not
 // understand, which is warned about rather than guessed at.
 //
-static void defaultEntityLoad(const char* alias, KjNode* nodeP, Tenant* tenantP, KAlloc* kaP)
+static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP, KAlloc* kaP)
 {
   const char* entityId   = NULL;
   const char* entityType = NULL;
 
-  if (nodeP->type == KjBoolean)
+  if (nodeP->type == CorBoolean)
   {
     if (nodeP->value.b == false)
       return;
   }
-  else if (nodeP->type == KjObject)
+  else if (nodeP->type == CorObject)
   {
     entityId   = stringMember(nodeP, "id");
     entityType = stringMember(nodeP, "type");
@@ -396,12 +396,12 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   //
   char    kallocBuffer[8192];
   KAlloc  kalloc;
-  Kjson   kjson;
+  CorJson corJson;
 
   kaBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "bridge config");
 
-  Kjson*  kjP    = kjBufferCreate(&kjson, &kalloc);
-  KjNode* treeP  = kjParse(kjP, buf);
+  CorJson* corJsonP = corJsonCreate(&corJson, &kalloc);
+  CorNode* treeP = corJsonParse(corJsonP, buf);
 
   //
   // A file that is there but unusable is always fatal. It was put there on
@@ -429,11 +429,11 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     if (alias == NULL)
       continue;
 
-    KjNode* bridgeP = kjLookup(treeP, alias);
+    CorNode* bridgeP = corTreeLookup(treeP, alias);
     if (bridgeP == NULL)
       continue;
 
-    KjNode* ngsildP = kjLookup(bridgeP, "ngsild");
+    CorNode* ngsildP = corTreeLookup(bridgeP, "ngsild");
     if (ngsildP == NULL)
     {
       KT_W("bridge '%s' is named in '%s' but has no 'ngsild' section - no Channels from it", alias, path);
@@ -444,7 +444,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // The Bridge's default goal endpoint - for a goal whose request and Channel
     // name none. One address for every action Channel of this Bridge.
     //
-    KjNode* bridgeNotificationP = kjLookup(ngsildP, "notification");
+    CorNode* bridgeNotificationP = corTreeLookup(ngsildP, "notification");
 
     if (bridgeNotificationP != NULL)
     {
@@ -459,17 +459,17 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // syncTimeoutMs - Orion-LD's dds.ngsild.syncTimeoutMs, the one global of the
     // section besides typesDirectory (the plugin's). A positive integer.
     //
-    KjNode* syncTimeoutP = kjLookup(ngsildP, "syncTimeoutMs");
+    CorNode* syncTimeoutP = corTreeLookup(ngsildP, "syncTimeoutMs");
 
     if (syncTimeoutP != NULL)
     {
-      if ((syncTimeoutP->type == KjInt) && (syncTimeoutP->value.i > 0) && (syncTimeoutP->value.i <= 600000))
+      if ((syncTimeoutP->type == CorInt) && (syncTimeoutP->value.i > 0) && (syncTimeoutP->value.i <= 600000))
         bridgeSyncTimeoutFromConfig(alias, (int) syncTimeoutP->value.i);
       else
         KT_W("bridge '%s': 'syncTimeoutMs' must be an integer from 1 to 600000 - ignored", alias);
     }
 
-    KjNode* topicsP = kjLookup(ngsildP, "topics");
+    CorNode* topicsP = corTreeLookup(ngsildP, "topics");
     if (topicsP != NULL)
       total += channelsLoad(alias, topicsP, BridgeChannelTopic, BridgeDirectionBoth, tenantP, &kalloc);
 
@@ -480,7 +480,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // because a context broker has no way to compute an answer. A file that
     // asked for the opposite would be asking for something that cannot exist.
     //
-    KjNode* servicesP = kjLookup(ngsildP, "services");
+    CorNode* servicesP = corTreeLookup(ngsildP, "services");
     if (servicesP != NULL)
       total += channelsLoad(alias, servicesP, BridgeChannelService, BridgeDirectionOut, tenantP, &kalloc);
 
@@ -489,7 +489,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // it cannot run one. Whatever comes back - feedback, status, a result - is
     // the other half of a goal the broker sent, not a sample.
     //
-    KjNode* actionsP = kjLookup(ngsildP, "actions");
+    CorNode* actionsP = corTreeLookup(ngsildP, "actions");
     if (actionsP != NULL)
       total += channelsLoad(alias, actionsP, BridgeChannelAction, BridgeDirectionOut, tenantP, &kalloc);
 
@@ -501,10 +501,10 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // DDS clients find every unmapped topic on urn:ngsi-ld:dds:default without
     // asking (KZ 2026-09-25: until ARISE ends, what they see stays).
     //
-    KjNode* defaultEntityP = kjLookup(ngsildP, "defaultEntity");
+    CorNode* defaultEntityP = corTreeLookup(ngsildP, "defaultEntity");
 
     if (defaultEntityP == NULL)
-      defaultEntityP = kjBoolean(kjP, "defaultEntity", true);
+      defaultEntityP = corTreeBoolean(&kalloc, "defaultEntity", true);
 
     defaultEntityLoad(alias, defaultEntityP, tenantP, &kalloc);
   }

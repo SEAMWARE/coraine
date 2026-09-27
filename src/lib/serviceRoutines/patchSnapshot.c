@@ -26,12 +26,12 @@
 #include "corRest/CorRestState.h"                          // corRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjString, kjInteger, kjChildAdd, kjChildReplace
-#include "kjson/kjChildReplace.h"                        // kjChildReplace
-#include "kjson/kjClone.h"                               // kjClone
-#include "kjson/kjFree.h"                                // kjFree
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeString, corTreeInteger, corTreeChildAdd, corTreeChildReplace
+#include "corTree/corTreeChildReplace.h"                 // corTreeChildReplace
+#include "corTree/corTreeClone.h"                        // corTreeClone
+#include "corTree/corTreeFree.h"                         // corTreeFree
 
 #include "corNgsild/corNgsild.h"                           // ldError, corNgsild
 #include "corNgsild/LdProblem.h"                          // LD_ERROR_*
@@ -82,7 +82,7 @@ static const char* IMMUTABLE_FIELDS[] = {
 bool patchSnapshot(void)
 {
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
-  KjNode* fragP   = corRest.in.requestTree;
+  CorNode* fragP  = corRest.in.requestTree;
 
   const char* slash = strrchr(corRest.in.urlPath, '/');
   const char* id    = (slash != NULL) ? slash + 1 : corRest.in.urlPath;
@@ -94,7 +94,7 @@ bool patchSnapshot(void)
     return true;
   }
 
-  if (fragP == NULL || fragP->type != KjObject)
+  if (fragP == NULL || fragP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot fragment must be a JSON object");
@@ -120,7 +120,7 @@ bool patchSnapshot(void)
   // Reject immutable fields.
   for (int i = 0; IMMUTABLE_FIELDS[i] != NULL; i++)
   {
-    if (kjLookup(fragP, IMMUTABLE_FIELDS[i]) != NULL)
+    if (corTreeLookup(fragP, IMMUTABLE_FIELDS[i]) != NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "field '%s' cannot be modified via PATCH", IMMUTABLE_FIELDS[i]);
@@ -129,11 +129,11 @@ bool patchSnapshot(void)
   }
 
   // Validate snapshotPriority if present.
-  KjNode* prioP = kjLookup(fragP, "snapshotPriority");
+  CorNode* prioP = corTreeLookup(fragP, "snapshotPriority");
   if (prioP != NULL)
   {
-    long pn = (prioP->type == KjInt)   ? (long) prioP->value.i
-            : (prioP->type == KjFloat) ? (long) prioP->value.f
+    long pn = (prioP->type == CorInt)  ? (long) prioP->value.i
+            : (prioP->type == CorFloat) ? (long) prioP->value.f
             : -1L;
     if (pn < 1 || pn > 10)
     {
@@ -144,11 +144,11 @@ bool patchSnapshot(void)
   }
 
   // Validate snapshotLifetime (ISO 8601 duration) if present.
-  KjNode* lifeP = kjLookup(fragP, "snapshotLifetime");
+  CorNode* lifeP = corTreeLookup(fragP, "snapshotLifetime");
   int64_t lifeNs = -1;
   if (lifeP != NULL)
   {
-    if (lifeP->type != KjString || (lifeNs = ldIso8601DurationParseNs(lifeP->value.s)) < 0)
+    if (lifeP->type != CorString || (lifeNs = ldIso8601DurationParseNs(lifeP->value.s)) < 0)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
@@ -159,50 +159,50 @@ bool patchSnapshot(void)
   // Apply each fragment field to the cached tree (cache allocator is
   // long-lived; we re-stamp by replacing the node when present, adding
   // it otherwise).
-  for (KjNode* fP = fragP->value.firstChildP; fP != NULL; fP = fP->next)
+  for (CorNode* fP = fragP->value.firstChildP; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL) continue;
 
-    KjNode* dest = kjLookup(itemP->tree, fP->name);
-    KjNode* clone = kjClone(NULL, fP);                  // long-lived clone
+    CorNode* dest = corTreeLookup(itemP->tree, fP->name);
+    CorNode* clone = corTreeClone(NULL, fP);            // long-lived clone
     if (dest != NULL)
     {
-      // itemP->tree is an all-malloc clone — kjChildReplace only swaps the
+      // itemP->tree is an all-malloc clone — corTreeChildReplace only swaps the
       // pointer, so free the replaced node to avoid orphaning it.
-      kjChildReplace(itemP->tree, dest, clone);
-      kjFree(dest);
+      corTreeChildReplace(itemP->tree, dest, clone);
+      corTreeFree(dest);
     }
     else
-      kjChildAdd(itemP->tree, clone);
+      corTreeChildAdd(itemP->tree, clone);
   }
 
   // Refresh modifiedAt on the cached tree (live tree mutation only).
   itemP->modifiedAt = corRest.requestStartTime;
   if (prioP != NULL)
   {
-    long pn = (prioP->type == KjInt) ? (long) prioP->value.i : (long) prioP->value.f;
+    long pn = (prioP->type == CorInt) ? (long) prioP->value.i : (long) prioP->value.f;
     itemP->priority = (int) pn;
   }
 
   // Recompute expiresAt = createdAt + new lifetime, mirror to the cache
   // tree, and add it to the persisted fragment (so the DB sees the new
   // deadline even though clients can't set expiresAt directly).
-  // The cache tree must hold long-lived strings (kjString with NULL
+  // The cache tree must hold long-lived strings (corTreeString with NULL
   // allocator → malloc-backed copy); the per-request fragment can use
-  // corRest.kjsonP since the DB plugin renders & sends before request end.
+  // corRest.kallocP since the DB plugin renders & sends before request end.
   if (lifeNs > 0)
   {
     itemP->expiresAt = itemP->createdAt + (uint64_t) lifeNs;
     char*   expIso = nsToIso(itemP->expiresAt);
-    KjNode* dest   = kjLookup(itemP->tree, "expiresAt");
+    CorNode* dest  = corTreeLookup(itemP->tree, "expiresAt");
     if (dest != NULL)
     {
-      // all-malloc clone — kjChildRemove only unlinks, so free the old node.
-      kjChildRemove(itemP->tree, dest);
-      kjFree(dest);
+      // all-malloc clone — corTreeChildRemove only unlinks, so free the old node.
+      corTreeChildRemove(itemP->tree, dest);
+      corTreeFree(dest);
     }
-    kjChildAdd(itemP->tree, kjString(NULL, "expiresAt", expIso));
-    kjChildAdd(fragP, kjString(corRest.kjsonP, "expiresAt", expIso));
+    corTreeChildAdd(itemP->tree, corTreeString(NULL, "expiresAt", expIso));
+    corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "expiresAt", expIso));
   }
 
   // Persist the patch so it survives a restart. The DB plugin applies
@@ -222,10 +222,10 @@ bool patchSnapshot(void)
   // Rendered exactly as Retrieve Snapshot Status renders it: a clone into the
   // per-request kalloc, with the hidden "_snapSeq" boot-reload field stripped.
   //
-  KjNode* clone = kjClone(corRest.kjsonP, itemP->tree);
-  KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
+  CorNode* clone = corTreeClone(corRest.kallocP, itemP->tree);
+  CorNode* seqP = (clone != NULL) ? corTreeLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
-    kjChildRemove(clone, seqP);
+    corTreeChildRemove(clone, seqP);
 
   corRest.out.responseTree   = clone;
   corRest.out.httpStatusCode = 200;

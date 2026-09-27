@@ -27,12 +27,12 @@
 #include <mongoc/mongoc.h>                               // mongoc_*
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocKjTreeToBson.h"      // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"        // mongocTreeToBson
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkUpdate.h"  // Own interface
@@ -45,12 +45,12 @@ extern mongoc_client_pool_t* poolP;
 
 // -----------------------------------------------------------------------------
 //
-// countEntries - count children of a KjArray
+// countEntries - count children of a CorArray
 //
-static int countEntries(KjNode* arrP)
+static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (KjNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -60,14 +60,14 @@ static int countEntries(KjNode* arrP)
 //
 // entityIdAt - return the id string of the ix-th entity, or NULL
 //
-static const char* entityIdAt(KjNode* entitiesArr, int ix)
+static const char* entityIdAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
+  for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
   {
     if (i != ix) continue;
-    KjNode* idP = kjLookup(e, "id");
-    if (idP == NULL || idP->type != KjString) return NULL;
+    CorNode* idP = corTreeLookup(e, "id");
+    if (idP == NULL || idP->type != CorString) return NULL;
     return idP->value.s;
   }
   return NULL;
@@ -79,10 +79,10 @@ static const char* entityIdAt(KjNode* entitiesArr, int ix)
 //
 // entityAt - return the ix-th entity, or NULL
 //
-static KjNode* entityAt(KjNode* entitiesArr, int ix)
+static CorNode* entityAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
+  for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
   {
     if (i == ix)
       return e;
@@ -101,7 +101,7 @@ static KjNode* entityAt(KjNode* entitiesArr, int ix)
 // how many were marked, so the caller can tell a reply that named the failures
 // from one that named none (a transport error), where nothing can be told apart.
 //
-static int applyWriteErrors(const bson_t* reply, int* resultsV, int batchN, const int* batchIx, KjNode* entitiesArr, Tenant* tenantP)
+static int applyWriteErrors(const bson_t* reply, int* resultsV, int batchN, const int* batchIx, CorNode* entitiesArr, Tenant* tenantP)
 {
   bson_iter_t top;
   if (!bson_iter_init_find(&top, reply, "writeErrors"))
@@ -162,9 +162,9 @@ static int applyWriteErrors(const bson_t* reply, int* resultsV, int batchN, cons
 //
 // mongocEntityBulkUpdate -
 //
-int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
+int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
-  if (entitiesArr == NULL || entitiesArr->type != KjArray)
+  if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
   int n = countEntries(entitiesArr);
@@ -251,8 +251,8 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     }
 
     int ix = 0;
-    KjNode* entityP = NULL;
-    for (KjNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, ix++)
+    CorNode* entityP = NULL;
+    for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, ix++)
     {
       if (ix == i) { entityP = e; break; }
     }
@@ -285,7 +285,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     BSON_APPEND_UTF8(&selector, "_id", id);
 
     bson_t doc;
-    mongocKjTreeToBson(entityP, &doc);
+    mongocTreeToBson(entityP, &doc);
 
     mongoc_bulk_operation_replace_one(bulk, &selector, &doc, false);
 

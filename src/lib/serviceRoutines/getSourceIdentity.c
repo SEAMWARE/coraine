@@ -22,9 +22,9 @@
 #include <time.h>                                    // time, gmtime_r, strftime
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd
-#include "kjson/kjClone.h"                           // kjClone
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeClone.h"                    // corTreeClone
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corNgsild/corNgsild.h"                       // corNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
@@ -114,26 +114,26 @@ bool getSourceIdentity(void)
   uptimeIso(uptimeBuf, sizeof(uptimeBuf));
   nowIsoUtc(timeAtBuf, sizeof(timeAtBuf));
 
-  KjNode* body = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(body, kjString(corRest.kjsonP, "id",                   idBuf));
-  kjChildAdd(body, kjString(corRest.kjsonP, "type",                 "ContextSourceIdentity"));
-  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceAlias",   alias));
+  CorNode* body = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "id",        idBuf));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "type",      "ContextSourceIdentity"));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "contextSourceAlias", alias));
   // § 5.2.40 — broker product + version
-  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceName",    "coraine"));
-  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceVersion", CORAINE_VERSION));
-  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceUptime",  uptimeBuf));
-  kjChildAdd(body, kjString(corRest.kjsonP, "contextSourceTimeAt",  timeAtBuf));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "contextSourceName", "coraine"));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "contextSourceVersion", CORAINE_VERSION));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "contextSourceUptime", uptimeBuf));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "contextSourceTimeAt", timeAtBuf));
 
   // § 5.2.40 contextSourceExtras — opaque JSON, never @context-expanded.
   // Cloned into the request arena so the response renderer doesn't mutate
   // the long-lived startup-parsed tree.
   if (ldContextSourceExtras != NULL)
   {
-    KjNode* extras = kjClone(corRest.kjsonP, ldContextSourceExtras);
+    CorNode* extras = corTreeClone(corRest.kallocP, ldContextSourceExtras);
     if (extras != NULL)
     {
       extras->name = (char*) "contextSourceExtras";
-      kjChildAdd(body, extras);
+      corTreeChildAdd(body, extras);
     }
   }
 

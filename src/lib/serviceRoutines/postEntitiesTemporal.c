@@ -34,11 +34,11 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
@@ -63,12 +63,12 @@
 //
 // hasNonKeywordAttr - true if entityP has any non-keyword child.
 //
-static bool hasNonKeywordAttr(KjNode* entityP)
+static bool hasNonKeywordAttr(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
   {
     if (c->name == NULL)             continue;
     if (c->name[0] == '@')           continue;
@@ -106,16 +106,16 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 //
 // renderTemporalFragment - serialize fragment with @context for remote POST.
 //
-static char* renderTemporalFragment(KjNode* fragP)
+static char* renderTemporalFragment(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   bufSize = kjFastRenderSize(fragP) + 1;
+  int   bufSize = corJsonFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -123,19 +123,19 @@ static char* renderTemporalFragment(KjNode* fragP)
 
 bool postEntitiesTemporal(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
-  if (bodyP == NULL || bodyP->type != KjObject)
+  if (bodyP == NULL || bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "request body must be a JSON-LD object (EntityTemporal)");
     return true;
   }
 
-  KjNode* idP   = kjLookup(bodyP, "id");
-  KjNode* typeP = kjLookup(bodyP, "type");
+  CorNode* idP  = corTreeLookup(bodyP, "id");
+  CorNode* typeP = corTreeLookup(bodyP, "type");
 
-  if (idP == NULL || idP->type != KjString || idP->value.s[0] == 0)
+  if (idP == NULL || idP->type != CorString || idP->value.s[0] == 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "EntityTemporal must include a non-empty 'id'");
@@ -155,7 +155,7 @@ bool postEntitiesTemporal(void)
     return true;
   }
 
-  if (typeP->type == KjArray)
+  if (typeP->type == CorArray)
   {
     if (typeP->value.firstChildP == NULL)
     {
@@ -164,9 +164,9 @@ bool postEntitiesTemporal(void)
       return true;
     }
 
-    for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
     {
-      if ((tP->type != KjString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
+      if ((tP->type != CorString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
       {
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
                 "every entry of the 'type' array must be a non-empty string");
@@ -174,7 +174,7 @@ bool postEntitiesTemporal(void)
       }
     }
   }
-  else if ((typeP->type != KjString) || (typeP->value.s[0] == 0))
+  else if ((typeP->type != CorString) || (typeP->value.s[0] == 0))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
             "EntityTemporal must include a non-empty 'type'");
@@ -191,7 +191,7 @@ bool postEntitiesTemporal(void)
   const char* entityId   = idP->value.s;
   bool        inputHadAttrs = hasNonKeywordAttr(bodyP);
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // Distop dispatch (§ 4.3.6 / § 5.6.11.4). upsertTemporal is NOT in the
@@ -205,19 +205,19 @@ bool postEntitiesTemporal(void)
     // the first - a CSR registered for the second of two types has to match.
     //
     int typeCount = 1;
-    if (typeP->type == KjArray)
+    if (typeP->type == CorArray)
     {
       typeCount = 0;
-      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
         typeCount++;
     }
 
     char**  typeArr = (char**) kaAlloc(&corRest.kalloc, sizeof(char*) * (typeCount + 1));
     int     tIx     = 0;
 
-    if (typeP->type == KjArray)
+    if (typeP->type == CorArray)
     {
-      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
         typeArr[tIx++] = tP->value.s;
     }
     else
@@ -278,7 +278,7 @@ bool postEntitiesTemporal(void)
 
           // Exclusive: detach in-loop. Redirect: clone, sweep after
           // the loop. Inclusive: clone for local-too semantics.
-          KjNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kjsonP, /*detach=*/(g == 0));
+          CorNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kallocP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
 
           if (!opSupported)
@@ -329,7 +329,7 @@ bool postEntitiesTemporal(void)
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;
-        KjNode* drop = ldEntityFragmentForInfo(bodyP, riP, corRest.kjsonP, /*detach=*/true);
+        CorNode* drop = ldEntityFragmentForInfo(bodyP, riP, corRest.kallocP, /*detach=*/true);
         (void) drop;
       }
     }
@@ -393,7 +393,7 @@ bool postEntitiesTemporal(void)
 
   // Response decision.
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {
@@ -419,12 +419,12 @@ bool postEntitiesTemporal(void)
   }
 
   // Mixed result → 207 with BatchOperationResult; total failure → 502.
-  KjNode* result = kjObject(corRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(corRest.kjsonP, "success");
+  CorNode* result = corTreeObject(corRest.kallocP, NULL);
+  CorNode* successArr = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
-  kjChildAdd(result, successArr);
-  kjChildAdd(result, errorsArrayP);
+    corTreeChildAdd(successArr, corTreeString(corRest.kallocP, NULL, entityId));
+  corTreeChildAdd(result, successArr);
+  corTreeChildAdd(result, errorsArrayP);
 
   corRest.out.responseTree   = result;
   corRest.out.httpStatusCode = anySucceeded ? 207 : 502;

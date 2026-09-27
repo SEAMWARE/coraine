@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                          // KjNode
+#include "corTree/CorNode.h"                       // CorNode
 #include "db/DbDriver.h"                           // Tenant
 
 
@@ -18,6 +18,6 @@
 //
 // corDbEntityBulkCreate -
 //
-extern int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+extern int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV);
 
 #endif  // CORDB_CORDBENTITYBULKCREATE_H_

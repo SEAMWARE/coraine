@@ -10,11 +10,11 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_find_with_opts
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 #include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocBsonToKjTree.h"  // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"    // mongocBsonToTree
 #include "currentState/mongoc/mongocInjectType.h"    // mongocInjectTypeAfterId
 #include "currentState/mongoc/mongocSubscriptionRetrieve.h"  // Own interface
 
@@ -32,7 +32,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocSubscriptionRetrieve -
 //
-int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subPP)
+int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, CorNode** subPP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "subscriptions");
@@ -48,7 +48,7 @@ int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subP
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    *subPP = mongocBsonToKjTree(&corRest.kalloc, doc);
+    *subPP = mongocBsonToTree(&corRest.kalloc, doc);
     // `type` was stripped at insert — put back the JSON-LD constant.
     mongocInjectTypeAfterId(*subPP, "Subscription");
     result = DB_OK;

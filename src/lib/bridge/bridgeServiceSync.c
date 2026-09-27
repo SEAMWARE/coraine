@@ -16,11 +16,11 @@
 #include <time.h>                                     // clock_gettime
 
 #include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjRender.h"                           // kjFastRender
-#include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove, kjObject
-#include "kjson/kjClone.h"                            // kjClone
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corJson/corJsonRender.h"                    // corJsonFastRender
+#include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove, corTreeObject
+#include "corTree/corTreeClone.h"                     // corTreeClone
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
@@ -67,7 +67,7 @@ int  bridgeSyncWaitMax   = 8;
 //
 // SYNC_OUT_MAX - the largest request payload a synchronous invocation renders
 //
-// kjFastRender does not know the size of the buffer it writes into, so the size
+// corJsonFastRender does not know the size of the buffer it writes into, so the size
 // is decided here: a service request, a goal and a topic's sample are each the
 // value of one attribute.
 //
@@ -397,7 +397,7 @@ static void sendError(int r, const char* attrName, const Channel* channelP, cons
 // not written. The status is what the request would have answered had it
 // written that attribute alone.
 //
-static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attrP, int r, const Channel* channelP, const char* what)
+static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* attrP, int r, const Channel* channelP, const char* what)
 {
   char        reason[512];
   int         status;
@@ -434,7 +434,7 @@ static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attr
     doneP->failedN++;
   }
 
-  kjChildRemove(fragmentP, attrP);
+  corTreeChildRemove(fragmentP, attrP);
 }
 
 
@@ -449,9 +449,9 @@ static void sendFailedOne(BridgeSyncDone* doneP, KjNode* fragmentP, KjNode* attr
 //
 // @return false when the request fails as a whole - the error is set.
 //
-static bool goalNotTaken(BridgeSyncDone* doneP, KjNode* fragmentP, int ix, int status, const char* type, const char* title, const char* errorCode, const char* reason)
+static bool goalNotTaken(BridgeSyncDone* doneP, CorNode* fragmentP, int ix, int status, const char* type, const char* title, const char* errorCode, const char* reason)
 {
-  KjNode* attrP = doneP->goalAttrV[ix];
+  CorNode* attrP = doneP->goalAttrV[ix];
 
   doneP->goalV[ix] = 0;                               // out of the registry already - nothing to release
 
@@ -477,7 +477,7 @@ static bool goalNotTaken(BridgeSyncDone* doneP, KjNode* fragmentP, int ix, int s
     doneP->failedN++;
   }
 
-  kjChildRemove(fragmentP, attrP);
+  corTreeChildRemove(fragmentP, attrP);
   return true;
 }
 
@@ -614,7 +614,7 @@ static void waitSlotGive(void)
 //
 // doneAdd - note a Channel this request has already sent to
 //
-static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedToken, uint64_t goalToken, KjNode* goalAttrP, const char* goalRequest)
+static bool doneAdd(BridgeSyncDone* doneP, Channel* channelP, uint64_t detachedToken, uint64_t goalToken, CorNode* goalAttrP, const char* goalRequest)
 {
   if (doneP->count >= BRIDGE_SYNC_MAX)
   {
@@ -678,7 +678,7 @@ static bool requestsFailed(BridgeSyncDone* doneP)
 //         when the merge itself refuses the fragment - with the error the write
 //         would have set.
 //
-static KjNode* mergedValue(Tenant* tenantP, const char* entityId, KjNode* attrP, KjNode** storedPP, bool* failedP)
+static CorNode* mergedValue(Tenant* tenantP, const char* entityId, CorNode* attrP, CorNode** storedPP, bool* failedP)
 {
   *failedP = false;
 
@@ -688,21 +688,21 @@ static KjNode* mergedValue(Tenant* tenantP, const char* entityId, KjNode* attrP,
       return NULL;
   }
 
-  KjNode*       oneP   = kjObject(corRest.kjsonP, NULL);
+  CorNode*      oneP   = corTreeObject(corRest.kallocP, NULL);
   LdMergeReport report = { NULL };
 
-  kjChildAdd(oneP, kjClone(corRest.kjsonP, attrP));
+  corTreeChildAdd(oneP, corTreeClone(corRest.kallocP, attrP));
 
-  if (ldEntityMerge(*storedPP, oneP, &report, corRest.requestStartTime, corRest.kjsonP) == false)
+  if (ldEntityMerge(*storedPP, oneP, &report, corRest.requestStartTime, corRest.kallocP) == false)
   {
     *failedP = true;
     return NULL;
   }
 
-  KjNode* storedAttrP = kjLookup(*storedPP, attrP->name);
-  KjNode* instanceP   = (storedAttrP != NULL) ? kjLookup(storedAttrP, "@none") : NULL;
+  CorNode* storedAttrP = corTreeLookup(*storedPP, attrP->name);
+  CorNode* instanceP  = (storedAttrP != NULL) ? corTreeLookup(storedAttrP, "@none") : NULL;
 
-  return (instanceP != NULL) ? kjLookup(instanceP, "value") : NULL;
+  return (instanceP != NULL) ? corTreeLookup(instanceP, "value") : NULL;
 }
 
 
@@ -711,7 +711,7 @@ static KjNode* mergedValue(Tenant* tenantP, const char* entityId, KjNode* attrP,
 //
 // bridgeRequestsBeforeWrite -
 //
-bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP)
+bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP)
 {
   doneP->count    = 0;
   doneP->accepted = false;
@@ -721,7 +721,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   if ((channelOutCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
 
-  KjNode* storedP = NULL;                             // BRIDGE_REQ_MERGE: the entity as stored, fetched once
+  CorNode* storedP = NULL;                            // BRIDGE_REQ_MERGE: the entity as stored, fetched once
 
   bool wait;
 
@@ -734,7 +734,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   //
   int attrCount = 0;
 
-  for (KjNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (ldIsNotAttributeName(attrP->name) == false)
       attrCount++;
@@ -751,9 +751,9 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
   if ((several == true) || ((flags & BRIDGE_REQ_MAY_WAIT) == 0))
     wait = false;
 
-  KjNode* nextP;
+  CorNode* nextP;
 
-  for (KjNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = nextP)
+  for (CorNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = nextP)
   {
     nextP = attrP->next;                              // attrP may be taken out of the fragment
 
@@ -774,8 +774,8 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     // among several, and which of those a topic should carry is not a question
     // a Channel's configuration answers.
     //
-    KjNode* instanceP = kjLookup(attrP, "@none");
-    KjNode* valueP    = (instanceP != NULL) ? kjLookup(instanceP, "value") : NULL;
+    CorNode* instanceP = corTreeLookup(attrP, "@none");
+    CorNode* valueP   = (instanceP != NULL) ? corTreeLookup(instanceP, "value") : NULL;
 
     if (valueP == NULL)
       continue;
@@ -801,16 +801,16 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     // The wire carries the VALUE, as the application's own JSON - not the
     // NGSI-LD wrapper, and detached from its surroundings for the render: its
     // NAME, or the output is  "value":250  instead of  250 , and its NEXT, or
-    // kjFastRender follows the sibling chain and emits  250,  - which parses as
+    // corJsonFastRender follows the sibling chain and emits 250, - which parses as
     // nothing at all.
     //
     static __thread char buf[SYNC_OUT_MAX];
     char*   savedName = valueP->name;
-    KjNode* savedNext = valueP->next;
+    CorNode* savedNext = valueP->next;
 
     valueP->name = NULL;
     valueP->next = NULL;
-    kjFastRender(valueP, buf);
+    corJsonFastRender(valueP, buf);
     valueP->name = savedName;
     valueP->next = savedNext;
 
@@ -857,9 +857,9 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
       // sub-Attribute of the request, as orion-ld's goals do. The broker then
       // subscribes that endpoint to this goal's instance alone (bridgeGoal.c).
       //
-      KjNode*     endpointAttrP = kjLookup(instanceP, LD_VOCAB_ENDPOINT);
-      KjNode*     endpointValP  = ((endpointAttrP != NULL) && (endpointAttrP->type == KjObject)) ? kjLookup(endpointAttrP, "value") : NULL;
-      const char* endpoint      = ((endpointValP != NULL) && (endpointValP->type == KjString)) ? endpointValP->value.s : NULL;
+      CorNode*    endpointAttrP = corTreeLookup(instanceP, LD_VOCAB_ENDPOINT);
+      CorNode*    endpointValP  = ((endpointAttrP != NULL) && (endpointAttrP->type == CorObject)) ? corTreeLookup(endpointAttrP, "value") : NULL;
+      const char* endpoint      = ((endpointValP != NULL) && (endpointValP->type == CorString)) ? endpointValP->value.s : NULL;
 
       uint64_t goalToken = 0;
       int      r         = bridgeGoalSend(channelP, buf, endpoint, &goalToken);
@@ -977,7 +977,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
       continue;
     }
 
-    KjNode* replyP = bridgeReplySubAttr(attrP->name, wP->subAttrName, wP->json, wP->publishTime, wP->meta);
+    CorNode* replyP = bridgeReplySubAttr(attrP->name, wP->subAttrName, wP->json, wP->publishTime, wP->meta);
 
     if (replyP == NULL)
     {
@@ -993,28 +993,28 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fr
     // payload naming the sub-attribute the answer goes in is the client's
     // business, but this request's answer is what goes in it.
     //
-    KjNode* oldP = kjLookup(instanceP, replyP->name);
+    CorNode* oldP = corTreeLookup(instanceP, replyP->name);
 
     if (oldP != NULL)
-      kjChildRemove(instanceP, oldP);
+      corTreeChildRemove(instanceP, oldP);
 
-    kjChildAdd(instanceP, replyP);
+    corTreeChildAdd(instanceP, replyP);
 
     //
     // ABI 7: the request this answers, beside it - same builder, same graft
     //
     if ((wP->reqSubAttrName != NULL) && (wP->reqJson != NULL))
     {
-      KjNode* requestP = bridgeReplySubAttr(attrP->name, wP->reqSubAttrName, wP->reqJson, wP->reqTime, wP->reqMeta);
+      CorNode* requestP = bridgeReplySubAttr(attrP->name, wP->reqSubAttrName, wP->reqJson, wP->reqTime, wP->reqMeta);
 
       if (requestP != NULL)
       {
-        KjNode* oldReqP = kjLookup(instanceP, requestP->name);
+        CorNode* oldReqP = corTreeLookup(instanceP, requestP->name);
 
         if (oldReqP != NULL)
-          kjChildRemove(instanceP, oldReqP);
+          corTreeChildRemove(instanceP, oldReqP);
 
-        kjChildAdd(instanceP, requestP);
+        corTreeChildAdd(instanceP, requestP);
       }
       else
         KT_W("service '%s' on bridge '%s': the request beside its reply is not JSON - left out", channelP->endpoint, channelP->bridgeName);
@@ -1049,7 +1049,7 @@ int64_t bridgeRequestsDeadline(void)
 //
 // bridgeRequestsAwait -
 //
-bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs)
+bool bridgeRequestsAwait(CorNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs)
 {
   for (int ix = 0; ix < doneP->count; ix++)
   {
@@ -1057,7 +1057,7 @@ bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs
       continue;
 
     Channel*         channelP = doneP->channelV[ix];
-    KjNode*          attrP    = doneP->goalAttrV[ix];
+    CorNode*         attrP    = doneP->goalAttrV[ix];
     BridgeGoalAnswer answer;
     char             reason[512];
 
@@ -1101,7 +1101,7 @@ bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs
     // like any other - TRoE and the notifications need it - and removed once
     // this request has written it (bridgeGoalRelease).
     //
-    KjNode* instanceP = bridgeGoalInstance(attrP->name, answer.goalAlias, doneP->goalRequestV[ix], answer.subAttrName, answer.json, answer.publishTime, answer.meta);
+    CorNode* instanceP = bridgeGoalInstance(attrP->name, answer.goalAlias, doneP->goalRequestV[ix], answer.subAttrName, answer.json, answer.publishTime, answer.meta);
 
     if (instanceP == NULL)
     {
@@ -1114,12 +1114,12 @@ bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs
       continue;
     }
 
-    KjNode* oldP = kjLookup(attrP, answer.goalAlias);   // the client's own write of that instance - the goal's is what goes
+    CorNode* oldP = corTreeLookup(attrP, answer.goalAlias); // the client's own write of that instance - the goal's is what goes
 
     if (oldP != NULL)
-      kjChildRemove(attrP, oldP);
+      corTreeChildRemove(attrP, oldP);
 
-    kjChildAdd(attrP, instanceP);
+    corTreeChildAdd(attrP, instanceP);
   }
 
   return true;

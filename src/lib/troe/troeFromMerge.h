@@ -20,7 +20,7 @@
 
 #include <stdint.h>                                       // uint64_t
 
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/CorNode.h"                              // CorNode
 #include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
 #include "db/Tenant.h"                                    // Tenant
 
@@ -28,7 +28,7 @@
 extern void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
                                          const char*     entityId,
                                          const char*     entityType,
-                                         KjNode*         mergedEntity,
+                                         CorNode*        mergedEntity,
                                          LdMergeReport*  reportP,
                                          uint64_t        modifiedAtNs);
 
@@ -48,8 +48,8 @@ extern void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
 extern void troeDeferRemovedByReplace(Tenant*      tenantP,
                                       const char*  entityId,
                                       const char*  entityType,
-                                      KjNode*      oldEntity,
-                                      KjNode*      newEntity,
+                                      CorNode*     oldEntity,
+                                      CorNode*     newEntity,
                                       uint64_t     modifiedAtNs);
 
 #endif  // TROE_TROEFROMMERGE_H_

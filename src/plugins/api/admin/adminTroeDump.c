@@ -12,7 +12,8 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kjson/kjBuilder.h"                      // kjObject, kjChildAdd
+#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 #include "corNgsild/corNgsild.h"                    // ldError, LD_ERROR_*
 
@@ -32,8 +33,8 @@ bool adminGetTroeDump(void)
     return true;
   }
 
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* root   = kjObject(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* root  = corTreeObject(allocP, NULL);
 
   troe.dumpInfo(&corRest.kalloc, root);
 

@@ -23,9 +23,9 @@
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kalloc/kaStrdup.h"                             // kaStrdup
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "corNgsild/corNgsild.h"                           // ldError, corNgsild
 #include "corNgsild/LdProblem.h"                          // LD_ERROR_*
@@ -64,10 +64,10 @@ static const char* shortNameFromIri(const char* iri)
 //
 // nodeAsDouble - read a numeric value from a snapshot field.
 //
-static bool nodeAsDouble(KjNode* nodeP, double* outP)
+static bool nodeAsDouble(CorNode* nodeP, double* outP)
 {
-  if      (nodeP->type == KjInt)   { *outP = (double) nodeP->value.i; return true; }
-  else if (nodeP->type == KjFloat) { *outP = nodeP->value.f;          return true; }
+  if      (nodeP->type == CorInt)  { *outP = (double) nodeP->value.i; return true; }
+  else if (nodeP->type == CorFloat) { *outP = nodeP->value.f;         return true; }
   return false;
 }
 
@@ -82,10 +82,10 @@ static bool nodeAsDouble(KjNode* nodeP, double* outP)
 // supported; LdQRange/LdQValueList/LdQPattern are kept since the spec
 // allows them but they're rarely useful for snapshot members.
 //
-static bool matchTerm(KjNode* tree, LdQTerm* termP)
+static bool matchTerm(CorNode* tree, LdQTerm* termP)
 {
   const char* name  = shortNameFromIri(termP->attr);
-  KjNode*     fldP  = kjLookup(tree, name);
+  CorNode*    fldP  = corTreeLookup(tree, name);
 
   if (termP->op == LdQExists)
     return fldP != NULL;
@@ -111,7 +111,7 @@ static bool matchTerm(KjNode* tree, LdQTerm* termP)
     }
   }
 
-  if (termP->valueType == LdQString && fldP->type == KjString)
+  if (termP->valueType == LdQString && fldP->type == CorString)
   {
     int cmp = strcmp(fldP->value.s, termP->value.s);
     switch (termP->op)
@@ -126,7 +126,7 @@ static bool matchTerm(KjNode* tree, LdQTerm* termP)
     }
   }
 
-  if (termP->valueType == LdQBool && fldP->type == KjBoolean)
+  if (termP->valueType == LdQBool && fldP->type == CorBoolean)
   {
     bool v = termP->value.b;
     bool f = (fldP->value.i != 0);
@@ -138,7 +138,7 @@ static bool matchTerm(KjNode* tree, LdQTerm* termP)
 
 
 
-static bool matchSnapshot(KjNode* tree, LdQNode* nodeP)
+static bool matchSnapshot(CorNode* tree, LdQNode* nodeP)
 {
   if (nodeP == NULL || tree == NULL) return false;
 

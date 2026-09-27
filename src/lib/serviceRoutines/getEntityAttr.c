@@ -21,9 +21,9 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
@@ -59,7 +59,7 @@ bool getEntityAttr(void)
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
 
   if (r == DB_NOT_FOUND || entityP == NULL)
@@ -75,8 +75,8 @@ bool getEntityAttr(void)
     return true;
   }
 
-  KjNode* attrWrapperP = kjLookup(entityP, attrIri);
-  if (attrWrapperP == NULL || attrWrapperP->type != KjObject)
+  CorNode* attrWrapperP = corTreeLookup(entityP, attrIri);
+  if (attrWrapperP == NULL || attrWrapperP->type != CorObject)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "attribute '%s' not found in entity '%s'", attrWild, entityId);
@@ -89,10 +89,10 @@ bool getEntityAttr(void)
   //
   if (corNgsild.datasetIdV != NULL)
   {
-    KjNode* instP = attrWrapperP->value.firstChildP;
+    CorNode* instP = attrWrapperP->value.firstChildP;
     while (instP != NULL)
     {
-      KjNode* nextP = instP->next;
+      CorNode* nextP = instP->next;
       bool    keep  = false;
       for (int i = 0; corNgsild.datasetIdV[i] != NULL; i++)
       {
@@ -103,7 +103,7 @@ bool getEntityAttr(void)
         }
       }
       if (!keep)
-        kjChildRemove(attrWrapperP, instP);
+        corTreeChildRemove(attrWrapperP, instP);
       instP = nextP;
     }
     if (attrWrapperP->value.firstChildP == NULL)
@@ -119,9 +119,9 @@ bool getEntityAttr(void)
   // holding only the one attribute. ldEntityToApi handles the
   // single-instance/array distinction and the timestamp-to-ISO conversion.
   //
-  kjChildRemove(entityP, attrWrapperP);
-  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(wrap, attrWrapperP);
+  corTreeChildRemove(entityP, attrWrapperP);
+  CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(wrap, attrWrapperP);
 
   ldEntityToApi(wrap, &corRest.kalloc);
 
@@ -149,7 +149,7 @@ bool getEntityAttr(void)
   else if (corNgsild.format == LdFormatSimplified)
     ldToSimplified(wrap, &corRest.kalloc);
 
-  KjNode* unwrapped = wrap->value.firstChildP;
+  CorNode* unwrapped = wrap->value.firstChildP;
   if (unwrapped == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",

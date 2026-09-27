@@ -78,16 +78,17 @@ Content-Length: REGEX([0-9]+)
   "product": "coraine",
   "stack": {
     "corBridge": "REGEX([0-9a-f]{40})",
+    "corJson": "REGEX([0-9a-f]{40})",
     "corJsonld": "REGEX([0-9a-f]{40})",
     "corNgsild": "REGEX([0-9a-f]{40})",
     "corPlugin": "REGEX([0-9a-f]{40})",
+    "corProm": "REGEX([0-9a-f]{40})",
     "corRest": "REGEX([0-9a-f]{40})",
+    "corTree": "REGEX([0-9a-f]{40})",
     "kalloc": "REGEX([0-9a-f]{40})",
     "kargs": "REGEX([0-9a-f]{40})",
     "kbase": "REGEX([0-9a-f]{40})",
     "khash": "REGEX([0-9a-f]{40})",
-    "kjson": "REGEX([0-9a-f]{40})",
-    "kprom": "REGEX([0-9a-f]{40})",
     "ktrace": "REGEX([0-9a-f]{40})"
   },
   "version": "0.4.0"
@@ -107,16 +108,17 @@ Content-Length: REGEX([0-9]+)
   "product": "coraine",
   "stack": {
     "corBridge": "REGEX([0-9a-f]{40})",
+    "corJson": "REGEX([0-9a-f]{40})",
     "corJsonld": "REGEX([0-9a-f]{40})",
     "corNgsild": "REGEX([0-9a-f]{40})",
     "corPlugin": "REGEX([0-9a-f]{40})",
+    "corProm": "REGEX([0-9a-f]{40})",
     "corRest": "REGEX([0-9a-f]{40})",
+    "corTree": "REGEX([0-9a-f]{40})",
     "kalloc": "REGEX([0-9a-f]{40})",
     "kargs": "REGEX([0-9a-f]{40})",
     "kbase": "REGEX([0-9a-f]{40})",
     "khash": "REGEX([0-9a-f]{40})",
-    "kjson": "REGEX([0-9a-f]{40})",
-    "kprom": "REGEX([0-9a-f]{40})",
     "ktrace": "REGEX([0-9a-f]{40})"
   },
   "version": "0.4.0"

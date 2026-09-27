@@ -46,10 +46,10 @@
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd, kjChildRemove
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
@@ -110,30 +110,30 @@ static bool paramSupported(const char* key)
 // Returns true if startAt is present (valid interval).
 //
 // CSRs store the interval as { startAt: <DateTime>, endAt: <DateTime>? }
-// where endAt is optional ("interval still open"). Accept both KjString
-// (raw ISO) and KjInt (epoch-ns) shapes.
+// where endAt is optional ("interval still open"). Accept both CorString
+// (raw ISO) and CorInt (epoch-ns) shapes.
 //
-static bool intervalNs(KjNode* intervalP, uint64_t* startNsP, uint64_t* endNsP)
+static bool intervalNs(CorNode* intervalP, uint64_t* startNsP, uint64_t* endNsP)
 {
   *startNsP = 0;
   *endNsP   = 0;
 
-  if (intervalP == NULL || intervalP->type != KjObject)
+  if (intervalP == NULL || intervalP->type != CorObject)
     return false;
 
-  KjNode* startP = kjLookup(intervalP, "startAt");
+  CorNode* startP = corTreeLookup(intervalP, "startAt");
   if (startP == NULL)
     return false;
 
-  if      (startP->type == KjString) *startNsP = ldIsoToNanoseconds(startP->value.s);
-  else if (startP->type == KjInt)    *startNsP = (uint64_t) startP->value.i;
+  if      (startP->type == CorString) *startNsP = ldIsoToNanoseconds(startP->value.s);
+  else if (startP->type == CorInt)   *startNsP = (uint64_t) startP->value.i;
   else                               return false;
 
-  KjNode* endP = kjLookup(intervalP, "endAt");
+  CorNode* endP = corTreeLookup(intervalP, "endAt");
   if (endP != NULL)
   {
-    if      (endP->type == KjString) *endNsP = ldIsoToNanoseconds(endP->value.s);
-    else if (endP->type == KjInt)    *endNsP = (uint64_t) endP->value.i;
+    if      (endP->type == CorString) *endNsP = ldIsoToNanoseconds(endP->value.s);
+    else if (endP->type == CorInt)   *endNsP = (uint64_t) endP->value.i;
   }
 
   return true;
@@ -160,7 +160,7 @@ static bool intervalNs(KjNode* intervalP, uint64_t* startNsP, uint64_t* endNsP)
 // "now or later" for overlap math: timeAt point matches if startNs ≤ timeAt;
 // "between" overlaps as long as endTimeAt ≥ startNs.
 //
-static bool csrTemporalMatch(KjNode* regTree)
+static bool csrTemporalMatch(CorNode* regTree)
 {
   const char* tp = corNgsild.timeproperty;
   bool isManagement = (tp != NULL && (strcmp(tp, "createdAt")  == 0 ||
@@ -172,9 +172,9 @@ static bool csrTemporalMatch(KjNode* regTree)
   const char* shortName    = isManagement ? "managementInterval" : "observationInterval";
   const char* expandedName = isManagement ? "https://uri.etsi.org/ngsi-ld/managementInterval"
                                           : "https://uri.etsi.org/ngsi-ld/observationInterval";
-  KjNode* intervalP = kjLookup(regTree, shortName);
+  CorNode* intervalP = corTreeLookup(regTree, shortName);
   if (intervalP == NULL)
-    intervalP = kjLookup(regTree, expandedName);
+    intervalP = corTreeLookup(regTree, expandedName);
 
   uint64_t startNs = 0, endNs = 0;
   if (!intervalNs(intervalP, &startNs, &endNs))
@@ -266,7 +266,7 @@ bool getCsourceRegistrations(void)
   Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
 
   if (cacheP != NULL)
   {
@@ -304,7 +304,7 @@ bool getCsourceRegistrations(void)
       int n = 0;
       for (int i = 0; i < passN; i++)
       {
-        KjNode* scopeP = (matchV[i]->regTree != NULL) ? kjLookup(matchV[i]->regTree, "scope") : NULL;
+        CorNode* scopeP = (matchV[i]->regTree != NULL) ? corTreeLookup(matchV[i]->regTree, "scope") : NULL;
         if (ldEntityMatchScope(scopeP, corNgsild.scopeExpr))
           matchV[n++] = matchV[i];
       }
@@ -320,14 +320,14 @@ bool getCsourceRegistrations(void)
       int n = 0;
       for (int i = 0; i < passN; i++)
       {
-        KjNode* tree = matchV[i]->regTree;
+        CorNode* tree = matchV[i]->regTree;
         if (tree == NULL)
           continue;
 
-        bool hasObs  = (kjLookup(tree, "observationInterval") != NULL ||
-                        kjLookup(tree, "https://uri.etsi.org/ngsi-ld/observationInterval") != NULL);
-        bool hasMgmt = (kjLookup(tree, "managementInterval")  != NULL ||
-                        kjLookup(tree, "https://uri.etsi.org/ngsi-ld/managementInterval")  != NULL);
+        bool hasObs  = (corTreeLookup(tree, "observationInterval") != NULL ||
+                        corTreeLookup(tree, "https://uri.etsi.org/ngsi-ld/observationInterval") != NULL);
+        bool hasMgmt = (corTreeLookup(tree, "managementInterval") != NULL ||
+                        corTreeLookup(tree, "https://uri.etsi.org/ngsi-ld/managementInterval") != NULL);
 
         if (corNgsild.timerel == NULL)
         {
@@ -370,7 +370,7 @@ bool getCsourceRegistrations(void)
       int n = 0;
       for (int i = 0; i < passN; i++)
       {
-        KjNode* csrGeoP = isObs ? matchV[i]->observationSpaceP
+        CorNode* csrGeoP = isObs ? matchV[i]->observationSpaceP
                           : isOp ? matchV[i]->operationSpaceP
                           : matchV[i]->locationP;
         if (db.csrGeoMatchExactFunc(csrGeoP, corNgsild.geoRel, corNgsild.geometry, corNgsild.coordinates))
@@ -400,26 +400,26 @@ bool getCsourceRegistrations(void)
     {
       if (matchV[i]->regTree != NULL)
       {
-        KjNode* clone = kjClone(corRest.kjsonP, matchV[i]->regTree);
+        CorNode* clone = corTreeClone(corRest.kallocP, matchV[i]->regTree);
 
         // § 5.10.2.5 — strip every information[] entry that doesn't match the request's discovery filter. The pre-parsed
         // infoV linked list is in lockstep with the regTree's "information" array, so we iterate both in parallel and unlink
         // the non-matching JSON nodes. (ETSI forge issue #118: some fixtures assert the full, unfiltered information[];
         // the broker follows the spec "should" and narrows it.)
         {
-          KjNode* infoP = kjLookup(clone, "information");
-          if (infoP != NULL && infoP->type == KjArray)
+          CorNode* infoP = corTreeLookup(clone, "information");
+          if (infoP != NULL && infoP->type == CorArray)
           {
-            KjNode*    childP = infoP->value.firstChildP;
+            CorNode*   childP = infoP->value.firstChildP;
             LdRegInfo* riP    = matchV[i]->infoV;
             while (childP != NULL && riP != NULL)
             {
-              KjNode*    nextChild = childP->next;
+              CorNode*   nextChild = childP->next;
               LdRegInfo* nextRi    = riP->next;
               if (!ldRegInfoDiscoveryMatches(riP, idFilterV, corNgsild.typeV,
                                               haveIdRegex ? &idRegex : NULL,
                                               attrsFilterRsp))
-                kjChildRemove(infoP, childP);
+                corTreeChildRemove(infoP, childP);
               childP = nextChild;
               riP    = nextRi;
             }
@@ -446,7 +446,7 @@ bool getCsourceRegistrations(void)
         else
           ldSysTimestampsToIso(clone, &corRest.kalloc);
 
-        kjChildAdd(arrayP, clone);
+        corTreeChildAdd(arrayP, clone);
       }
     }
 

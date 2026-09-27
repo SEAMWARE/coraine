@@ -11,8 +11,8 @@
 //
 
 #include "db/Tenant.h"                               // Tenant
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
-extern int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, KjNode* subP);
+extern int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, CorNode* subP);
 
 #endif  // CORDB_CORDBSUBSCRIPTIONREPLACE_H_

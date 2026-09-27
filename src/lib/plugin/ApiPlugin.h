@@ -12,7 +12,7 @@
 
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "kargs/KArg.h"                               // KArg
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corRest/CorRestService.h"                     // CorRestServiceSimplified, CorRestParam
 
 
@@ -42,7 +42,7 @@ typedef struct ApiPlugin
   int                        serviceCount;        // number of entries in services[]
   int                      (*init)(void);         // post-kargsParse init
   void                     (*close)(void);        // shutdown cleanup
-  void                     (*versionInfo)(KAlloc* allocP, KjNode* root);
+  void                     (*versionInfo)(KAlloc* allocP, CorNode* root);
 } ApiPlugin;
 
 

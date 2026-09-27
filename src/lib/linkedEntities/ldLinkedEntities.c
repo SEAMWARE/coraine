@@ -13,10 +13,10 @@
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
-#include "kjson/kjParse.h"                            // kjParse
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeChildAdd
+#include "corJson/corJsonParse.h"                     // corJsonParse
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbGet
@@ -108,13 +108,13 @@ static VisitedNode* visitedSeedFromContainedBy(VisitedNode* head)
 //
 // entityIdOf - extract the "id" of an entity tree (borrowed pointer)
 //
-static const char* entityIdOf(KjNode* entityP)
+static const char* entityIdOf(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return NULL;
 
-  KjNode* idP = kjLookup(entityP, "id");
-  if (idP == NULL || idP->type != KjString)
+  CorNode* idP = corTreeLookup(entityP, "id");
+  if (idP == NULL || idP->type != CorString)
     return NULL;
 
   return idP->value.s;
@@ -135,7 +135,7 @@ static const char* entityIdOf(KjNode* entityP)
 //
 // Returns 0 on success and *entityPP set; non-zero on miss.
 //
-int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, KjNode** entityPP, Tenant* tenantP)
+int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, CorNode** entityPP, Tenant* tenantP)
 {
   if (entityId == NULL || entityPP == NULL || tenantP == NULL)
     return -1;
@@ -156,7 +156,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
     {
       DistRetrieveErr err     = {0};
       bool            matched = false;
-      KjNode*         merged  = distributedRetrieveOne(entityId, objectTypeV, tenantP, true, &matched, &err);
+      CorNode*        merged  = distributedRetrieveOne(entityId, objectTypeV, tenantP, true, &matched, &err);
       if (matched && merged != NULL)
       {
         *entityPP = merged;
@@ -191,7 +191,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
   {
     DistRetrieveErr err     = {0};
     bool            matched = false;
-    KjNode*         merged  = distributedRetrieveOne(entityId, NULL, tenantP, true, &matched, &err);
+    CorNode*        merged  = distributedRetrieveOne(entityId, NULL, tenantP, true, &matched, &err);
     if (matched && merged != NULL)
     {
       *entityPP = merged;
@@ -222,13 +222,13 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
 // namespace the reg-cache matches on. Both the single-string and the
 // String[] form (§ 5.2.6) are handled.
 //
-static char** instObjectTypeV(KjNode* instP)
+static char** instObjectTypeV(CorNode* instP)
 {
-  KjNode* otP = kjLookup(instP, "objectType");
+  CorNode* otP = corTreeLookup(instP, "objectType");
   if (otP == NULL)
     return NULL;
 
-  if (otP->type == KjString && otP->value.s != NULL)
+  if (otP->type == CorString && otP->value.s != NULL)
   {
     char** v = (char**) kaAlloc(&corRest.kalloc, 2 * sizeof(char*));
     v[0] = otP->value.s;
@@ -236,19 +236,19 @@ static char** instObjectTypeV(KjNode* instP)
     return v;
   }
 
-  if (otP->type == KjArray)
+  if (otP->type == CorArray)
   {
     int n = 0;
-    for (KjNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
-      if (eP->type == KjString && eP->value.s != NULL)
+    for (CorNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
+      if (eP->type == CorString && eP->value.s != NULL)
         n++;
     if (n == 0)
       return NULL;
 
     char** v = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
     int    i = 0;
-    for (KjNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
-      if (eP->type == KjString && eP->value.s != NULL)
+    for (CorNode* eP = otP->value.firstChildP; eP != NULL; eP = eP->next)
+      if (eP->type == CorString && eP->value.s != NULL)
         v[i++] = eP->value.s;
     v[i] = NULL;
     return v;
@@ -274,7 +274,7 @@ static char** instObjectTypeV(KjNode* instP)
 // across BFS levels.
 typedef struct FlatFrontier
 {
-  KjNode*      entityP;
+  CorNode*     entityP;
   LdProjItem*  pickSub;
   LdProjItem*  omitSub;
 } FlatFrontier;
@@ -291,8 +291,8 @@ typedef struct FlatFrontier
 // visited-set path. A miss (unfollowable or already visited) is a no-op.
 //
 static void flatAddTarget(const char*    tid,
-                          KjNode*        instP,
-                          KjNode*        outArr,
+                          CorNode*       instP,
+                          CorNode*       outArr,
                           LdProjItem*    subPick,
                           LdProjItem*    subOmit,
                           Tenant*        tenantP,
@@ -304,7 +304,7 @@ static void flatAddTarget(const char*    tid,
   if (tid == NULL || visitedContains(*visitedPP, tid))
     return;
 
-  KjNode* targetEntityP = NULL;
+  CorNode* targetEntityP = NULL;
   int     r             = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetEntityP, tenantP);
   if (r != 0 || targetEntityP == NULL)
   {
@@ -321,7 +321,7 @@ static void flatAddTarget(const char*    tid,
     ldPickOmit(targetEntityP, subPickV, subOmitV);
   }
 
-  kjChildAdd(outArr, targetEntityP);
+  corTreeChildAdd(outArr, targetEntityP);
   *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
 
   if (*nextCountP >= *nextCapP)
@@ -336,7 +336,7 @@ static void flatAddTarget(const char*    tid,
 }
 
 
-static void flatBfs(KjNode*         outArr,
+static void flatBfs(CorNode*        outArr,
                     FlatFrontier*   frontier,
                     int             frontierCount,
                     int             joinLevel,
@@ -359,18 +359,18 @@ static void flatBfs(KjNode*         outArr,
 
     for (int i = 0; i < frontierCount; i++)
     {
-      KjNode*     fromP    = frontier[i].entityP;
+      CorNode*    fromP    = frontier[i].entityP;
       LdProjItem* fromPick = frontier[i].pickSub;
       LdProjItem* fromOmit = frontier[i].omitSub;
 
       // Walk the from-entity's relationship attributes, fetching each
       // target with the projection sub-tree determined by the from-side
       // pick/omit's child for THIS attribute name.
-      for (KjNode* attrP = fromP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+      for (CorNode* attrP = fromP->value.firstChildP; attrP != NULL; attrP = attrP->next)
       {
         if (attrP->name == NULL)                                      continue;
         if (attrP->name[0] == '@')                                    continue;
-        if (attrP->type != KjObject)                                  continue;
+        if (attrP->type != CorObject)                                 continue;
         if (strcmp(attrP->name, "id")         == 0)                   continue;
         if (strcmp(attrP->name, "type")       == 0)                   continue;
         if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
@@ -380,29 +380,29 @@ static void flatBfs(KjNode*         outArr,
         LdProjItem* subPick = ldProjectionFindChild(fromPick, attrP->name);
         LdProjItem* subOmit = ldProjectionFindChild(fromOmit, attrP->name);
 
-        for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+        for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
         {
-          if (instP->type != KjObject)
+          if (instP->type != CorObject)
             continue;
 
-          KjNode* typeP = kjLookup(instP, "type");
-          if (typeP == NULL || typeP->type != KjString)               continue;
+          CorNode* typeP = corTreeLookup(instP, "type");
+          if (typeP == NULL || typeP->type != CorString)              continue;
           if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
 
-          KjNode* valP = kjLookup(instP, "value");
+          CorNode* valP = corTreeLookup(instP, "value");
           if (valP == NULL)
             continue;
 
           // § C.2.2.1.3: a single-valued object is one target URI; a
           // multivalued object (`value` is an array) is a set of target URIs
           // — each followable target entity is appended to the flat array.
-          if (valP->type == KjString)
+          if (valP->type == CorString)
             flatAddTarget(valP->value.s, instP, outArr, subPick, subOmit, tenantP,
                           visitedPP, &nextFrontier, &nextFrontierCount, &nextFrontierCap);
-          else if (valP->type == KjArray)
+          else if (valP->type == CorArray)
           {
-            for (KjNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
-              if (oP->type == KjString)
+            for (CorNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
+              if (oP->type == CorString)
                 flatAddTarget(oP->value.s, instP, outArr, subPick, subOmit, tenantP,
                               visitedPP, &nextFrontier, &nextFrontierCount, &nextFrontierCap);
           }
@@ -427,20 +427,20 @@ static void flatBfs(KjNode*         outArr,
 //
 // ldLinkedEntitiesFlat -
 //
-KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
+CorNode* ldLinkedEntitiesFlat(CorNode* primaryP, int joinLevel, Tenant* tenantP)
 {
-  KjNode* outArr = kjArray(corRest.kjsonP, NULL);
+  CorNode* outArr = corTreeArray(corRest.kallocP, NULL);
   if (primaryP == NULL)
     return outArr;
 
   const char* primaryId = entityIdOf(primaryP);
   if (primaryId == NULL)
   {
-    kjChildAdd(outArr, primaryP);
+    corTreeChildAdd(outArr, primaryP);
     return outArr;
   }
 
-  kjChildAdd(outArr, primaryP);
+  corTreeChildAdd(outArr, primaryP);
 
   VisitedNode*   visited  = visitedAppend(NULL, primaryId);
   visited                 = visitedSeedFromContainedBy(visited);
@@ -460,9 +460,9 @@ KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP)
 //
 // ldLinkedEntitiesExpandArrayFlat -
 //
-void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tenantP)
+void ldLinkedEntitiesExpandArrayFlat(CorNode* arrayP, int joinLevel, Tenant* tenantP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray)
+  if (arrayP == NULL || arrayP->type != CorArray)
     return;
   if (arrayP->value.firstChildP == NULL)
     return;
@@ -470,7 +470,7 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
   // Count primaries + seed visited-set with their ids
   VisitedNode* visited      = NULL;
   int          primaryCount = 0;
-  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
   {
     const char* id = entityIdOf(eP);
     if (id != NULL)
@@ -479,12 +479,12 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
   }
   visited = visitedSeedFromContainedBy(visited);
 
-  // Build a frontier snapshot (kjChildAdd inside the BFS would otherwise
+  // Build a frontier snapshot (corTreeChildAdd inside the BFS would otherwise
   // mutate the live ->next chain we're iterating). Each primary inherits
   // the request's top-level pick/omit sub-trees as its starting point.
   FlatFrontier* frontier = (FlatFrontier*) malloc(primaryCount * sizeof(FlatFrontier));
   int           idx      = 0;
-  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
+  for (CorNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
   {
     frontier[idx].entityP = eP;
     frontier[idx].pickSub = corNgsild.pickTree;
@@ -507,12 +507,12 @@ void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tena
 // two primaries is correctly inlined under both. (For flat the spec
 // dedupes globally; inline is per-linking-entity by design.)
 //
-void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* tenantP)
+void ldLinkedEntitiesExpandArrayInline(CorNode* arrayP, int joinLevel, Tenant* tenantP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray)
+  if (arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
     ldLinkedEntitiesInline(eP, joinLevel, tenantP);
 }
 
@@ -523,7 +523,7 @@ void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* te
 
 
 
-static void inlineWalk(KjNode* entityP, int remaining, VisitedNode** visitedPP, Tenant* tenantP, LdProjItem* pickTree, LdProjItem* omitTree);
+static void inlineWalk(CorNode* entityP, int remaining, VisitedNode** visitedPP, Tenant* tenantP, LdProjItem* pickTree, LdProjItem* omitTree);
 
 
 
@@ -538,8 +538,8 @@ static void inlineWalk(KjNode* entityP, int remaining, VisitedNode** visitedPP, 
 // recursion / pick-omit / API-conversion path. The caller attaches the result
 // (single: as the `entity` sub-attribute; array: as one array element).
 //
-static KjNode* inlineFetchTarget(const char*   tid,
-                                 KjNode*       instP,
+static CorNode* inlineFetchTarget(const char*  tid,
+                                 CorNode*      instP,
                                  int           remaining,
                                  VisitedNode** visitedPP,
                                  Tenant*       tenantP,
@@ -549,7 +549,7 @@ static KjNode* inlineFetchTarget(const char*   tid,
   if (tid == NULL || visitedContains(*visitedPP, tid))
     return NULL;
 
-  KjNode* targetP = NULL;
+  CorNode* targetP = NULL;
   int     r       = linkedFetchOne(tid, instObjectTypeV(instP), true, &targetP, tenantP);
   if (r != 0 || targetP == NULL)
   {
@@ -591,7 +591,7 @@ static KjNode* inlineFetchTarget(const char*   tid,
 // before attaching to its parent. The primary stays in storage; the
 // service routine's renderHook converts it.
 //
-static void inlineWalk(KjNode*       entityP,
+static void inlineWalk(CorNode*      entityP,
                        int           remaining,
                        VisitedNode** visitedPP,
                        Tenant*       tenantP,
@@ -601,11 +601,11 @@ static void inlineWalk(KjNode*       entityP,
   if (entityP == NULL || remaining <= 0)
     return;
 
-  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)                                      continue;
     if (attrP->name[0] == '@')                                    continue;
-    if (attrP->type != KjObject)                                  continue;
+    if (attrP->type != CorObject)                                 continue;
     if (strcmp(attrP->name, "id")         == 0)                   continue;
     if (strcmp(attrP->name, "type")       == 0)                   continue;
     if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
@@ -620,45 +620,45 @@ static void inlineWalk(KjNode*       entityP,
     LdProjItem* subPick = ldProjectionFindChild(pickTree, attrP->name);
     LdProjItem* subOmit = ldProjectionFindChild(omitTree, attrP->name);
 
-    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
     {
-      if (instP->type != KjObject)
+      if (instP->type != CorObject)
         continue;
 
-      KjNode* typeP = kjLookup(instP, "type");
-      if (typeP == NULL || typeP->type != KjString)               continue;
+      CorNode* typeP = corTreeLookup(instP, "type");
+      if (typeP == NULL || typeP->type != CorString)              continue;
       if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
 
-      KjNode* valP = kjLookup(instP, "value");
+      CorNode* valP = corTreeLookup(instP, "value");
       if (valP == NULL)                                           continue;
 
-      if (valP->type == KjString)
+      if (valP->type == CorString)
       {
         // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
-        KjNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
+        CorNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
         if (targetP != NULL)
         {
           targetP->name = "entity";
-          kjChildAdd(instP, targetP);
+          corTreeChildAdd(instP, targetP);
         }
       }
-      else if (valP->type == KjArray)
+      else if (valP->type == CorArray)
       {
         // Multivalued object → `entity` is an ARRAY holding one inlined linked
         // entity per followable target URI, in object order (§ C.2.2.1.2).
-        KjNode* entityArr = kjArray(corRest.kjsonP, "entity");
-        for (KjNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
+        CorNode* entityArr = corTreeArray(corRest.kallocP, "entity");
+        for (CorNode* oP = valP->value.firstChildP; oP != NULL; oP = oP->next)
         {
-          if (oP->type != KjString)                               continue;
-          KjNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
+          if (oP->type != CorString)                              continue;
+          CorNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
           if (targetP != NULL)
           {
             targetP->name = NULL;
-            kjChildAdd(entityArr, targetP);
+            corTreeChildAdd(entityArr, targetP);
           }
         }
         if (entityArr->value.firstChildP != NULL)
-          kjChildAdd(instP, entityArr);
+          corTreeChildAdd(instP, entityArr);
       }
     }
   }
@@ -670,7 +670,7 @@ static void inlineWalk(KjNode*       entityP,
 //
 // ldLinkedEntitiesInline -
 //
-KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP)
+CorNode* ldLinkedEntitiesInline(CorNode* primaryP, int joinLevel, Tenant* tenantP)
 {
   if (primaryP == NULL)
     return NULL;
@@ -720,9 +720,9 @@ static void idsAppend(const char*** outIdsP, int* outCountP, int* outCapP, const
 // A single-valued `object` yields one target; a multivalued `object` (array)
 // yields one target per element (§ C.2.2.1.3).
 //
-static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
+static void collectRelationshipTargetsApi(CorNode* entityP, const char*** outIdsP, int* outCountP, int* outCapP)
 {
-  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL || attrP->name[0] == '@')               continue;
     if (strcmp(attrP->name, "id")         == 0)                     continue;
@@ -731,15 +731,15 @@ static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP
     if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
     if (strcmp(attrP->name, "scope")      == 0)                     continue;
 
-    KjNode* instances[16];
+    CorNode* instances[16];
     int     instCount = 0;
 
-    if (attrP->type == KjObject)
+    if (attrP->type == CorObject)
       instances[instCount++] = attrP;
-    else if (attrP->type == KjArray)
+    else if (attrP->type == CorArray)
     {
-      for (KjNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
-        if (iP->type == KjObject)
+      for (CorNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
+        if (iP->type == CorObject)
           instances[instCount++] = iP;
     }
     else
@@ -747,19 +747,19 @@ static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP
 
     for (int i = 0; i < instCount; i++)
     {
-      KjNode* typeP = kjLookup(instances[i], "type");
-      if (typeP == NULL || typeP->type != KjString)                 continue;
+      CorNode* typeP = corTreeLookup(instances[i], "type");
+      if (typeP == NULL || typeP->type != CorString)                continue;
       if (strcmp(typeP->value.s, "Relationship") != 0)              continue;
 
-      KjNode* objP = kjLookup(instances[i], "object");
+      CorNode* objP = corTreeLookup(instances[i], "object");
       if (objP == NULL)                                             continue;
 
-      if (objP->type == KjString)
+      if (objP->type == CorString)
         idsAppend(outIdsP, outCountP, outCapP, objP->value.s);
-      else if (objP->type == KjArray)
+      else if (objP->type == CorArray)
       {
-        for (KjNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
-          if (oP->type == KjString)
+        for (CorNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
+          if (oP->type == CorString)
             idsAppend(outIdsP, outCountP, outCapP, oP->value.s);
       }
     }
@@ -772,7 +772,7 @@ static void collectRelationshipTargetsApi(KjNode* entityP, const char*** outIdsP
 //
 // notifFlatBfs - § 4.5.23.3 BFS for the API-format notification path
 //
-static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
+static void notifFlatBfs(CorNode* outArr, CorNode** frontier, int frontierCount,
                          int joinLevel, bool sysAttrs, Tenant* tenantP, VisitedNode** visitedPP)
 {
   if (frontier == NULL || frontierCount <= 0) return;
@@ -787,7 +787,7 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
     for (int i = 0; i < frontierCount; i++)
       collectRelationshipTargetsApi(frontier[i], &targets, &targetN, &targetCap);
 
-    KjNode** nextFrontier      = NULL;
+    CorNode** nextFrontier     = NULL;
     int      nextFrontierCount = 0;
     int      nextFrontierCap   = 0;
 
@@ -796,7 +796,7 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
       const char* tid = targets[t];
       if (visitedContains(*visitedPP, tid)) continue;
 
-      KjNode* targetEntityP = NULL;
+      CorNode* targetEntityP = NULL;
       // Notification linked-entity inclusion keeps the legacy fetch-by-id
       // path (typedRemoteOnly=false); the § 7.7.1 gate is applied on the
       // GET ?join retrieval path only for now.
@@ -815,13 +815,13 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
       if (!sysAttrs)
         ldStripSysAttrs(targetEntityP);
 
-      kjChildAdd(outArr, targetEntityP);
+      corTreeChildAdd(outArr, targetEntityP);
       *visitedPP = visitedAppend(*visitedPP, entityIdOf(targetEntityP));
 
       if (nextFrontierCount >= nextFrontierCap)
       {
         nextFrontierCap = (nextFrontierCap == 0) ? 8 : nextFrontierCap * 2;
-        nextFrontier    = (KjNode**) realloc(nextFrontier, nextFrontierCap * sizeof(KjNode*));
+        nextFrontier    = (CorNode**) realloc(nextFrontier, nextFrontierCap * sizeof(CorNode*));
       }
       nextFrontier[nextFrontierCount++] = targetEntityP;
     }
@@ -837,7 +837,7 @@ static void notifFlatBfs(KjNode* outArr, KjNode** frontier, int frontierCount,
 
 
 
-static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP);
+static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP);
 
 
 
@@ -850,12 +850,12 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
 // becomes an array) cases. Returns NULL for an unfollowable / already visited
 // target. The caller attaches the result (single: as `entity`; array: element).
 //
-static KjNode* notifFetchTarget(const char* tid, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
+static CorNode* notifFetchTarget(const char* tid, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
 {
   if (tid == NULL || visitedContains(*visitedPP, tid))
     return NULL;
 
-  KjNode* targetEntityP = NULL;
+  CorNode* targetEntityP = NULL;
   // Legacy fetch-by-id (see notifFlatBfs) — the § 7.7.1 gate is GET ?join only.
   int     r             = linkedFetchOne(tid, NULL, false, &targetEntityP, tenantP);
   if (r != 0 || targetEntityP == NULL)
@@ -881,11 +881,11 @@ static KjNode* notifFetchTarget(const char* tid, int joinLevel, bool sysAttrs, V
 //
 // notifInlineWalk - § 4.5.23.2 inline walk on API-format primary
 //
-static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
+static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, VisitedNode** visitedPP, Tenant* tenantP)
 {
   if (joinLevel < 1) return;
 
-  for (KjNode* attrP = primaryP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = primaryP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL || attrP->name[0] == '@')               continue;
     if (strcmp(attrP->name, "id")         == 0)                     continue;
@@ -894,14 +894,14 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
     if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
     if (strcmp(attrP->name, "scope")      == 0)                     continue;
 
-    KjNode* instances[16];
+    CorNode* instances[16];
     int     instCount = 0;
-    if (attrP->type == KjObject)
+    if (attrP->type == CorObject)
       instances[instCount++] = attrP;
-    else if (attrP->type == KjArray)
+    else if (attrP->type == CorArray)
     {
-      for (KjNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
-        if (iP->type == KjObject)
+      for (CorNode* iP = attrP->value.firstChildP; iP != NULL && instCount < 16; iP = iP->next)
+        if (iP->type == CorObject)
           instances[instCount++] = iP;
     }
     else
@@ -909,39 +909,39 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
 
     for (int i = 0; i < instCount; i++)
     {
-      KjNode* typeP = kjLookup(instances[i], "type");
-      if (typeP == NULL || typeP->type != KjString) continue;
+      CorNode* typeP = corTreeLookup(instances[i], "type");
+      if (typeP == NULL || typeP->type != CorString) continue;
       if (strcmp(typeP->value.s, "Relationship") != 0) continue;
 
-      KjNode* objP = kjLookup(instances[i], "object");
+      CorNode* objP = corTreeLookup(instances[i], "object");
       if (objP == NULL)                                             continue;
 
-      if (objP->type == KjString)
+      if (objP->type == CorString)
       {
         // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
-        KjNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
+        CorNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
         if (targetEntityP != NULL)
         {
           targetEntityP->name = (char*) "entity";
-          kjChildAdd(instances[i], targetEntityP);
+          corTreeChildAdd(instances[i], targetEntityP);
         }
       }
-      else if (objP->type == KjArray)
+      else if (objP->type == CorArray)
       {
         // Multivalued object → `entity` is an ARRAY of inlined linked entities.
-        KjNode* entityArr = kjArray(corRest.kjsonP, "entity");
-        for (KjNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
+        CorNode* entityArr = corTreeArray(corRest.kallocP, "entity");
+        for (CorNode* oP = objP->value.firstChildP; oP != NULL; oP = oP->next)
         {
-          if (oP->type != KjString)                                 continue;
-          KjNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
+          if (oP->type != CorString)                                continue;
+          CorNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
           if (targetEntityP != NULL)
           {
             targetEntityP->name = NULL;
-            kjChildAdd(entityArr, targetEntityP);
+            corTreeChildAdd(entityArr, targetEntityP);
           }
         }
         if (entityArr->value.firstChildP != NULL)
-          kjChildAdd(instances[i], entityArr);
+          corTreeChildAdd(instances[i], entityArr);
       }
     }
   }
@@ -953,25 +953,25 @@ static void notifInlineWalk(KjNode* primaryP, int joinLevel, bool sysAttrs, Visi
 //
 // ldLinkedEntitiesNotifApiArray -
 //
-void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP)
+void ldLinkedEntitiesNotifApiArray(CorNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray || mode == NULL || tenantP == NULL) return;
+  if (arrayP == NULL || arrayP->type != CorArray || mode == NULL || tenantP == NULL) return;
   if (arrayP->value.firstChildP == NULL) return;
 
   if (strcmp(mode, "flat") == 0)
   {
     VisitedNode* visited      = NULL;
     int          primaryCount = 0;
-    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
     {
       const char* id = entityIdOf(eP);
       if (id != NULL) visited = visitedAppend(visited, id);
       primaryCount++;
     }
 
-    KjNode** frontier = (KjNode**) malloc(primaryCount * sizeof(KjNode*));
+    CorNode** frontier = (CorNode**) malloc(primaryCount * sizeof(CorNode*));
     int      idx      = 0;
-    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
+    for (CorNode* eP = arrayP->value.firstChildP; eP != NULL && idx < primaryCount; eP = eP->next)
       frontier[idx++] = eP;
 
     notifFlatBfs(arrayP, frontier, primaryCount, joinLevel, sysAttrs, tenantP, &visited);
@@ -979,7 +979,7 @@ void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLev
   }
   else if (strcmp(mode, "inline") == 0)
   {
-    for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
     {
       const char* id = entityIdOf(eP);
       if (id == NULL) continue;

@@ -11,8 +11,8 @@
 //
 
 #include "db/Tenant.h"                               // Tenant
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
-extern int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmentP);
+extern int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragmentP);
 
 #endif  // MONGOC_MONGOCSUBSCRIPTIONUPDATE_H_

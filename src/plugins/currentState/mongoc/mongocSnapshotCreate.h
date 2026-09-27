@@ -9,9 +9,9 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 #include "db/Tenant.h"                               // Tenant
 
-extern int mongocSnapshotCreate(Tenant* tenantP, const char* snapId, KjNode* snapP);
+extern int mongocSnapshotCreate(Tenant* tenantP, const char* snapId, CorNode* snapP);
 
 #endif  // PLUGINS_MONGOC_MONGOCSNAPSHOTCREATE_H_

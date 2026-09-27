@@ -10,9 +10,9 @@
 
 #include <mongoc/mongoc.h>                             // MONGOC_VERSION_S, mongoc_client_*
 
+#include "kalloc/KAlloc.h"                                 // KAlloc
 #include "ktrace/kTrace.h"                                 // KT_E
-#include "kjson/kjBuilder.h"                           // kjObject, kjString, kjChildAdd
-#include "kjson/kjBufferCreate.h"                      // kjBufferCreate
+#include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeString, corTreeChildAdd
 
 #include "currentState/mongoc/mongocVersion.h"         // Own interface
 
@@ -95,12 +95,9 @@ int mongocServerVersionGet(void)
 //
 // mongocVersionInfo - add version entries to the root object
 //
-void mongocVersionInfo(KAlloc* allocP, KjNode* root)
+void mongocVersionInfo(KAlloc* allocP, CorNode* root)
 {
-  Kjson   kjsonLocal;
-  Kjson*  kjsonP = kjBufferCreate(&kjsonLocal, allocP);
-
-  kjChildAdd(root, kjString(kjsonP, "mongoc plugin",  MONGOC_PLUGIN_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "mongoc driver",  MONGOC_VERSION_S));
-  kjChildAdd(root, kjString(kjsonP, "mongodb server", mongocServerVersion));
+  corTreeChildAdd(root, corTreeString(allocP, "mongoc plugin",  MONGOC_PLUGIN_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "mongoc driver",  MONGOC_VERSION_S));
+  corTreeChildAdd(root, corTreeString(allocP, "mongodb server", mongocServerVersion));
 }

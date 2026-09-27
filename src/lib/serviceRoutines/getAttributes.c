@@ -15,9 +15,9 @@
 #include <stddef.h>                                   // NULL
 
 #include "corRest/CorRestState.h"                       // corRest
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjArray, kjObject, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "corJsonld/corLdCompact.h"                     // corLdCompact
 #include "corJsonld/corLdInit.h"                        // corLdCoreContext
@@ -56,7 +56,7 @@ bool getAttributes(void)
 
   bool details = corNgsild.details;
 
-  KjNode* aggregated = NULL;
+  CorNode* aggregated = NULL;
   int r = db.attrList(tenantP, details, &aggregated);
   if (r != DB_OK || aggregated == NULL)
   {
@@ -83,18 +83,18 @@ bool getAttributes(void)
     //
     // AttributeList (§ 5.2.27): { id, type:"AttributeList", attributeList:[short names] }
     //
-    KjNode* body = kjObject(corRest.kjsonP, NULL);
-    kjChildAdd(body, kjString(corRest.kjsonP, "id",   "urn:ngsi-ld:AttributeList:local"));
-    kjChildAdd(body, kjString(corRest.kjsonP, "type", "AttributeList"));
+    CorNode* body = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(body, corTreeString(corRest.kallocP, "id", "urn:ngsi-ld:AttributeList:local"));
+    corTreeChildAdd(body, corTreeString(corRest.kallocP, "type", "AttributeList"));
 
-    KjNode* attrList = kjArray(corRest.kjsonP, "attributeList");
-    for (KjNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+    CorNode* attrList = corTreeArray(corRest.kallocP, "attributeList");
+    for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
     {
-      KjNode* iriP = kjLookup(entry, "attrIri");
-      if (iriP == NULL || iriP->type != KjString) continue;
-      kjChildAdd(attrList, kjString(corRest.kjsonP, NULL, shortOrSelf(ctxP, iriP->value.s)));
+      CorNode* iriP = corTreeLookup(entry, "attrIri");
+      if (iriP == NULL || iriP->type != CorString) continue;
+      corTreeChildAdd(attrList, corTreeString(corRest.kallocP, NULL, shortOrSelf(ctxP, iriP->value.s)));
     }
-    kjChildAdd(body, attrList);
+    corTreeChildAdd(body, attrList);
 
     corRest.out.responseTree   = body;
     corRest.out.httpStatusCode = 200;
@@ -104,29 +104,29 @@ bool getAttributes(void)
   //
   // Details: Attribute[] (§ 5.2.28) restricted to id, type, attributeName, typeNames
   //
-  KjNode* body = kjArray(corRest.kjsonP, NULL);
+  CorNode* body = corTreeArray(corRest.kallocP, NULL);
 
-  for (KjNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
   {
-    KjNode* iriP = kjLookup(entry, "attrIri");
-    if (iriP == NULL || iriP->type != KjString) continue;
+    CorNode* iriP = corTreeLookup(entry, "attrIri");
+    if (iriP == NULL || iriP->type != CorString) continue;
 
-    KjNode* obj = kjObject(corRest.kjsonP, NULL);
-    kjChildAdd(obj, kjString(corRest.kjsonP, "id",            iriP->value.s));
-    kjChildAdd(obj, kjString(corRest.kjsonP, "type",          "Attribute"));
-    kjChildAdd(obj, kjString(corRest.kjsonP, "attributeName", shortOrSelf(ctxP, iriP->value.s)));
+    CorNode* obj = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(obj, corTreeString(corRest.kallocP, "id", iriP->value.s));
+    corTreeChildAdd(obj, corTreeString(corRest.kallocP, "type", "Attribute"));
+    corTreeChildAdd(obj, corTreeString(corRest.kallocP, "attributeName", shortOrSelf(ctxP, iriP->value.s)));
 
-    KjNode* tn = kjArray(corRest.kjsonP, "typeNames");
-    KjNode* tnSrc = kjLookup(entry, "typeNames");
-    if (tnSrc != NULL && tnSrc->type == KjArray)
+    CorNode* tn = corTreeArray(corRest.kallocP, "typeNames");
+    CorNode* tnSrc = corTreeLookup(entry, "typeNames");
+    if (tnSrc != NULL && tnSrc->type == CorArray)
     {
-      for (KjNode* t = tnSrc->value.firstChildP; t != NULL; t = t->next)
-        if (t->type == KjString)
-          kjChildAdd(tn, kjString(corRest.kjsonP, NULL, shortOrSelf(ctxP, t->value.s)));
+      for (CorNode* t = tnSrc->value.firstChildP; t != NULL; t = t->next)
+        if (t->type == CorString)
+          corTreeChildAdd(tn, corTreeString(corRest.kallocP, NULL, shortOrSelf(ctxP, t->value.s)));
     }
-    kjChildAdd(obj, tn);
+    corTreeChildAdd(obj, tn);
 
-    kjChildAdd(body, obj);
+    corTreeChildAdd(body, obj);
   }
 
   corRest.out.responseTree   = body;

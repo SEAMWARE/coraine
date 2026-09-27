@@ -20,13 +20,13 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount, BRIDGE_*
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/kjParse.h"                            // kjParse
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corJson/corJsonParse.h"                     // corJsonParse
 #include "kalloc/kaStrdup.h"                          // kaStrdup
 #include "kalloc/kaBufferInit.h"                      // kaBufferInit
 #include "kalloc/kaBufferReset.h"                     // kaBufferReset
-#include "kjson/kjBufferCreate.h"                     // kjBufferCreate
+#include "kalloc/KAlloc.h"                            // KAlloc
 #include "corBridge/BridgeBroker.h"                   // BridgeGoalState, BridgeGoalPart
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
@@ -228,7 +228,7 @@ static void goalUnlink(Goal* goalP)
 // subscription: mongoc's is an update that matches nothing, corDB has none.
 //
 // The tree is built in an arena of its own and dropped once the cache has cloned
-// it. corRest.kjsonP is no arena here: a goal event arrives on a plugin thread
+// it. corRest.kallocP is no arena here: a goal event arrives on a plugin thread
 // that may never have handled a sample (threadBind, bridgeSampleIn.c), and there
 // every node was a malloc of its own, never freed - 1,301 bytes per goal with an
 // endpoint (nightly valgrind, bridge_action_goal_*).
@@ -258,44 +258,43 @@ static void goalSubscribe(Goal* goalP)
 
   char    kaBuffer[4096];
   KAlloc  kalloc;
-  Kjson   kjson;
 
   kaBufferInit(&kalloc, kaBuffer, sizeof(kaBuffer), 4096, NULL, "goal-subscription");
-  Kjson*  kjsonP = kjBufferCreate(&kjson, &kalloc);
+  KAlloc*  allocP = &kalloc;
 
-  KjNode* subP      = kjObject(kjsonP, NULL);
-  KjNode* entitiesP = kjArray(kjsonP, LD_VOCAB_ENTITIES);
-  KjNode* selectorP = kjObject(kjsonP, NULL);
-  KjNode* watchedP  = kjArray(kjsonP, LD_VOCAB_WATCHED_ATTRS);
-  KjNode* datasetP  = kjArray(kjsonP, LD_VOCAB_DATASET_ID);
-  KjNode* triggerP  = kjArray(kjsonP, "notificationTrigger");
-  KjNode* notifP    = kjObject(kjsonP, LD_VOCAB_NOTIFICATION);
-  KjNode* endpointP = kjObject(kjsonP, LD_VOCAB_ENDPOINT);
+  CorNode* subP     = corTreeObject(allocP, NULL);
+  CorNode* entitiesP = corTreeArray(allocP, LD_VOCAB_ENTITIES);
+  CorNode* selectorP = corTreeObject(allocP, NULL);
+  CorNode* watchedP = corTreeArray(allocP, LD_VOCAB_WATCHED_ATTRS);
+  CorNode* datasetP = corTreeArray(allocP, LD_VOCAB_DATASET_ID);
+  CorNode* triggerP = corTreeArray(allocP, "notificationTrigger");
+  CorNode* notifP   = corTreeObject(allocP, LD_VOCAB_NOTIFICATION);
+  CorNode* endpointP = corTreeObject(allocP, LD_VOCAB_ENDPOINT);
 
-  kjChildAdd(subP, kjString(kjsonP, "id",   subId));
-  kjChildAdd(subP, kjString(kjsonP, "type", "Subscription"));
+  corTreeChildAdd(subP, corTreeString(allocP, "id", subId));
+  corTreeChildAdd(subP, corTreeString(allocP, "type", "Subscription"));
 
-  kjChildAdd(selectorP, kjString(kjsonP, "id", goalP->entityId));
+  corTreeChildAdd(selectorP, corTreeString(allocP, "id", goalP->entityId));
   if (goalP->entityType != NULL)
-    kjChildAdd(selectorP, kjString(kjsonP, "type", goalP->entityType));
-  kjChildAdd(entitiesP, selectorP);
-  kjChildAdd(subP, entitiesP);
+    corTreeChildAdd(selectorP, corTreeString(allocP, "type", goalP->entityType));
+  corTreeChildAdd(entitiesP, selectorP);
+  corTreeChildAdd(subP, entitiesP);
 
-  kjChildAdd(watchedP, kjString(kjsonP, NULL, watched));
-  kjChildAdd(subP, watchedP);
+  corTreeChildAdd(watchedP, corTreeString(allocP, NULL, watched));
+  corTreeChildAdd(subP, watchedP);
 
-  kjChildAdd(datasetP, kjString(kjsonP, NULL, goalP->goalAlias));
-  kjChildAdd(subP, datasetP);
+  corTreeChildAdd(datasetP, corTreeString(allocP, NULL, goalP->goalAlias));
+  corTreeChildAdd(subP, datasetP);
 
-  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeCreated"));
-  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeUpdated"));
-  kjChildAdd(triggerP, kjString(kjsonP, NULL, "attributeDeleted"));
-  kjChildAdd(subP, triggerP);
+  corTreeChildAdd(triggerP, corTreeString(allocP, NULL, "attributeCreated"));
+  corTreeChildAdd(triggerP, corTreeString(allocP, NULL, "attributeUpdated"));
+  corTreeChildAdd(triggerP, corTreeString(allocP, NULL, "attributeDeleted"));
+  corTreeChildAdd(subP, triggerP);
 
-  kjChildAdd(endpointP, kjString(kjsonP, LD_VOCAB_URI, goalP->notifyEndpoint));
-  kjChildAdd(endpointP, kjString(kjsonP, "accept", (goalP->notifyAccept != NULL) ? goalP->notifyAccept : "application/json"));
-  kjChildAdd(notifP, endpointP);
-  kjChildAdd(subP, notifP);
+  corTreeChildAdd(endpointP, corTreeString(allocP, LD_VOCAB_URI, goalP->notifyEndpoint));
+  corTreeChildAdd(endpointP, corTreeString(allocP, "accept", (goalP->notifyAccept != NULL) ? goalP->notifyAccept : "application/json"));
+  corTreeChildAdd(notifP, endpointP);
+  corTreeChildAdd(subP, notifP);
 
   ldSubCacheWrLock(cacheP);
   LdSubCacheItem* itemP = ldSubCacheItemAdd(cacheP, subP, NULL, LdFormatUnset);   // clones the tree
@@ -1183,13 +1182,13 @@ const char* bridgeGoalStateName(int state)
 //
 // A payload that does not parse is shown as the string it is rather than lost.
 //
-static KjNode* jsonNode(const char* name, const char* json)
+static CorNode* jsonNode(const char* name, const char* json)
 {
   char*   copy  = kaStrdup(&corRest.kalloc, json);
-  KjNode* nodeP = kjParse(corRest.kjsonP, copy);
+  CorNode* nodeP = corJsonParse(corRest.corJsonP, copy);
 
   if (nodeP == NULL)
-    return kjString(corRest.kjsonP, name, kaStrdup(&corRest.kalloc, json));
+    return corTreeString(corRest.kallocP, name, kaStrdup(&corRest.kalloc, json));
 
   nodeP->name = (char*) name;
   return nodeP;
@@ -1201,19 +1200,19 @@ static KjNode* jsonNode(const char* name, const char* json)
 //
 // goalRender - a goal as its body. Caller holds goalMutex; everything is copied into the request's arena.
 //
-static KjNode* goalRender(Goal* goalP)
+static CorNode* goalRender(Goal* goalP)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* bodyP  = kjObject(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* bodyP = corTreeObject(allocP, NULL);
 
-  kjChildAdd(bodyP, kjString(kjsonP, "id",     kaStrdup(&corRest.kalloc, goalP->goalAlias)));
-  kjChildAdd(bodyP, kjString(kjsonP, "type",   "Goal"));
-  kjChildAdd(bodyP, kjString(kjsonP, "goalId", kaStrdup(&corRest.kalloc, goalP->goalId)));
-  kjChildAdd(bodyP, kjString(kjsonP, "status", (char*) bridgeGoalStateName(goalP->state)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "id", kaStrdup(&corRest.kalloc, goalP->goalAlias)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "type", "Goal"));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "goalId", kaStrdup(&corRest.kalloc, goalP->goalId)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (char*) bridgeGoalStateName(goalP->state)));
 
-  if (goalP->request != NULL)   kjChildAdd(bodyP, jsonNode("goalRequest",  goalP->request));
-  if (goalP->feedback != NULL)  kjChildAdd(bodyP, jsonNode("goalFeedback", goalP->feedback));
-  if (goalP->result != NULL)    kjChildAdd(bodyP, jsonNode("goalResult",   goalP->result));
+  if (goalP->request != NULL)   corTreeChildAdd(bodyP, jsonNode("goalRequest", goalP->request));
+  if (goalP->feedback != NULL)  corTreeChildAdd(bodyP, jsonNode("goalFeedback", goalP->feedback));
+  if (goalP->result != NULL)    corTreeChildAdd(bodyP, jsonNode("goalResult", goalP->result));
 
   return bodyP;
 }
@@ -1237,15 +1236,15 @@ static bool goalOfChannel(Goal* goalP, Channel* channelP)
 //
 // bridgeGoalsRender -
 //
-KjNode* bridgeGoalsRender(Channel* channelP)
+CorNode* bridgeGoalsRender(Channel* channelP)
 {
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
 
   pthread_mutex_lock(&goalMutex);
   for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)
   {
     if (goalOfChannel(goalP, channelP) == true)
-      kjChildAdd(arrayP, goalRender(goalP));
+      corTreeChildAdd(arrayP, goalRender(goalP));
   }
   pthread_mutex_unlock(&goalMutex);
 
@@ -1258,9 +1257,9 @@ KjNode* bridgeGoalsRender(Channel* channelP)
 //
 // bridgeGoalRender -
 //
-KjNode* bridgeGoalRender(Channel* channelP, const char* goalId)
+CorNode* bridgeGoalRender(Channel* channelP, const char* goalId)
 {
-  KjNode* bodyP = NULL;
+  CorNode* bodyP = NULL;
 
   pthread_mutex_lock(&goalMutex);
   for (Goal* goalP = goals; goalP != NULL; goalP = goalP->next)

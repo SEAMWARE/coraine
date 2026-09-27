@@ -9,10 +9,10 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                               // Tenant
 
-extern int corDbRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* fragmentP);
+extern int corDbRegistrationUpdate(Tenant* tenantP, const char* regId, CorNode* fragmentP);
 
 #endif  // CORDB_CORDBREGISTRATIONUPDATE_H_

@@ -8,12 +8,12 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
-#include "kjson/kjFree.h"                             // kjFree
+#include "corTree/corTreeFree.h"                      // corTreeFree
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/corDB/corDbStore.h"          // corDbSubscriptions
 #include "currentState/corDB/corDbSubscriptionUpdate.h"  // Own interface
@@ -28,22 +28,22 @@
 //   - if null value:  remove the field from the stored subscription
 //   - otherwise:      replace (or add) the field in the stored subscription
 //
-int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmentP)
+int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragmentP)
 {
   COR_DB_WRITE(tenantP);
 
-  KjNode* subscriptions = corDbSubscriptions(tenantP);
+  CorNode* subscriptions = corDbSubscriptions(tenantP);
 
   //
   // Find the subscription
   //
-  KjNode* subP = NULL;
+  CorNode* subP = NULL;
 
-  for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
   {
-    KjNode* idP = kjLookup(sP, "id");
+    CorNode* idP = corTreeLookup(sP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, subId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, subId) == 0)
     {
       subP = sP;
       break;
@@ -56,21 +56,21 @@ int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragment
   //
   // Apply merge-patch: iterate the fragment and update the stored subscription
   //
-  KjNode* next;
+  CorNode* next;
 
-  for (KjNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = next)
+  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = next)
   {
     next = fieldP->next;
 
-    KjNode* existingP = kjLookup(subP, fieldP->name);
+    CorNode* existingP = corTreeLookup(subP, fieldP->name);
 
-    if (fieldP->type == KjNull)
+    if (fieldP->type == CorNull)
     {
       // Remove the field if it exists
       if (existingP != NULL)
       {
-        kjChildRemove(subP, existingP);
-        kjFree(existingP);
+        corTreeChildRemove(subP, existingP);
+        corTreeFree(existingP);
       }
     }
     else
@@ -78,12 +78,12 @@ int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragment
       // Replace or add
       if (existingP != NULL)
       {
-        kjChildRemove(subP, existingP);
-        kjFree(existingP);
+        corTreeChildRemove(subP, existingP);
+        corTreeFree(existingP);
       }
 
-      KjNode* cloneP = kjClone(NULL, fieldP);
-      kjChildAdd(subP, cloneP);
+      CorNode* cloneP = corTreeClone(NULL, fieldP);
+      corTreeChildAdd(subP, cloneP);
     }
   }
 

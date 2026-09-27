@@ -14,8 +14,8 @@
 //
 #include <stddef.h>                                   // NULL
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                     // corRest
 #include "corNgsild/corNgsild.h"                      // corNgsild, ldContextResolve
 
@@ -34,7 +34,7 @@
 bool getChannels(void)
 {
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
-  KjNode* arrayP  = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
 
   // Not an Entity - ldEntityToApi would read the "entity" member as an
   // Attribute keyed by datasetId and render it as an array of instances
@@ -47,7 +47,7 @@ bool getChannels(void)
     if (channelP->tenantP != tenantP)
       continue;
 
-    kjChildAdd(arrayP, channelRender(channelP, corNgsild.contextP));
+    corTreeChildAdd(arrayP, channelRender(channelP, corNgsild.contextP));
   }
 
   corRest.out.responseTree = arrayP;

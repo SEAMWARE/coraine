@@ -14,13 +14,13 @@
 #include <string.h>                                   // strcmp
 
 #include "ktrace/kTrace.h"                            // KT_E
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjBuilder.h"                          // kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
-#include "kjson/kjFree.h"                             // kjFree
-#include "kjson/kjChildReplace.h"                     // kjChildReplace
+#include "corTree/corTreeFree.h"                      // corTreeFree
+#include "corTree/corTreeChildReplace.h"              // corTreeChildReplace
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/corDB/corDbStore.h"          // corDbSubscriptions
 #include "currentState/corDB/corDbSubscriptionReplace.h"  // Own interface
@@ -31,27 +31,27 @@
 //
 // corDbSubscriptionReplace - replace the stored subscription with `subP`
 //
-int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, KjNode* subP)
+int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, CorNode* subP)
 {
   COR_DB_WRITE(tenantP);
 
-  KjNode* subscriptions = corDbSubscriptions(tenantP);
+  CorNode* subscriptions = corDbSubscriptions(tenantP);
 
-  for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
   {
-    KjNode* idP = kjLookup(sP, "id");
+    CorNode* idP = corTreeLookup(sP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, subId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, subId) == 0)
     {
-      KjNode* cloneP = kjClone(NULL, subP);
+      CorNode* cloneP = corTreeClone(NULL, subP);
       if (cloneP == NULL)
       {
-        KT_E("corDB: kjClone failed for subscription '%s'", subId);
+        KT_E("corDB: corTreeClone failed for subscription '%s'", subId);
         return DB_ERR;
       }
 
-      kjChildReplace(subscriptions, sP, cloneP);
-      kjFree(sP);
+      corTreeChildReplace(subscriptions, sP, cloneP);
+      corTreeFree(sP);
       return DB_OK;
     }
   }

@@ -29,10 +29,8 @@
 #include "kalloc/kalloc.h"                                // kaBufferInit
 #include "kalloc/kaAlloc.h"                              // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
-#include "kjson/kjson.h"                                  // Kjson
-#include "kjson/kjBufferCreate.h"                         // kjBufferCreate
-#include "kjson/kjBuilder.h"                              // kjArray, kjObject, kjString, kjInteger, kjChildAdd
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/corTreeBuilder.h"                       // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corTree/CorNode.h"                              // CorNode
 
 #include "troe/TroeDriver.h"                              // TroeDriver
 
@@ -44,7 +42,7 @@
 //
 // We don't keep the original TroeEvent because its allocator is
 // per-request and gets reset. Strings get kaStrdup'd and the snapshot
-// kjClone'd onto the plugin's own allocator.
+// corTreeClone'd onto the plugin's own allocator.
 //
 typedef struct
 {
@@ -150,12 +148,9 @@ static const char* opName(TroeOp op)
 // request arena), so nothing in the produced tree references the
 // plugin's own buffer.
 //
-static void corDbTroeDumpInfo(KAlloc* allocP, KjNode* root)
+static void corDbTroeDumpInfo(KAlloc* allocP, CorNode* root)
 {
-  Kjson  kjsonLocal;
-  Kjson* kjsonP = kjBufferCreate(&kjsonLocal, allocP);
-
-  KjNode* arr = kjArray(kjsonP, "events");
+  CorNode* arr = corTreeArray(allocP, "events");
 
   pthread_mutex_lock(&corDbTroeMutex);
 
@@ -169,20 +164,20 @@ static void corDbTroeDumpInfo(KAlloc* allocP, KjNode* root)
     CapturedEvent* e = &ring[ix];
     if (!e->used) continue;
 
-    KjNode* obj = kjObject(kjsonP, NULL);
-    kjChildAdd(obj, kjString(kjsonP, "op", opName(e->op)));
-    kjChildAdd(obj, kjInteger(kjsonP, "modifiedAtNs", (long long) e->modifiedAtNs));
-    if (e->entityId   != NULL) kjChildAdd(obj, kjString(kjsonP, "entityId",   e->entityId));
-    if (e->entityType != NULL) kjChildAdd(obj, kjString(kjsonP, "entityType", e->entityType));
-    if (e->attrName   != NULL) kjChildAdd(obj, kjString(kjsonP, "attrName",   e->attrName));
-    if (e->datasetId  != NULL) kjChildAdd(obj, kjString(kjsonP, "datasetId",  e->datasetId));
+    CorNode* obj = corTreeObject(allocP, NULL);
+    corTreeChildAdd(obj, corTreeString(allocP, "op", opName(e->op)));
+    corTreeChildAdd(obj, corTreeInteger(allocP, "modifiedAtNs", (long long) e->modifiedAtNs));
+    if (e->entityId   != NULL) corTreeChildAdd(obj, corTreeString(allocP, "entityId", e->entityId));
+    if (e->entityType != NULL) corTreeChildAdd(obj, corTreeString(allocP, "entityType", e->entityType));
+    if (e->attrName   != NULL) corTreeChildAdd(obj, corTreeString(allocP, "attrName", e->attrName));
+    if (e->datasetId  != NULL) corTreeChildAdd(obj, corTreeString(allocP, "datasetId", e->datasetId));
 
-    kjChildAdd(arr, obj);
+    corTreeChildAdd(arr, obj);
   }
 
   pthread_mutex_unlock(&corDbTroeMutex);
 
-  kjChildAdd(root, arr);
+  corTreeChildAdd(root, arr);
 }
 
 

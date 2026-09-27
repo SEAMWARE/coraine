@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 #include "db/Tenant.h"                                   // Tenant
 
 
@@ -23,6 +23,6 @@
 // resultsV[i] = DB_OK. Missing ids get DB_NOT_FOUND.
 //
 extern int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
-                                 int* resultsV, KjNode** snapshotsV);
+                                 int* resultsV, CorNode** snapshotsV);
 
 #endif  // CORDB_CORDBENTITYBULKDELETE_H_

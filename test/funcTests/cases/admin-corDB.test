@@ -209,16 +209,17 @@ Content-Length: REGEX(\d+)
 
 {
   "Next File Descriptor": REGEX(\d+),
+  "corJson": "0.1.0",
   "corJsonld": "0.1.0",
   "corNgsild": "post-0.2.0",
+  "corProm": "0.1.0",
   "corRest": "0.1.0",
+  "corTree": "0.1.0",
   "coraine version": "REGEX(\d+\.\d+\.\d+)",
   "kalloc": "0.10.2",
   "kargs": "0.10.1",
   "kbase": "0.11.1",
   "khash": "0.10.0",
-  "kjson": "0.14.2",
-  "kprom": "0.1.1",
   "ktrace": "0.10.0"
 }
 

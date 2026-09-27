@@ -10,10 +10,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocTreeToBson
 #include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocRegistrationCreate.h"  // Own interface
 
@@ -27,7 +27,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocRegistrationCreate -
 //
-int mongocRegistrationCreate(Tenant* tenantP, const char* regId, KjNode* regP)
+int mongocRegistrationCreate(Tenant* tenantP, const char* regId, CorNode* regP)
 {
   (void) regId;
 
@@ -37,11 +37,11 @@ int mongocRegistrationCreate(Tenant* tenantP, const char* regId, KjNode* regP)
 
   // `type` is the fixed JSON-LD constant "ContextSourceRegistration" —
   // redundant in DB. Strip around BSON emission, preserving the tree.
-  KjNode* typeP     = NULL;
-  KjNode* typePrevP = NULL;
+  CorNode* typeP    = NULL;
+  CorNode* typePrevP = NULL;
   mongocStripTypeDecouple(regP, &typeP, &typePrevP);
 
-  mongocKjTreeToBson(regP, &bson);
+  mongocTreeToBson(regP, &bson);
 
   mongocStripTypeRestore(regP, typeP, typePrevP);
 

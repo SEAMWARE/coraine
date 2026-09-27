@@ -15,9 +15,9 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                         // CorNode
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -48,7 +48,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
+  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
   if (fragP == NULL)
     return;
 
@@ -78,23 +78,23 @@ static char* regIdGenerate(KAlloc* allocP)
 //
 bool postCsourceRegistration(void)
 {
-  KjNode* regP = corRest.in.requestTree;
+  CorNode* regP = corRest.in.requestTree;
 
   // Validate the registration
   if (ldCheckRegistration(regP, LdOpCreateRegistration, /*merged*/false, &corRest.kalloc) == false)
     return true;
 
   // Extract or generate registration id
-  KjNode* idP = kjLookup(regP, "id");
+  CorNode* idP = corTreeLookup(regP, "id");
 
   if (idP == NULL)
   {
     char* generatedId = regIdGenerate(&corRest.kalloc);
 
-    idP = kjString(corRest.kjsonP, "id", generatedId);
-    kjChildAdd(regP, idP);
+    idP = corTreeString(corRest.kallocP, "id", generatedId);
+    corTreeChildAdd(regP, idP);
   }
-  else if (idP->type != KjString)
+  else if (idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "registration 'id' must be a string");
     return true;
@@ -141,7 +141,7 @@ bool postCsourceRegistration(void)
     return true;
   }
 
-  // Restore "id" key if mongocKjTreeToBson renamed it to "_id" in-place
+  // Restore "id" key if mongocTreeToBson renamed it to "_id" in-place
   if (idP->name[0] == '_')
     idP->name = "id";
 

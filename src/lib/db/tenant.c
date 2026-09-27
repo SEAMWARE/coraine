@@ -29,7 +29,7 @@
 #include "db/snapshotTenant.h"                            // snapshotTenantCreate, snapshotTenantDestroy
 #include "corNgsild/LdRegCache.h"                          // LdRegCache
 #include "corNgsild/ldRegCache.h"                         // ldRegCacheCreate, ldRegCacheItemAdd
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "db/DbDriver.h"                                // db
 #include "db/Tenant.h"                                   // Own interface
@@ -343,16 +343,16 @@ bool tenantPreServiceHook(void)
 // apply from drifting — two copies of this routing is how a subscription ends up
 // cached twice, or in the cache that never looks at it.
 //
-static int tenantSubCacheItemKind(KjNode* subP)
+static int tenantSubCacheItemKind(CorNode* subP)
 {
-  KjNode* kindP = kjLookup(subP, "_subKind");
+  CorNode* kindP = corTreeLookup(subP, "_subKind");
 
-  if (kindP != NULL && kindP->type == KjString && strcmp(kindP->value.s, "csr") == 0)
+  if (kindP != NULL && kindP->type == CorString && strcmp(kindP->value.s, "csr") == 0)
     return TENANT_SUB_KIND_CSR;
 
-  KjNode* tiP = kjLookup(subP, "timeInterval");
+  CorNode* tiP = corTreeLookup(subP, "timeInterval");
 
-  if (tiP != NULL && (tiP->type == KjInt || tiP->type == KjFloat))
+  if (tiP != NULL && (tiP->type == CorInt || tiP->type == CorFloat))
     return TENANT_SUB_KIND_PERNOT;
 
   return TENANT_SUB_KIND_ENTITY;
@@ -364,14 +364,14 @@ static int tenantSubCacheItemKind(KjNode* subP)
 //
 // tenantSubCacheItemIdGet - the document's id, whichever name it carries
 //
-static const char* tenantSubCacheItemIdGet(KjNode* subP)
+static const char* tenantSubCacheItemIdGet(CorNode* subP)
 {
-  KjNode* idP = kjLookup(subP, "id");
+  CorNode* idP = corTreeLookup(subP, "id");
 
-  if ((idP == NULL) || (idP->type != KjString))
-    idP = kjLookup(subP, "_id");
+  if ((idP == NULL) || (idP->type != CorString))
+    idP = corTreeLookup(subP, "_id");
 
-  return ((idP != NULL) && (idP->type == KjString))? idP->value.s : NULL;
+  return ((idP != NULL) && (idP->type == CorString))? idP->value.s : NULL;
 }
 
 
@@ -387,7 +387,7 @@ static const char* tenantSubCacheItemIdGet(KjNode* subP)
 // Returns the TENANT_SUB_KIND_* the document was routed to, or
 // TENANT_SUB_KIND_NONE if the cache it belongs in does not exist.
 //
-int tenantSubCacheItemStore(Tenant* tP, KjNode* subP, bool replace)
+int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace)
 {
   int         kind  = tenantSubCacheItemKind(subP);
   const char* subId = tenantSubCacheItemIdGet(subP);
@@ -547,7 +547,7 @@ static void tenantSubCacheLoad(Tenant* tP)
   if (db.subscriptionQuery == NULL)
     return;
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int     r      = db.subscriptionQuery(tP, 0, 0, &arrayP);
 
   if (r != DB_OK || arrayP == NULL)
@@ -557,7 +557,7 @@ static void tenantSubCacheLoad(Tenant* tP)
   int pernotCount = 0;
   int csrCount    = 0;
 
-  for (KjNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
+  for (CorNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
   {
     switch (tenantSubCacheItemStore(tP, subP, false))
     {
@@ -599,14 +599,14 @@ static void tenantRegCacheLoad(Tenant* tP)
   if (tP->regCacheP == NULL || db.registrationQuery == NULL)
     return;
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int     r      = db.registrationQuery(tP, 0, 0, &arrayP);
 
   if (r != DB_OK || arrayP == NULL)
     return;
 
   int count = 0;
-  for (KjNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
+  for (CorNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
   {
     // corRest.kalloc is the startup buffer here (coraine main reset it right
     // after the cache reloads) — fine as the transient arena for resolving a
@@ -656,7 +656,7 @@ bool tenantSubCacheItemRefresh(Tenant* tP, const char* subId)
   if (db.subscriptionRetrieve == NULL)
     return false;
 
-  KjNode* subP = NULL;
+  CorNode* subP = NULL;
   int     r    = db.subscriptionRetrieve(tP, subId, &subP);
 
   if ((r == DB_NOT_FOUND) || ((r == DB_OK) && (subP == NULL)))
@@ -704,7 +704,7 @@ bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId)
   if ((tP->regCacheP == NULL) || (db.registrationRetrieve == NULL))
     return false;
 
-  KjNode* regP = NULL;
+  CorNode* regP = NULL;
   int     r    = db.registrationRetrieve(tP, regId, &regP);
 
   if ((r == DB_NOT_FOUND) || ((r == DB_OK) && (regP == NULL)))
@@ -739,7 +739,7 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
   if (tP->snapshotCacheP == NULL || db.snapshotQuery == NULL)
     return;
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int     r      = db.snapshotQuery(tP, &arrayP);
   if (r != DB_OK || arrayP == NULL)
     return;
@@ -749,15 +749,15 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
   int  count   = 0;
   int  maxSeq  = -1;
 
-  for (KjNode* snapP = arrayP->value.firstChildP; snapP != NULL; snapP = snapP->next)
+  for (CorNode* snapP = arrayP->value.firstChildP; snapP != NULL; snapP = snapP->next)
   {
-    KjNode* seqP = kjLookup(snapP, "_snapSeq");
-    if (seqP == NULL || (seqP->type != KjInt && seqP->type != KjFloat))
+    CorNode* seqP = corTreeLookup(snapP, "_snapSeq");
+    if (seqP == NULL || (seqP->type != CorInt && seqP->type != CorFloat))
     {
       KT_E("tenant '%s': persisted snapshot missing _snapSeq — skipped", tP->name[0] ? tP->name : "(default)");
       continue;
     }
-    int snapSeq = (seqP->type == KjInt) ? (int) seqP->value.i : (int) seqP->value.f;
+    int snapSeq = (seqP->type == CorInt) ? (int) seqP->value.i : (int) seqP->value.f;
 
     // ldSnapshotCacheItemAdd assigns its own snapSeq from cacheP->nextSnapSeq;
     // override that with the persisted one so the snap-tenant DB name matches

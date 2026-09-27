@@ -33,11 +33,12 @@
 #include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 #include "corNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
 #include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjParse.h"                           // kjParse
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonParse.h"                    // corJsonParse
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kalloc/KAlloc.h"                             // KAlloc
 
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
 
@@ -67,19 +68,19 @@
 // stripInfoAttrsFromTemporal - remove from localP every attr covered by one
 // RegistrationInfo. Same shape rules as the regular variant in getEntity.c —
 // removes top-level non-keyword attrs by name, regardless of whether each
-// attr is a KjArray of instances (temporal) or a KjObject (storage-format).
+// attr is a CorArray of instances (temporal) or a CorObject (storage-format).
 //
-static void stripInfoAttrsFromTemporal(KjNode* localP, LdRegInfo* riP)
+static void stripInfoAttrsFromTemporal(CorNode* localP, LdRegInfo* riP)
 {
-  if (localP == NULL || localP->type != KjObject)
+  if (localP == NULL || localP->type != CorObject)
     return;
 
   bool wildcard = (riP->attributeNamesV == NULL);
 
-  KjNode* curP = localP->value.firstChildP;
+  CorNode* curP = localP->value.firstChildP;
   while (curP != NULL)
   {
-    KjNode* nextP = curP->next;
+    CorNode* nextP = curP->next;
 
     if (curP->name != NULL && curP->name[0] != '@' &&
         strcmp(curP->name, "id")   != 0 &&
@@ -91,7 +92,7 @@ static void stripInfoAttrsFromTemporal(KjNode* localP, LdRegInfo* riP)
           if (strcmp(curP->name, riP->attributeNamesV[j]) == 0) { covered = true; break; }
 
       if (covered)
-        kjChildRemove(localP, curP);
+        corTreeChildRemove(localP, curP);
     }
 
     curP = nextP;
@@ -104,7 +105,7 @@ static void stripInfoAttrsFromTemporal(KjNode* localP, LdRegInfo* riP)
 //
 // mergeTemporalInto - concatenate upstream's per-attr instance arrays into destP.
 //
-// EntityTemporal shape: each non-keyword child of the entity is a KjArray of
+// EntityTemporal shape: each non-keyword child of the entity is a CorArray of
 // instance objects. Merging is "for each attr in upP, append its instances
 // to destP's same-named attr (creating it if absent)".
 //
@@ -112,15 +113,15 @@ static void stripInfoAttrsFromTemporal(KjNode* localP, LdRegInfo* riP)
 // already have. Per § 4.3.6.2 auxiliary registrations fill gaps; they never
 // overwrite or augment data already present locally.
 //
-static void mergeTemporalInto(KjNode* destP, KjNode* upP, bool keepOnlyMissing)
+static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing)
 {
-  if (destP == NULL || upP == NULL || destP->type != KjObject || upP->type != KjObject)
+  if (destP == NULL || upP == NULL || destP->type != CorObject || upP->type != CorObject)
     return;
 
-  KjNode* upChild = upP->value.firstChildP;
+  CorNode* upChild = upP->value.firstChildP;
   while (upChild != NULL)
   {
-    KjNode* upNext = upChild->next;
+    CorNode* upNext = upChild->next;
 
     if (upChild->name == NULL ||
         upChild->name[0] == '@' ||
@@ -131,23 +132,23 @@ static void mergeTemporalInto(KjNode* destP, KjNode* upP, bool keepOnlyMissing)
       continue;
     }
 
-    KjNode* destAttr = kjLookup(destP, upChild->name);
+    CorNode* destAttr = corTreeLookup(destP, upChild->name);
 
     if (destAttr == NULL)
     {
       // First time we see this attr — move the whole upstream array across.
       upChild->next = NULL;
-      kjChildAdd(destP, upChild);
+      corTreeChildAdd(destP, upChild);
     }
-    else if (!keepOnlyMissing && upChild->type == KjArray && destAttr->type == KjArray)
+    else if (!keepOnlyMissing && upChild->type == CorArray && destAttr->type == CorArray)
     {
       // Concat upstream instances onto destP's existing array.
-      KjNode* inst = upChild->value.firstChildP;
+      CorNode* inst = upChild->value.firstChildP;
       while (inst != NULL)
       {
-        KjNode* instNext = inst->next;
+        CorNode* instNext = inst->next;
         inst->next = NULL;
-        kjChildAdd(destAttr, inst);
+        corTreeChildAdd(destAttr, inst);
         inst = instNext;
       }
     }
@@ -406,7 +407,7 @@ bool getEntityTemporal(void)
 
   // Local TRoE retrieve. result==NULL is "no temporal data here yet";
   // distops may still produce a response, so we keep going.
-  KjNode* result = NULL;
+  CorNode* result = NULL;
   int     r      = troe.entityTemporalRetrieve(tenantP, entityId, &filter, &result, &rangeInfo);
 
   if (r != TROE_OK && r != TROE_NOT_FOUND)
@@ -513,7 +514,7 @@ bool getEntityTemporal(void)
         if (code < 200 || code >= 300) continue;
         if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
-        KjNode* upP = results[i].responseTree;
+        CorNode* upP = results[i].responseTree;
         if (upP == NULL) continue;
         corLdExpandTree(upP, corNgsild.contextP, &corRest.kalloc);
         ldStripAtContext(upP);
@@ -551,7 +552,7 @@ bool getEntityTemporal(void)
   if (filterApplied)
   {
     bool hasUserAttr = false;
-    for (KjNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = result->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                                  continue;
       if (c->name[0] == '@')                                continue;
@@ -585,7 +586,7 @@ bool getEntityTemporal(void)
     ldPickOmit(result, corNgsild.pickV, corNgsild.omitV);
 
     bool hasMembers = false;
-    for (KjNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = result->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;

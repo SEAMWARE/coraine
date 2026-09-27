@@ -32,14 +32,14 @@
 #include <mongoc/mongoc.h>                               // mongoc_client_*, mongoc_collection_*
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corRest/CorRestState.h"                          // corRest
 
 #include "corNgsild/ldEntityMerge.h"                      // LdMergeReport
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
-#include "currentState/mongoc/mongocBsonToKjTree.h"      // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"        // mongocBsonToTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
@@ -59,10 +59,10 @@ extern mongoc_client_pool_t*  poolP;
 //
 // countEntries -
 //
-static int countEntries(KjNode* arrP)
+static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (KjNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -70,12 +70,12 @@ static int countEntries(KjNode* arrP)
 
 // -----------------------------------------------------------------------------
 //
-// fragmentAt - the ix-th child of a KjArray
+// fragmentAt - the ix-th child of a CorArray
 //
-static KjNode* fragmentAt(KjNode* arrP, int ix)
+static CorNode* fragmentAt(CorNode* arrP, int ix)
 {
   int i = 0;
-  for (KjNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
+  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
     if (i == ix) return c;
   return NULL;
 }
@@ -92,9 +92,9 @@ static KjNode* fragmentAt(KjNode* arrP, int ix)
 // share an id share ONE target tree so the broker's sequential merges see each
 // other's results (§ 5.6.10 array-order semantics).
 //
-int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** targetsV)
+int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** targetsV)
 {
-  if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
+  if (fragmentsArr == NULL || fragmentsArr->type != CorArray)
     return DB_ERR;
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
@@ -108,10 +108,10 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** tar
   BSON_APPEND_ARRAY_BEGIN(&inDoc, "$in", &idArr);
 
   int ix = 0;
-  for (KjNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, ix++)
+  for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, ix++)
   {
-    KjNode* idP = kjLookup(fragP, "id");
-    if (idP == NULL || idP->type != KjString) continue;
+    CorNode* idP = corTreeLookup(fragP, "id");
+    if (idP == NULL || idP->type != CorString) continue;
     char key[16];
     snprintf(key, sizeof(key), "%d", ix);
     BSON_APPEND_UTF8(&idArr, key, idP->value.s);
@@ -135,16 +135,16 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** tar
     // the same entity id in the batch). The shared target lets the broker's
     // sequential merges accumulate, and ordered=true on the bulk preserves that
     // order server-side.
-    KjNode* shared = NULL;
+    CorNode* shared = NULL;
     int k = 0;
-    for (KjNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
+    for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
     {
       if (targetsV[k] != NULL) continue;
-      KjNode* idP = kjLookup(fragP, "id");
-      if (idP == NULL || idP->type != KjString) continue;
+      CorNode* idP = corTreeLookup(fragP, "id");
+      if (idP == NULL || idP->type != CorString) continue;
       if (strcmp(idP->value.s, foundId) != 0) continue;
       if (shared == NULL)
-        shared = mongocBsonToKjTree(&corRest.kalloc, doc);
+        shared = mongocBsonToTree(&corRest.kalloc, doc);
       targetsV[k] = shared;
     }
   }
@@ -173,11 +173,11 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** tar
 // the broker merged (others are skipped here). On bulk execute failure every
 // staged slot is demoted to DB_ERR.
 //
-int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
-                                 KjNode** mergedTargetsV, LdMergeReport* reportsV,
+int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
+                                 CorNode** mergedTargetsV, LdMergeReport* reportsV,
                                  int* resultsV)
 {
-  if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
+  if (fragmentsArr == NULL || fragmentsArr->type != CorArray)
     return DB_ERR;
 
   int n = countEntries(fragmentsArr);
@@ -196,9 +196,9 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
     if (resultsV[i] != DB_OK)
       continue;
 
-    KjNode* fragP = fragmentAt(fragmentsArr, i);
-    KjNode* idP   = (fragP != NULL) ? kjLookup(fragP, "id") : NULL;
-    if (idP == NULL || idP->type != KjString || mergedTargetsV[i] == NULL)
+    CorNode* fragP = fragmentAt(fragmentsArr, i);
+    CorNode* idP  = (fragP != NULL) ? corTreeLookup(fragP, "id") : NULL;
+    if (idP == NULL || idP->type != CorString || mergedTargetsV[i] == NULL)
       continue;
 
     bson_t update;

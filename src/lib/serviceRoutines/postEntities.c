@@ -17,12 +17,12 @@
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
 
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjBuilder.h"                         // kjChildAdd, kjChildRemove, kjString, kjArray, kjObject
-#include "kjson/KjNode.h"                            // KjNode, KjString
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeBuilder.h"                  // corTreeChildAdd, corTreeChildRemove, corTreeString, corTreeArray, corTreeObject
+#include "corTree/CorNode.h"                         // CorNode, CorString
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
@@ -67,12 +67,12 @@
 // not a reserved keyword (id / type / @-prefixed). Used to detect "has
 // distops consumed every attribute?"
 //
-static bool hasNonKeywordAttr(KjNode* entityP)
+static bool hasNonKeywordAttr(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (KjNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
+  for (CorNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
@@ -119,26 +119,26 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 // Returns NULL if the entity has no attribute at apiPropName (or it's
 // malformed) — caller treats that as "no geo property on entity".
 //
-static KjNode* wrapApiGeoPropAsStorage(KjNode* entityP, const char* apiPropName,
+static CorNode* wrapApiGeoPropAsStorage(CorNode* entityP, const char* apiPropName,
                                        const char* storagePropIri)
 {
-  KjNode* attrP = kjLookup(entityP, apiPropName);
-  if (attrP == NULL || attrP->type != KjObject)
+  CorNode* attrP = corTreeLookup(entityP, apiPropName);
+  if (attrP == NULL || attrP->type != CorObject)
     return NULL;
 
-  KjNode* synthetic = kjObject(corRest.kjsonP, NULL);
-  KjNode* prop      = kjObject(corRest.kjsonP, (char*) storagePropIri);
-  KjNode* wrapInst  = kjObject(corRest.kjsonP, "@none");
+  CorNode* synthetic = corTreeObject(corRest.kallocP, NULL);
+  CorNode* prop     = corTreeObject(corRest.kallocP, (char*) storagePropIri);
+  CorNode* wrapInst = corTreeObject(corRest.kallocP, "@none");
 
   // Borrow children of the API attr (type / value) into @none wrapper
-  for (KjNode* c = attrP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = attrP->value.firstChildP; c != NULL; c = c->next)
   {
-    KjNode* linked = kjClone(corRest.kjsonP, c);
-    kjChildAdd(wrapInst, linked);
+    CorNode* linked = corTreeClone(corRest.kallocP, c);
+    corTreeChildAdd(wrapInst, linked);
   }
 
-  kjChildAdd(prop, wrapInst);
-  kjChildAdd(synthetic, prop);
+  corTreeChildAdd(prop, wrapInst);
+  corTreeChildAdd(synthetic, prop);
   return synthetic;
 }
 
@@ -160,7 +160,7 @@ static KjNode* wrapApiGeoPropAsStorage(KjNode* entityP, const char* apiPropName,
 //   - CSR has a geo field but entity lacks the corresponding GeoProperty
 //     → NO match (geo-scoped CSR cannot apply to a location-less entity).
 //
-static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
+static bool csrGeoCoverEntity(LdRegCacheItem* csr, CorNode* entityP)
 {
   if (csr->locationP == NULL && csr->observationSpaceP == NULL && csr->operationSpaceP == NULL)
     return true;
@@ -171,7 +171,7 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
   // Pair each CSR geo field with the entity's API-form attr name and its
   // expanded IRI (as used by db.geoMatchFunc internally on stored entities).
   struct {
-    KjNode*      csrGeom;
+    CorNode*     csrGeom;
     const char*  apiName;
     const char*  storageIri;
   } pairs[] = {
@@ -187,18 +187,18 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
     if (pairs[i].csrGeom == NULL)
       continue;
 
-    KjNode* typeP   = kjLookup(pairs[i].csrGeom, "type");
-    KjNode* coordsP = kjLookup(pairs[i].csrGeom, "coordinates");
-    if (typeP == NULL || typeP->type != KjString || coordsP == NULL)
+    CorNode* typeP  = corTreeLookup(pairs[i].csrGeom, "type");
+    CorNode* coordsP = corTreeLookup(pairs[i].csrGeom, "coordinates");
+    if (typeP == NULL || typeP->type != CorString || coordsP == NULL)
       continue;
 
-    KjNode* synthetic = wrapApiGeoPropAsStorage(entityP, pairs[i].apiName, pairs[i].storageIri);
+    CorNode* synthetic = wrapApiGeoPropAsStorage(entityP, pairs[i].apiName, pairs[i].storageIri);
     if (synthetic == NULL)
       return false;   // entity has no matching geo property → fail this CSR
 
-    int   cbSize = kjFastRenderSize(coordsP) + 1;
+    int   cbSize = corJsonFastRenderSize(coordsP) + 1;
     char* cbuf   = (char*) kaAlloc(&corRest.kalloc, cbSize);
-    kjFastRender(coordsP, cbuf);
+    corJsonFastRender(coordsP, cbuf);
 
     if (!db.geoMatchFunc(synthetic, &georel, typeP->value.s, cbuf, pairs[i].storageIri))
       return false;
@@ -219,20 +219,20 @@ static bool csrGeoCoverEntity(LdRegCacheItem* csr, KjNode* entityP)
 // vocab terms (and compact back automatically) or remain as IRIs — both
 // are acceptable JSON-LD.
 //
-static char* renderFragmentWithContext(KjNode* fragP)
+static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Body @context is forbidden on the wire: ldDistOp/buildHeaders sends
   // application/json + Link header (the receiver derives @context from
   // Link). Mixing in-body @context with application/json is a 400 per
   // feedback_context_header_rules — so strip it here if present.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   bufSize = kjFastRenderSize(fragP) + 1;
+  int   bufSize = corJsonFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -251,7 +251,7 @@ static char* renderFragmentWithContext(KjNode* fragP)
 // present"), so a compacted name in there would be a name the client has
 // nothing to resolve against.
 //
-static const char* fragmentAttrList(KjNode* fragP)
+static const char* fragmentAttrList(CorNode* fragP)
 {
   static __thread char buf[512];
   int pos = 0;
@@ -262,7 +262,7 @@ static const char* fragmentAttrList(KjNode* fragP)
     return buf;
   }
 
-  for (KjNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
   {
     if (c->name == NULL)                       continue;
     if (c->name[0] == '@')                     continue;
@@ -322,7 +322,7 @@ static const char* forwardFailureReason(int upCode, const char* upErr)
 //
 bool postEntities(void)
 {
-  KjNode* entityP = corRest.in.requestTree;
+  CorNode* entityP = corRest.in.requestTree;
 
   //
   // Must have a JSON payload
@@ -336,9 +336,9 @@ bool postEntities(void)
   //
   // Extract entity id
   //
-  KjNode* idP = kjLookup(entityP, "id");
+  CorNode* idP = corTreeLookup(entityP, "id");
 
-  if (idP == NULL || idP->type != KjString)
+  if (idP == NULL || idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry", "entity id is missing or not a string");
     return true;
@@ -398,26 +398,26 @@ bool postEntities(void)
   if (corNgsild.local == false && tenantP->regCacheP != NULL)
   {
     // Type vector built from the entity's "type" — string or array per § 4.5.1.
-    KjNode* typeP        = kjLookup(entityP, "type");
-    char*   typeBuf1[2]  = { NULL, NULL };  // KjString case
+    CorNode* typeP       = corTreeLookup(entityP, "type");
+    char*   typeBuf1[2]  = { NULL, NULL };  // CorString case
     char**  typeArr      = typeBuf1;
     if (typeP != NULL)
     {
-      if (typeP->type == KjString)
+      if (typeP->type == CorString)
       {
         typeBuf1[0] = typeP->value.s;
       }
-      else if (typeP->type == KjArray)
+      else if (typeP->type == CorArray)
       {
         int n = 0;
-        for (KjNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
-          if (t->type == KjString) n++;
+        for (CorNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+          if (t->type == CorString) n++;
         if (n > 0)
         {
           typeArr = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
-          for (KjNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
-            if (t->type == KjString)
+          for (CorNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+            if (t->type == CorString)
               typeArr[ix++] = t->value.s;
           typeArr[ix] = NULL;
         }
@@ -429,27 +429,27 @@ bool postEntities(void)
     // Value may be string or string[]; normalise to NULL-term char* array
     // on the stack for the match call. NULL means "entity has no scope".
     //
-    KjNode* scopeP        = kjLookup(entityP, "scope");
+    CorNode* scopeP       = corTreeLookup(entityP, "scope");
     char**  entityScopeV  = NULL;
-    char*   scopeBuf1[2]  = { NULL, NULL };   // for KjString case
+    char*   scopeBuf1[2]  = { NULL, NULL };   // for CorString case
     if (scopeP != NULL)
     {
-      if (scopeP->type == KjString)
+      if (scopeP->type == CorString)
       {
         scopeBuf1[0] = scopeP->value.s;
         entityScopeV = scopeBuf1;
       }
-      else if (scopeP->type == KjArray)
+      else if (scopeP->type == CorArray)
       {
         int n = 0;
-        for (KjNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
-          if (s->type == KjString) n++;
+        for (CorNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
+          if (s->type == CorString) n++;
         if (n > 0)
         {
           entityScopeV = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
-          for (KjNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
-            if (s->type == KjString)
+          for (CorNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
+            if (s->type == CorString)
               entityScopeV[ix++] = s->value.s;
           entityScopeV[ix] = NULL;
         }
@@ -504,7 +504,7 @@ bool postEntities(void)
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
       memset(items, 0, total * sizeof(LdDistOpBatchItem));
       LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-      KjNode**             itemFrag = (KjNode**) kaAlloc(&corRest.kalloc, total * sizeof(KjNode*));
+      CorNode**            itemFrag = (CorNode**) kaAlloc(&corRest.kalloc, total * sizeof(CorNode*));
       int                  itemCount = 0;
       memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -545,7 +545,7 @@ bool postEntities(void)
             // Redirect: clone here, one detach sweep after the loop —
             // multiple redirect CSRs covering the same entity all need
             // a copy. Inclusive: clone — local create keeps them.
-            KjNode* fragP = ldEntityFragmentForInfo(entityP, riP, corRest.kjsonP, /*detach=*/(g == 0));
+            CorNode* fragP = ldEntityFragmentForInfo(entityP, riP, corRest.kallocP, /*detach=*/(g == 0));
             if (fragP == NULL) continue;
 
             if (!opSupported)
@@ -581,7 +581,7 @@ bool postEntities(void)
             // Compact a clone for the wire — fragP stays expanded for the
             // error bookkeeping (fragmentShortAttrList) below, and CSRs may
             // compact with different contexts (csi.jsonldContext).
-            KjNode* wireP = kjClone(corRest.kjsonP, fragP);
+            CorNode* wireP = corTreeClone(corRest.kallocP, fragP);
             corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr));
 
             char* body = renderFragmentWithContext(wireP);
@@ -610,7 +610,7 @@ bool postEntities(void)
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;
-          KjNode* drop = ldEntityFragmentForInfo(entityP, riP, corRest.kjsonP, /*detach=*/true);
+          CorNode* drop = ldEntityFragmentForInfo(entityP, riP, corRest.kallocP, /*detach=*/true);
           (void) drop;
         }
       }
@@ -654,7 +654,7 @@ bool postEntities(void)
 
   if (distopsConsumedAll)
   {
-    KjNode* existing = NULL;
+    CorNode* existing = NULL;
     int     rr       = db.entityRetrieve(tenantP, idP->value.s, &existing);
     if (rr == DB_OK)
       localAlreadyExists = true;
@@ -673,7 +673,7 @@ bool postEntities(void)
     // (207). See bridgeServiceSync.h.
     //
     BridgeSyncDone syncDone = { { NULL }, 0 };
-    KjNode*        existsP  = NULL;
+    CorNode*       existsP  = NULL;
 
     if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL))
     {
@@ -707,7 +707,7 @@ bool postEntities(void)
     {
       anySucceeded   = true;
 
-      // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
+      // mongocTreeToBson renames "id" to "_id" in-place — restore it.
       if (idP->name[0] == '_')
         idP->name = "id";
 
@@ -716,8 +716,8 @@ bool postEntities(void)
 
       // TRoE: defer one entity-level "created" event. The plugin walks
       // entitySnapshot at dispatch time to materialize per-attribute rows.
-      KjNode* typeNode = kjLookup(entityP, "type");
-      const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
+      CorNode* typeNode = corTreeLookup(entityP, "type");
+      const char* etype = (typeNode != NULL && typeNode->type == CorString) ? typeNode->value.s : NULL;
       TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
       tevP->op             = TroeOpEntityCreated;
@@ -828,13 +828,13 @@ bool postEntities(void)
   // Build BatchOperationResult response body (§ 5.2.17). Materialise the
   // errors[] tree now — this is the only path that needs it.
   //
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, idP->value.s));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, idP->value.s));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, ldBatchErrorListToTree(&errors, corRest.kjsonP));
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, ldBatchErrorListToTree(&errors, corRest.kallocP));
 
   corRest.out.responseTree   = respBodyP;
   corRest.out.httpStatusCode = 207;

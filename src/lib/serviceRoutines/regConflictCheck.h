@@ -8,7 +8,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "corNgsild/LdRegCache.h"                      // LdRegMode
 
@@ -18,7 +18,7 @@
 //
 // regModeOf - resolve a registration document's mode (default = inclusive, § 5.2.9)
 //
-extern LdRegMode regModeOf(KjNode* regP);
+extern LdRegMode regModeOf(CorNode* regP);
 
 
 
@@ -39,6 +39,6 @@ extern LdRegMode regModeOf(KjNode* regP);
 // Returns true if a conflict was found AND ldError (409) was raised — the caller
 // must then just return. Returns false when there is no conflict.
 //
-extern bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP);
+extern bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP);
 
 #endif  // SRC_LIB_SERVICEROUTINES_REGCONFLICTCHECK_H_

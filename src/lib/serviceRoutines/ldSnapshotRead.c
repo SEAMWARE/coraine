@@ -16,7 +16,7 @@
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strcasecmp, strcmp
 
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 
 #include "corRest/CorRestState.h"                          // corRest
 #include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
@@ -94,7 +94,7 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
     return true;
   }
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int rc = db.entityRetrieve(snapTenantP, entityId, &entityP);
   if (rc == DB_NOT_FOUND || entityP == NULL)
   {
@@ -147,7 +147,7 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   filter.offset = corNgsild.offset;
   filter.count  = corNgsild.count;
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int rc = db.entityQuery(snapTenantP, &filter, &arrayP);
   if (rc != DB_OK || arrayP == NULL)
   {
@@ -166,7 +166,7 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
   }
 

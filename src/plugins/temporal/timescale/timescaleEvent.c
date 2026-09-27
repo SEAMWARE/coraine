@@ -21,14 +21,15 @@
 
 #include "ktrace/kTrace.h"                                // KT_E
 
-#include "kjson/KjNode.h"                                 // KjNode
-#include "kjson/kjLookup.h"                               // kjLookup
-#include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
-#include "kjson/kjClone.h"                                // kjClone
-#include "kjson/kjRender.h"                               // kjFastRender
-#include "kjson/kjRenderSize.h"                           // kjFastRenderSize
+#include "corTree/CorNode.h"                              // CorNode
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
+#include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeChildAdd
+#include "corTree/corTreeClone.h"                         // corTreeClone
+#include "corJson/corJsonRender.h"                        // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                    // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
+#include "kalloc/KAlloc.h"                                // KAlloc
 
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
@@ -104,10 +105,10 @@ typedef struct
 //
 // numberToText - render a number node as a decimal text string for v_number.
 //
-static const char* numberToText(KjNode* nP, KAlloc* allocP)
+static const char* numberToText(CorNode* nP, KAlloc* allocP)
 {
   char buf[64];
-  if (nP->type == KjInt)
+  if (nP->type == CorInt)
     snprintf(buf, sizeof(buf), "%lld", (long long) nP->value.i);
   else
     snprintf(buf, sizeof(buf), "%.17g", nP->value.f);
@@ -118,13 +119,13 @@ static const char* numberToText(KjNode* nP, KAlloc* allocP)
 
 // -----------------------------------------------------------------------------
 //
-// renderJsonb - render a KjNode subtree as JSON text suitable for ::jsonb.
+// renderJsonb - render a CorNode subtree as JSON text suitable for ::jsonb.
 //
-static const char* renderJsonb(KjNode* nP, KAlloc* allocP)
+static const char* renderJsonb(CorNode* nP, KAlloc* allocP)
 {
-  int   sz  = kjFastRenderSize(nP) + 1;
+  int   sz  = corJsonFastRenderSize(nP) + 1;
   char* buf = (char*) kaAlloc(allocP, sz);
-  kjFastRender(nP, buf);
+  corJsonFastRender(nP, buf);
   return buf;
 }
 
@@ -143,17 +144,17 @@ static const char* renderJsonb(KjNode* nP, KAlloc* allocP)
 // For v1 we only emit a row for the first dataset entry. Multi-instance
 // expansion lands in a follow-up.
 //
-static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
+static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
 {
   memset(cP, 0, sizeof(*cP));
   cP->dsId = "";
 
-  if (attrSnapshot == NULL || attrSnapshot->type != KjObject)
+  if (attrSnapshot == NULL || attrSnapshot->type != CorObject)
     return;
 
   // First child = first dataset instance.
-  KjNode* instP = attrSnapshot->value.firstChildP;
-  if (instP == NULL || instP->type != KjObject)
+  CorNode* instP = attrSnapshot->value.firstChildP;
+  if (instP == NULL || instP->type != CorObject)
     return;
 
   if (instP->name != NULL && strcmp(instP->name, "@none") != 0)
@@ -173,18 +174,18 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
   // ldApiEntityToDbModel normalises all of them to "value" before regular
   // POST /entities; the temporal POST path may feed us API-format directly,
   // so accept either form here.
-  KjNode* valueP   = NULL;
-  KjNode* observP  = NULL;
-  KjNode* subAttrs = kjObject(corRest.kjsonP, NULL);
+  CorNode* valueP  = NULL;
+  CorNode* observP = NULL;
+  CorNode* subAttrs = corTreeObject(corRest.kallocP, NULL);
 
   // Read-only walk: nothing below re-homes a node out of instP (see the
   // sub-attribute branch), so the list stays whole. nextP is still captured up
   // front - it costs nothing and it is what keeps this loop correct if anyone
   // ever adds a step that does touch the list.
-  KjNode* fP = instP->value.firstChildP;
+  CorNode* fP = instP->value.firstChildP;
   while (fP != NULL)
   {
-    KjNode* nextP = fP->next;
+    CorNode* nextP = fP->next;
 
     if (fP->name == NULL) { fP = nextP; continue; }
 
@@ -206,15 +207,15 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
     // Sub-attribute. It belongs to the CALLER's entity tree, so it is CLONED
     // in - neither moved nor, as it was, spliced.
     //
-    // kjChildAdd re-points the added node's ->next, and there being no
-    // kjChildMove it left the two lists SHARING their tails: the first
+    // corTreeChildAdd re-points the added node's ->next, and there being no
+    // corTreeChildMove it left the two lists SHARING their tails: the first
     // sub-attribute's ->next was nulled, then the second sub-attribute relinked
     // it, so {type,value,unitCode,observedAt,accuracy} came back out of here as
     // {type,value,unitCode,accuracy} - whatever sat between two sub-attributes
     // spliced out of the attribute we were handed. observedAt is what sits
     // between them in the most ordinary attribute there is.
     //
-    // kjChildRemove-then-kjChildAdd is the correct idiom for a MOVE and does
+    // corTreeChildRemove-then-corTreeChildAdd is the correct idiom for a MOVE and does
     // repair the lists, but a move is not what this wants: the sub-attributes
     // would then be gone from the caller's attribute instead, and the entity
     // would persist without its unitCode. extractCols READS an attribute into
@@ -232,21 +233,21 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
     //
     // A temporal write READS the entity. It must not consume it.
     //
-    kjChildAdd(subAttrs, kjClone(corRest.kjsonP, fP));
+    corTreeChildAdd(subAttrs, corTreeClone(corRest.kallocP, fP));
     fP = nextP;
   }
 
   // observedAt:
-  //   - KjString: ISO text, pass through.
-  //   - KjInt:    epoch nanoseconds (ldApiEntityToDbModel normalises ISO → ns).
+  //   - CorString: ISO text, pass through.
+  //   - CorInt:   epoch nanoseconds (ldApiEntityToDbModel normalises ISO → ns).
   //               Format as fractional-seconds for postgres ::timestamptz cast.
   if (observP != NULL)
   {
-    if (observP->type == KjString)
+    if (observP->type == CorString)
     {
       cP->observedAtIso = observP->value.s;
     }
-    else if (observP->type == KjInt)
+    else if (observP->type == CorInt)
     {
       char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       double secs = (double) observP->value.i / 1e9;
@@ -269,13 +270,13 @@ static void extractCols(KjNode* attrSnapshot, AttrCols* cP)
   {
     switch (valueP->type)
     {
-      case KjString:  cP->v_text     = valueP->value.s; break;
-      case KjInt:
-      case KjFloat:   cP->v_number   = numberToText(valueP, &corRest.kalloc); break;
-      case KjBoolean: cP->v_bool     = valueP->value.b ? "t" : "f"; break;
-      case KjObject:
-      case KjArray:   cP->v_compound = renderJsonb(valueP, &corRest.kalloc); break;
-      case KjNull:    /* leave all NULL */ break;
+      case CorString: cP->v_text     = valueP->value.s; break;
+      case CorInt:
+      case CorFloat:  cP->v_number   = numberToText(valueP, &corRest.kalloc); break;
+      case CorBoolean: cP->v_bool    = valueP->value.b ? "t" : "f"; break;
+      case CorObject:
+      case CorArray:  cP->v_compound = renderJsonb(valueP, &corRest.kalloc); break;
+      case CorNull:   /* leave all NULL */ break;
       default: break;
     }
   }
@@ -334,18 +335,18 @@ int troeTypeNameQuoted(const char* name, char* buf, int pos, int bufSize)
 //
 static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int bufSize)
 {
-  KjNode* typeP = (evP->entitySnapshot != NULL) ? kjLookup(evP->entitySnapshot, "type") : NULL;
+  CorNode* typeP = (evP->entitySnapshot != NULL) ? corTreeLookup(evP->entitySnapshot, "type") : NULL;
   int     pos   = 0;
 
   buf[pos++] = '{';
 
-  if ((typeP != NULL) && (typeP->type == KjArray))
+  if ((typeP != NULL) && (typeP->type == CorArray))
   {
     bool first = true;
 
-    for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
     {
-      if ((tP->type != KjString) || (tP->value.s == NULL))
+      if ((tP->type != CorString) || (tP->value.s == NULL))
         continue;
       if (!first)
         buf[pos++] = ',';
@@ -357,7 +358,7 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
   {
     const char* single = NULL;
 
-    if ((typeP != NULL) && (typeP->type == KjString))
+    if ((typeP != NULL) && (typeP->type == CorString))
       single = typeP->value.s;
     else if (evP->entityType != NULL)
       single = evP->entityType;
@@ -430,17 +431,17 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   // wrapper is a copy on the stack, so no list is touched - only firstChildP
   // is ever read from it.
   //
-  KjNode* wrapperP = (KjNode*) evP->attrSnapshot;
+  CorNode* wrapperP = (CorNode*) evP->attrSnapshot;
 
-  if ((evP->datasetId == NULL) && (wrapperP != NULL) && (wrapperP->type == KjObject) &&
+  if ((evP->datasetId == NULL) && (wrapperP != NULL) && (wrapperP->type == CorObject) &&
       (wrapperP->value.firstChildP != NULL) && (wrapperP->value.firstChildP->next != NULL))
   {
-    for (KjNode* instP = wrapperP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = wrapperP->value.firstChildP; instP != NULL; instP = instP->next)
     {
-      if (instP->type != KjObject)
+      if (instP->type != CorObject)
         continue;
 
-      KjNode     one   = *wrapperP;
+      CorNode    one   = *wrapperP;
       TroeEvent  oneEv = *evP;
 
       one.value.firstChildP = instP;
@@ -467,21 +468,21 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
     // (For a deleted scope the snapshot is a bare string/array — kind stays
     // 0 and renders as Property, which is what § 5.3.2.5 mandates for scope.)
     memset(&cols, 0, sizeof(cols));
-    KjNode* wrapP = (KjNode*) evP->attrSnapshot;
-    KjNode* instP = (wrapP != NULL && wrapP->type == KjObject) ? wrapP->value.firstChildP : NULL;
+    CorNode* wrapP = (CorNode*) evP->attrSnapshot;
+    CorNode* instP = (wrapP != NULL && wrapP->type == CorObject) ? wrapP->value.firstChildP : NULL;
 
     // The kind of the instance the event names, when it names one
-    if ((evP->datasetId != NULL) && (wrapP != NULL) && (wrapP->type == KjObject))
+    if ((evP->datasetId != NULL) && (wrapP != NULL) && (wrapP->type == CorObject))
     {
-      KjNode* namedP = kjLookup(wrapP, (evP->datasetId[0] != 0) ? evP->datasetId : "@none");
+      CorNode* namedP = corTreeLookup(wrapP, (evP->datasetId[0] != 0) ? evP->datasetId : "@none");
       if (namedP != NULL)
         instP = namedP;
     }
-    if (instP != NULL && instP->type == KjObject)
+    if (instP != NULL && instP->type == CorObject)
       cols.kind = (int) ldAttrTypeDetect(instP);
   }
   else
-    extractCols((KjNode*) evP->attrSnapshot, &cols);
+    extractCols((CorNode*) evP->attrSnapshot, &cols);
 
   cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
 
@@ -563,7 +564,7 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
 
   TroeOp attrOp = TroeOpAttrCreated;
 
-  for (KjNode* attrP = evP->entitySnapshot->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = evP->entitySnapshot->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)                       continue;
     if (attrP->name[0] == '@')                     continue;

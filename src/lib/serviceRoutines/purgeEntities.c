@@ -31,9 +31,9 @@
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
 #include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
@@ -169,7 +169,7 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
   if (db.entityAttrsSet == NULL)
     return DB_ERR;
 
-  KjNode* fragment = kjObject(corRest.kjsonP, NULL);
+  CorNode* fragment = corTreeObject(corRest.kallocP, NULL);
 
   if (dropV != NULL)
   {
@@ -177,12 +177,12 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
     {
       const char* iri = corLdExpand(corNgsild.contextP, dropV[i], &corRest.kalloc, NULL, NULL);
       if (iri == NULL) iri = dropV[i];
-      kjChildAdd(fragment, kjString(corRest.kjsonP, iri, LD_VOCAB_NGSILD_NULL));
+      corTreeChildAdd(fragment, corTreeString(corRest.kallocP, iri, LD_VOCAB_NGSILD_NULL));
     }
   }
   else if (keepV != NULL)
   {
-    KjNode* entityP = NULL;
+    CorNode* entityP = NULL;
     int r = db.entityRetrieve(tenantP, entityId, &entityP);
     if (r != DB_OK || entityP == NULL)
       return r;
@@ -199,12 +199,12 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
     }
     keepIri[keepN] = NULL;
 
-    for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+    for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
     {
       if (ldIsEntityKeyword(attrP->name)) continue;
       if (inStringV((char**) keepIri, attrP->name)) continue;
 
-      kjChildAdd(fragment, kjString(corRest.kjsonP, attrP->name, LD_VOCAB_NGSILD_NULL));
+      corTreeChildAdd(fragment, corTreeString(corRest.kallocP, attrP->name, LD_VOCAB_NGSILD_NULL));
     }
   }
 
@@ -274,8 +274,8 @@ bool purgeEntities(void)
   // the write ops, purge forwards the *same URL* to each matching CSR:
   // the receiver applies § 5.6.21 locally within its own registry scope.
   //
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
 
   bool dispatch = (corNgsild.local == false
                   
@@ -367,7 +367,7 @@ bool purgeEntities(void)
       {
         int upCode = results[i].statusCode;
         if (upCode >= 200 && upCode < 300)
-          kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, items[i].csr->regId));
+          corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, items[i].csr->regId));
         else if (upCode != 404)
           ldDistOpBatchErrorAdd(errorsArrayP, items[i].csr->regId, (upCode >= 400) ? upCode : 502,
                                 LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
@@ -404,24 +404,24 @@ bool purgeEntities(void)
     filter.offset      = 0;
     filter.count       = false;
 
-    KjNode* arrayP = NULL;
+    CorNode* arrayP = NULL;
     int     qr     = db.entityQuery(tenantP, &filter, &arrayP);
 
     if (qr == DB_OK && arrayP != NULL)
     {
       bool partial = (corNgsild.dropV != NULL) || (corNgsild.keepV != NULL);
 
-      for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
       {
-        KjNode* idP = kjLookup(eP, "id");
-        if (idP == NULL || idP->type != KjString) continue;
+        CorNode* idP = corTreeLookup(eP, "id");
+        if (idP == NULL || idP->type != CorString) continue;
         const char* entityId = idP->value.s;
 
         if (partial)
         {
           int pr = partialPurge(tenantP, entityId, corNgsild.dropV, corNgsild.keepV);
           if (pr == DB_OK)
-            kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+            corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
           else if (pr != DB_NOT_FOUND)
             ldDistOpBatchErrorAdd(errorsArrayP, entityId, 500,
                                   LD_ERROR_INTERNAL_ERROR, "Internal Error",
@@ -430,14 +430,14 @@ bool purgeEntities(void)
         else
         {
           // Pre-fetch for subscription notification
-          KjNode* preImage = NULL;
+          CorNode* preImage = NULL;
           if (tenantP->subCacheP != NULL)
             db.entityRetrieve(tenantP, entityId, &preImage);
 
           int dr = db.entityDelete(tenantP, entityId);
           if (dr == DB_OK)
           {
-            kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+            corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
             if (tenantP->subCacheP != NULL && preImage != NULL)
               ldNotifyDeferDelete((LdSubCache*) tenantP->subCacheP, preImage, corRest.requestStartTime);
           }
@@ -458,7 +458,7 @@ bool purgeEntities(void)
   //   - errors[] non-empty → 207 Multi-Status + BatchOperationResult body
   //
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {
@@ -466,9 +466,9 @@ bool purgeEntities(void)
     return true;
   }
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
   corRest.out.httpStatusCode = 207;

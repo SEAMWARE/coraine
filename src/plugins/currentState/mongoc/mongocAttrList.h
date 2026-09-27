@@ -9,9 +9,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stdbool.h>
-#include "kjson/KjNode.h"
+#include "corTree/CorNode.h"
 #include "db/Tenant.h"
 
-extern int mongocAttrList(Tenant* tenantP, bool details, KjNode** arrayPP);
+extern int mongocAttrList(Tenant* tenantP, bool details, CorNode** arrayPP);
 
 #endif

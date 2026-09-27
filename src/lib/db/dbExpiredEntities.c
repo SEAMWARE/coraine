@@ -31,8 +31,8 @@
 #include "ktrace/kTrace.h"                           // KT_E, KT_T
 #include "kalloc/kaStrdup.h"                         // kaStrdup
 
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjChildRemove
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeChildRemove
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/corNgsild.h"                       // corNgsild
@@ -106,9 +106,9 @@ void dbExpiredEntityDispatchPending(void)
 //
 // dbExpiredEntityIs -
 //
-bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP)
+bool dbExpiredEntityIs(Tenant* tenantP, CorNode* entityP)
 {
-  if ((entityP == NULL) || (entityP->type != KjObject))
+  if ((entityP == NULL) || (entityP->type != CorObject))
     return false;
 
   // ldDistInstanceIsExpired reads expiresAt off a node in either form
@@ -117,8 +117,8 @@ bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP)
   if (!ldDistInstanceIsExpired(entityP, (int64_t) corRest.requestStartTime))
     return false;
 
-  KjNode* idP = kjLookup(entityP, "id");
-  if ((idP != NULL) && (idP->type == KjString))
+  CorNode* idP = corTreeLookup(entityP, "id");
+  if ((idP != NULL) && (idP->type == CorString))
     dbExpiredEntityDefer(tenantP, idP->value.s);
 
   return true;
@@ -130,19 +130,19 @@ bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP)
 //
 // dbExpiredEntityFilter -
 //
-void dbExpiredEntityFilter(Tenant* tenantP, KjNode* arrayP)
+void dbExpiredEntityFilter(Tenant* tenantP, CorNode* arrayP)
 {
-  if ((arrayP == NULL) || (arrayP->type != KjArray))
+  if ((arrayP == NULL) || (arrayP->type != CorArray))
     return;
 
-  KjNode* eP = arrayP->value.firstChildP;
+  CorNode* eP = arrayP->value.firstChildP;
 
   while (eP != NULL)
   {
-    KjNode* nextP = eP->next;
+    CorNode* nextP = eP->next;
 
     if (dbExpiredEntityIs(tenantP, eP))
-      kjChildRemove(arrayP, eP);
+      corTreeChildRemove(arrayP, eP);
 
     eP = nextP;
   }

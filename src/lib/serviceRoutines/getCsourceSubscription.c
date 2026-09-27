@@ -11,10 +11,10 @@
 #include <stddef.h>                                  // NULL
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd, kjChildRemove
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corNgsild/corNgsild.h"                       // ldError, ldContextResolve, corNgsild
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
@@ -51,14 +51,14 @@ bool getCsourceSubscription(void)
 
   ldContextResolve();
 
-  KjNode* subP = kjClone(corRest.kjsonP, itemP->subTree);
+  CorNode* subP = corTreeClone(corRest.kallocP, itemP->subTree);
   ldSubscriptionCompactQ(subP, itemP->qExpr, corNgsild.contextP, &corRest.kalloc);
   ldSubscriptionCountersInject(subP, itemP);
 
   // Hide the internal marker
-  KjNode* kindP = kjLookup(subP, "_subKind");
+  CorNode* kindP = corTreeLookup(subP, "_subKind");
   if (kindP != NULL)
-    kjChildRemove(subP, kindP);
+    corTreeChildRemove(subP, kindP);
 
   // § 5.2 Subscription table: `notificationTrigger` is "not applicable
   // and shall be ignored" for CSR-sub. The lib's ldCheckSubscription
@@ -66,9 +66,9 @@ bool getCsourceSubscription(void)
   // here. The entity-sub GET in getSubscription.c still default-emits.
 
   // Strip the broker-internal `_jcResolved`.
-  KjNode* jcP = kjLookup(subP, "_jcResolved");
+  CorNode* jcP = corTreeLookup(subP, "_jcResolved");
   if (jcP != NULL)
-    kjChildRemove(subP, jcP);
+    corTreeChildRemove(subP, jcP);
 
   //
   // § 12.4.7: a failed notification delivery sets the LIVE status to
@@ -77,13 +77,13 @@ bool getCsourceSubscription(void)
   //
   {
     char*   liveStatus = (char*) ldSubStatusToString(itemP->status);
-    KjNode* statusP    = kjLookup(subP, LD_VOCAB_STATUS);
+    CorNode* statusP   = corTreeLookup(subP, LD_VOCAB_STATUS);
     if (statusP == NULL)
-      statusP = kjLookup(subP, "status");
-    if (statusP != NULL && statusP->type == KjString)
+      statusP = corTreeLookup(subP, "status");
+    if (statusP != NULL && statusP->type == CorString)
       statusP->value.s = liveStatus;
     else if (statusP == NULL)
-      kjChildAdd(subP, kjString(corRest.kjsonP, "status", liveStatus));
+      corTreeChildAdd(subP, corTreeString(corRest.kallocP, "status", liveStatus));
   }
 
   //
@@ -92,14 +92,14 @@ bool getCsourceSubscription(void)
   // it here when `expiresAt` is in the past so retrieve reflects
   // the current lifecycle state.
   //
-  KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
-  if (expiresAtP != NULL && expiresAtP->type == KjString)
+  CorNode* expiresAtP = corTreeLookup(subP, LD_VOCAB_EXPIRES_AT);
+  if (expiresAtP != NULL && expiresAtP->type == CorString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
     if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
     {
-      KjNode* statusP = kjLookup(subP, LD_VOCAB_STATUS);
-      if (statusP != NULL && statusP->type == KjString)
+      CorNode* statusP = corTreeLookup(subP, LD_VOCAB_STATUS);
+      if (statusP != NULL && statusP->type == CorString)
         statusP->value.s = "expired";
     }
   }

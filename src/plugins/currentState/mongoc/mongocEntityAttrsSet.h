@@ -13,7 +13,7 @@
 #include <stdbool.h>                                   // bool
 #include <stdint.h>                                    // uint64_t
 
-#include "kjson/KjNode.h"                              // KjNode
+#include "corTree/CorNode.h"                           // CorNode
 #include "corNgsild/ldEntityMerge.h"                    // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
@@ -22,7 +22,7 @@
 
 extern int mongocEntityAttrsSet(Tenant*        tenantP,
                                 const char*    entityId,
-                                KjNode*        fragmentDb,
+                                CorNode*       fragmentDb,
                                 bool           overwriteScope,
                                 uint64_t       ts,
                                 LdMergeReport* reportP);

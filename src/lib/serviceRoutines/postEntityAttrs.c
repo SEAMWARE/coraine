@@ -18,12 +18,12 @@
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbPost
 #include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjRender.h"                           // kjFastRender
-#include "kjson/kjRenderSize.h"                       // kjFastRenderSize
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corJson/corJsonRender.h"                    // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 
 #include "corJsonld/corLdCompact.h"                     // corLdCompact
 #include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
@@ -117,16 +117,16 @@ static char* attrsUrl(const char* endpoint, const char* entityId, bool noOverwri
 //
 // renderFragmentWithContext - serialize fragment with @context for remote
 //
-static char* renderFragmentWithContext(KjNode* fragP)
+static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   bufSize = kjFastRenderSize(fragP) + 1;
+  int   bufSize = corJsonFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -136,13 +136,13 @@ static char* renderFragmentWithContext(KjNode* fragP)
 //
 // updatedRemove - take an Attribute out of updated[] again
 //
-static void updatedRemove(KjNode* updatedP, const char* attrName)
+static void updatedRemove(CorNode* updatedP, const char* attrName)
 {
-  for (KjNode* p = updatedP->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = updatedP->value.firstChildP; p != NULL; p = p->next)
   {
-    if ((p->type == KjString) && (strcmp(p->value.s, attrName) == 0))
+    if ((p->type == CorString) && (strcmp(p->value.s, attrName) == 0))
     {
-      kjChildRemove(updatedP, p);
+      corTreeChildRemove(updatedP, p);
       return;
     }
   }
@@ -159,22 +159,22 @@ static void updatedRemove(KjNode* updatedP, const char* attrName)
 // instances, record them in notUpdatedP, and emit updated[] for what
 // survives.
 //
-static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOverwrite,
-                                 KjNode* updatedP, KjNode* notUpdatedP)
+static void classifyAndChopLocal(CorNode* fragment, CorNode* existing, bool noOverwrite,
+                                 CorNode* updatedP, CorNode* notUpdatedP)
 {
   if (fragment == NULL || existing == NULL) return;
 
-  KjNode* fAttrP = fragment->value.firstChildP;
+  CorNode* fAttrP = fragment->value.firstChildP;
   while (fAttrP != NULL)
   {
-    KjNode* nextAttr = fAttrP->next;
-    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != KjObject)
+    CorNode* nextAttr = fAttrP->next;
+    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != CorObject)
     {
       fAttrP = nextAttr;
       continue;
     }
 
-    KjNode*     tAttrP    = kjLookup(existing, fAttrP->name);
+    CorNode*    tAttrP    = corTreeLookup(existing, fAttrP->name);
     // § 6.2.3: a 207 body carries Fully Qualified Names, so no compaction here.
     const char* attrFqn = fAttrP->name;
     bool        anyConflict = false;
@@ -182,19 +182,19 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
 
     if (tAttrP != NULL)
     {
-      KjNode* fInstP = fAttrP->value.firstChildP;
+      CorNode* fInstP = fAttrP->value.firstChildP;
       while (fInstP != NULL)
       {
-        KjNode* nextInst = fInstP->next;
-        if (fInstP->type == KjObject)
+        CorNode* nextInst = fInstP->next;
+        if (fInstP->type == CorObject)
         {
-          KjNode* tInstP = kjLookup(tAttrP, fInstP->name);
+          CorNode* tInstP = corTreeLookup(tAttrP, fInstP->name);
           if (tInstP != NULL)
           {
             anyConflict = true;
             if (noOverwrite)
             {
-              kjChildRemove(fAttrP, fInstP);
+              corTreeChildRemove(fAttrP, fInstP);
               fInstP = nextInst;
               continue;
             }
@@ -213,7 +213,7 @@ static void classifyAndChopLocal(KjNode* fragment, KjNode* existing, bool noOver
       ldWriteResultNotUpdatedAdd(notUpdatedP, attrFqn, "Attribute already exists", NULL, 0);
 
     if (!anyKept)
-      kjChildRemove(fragment, fAttrP);
+      corTreeChildRemove(fragment, fAttrP);
     else
       ldWriteResultUpdatedAdd(updatedP, attrFqn);
 
@@ -232,7 +232,7 @@ bool postEntityAttrs(void)
   bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
   const char* entityId = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+  CorNode*    fragment = corRest.in.requestTree;
 
   if (ldCheckEntity(fragment, LdOpAppendAttrs, NULL, &corRest.kalloc) == false)
     return true;
@@ -269,8 +269,8 @@ bool postEntityAttrs(void)
   // <endpoint>/ngsi-ld/v1/entities/<id>/attrs (?options=noOverwrite
   // preserved).
   //
-  KjNode* updatedP    = kjArray(corRest.kjsonP, "updated");
-  KjNode* notUpdatedP = kjArray(corRest.kjsonP, "notUpdated");
+  CorNode* updatedP   = corTreeArray(corRest.kallocP, "updated");
+  CorNode* notUpdatedP = corTreeArray(corRest.kallocP, "notUpdated");
 
   const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
 
@@ -288,10 +288,10 @@ bool postEntityAttrs(void)
 
   if (dispatch)
   {
-    KjNode* typeP = kjLookup(fragment, "type");
+    CorNode* typeP = corTreeLookup(fragment, "type");
     char*   typeArr[2] = { NULL, NULL };
     char**  typeArgP   = NULL;
-    if (typeP != NULL && typeP->type == KjString)
+    if (typeP != NULL && typeP->type == CorString)
     {
       typeArr[0] = typeP->value.s;
       typeArgP   = typeArr;
@@ -326,7 +326,7 @@ bool postEntityAttrs(void)
     LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
     memset(items, 0, total * sizeof(LdDistOpBatchItem));
     LdDistOpBatchResult* results = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-    KjNode**             itemFrag = (KjNode**) kaAlloc(&corRest.kalloc, total * sizeof(KjNode*));
+    CorNode**            itemFrag = (CorNode**) kaAlloc(&corRest.kalloc, total * sizeof(CorNode*));
     int                  itemCount = 0;
     memset(results, 0, total * sizeof(LdDistOpBatchResult));
 
@@ -353,7 +353,7 @@ bool postEntityAttrs(void)
         {
           if (!entityInfoCoversId(riP, entityId)) continue;
 
-          KjNode* fragP = ldEntityFragmentForInfo(fragment, riP, corRest.kjsonP, /*detach=*/(g == 0));
+          CorNode* fragP = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
 
           if (!opSupported)
@@ -404,7 +404,7 @@ bool postEntityAttrs(void)
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
         if (!entityInfoCoversId(riP, entityId)) continue;
-        KjNode* drop = ldEntityFragmentForInfo(fragment, riP, corRest.kjsonP, /*detach=*/true);
+        CorNode* drop = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/true);
         (void) drop;
       }
     }
@@ -454,7 +454,7 @@ bool postEntityAttrs(void)
   // § 5.6.3 §  4.5.6, and id is immutable). `scope` flows through
   // ldEntityAttrsSet::applyScope and respects ?options=noOverwrite.
   bool localHasAttrs = false;
-  for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
   {
     if (c->name == NULL)               continue;
     if (c->name[0] == '@')             continue;
@@ -464,7 +464,7 @@ bool postEntityAttrs(void)
     break;
   }
 
-  KjNode* existing = NULL;
+  CorNode* existing = NULL;
   int     rr       = DB_NOT_FOUND;
   if (localHasAttrs || !anyCsrSucceeded)
     rr = db.entityRetrieve(tenantP, entityId, &existing);
@@ -517,7 +517,7 @@ bool postEntityAttrs(void)
     //
     bool nothingLeft = (syncDone.failedN > 0);
 
-    for (KjNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    for (CorNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
     {
       if (ldIsNotAttributeName(c->name) == false)
         nothingLeft = false;
@@ -560,7 +560,7 @@ bool postEntityAttrs(void)
 
     if ((r == DB_OK) && (written == true))
     {
-      KjNode* mergedEntity = NULL;
+      CorNode* mergedEntity = NULL;
       if (tenantP->subCacheP != NULL)
         db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
@@ -574,8 +574,8 @@ bool postEntityAttrs(void)
         const char* etype = NULL;
         if (mergedEntity != NULL)
         {
-          KjNode* tn = kjLookup(mergedEntity, "type");
-          if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+          CorNode* tn = corTreeLookup(mergedEntity, "type");
+          if (tn != NULL && tn->type == CorString) etype = tn->value.s;
         }
         troeDeferAttrEventsFromMerge(tenantP, entityId, etype, mergedEntity, &report,
                                      corRest.requestStartTime);
@@ -589,7 +589,7 @@ bool postEntityAttrs(void)
   //   - otherwise → 207 Multi-Status + UpdateResult body (§ 5.2.18).
   //
   int notUpdatedCount = 0;
-  for (KjNode* p = notUpdatedP->value.firstChildP; p != NULL; p = p->next) notUpdatedCount++;
+  for (CorNode* p = notUpdatedP->value.firstChildP; p != NULL; p = p->next) notUpdatedCount++;
 
   if (notUpdatedCount == 0)
   {
@@ -597,9 +597,9 @@ bool postEntityAttrs(void)
     return true;
   }
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, updatedP);
-  kjChildAdd(respBodyP, notUpdatedP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, updatedP);
+  corTreeChildAdd(respBodyP, notUpdatedP);
 
   corRest.out.responseTree   = respBodyP;
   corRest.out.httpStatusCode = 207;

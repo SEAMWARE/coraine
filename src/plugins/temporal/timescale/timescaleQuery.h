@@ -15,15 +15,15 @@
 //
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/CorNode.h"                              // CorNode
 #include "db/Tenant.h"                                    // Tenant
 
 
 extern int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
-                                           TroeQueryFilter* fP, KjNode** resultPP,
+                                           TroeQueryFilter* fP, CorNode** resultPP,
                                            TroeRangeInfo* rangeOut);
 
 extern int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
-                                        KjNode** resultPP, TroeRangeInfo* rangeOut);
+                                        CorNode** resultPP, TroeRangeInfo* rangeOut);
 
 #endif  // TIMESCALE_TIMESCALEQUERY_H_

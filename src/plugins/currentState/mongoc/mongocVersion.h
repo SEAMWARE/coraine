@@ -11,7 +11,7 @@
 //
 
 #include "kalloc/KAlloc.h"                           // KAlloc
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 
 
@@ -27,6 +27,6 @@ extern int mongocServerVersionGet(void);
 //
 // mongocVersionInfo - add version entries to root object
 //
-extern void mongocVersionInfo(KAlloc* allocP, KjNode* root);
+extern void mongocVersionInfo(KAlloc* allocP, CorNode* root);
 
 #endif  // CURRENTSTATE_MONGOC_MONGOCVERSION_H_

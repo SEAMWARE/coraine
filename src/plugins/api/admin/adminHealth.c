@@ -8,7 +8,7 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kjson/kjBuilder.h"                      // kjObject, kjString, kjChildAdd
+#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 
 #include "api/admin/adminHealth.h"                // Own interface
@@ -21,9 +21,9 @@
 //
 bool adminGetHealth(void)
 {
-  KjNode* root = kjObject(corRest.kjsonP, NULL);
+  CorNode* root = corTreeObject(corRest.kallocP, NULL);
 
-  kjChildAdd(root, kjString(corRest.kjsonP, "status", "ok"));
+  corTreeChildAdd(root, corTreeString(corRest.kallocP, "status", "ok"));
 
   corRest.out.responseTree = root;
   return true;

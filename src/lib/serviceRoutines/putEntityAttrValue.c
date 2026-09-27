@@ -25,9 +25,9 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
@@ -70,7 +70,7 @@ bool putEntityAttrValue(void)
 {
   const char* entityId = corRest.in.wildcard[0];
   const char* attrWild = corRest.in.wildcard[1];
-  KjNode*     valueP   = corRest.in.requestTree;  // raw value (NOT @context-expanded)
+  CorNode*    valueP   = corRest.in.requestTree;  // raw value (NOT @context-expanded)
 
   if (valueP == NULL)
   {
@@ -106,7 +106,7 @@ bool putEntityAttrValue(void)
   // its type — which is preserved — tells us which member the value goes into).
   //
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
 
   if (r == DB_NOT_FOUND || entityP == NULL)
@@ -121,8 +121,8 @@ bool putEntityAttrValue(void)
     return true;
   }
 
-  KjNode* attrWrapperP = kjLookup(entityP, attrIri);
-  if (attrWrapperP == NULL || attrWrapperP->type != KjObject)
+  CorNode* attrWrapperP = corTreeLookup(entityP, attrIri);
+  if (attrWrapperP == NULL || attrWrapperP->type != CorObject)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "attribute '%s' not found in entity '%s'", attrWild, entityId);
@@ -131,9 +131,9 @@ bool putEntityAttrValue(void)
 
   // Storage keys each instance by datasetId ("@none" for the default); the type
   // lives on the instance object.
-  KjNode*     firstInstP = attrWrapperP->value.firstChildP;
-  KjNode*     typeNodeP  = (firstInstP != NULL) ? kjLookup(firstInstP, "type") : NULL;
-  const char* typeStr    = (typeNodeP != NULL && typeNodeP->type == KjString) ? typeNodeP->value.s : NULL;
+  CorNode*    firstInstP = attrWrapperP->value.firstChildP;
+  CorNode*    typeNodeP  = (firstInstP != NULL) ? corTreeLookup(firstInstP, "type") : NULL;
+  const char* typeStr    = (typeNodeP != NULL && typeNodeP->type == CorString) ? typeNodeP->value.s : NULL;
   const char* member     = valueMemberForType(typeStr);
 
   // § 10.2.6.4 — if the target (default) instance previously carried an observedAt
@@ -141,17 +141,17 @@ bool putEntityAttrValue(void)
   // supplied (handled by the merge's observedAt injection) or REMOVES it when no
   // ?observedAt is given. The removal is expressed with the NGSI-LD Null marker on
   // the synthesized fragment (§ 4.5.5.9).
-  KjNode* targetInstP  = kjLookup(attrWrapperP, "@none");
+  CorNode* targetInstP = corTreeLookup(attrWrapperP, "@none");
   if (targetInstP == NULL) targetInstP = firstInstP;
-  bool hadObservedAt = (targetInstP != NULL) && (kjLookup(targetInstP, LD_VOCAB_OBSERVED_AT) != NULL);
+  bool hadObservedAt = (targetInstP != NULL) && (corTreeLookup(targetInstP, LD_VOCAB_OBSERVED_AT) != NULL);
 
   // § 10.2.6.4 — a null value (or the urn:ngsi-ld:null sentinel) is invalid,
   // except for a JsonProperty whose json value may legitimately be null.
   bool isJsonProperty = (typeStr != NULL && strcmp(typeStr, "JsonProperty") == 0);
   if (!isJsonProperty)
   {
-    if (valueP->type == KjNull ||
-        (valueP->type == KjString && valueP->value.s != NULL && strcmp(valueP->value.s, "urn:ngsi-ld:null") == 0))
+    if (valueP->type == CorNull ||
+        (valueP->type == CorString && valueP->value.s != NULL && strcmp(valueP->value.s, "urn:ngsi-ld:null") == 0))
     {
       // § 10.2.6.4: a null / urn:ngsi-ld:null body raises InvalidRequest
       // specifically (not the generic BadRequestData).
@@ -168,17 +168,17 @@ bool putEntityAttrValue(void)
   // the value-shape unambiguous (e.g. a GeoProperty's GeoJSON object must not be
   // mis-inferred as a Property). Sub-attributes are untouched by the merge.
   //
-  KjNode* fragP = kjObject(corRest.kjsonP, NULL);
+  CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
   if (typeStr != NULL)
-    kjChildAdd(fragP, kjString(corRest.kjsonP, "type", typeStr));
+    corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "type", typeStr));
   valueP->name = (char*) member;
-  kjChildAdd(fragP, valueP);
+  corTreeChildAdd(fragP, valueP);
 
   // § 10.2.6.4 observedAt: remove it when the attribute had one and no ?observedAt
   // is supplied. When ?observedAt IS supplied the merge injects it into the
   // fragment (ldEntityMerge), so nothing extra is needed for the update case.
   if (hadObservedAt && corNgsild.observedAt == NULL)
-    kjChildAdd(fragP, kjString(corRest.kjsonP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
+    corTreeChildAdd(fragP, corTreeString(corRest.kallocP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
 
   // Expand the synthesized fragment the way ldParseHook would for a normal
   // PATCH /attrs body (the raw value-only body itself was deliberately not

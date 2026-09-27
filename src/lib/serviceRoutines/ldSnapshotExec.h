@@ -22,7 +22,7 @@
 //
 #include <stdbool.h>                                     // bool
 
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
 #include "db/Tenant.h"                                   // Tenant
 

@@ -20,13 +20,13 @@
 #include <mongoc/mongoc.h>                               // mongoc_*
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 
 #include "corRest/CorRestState.h"                          // corRest (kalloc arena)
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocBsonToKjTree.h"      // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"        // mongocBsonToTree
 #include "currentState/mongoc/mongocEntityBulkDelete.h"  // Own interface
 
 
@@ -40,7 +40,7 @@ extern mongoc_client_pool_t* poolP;
 // mongocEntityBulkDelete -
 //
 int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
-                           int* resultsV, KjNode** snapshotsV)
+                           int* resultsV, CorNode** snapshotsV)
 {
   if (N <= 0)
     return DB_ERR;
@@ -91,7 +91,7 @@ int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
       {
         if (idV[i] != NULL && strcmp(idV[i], foundId) == 0)
         {
-          snapshotsV[i] = mongocBsonToKjTree(&corRest.kalloc, docP);
+          snapshotsV[i] = mongocBsonToTree(&corRest.kalloc, docP);
           resultsV[i]   = DB_OK;  // optimistic; downgraded if bulk fails
           break;
         }

@@ -14,10 +14,10 @@
 #include "corRest/CorRestState.h"                          // corRest
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjArray, kjObject, kjString, kjChildAdd, kjChildRemove
-#include "kjson/kjFree.h"                                // kjFree
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeFree.h"                         // corTreeFree
 
 #include "corJsonld/corLdExpand.h"                         // corLdExpand, corLdAlreadyExpanded
 
@@ -52,49 +52,49 @@ static const char* expandedTypeOrSelf(const char* shortName)
 // (or worker-scoped in async mode); fields are valid for the lifetime of
 // the capture call.
 //
-static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
+static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
 {
   memset(fP, 0, sizeof(*fP));
 
-  KjNode* tqP = kjLookup(queryP, "temporalQ");
-  if (tqP == NULL || tqP->type != KjObject)
+  CorNode* tqP = corTreeLookup(queryP, "temporalQ");
+  if (tqP == NULL || tqP->type != CorObject)
     return false;  // § 5.2.23: snapshotTemporalQueries entries must have temporalQ
 
-  KjNode* timerelP    = kjLookup(tqP, "timerel");
-  KjNode* timeAtP     = kjLookup(tqP, "timeAt");
-  KjNode* endTimeAtP  = kjLookup(tqP, "endTimeAt");
-  KjNode* tpropP      = kjLookup(tqP, "timeproperty");
-  KjNode* lastNP      = kjLookup(tqP, "lastN");
+  CorNode* timerelP   = corTreeLookup(tqP, "timerel");
+  CorNode* timeAtP    = corTreeLookup(tqP, "timeAt");
+  CorNode* endTimeAtP = corTreeLookup(tqP, "endTimeAt");
+  CorNode* tpropP     = corTreeLookup(tqP, "timeproperty");
+  CorNode* lastNP     = corTreeLookup(tqP, "lastN");
 
-  if (timerelP == NULL || timerelP->type != KjString) return false;
-  if (timeAtP  == NULL || timeAtP->type  != KjString) return false;
+  if (timerelP == NULL || timerelP->type != CorString) return false;
+  if (timeAtP  == NULL || timeAtP->type  != CorString) return false;
   if (strcmp(timerelP->value.s, "between") == 0)
   {
-    if (endTimeAtP == NULL || endTimeAtP->type != KjString) return false;
+    if (endTimeAtP == NULL || endTimeAtP->type != CorString) return false;
   }
 
   fP->timerel      = timerelP->value.s;
   fP->timeAtIso    = timeAtP->value.s;
-  fP->endTimeAtIso = (endTimeAtP != NULL && endTimeAtP->type == KjString) ? endTimeAtP->value.s : NULL;
-  fP->timeproperty = (tpropP     != NULL && tpropP->type     == KjString) ? tpropP->value.s     : NULL;
-  fP->lastN        = (lastNP     != NULL && lastNP->type     == KjInt)    ? (int) lastNP->value.i : 0;
+  fP->endTimeAtIso = (endTimeAtP != NULL && endTimeAtP->type == CorString) ? endTimeAtP->value.s : NULL;
+  fP->timeproperty = (tpropP     != NULL && tpropP->type     == CorString) ? tpropP->value.s    : NULL;
+  fP->lastN        = (lastNP     != NULL && lastNP->type     == CorInt)   ? (int) lastNP->value.i : 0;
 
   // Entity selectors — flatten id/idPattern/type from the entities array.
-  KjNode* entitiesP = kjLookup(queryP, "entities");
-  if (entitiesP != NULL && entitiesP->type == KjArray)
+  CorNode* entitiesP = corTreeLookup(queryP, "entities");
+  if (entitiesP != NULL && entitiesP->type == CorArray)
   {
     int idCap = 0, typeCap = 0;
-    for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
     {
-      if (selP->type != KjObject) continue;
-      KjNode* idP = kjLookup(selP, "id");
+      if (selP->type != CorObject) continue;
+      CorNode* idP = corTreeLookup(selP, "id");
       if (idP != NULL)
       {
-        if      (idP->type == KjString) idCap++;
-        else if (idP->type == KjArray)
-          for (KjNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
+        if      (idP->type == CorString) idCap++;
+        else if (idP->type == CorArray)
+          for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
       }
-      if (kjLookup(selP, "type") != NULL) typeCap++;
+      if (corTreeLookup(selP, "type") != NULL) typeCap++;
     }
 
     char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
@@ -102,23 +102,23 @@ static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
     int    nId = 0, nType = 0;
     const char* idPattern = NULL;
 
-    for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
     {
-      if (selP->type != KjObject) continue;
+      if (selP->type != CorObject) continue;
 
-      KjNode* idP = kjLookup(selP, "id");
+      CorNode* idP = corTreeLookup(selP, "id");
       if (idP != NULL)
       {
-        if (idP->type == KjString) idV[nId++] = idP->value.s;
-        else if (idP->type == KjArray)
-          for (KjNode* p = idP->value.firstChildP; p != NULL; p = p->next)
-            if (p->type == KjString) idV[nId++] = p->value.s;
+        if (idP->type == CorString) idV[nId++] = idP->value.s;
+        else if (idP->type == CorArray)
+          for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next)
+            if (p->type == CorString) idV[nId++] = p->value.s;
       }
-      KjNode* idPatP = kjLookup(selP, "idPattern");
-      if (idPatP != NULL && idPatP->type == KjString && idPattern == NULL)
+      CorNode* idPatP = corTreeLookup(selP, "idPattern");
+      if (idPatP != NULL && idPatP->type == CorString && idPattern == NULL)
         idPattern = idPatP->value.s;
-      KjNode* typeP = kjLookup(selP, "type");
-      if (typeP != NULL && typeP->type == KjString)
+      CorNode* typeP = corTreeLookup(selP, "type");
+      if (typeP != NULL && typeP->type == CorString)
       {
         const char* expanded = expandedTypeOrSelf(typeP->value.s);
         if (expanded != NULL) typeV[nType++] = (char*) expanded;
@@ -135,8 +135,8 @@ static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
 
   // q-filter — compile to SQL EXISTS predicate via the same helper the
   // live temporal-query path uses.
-  KjNode* qP = kjLookup(queryP, "q");
-  if (qP != NULL && qP->type == KjString)
+  CorNode* qP = corTreeLookup(queryP, "q");
+  if (qP != NULL && qP->type == CorString)
   {
     LdQNode* qExpr = ldQParse(qP->value.s, &corRest.kalloc);
     if (qExpr != NULL)
@@ -157,7 +157,7 @@ static bool queryToTroeFilter(KjNode* queryP, TroeQueryFilter* fP)
 //   = 0  : query ran but yielded no entities ("empty")
 //   < 0  : query failed
 //
-static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, KjNode* queryP, Tenant* tenantP)
+static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, CorNode* queryP, Tenant* tenantP)
 {
   if (itemP->snapTenantP == NULL) return -1;
   Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
@@ -169,16 +169,16 @@ static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, KjNode* queryP, Tenan
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
 
-  KjNode* result = NULL;
+  CorNode* result = NULL;
   int     r      = troe.entityTemporalQuery(tenantP, &filter, &result, &rangeInfo);
   if (r != TROE_OK) return -1;
-  if (result == NULL || result->type != KjArray || result->value.firstChildP == NULL)
+  if (result == NULL || result->type != CorArray || result->value.firstChildP == NULL)
     return 0;
 
   int n = 0;
-  for (KjNode* entityP = result->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = result->value.firstChildP; entityP != NULL; entityP = entityP->next)
   {
-    if (entityP->type != KjObject) continue;
+    if (entityP->type != CorObject) continue;
     if (troe.entityTemporalCreate(snapTenantP, entityP) == TROE_OK)
       n++;
   }
@@ -217,13 +217,13 @@ static LdSnapshotStatus statusFromString(const char* s)
 // array on itemP->tree. Used to re-derive snapshotStatus across BOTH
 // current-state and temporal details after capture.
 //
-static void countDetails(KjNode* detailsP, int* nSuccessP, int* nEmptyP, int* nFailureP)
+static void countDetails(CorNode* detailsP, int* nSuccessP, int* nEmptyP, int* nFailureP)
 {
-  if (detailsP == NULL || detailsP->type != KjArray) return;
-  for (KjNode* d = detailsP->value.firstChildP; d != NULL; d = d->next)
+  if (detailsP == NULL || detailsP->type != CorArray) return;
+  for (CorNode* d = detailsP->value.firstChildP; d != NULL; d = d->next)
   {
-    KjNode* sP = kjLookup(d, "resultStatus");
-    if (sP == NULL || sP->type != KjString) continue;
+    CorNode* sP = corTreeLookup(d, "resultStatus");
+    if (sP == NULL || sP->type != CorString) continue;
     if      (strcmp(sP->value.s, "success") == 0) (*nSuccessP)++;
     else if (strcmp(sP->value.s, "empty")   == 0) (*nEmptyP)++;
     else if (strcmp(sP->value.s, "failure") == 0) (*nFailureP)++;
@@ -239,8 +239,8 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
   (void) cacheP;
   if (itemP == NULL || itemP->tree == NULL) return false;
 
-  KjNode* qListP = kjLookup(itemP->tree, "snapshotTemporalQueries");
-  if (qListP == NULL || qListP->type != KjArray || qListP->value.firstChildP == NULL)
+  CorNode* qListP = corTreeLookup(itemP->tree, "snapshotTemporalQueries");
+  if (qListP == NULL || qListP->type != CorArray || qListP->value.firstChildP == NULL)
     return true;  // nothing to do — current-state status (if any) stands
 
   // Plugin guard. Without entityTemporalQuery+Create this is a no-op
@@ -248,11 +248,11 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
   // sees the gap rather than a misleading "empty".
   bool plugged = (troe.entityTemporalQuery != NULL && troe.entityTemporalCreate != NULL);
 
-  KjNode* detailsP = kjArray(NULL, "snapshotTemporalQueriesDetails");
+  CorNode* detailsP = corTreeArray(NULL, "snapshotTemporalQueriesDetails");
 
-  for (KjNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
+  for (CorNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
   {
-    KjNode* detail = kjObject(NULL, NULL);
+    CorNode* detail = corTreeObject(NULL, NULL);
     const char* result;
 
     if (!plugged)
@@ -265,28 +265,28 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
       else             result = "failure";
     }
 
-    kjChildAdd(detail, kjString(NULL, "resultStatus", (char*) result));
-    kjChildAdd(detailsP, detail);
+    corTreeChildAdd(detail, corTreeString(NULL, "resultStatus", (char*) result));
+    corTreeChildAdd(detailsP, detail);
   }
 
   // Append snapshotTemporalQueriesDetails to itemP->tree.
-  KjNode* existing = kjLookup(itemP->tree, "snapshotTemporalQueriesDetails");
+  CorNode* existing = corTreeLookup(itemP->tree, "snapshotTemporalQueriesDetails");
   if (existing != NULL)
   {
-    // all-malloc clone — kjChildRemove only unlinks, so free the old details.
-    kjChildRemove(itemP->tree, existing);
-    kjFree(existing);
+    // all-malloc clone — corTreeChildRemove only unlinks, so free the old details.
+    corTreeChildRemove(itemP->tree, existing);
+    corTreeFree(existing);
   }
-  kjChildAdd(itemP->tree, detailsP);
+  corTreeChildAdd(itemP->tree, detailsP);
 
   // Re-derive snapshotStatus from BOTH detail lists.
   int nSuccess = 0, nEmpty = 0, nFailure = 0;
-  countDetails(kjLookup(itemP->tree, "snapshotQueriesDetails"),         &nSuccess, &nEmpty, &nFailure);
-  countDetails(kjLookup(itemP->tree, "snapshotTemporalQueriesDetails"), &nSuccess, &nEmpty, &nFailure);
+  countDetails(corTreeLookup(itemP->tree, "snapshotQueriesDetails"),    &nSuccess, &nEmpty, &nFailure);
+  countDetails(corTreeLookup(itemP->tree, "snapshotTemporalQueriesDetails"), &nSuccess, &nEmpty, &nFailure);
 
   const char* status = pickStatus(nSuccess, nEmpty, nFailure);
-  KjNode* sCachedP = kjLookup(itemP->tree, "snapshotStatus");
-  if (sCachedP != NULL && sCachedP->type == KjString)
+  CorNode* sCachedP = corTreeLookup(itemP->tree, "snapshotStatus");
+  if (sCachedP != NULL && sCachedP->type == CorString)
     sCachedP->value.s = (char*) status;
   itemP->status = statusFromString(status);
 

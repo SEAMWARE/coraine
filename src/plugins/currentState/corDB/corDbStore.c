@@ -10,9 +10,9 @@
 #include <stddef.h>                                  // NULL
 #include <stdlib.h>                                  // malloc
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -22,7 +22,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// corDbTenantStore - return (or create) the per-tenant KjNode tree
+// corDbTenantStore - return (or create) the per-tenant CorNode tree
 //
 //
 // corDbStoreOf - the tenant's store, created on first use
@@ -42,14 +42,14 @@ CorDbStore* corDbStoreOf(Tenant* tenantP)
   if (storeP == NULL)
     return NULL;
 
-  KjNode* store         = kjObject(NULL, NULL);
-  KjNode* entities      = kjArray(NULL, "entities");
-  KjNode* subscriptions = kjArray(NULL, "subscriptions");
-  KjNode* registrations = kjArray(NULL, "registrations");
+  CorNode* store        = corTreeObject(NULL, NULL);
+  CorNode* entities     = corTreeArray(NULL, "entities");
+  CorNode* subscriptions = corTreeArray(NULL, "subscriptions");
+  CorNode* registrations = corTreeArray(NULL, "registrations");
 
-  kjChildAdd(store, entities);
-  kjChildAdd(store, subscriptions);
-  kjChildAdd(store, registrations);
+  corTreeChildAdd(store, entities);
+  corTreeChildAdd(store, subscriptions);
+  corTreeChildAdd(store, registrations);
 
   storeP->tree     = store;
   storeP->idIndex  = NULL;                           // built on the first entity
@@ -114,7 +114,7 @@ void corDbStoreUnlock(CorDbStore** storePP)
 
 // -----------------------------------------------------------------------------
 //
-KjNode* corDbTenantStore(Tenant* tenantP)
+CorNode* corDbTenantStore(Tenant* tenantP)
 {
   CorDbStore* storeP = corDbStoreOf(tenantP);
 
@@ -129,11 +129,11 @@ KjNode* corDbTenantStore(Tenant* tenantP)
 //
 // corDbEntities - return the "entities" array for a tenant
 //
-KjNode* corDbEntities(Tenant* tenantP)
+CorNode* corDbEntities(Tenant* tenantP)
 {
-  KjNode* store = corDbTenantStore(tenantP);
+  CorNode* store = corDbTenantStore(tenantP);
 
-  return kjLookup(store, "entities");
+  return corTreeLookup(store, "entities");
 }
 
 
@@ -142,11 +142,11 @@ KjNode* corDbEntities(Tenant* tenantP)
 //
 // corDbSubscriptions - return the "subscriptions" array for a tenant
 //
-KjNode* corDbSubscriptions(Tenant* tenantP)
+CorNode* corDbSubscriptions(Tenant* tenantP)
 {
-  KjNode* store = corDbTenantStore(tenantP);
+  CorNode* store = corDbTenantStore(tenantP);
 
-  return kjLookup(store, "subscriptions");
+  return corTreeLookup(store, "subscriptions");
 }
 
 
@@ -155,9 +155,9 @@ KjNode* corDbSubscriptions(Tenant* tenantP)
 //
 // corDbRegistrations - return the "registrations" array for a tenant
 //
-KjNode* corDbRegistrations(Tenant* tenantP)
+CorNode* corDbRegistrations(Tenant* tenantP)
 {
-  KjNode* store = corDbTenantStore(tenantP);
+  CorNode* store = corDbTenantStore(tenantP);
 
-  return kjLookup(store, "registrations");
+  return corTreeLookup(store, "registrations");
 }

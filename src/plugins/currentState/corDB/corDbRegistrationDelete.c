@@ -8,11 +8,11 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjChildRemove
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeChildRemove
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
-#include "kjson/kjFree.h"                             // kjFree
+#include "corTree/corTreeFree.h"                      // corTreeFree
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
 #include "currentState/corDB/corDbStore.h"          // corDbRegistrations
 #include "currentState/corDB/corDbRegistrationDelete.h"  // Own interface
@@ -27,16 +27,16 @@ int corDbRegistrationDelete(Tenant* tenantP, const char* regId)
 {
   COR_DB_WRITE(tenantP);
 
-  KjNode* registrations = corDbRegistrations(tenantP);
+  CorNode* registrations = corDbRegistrations(tenantP);
 
-  for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
   {
-    KjNode* idP = kjLookup(rP, "id");
+    CorNode* idP = corTreeLookup(rP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, regId) == 0)
     {
-      kjChildRemove(registrations, rP);
-      kjFree(rP);
+      corTreeChildRemove(registrations, rP);
+      corTreeFree(rP);
       return DB_OK;
     }
   }

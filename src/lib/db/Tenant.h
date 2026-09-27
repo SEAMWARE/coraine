@@ -11,7 +11,7 @@
 //
 #include <stdbool.h>                                     // bool
 
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 
 
 
@@ -162,7 +162,7 @@ extern void tenantSnapshotCacheReload(void);
 // caller that may be overwriting (the HA apply), skipped by the startup load,
 // where it would make loading N subscriptions O(N²).
 //
-extern int tenantSubCacheItemStore(Tenant* tP, KjNode* subP, bool replace);
+extern int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace);
 
 
 

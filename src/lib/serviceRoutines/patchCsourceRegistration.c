@@ -36,7 +36,7 @@
 bool patchCsourceRegistration(void)
 {
   const char* regId    = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+  CorNode*    fragment = corRest.in.requestTree;
 
   if (ldCheckRegistration(fragment, LdOpUpdateRegistration, /*merged*/false, &corRest.kalloc) == false)
     return true;
@@ -75,12 +75,12 @@ bool patchCsourceRegistration(void)
   //
   // The broker owns the merge (§ 5.9.3 / TS 104-175 clause-8). Load the current
   // registration, apply the update fragment here — JSON Merge Patch, with
-  // urn:ngsi-ld:null members (already resolved to KjNull by the validator)
+  // urn:ngsi-ld:null members (already resolved to CorNull by the validator)
   // deleting their target — and hand the DB plugin a complete document to store.
   // Keeping the NGSI-LD merge/delete semantics in the broker means every DB
   // plugin is a dumb store and none of them re-implement (and drift on) it.
   //
-  KjNode* mergedRegP = NULL;
+  CorNode* mergedRegP = NULL;
   int     rr         = (db.registrationRetrieve != NULL) ? db.registrationRetrieve(tenantP, regId, &mergedRegP) : DB_NOT_FOUND;
 
   if (rr == DB_NOT_FOUND || mergedRegP == NULL)
@@ -97,7 +97,7 @@ bool patchCsourceRegistration(void)
     return true;
   }
 
-  ldRegSubMerge(mergedRegP, fragment, corRest.kjsonP);
+  ldRegSubMerge(mergedRegP, fragment, corRest.kallocP);
 
   //
   // § 5.9.3 — re-validate the COMPLETE merged result before persisting. The

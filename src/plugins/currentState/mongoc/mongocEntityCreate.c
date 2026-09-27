@@ -11,10 +11,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocKjTreeToBson.h"               // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"                 // mongocTreeToBson
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
@@ -33,10 +33,10 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocEntityCreate -
 //
-int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
+int mongocEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
 {
   //
-  // Convert KjTree to BSON
+  // Convert corTree to BSON
   //
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
@@ -57,7 +57,7 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, KjNode* entityP)
     return DB_GEO_TYPE_CONFLICT;
   }
 
-  mongocKjTreeToBson(entityP, &bson);
+  mongocTreeToBson(entityP, &bson);
 
   //
   // Insert

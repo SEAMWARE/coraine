@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 
 
 
@@ -20,14 +20,14 @@
 // tree, remembering the previous sibling so mongocStripTypeRestore can
 // put it back at the exact same position.
 //
-// The caller uses this around mongocKjTreeToBson() for fixed-type
+// The caller uses this around mongocTreeToBson() for fixed-type
 // records (Subscription, ContextSourceRegistration, ...) — the stored
 // doc then doesn't carry the redundant JSON-LD constant, but the
 // caller's tree is unchanged after restore.
 //
 // *typePOut is NULL if the tree has no root `type` child.
 //
-extern void mongocStripTypeDecouple(KjNode* treeP, KjNode** typePOut, KjNode** typePrevOut);
+extern void mongocStripTypeDecouple(CorNode* treeP, CorNode** typePOut, CorNode** typePrevOut);
 
 
 
@@ -36,7 +36,7 @@ extern void mongocStripTypeDecouple(KjNode* treeP, KjNode** typePOut, KjNode** t
 // mongocStripTypeRestore - put a previously decoupled node back at its
 // original position (right after prevP, or at the head if prevP is NULL).
 //
-extern void mongocStripTypeRestore(KjNode* treeP, KjNode* typeP, KjNode* typePrevP);
+extern void mongocStripTypeRestore(CorNode* treeP, CorNode* typeP, CorNode* typePrevP);
 
 
 
@@ -51,6 +51,6 @@ extern void mongocStripTypeRestore(KjNode* treeP, KjNode* typeP, KjNode* typePre
 // returned from the DB — the insert paths strip it so the stored doc
 // doesn't carry the redundant constant.
 //
-extern void mongocInjectTypeAfterId(KjNode* objP, const char* typeValue);
+extern void mongocInjectTypeAfterId(CorNode* objP, const char* typeValue);
 
 #endif  // MONGOC_MONGOCINJECTTYPE_H_

@@ -13,19 +13,20 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
-#include "kjson/KjNode.h"                            // KjNode, KjString
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                         // CorNode, CorString
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kalloc/KAlloc.h"                             // KAlloc
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/CorLdContext.h"                    // CorLdContext
 #include "corJsonld/CorLdContextCache.h"               // CorLdContextCache
 #include "corJsonld/corLdCache.h"                      // corLdCacheInsert
 #include "corJsonld/corLdContextParse.h"               // corLdContextFromObject, corLdContextFromTree
 #include "corJsonld/corLdIdGen.h"                      // corLdIdGenerate
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 extern CorLdContextCache* corLdCacheGet(void);
 #include "corNgsild/CorNgsild.h"                       // ldBrokerHttpEndpoint, corNgsild
@@ -67,7 +68,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
+  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
   if (fragP == NULL)
     return;
 
@@ -98,7 +99,7 @@ static char* subIdGenerate(KAlloc* allocP)
 //
 bool postSubscriptions(void)
 {
-  KjNode* subP = corRest.in.requestTree;
+  CorNode* subP = corRest.in.requestTree;
 
   //
   // Must have a JSON payload
@@ -114,16 +115,16 @@ bool postSubscriptions(void)
   //
   // Extract or generate subscription id
   //
-  KjNode* idP = kjLookup(subP, "id");
+  CorNode* idP = corTreeLookup(subP, "id");
 
   if (idP == NULL)
   {
     char* generatedId = subIdGenerate(&corRest.kalloc);
 
-    idP = kjString(corRest.kjsonP, "id", generatedId);
-    kjChildAdd(subP, idP);
+    idP = corTreeString(corRest.kallocP, "id", generatedId);
+    corTreeChildAdd(subP, idP);
   }
-  else if (idP->type != KjString)
+  else if (idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "subscription 'id' must be a string");
     return true;
@@ -155,8 +156,8 @@ bool postSubscriptions(void)
   // Parse once with the cache's allocator so the tree persists across requests.
   //
   LdQNode* qExprForCache = NULL;
-  KjNode*  qP            = kjLookup(subP, "https://uri.etsi.org/ngsi-ld/q");
-  if (qP != NULL && qP->type == KjString)
+  CorNode* qP            = corTreeLookup(subP, "https://uri.etsi.org/ngsi-ld/q");
+  if (qP != NULL && qP->type == CorString)
   {
     Tenant* tP = (Tenant*) corNgsild.tenantP;
     KAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
@@ -175,9 +176,9 @@ bool postSubscriptions(void)
   //
   // Add "status" = "active"|"paused"|"expired" (read-only field, computed from isActive + expiresAt)
   //
-  KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
-  KjNode* expiresAtP = kjLookup(subP, LD_VOCAB_EXPIRES_AT);
-  bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
+  CorNode* isActiveP = corTreeLookup(subP, LD_VOCAB_IS_ACTIVE);
+  CorNode* expiresAtP = corTreeLookup(subP, LD_VOCAB_EXPIRES_AT);
+  bool    isActive   = (isActiveP == NULL || isActiveP->type != CorBoolean || isActiveP->value.b == true);
 
   // § 5.2.12 — `isActive` is cardinality 0..1 and "true by default". When
   // the user creates a subscription WITHOUT isActive, do not synthesize a
@@ -190,7 +191,7 @@ bool postSubscriptions(void)
   //
   // Per spec 5.8.1.4: expiresAt in the past is an error
   //
-  if (expiresAtP != NULL && expiresAtP->type == KjString)
+  if (expiresAtP != NULL && expiresAtP->type == CorString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
     if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
@@ -201,8 +202,8 @@ bool postSubscriptions(void)
     }
   }
 
-  KjNode* statusP = kjString(corRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
-  kjChildAdd(subP, statusP);
+  CorNode* statusP = corTreeString(corRest.kallocP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  corTreeChildAdd(subP, statusP);
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
   // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
@@ -228,8 +229,8 @@ bool postSubscriptions(void)
   // report it; surface the failure now as 504 (matches
   // /jsonldContexts create + 043_01_05 CSR-create behaviour).
   //
-  KjNode* userJcP = kjLookup(subP, "jsonldContext");
-  if (userJcP != NULL && userJcP->type == KjString)
+  CorNode* userJcP = corTreeLookup(subP, "jsonldContext");
+  if (userJcP != NULL && userJcP->type == CorString)
   {
     if (corLdContextFromUrl(userJcP->value.s, &corRest.kalloc) == NULL)
     {
@@ -239,7 +240,7 @@ bool postSubscriptions(void)
     }
   }
 
-  if (kjLookup(subP, "jsonldContext") == NULL)
+  if (corTreeLookup(subP, "jsonldContext") == NULL)
   {
     const char* jcUrl = NULL;
 
@@ -254,10 +255,10 @@ bool postSubscriptions(void)
     // this way, and a notification's Link header is expected to point
     // at the user's URL, not at a broker-minted alias.
     else if (corNgsild.userContextBody != NULL &&
-             corNgsild.userContextBody->type == KjArray &&
+             corNgsild.userContextBody->type == CorArray &&
              corNgsild.userContextBody->value.firstChildP != NULL &&
              corNgsild.userContextBody->value.firstChildP->next == NULL &&
-             corNgsild.userContextBody->value.firstChildP->type == KjString)
+             corNgsild.userContextBody->value.firstChildP->type == CorString)
     {
       jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
     }
@@ -277,12 +278,12 @@ bool postSubscriptions(void)
       if (implicitId != NULL)
       {
         CorLdContext* implicitP = NULL;
-        if (corNgsild.userContextBody->type == KjObject)
+        if (corNgsild.userContextBody->type == CorObject)
           implicitP = corLdContextFromObject(corNgsild.userContextBody, storeP, NULL);
         else
           implicitP = corLdContextFromTree(corNgsild.userContextBody, storeP, NULL);  // @context from the request - no URL of its own
 
-        int   bodyLen = kjFastRenderSize(corNgsild.userContextBody) + 32;
+        int   bodyLen = corJsonFastRenderSize(corNgsild.userContextBody) + 32;
         char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
         if (bodyBuf != NULL && implicitP != NULL)
         {
@@ -290,7 +291,7 @@ bool postSubscriptions(void)
           // GET /jsonldContexts/{id} returns a self-contained document.
           int p = 0;
           p += snprintf(bodyBuf + p, bodyLen - p, "{\"@context\":");
-          kjFastRender(corNgsild.userContextBody, bodyBuf + p);
+          corJsonFastRender(corNgsild.userContextBody, bodyBuf + p);
           p += strlen(bodyBuf + p);
           p += snprintf(bodyBuf + p, bodyLen - p, "}");
           implicitP->body = bodyBuf;
@@ -340,7 +341,7 @@ bool postSubscriptions(void)
     // feature and was in fact a naming bug.
     //
     if (jcUrl != NULL)
-      kjChildAdd(subP, kjString(corRest.kjsonP, "jsonldContext", (char*) jcUrl));
+      corTreeChildAdd(subP, corTreeString(corRest.kallocP, "jsonldContext", (char*) jcUrl));
   }
 
   //
@@ -371,13 +372,13 @@ bool postSubscriptions(void)
   //
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   //
-  // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
+  // mongocTreeToBson renames "id" to "_id" in-place — restore it.
   //
   if (idP->name[0] == '_')
     idP->name = "id";
 
-  KjNode* timeIntervalP = kjLookup(subP, "timeInterval");
-  bool isPernot = (timeIntervalP != NULL && (timeIntervalP->type == KjInt || timeIntervalP->type == KjFloat));
+  CorNode* timeIntervalP = corTreeLookup(subP, "timeInterval");
+  bool isPernot = (timeIntervalP != NULL && (timeIntervalP->type == CorInt || timeIntervalP->type == CorFloat));
 
   if (isPernot)
   {

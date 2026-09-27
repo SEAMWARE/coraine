@@ -11,10 +11,10 @@
 #include <string.h>                                    // strcmp
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjArray, kjClone, kjFloat, kjChildAdd
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeClone, corTreeFloat, corTreeChildAdd
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corRest/CorRestState.h"                       // corRest
 #include "corNgsild/LdQ.h"                              // LdQNode
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_SCOPE
@@ -54,7 +54,7 @@ static bool matchStringV(const char* value, char** strV)
 //
 typedef struct GeoCand
 {
-  KjNode* eP;
+  CorNode* eP;
   double  dist;
 } GeoCand;
 
@@ -101,12 +101,12 @@ static int distCandCmp(const void* a, const void* b)
 //
 // corDbEntityQuery -
 //
-int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
+int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* entities = corDbEntities(tenantP);
-  KjNode* arrayP   = kjArray(corRest.kjsonP, NULL);
+  CorNode* entities = corDbEntities(tenantP);
+  CorNode* arrayP  = corTreeArray(corRest.kallocP, NULL);
   int     limit    = (filterP != NULL) ? filterP->limit  : 0;
   bool    unpaged  = (filterP != NULL) ? filterP->unpaged : false;
   int     offset   = (filterP != NULL) ? filterP->offset : 0;
@@ -150,7 +150,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
 
   if (needed == 0)
   {
-    for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
+    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
   }
   else
     total = needed;
@@ -173,10 +173,10 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     distFilterP            = &distFilter;
   }
 
-  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
-    KjNode* entityIdP = kjLookup(eP, "id");
-    const char* entityId = (entityIdP != NULL && entityIdP->type == KjString) ? entityIdP->value.s : NULL;
+    CorNode* entityIdP = corTreeLookup(eP, "id");
+    const char* entityId = (entityIdP != NULL && entityIdP->type == CorString) ? entityIdP->value.s : NULL;
 
     //
     // Filter by id
@@ -208,14 +208,14 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     //
     if (filterP != NULL && filterP->typeExpr != NULL)
     {
-      KjNode* typeP = kjLookup(eP, "type");
+      CorNode* typeP = corTreeLookup(eP, "type");
 
       if (!ldEntityMatchType(typeP, filterP->typeExpr))
         continue;
     }
     else if (filterP != NULL && filterP->typeV != NULL)
     {
-      KjNode* typeP = kjLookup(eP, "type");
+      CorNode* typeP = corTreeLookup(eP, "type");
 
       if (typeP == NULL)
         continue;
@@ -223,13 +223,13 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
       // Simple OR: entity type (string or array) must contain at least one of typeV
       bool found = false;
 
-      if (typeP->type == KjString)
+      if (typeP->type == CorString)
         found = matchStringV(typeP->value.s, filterP->typeV);
-      else if (typeP->type == KjArray)
+      else if (typeP->type == CorArray)
       {
-        for (KjNode* elemP = typeP->value.firstChildP; elemP != NULL && !found; elemP = elemP->next)
+        for (CorNode* elemP = typeP->value.firstChildP; elemP != NULL && !found; elemP = elemP->next)
         {
-          if (elemP->type == KjString)
+          if (elemP->type == CorString)
             found = matchStringV(elemP->value.s, filterP->typeV);
         }
       }
@@ -243,7 +243,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
     //
     if (filterP != NULL && filterP->scopeExpr != NULL)
     {
-      KjNode* scopeP = kjLookup(eP, LD_VOCAB_SCOPE);
+      CorNode* scopeP = corTreeLookup(eP, LD_VOCAB_SCOPE);
 
       if (!ldEntityMatchScope(scopeP, filterP->scopeExpr))
         continue;
@@ -310,12 +310,12 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   {
     for (int i = unpaged ? 0 : offset; i < nCand && (unpaged || (i - offset) < limit); i++)
     {
-      KjNode* cloneP = kjClone(corRest.kjsonP, cands[i].eP);
+      CorNode* cloneP = corTreeClone(corRest.kallocP, cands[i].eP);
 
       if (cands[i].dist >= 0)
-        kjChildAdd(cloneP, kjFloat(corRest.kjsonP, "geoDistance", cands[i].dist));
+        corTreeChildAdd(cloneP, corTreeFloat(corRest.kallocP, "geoDistance", cands[i].dist));
 
-      kjChildAdd(arrayP, cloneP);
+      corTreeChildAdd(arrayP, cloneP);
     }
   }
 

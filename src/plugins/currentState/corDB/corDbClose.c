@@ -12,7 +12,7 @@
 #include "ktrace/kTrace.h"                               // KT_I
 
 #include "khash/khash.h"                               // khashRelease
-#include "kjson/kjFree.h"                                // kjFree
+#include "corTree/corTreeFree.h"                         // corTreeFree
 
 #include "db/Tenant.h"                                   // tenant0, tenantList
 #include "currentState/corDB/corDbGeoMatch.h"          // corDbGeoClose
@@ -23,7 +23,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// corDbFreeTenantStore - free the per-tenant KjNode tree
+// corDbFreeTenantStore - free the per-tenant CorNode tree
 //
 static void corDbFreeTenantStore(Tenant* tenantP)
 {
@@ -39,7 +39,7 @@ static void corDbFreeTenantStore(Tenant* tenantP)
     if (storeP->idIndex != NULL)
       khashRelease(storeP->idIndex);
 
-    kjFree(storeP->tree);
+    corTreeFree(storeP->tree);
     pthread_rwlock_destroy(&storeP->lock);
     free(storeP);
 

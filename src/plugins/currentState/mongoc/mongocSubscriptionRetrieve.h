@@ -11,8 +11,8 @@
 //
 
 #include "db/Tenant.h"                               // Tenant
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
-extern int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subPP);
+extern int mongocSubscriptionRetrieve(Tenant* tenantP, const char* subId, CorNode** subPP);
 
 #endif  // MONGOC_MONGOCSUBSCRIPTIONRETRIEVE_H_

@@ -12,7 +12,7 @@
 #include <stddef.h>                                  // NULL
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/kjClone.h"                           // kjClone
+#include "corTree/corTreeClone.h"                    // corTreeClone
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
@@ -51,7 +51,7 @@ bool getCsourceRegistration(void)
 
   ldContextResolve();
 
-  KjNode* regP = kjClone(corRest.kjsonP, itemP->regTree);
+  CorNode* regP = corTreeClone(corRest.kallocP, itemP->regTree);
 
   // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
   if (corNgsild.sysAttrs == false)

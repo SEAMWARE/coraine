@@ -10,10 +10,10 @@
 #include <stddef.h>                                  // NULL
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeString, corTreeChildAdd
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
@@ -46,7 +46,7 @@ bool getSubscription(void)
   Tenant*         tenantP    = (Tenant*) corNgsild.tenantP;
   LdSubCacheItem* cacheItem  = (tenantP->subCacheP != NULL)    ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)       : NULL;
   LdPernotItem*   pernotItem = (tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
-  KjNode*         srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
+  CorNode*        srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
 
   if (srcTree == NULL)
   {
@@ -56,7 +56,7 @@ bool getSubscription(void)
 
   ldContextResolve();
 
-  KjNode*  subP  = kjClone(corRest.kjsonP, srcTree);
+  CorNode* subP  = corTreeClone(corRest.kallocP, srcTree);
   LdQNode* qExpr = (cacheItem != NULL) ? cacheItem->qExpr : (pernotItem != NULL) ? pernotItem->qExpr : NULL;
   ldSubscriptionCompactQ(subP, qExpr, corNgsild.contextP, &corRest.kalloc);
 
@@ -64,12 +64,12 @@ bool getSubscription(void)
   // "attributeUpdated"] when not specified. Surface the active default
   // in the response so clients see what the subscription will actually
   // trigger on, rather than silently inheriting an undocumented value.
-  if (kjLookup(subP, "notificationTrigger") == NULL)
+  if (corTreeLookup(subP, "notificationTrigger") == NULL)
   {
-    KjNode* trigArr = kjArray(corRest.kjsonP, "notificationTrigger");
-    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeCreated"));
-    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
-    kjChildAdd(subP, trigArr);
+    CorNode* trigArr = corTreeArray(corRest.kallocP, "notificationTrigger");
+    corTreeChildAdd(trigArr, corTreeString(corRest.kallocP, NULL, "attributeCreated"));
+    corTreeChildAdd(trigArr, corTreeString(corRest.kallocP, NULL, "attributeUpdated"));
+    corTreeChildAdd(subP, trigArr);
   }
 
   //

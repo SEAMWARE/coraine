@@ -255,7 +255,7 @@ jobs:
       # JSON-bearing test fails on member order alone. bootstrap.sh builds it as
       # part of the k-libs; it is simply not on PATH here.
       #
-      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
 
     steps:
       #

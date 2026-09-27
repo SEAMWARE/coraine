@@ -27,10 +27,10 @@
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd, kjArray
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjClone.h"                           // kjClone
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeChildAdd, corTreeArray
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeClone.h"                    // corTreeClone
 
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
@@ -114,30 +114,30 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
 // Returns true if any change was made. Populates a report entry the caller
 // may use to drive subscription notifications.
 //
-static bool applyLocalDelete(KjNode* entityP, const char* attrIri)
+static bool applyLocalDelete(CorNode* entityP, const char* attrIri)
 {
-  KjNode* attrP = kjLookup(entityP, attrIri);
+  CorNode* attrP = corTreeLookup(entityP, attrIri);
   if (attrP == NULL)
     return false;
 
   if (corNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
   {
-    kjChildRemove(entityP, attrP);
+    corTreeChildRemove(entityP, attrP);
     return true;
   }
 
   const char* dsKey = corNgsild.datasetId;
   if (dsKey == NULL) dsKey = "@none";
 
-  KjNode* instP = kjLookup(attrP, dsKey);
+  CorNode* instP = corTreeLookup(attrP, dsKey);
   if (instP == NULL)
     return false;
 
-  kjChildRemove(attrP, instP);
+  corTreeChildRemove(attrP, instP);
 
   // If the wrapper became empty after removing the only instance, drop it.
   if (attrP->value.firstChildP == NULL)
-    kjChildRemove(entityP, attrP);
+    corTreeChildRemove(entityP, attrP);
 
   return true;
 }
@@ -218,7 +218,7 @@ bool deleteEntityAttr(void)
     return true;
   }
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
@@ -299,7 +299,7 @@ bool deleteEntityAttr(void)
   //
   if (localApply)
   {
-    KjNode* targetEntity = NULL;
+    CorNode* targetEntity = NULL;
     int     rr           = db.entityRetrieve(tenantP, entityId, &targetEntity);
 
     if (rr == DB_NOT_FOUND)
@@ -319,7 +319,7 @@ bool deleteEntityAttr(void)
     }
     else
     {
-      if (kjLookup(targetEntity, attrIri) == NULL)
+      if (corTreeLookup(targetEntity, attrIri) == NULL)
       {
         if (!anySucceeded)
         {
@@ -332,11 +332,11 @@ bool deleteEntityAttr(void)
       {
         // Snapshot the attribute wrapper BEFORE applyLocalDelete so the
         // showChanges renderer can emit previousValue/Object/Vocab/Json.
-        // kjClone runs on the request-scoped kjson; preSnapshot stays valid
+        // corTreeClone runs on the request-scoped arena; preSnapshot stays valid
         // through db.entityReplace (the kalloc behind both is the same
         // request arena).
-        KjNode* preSrc      = kjLookup(targetEntity, attrIri);
-        KjNode* preSnapshot = (preSrc != NULL) ? kjClone(corRest.kjsonP, preSrc) : NULL;
+        CorNode* preSrc     = corTreeLookup(targetEntity, attrIri);
+        CorNode* preSnapshot = (preSrc != NULL) ? corTreeClone(corRest.kallocP, preSrc) : NULL;
 
         bool changed = applyLocalDelete(targetEntity, attrIri);
 
@@ -367,7 +367,7 @@ bool deleteEntityAttr(void)
             return true;
           }
 
-          KjNode* oldEntity = NULL;
+          CorNode* oldEntity = NULL;
           int r = db.entityReplace(tenantP, entityId, targetEntity, &oldEntity);
 
           if (r != DB_OK && r != DB_NOT_FOUND)
@@ -399,31 +399,31 @@ bool deleteEntityAttr(void)
               //
               // Scope is not a dataset-keyed wrapper, so it keeps the plain
               // "@none" key, as does any snapshot that is not an object.
-              KjNode* dsKeys = kjArray(corRest.kjsonP, "datasetIds");
+              CorNode* dsKeys = corTreeArray(corRest.kallocP, "datasetIds");
               if (!corNgsild.deleteAll)
-                kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL,
+                corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL,
                                             (corNgsild.datasetId != NULL) ? corNgsild.datasetId : "@none"));
-              else if ((preSnapshot != NULL) && (preSnapshot->type == KjObject) &&
+              else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject) &&
                        (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
               {
-                for (KjNode* instP = preSnapshot->value.firstChildP; instP != NULL; instP = instP->next)
-                  kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL, instP->name));
+                for (CorNode* instP = preSnapshot->value.firstChildP; instP != NULL; instP = instP->next)
+                  corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL, instP->name));
               }
               else
-                kjChildAdd(dsKeys, kjString(corRest.kjsonP, NULL, "@none"));
+                corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL, "@none"));
 
               LdMergeReport report;
-              report.changes = kjArray(corRest.kjsonP, "changes");
-              KjNode* entry = kjObject(corRest.kjsonP, NULL);
-              kjChildAdd(entry, kjString(corRest.kjsonP, "attr",   attrIri));
-              kjChildAdd(entry, kjString(corRest.kjsonP, "reason", "attributeDeleted"));
-              kjChildAdd(entry, dsKeys);
+              report.changes = corTreeArray(corRest.kallocP, "changes");
+              CorNode* entry = corTreeObject(corRest.kallocP, NULL);
+              corTreeChildAdd(entry, corTreeString(corRest.kallocP, "attr", attrIri));
+              corTreeChildAdd(entry, corTreeString(corRest.kallocP, "reason", "attributeDeleted"));
+              corTreeChildAdd(entry, dsKeys);
               if (preSnapshot != NULL)
               {
                 preSnapshot->name = (char*) "preValue";
-                kjChildAdd(entry, preSnapshot);
+                corTreeChildAdd(entry, preSnapshot);
               }
-              kjChildAdd(report.changes, entry);
+              corTreeChildAdd(report.changes, entry);
 
               ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
                             LdNotifyEntityUpdate, &report);
@@ -434,8 +434,8 @@ bool deleteEntityAttr(void)
               const char* etype = NULL;
               if (targetEntity != NULL)
               {
-                KjNode* tn = kjLookup(targetEntity, "type");
-                if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+                CorNode* tn = corTreeLookup(targetEntity, "type");
+                if (tn != NULL && tn->type == CorString) etype = tn->value.s;
               }
               TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
               memset(tevP, 0, sizeof(*tevP));
@@ -465,7 +465,7 @@ bool deleteEntityAttr(void)
   }
 
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
@@ -480,13 +480,13 @@ bool deleteEntityAttr(void)
     return true;
   }
 
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
   corRest.out.httpStatusCode = anySucceeded ? 207 : 409;

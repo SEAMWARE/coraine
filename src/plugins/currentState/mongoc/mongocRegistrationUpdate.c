@@ -15,10 +15,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_replace_one
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjNodeAppend, mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend, mongocTreeToBson
 #include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocRegistrationUpdate.h"  // Own interface
 
@@ -32,7 +32,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocRegistrationUpdate - replace the stored registration with `regP`
 //
-int mongocRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* regP)
+int mongocRegistrationUpdate(Tenant* tenantP, const char* regId, CorNode* regP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "registrations");
@@ -43,13 +43,13 @@ int mongocRegistrationUpdate(Tenant* tenantP, const char* regId, KjNode* regP)
 
   // `type` is the fixed JSON-LD constant "ContextSourceRegistration" — redundant
   // in DB. Strip around BSON emission, preserving the tree (id -> _id is done by
-  // mongocKjTreeToBson).
-  KjNode* typeP     = NULL;
-  KjNode* typePrevP = NULL;
+  // mongocTreeToBson).
+  CorNode* typeP    = NULL;
+  CorNode* typePrevP = NULL;
   mongocStripTypeDecouple(regP, &typeP, &typePrevP);
 
   bson_t replacement;
-  mongocKjTreeToBson(regP, &replacement);
+  mongocTreeToBson(regP, &replacement);
 
   mongocStripTypeRestore(regP, typeP, typePrevP);
 

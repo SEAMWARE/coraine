@@ -12,7 +12,7 @@
 
 #include <stdint.h>                                   // int64_t
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 
 
 
@@ -152,7 +152,7 @@ extern int bridgeSampleQualifiedMetaIn(const char* bridgeName,
 // Shared by the asynchronous reply path and the synchronous one (ddsSync), so
 // that both store a reply identically. See bridgeSampleIn.c.
 //
-extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime, const char* meta);
+extern CorNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime, const char* meta);
 
 
 
@@ -165,7 +165,7 @@ extern KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName,
 // payload - as its sub-attribute. In the DB model, named goalAlias and unlinked,
 // for the request to put in its fragment. NULL when a text is not valid JSON.
 //
-extern KjNode* bridgeGoalInstance(const char* attrName,
+extern CorNode* bridgeGoalInstance(const char* attrName,
                                   const char* goalAlias,
                                   const char* requestJson,
                                   const char* subAttrName,

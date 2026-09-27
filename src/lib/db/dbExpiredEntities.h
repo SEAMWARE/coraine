@@ -12,7 +12,7 @@
 
 #include <stdbool.h>                                 // bool
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -55,7 +55,7 @@ extern void dbExpiredEntityDispatchPending(void);
 // simply skip it. entityP is in storage format; expiresAt sits at top level in
 // either the nanosecond-integer or the ISO form.
 //
-extern bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP);
+extern bool dbExpiredEntityIs(Tenant* tenantP, CorNode* entityP);
 
 
 
@@ -66,6 +66,6 @@ extern bool dbExpiredEntityIs(Tenant* tenantP, KjNode* entityP);
 // Each one removed is deferred for deletion. Runs before pagination, counting
 // and any distributed merge, so an expired Entity is invisible to all of them.
 //
-extern void dbExpiredEntityFilter(Tenant* tenantP, KjNode* arrayP);
+extern void dbExpiredEntityFilter(Tenant* tenantP, CorNode* arrayP);
 
 #endif  // CORAINE_DBEXPIREDENTITIES_H_

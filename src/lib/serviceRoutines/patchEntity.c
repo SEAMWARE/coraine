@@ -15,11 +15,11 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPatch
 
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                         // CorNode
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
@@ -59,12 +59,12 @@
 //
 // hasNonKeywordAttr - true if fragment has any top-level non-keyword attribute
 //
-static bool hasNonKeywordAttr(KjNode* entityP)
+static bool hasNonKeywordAttr(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (KjNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
+  for (CorNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
@@ -150,17 +150,17 @@ static char* mergeUrl(const char* endpoint, const char* entityId)
 //
 // renderFragmentWithContext - serialize fragment with @context for remote
 //
-static char* renderFragmentWithContext(KjNode* fragP)
+static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   bufSize = kjFastRenderSize(fragP) + 1;
+  int   bufSize = corJsonFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -175,7 +175,7 @@ bool patchEntity(void)
   bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
   const char* entityId = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+  CorNode*    fragment = corRest.in.requestTree;
 
   //
   // Validate the fragment. LdOpMergeEntity allows partial payloads (no
@@ -213,7 +213,7 @@ bool patchEntity(void)
   // fails or partially succeeds:
   //   { "success": [entityId], "errors": [BatchEntityError] }
   //
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract: when the whole operation is served by
@@ -246,10 +246,10 @@ bool patchEntity(void)
     // says the fragment is a partial entity). In that case we rely on
     // the entity-id filter in the CSR to decide match/no-match.
     //
-    KjNode* typeP = kjLookup(fragment, "type");
+    CorNode* typeP = corTreeLookup(fragment, "type");
     char*   typeArr[2] = { NULL, NULL };
     char**  typeArgP   = NULL;
-    if (typeP != NULL && typeP->type == KjString)
+    if (typeP != NULL && typeP->type == CorString)
     {
       typeArr[0] = typeP->value.s;
       typeArgP   = typeArr;
@@ -308,7 +308,7 @@ bool patchEntity(void)
     {
       bool isExclusive = (items[i].modeIdx == 0);
 
-      KjNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kjsonP,
+      CorNode* fragP = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kallocP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
@@ -346,7 +346,7 @@ bool patchEntity(void)
     for (int i = 0; i < n; i++)
     {
       if (items[i].modeIdx != 1) continue;  // redirect only
-      KjNode* drop = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kjsonP,
+      CorNode* drop = ldEntityFragmentForInfo(fragment, items[i].riP, corRest.kallocP,
                                               /*detach=*/true);
       (void) drop;  // freed with the arena
     }
@@ -423,7 +423,7 @@ bool patchEntity(void)
     //
     bool nothingLeft = (syncDone.failedN > 0);
 
-    for (KjNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    for (CorNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
     {
       if (ldIsNotAttributeName(c->name) == false)
         nothingLeft = false;
@@ -434,7 +434,7 @@ bool patchEntity(void)
     // into it (§ 10.2.9, true RFC 7396), then ask the driver to persist the
     // resulting change report. The merge engine lives here, not in the plugin.
     //
-    KjNode* mergedEntity = NULL;
+    CorNode* mergedEntity = NULL;
     localR = db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
     //
@@ -452,7 +452,7 @@ bool patchEntity(void)
       // without ?lang=, unsupported attribute type for a simplified scalar,
       // attribute type change attempt, ...) and return false.
       //
-      if (ldEntityMerge(mergedEntity, fragment, &report, corRest.requestStartTime, corRest.kjsonP) == false)
+      if (ldEntityMerge(mergedEntity, fragment, &report, corRest.requestStartTime, corRest.kallocP) == false)
         return true;
 
       int car = db.entityChangesApply(tenantP, entityId, mergedEntity, &report);
@@ -487,8 +487,8 @@ bool patchEntity(void)
       // TRoE: defer one attr event per top-level attr in the merge report.
       {
         const char* etype = NULL;
-        KjNode* tn = kjLookup(mergedEntity, "type");
-        if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+        CorNode* tn = corTreeLookup(mergedEntity, "type");
+        if (tn != NULL && tn->type == CorString) etype = tn->value.s;
         troeDeferAttrEventsFromMerge(tenantP, entityId, etype, mergedEntity, &report,
                                      corRest.requestStartTime);
       }
@@ -510,7 +510,7 @@ bool patchEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
@@ -524,13 +524,13 @@ bool patchEntity(void)
     return true;
   }
 
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
 

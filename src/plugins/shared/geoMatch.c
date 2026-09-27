@@ -14,8 +14,8 @@
 
 #include <geos_c.h>                                      // GEOS C API
 
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "corNgsild/LdGeoRel.h"                           // LdGeoRel, LdGeoRelType
 #include "corNgsild/LdVocab.h"                            // LD_VOCAB_*
@@ -96,58 +96,58 @@ static GEOSGeometry* geojsonToGeos(const char* geometry, const char* coordinates
 // This comment used to say "the expanded IRI (e.g.
 // https://uri.etsi.org/ngsi-ld/location)", which is wrong for exactly the three
 // names that matter here. It cost an afternoon: a deliberate break written
-// against it - fall back to kjLookup(entityP, "https://uri.etsi.org/ngsi-ld/location")
+// against it - fall back to corTreeLookup(entityP, "https://uri.etsi.org/ngsi-ld/location")
 // - was inert, looked like the test failing to discriminate, and sent the
 // investigation at the test instead of at the comment.
 //
 // Returns the "value" node of the GeoProperty (which is a GeoJSON object).
 //
-static KjNode* entityGeoPropGet(KjNode* entityP, const char* geoproperty)
+static CorNode* entityGeoPropGet(CorNode* entityP, const char* geoproperty)
 {
-  KjNode* attrP = kjLookup(entityP, geoproperty);
-  if (attrP == NULL || attrP->type != KjObject)
+  CorNode* attrP = corTreeLookup(entityP, geoproperty);
+  if (attrP == NULL || attrP->type != CorObject)
     return NULL;
 
   // First child is the default instance ("@none")
-  KjNode* instP = attrP->value.firstChildP;
-  if (instP == NULL || instP->type != KjObject)
+  CorNode* instP = attrP->value.firstChildP;
+  if (instP == NULL || instP->type != CorObject)
     return NULL;
 
   // Get "value" from the instance — should be a GeoJSON object
-  return kjLookup(instP, "value");
+  return corTreeLookup(instP, "value");
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// kjRenderCoords - render a KjNode coordinate array to a JSON string
+// coordsRender - render a CorNode coordinate array to a JSON string
 //
 // Returns number of characters written, or -1 on overflow.
 //
-static int kjRenderCoords(KjNode* nodeP, char* buf, int bufSize)
+static int coordsRender(CorNode* nodeP, char* buf, int bufSize)
 {
   int pos = 0;
 
-  if (nodeP->type == KjArray)
+  if (nodeP->type == CorArray)
   {
     if (pos < bufSize) buf[pos++] = '[';
     bool first = true;
-    for (KjNode* childP = nodeP->value.firstChildP; childP != NULL; childP = childP->next)
+    for (CorNode* childP = nodeP->value.firstChildP; childP != NULL; childP = childP->next)
     {
       if (!first && pos < bufSize) buf[pos++] = ',';
       first = false;
-      int written = kjRenderCoords(childP, buf + pos, bufSize - pos);
+      int written = coordsRender(childP, buf + pos, bufSize - pos);
       if (written < 0) return -1;
       pos += written;
     }
     if (pos < bufSize) buf[pos++] = ']';
   }
-  else if (nodeP->type == KjFloat)
+  else if (nodeP->type == CorFloat)
   {
     pos += snprintf(buf + pos, bufSize - pos, "%.15g", nodeP->value.f);
   }
-  else if (nodeP->type == KjInt)
+  else if (nodeP->type == CorInt)
   {
     pos += snprintf(buf + pos, bufSize - pos, "%lld", (long long) nodeP->value.i);
   }
@@ -161,16 +161,16 @@ static int kjRenderCoords(KjNode* nodeP, char* buf, int bufSize)
 //
 // entityGeoToGeos - convert an entity's GeoJSON value node to a GEOS geometry
 //
-static GEOSGeometry* entityGeoToGeos(KjNode* geojsonP)
+static GEOSGeometry* entityGeoToGeos(CorNode* geojsonP)
 {
-  KjNode* typeP   = kjLookup(geojsonP, "type");
-  KjNode* coordsP = kjLookup(geojsonP, "coordinates");
+  CorNode* typeP  = corTreeLookup(geojsonP, "type");
+  CorNode* coordsP = corTreeLookup(geojsonP, "coordinates");
 
-  if (typeP == NULL || typeP->type != KjString || coordsP == NULL)
+  if (typeP == NULL || typeP->type != CorString || coordsP == NULL)
     return NULL;
 
   char coordBuf[4096];
-  int  pos = kjRenderCoords(coordsP, coordBuf, sizeof(coordBuf));
+  int  pos = coordsRender(coordsP, coordBuf, sizeof(coordBuf));
   if (pos <= 0 || pos >= (int) sizeof(coordBuf))
     return NULL;
   coordBuf[pos] = 0;
@@ -191,27 +191,27 @@ static GEOSGeometry* entityGeoToGeos(KjNode* geojsonP)
 // accept geometry that cannot be indexed. entityP is in DB-model form
 // (attr -> dataset instance -> { type: GeoProperty, value: GeoJSON }).
 //
-bool geoEntityValidate(KjNode* entityP)
+bool geoEntityValidate(CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return true;
 
-  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
-    if (attrP->type != KjObject)
+    if (attrP->type != CorObject)
       continue;
 
-    for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
     {
-      if (instP->type != KjObject)
+      if (instP->type != CorObject)
         continue;
 
-      KjNode* typeP = kjLookup(instP, "type");
-      if (typeP == NULL || typeP->type != KjString || strcmp(typeP->value.s, "GeoProperty") != 0)
+      CorNode* typeP = corTreeLookup(instP, "type");
+      if (typeP == NULL || typeP->type != CorString || strcmp(typeP->value.s, "GeoProperty") != 0)
         continue;
 
-      KjNode* geojsonP = kjLookup(instP, "value");
-      if (geojsonP == NULL || geojsonP->type != KjObject)
+      CorNode* geojsonP = corTreeLookup(instP, "value");
+      if (geojsonP == NULL || geojsonP->type != CorObject)
         continue;
 
       GEOSGeometry* geom = entityGeoToGeos(geojsonP);
@@ -326,7 +326,7 @@ static bool geoRelEval(LdGeoRelType rel, const GEOSGeometry* refGeom, const GEOS
 
 
 
-bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
+bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
 {
   if (distanceP != NULL)
     *distanceP = -1;
@@ -335,7 +335,7 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
     return true;  // no geo filter
 
   // Find the entity's geoproperty
-  KjNode* geojsonP = entityGeoPropGet(entityP, filterP->geoproperty);
+  CorNode* geojsonP = entityGeoPropGet(entityP, filterP->geoproperty);
   if (geojsonP == NULL)
     return false;  // entity has no matching geoproperty
 
@@ -348,19 +348,19 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
   {
     // Entity point
     double entityLon = 0, entityLat = 0;
-    KjNode* typeP = kjLookup(geojsonP, "type");
-    KjNode* coordsP = kjLookup(geojsonP, "coordinates");
+    CorNode* typeP = corTreeLookup(geojsonP, "type");
+    CorNode* coordsP = corTreeLookup(geojsonP, "coordinates");
 
     if (typeP == NULL || strcmp(typeP->value.s, "Point") != 0 || coordsP == NULL)
       return false;
 
-    KjNode* lonNode = coordsP->value.firstChildP;
-    KjNode* latNode = (lonNode != NULL) ? lonNode->next : NULL;
+    CorNode* lonNode = coordsP->value.firstChildP;
+    CorNode* latNode = (lonNode != NULL) ? lonNode->next : NULL;
     if (lonNode == NULL || latNode == NULL)
       return false;
 
-    entityLon = (lonNode->type == KjFloat) ? lonNode->value.f : (double) lonNode->value.i;
-    entityLat = (latNode->type == KjFloat) ? latNode->value.f : (double) latNode->value.i;
+    entityLon = (lonNode->type == CorFloat) ? lonNode->value.f : (double) lonNode->value.i;
+    entityLat = (latNode->type == CorFloat) ? latNode->value.f : (double) latNode->value.i;
 
     // Reference point from filter coordinates (JSON string like "[-3.703,40.417]")
     double refLon = 0, refLat = 0;
@@ -423,7 +423,7 @@ bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
 // property (csrGeoP NULL), the CSR is unconstrained: the function returns
 // true so the dispatcher keeps it as a candidate.
 //
-bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
 {
   if (geoRel == NULL || geometry == NULL || coordinates == NULL)
     return true;  // no geo constraint
@@ -526,7 +526,7 @@ bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry,
 //
 // csrGeoMatchExact - see header
 //
-bool csrGeoMatchExact(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
 {
   if (geoRel == NULL || geometry == NULL || coordinates == NULL)
     return true;                      // no geo constraint

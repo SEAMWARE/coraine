@@ -2,7 +2,7 @@
 #
 # stackManifest.sh - emit the resolved commit of every library the broker links.
 #
-# The broker is largely library code by volume: seven k-libs and four Cor-Libs.
+# The broker is largely library code by volume: five k-libs and eight Cor-Libs.
 # The cor* repos track `main` by design (see corLibs/bootstrap.sh), so a published
 # image records coraine's own sha and nothing about the rest of what is in it -
 # "which coraine is this" is only half an answer.
@@ -26,7 +26,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SIBLINGS=${SIBLING_DIR:-$(dirname "$HERE")}
 MANIFEST="$HERE/docker/vendor/MANIFEST.txt"
 
-LIBS="kbase kalloc khash kjson kargs ktrace kprom corRest corNgsild corJsonld corPlugin corBridge"
+LIBS="kbase kalloc khash corTree corJson kargs ktrace corProm corRest corNgsild corJsonld corPlugin corBridge"
 
 #
 # corHttp only when it is the HTTP server in use. This file answers "what is

@@ -11,7 +11,7 @@
 //
 #include <pthread.h>                                 // pthread_rwlock_t
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -26,7 +26,7 @@
 //
 // Stored in tenant->pluginData. Created lazily on first access.
 //
-// THE LOCK IS NOT OPTIONAL. KjNode is built on linked lists and every write
+// THE LOCK IS NOT OPTIONAL. CorNode is built on linked lists and every write
 // relinks pointers - in the entity array, and in the child list of the entity
 // being changed. Two threads doing that at once do not produce "one of the two
 // values", they produce a corrupted list. Measured, before this existed: twenty
@@ -43,12 +43,12 @@
 //
 typedef struct CorDbStore
 {
-  KjNode*             tree;
+  CorNode*            tree;
   pthread_rwlock_t    lock;
 
   //
-  // id -> KjNode*, so finding one entity is a hash rather than a walk of the
-  // whole store doing a kjLookup per entity. Guarded by the same lock as the
+  // id -> CorNode*, so finding one entity is a hash rather than a walk of the
+  // whole store doing a corTreeLookup per entity. Guarded by the same lock as the
   // tree, because it changes exactly when the tree does - see corDbIndex.h.
   //
   struct KHashTable*  idIndex;
@@ -111,9 +111,9 @@ extern void        corDbStoreUnlock(CorDbStore** storePP);
 
 // -----------------------------------------------------------------------------
 //
-// corDbTenantStore - the per-tenant KjNode tree
+// corDbTenantStore - the per-tenant CorNode tree
 //
-extern KjNode* corDbTenantStore(Tenant* tenantP);
+extern CorNode* corDbTenantStore(Tenant* tenantP);
 
 
 
@@ -121,8 +121,8 @@ extern KjNode* corDbTenantStore(Tenant* tenantP);
 //
 // corDbEntities / corDbSubscriptions / corDbRegistrations - the three arrays
 //
-extern KjNode* corDbEntities(Tenant* tenantP);
-extern KjNode* corDbSubscriptions(Tenant* tenantP);
-extern KjNode* corDbRegistrations(Tenant* tenantP);
+extern CorNode* corDbEntities(Tenant* tenantP);
+extern CorNode* corDbSubscriptions(Tenant* tenantP);
+extern CorNode* corDbRegistrations(Tenant* tenantP);
 
 #endif  // CORDB_CORDBSTORE_H_

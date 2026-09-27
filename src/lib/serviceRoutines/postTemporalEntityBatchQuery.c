@@ -21,7 +21,7 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
@@ -33,7 +33,7 @@
 
 bool postTemporalEntityBatchQuery(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
   if (!ldQueryBodyToParams(bodyP))
     return true;

@@ -11,8 +11,8 @@
 //
 
 #include "db/Tenant.h"                               // Tenant
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
-extern int mongocSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
+extern int mongocSubscriptionQuery(Tenant* tenantP, int limit, int offset, CorNode** arrayPP);
 
 #endif  // MONGOC_MONGOCSUBSCRIPTIONQUERY_H_

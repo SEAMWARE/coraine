@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // GET /admin/metrics — thin wrapper over metrics.c's renderer so the
-// admin plugin doesn't need to know about kprom.
+// admin plugin doesn't need to know about corProm.
 //
 #include "metrics/metrics.h"                      // metricsRender
 

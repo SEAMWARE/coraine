@@ -25,11 +25,11 @@
 #include "corRest/corRestOutHeader.h"                      // corRestOutHeaderAdd
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjString, kjInteger, kjChildAdd, kjChildRemove
-#include "kjson/kjChildReplace.h"                        // kjChildReplace
-#include "kjson/kjClone.h"                               // kjClone
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeString, corTreeInteger, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeChildReplace.h"                 // corTreeChildReplace
+#include "corTree/corTreeClone.h"                        // corTreeClone
 
 #include "corNgsild/corNgsild.h"                           // ldError, corNgsild
 #include "corNgsild/LdProblem.h"                          // LD_ERROR_*
@@ -76,13 +76,13 @@ static char* generateSnapshotId(void)
 
 
 
-static void replaceString(KjNode* parent, const char* name, const char* value)
+static void replaceString(CorNode* parent, const char* name, const char* value)
 {
-  KjNode* p = kjLookup(parent, name);
-  if (p != NULL && p->type == KjString)
+  CorNode* p = corTreeLookup(parent, name);
+  if (p != NULL && p->type == CorString)
     p->value.s = (char*) value;
   else
-    kjChildAdd(parent, kjString(corRest.kjsonP, name, (char*) value));
+    corTreeChildAdd(parent, corTreeString(corRest.kallocP, name, (char*) value));
 }
 
 
@@ -117,8 +117,8 @@ bool cloneSnapshot(void)
     return true;
   }
 
-  KjNode* bodyP = corRest.in.requestTree;
-  if (bodyP != NULL && bodyP->type != KjObject)
+  CorNode* bodyP = corRest.in.requestTree;
+  if (bodyP != NULL && bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot fragment must be a JSON object");
@@ -128,8 +128,8 @@ bool cloneSnapshot(void)
   // § 5.16.2.3 — request body must NOT carry the *Details arrays.
   if (bodyP != NULL)
   {
-    if (kjLookup(bodyP, "snapshotQueriesDetails") != NULL ||
-        kjLookup(bodyP, "snapshotTemporalQueriesDetails") != NULL)
+    if (corTreeLookup(bodyP, "snapshotQueriesDetails") != NULL ||
+        corTreeLookup(bodyP, "snapshotTemporalQueriesDetails") != NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "snapshotQueriesDetails / snapshotTemporalQueriesDetails must not be supplied on clone");
@@ -141,8 +141,8 @@ bool cloneSnapshot(void)
   const char* newId = NULL;
   if (bodyP != NULL)
   {
-    KjNode* idP = kjLookup(bodyP, "id");
-    if (idP != NULL && idP->type == KjString)
+    CorNode* idP = corTreeLookup(bodyP, "id");
+    if (idP != NULL && idP->type == CorString)
       newId = idP->value.s;
   }
   if (newId == NULL)
@@ -162,16 +162,16 @@ bool cloneSnapshot(void)
   // it makes the clone self-describing without introducing a "blank"
   // tree we'd then have to re-fetch from somewhere.
   //
-  KjNode* newTree = kjClone(corRest.kjsonP, sourceP->tree);
+  CorNode* newTree = corTreeClone(corRest.kallocP, sourceP->tree);
 
   // Body overrides for mutable fields.
   if (bodyP != NULL)
   {
-    KjNode* prioP = kjLookup(bodyP, "snapshotPriority");
+    CorNode* prioP = corTreeLookup(bodyP, "snapshotPriority");
     if (prioP != NULL)
     {
-      long pn = (prioP->type == KjInt)   ? (long) prioP->value.i
-              : (prioP->type == KjFloat) ? (long) prioP->value.f
+      long pn = (prioP->type == CorInt)  ? (long) prioP->value.i
+              : (prioP->type == CorFloat) ? (long) prioP->value.f
               : -1L;
       if (pn < 1 || pn > 10)
       {
@@ -179,20 +179,20 @@ bool cloneSnapshot(void)
                 "'snapshotPriority' must be an integer between 1 and 10");
         return true;
       }
-      KjNode* dest = kjLookup(newTree, "snapshotPriority");
+      CorNode* dest = corTreeLookup(newTree, "snapshotPriority");
       if (dest != NULL) dest->value.i = pn;
-      else              kjChildAdd(newTree, kjInteger(corRest.kjsonP, "snapshotPriority", pn));
+      else              corTreeChildAdd(newTree, corTreeInteger(corRest.kallocP, "snapshotPriority", pn));
     }
 
     const char* COPY_OVER[] = { "snapshotLifetime", "endpoint", "receiverInfo", NULL };
     for (int i = 0; COPY_OVER[i] != NULL; i++)
     {
-      KjNode* fP = kjLookup(bodyP, COPY_OVER[i]);
+      CorNode* fP = corTreeLookup(bodyP, COPY_OVER[i]);
       if (fP == NULL) continue;
-      KjNode* clone = kjClone(corRest.kjsonP, fP);
-      KjNode* dest  = kjLookup(newTree, COPY_OVER[i]);
-      if (dest != NULL) kjChildReplace(newTree, dest, clone);
-      else              kjChildAdd(newTree, clone);
+      CorNode* clone = corTreeClone(corRest.kallocP, fP);
+      CorNode* dest = corTreeLookup(newTree, COPY_OVER[i]);
+      if (dest != NULL) corTreeChildReplace(newTree, dest, clone);
+      else              corTreeChildAdd(newTree, clone);
     }
   }
 
@@ -210,10 +210,10 @@ bool cloneSnapshot(void)
 
   // Strip *Details from cloned tree — they belong to the source's
   // execution and would mislead readers of the clone.
-  KjNode* d1 = kjLookup(newTree, "snapshotQueriesDetails");
-  if (d1 != NULL) kjChildRemove(newTree, d1);
-  KjNode* d2 = kjLookup(newTree, "snapshotTemporalQueriesDetails");
-  if (d2 != NULL) kjChildRemove(newTree, d2);
+  CorNode* d1 = corTreeLookup(newTree, "snapshotQueriesDetails");
+  if (d1 != NULL) corTreeChildRemove(newTree, d1);
+  CorNode* d2 = corTreeLookup(newTree, "snapshotTemporalQueriesDetails");
+  if (d2 != NULL) corTreeChildRemove(newTree, d2);
 
   LdSnapshotCacheItem* newItemP = ldSnapshotCacheItemAdd(cacheP, newTree);
   if (newItemP == NULL)
@@ -238,7 +238,7 @@ bool cloneSnapshot(void)
   // Copy frozen entities from source's snap-tenant to the clone's
   // snap-tenant. Streamed via db.entityQuery(source) → db.entityCreate(clone).
   // Phase #140 will swap the read for a cursor-based iterator so the
-  // intermediate KjArray vanishes; for now the per-snapshot entity set
+  // intermediate CorArray vanishes; for now the per-snapshot entity set
   // is bounded by what the source captured.
   int copied = 0;
   Tenant* sourceSnapP = (Tenant*) sourceP->snapTenantP;
@@ -246,15 +246,15 @@ bool cloneSnapshot(void)
   if (sourceSnapP != NULL && cloneSnapP != NULL)
   {
     DbQueryFilter all = {0};
-    KjNode* arrayP = NULL;
+    CorNode* arrayP = NULL;
     if (db.entityQuery(sourceSnapP, &all, &arrayP) == DB_OK &&
-        arrayP != NULL && arrayP->type == KjArray)
+        arrayP != NULL && arrayP->type == CorArray)
     {
-      for (KjNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
       {
-        KjNode* idP = kjLookup(eP, "id");
-        if (idP == NULL) idP = kjLookup(eP, "_id");
-        if (idP == NULL || idP->type != KjString) continue;
+        CorNode* idP = corTreeLookup(eP, "id");
+        if (idP == NULL) idP = corTreeLookup(eP, "_id");
+        if (idP == NULL || idP->type != CorString) continue;
 
         if (db.entityCreate(cloneSnapP, idP->value.s, eP) == DB_OK)
           copied++;
@@ -271,13 +271,13 @@ bool cloneSnapshot(void)
       TroeRangeInfo   tRange;
       memset(&tRange, 0, sizeof(tRange));
 
-      KjNode* tArr = NULL;
+      CorNode* tArr = NULL;
       if (troe.entityTemporalQuery(sourceSnapP, &tqf, &tArr, &tRange) == TROE_OK &&
-          tArr != NULL && tArr->type == KjArray)
+          tArr != NULL && tArr->type == CorArray)
       {
-        for (KjNode* eP = tArr->value.firstChildP; eP != NULL; eP = eP->next)
+        for (CorNode* eP = tArr->value.firstChildP; eP != NULL; eP = eP->next)
         {
-          if (eP->type != KjObject) continue;
+          if (eP->type != CorObject) continue;
           troe.entityTemporalCreate(cloneSnapP, eP);
         }
       }
@@ -292,16 +292,16 @@ bool cloneSnapshot(void)
       (copied > 0)                            ? "success" :
       "empty";
 
-  KjNode* sP = kjLookup(newItemP->tree, "snapshotStatus");
-  if (sP != NULL && sP->type == KjString)
+  CorNode* sP = corTreeLookup(newItemP->tree, "snapshotStatus");
+  if (sP != NULL && sP->type == CorString)
     sP->value.s = (char*) finalStatus;
 
   // Persist the clone's metadata so it survives restart. _snapSeq lets
   // the boot reload reconstruct the snap-tenant DB name.
   if (db.snapshotCreate != NULL)
   {
-    if (kjLookup(newItemP->tree, "_snapSeq") == NULL)
-      kjChildAdd(newItemP->tree, kjInteger(NULL, "_snapSeq", newItemP->snapSeq));
+    if (corTreeLookup(newItemP->tree, "_snapSeq") == NULL)
+      corTreeChildAdd(newItemP->tree, corTreeInteger(NULL, "_snapSeq", newItemP->snapSeq));
     db.snapshotCreate(tenantP, newItemP->id, newItemP->tree);
   }
 

@@ -28,10 +28,10 @@
 
 #include "corRest/CorRestState.h"                          // corRest
 #include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjString, kjInteger, kjChildAdd, kjObject
-#include "kjson/kjClone.h"                               // kjClone
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeString, corTreeInteger, corTreeChildAdd, corTreeObject
+#include "corTree/corTreeClone.h"                        // corTreeClone
 
 #include "db/DbDriver.h"                                 // db
 
@@ -78,25 +78,25 @@ static char* snapshotIdGenerate(void)
 // snapshotQueries / snapshotTemporalQueries is present. Full schema
 // validation lands when async execution does.
 //
-static bool validateSnapshot(KjNode* snapP)
+static bool validateSnapshot(CorNode* snapP)
 {
-  if (snapP == NULL || snapP->type != KjObject)
+  if (snapP == NULL || snapP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "Snapshot payload must be a JSON object");
     return false;
   }
 
-  KjNode* typeP = kjLookup(snapP, "type");
-  if (typeP == NULL || typeP->type != KjString || strcmp(typeP->value.s, "Snapshot") != 0)
+  CorNode* typeP = corTreeLookup(snapP, "type");
+  if (typeP == NULL || typeP->type != CorString || strcmp(typeP->value.s, "Snapshot") != 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "Snapshot 'type' must be \"Snapshot\"");
     return false;
   }
 
-  KjNode* qP  = kjLookup(snapP, "snapshotQueries");
-  KjNode* tqP = kjLookup(snapP, "snapshotTemporalQueries");
+  CorNode* qP = corTreeLookup(snapP, "snapshotQueries");
+  CorNode* tqP = corTreeLookup(snapP, "snapshotTemporalQueries");
   if (qP == NULL && tqP == NULL)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
@@ -104,24 +104,24 @@ static bool validateSnapshot(KjNode* snapP)
     return false;
   }
 
-  if (qP != NULL && qP->type != KjArray)
+  if (qP != NULL && qP->type != CorArray)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "'snapshotQueries' must be an array");
     return false;
   }
-  if (tqP != NULL && tqP->type != KjArray)
+  if (tqP != NULL && tqP->type != CorArray)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "'snapshotTemporalQueries' must be an array");
     return false;
   }
 
-  KjNode* prioP = kjLookup(snapP, "snapshotPriority");
+  CorNode* prioP = corTreeLookup(snapP, "snapshotPriority");
   if (prioP != NULL)
   {
-    long pn = (prioP->type == KjInt)   ? (long) prioP->value.i
-            : (prioP->type == KjFloat) ? (long) prioP->value.f
+    long pn = (prioP->type == CorInt)  ? (long) prioP->value.i
+            : (prioP->type == CorFloat) ? (long) prioP->value.f
             : -1L;
     if (pn < 1 || pn > 10)
     {
@@ -131,10 +131,10 @@ static bool validateSnapshot(KjNode* snapP)
     }
   }
 
-  KjNode* lifeP = kjLookup(snapP, "snapshotLifetime");
+  CorNode* lifeP = corTreeLookup(snapP, "snapshotLifetime");
   if (lifeP != NULL)
   {
-    if (lifeP->type != KjString || ldIso8601DurationParseNs(lifeP->value.s) < 0)
+    if (lifeP->type != CorString || ldIso8601DurationParseNs(lifeP->value.s) < 0)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
@@ -170,13 +170,13 @@ static char* nsToIso(uint64_t ns)
 //
 // addStringIfAbsent / replaceString - small builders.
 //
-static void replaceString(KjNode* parent, const char* name, const char* value)
+static void replaceString(CorNode* parent, const char* name, const char* value)
 {
-  KjNode* p = kjLookup(parent, name);
-  if (p != NULL && p->type == KjString)
+  CorNode* p = corTreeLookup(parent, name);
+  if (p != NULL && p->type == CorString)
     p->value.s = (char*) value;
   else
-    kjChildAdd(parent, kjString(corRest.kjsonP, name, (char*) value));
+    corTreeChildAdd(parent, corTreeString(corRest.kallocP, name, (char*) value));
 }
 
 
@@ -188,20 +188,20 @@ static void replaceString(KjNode* parent, const char* name, const char* value)
 bool postSnapshot(void)
 {
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
-  KjNode* snapP   = corRest.in.requestTree;
+  CorNode* snapP  = corRest.in.requestTree;
 
   if (!validateSnapshot(snapP))
     return true;
 
   // Auto-generate id if absent.
-  KjNode* idP = kjLookup(snapP, "id");
+  CorNode* idP = corTreeLookup(snapP, "id");
   if (idP == NULL)
   {
     char* gid = snapshotIdGenerate();
-    kjChildAdd(snapP, kjString(corRest.kjsonP, "id", gid));
-    idP = kjLookup(snapP, "id");
+    corTreeChildAdd(snapP, corTreeString(corRest.kallocP, "id", gid));
+    idP = corTreeLookup(snapP, "id");
   }
-  else if (idP->type != KjString)
+  else if (idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "Snapshot 'id' must be a string");
     return true;
@@ -230,8 +230,8 @@ bool postSnapshot(void)
   uint64_t  exp = now + 3600ULL * 1000000000ULL;  // default 1h
 
   // § 5.2.41 snapshotLifetime → expiresAt. Already validated above.
-  KjNode* lifeP = kjLookup(snapP, "snapshotLifetime");
-  if (lifeP != NULL && lifeP->type == KjString)
+  CorNode* lifeP = corTreeLookup(snapP, "snapshotLifetime");
+  if (lifeP != NULL && lifeP->type == CorString)
   {
     int64_t durNs = ldIso8601DurationParseNs(lifeP->value.s);
     if (durNs > 0)
@@ -245,8 +245,8 @@ bool postSnapshot(void)
   replaceString(snapP, "snapshotStatus", "preparing");
 
   // Default priority.
-  if (kjLookup(snapP, "snapshotPriority") == NULL)
-    kjChildAdd(snapP, kjInteger(corRest.kjsonP, "snapshotPriority", 5));
+  if (corTreeLookup(snapP, "snapshotPriority") == NULL)
+    corTreeChildAdd(snapP, corTreeInteger(corRest.kallocP, "snapshotPriority", 5));
 
   LdSnapshotCacheItem* itemP = ldSnapshotCacheItemAdd(cacheP, snapP);
   if (itemP == NULL)
@@ -283,8 +283,8 @@ bool postSnapshot(void)
   // crash-recovery contract identical for sync and async paths).
   if (db.snapshotCreate != NULL)
   {
-    if (kjLookup(itemP->tree, "_snapSeq") == NULL)
-      kjChildAdd(itemP->tree, kjInteger(NULL, "_snapSeq", itemP->snapSeq));
+    if (corTreeLookup(itemP->tree, "_snapSeq") == NULL)
+      corTreeChildAdd(itemP->tree, corTreeInteger(NULL, "_snapSeq", itemP->snapSeq));
     db.snapshotCreate(tenantP, itemP->id, itemP->tree);
   }
 
@@ -307,16 +307,16 @@ bool postSnapshot(void)
     // Re-persist with the final status + both detail arrays.
     if (db.snapshotUpdate != NULL && itemP->tree != NULL)
     {
-      KjNode* fragment = kjObject(corRest.kjsonP, NULL);
-      KjNode* sP       = kjLookup(itemP->tree, "snapshotStatus");
-      if (sP != NULL && sP->type == KjString)
-        kjChildAdd(fragment, kjString(corRest.kjsonP, "snapshotStatus", sP->value.s));
-      KjNode* dP = kjLookup(itemP->tree, "snapshotQueriesDetails");
+      CorNode* fragment = corTreeObject(corRest.kallocP, NULL);
+      CorNode* sP      = corTreeLookup(itemP->tree, "snapshotStatus");
+      if (sP != NULL && sP->type == CorString)
+        corTreeChildAdd(fragment, corTreeString(corRest.kallocP, "snapshotStatus", sP->value.s));
+      CorNode* dP = corTreeLookup(itemP->tree, "snapshotQueriesDetails");
       if (dP != NULL)
-        kjChildAdd(fragment, kjClone(corRest.kjsonP, dP));
-      KjNode* tdP = kjLookup(itemP->tree, "snapshotTemporalQueriesDetails");
+        corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, dP));
+      CorNode* tdP = corTreeLookup(itemP->tree, "snapshotTemporalQueriesDetails");
       if (tdP != NULL)
-        kjChildAdd(fragment, kjClone(corRest.kjsonP, tdP));
+        corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, tdP));
       if (fragment->value.firstChildP != NULL)
         db.snapshotUpdate(tenantP, itemP->id, fragment);
     }

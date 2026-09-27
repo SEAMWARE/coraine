@@ -19,11 +19,11 @@
 #include <mongoc/mongoc.h>                            // mongoc_*
 
 #include "ktrace/kTrace.h"                            // KT_E
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 
 #include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocTreeToBson
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkCreate.h"  // Own interface
@@ -36,12 +36,12 @@ extern mongoc_client_pool_t* poolP;
 
 // -----------------------------------------------------------------------------
 //
-// countEntries - count children of a KjArray
+// countEntries - count children of a CorArray
 //
-static int countEntries(KjNode* arrP)
+static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (KjNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -55,10 +55,10 @@ static int countEntries(KjNode* arrP)
 // Each writeError carries { "index": <int>, "code": <int>, "errmsg": ... }.
 // Mongo reports code 11000 for duplicate-key violations.
 //
-static KjNode* entityAt(KjNode* entitiesArr, int ix)
+static CorNode* entityAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
   {
     if (i == ix)
       return inP;
@@ -68,7 +68,7 @@ static KjNode* entityAt(KjNode* entitiesArr, int ix)
 
 
 
-static void applyWriteErrors(const bson_t* reply, int* resultsV, int n, const int* batchIx, KjNode* entitiesArr, Tenant* tenantP)
+static void applyWriteErrors(const bson_t* reply, int* resultsV, int n, const int* batchIx, CorNode* entitiesArr, Tenant* tenantP)
 {
   if (reply == NULL) return;
 
@@ -141,9 +141,9 @@ static void applyWriteErrors(const bson_t* reply, int* resultsV, int n, const in
 //
 // mongocEntityBulkCreate -
 //
-int mongocEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
+int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
-  if (entitiesArr == NULL || entitiesArr->type != KjArray)
+  if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
   int n = countEntries(entitiesArr);
@@ -171,7 +171,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
   //
   int batchN = 0;
   int i      = 0;
-  for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
   {
     const char* geoClashP = mongocGeoIndexEnsure(tenantP, inP, collP);
 
@@ -184,7 +184,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     }
 
     resultsV[i] = DB_OK;   // optimistic default; overwritten by applyWriteErrors
-    mongocKjTreeToBson(inP, &docs[batchN]);
+    mongocTreeToBson(inP, &docs[batchN]);
     docPtrs[batchN] = &docs[batchN];
     batchIx[batchN] = i;
     batchN++;

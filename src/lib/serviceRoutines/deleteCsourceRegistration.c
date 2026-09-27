@@ -22,7 +22,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
-#include "kjson/KjNode.h"                              // KjNode
+#include "corTree/CorNode.h"                           // CorNode
 
 #include "serviceRoutines/deleteCsourceRegistration.h" // Own interface
 
@@ -37,7 +37,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
+  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
   if (fragP == NULL)
     return;
 

@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -19,6 +19,6 @@
 //
 // corDbSubscriptionQuery -
 //
-extern int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP);
+extern int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, CorNode** arrayPP);
 
 #endif  // CORDB_CORDBSUBSCRIPTIONQUERY_H_

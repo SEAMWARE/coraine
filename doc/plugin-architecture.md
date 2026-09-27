@@ -130,7 +130,7 @@ coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corDB/corDB.so
    its function pointers.
 
 Plugins do **not** statically link the NGSI-LD/k-lib symbols — the broker is linked
-`rdynamic`, so a plugin `.so` resolves `kjson`, `corNgsild`, etc. from the running
+`rdynamic`, so a plugin `.so` resolves `corTree`, `corJson`, `corNgsild`, etc. from the running
 broker at `dlopen` time. Keep that in mind: a plugin must be built against the
 **same** lib headers as the broker it will be loaded into.
 

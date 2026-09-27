@@ -11,7 +11,7 @@
 //
 // Prometheus metrics facade for coraine. All counters/gauges live
 // in a single translation unit (metrics.c). Hot-path mutators are
-// kprom atomic ops — no allocation, no locks.
+// corProm atomic ops — no allocation, no locks.
 //
 // Wiring:
 //   - metricsInit()           at startup, after broker args parsed.
@@ -26,7 +26,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// metricsInit - create all KpromMetric objects
+// metricsInit - create all CorPromMetric objects
 //
 // Called once at broker startup, after kargs parse, before the
 // REST server is spun up. Idempotent — a second call is a no-op.

@@ -11,8 +11,8 @@
 #include <string.h>                                  // strcmp
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/CorNode.h"                         // CorNode
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove
