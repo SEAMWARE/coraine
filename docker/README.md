@@ -11,8 +11,7 @@ make docker                    # or: make docker DOCKER_TAG=coraine:mytag
 
 That runs the two steps below. Doing them by hand works too, but the build
 aborts with `run ./docker/vendor-libs.sh first` if the staging step is skipped —
-the Dockerfile clones the k-libs itself, at the refs `corLibs/klib-pins` names,
-and does NOT clone the Cor-Libs.
+the Dockerfile does NOT clone the Cor-Libs.
 
 ```sh
 ./docker/vendor-libs.sh        # exports each Cor-Lib's COMMITTED HEAD -> docker/vendor/

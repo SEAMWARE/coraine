@@ -137,7 +137,7 @@ set(COR_STATIC_LIBS
   ${COR_LIBS_DIR}/corLog/libcorLog.a
   ${COR_LIBS_DIR}/corHash/libcorHash.a
   ${COR_LIBS_DIR}/corAlloc/libcorAlloc.a
-  ${COR_LIBS_DIR}/kbase/libkbase.a
+  ${COR_LIBS_DIR}/corBase/libcorBase.a
 )
 
 #

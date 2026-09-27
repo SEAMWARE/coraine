@@ -1279,7 +1279,7 @@ must satisfy.
 
 The alternative — putting the headers in the broker repo, since the broker is
 the sole implementor of `BridgeBroker.h` — costs two concrete things. The build
-order is k-libs, then the Cor-Libs, then the broker last; contract headers in
+order is the Cor-Libs, then the broker last; contract headers in
 the broker put six plugin repos in a tier *after* it, and point a library at an
 application. And the broker publishes no headers today — `install` copies the
 binary and its plugins to `/opt/seamware` — so it would grow a header-install

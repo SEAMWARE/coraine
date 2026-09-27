@@ -15,7 +15,7 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corAlloc/corAlloc.h"                       // corAlloc
-#include "kbase/kStringInArray.h"                    // kStringInArray
+#include "corBase/corStringInArray.h"                // corStringInArray
 #include "corJsonld/corLdExpand.h"                     // corLdExpand, corLdAlreadyExpanded
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
@@ -46,7 +46,7 @@ static bool attrSetsOverlap(char** attrsA, char** attrsB)
     return true;
 
   for (int i = 0; attrsA[i] != NULL; i++)
-    if (kStringInArray(attrsA[i], attrsB)) return true;
+    if (corStringInArray(attrsA[i], attrsB)) return true;
 
   return false;
 }
@@ -238,7 +238,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
     if (strcmp(attrP->name, "id") == 0)   continue;
     if (strcmp(attrP->name, "type") == 0) continue;
 
-    if (kStringInArray(attrP->name, newAttrs)) return true;
+    if (corStringInArray(attrP->name, newAttrs)) return true;
   }
   return false;
 }

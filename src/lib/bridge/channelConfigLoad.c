@@ -351,7 +351,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   }
 
   //
-  // fopen and not kFileRead: kFileRead takes a base and a relative path, and
+  // fopen and not corFileRead: corFileRead takes a base and a relative path, and
   // given an empty base it does not resolve a plain relative path - so
   // --bridgeConfig etc/dds.json failed with "cannot read", one line after
   // access() had just said it was readable. Two answers about one file is worse

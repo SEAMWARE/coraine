@@ -11,7 +11,7 @@
 #include <fcntl.h>                                // open
 #include <unistd.h>                               // close
 
-#include "kbase/version.h"                        // KBASE_VERSION
+#include "corBase/version.h"                      // CORBASE_VERSION
 #include "corAlloc/version.h"                     // CORALLOC_VERSION
 #include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corLog/version.h"                        // CORLOG_VERSION
@@ -54,7 +54,7 @@ bool adminGetVersion(void)
   CorNode*  root   = corTreeObject(allocP, NULL);
 
   corTreeChildAdd(root, corTreeString(allocP, "coraine version", CORAINE_VERSION));
-  corTreeChildAdd(root, corTreeString(allocP, "kbase",            KBASE_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corBase",          CORBASE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corAlloc",         CORALLOC_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corLog",           CORLOG_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corHash",            CORHASH_VERSION));

@@ -17,7 +17,7 @@
 
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corAlloc/corAlloc.h"                       // corAlloc
-#include "kbase/kStringInArray.h"                    // kStringInArray
+#include "corBase/corStringInArray.h"                // corStringInArray
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
 #include "corTree/corTreeChildReplace.h"             // corTreeChildReplace
@@ -80,7 +80,7 @@ static void stripInfoAttrsFromLocal(CorNode* localP, LdRegInfo* riP)
         strcmp(curP->name, "id")   != 0 &&
         strcmp(curP->name, "type") != 0 &&
         (wildcard ||
-         kStringInArray(curP->name, riP->attributeNamesV)))
+         corStringInArray(curP->name, riP->attributeNamesV)))
     {
       corTreeChildRemove(localP, curP);
     }

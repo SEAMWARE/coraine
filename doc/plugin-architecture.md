@@ -129,7 +129,7 @@ coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corDB/corDB.so
 3. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
 
-Plugins do **not** statically link the NGSI-LD/k-lib symbols — the broker is linked
+Plugins do **not** statically link the NGSI-LD/Cor-Lib symbols — the broker is linked
 `rdynamic`, so a plugin `.so` resolves `corTree`, `corJson`, `corNgsild`, etc. from the running
 broker at `dlopen` time. Keep that in mind: a plugin must be built against the
 **same** lib headers as the broker it will be loaded into.

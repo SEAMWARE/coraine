@@ -8,7 +8,7 @@ coraine is developed and maintained by **Seamware**.
 
 The list below is short on purpose. coraine implements its own HTTP server, JSON
 parser, JSON-LD processor, NGSI-LD engine, memory allocator, argument parser,
-hash tables, metrics and test harness — the k-libs and the Cor-Libs named after
+hash tables, metrics and test harness — the Cor-Libs named after
 the table, all of them in this project's own repositories and all of them inside
 the ~1 MiB binary. What it borrows is work that is genuinely someone else's
 speciality: TLS, computational geometry, Unicode collation, and the client
@@ -30,12 +30,11 @@ The last five are loaded only if you ask for them: a `corHttp` + `corDB` broker
 maps three libraries beyond what a bare `ubuntu:26.04` already has, and two of
 those three are GEOS.
 
-The **k-lib** `kbase` and the
-**Cor-Libs** (`corLog`, `corAlloc`, `corArgs`, `corHash`, `corTree`, `corJson`, `corProm`,
+The **Cor-Libs** (`corBase`, `corLog`, `corAlloc`, `corArgs`, `corHash`, `corTree`, `corJson`, `corProm`,
 `corRest`, `corNgsild`, `corJsonld`, `corPlugin`, `corTest`) are ours, developed alongside
 the broker and released separately. corTree and corJson began as the k-lib `kjson`,
 corProm as `kprom`, corLog as `ktrace`, corHash as `khash`, corAlloc as `kalloc` and
-corArgs as `kargs`.
+corArgs as `kargs`, corBase as `kbase`.
 
 ## The specification
 

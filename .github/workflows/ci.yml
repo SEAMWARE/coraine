@@ -253,7 +253,7 @@ jobs:
       # corCurl sorts JSON bodies with this tool, and every expect was captured
       # sorted - without it the bodies arrive in insertion order and every
       # JSON-bearing test fails on member order alone. bootstrap.sh builds it as
-      # part of the k-libs; it is simply not on PATH here.
+      # part of corJson; it is simply not on PATH here.
       #
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
 

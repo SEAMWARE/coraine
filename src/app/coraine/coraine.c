@@ -25,7 +25,8 @@
 #include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
-#include "kbase/kCpuCount.h"                       // kCpuCount
+#include "corBase/corCpuCount.h"                   // corCpuCount
+#include "corBase/corBaseInit.h"                   // corBaseInit
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
@@ -184,7 +185,7 @@ bool           notifyValueChangeOnly = false;
 bool           fg           = false;
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 32;
-int            httpLoops    = 0;   // 0: auto - see the kCpuCount call in main()
+int            httpLoops    = 0;   // 0: auto - see the corCpuCount call in main()
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          defaultUserContext  = NULL;
@@ -1295,6 +1296,14 @@ int main(int argC, char* argV[])
     COR_X(1, "corLogInit failed");
 
   //
+  // The libraries log through corBase's callback (COR_LIB_*), and until it is set
+  // they have no log to write to - their errors go to stderr, the rest nowhere.
+  // corLogOut has the callback's signature, so their lines land in OUR log file,
+  // with their own file, line and function, gated by the same -v/-t switches.
+  //
+  corBaseInit(corLogOut);
+
+  //
   // Each switch steers its OWN class of output: -v drives COR_V, -d drives COR_D,
   // and a trace level drives COR_T for that level. Nothing else.
   //
@@ -1537,7 +1546,7 @@ int main(int argC, char* argV[])
   // for it, which measured SLOWER than one (6 211 req/s against 7 199). A
   // container with --cpus=1 is a normal deployment and must not pay for that.
   //
-  // kCpuCount() is what the process may actually run on: its CPU affinity
+  // corCpuCount() is what the process may actually run on: its CPU affinity
   // intersected with any cgroup quota, not the host's core count, which is
   // what every "nproc" in a container gets wrong.
   //
@@ -1546,7 +1555,7 @@ int main(int argC, char* argV[])
   //
   if (httpLoops == 0)
   {
-    httpLoops = kCpuCount();
+    httpLoops = corCpuCount();
     if (httpLoops > 4)
       httpLoops = 4;
   }

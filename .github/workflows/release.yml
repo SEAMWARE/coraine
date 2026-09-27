@@ -20,10 +20,6 @@
 # moving on. The shas come from the same stackManifest.sh that GET /version
 # reports, so the tags and the running broker cannot disagree.
 #
-# The k-libs are deliberately NOT tagged: they carry their own release branches
-# and version numbers, have consumers other than this broker, and are not ours to
-# stamp with a coraine version.
-#
 name: Release
 
 on:
@@ -184,7 +180,7 @@ jobs:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
           owner: SEAMWARE
-          repositories: corLog,corAlloc,corArgs,corHash,corTree,corJson,corProm,corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corTest,corLibs
+          repositories: corBase,corLog,corAlloc,corArgs,corHash,corTree,corJson,corProm,corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corTest,corLibs
 
       #
       # Tag each Cor-Lib at the commit this release was actually built from.
@@ -243,7 +239,7 @@ jobs:
 
           # the libraries linked into the broker, from the manifest
           while read -r lib sha; do
-            case "$lib" in corLog|corAlloc|corArgs|corHash|corTree|corJson|corProm|corRest|corHttp|corNgsild|corJsonld|corPlugin|corBridge) tagRepo "$lib" "$sha" ;; esac
+            case "$lib" in corBase|corLog|corAlloc|corArgs|corHash|corTree|corJson|corProm|corRest|corHttp|corNgsild|corJsonld|corPlugin|corBridge) tagRepo "$lib" "$sha" ;; esac
           done < /tmp/stack.txt
 
           # and the two that are not linked but are part of reproducing the build

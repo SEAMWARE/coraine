@@ -68,6 +68,7 @@ Content-Length: REGEX([0-9]+)
   "stack": {
     "corAlloc": "REGEX([0-9a-f]{40})",
     "corArgs": "REGEX([0-9a-f]{40})",
+    "corBase": "REGEX([0-9a-f]{40})",
     "corBridge": "REGEX([0-9a-f]{40})",
     "corHash": "REGEX([0-9a-f]{40})",
     "corJson": "REGEX([0-9a-f]{40})",
@@ -77,8 +78,7 @@ Content-Length: REGEX([0-9]+)
     "corPlugin": "REGEX([0-9a-f]{40})",
     "corProm": "REGEX([0-9a-f]{40})",
     "corRest": "REGEX([0-9a-f]{40})",
-    "corTree": "REGEX([0-9a-f]{40})",
-    "kbase": "REGEX([0-9a-f]{40})"
+    "corTree": "REGEX([0-9a-f]{40})"
   },
   "version": "0.4.0"
 }

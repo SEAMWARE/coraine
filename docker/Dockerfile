@@ -115,22 +115,7 @@ RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
 # The lib stack. Every lib resolves its dependencies as ../<name>, so they all
 # have to be siblings — the same layout as a dev box. The directory itself is
 # free to be anywhere; /root/git is simply this image's choice.
-#
-# k-libs are public on GitLab, so they clone straight from their pinned release
-# branches. The pins are NOT restated here: docker/vendor-libs.sh stages
-# corLibs/klib-pins next to the tarballs and it is the single source of truth,
-# shared with corLibs/bootstrap.sh. Copied on its own, and before the tarballs,
-# so a lib commit does not invalidate this clone layer.
 WORKDIR /root/git
-COPY docker/vendor/klib-pins /tmp/klib-pins
-RUN set -eux; \
-    test -f /tmp/klib-pins || { echo "run ./docker/vendor-libs.sh first"; exit 1; }; \
-    sed 's/#.*//' /tmp/klib-pins | while read -r repo ref; do \
-      [ -n "${repo:-}" ] || continue; \
-      git clone --quiet --depth 1 --branch "${ref}" \
-        "https://gitlab.com/kzangeli/${repo}.git" "/root/git/${repo}"; \
-    done; \
-    ls -d /root/git/k*
 
 # Cor-Libs are NOT cloned here: docker/vendor-libs.sh exports each one's committed
 # HEAD next to this Dockerfile, so the image is built from the tree the developer

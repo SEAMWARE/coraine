@@ -2,10 +2,9 @@
 #
 # vendor-libs.sh — stage the Cor-Libs into the Docker build context.
 #
-# WHY THIS EXISTS: the k-libs (gitlab.com/kzangeli) are cloned by the image
-# itself, at the release branches klib-pins names. The Cor-Libs
-# (github.com/SEAMWARE) are NOT cloned — they are exported from the local clones
-# with `git archive HEAD` and copied in.
+# WHY THIS EXISTS: the Cor-Libs (github.com/SEAMWARE) are NOT cloned by the
+# image — they are exported from the local clones with `git archive HEAD` and
+# copied in.
 #
 # They were private when this was written, so there was no choice; they are
 # public now and the reason is a different one. A clone would build whatever
@@ -36,7 +35,7 @@ OUT="$(cd "$(dirname "$0")" && pwd)/vendor"
 # umbrella makefile builds every Cor-Lib, so a missing directory fails the image
 # build at `make -C corLibs di` rather than at the link. Which is how it was
 # found.
-LIBS=(corLog corAlloc corArgs corHash corTree corJson corProm corPlugin corBridge corDdsBridge corHttp corRest corJsonld corNgsild corTest corLibs)
+LIBS=(corBase corLog corAlloc corArgs corHash corTree corJson corProm corPlugin corBridge corDdsBridge corHttp corRest corJsonld corNgsild corTest corLibs)
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -69,16 +68,5 @@ for lib in "${LIBS[@]}"; do
     printf '%-10s %-24s %s%s\n' "$lib" "$branch" "$sha" "$note" >> "$MANIFEST"
 done
 
-#
-# The k-lib pins live in corLibs and are the single source of truth. Stage a
-# plain copy next to the tarballs so the Dockerfile can COPY it on its own,
-# EARLY, without unpacking corLibs first: the pins change rarely and the
-# vendored libs change constantly, so keeping them separate layers is what
-# stops every lib commit from re-cloning the whole k-lib set.
-#
-git -C "$BASE/corLibs" show HEAD:klib-pins > "$OUT/klib-pins"
-
-echo "vendored $(printf '%s ' "${LIBS[@]}")+ klib-pins -> $OUT"
+echo "vendored $(printf '%s ' "${LIBS[@]}")-> $OUT"
 cat "$MANIFEST"
-echo
-cat "$OUT/klib-pins"
