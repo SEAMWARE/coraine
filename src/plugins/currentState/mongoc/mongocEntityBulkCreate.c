@@ -41,7 +41,7 @@ extern mongoc_client_pool_t* poolP;
 static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.head; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -58,7 +58,7 @@ static int countEntries(CorNode* arrP)
 static CorNode* entityAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, i++)
   {
     if (i == ix)
       return inP;
@@ -171,7 +171,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
   //
   int batchN = 0;
   int i      = 0;
-  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, i++)
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, i++)
   {
     const char* geoClashP = mongocGeoIndexEnsure(tenantP, inP, collP);
 

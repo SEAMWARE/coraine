@@ -126,7 +126,7 @@ bool postJsonldContexts(void)
     //
     if (atContextP->type == CorArray)
     {
-      for (CorNode* el = atContextP->value.firstChildP; el != NULL; el = el->next)
+      for (CorNode* el = atContextP->value.head; el != NULL; el = el->next)
       {
         if (el->type != CorString) continue;
         CorLdContext* refP = corLdCacheLookup(el->value.s);

@@ -46,7 +46,7 @@ extern mongoc_client_pool_t* poolP;
 //
 static CorNode* typeEntryLookup(CorNode* result, const char* typeIri, bool details)
 {
-  for (CorNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = result->value.head; entry != NULL; entry = entry->next)
   {
     CorNode* iriP = corTreeLookup(entry, "typeIri");
     if (iriP != NULL && iriP->type == CorString && strcmp(iriP->value.s, typeIri) == 0)
@@ -70,7 +70,7 @@ static CorNode* typeEntryLookup(CorNode* result, const char* typeIri, bool detai
 
 static void stringArrayAddUnique(CorNode* arr, const char* s)
 {
-  for (CorNode* p = arr->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = arr->value.head; p != NULL; p = p->next)
     if (p->type == CorString && strcmp(p->value.s, s) == 0)
       return;
   corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, s));
@@ -82,7 +82,7 @@ static CorNode* firstInstance(CorNode* attrP)
 {
   if (attrP == NULL || attrP->type != CorObject)
     return NULL;
-  for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+  for (CorNode* instP = attrP->value.head; instP != NULL; instP = instP->next)
     if (instP->type == CorObject)
       return instP;
   return NULL;
@@ -150,7 +150,7 @@ int mongocTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
     if (typeP->type == CorString)
       typeV[typeN++] = typeP->value.s;
     else if (typeP->type == CorArray)
-      for (CorNode* tN = typeP->value.firstChildP; tN != NULL && typeN < 16; tN = tN->next)
+      for (CorNode* tN = typeP->value.head; tN != NULL && typeN < 16; tN = tN->next)
         if (tN->type == CorString)
           typeV[typeN++] = tN->value.s;
 
@@ -164,7 +164,7 @@ int mongocTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
         if (countP != NULL) countP->value.i++;
       }
 
-      for (CorNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+      for (CorNode* attrP = eP->value.head; attrP != NULL; attrP = attrP->next)
       {
         if (ldIsEntityKeyword(attrP->name)) continue;
         recordAttr(entry, attrP->name, attrP, details);

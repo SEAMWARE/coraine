@@ -109,7 +109,7 @@ bool getTypes(void)
     corTreeChildAdd(body, corTreeString(corRest.kallocP, "type", "EntityTypeList"));
 
     CorNode* typeList = corTreeArray(corRest.kallocP, "typeList");
-    for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+    for (CorNode* entry = aggregated->value.head; entry != NULL; entry = entry->next)
     {
       CorNode* iriP = corTreeLookup(entry, "typeIri");
       if (iriP == NULL || iriP->type != CorString) continue;
@@ -128,7 +128,7 @@ bool getTypes(void)
   //
   CorNode* body = corTreeArray(corRest.kallocP, NULL);
 
-  for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = aggregated->value.head; entry != NULL; entry = entry->next)
   {
     CorNode* iriP = corTreeLookup(entry, "typeIri");
     if (iriP == NULL || iriP->type != CorString) continue;
@@ -142,7 +142,7 @@ bool getTypes(void)
     CorNode* attrsAgg = corTreeLookup(entry, "attrs");
     if (attrsAgg != NULL)
     {
-      for (CorNode* aN = attrsAgg->value.firstChildP; aN != NULL; aN = aN->next)
+      for (CorNode* aN = attrsAgg->value.head; aN != NULL; aN = aN->next)
         if (aN->type == CorString)
           corTreeChildAdd(attrNames, corTreeString(corRest.kallocP, NULL, shortOrSelf(ctxP, aN->value.s)));
     }

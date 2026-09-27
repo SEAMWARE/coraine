@@ -52,7 +52,7 @@ static bool hasNonKeywordAttr(CorNode* entityP)
 {
   if (entityP == NULL || entityP->type != CorObject)
     return false;
-  for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)             continue;
     if (c->name[0] == '@')           continue;
@@ -270,7 +270,7 @@ bool postEntityTemporalAttrs(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {

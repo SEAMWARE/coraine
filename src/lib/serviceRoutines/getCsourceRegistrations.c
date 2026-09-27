@@ -410,7 +410,7 @@ bool getCsourceRegistrations(void)
           CorNode* infoP = corTreeLookup(clone, "information");
           if (infoP != NULL && infoP->type == CorArray)
           {
-            CorNode*   childP = infoP->value.firstChildP;
+            CorNode*   childP = infoP->value.head;
             LdRegInfo* riP    = matchV[i]->infoV;
             while (childP != NULL && riP != NULL)
             {
@@ -458,7 +458,7 @@ bool getCsourceRegistrations(void)
     // § 7.4.2.2: no pointers for a page that is empty AND has nothing more
     // pending; keep next when more pages remain (hasMore).
     bool hasMore = (skip + limit < passN);
-    if ((arrayP->value.firstChildP != NULL || hasMore) && (hasMore || skip > 0))
+    if ((arrayP->value.head != NULL || hasMore) && (hasMore || skip > 0))
       ldPaginationLinkHeader(hasMore);
 
     // § 6.3.5 NGSILD-Results-Count header when ?count=true.

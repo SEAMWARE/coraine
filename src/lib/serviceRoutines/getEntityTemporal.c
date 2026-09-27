@@ -77,7 +77,7 @@ static void stripInfoAttrsFromTemporal(CorNode* localP, LdRegInfo* riP)
 
   bool wildcard = (riP->attributeNamesV == NULL);
 
-  CorNode* curP = localP->value.firstChildP;
+  CorNode* curP = localP->value.head;
   while (curP != NULL)
   {
     CorNode* nextP = curP->next;
@@ -118,7 +118,7 @@ static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing
   if (destP == NULL || upP == NULL || destP->type != CorObject || upP->type != CorObject)
     return;
 
-  CorNode* upChild = upP->value.firstChildP;
+  CorNode* upChild = upP->value.head;
   while (upChild != NULL)
   {
     CorNode* upNext = upChild->next;
@@ -143,7 +143,7 @@ static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing
     else if (!keepOnlyMissing && upChild->type == CorArray && destAttr->type == CorArray)
     {
       // Concat upstream instances onto destP's existing array.
-      CorNode* inst = upChild->value.firstChildP;
+      CorNode* inst = upChild->value.head;
       while (inst != NULL)
       {
         CorNode* instNext = inst->next;
@@ -552,7 +552,7 @@ bool getEntityTemporal(void)
   if (filterApplied)
   {
     bool hasUserAttr = false;
-    for (CorNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = result->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                                  continue;
       if (c->name[0] == '@')                                continue;
@@ -586,7 +586,7 @@ bool getEntityTemporal(void)
     ldPickOmit(result, corNgsild.pickV, corNgsild.omitV);
 
     bool hasMembers = false;
-    for (CorNode* c = result->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = result->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;

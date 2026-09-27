@@ -161,7 +161,7 @@ bool patchEntityTemporalInstance(void)
   {
     CorNode* targetP = NULL;
 
-    for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+    for (CorNode* fP = bodyP->value.head; fP != NULL; fP = fP->next)
     {
       if (fP->name == NULL)               continue;
       if (fP->name[0] == '@')             continue;
@@ -188,7 +188,7 @@ bool patchEntityTemporalInstance(void)
     if (targetP->type == CorArray)
     {
       int instances = 0;
-      for (CorNode* iP = targetP->value.firstChildP; iP != NULL; iP = iP->next)
+      for (CorNode* iP = targetP->value.head; iP != NULL; iP = iP->next)
         instances++;
 
       if (instances != 1)
@@ -203,7 +203,7 @@ bool patchEntityTemporalInstance(void)
     // Drop every other Attribute member, so the target instance is the only one
     // the TRoE plugin can pick up regardless of the order they arrived in.
     //
-    CorNode* fP = bodyP->value.firstChildP;
+    CorNode* fP = bodyP->value.head;
     while (fP != NULL)
     {
       CorNode* nextP = fP->next;
@@ -340,7 +340,7 @@ bool patchEntityTemporalInstance(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {

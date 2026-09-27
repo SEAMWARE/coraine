@@ -217,7 +217,7 @@ bool deleteEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {

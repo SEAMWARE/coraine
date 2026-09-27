@@ -160,7 +160,7 @@ bool patchEntityAttr(void)
   // local processing. Forwards mirror the incoming shape (fwdSrcP).
   //
   CorNode* fwdSrcP = bodyP;
-  CorNode* soleP  = bodyP->value.firstChildP;
+  CorNode* soleP  = bodyP->value.head;
   if (soleP != NULL && soleP->next == NULL && soleP->type == CorObject &&
       soleP->name != NULL && strcmp(soleP->name, attrIri) == 0)
     bodyP = soleP;
@@ -336,7 +336,7 @@ bool patchEntityAttr(void)
         CorNode* fragTypeP = corTreeLookup(bodyP, "type");
         if (fragTypeP != NULL && fragTypeP->type == CorString && existingAttr->type == CorObject)
         {
-          CorNode* anyInstP = existingAttr->value.firstChildP;
+          CorNode* anyInstP = existingAttr->value.head;
           CorNode* existingTypeP = (anyInstP != NULL) ? corTreeLookup(anyInstP, "type") : NULL;
           if (existingTypeP != NULL && existingTypeP->type == CorString &&
               strcmp(fragTypeP->value.s, existingTypeP->value.s) != 0)
@@ -385,7 +385,7 @@ bool patchEntityAttr(void)
           // != None) — a sub-attribute-only update (e.g. just observedAt) has
           // no value to validate and must not be forced through the type's
           // value checks.
-          CorNode* dbInstP = (existingAttr->type == CorObject) ? existingAttr->value.firstChildP : NULL;
+          CorNode* dbInstP = (existingAttr->type == CorObject) ? existingAttr->value.head : NULL;
           CorNode* dbTypeP = (dbInstP != NULL) ? corTreeLookup(dbInstP, "type") : NULL;
           if (dbTypeP != NULL && dbTypeP->type == CorString &&
               corTreeLookup(bodyP, "type") == NULL && ldAttrTypeDetect(bodyP) != LdAttrNone)
@@ -464,7 +464,7 @@ bool patchEntityAttr(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {

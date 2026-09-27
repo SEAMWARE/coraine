@@ -199,7 +199,7 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
     }
     keepIri[keepN] = NULL;
 
-    for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+    for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
     {
       if (ldIsEntityKeyword(attrP->name)) continue;
       if (inStringV((char**) keepIri, attrP->name)) continue;
@@ -209,7 +209,7 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
   }
 
   // Empty fragment → nothing to do
-  if (fragment->value.firstChildP == NULL)
+  if (fragment->value.head == NULL)
     return DB_OK;
 
   LdMergeReport report = { NULL };
@@ -411,7 +411,7 @@ bool purgeEntities(void)
     {
       bool partial = (corNgsild.dropV != NULL) || (corNgsild.keepV != NULL);
 
-      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
       {
         CorNode* idP = corTreeLookup(eP, "id");
         if (idP == NULL || idP->type != CorString) continue;
@@ -458,7 +458,7 @@ bool purgeEntities(void)
   //   - errors[] non-empty → 207 Multi-Status + BatchOperationResult body
   //
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {

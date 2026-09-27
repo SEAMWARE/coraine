@@ -64,7 +64,7 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (CorNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
+  for (CorNode* curP = entityP->value.head; curP != NULL; curP = curP->next)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
@@ -423,7 +423,7 @@ bool patchEntity(void)
     //
     bool nothingLeft = (syncDone.failedN > 0);
 
-    for (CorNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
       if (ldIsNotAttributeName(c->name) == false)
         nothingLeft = false;
@@ -510,7 +510,7 @@ bool patchEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {

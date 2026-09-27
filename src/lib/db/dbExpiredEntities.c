@@ -135,7 +135,7 @@ void dbExpiredEntityFilter(Tenant* tenantP, CorNode* arrayP)
   if ((arrayP == NULL) || (arrayP->type != CorArray))
     return;
 
-  CorNode* eP = arrayP->value.firstChildP;
+  CorNode* eP = arrayP->value.head;
 
   while (eP != NULL)
   {

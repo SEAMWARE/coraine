@@ -93,7 +93,7 @@ bool getEntityAttrValue(void)
   //
   if (corNgsild.datasetIdV != NULL)
   {
-    CorNode* instP = attrWrapperP->value.firstChildP;
+    CorNode* instP = attrWrapperP->value.head;
     while (instP != NULL)
     {
       CorNode* nextP = instP->next;
@@ -110,7 +110,7 @@ bool getEntityAttrValue(void)
         corTreeChildRemove(attrWrapperP, instP);
       instP = nextP;
     }
-    if (attrWrapperP->value.firstChildP == NULL)
+    if (attrWrapperP->value.head == NULL)
     {
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
               "no matching datasetId for attribute '%s' in entity '%s'", attrWild, entityId);
@@ -136,9 +136,9 @@ bool getEntityAttrValue(void)
   // the default instance's value (datasetId already narrowed above); pick the
   // first instance when an array remains.
   //
-  CorNode* attrP = wrap->value.firstChildP;
+  CorNode* attrP = wrap->value.head;
   if (attrP != NULL && attrP->type == CorArray)
-    attrP = attrP->value.firstChildP;
+    attrP = attrP->value.head;
 
   CorNode* valueP = (attrP != NULL) ? ldAttrValueNode(attrP) : NULL;
   if (valueP == NULL)

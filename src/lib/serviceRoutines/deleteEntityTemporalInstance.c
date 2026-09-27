@@ -206,7 +206,7 @@ bool deleteEntityTemporalInstance(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {

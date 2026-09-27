@@ -102,7 +102,7 @@ bool getCsourceSubscriptions(void)
 
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).
-  if (arrayP->value.firstChildP != NULL || hasMore)
+  if (arrayP->value.head != NULL || hasMore)
     ldPaginationLinkHeader(hasMore);
 
   // § 7.5 / § 6.4.6 (TS 104-176): relay the total element count when requested.

@@ -68,7 +68,7 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)             continue;
     if (c->name[0] == '@')           continue;
@@ -157,14 +157,14 @@ bool postEntitiesTemporal(void)
 
   if (typeP->type == CorArray)
   {
-    if (typeP->value.firstChildP == NULL)
+    if (typeP->value.head == NULL)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Mandatory Field Missing",
               "EntityTemporal must include a non-empty 'type'");
       return true;
     }
 
-    for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
     {
       if ((tP->type != CorString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
       {
@@ -208,7 +208,7 @@ bool postEntitiesTemporal(void)
     if (typeP->type == CorArray)
     {
       typeCount = 0;
-      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
         typeCount++;
     }
 
@@ -217,7 +217,7 @@ bool postEntitiesTemporal(void)
 
     if (typeP->type == CorArray)
     {
-      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
         typeArr[tIx++] = tP->value.s;
     }
     else
@@ -393,7 +393,7 @@ bool postEntitiesTemporal(void)
 
   // Response decision.
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {

@@ -101,7 +101,7 @@ static void* snapshotWorkerThread(void* arg)
     CorNode* tdP = corTreeLookup(ctx->itemP->tree, "snapshotTemporalQueriesDetails");
     if (tdP != NULL)
       corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, tdP));
-    if (fragment->value.firstChildP != NULL)
+    if (fragment->value.head != NULL)
       db.snapshotUpdate(ctx->tenantP, ctx->itemP->id, fragment);
   }
 

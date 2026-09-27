@@ -256,11 +256,11 @@ bool postSubscriptions(void)
     // at the user's URL, not at a broker-minted alias.
     else if (corNgsild.userContextBody != NULL &&
              corNgsild.userContextBody->type == CorArray &&
-             corNgsild.userContextBody->value.firstChildP != NULL &&
-             corNgsild.userContextBody->value.firstChildP->next == NULL &&
-             corNgsild.userContextBody->value.firstChildP->type == CorString)
+             corNgsild.userContextBody->value.head != NULL &&
+             corNgsild.userContextBody->value.head->next == NULL &&
+             corNgsild.userContextBody->value.head->type == CorString)
     {
-      jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
+      jcUrl = corNgsild.userContextBody->value.head->value.s;
     }
     else if (corNgsild.userContextBody != NULL)
     {

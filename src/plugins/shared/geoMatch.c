@@ -109,7 +109,7 @@ static CorNode* entityGeoPropGet(CorNode* entityP, const char* geoproperty)
     return NULL;
 
   // First child is the default instance ("@none")
-  CorNode* instP = attrP->value.firstChildP;
+  CorNode* instP = attrP->value.head;
   if (instP == NULL || instP->type != CorObject)
     return NULL;
 
@@ -133,7 +133,7 @@ static int coordsRender(CorNode* nodeP, char* buf, int bufSize)
   {
     if (pos < bufSize) buf[pos++] = '[';
     bool first = true;
-    for (CorNode* childP = nodeP->value.firstChildP; childP != NULL; childP = childP->next)
+    for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
     {
       if (!first && pos < bufSize) buf[pos++] = ',';
       first = false;
@@ -196,12 +196,12 @@ bool geoEntityValidate(CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return true;
 
-  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->type != CorObject)
       continue;
 
-    for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = attrP->value.head; instP != NULL; instP = instP->next)
     {
       if (instP->type != CorObject)
         continue;
@@ -354,7 +354,7 @@ bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
     if (typeP == NULL || strcmp(typeP->value.s, "Point") != 0 || coordsP == NULL)
       return false;
 
-    CorNode* lonNode = coordsP->value.firstChildP;
+    CorNode* lonNode = coordsP->value.head;
     CorNode* latNode = (lonNode != NULL) ? lonNode->next : NULL;
     if (lonNode == NULL || latNode == NULL)
       return false;

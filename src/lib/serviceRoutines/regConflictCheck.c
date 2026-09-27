@@ -70,7 +70,7 @@ static char** attrIRIArray(CorNode* arrP, KAlloc* allocP)
     return NULL;
 
   int count = 0;
-  for (CorNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = arrP->value.head; sP != NULL; sP = sP->next)
     if (sP->type == CorString)
       count++;
 
@@ -79,7 +79,7 @@ static char** attrIRIArray(CorNode* arrP, KAlloc* allocP)
 
   char** v = (char**) kaAlloc(allocP, (count + 1) * sizeof(char*));
   int    ix = 0;
-  for (CorNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = arrP->value.head; sP != NULL; sP = sP->next)
   {
     if (sP->type != CorString)
       continue;
@@ -231,7 +231,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
 
   // Walk entity attrs (skipping system fields). The local entity's attr names
   // are already expanded IRIs (post-corLdExpand at create time).
-  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)
       continue;
@@ -303,7 +303,7 @@ bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, K
   if (infoArrayP == NULL || infoArrayP->type != CorArray)
     return false;
 
-  for (CorNode* infoP = infoArrayP->value.firstChildP; infoP != NULL; infoP = infoP->next)
+  for (CorNode* infoP = infoArrayP->value.head; infoP != NULL; infoP = infoP->next)
   {
     if (infoP->type != CorObject)
       continue;
@@ -314,7 +314,7 @@ bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, K
     if (entitiesP == NULL || entitiesP->type != CorArray)
       continue;
 
-    for (CorNode* entP = entitiesP->value.firstChildP; entP != NULL; entP = entP->next)
+    for (CorNode* entP = entitiesP->value.head; entP != NULL; entP = entP->next)
     {
       if (entP->type != CorObject)
         continue;

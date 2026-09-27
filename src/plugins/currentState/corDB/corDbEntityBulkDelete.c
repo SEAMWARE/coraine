@@ -44,7 +44,7 @@ int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
   for (int i = 0; i < N; i++)
   {
     CorNode* match = NULL;
-    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
     {
       CorNode* storedIdP = corTreeLookup(eP, "id");
       if (storedIdP != NULL && storedIdP->type == CorString &&

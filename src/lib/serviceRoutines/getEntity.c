@@ -71,7 +71,7 @@ static void stripInfoAttrsFromLocal(CorNode* localP, LdRegInfo* riP)
 
   bool wildcard = (riP->attributeNamesV == NULL);
 
-  CorNode* curP = localP->value.firstChildP;
+  CorNode* curP = localP->value.head;
   while (curP != NULL)
   {
     CorNode* nextP = curP->next;
@@ -117,7 +117,7 @@ static void mergeAuxiliaryInto(CorNode* destP, CorNode* srcP)
   if (destP == NULL || srcP == NULL || srcP->type != CorObject)
     return;
 
-  CorNode* srcAttrP = srcP->value.firstChildP;
+  CorNode* srcAttrP = srcP->value.head;
   while (srcAttrP != NULL)
   {
     CorNode* nextSrcAttr = srcAttrP->next;
@@ -133,7 +133,7 @@ static void mergeAuxiliaryInto(CorNode* destP, CorNode* srcP)
 
     CorNode* destAttrP = corTreeLookup(destP, srcAttrP->name);
 
-    CorNode* srcInstP = srcAttrP->value.firstChildP;
+    CorNode* srcInstP = srcAttrP->value.head;
     while (srcInstP != NULL)
     {
       CorNode* nextSrcInst = srcInstP->next;
@@ -186,7 +186,7 @@ static void apiAttrToStorageWrap(CorNode* entityP, KAlloc* allocP)
   if (entityP == NULL || entityP->type != CorObject)
     return;
 
-  CorNode* curP = entityP->value.firstChildP;
+  CorNode* curP = entityP->value.head;
   while (curP != NULL)
   {
     CorNode* nextP = curP->next;
@@ -721,7 +721,7 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
 
       if (upP->type == CorArray)
       {
-        upP = upP->value.firstChildP;
+        upP = upP->value.head;
         if (upP == NULL) continue;
         upP->next = NULL;
       }
@@ -947,7 +947,7 @@ bool getEntity(void)
     ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     bool hasMembers = false;
-    for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;
@@ -980,7 +980,7 @@ bool getEntity(void)
     // system-managed timestamps — the filter preserves them but they
     // don't satisfy the attrs existence rule).
     bool hasUserAttr = false;
-    for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                            continue;
       if (strcmp(c->name, "id")               == 0)   continue;
@@ -1019,7 +1019,7 @@ bool getEntity(void)
       // were found.
       if (flatP != NULL && flatP->type == CorArray)
       {
-        CorNode* first = flatP->value.firstChildP;
+        CorNode* first = flatP->value.head;
         if (first != NULL && first->next == NULL)
         {
           first->name = NULL;

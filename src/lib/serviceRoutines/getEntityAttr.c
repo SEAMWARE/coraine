@@ -89,7 +89,7 @@ bool getEntityAttr(void)
   //
   if (corNgsild.datasetIdV != NULL)
   {
-    CorNode* instP = attrWrapperP->value.firstChildP;
+    CorNode* instP = attrWrapperP->value.head;
     while (instP != NULL)
     {
       CorNode* nextP = instP->next;
@@ -106,7 +106,7 @@ bool getEntityAttr(void)
         corTreeChildRemove(attrWrapperP, instP);
       instP = nextP;
     }
-    if (attrWrapperP->value.firstChildP == NULL)
+    if (attrWrapperP->value.head == NULL)
     {
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
               "no matching datasetId for attribute '%s' in entity '%s'", attrWild, entityId);
@@ -149,7 +149,7 @@ bool getEntityAttr(void)
   else if (corNgsild.format == LdFormatSimplified)
     ldToSimplified(wrap, &corRest.kalloc);
 
-  CorNode* unwrapped = wrap->value.firstChildP;
+  CorNode* unwrapped = wrap->value.head;
   if (unwrapped == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",

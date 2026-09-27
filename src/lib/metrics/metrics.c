@@ -299,7 +299,7 @@ bool metricsPreService(void)
       corRest.in.requestTree->type == CorArray)
   {
     int n = 0;
-    for (CorNode* c = corRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = corRest.in.requestTree->value.head; c != NULL; c = c->next)
       n++;
     corPromHistogramObserve(batchItemCount, (double) n);
   }

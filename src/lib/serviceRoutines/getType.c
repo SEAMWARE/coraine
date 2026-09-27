@@ -102,7 +102,7 @@ bool getType(void)
   }
 
   CorNode* entry = NULL;
-  for (CorNode* e = aggregated->value.firstChildP; e != NULL; e = e->next)
+  for (CorNode* e = aggregated->value.head; e != NULL; e = e->next)
   {
     CorNode* iriP = corTreeLookup(e, "typeIri");
     if (iriP != NULL && iriP->type == CorString && strcmp(iriP->value.s, typeIri) == 0)
@@ -139,7 +139,7 @@ bool getType(void)
 
   if (attrs != NULL)
   {
-    for (CorNode* aN = attrs->value.firstChildP; aN != NULL; aN = aN->next)
+    for (CorNode* aN = attrs->value.head; aN != NULL; aN = aN->next)
     {
       if (aN->type != CorString) continue;
 
@@ -152,7 +152,7 @@ bool getType(void)
       CorNode* atSrc = (attrTypes != NULL) ? corTreeLookup(attrTypes, aN->value.s) : NULL;
       if (atSrc != NULL && atSrc->type == CorArray)
       {
-        for (CorNode* atN = atSrc->value.firstChildP; atN != NULL; atN = atN->next)
+        for (CorNode* atN = atSrc->value.head; atN != NULL; atN = atN->next)
           if (atN->type == CorString)
             corTreeChildAdd(atArr, corTreeString(corRest.kallocP, NULL, atN->value.s));
       }

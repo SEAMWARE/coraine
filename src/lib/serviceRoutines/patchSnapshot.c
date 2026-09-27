@@ -159,7 +159,7 @@ bool patchSnapshot(void)
   // Apply each fragment field to the cached tree (cache allocator is
   // long-lived; we re-stamp by replacing the node when present, adding
   // it otherwise).
-  for (CorNode* fP = fragP->value.firstChildP; fP != NULL; fP = fP->next)
+  for (CorNode* fP = fragP->value.head; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL) continue;
 

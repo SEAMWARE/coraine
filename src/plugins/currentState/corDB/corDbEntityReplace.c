@@ -44,7 +44,7 @@ int corDbEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntity
   CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
   bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
 
-  for (CorNode* eP = indexed ? idxHitP : entities->value.firstChildP;
+  for (CorNode* eP = indexed ? idxHitP : entities->value.head;
        eP != NULL;
        eP = indexed ? NULL : eP->next)
   {

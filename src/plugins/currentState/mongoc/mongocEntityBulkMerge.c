@@ -62,7 +62,7 @@ extern mongoc_client_pool_t*  poolP;
 static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.head; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -75,7 +75,7 @@ static int countEntries(CorNode* arrP)
 static CorNode* fragmentAt(CorNode* arrP, int ix)
 {
   int i = 0;
-  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
+  for (CorNode* c = arrP->value.head; c != NULL; c = c->next, i++)
     if (i == ix) return c;
   return NULL;
 }
@@ -108,7 +108,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
   BSON_APPEND_ARRAY_BEGIN(&inDoc, "$in", &idArr);
 
   int ix = 0;
-  for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, ix++)
+  for (CorNode* fragP = fragmentsArr->value.head; fragP != NULL; fragP = fragP->next, ix++)
   {
     CorNode* idP = corTreeLookup(fragP, "id");
     if (idP == NULL || idP->type != CorString) continue;
@@ -137,7 +137,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
     // order server-side.
     CorNode* shared = NULL;
     int k = 0;
-    for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
+    for (CorNode* fragP = fragmentsArr->value.head; fragP != NULL; fragP = fragP->next, k++)
     {
       if (targetsV[k] != NULL) continue;
       CorNode* idP = corTreeLookup(fragP, "id");

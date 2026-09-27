@@ -67,7 +67,7 @@ bool patchEntityMap(void)
   // type, or an unknown name) → 400.
   //
   CorNode* expiresAtP = NULL;
-  for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+  for (CorNode* fP = bodyP->value.head; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL) continue;
     if (fP->name[0] == '@') continue;       // @context and friends

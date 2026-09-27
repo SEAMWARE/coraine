@@ -47,7 +47,7 @@ static TroeOp reasonToOp(const char* reason)
 static bool multiInstance(CorNode* attrP)
 {
   return (attrP != NULL) && (attrP->type == CorObject) &&
-         (attrP->value.firstChildP != NULL) && (attrP->value.firstChildP->next != NULL);
+         (attrP->value.head != NULL) && (attrP->value.head->next != NULL);
 }
 
 
@@ -67,8 +67,8 @@ static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, cons
 
   *wrapperP = *attrP;
   wrapperP->next              = NULL;
-  wrapperP->value.firstChildP = NULL;
-  wrapperP->lastChild         = NULL;
+  wrapperP->value.head = NULL;
+  wrapperP->value.tail        = NULL;
   corTreeChildAdd(wrapperP, corTreeClone(corRest.kallocP, instP));
 
   TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
@@ -97,7 +97,7 @@ static void removedInstances(Tenant* tenantP, const char* entityId, const char* 
   if ((preP == NULL) || (preP->type != CorObject))
     return;
 
-  for (CorNode* instP = preP->value.firstChildP; instP != NULL; instP = instP->next)
+  for (CorNode* instP = preP->value.head; instP != NULL; instP = instP->next)
   {
     if ((instP->name == NULL) || (instP->type != CorObject))
       continue;
@@ -121,7 +121,7 @@ static void instanceEvents(Tenant* tenantP, const char* entityId, const char* en
 {
   if ((postP != NULL) && (postP->type == CorObject))
   {
-    for (CorNode* instP = postP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = postP->value.head; instP != NULL; instP = instP->next)
     {
       if ((instP->name == NULL) || (instP->type != CorObject) || (ldInstanceWritten(preP, postP, instP->name) == false))
         continue;
@@ -152,7 +152,7 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
   if (reportP == NULL || reportP->changes == NULL)
     return;
 
-  for (CorNode* changeP = reportP->changes->value.firstChildP; changeP != NULL; changeP = changeP->next)
+  for (CorNode* changeP = reportP->changes->value.head; changeP != NULL; changeP = changeP->next)
   {
     CorNode* attrP  = corTreeLookup(changeP, "attr");
     CorNode* reasonP = corTreeLookup(changeP, "reason");
@@ -214,7 +214,7 @@ void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char
   if ((oldEntity == NULL) || (oldEntity->type != CorObject))
     return;
 
-  for (CorNode* oldAttrP = oldEntity->value.firstChildP; oldAttrP != NULL; oldAttrP = oldAttrP->next)
+  for (CorNode* oldAttrP = oldEntity->value.head; oldAttrP != NULL; oldAttrP = oldAttrP->next)
   {
     if ((oldAttrP->name == NULL) || (oldAttrP->name[0] == '@') || (oldAttrP->type != CorObject)) continue;
     if (strcmp(oldAttrP->name, "id")         == 0)    continue;

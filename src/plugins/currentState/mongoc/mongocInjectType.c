@@ -33,7 +33,7 @@ void mongocStripTypeDecouple(CorNode* treeP, CorNode** typePOut, CorNode** typeP
     return;
 
   CorNode* prev = NULL;
-  for (CorNode* c = treeP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = treeP->value.head; c != NULL; c = c->next)
   {
     if (c->name != NULL && strcmp(c->name, "type") == 0)
     {
@@ -58,15 +58,15 @@ void mongocStripTypeRestore(CorNode* treeP, CorNode* typeP, CorNode* typePrevP)
 
   if (typePrevP == NULL)
   {
-    typeP->next = treeP->value.firstChildP;
-    treeP->value.firstChildP = typeP;
-    if (treeP->lastChild == NULL) treeP->lastChild = typeP;
+    typeP->next = treeP->value.head;
+    treeP->value.head = typeP;
+    if (treeP->value.tail == NULL) treeP->value.tail = typeP;
   }
   else
   {
     typeP->next = typePrevP->next;
     typePrevP->next = typeP;
-    if (typePrevP == treeP->lastChild) treeP->lastChild = typeP;
+    if (typePrevP == treeP->value.tail) treeP->value.tail = typeP;
   }
 }
 
@@ -88,7 +88,7 @@ void mongocInjectTypeAfterId(CorNode* objP, const char* typeValue)
   {
     typeNode->next = idP->next;
     idP->next      = typeNode;
-    if (objP->lastChild == idP) objP->lastChild = typeNode;
+    if (objP->value.tail == idP) objP->value.tail = typeNode;
   }
   else
   {

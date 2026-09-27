@@ -153,7 +153,7 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
     return;
 
   // First child = first dataset instance.
-  CorNode* instP = attrSnapshot->value.firstChildP;
+  CorNode* instP = attrSnapshot->value.head;
   if (instP == NULL || instP->type != CorObject)
     return;
 
@@ -182,7 +182,7 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
   // sub-attribute branch), so the list stays whole. nextP is still captured up
   // front - it costs nothing and it is what keeps this loop correct if anyone
   // ever adds a step that does touch the list.
-  CorNode* fP = instP->value.firstChildP;
+  CorNode* fP = instP->value.head;
   while (fP != NULL)
   {
     CorNode* nextP = fP->next;
@@ -282,7 +282,7 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
   }
 
   // sub_attrs only emitted if non-empty.
-  if (subAttrs->value.firstChildP != NULL)
+  if (subAttrs->value.head != NULL)
     cP->sub_attrs = renderJsonb(subAttrs, &corRest.kalloc);
 }
 
@@ -344,7 +344,7 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
   {
     bool first = true;
 
-    for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
     {
       if ((tP->type != CorString) || (tP->value.s == NULL))
         continue;
@@ -428,15 +428,15 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   // - and a row is ONE instance. A wrapper with several instances (a create or
   // replace of a multi-instance Attribute, a deleteAll) is a row per instance:
   // each goes through here again, in a one-instance wrapper of its own. The
-  // wrapper is a copy on the stack, so no list is touched - only firstChildP
+  // wrapper is a copy on the stack, so no list is touched - only the head
   // is ever read from it.
   //
   CorNode* wrapperP = (CorNode*) evP->attrSnapshot;
 
   if ((evP->datasetId == NULL) && (wrapperP != NULL) && (wrapperP->type == CorObject) &&
-      (wrapperP->value.firstChildP != NULL) && (wrapperP->value.firstChildP->next != NULL))
+      (wrapperP->value.head != NULL) && (wrapperP->value.head->next != NULL))
   {
-    for (CorNode* instP = wrapperP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = wrapperP->value.head; instP != NULL; instP = instP->next)
     {
       if (instP->type != CorObject)
         continue;
@@ -444,8 +444,8 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
       CorNode    one   = *wrapperP;
       TroeEvent  oneEv = *evP;
 
-      one.value.firstChildP = instP;
-      one.lastChild         = instP;
+      one.value.head        = instP;
+      one.value.tail        = instP;
       oneEv.attrSnapshot    = &one;
       oneEv.datasetId       = ((instP->name != NULL) && (strcmp(instP->name, "@none") != 0)) ? instP->name : "";
 
@@ -469,7 +469,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
     // 0 and renders as Property, which is what § 5.3.2.5 mandates for scope.)
     memset(&cols, 0, sizeof(cols));
     CorNode* wrapP = (CorNode*) evP->attrSnapshot;
-    CorNode* instP = (wrapP != NULL && wrapP->type == CorObject) ? wrapP->value.firstChildP : NULL;
+    CorNode* instP = (wrapP != NULL && wrapP->type == CorObject) ? wrapP->value.head : NULL;
 
     // The kind of the instance the event names, when it names one
     if ((evP->datasetId != NULL) && (wrapP != NULL) && (wrapP->type == CorObject))
@@ -564,7 +564,7 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
 
   TroeOp attrOp = TroeOpAttrCreated;
 
-  for (CorNode* attrP = evP->entitySnapshot->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = evP->entitySnapshot->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)                       continue;
     if (attrP->name[0] == '@')                     continue;

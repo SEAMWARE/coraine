@@ -138,7 +138,7 @@ static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
 static CorNode* entityAtIndex(CorNode* eligibleP, int idx)
 {
   int i = 0;
-  for (CorNode* e = eligibleP->value.firstChildP; e != NULL; e = e->next, i++)
+  for (CorNode* e = eligibleP->value.head; e != NULL; e = e->next, i++)
     if (i == idx) return e;
   return NULL;
 }
@@ -190,7 +190,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   //
   CorLdContext* fwdCtx = ldDistOpForwardContext(csr);
 
-  for (CorNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
+  for (CorNode* fragP = batchArr->value.head; fragP != NULL; fragP = fragP->next)
   {
     corLdCompactTreeWith(fragP, fwdCtx);
 
@@ -246,7 +246,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteSuccess != NULL && remoteSuccess->type == CorArray)
   {
-    for (CorNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
+    for (CorNode* sP = remoteSuccess->value.head; sP != NULL; sP = sP->next)
     {
       if (sP->type != CorString) continue;
       for (int i = 0; i < N; i++)
@@ -256,7 +256,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteErrors != NULL && remoteErrors->type == CorArray)
   {
-    for (CorNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = remoteErrors->value.head; eP != NULL; eP = eP->next)
     {
       CorNode* idP    = corTreeLookup(eP, "entityId");
       CorNode* errP   = corTreeLookup(eP, "error");
@@ -314,7 +314,7 @@ static void dispatchOneMode(Tenant*       tenantP,
   int    gCap   = 0;
 
   int idx = 0;
-  for (CorNode* ent = eligibleP->value.firstChildP; ent != NULL; ent = ent->next, idx++)
+  for (CorNode* ent = eligibleP->value.head; ent != NULL; ent = ent->next, idx++)
   {
     CorNode* idP = corTreeLookup(ent, "id");
     if (idP == NULL || idP->type != CorString) continue;
@@ -522,7 +522,7 @@ static void dispatchOneMode(Tenant*       tenantP,
 static bool hasNonKeywordAttr(CorNode* entityP)
 {
   if (entityP == NULL || entityP->type != CorObject) return false;
-  for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)                     continue;
     if (c->name[0] == '@')                   continue;
@@ -551,7 +551,7 @@ bool postEntityBatchCreate(void)
   }
 
   int total = 0;
-  for (CorNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = bodyP->value.head; c != NULL; c = c->next)
   {
     if (c->type == CorNull)
     {
@@ -566,7 +566,7 @@ bool postEntityBatchCreate(void)
   // not "empty body" — it carries entries to surface. Empty-array 400 only
   // applies when nothing arrived AND nothing was pre-rejected.
   bool hasPreErrors = (corNgsild.batchPreErrors != NULL &&
-                       corNgsild.batchPreErrors->value.firstChildP != NULL);
+                       corNgsild.batchPreErrors->value.head != NULL);
   if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
@@ -581,8 +581,8 @@ bool postEntityBatchCreate(void)
   // @context) onto errorsP. errorsP is freshly empty here, so this is O(1).
   if (hasPreErrors)
   {
-    errorsP->value.firstChildP = corNgsild.batchPreErrors->value.firstChildP;
-    errorsP->lastChild         = corNgsild.batchPreErrors->lastChild;
+    errorsP->value.head = corNgsild.batchPreErrors->value.head;
+    errorsP->value.tail        = corNgsild.batchPreErrors->value.tail;
     corNgsild.batchPreErrors    = NULL;
   }
 
@@ -596,7 +596,7 @@ bool postEntityBatchCreate(void)
 
   CorNode* seen = corTreeObject(corRest.kallocP, NULL);
 
-  CorNode* inP = bodyP->value.firstChildP;
+  CorNode* inP = bodyP->value.head;
   while (inP != NULL)
   {
     CorNode* nextP = inP->next;
@@ -747,7 +747,7 @@ bool postEntityBatchCreate(void)
 
     // Post-redirect detach sweep: strip redirect-claimed attrs
     // from every entity in eligibleP.
-    for (CorNode* ent = eligibleP->value.firstChildP; ent != NULL; ent = ent->next)
+    for (CorNode* ent = eligibleP->value.head; ent != NULL; ent = ent->next)
     {
       CorNode* idP = corTreeLookup(ent, "id");
       if (idP == NULL || idP->type != CorString) continue;
@@ -800,7 +800,7 @@ bool postEntityBatchCreate(void)
     // stays local-eligible so its shell is stored.
     //
     int i = 0;
-    for (CorNode* ent = eligibleP->value.firstChildP; ent != NULL; ent = ent->next, i++)
+    for (CorNode* ent = eligibleP->value.head; ent != NULL; ent = ent->next, i++)
     {
       bool distopsAteAll = hadAttrsV[i] && !hasNonKeywordAttr(ent);
       if (!distopsAteAll)
@@ -811,7 +811,7 @@ bool postEntityBatchCreate(void)
     // vector to avoid mutating eligibleP mid-iteration.
     int cursor = 0;
     int pos    = 0;
-    CorNode* ent = eligibleP->value.firstChildP;
+    CorNode* ent = eligibleP->value.head;
     while (ent != NULL)
     {
       CorNode* nextEnt = ent->next;
@@ -851,7 +851,7 @@ bool postEntityBatchCreate(void)
       doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN);
       memset(doneV, 0, sizeof(BridgeSyncDone*) * localN);
 
-      CorNode* ddsEntP = localArr->value.firstChildP;
+      CorNode* ddsEntP = localArr->value.head;
 
       for (int k = 0; k < localN; k++, ddsEntP = (ddsEntP != NULL) ? ddsEntP->next : NULL)
       {
@@ -874,7 +874,7 @@ bool postEntityBatchCreate(void)
       //
       int64_t dueMs = bridgeRequestsDeadline();
 
-      ddsEntP = localArr->value.firstChildP;
+      ddsEntP = localArr->value.head;
 
       for (int k = 0; k < localN; k++, ddsEntP = (ddsEntP != NULL) ? ddsEntP->next : NULL)
       {
@@ -908,7 +908,7 @@ bool postEntityBatchCreate(void)
 
     LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
 
-    CorNode* entP = localArr->value.firstChildP;
+    CorNode* entP = localArr->value.head;
     for (int k = 0; k < localN; k++, entP = (entP != NULL) ? entP->next : NULL)
     {
       int origIdx = localIdxV[k];
@@ -967,10 +967,10 @@ bool postEntityBatchCreate(void)
   }
 
   int successCount = 0;
-  for (CorNode* p = successP->value.firstChildP; p != NULL; p = p->next) successCount++;
+  for (CorNode* p = successP->value.head; p != NULL; p = p->next) successCount++;
 
   int errorCount = 0;
-  for (CorNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
+  for (CorNode* p = errorsP->value.head; p != NULL; p = p->next) errorCount++;
 
   // § 6.14.3.1 — Batch Entity Creation response shape:
   //   201 Created: body is String[] (URIs of successfully-created entities).

@@ -557,7 +557,7 @@ static void tenantSubCacheLoad(Tenant* tP)
   int pernotCount = 0;
   int csrCount    = 0;
 
-  for (CorNode* subP = arrayP->value.firstChildP; subP != NULL; subP = subP->next)
+  for (CorNode* subP = arrayP->value.head; subP != NULL; subP = subP->next)
   {
     switch (tenantSubCacheItemStore(tP, subP, false))
     {
@@ -606,7 +606,7 @@ static void tenantRegCacheLoad(Tenant* tP)
     return;
 
   int count = 0;
-  for (CorNode* regP = arrayP->value.firstChildP; regP != NULL; regP = regP->next)
+  for (CorNode* regP = arrayP->value.head; regP != NULL; regP = regP->next)
   {
     // corRest.kalloc is the startup buffer here (coraine main reset it right
     // after the cache reloads) — fine as the transient arena for resolving a
@@ -749,7 +749,7 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
   int  count   = 0;
   int  maxSeq  = -1;
 
-  for (CorNode* snapP = arrayP->value.firstChildP; snapP != NULL; snapP = snapP->next)
+  for (CorNode* snapP = arrayP->value.head; snapP != NULL; snapP = snapP->next)
   {
     CorNode* seqP = corTreeLookup(snapP, "_snapSeq");
     if (seqP == NULL || (seqP->type != CorInt && seqP->type != CorFloat))

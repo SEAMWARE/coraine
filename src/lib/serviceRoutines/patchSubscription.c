@@ -76,7 +76,7 @@ bool patchSubscription(void)
     bool hasUpdatable = false;
     bool sawType      = false;
     bool sawId        = false;
-    for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                 continue;
       if (strcmp(c->name, "type") == 0)  { sawType = true; continue; }

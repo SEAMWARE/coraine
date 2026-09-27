@@ -72,7 +72,7 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return false;
 
-  for (CorNode* curP = entityP->value.firstChildP; curP != NULL; curP = curP->next)
+  for (CorNode* curP = entityP->value.head; curP != NULL; curP = curP->next)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
@@ -131,7 +131,7 @@ static CorNode* wrapApiGeoPropAsStorage(CorNode* entityP, const char* apiPropNam
   CorNode* wrapInst = corTreeObject(corRest.kallocP, "@none");
 
   // Borrow children of the API attr (type / value) into @none wrapper
-  for (CorNode* c = attrP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = attrP->value.head; c != NULL; c = c->next)
   {
     CorNode* linked = corTreeClone(corRest.kallocP, c);
     corTreeChildAdd(wrapInst, linked);
@@ -262,7 +262,7 @@ static const char* fragmentAttrList(CorNode* fragP)
     return buf;
   }
 
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)                       continue;
     if (c->name[0] == '@')                     continue;
@@ -410,13 +410,13 @@ bool postEntities(void)
       else if (typeP->type == CorArray)
       {
         int n = 0;
-        for (CorNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+        for (CorNode* t = typeP->value.head; t != NULL; t = t->next)
           if (t->type == CorString) n++;
         if (n > 0)
         {
           typeArr = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
-          for (CorNode* t = typeP->value.firstChildP; t != NULL; t = t->next)
+          for (CorNode* t = typeP->value.head; t != NULL; t = t->next)
             if (t->type == CorString)
               typeArr[ix++] = t->value.s;
           typeArr[ix] = NULL;
@@ -442,13 +442,13 @@ bool postEntities(void)
       else if (scopeP->type == CorArray)
       {
         int n = 0;
-        for (CorNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
+        for (CorNode* s = scopeP->value.head; s != NULL; s = s->next)
           if (s->type == CorString) n++;
         if (n > 0)
         {
           entityScopeV = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
           int ix = 0;
-          for (CorNode* s = scopeP->value.firstChildP; s != NULL; s = s->next)
+          for (CorNode* s = scopeP->value.head; s != NULL; s = s->next)
             if (s->type == CorString)
               entityScopeV[ix++] = s->value.s;
           entityScopeV[ix] = NULL;

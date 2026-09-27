@@ -65,7 +65,7 @@ int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragme
   bool hasSet   = false;
   bool hasUnset = false;
 
-  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
+  for (CorNode* fieldP = fragmentP->value.head; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL)
       continue;

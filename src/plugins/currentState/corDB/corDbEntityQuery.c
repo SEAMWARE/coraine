@@ -150,7 +150,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
 
   if (needed == 0)
   {
-    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next) total++;
+    for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next) total++;
   }
   else
     total = needed;
@@ -173,7 +173,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
     distFilterP            = &distFilter;
   }
 
-  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
   {
     CorNode* entityIdP = corTreeLookup(eP, "id");
     const char* entityId = (entityIdP != NULL && entityIdP->type == CorString) ? entityIdP->value.s : NULL;
@@ -227,7 +227,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
         found = matchStringV(typeP->value.s, filterP->typeV);
       else if (typeP->type == CorArray)
       {
-        for (CorNode* elemP = typeP->value.firstChildP; elemP != NULL && !found; elemP = elemP->next)
+        for (CorNode* elemP = typeP->value.head; elemP != NULL && !found; elemP = elemP->next)
         {
           if (elemP->type == CorString)
             found = matchStringV(elemP->value.s, filterP->typeV);

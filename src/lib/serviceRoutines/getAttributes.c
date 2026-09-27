@@ -88,7 +88,7 @@ bool getAttributes(void)
     corTreeChildAdd(body, corTreeString(corRest.kallocP, "type", "AttributeList"));
 
     CorNode* attrList = corTreeArray(corRest.kallocP, "attributeList");
-    for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+    for (CorNode* entry = aggregated->value.head; entry != NULL; entry = entry->next)
     {
       CorNode* iriP = corTreeLookup(entry, "attrIri");
       if (iriP == NULL || iriP->type != CorString) continue;
@@ -106,7 +106,7 @@ bool getAttributes(void)
   //
   CorNode* body = corTreeArray(corRest.kallocP, NULL);
 
-  for (CorNode* entry = aggregated->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = aggregated->value.head; entry != NULL; entry = entry->next)
   {
     CorNode* iriP = corTreeLookup(entry, "attrIri");
     if (iriP == NULL || iriP->type != CorString) continue;
@@ -120,7 +120,7 @@ bool getAttributes(void)
     CorNode* tnSrc = corTreeLookup(entry, "typeNames");
     if (tnSrc != NULL && tnSrc->type == CorArray)
     {
-      for (CorNode* t = tnSrc->value.firstChildP; t != NULL; t = t->next)
+      for (CorNode* t = tnSrc->value.head; t != NULL; t = t->next)
         if (t->type == CorString)
           corTreeChildAdd(tn, corTreeString(corRest.kallocP, NULL, shortOrSelf(ctxP, t->value.s)));
     }

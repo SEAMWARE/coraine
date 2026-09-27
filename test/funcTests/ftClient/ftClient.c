@@ -520,7 +520,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
   CorNode* topicsP  = (ngsildP != NULL) ? corTreeLookup(ngsildP, "topics") : NULL;
   CorNode* servicesP = (ngsildP != NULL) ? corTreeLookup(ngsildP, "services") : NULL;
 
-  for (CorNode* entryP = (topicsP != NULL) ? topicsP->value.firstChildP : NULL; entryP != NULL; entryP = entryP->next)
+  for (CorNode* entryP = (topicsP != NULL) ? topicsP->value.head : NULL; entryP != NULL; entryP = entryP->next)
   {
     //
     // BOTH directions: ftClient stands in for whatever is at the far end, and
@@ -545,7 +545,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     KT_W("ftClient: bridge '%s' has services configured but cannot serve them", driverP->alias);
   else if (servicesP != NULL)
   {
-    for (CorNode* entryP = servicesP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+    for (CorNode* entryP = servicesP->value.head; entryP != NULL; entryP = entryP->next)
     {
       if (serverP->serviceServe(entryP->name, ftBridgeServiceRequest) != BRIDGE_OK)
         KT_W("ftClient: bridge '%s' would not serve '%s'", driverP->alias, entryP->name);

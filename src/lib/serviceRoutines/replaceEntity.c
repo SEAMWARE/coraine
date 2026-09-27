@@ -75,13 +75,13 @@ static bool typeEqual(CorNode* a, CorNode* b)
   if ((a->type != CorArray) || (b->type != CorArray))
     return false;
 
-  for (CorNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
+  for (CorNode* aI = a->value.head; aI != NULL; aI = aI->next)
   {
     if (aI->type != CorString)
       return false;
 
     bool found = false;
-    for (CorNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
+    for (CorNode* bI = b->value.head; bI != NULL; bI = bI->next)
     {
       if ((bI->type == CorString) && (strcmp(aI->value.s, bI->value.s) == 0))
       {
@@ -93,13 +93,13 @@ static bool typeEqual(CorNode* a, CorNode* b)
       return false;
   }
 
-  for (CorNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
+  for (CorNode* bI = b->value.head; bI != NULL; bI = bI->next)
   {
     if (bI->type != CorString)
       return false;
 
     bool found = false;
-    for (CorNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
+    for (CorNode* aI = a->value.head; aI != NULL; aI = aI->next)
     {
       if ((aI->type == CorString) && (strcmp(bI->value.s, aI->value.s) == 0))
       {
@@ -498,7 +498,7 @@ bool replaceEntity(void)
         tevP->entitySnapshot = entityP;
         troeDeferEntityEvent(tevP);
 
-        for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+        for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
         {
           if (attrP->name == NULL)                       continue;
           if (attrP->name[0] == '@')                     continue;
@@ -542,7 +542,7 @@ bool replaceEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
