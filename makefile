@@ -144,7 +144,7 @@ libs-rebuild:
 # src/app/coraine/coraineStack.h - the resolved commit of every library linked in.
 #
 # GENERATED, never committed. The broker is largely library code, the cor* repos
-# track main and the k-libs are pinned to release BRANCHES, so coraine's own sha
+# track main, so coraine's own sha
 # answers only part of "what is this build". stackManifest.sh resolves the rest;
 # this turns it into something getVersion can render.
 #
@@ -364,7 +364,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 # The root moves up to the sibling dir so the libs can be in the report at all,
 # and the -f filters then say what "the broker" consists of: this repo's src plus
 # the three libs archived into it. Everything else next door - corTest, corPlugin,
-# the k-libs, other checkouts - stays out.
+# other checkouts - stays out.
 #
 # ⚠️ This makes the percentage NOT comparable with anything recorded before
 # 2026-09-01: the denominator roughly doubles. A drop against the old numbers is
@@ -452,9 +452,8 @@ cdi:        clean debug install_debug
 #
 # docker - build the image from the working tree, tagged coraine:local
 #
-# TWO steps, and the second fails without the first: the Dockerfile clones the
-# k-libs itself (at the refs corLibs/klib-pins names) but does NOT clone the
-# Cor-Libs - vendor-libs.sh exports each one's committed HEAD into
+# TWO steps, and the second fails without the first: the Dockerfile does NOT
+# clone the Cor-Libs - vendor-libs.sh exports each one's committed HEAD into
 # docker/vendor/, and the build aborts with "run ./docker/vendor-libs.sh first"
 # if that directory is not there. Easy to forget, and the reason this target
 # exists rather than a documented command.

@@ -37,7 +37,7 @@
 #include "corAlloc/corAlloc.h"
 #include "corAlloc/corAlloc.h"
 #include "corLog/corLog.h"
-#include "kbase/kFileRead.h"                       // kFileRead
+#include "corBase/corFileRead.h"                   // corFileRead
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "corAlloc/corAllocBufferInit.h"          // corAllocBufferInit
 #include "corAlloc/corAllocBufferReset.h"         // corAllocBufferReset
@@ -492,7 +492,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
   if ((driverP->channelAdd == NULL) || (configFile == NULL))
     return;
 
-  if (kFileRead((char*) "", (char*) configFile, &buf, &bufLen) != 0)
+  if (corFileRead((char*) "", (char*) configFile, &buf, &bufLen) != 0)
     return;
 
   //

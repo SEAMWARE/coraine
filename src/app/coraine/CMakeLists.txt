@@ -14,7 +14,7 @@ ENDIF()
 # The broker's own component libs are whole-archived: many of their symbols are
 # referenced only via the dispatch table, constructor-registered hooks, or by
 # dlopen'd plugins resolving against the (rdynamic) broker — a plain static link
-# would strip those. The cor/k libs are whole-archived for the same reason.
+# would strip those. The Cor-Libs are whole-archived for the same reason.
 #
 # And it stays whole-archive rather than becoming a --gc-sections + --dynamic-list
 # export list, which would be the precise tool. The set of symbols to export is

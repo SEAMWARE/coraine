@@ -56,8 +56,7 @@ jobs:
           path: stack/corLibs
 
       #
-      # docker/Dockerfile builds the k-libs from source (they are public) but cannot
-      # reach the Cor-Libs, which are private - so docker/vendor-libs.sh exports each
+      # docker/Dockerfile does not clone the Cor-Libs - docker/vendor-libs.sh exports each
       # one's committed HEAD from a local clone into the build context. That needs
       # the clones to exist, which is what bootstrap.sh is for. Same path the nightly
       # takes, for the same reason.

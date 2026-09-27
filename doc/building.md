@@ -32,14 +32,14 @@ coraine/
 
 ## What it links against
 
-coraine links a constellation of sibling repos (k-libs + Cor-Libs) plus several
+coraine links a constellation of sibling repos (the Cor-Libs) plus several
 system libraries. The repos must sit as **siblings** under one parent (default
 `~/git`), because the build references `../<lib>/lib<lib>.a`.
 
 ## Fastest path — bootstrap script
 
 If you're starting from scratch, clone the `corLibs` umbrella and run its
-`bootstrap.sh`: it clones every dependency as a sibling at its pinned version and
+`bootstrap.sh`: it clones every dependency as a sibling and
 builds the whole lib stack. It works wherever you put it - the layout is derived
 from the umbrella's own location, not from a fixed path.
 
@@ -57,12 +57,11 @@ make di            # debug build + install (binary + plugins → /opt/seamware, 
 
 ## Dependency stack
 
-- **k-libs** (gitlab.com/kzangeli): `kbase`
-- **Cor-Libs** (github.com/SEAMWARE): `corLog corAlloc corArgs corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
+- **Cor-Libs** (github.com/SEAMWARE): `corBase corLog corAlloc corArgs corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
 - **umbrella / test runner**: `corLibs`, `corTest`
 
 `make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
-the k-libs and `corPlugin` must already be built (the umbrella or bootstrap handles
+the other libs must already be built (the umbrella or bootstrap handles
 that).
 
 ## System packages (Debian/Ubuntu)
