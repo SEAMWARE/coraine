@@ -42,7 +42,7 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
 
-#include "ktrace/kTrace.h"                           // KT_W
+#include "corLog/corLog.h"                           // COR_W
 #include "corBridge/BridgeBroker.h"                  // BRIDGE_OK, BRIDGE_UNSUPPORTED
 #include "bridge/bridgeGoal.h"                        // bridgeGoalCancel
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrDeleted

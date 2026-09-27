@@ -20,7 +20,7 @@
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/corTreeClone.h"                     // corTreeClone
-#include "ktrace/kTrace.h"                            // KT_T, KT_W
+#include "corLog/corLog.h"                            // COR_T, COR_W
 
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/CorNgsild.h"                      // corNgsild, ldDefaultContext
@@ -235,7 +235,7 @@ static CorNode* attributeFromSample(const char* attrName,
       if (requestPayloadP != NULL)
         corTreeChildAdd(attrP, subAttrFrom(requestP->name, requestPayloadP, requestP->time, requestP->meta));
       else
-        KT_W("bridge: the request beside a '%s' reply is not valid JSON - left out", subAttrName);
+        COR_W("bridge: the request beside a '%s' reply is not valid JSON - left out", subAttrName);
     }
   }
 
@@ -276,7 +276,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
 
   if ((metaP == NULL) || (metaP->type != CorObject))
   {
-    KT_W("bridge: a payload's meta is not a JSON object - ignored");
+    COR_W("bridge: a payload's meta is not a JSON object - ignored");
     return;
   }
 
@@ -288,7 +288,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
     char*   name  = nodeP->name;
 
     if (corTreeLookup(targetP, name) != NULL)
-      KT_W("bridge: meta member '%s' would replace what is already there - skipped", name);
+      COR_W("bridge: meta member '%s' would replace what is already there - skipped", name);
     else
     {
       CorNode* propP = corTreeObject(corRest.kallocP, name);
@@ -396,7 +396,7 @@ static char* catchAllAttrName(const char* bridgeName, const char* endpoint)
 
   if ((coreP == NULL) || (coreP->vocab == NULL))
   {
-    KT_W("bridge '%s': no @vocab to name '%s' under - ignored", bridgeName, endpoint);
+    COR_W("bridge '%s': no @vocab to name '%s' under - ignored", bridgeName, endpoint);
     return NULL;
   }
 
@@ -474,14 +474,14 @@ static int sampleIn(const char* bridgeName,
     {
       if (channelP->direction == BridgeDirectionOut)
       {
-        KT_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
+        COR_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
         return BRIDGE_NOT_FOUND;
       }
     }
     else if ((subAttrName == NULL) && (goal == false))
     {
-      KT_T(KtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
-           endpoint, corBridgeKindName(channelP->kind));
+      COR_T(KtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
+            endpoint, corBridgeKindName(channelP->kind));
       return BRIDGE_NOT_FOUND;
     }
 
@@ -506,7 +506,7 @@ static int sampleIn(const char* bridgeName,
     catchAll = true;
   else
   {
-    KT_T(KtBridge, "sample on '%s' from bridge '%s' - no channel claims it", endpoint, bridgeName);
+    COR_T(KtBridge, "sample on '%s' from bridge '%s' - no channel claims it", endpoint, bridgeName);
     return BRIDGE_NOT_FOUND;
   }
 
@@ -565,8 +565,8 @@ static int sampleIn(const char* bridgeName,
 
     if (clashP != NULL)
     {
-      KT_T(KtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
-           endpoint, entityId, attrName, clashP->endpoint);
+      COR_T(KtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
+            endpoint, entityId, attrName, clashP->endpoint);
       return BRIDGE_NOT_FOUND;
     }
   }
@@ -606,9 +606,9 @@ static int sampleIn(const char* bridgeName,
       // point: the alternative is an attribute that appears out of nowhere with
       // a reply in it and no record of what was asked.
       //
-      KT_W("bridge '%s': '%s' answered on '%s', but %s/%s%s%s no longer holds anything to answer - dropped",
-           bridgeName, subAttrName, endpoint, entityId, attrName,
-           (datasetId != NULL) ? " dataset " : "", (datasetId != NULL) ? datasetId : "");
+      COR_W("bridge '%s': '%s' answered on '%s', but %s/%s%s%s no longer holds anything to answer - dropped",
+            bridgeName, subAttrName, endpoint, entityId, attrName,
+            (datasetId != NULL) ? " dataset " : "", (datasetId != NULL) ? datasetId : "");
       return BRIDGE_NOT_FOUND;
     }
   }
@@ -617,7 +617,7 @@ static int sampleIn(const char* bridgeName,
 
   if (attrP == NULL)
   {
-    KT_W("bridge '%s': the sample on '%s' is not valid JSON - dropped", bridgeName, endpoint);
+    COR_W("bridge '%s': the sample on '%s' is not valid JSON - dropped", bridgeName, endpoint);
     return BRIDGE_BAD_INPUT;
   }
 
@@ -647,7 +647,7 @@ static int sampleIn(const char* bridgeName,
       ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
 
       if ((db.entityCreate == NULL) || (db.entityCreate(tenantP, entityId, entityP) != DB_OK))
-        KT_W("bridge '%s': could not create the catch-all entity '%s'", bridgeName, entityId);
+        COR_W("bridge '%s': could not create the catch-all entity '%s'", bridgeName, entityId);
     }
 
     //
@@ -703,8 +703,8 @@ static int sampleIn(const char* bridgeName,
     // deployment whose entity was deleted while it was running, not an ordinary
     // first sample.
     //
-    KT_W("bridge '%s': could not store the sample from '%s' into %s (%d)",
-         bridgeName, endpoint, entityId, r);
+    COR_W("bridge '%s': could not store the sample from '%s' into %s (%d)",
+          bridgeName, endpoint, entityId, r);
     return BRIDGE_ERR;
   }
 
@@ -784,9 +784,9 @@ static int sampleIn(const char* bridgeName,
   corNgsildFallbackRelease();
 
   if (subAttrName == NULL)
-    KT_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
+    COR_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
   else
-    KT_T(KtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
+    COR_T(KtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
 
   return BRIDGE_OK;
 }
@@ -1034,7 +1034,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 
   if (db.entityReplace(tenantP, entityId, entityP, &oldEntityP) != DB_OK)
   {
-    KT_W("bridge '%s': the instance %s of %s/%s could not be removed", bridgeName, goalAlias, entityId, attrName);
+    COR_W("bridge '%s': the instance %s of %s/%s could not be removed", bridgeName, goalAlias, entityId, attrName);
     return BRIDGE_ERR;
   }
 
@@ -1089,7 +1089,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   ldSubEntityTypeExprsRelease();
   corNgsildFallbackRelease();                         // this thread's queues - see sampleIn()
 
-  KT_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
+  COR_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
 
   return BRIDGE_OK;
 }
@@ -1129,7 +1129,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   if (channelLookup(bridgeName, endpoint) != NULL)
   {
-    KT_T(KtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
+    COR_T(KtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
     return BRIDGE_OK;
   }
 
@@ -1139,7 +1139,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   if (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == false)
   {
-    KT_T(KtBridge, "bridge '%s': '%s' discovered - no catch-all to carry it on, left alone", bridgeName, endpoint);
+    COR_T(KtBridge, "bridge '%s': '%s' discovered - no catch-all to carry it on, left alone", bridgeName, endpoint);
     return BRIDGE_NOT_FOUND;
   }
 
@@ -1167,14 +1167,14 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   if (r == CHANNEL_DUP_TARGET)
   {
-    KT_W("bridge '%s': '%s' discovered, but '%s' already writes %s/%s - not carried",
-         bridgeName, endpoint, (clashP != NULL) ? clashP->endpoint : "?", entityId, attrName);
+    COR_W("bridge '%s': '%s' discovered, but '%s' already writes %s/%s - not carried",
+          bridgeName, endpoint, (clashP != NULL) ? clashP->endpoint : "?", entityId, attrName);
     return BRIDGE_NOT_FOUND;
   }
 
   if (r != CHANNEL_OK)
   {
-    KT_W("bridge '%s': '%s' discovered, but no Channel could be made for it (%d)", bridgeName, endpoint, r);
+    COR_W("bridge '%s': '%s' discovered, but no Channel could be made for it (%d)", bridgeName, endpoint, r);
     return BRIDGE_ERR;
   }
 
@@ -1195,14 +1195,14 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
       r = bridges[ix].channelAdd(endpoint, (BridgeChannelKind) kind, BridgeDirectionOut);
 
       if (r != BRIDGE_OK)
-        KT_W("bridge '%s' would not carry the discovered '%s' (%d)", bridgeName, endpoint, r);
+        COR_W("bridge '%s' would not carry the discovered '%s' (%d)", bridgeName, endpoint, r);
     }
 
     break;
   }
 
-  KT_I("bridge '%s': %s '%s' discovered - carried on %s, attribute '%s'",
-       bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, shortName);
+  COR_I("bridge '%s': %s '%s' discovered - carried on %s, attribute '%s'",
+        bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, shortName);
 
   return BRIDGE_OK;
 }

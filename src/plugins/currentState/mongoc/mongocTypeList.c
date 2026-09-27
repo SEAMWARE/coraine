@@ -18,7 +18,7 @@
 #include <mongoc/mongoc.h>                              // mongoc_collection_*
 #include <string.h>                                     // strcmp
 
-#include "ktrace/kTrace.h"                              // KT_E
+#include "corLog/corLog.h"                              // COR_E
 #include "corTree/CorNode.h"                            // CorNode
 #include "corTree/corTreeBuilder.h"                     // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                      // corTreeLookup
@@ -176,7 +176,7 @@ int mongocTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
   int          rr = DB_OK;
   if (mongoc_cursor_error(cursorP, &error))
   {
-    KT_E("mongoc: typeList cursor failed: %s", error.message);
+    COR_E("mongoc: typeList cursor failed: %s", error.message);
     rr = DB_ERR;
   }
 

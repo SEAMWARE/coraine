@@ -57,8 +57,8 @@ make di            # debug build + install (binary + plugins → /opt/seamware, 
 
 ## Dependency stack
 
-- **k-libs** (gitlab.com/kzangeli): `kbase kalloc khash kargs ktrace`
-- **Cor-Libs** (github.com/SEAMWARE): `corTree corJson corProm corRest corNgsild corJsonld corPlugin`
+- **k-libs** (gitlab.com/kzangeli): `kbase kalloc kargs`
+- **Cor-Libs** (github.com/SEAMWARE): `corLog corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
 - **umbrella / test runner**: `corLibs`, `corTest`
 
 `make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);

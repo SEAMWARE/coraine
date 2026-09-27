@@ -11,7 +11,7 @@
 #include <string.h>                                      // strcmp, strncpy, snprintf
 #include <pthread.h>                                     // pthread_mutex_t
 
-#include "ktrace/kTrace.h"                               // KT_I
+#include "corLog/corLog.h"                               // COR_I
 #include "corRest/CorRestState.h"                          // corRest
 #include "corNgsild/CorNgsild.h"                           // corNgsild
 #include "corNgsild/ldExpandParams.h"                     // ldExpandParams
@@ -198,7 +198,7 @@ Tenant* tenantGetOrCreate(const char* name)
   tP->next   = tenantList;
   tenantList = tP;
 
-  KT_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
+  COR_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
 
   pthread_mutex_unlock(&tenantMutex);
 
@@ -568,8 +568,8 @@ static void tenantSubCacheLoad(Tenant* tP)
   }
 
   if (normalCount + pernotCount + csrCount > 0)
-    KT_I("tenant '%s': loaded %d subscription(s) + %d pernot + %d csr-sub into cache",
-         tP->name[0] ? tP->name : "(default)", normalCount, pernotCount, csrCount);
+    COR_I("tenant '%s': loaded %d subscription(s) + %d pernot + %d csr-sub into cache",
+          tP->name[0] ? tP->name : "(default)", normalCount, pernotCount, csrCount);
 }
 
 
@@ -616,7 +616,7 @@ static void tenantRegCacheLoad(Tenant* tP)
   }
 
   if (count > 0)
-    KT_I("tenant '%s': loaded %d registration(s) into cache", tP->name[0] ? tP->name : "(default)", count);
+    COR_I("tenant '%s': loaded %d registration(s) into cache", tP->name[0] ? tP->name : "(default)", count);
 }
 
 
@@ -754,7 +754,7 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
     CorNode* seqP = corTreeLookup(snapP, "_snapSeq");
     if (seqP == NULL || (seqP->type != CorInt && seqP->type != CorFloat))
     {
-      KT_E("tenant '%s': persisted snapshot missing _snapSeq — skipped", tP->name[0] ? tP->name : "(default)");
+      COR_E("tenant '%s': persisted snapshot missing _snapSeq — skipped", tP->name[0] ? tP->name : "(default)");
       continue;
     }
     int snapSeq = (seqP->type == CorInt) ? (int) seqP->value.i : (int) seqP->value.f;
@@ -771,7 +771,7 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
 
     if (itemP == NULL)
     {
-      KT_E("tenant '%s': failed to add persisted snapshot to cache", tP->name[0] ? tP->name : "(default)");
+      COR_E("tenant '%s': failed to add persisted snapshot to cache", tP->name[0] ? tP->name : "(default)");
       continue;
     }
 
@@ -779,8 +779,8 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
     itemP->snapTenantP = snapshotTenantCreate(tP, snapSeq);
     if (itemP->snapTenantP == NULL)
     {
-      KT_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
-           tP->name[0] ? tP->name : "(default)", itemP->id);
+      COR_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
+            tP->name[0] ? tP->name : "(default)", itemP->id);
       ldSnapshotCacheItemDelete(cacheP, itemP->id);
       continue;
     }
@@ -794,8 +794,8 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
     cacheP->nextSnapSeq = maxSeq + 1;
 
   if (count > 0)
-    KT_I("tenant '%s': loaded %d snapshot(s) into cache (nextSnapSeq=%d)",
-         tP->name[0] ? tP->name : "(default)", count, cacheP->nextSnapSeq);
+    COR_I("tenant '%s': loaded %d snapshot(s) into cache (nextSnapSeq=%d)",
+          tP->name[0] ? tP->name : "(default)", count, cacheP->nextSnapSeq);
 }
 
 

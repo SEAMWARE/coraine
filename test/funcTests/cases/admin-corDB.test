@@ -18,7 +18,7 @@ corDbDrop
 #
 # This test asserts the broker's LOG STATE, so it has to own that state rather
 # than inherit it. The suite starts every broker with a default set of trace
-# levels (corTestParams.sh), and ktrace bumps the log level to 5 whenever any
+# levels (corTestParams.sh), and corLog bumps the log level to 5 whenever any
 # trace level is set - which turns info and verbose on with it. "All off" below
 # is therefore something this test switches off on purpose, not a default.
 #
@@ -209,8 +209,10 @@ Content-Length: REGEX(\d+)
 
 {
   "Next File Descriptor": REGEX(\d+),
+  "corHash": "0.1.0",
   "corJson": "0.1.0",
   "corJsonld": "0.1.0",
+  "corLog": "0.1.0",
   "corNgsild": "post-0.2.0",
   "corProm": "0.1.0",
   "corRest": "0.1.0",
@@ -218,9 +220,7 @@ Content-Length: REGEX(\d+)
   "coraine version": "REGEX(\d+\.\d+\.\d+)",
   "kalloc": "0.10.2",
   "kargs": "0.10.1",
-  "kbase": "0.11.1",
-  "khash": "0.10.0",
-  "ktrace": "0.10.0"
+  "kbase": "0.11.1"
 }
 
 

@@ -12,10 +12,10 @@
 #include "kalloc/KAlloc.h"                        // KAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeBoolean, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
-#include "ktrace/ktGlobals.h"                     // ktVerbose, ktDebug, ktInfo
-#include "ktrace/ktTraceLevelGet.h"               // ktTraceLevelGet
-#include "ktrace/ktTraceLevelSet.h"               // ktTraceLevelSet
-#include "ktrace/ktTraceLevelReset.h"             // ktTraceLevelReset
+#include "corLog/corLogGlobals.h"                 // corLogVerbose, corLogDebug, corLogInfo
+#include "corLog/corLogTraceLevelGet.h"           // corLogTraceLevelGet
+#include "corLog/corLogTraceLevelSet.h"           // corLogTraceLevelSet
+#include "corLog/corLogTraceLevelReset.h"         // corLogTraceLevelReset
 
 #include "api/admin/adminLog.h"                   // Own interface
 
@@ -59,11 +59,11 @@ bool adminGetLog(void)
 {
   KAlloc*     allocP = corRest.kallocP;
   CorNode*    root   = corTreeObject(allocP, NULL);
-  const char* levels = ktTraceLevelGet();
+  const char* levels = corLogTraceLevelGet();
 
-  corTreeChildAdd(root, corTreeBoolean(allocP, "verbose", ktVerbose));
-  corTreeChildAdd(root, corTreeBoolean(allocP, "debug", ktDebug));
-  corTreeChildAdd(root, corTreeBoolean(allocP, "info", ktInfo));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "verbose", corLogVerbose));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "debug", corLogDebug));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "info", corLogInfo));
   corTreeChildAdd(root, corTreeString(allocP, "traceLevels", levels ? levels : ""));
 
   corRest.out.responseTree = root;
@@ -85,7 +85,7 @@ static void adminLogApplyFlags(void)
   {
     int b = boolFromOnOff(v);
     if (b >= 0)
-      ktVerbose = (b == 1);
+      corLogVerbose = (b == 1);
   }
 
   v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "debug");
@@ -93,7 +93,7 @@ static void adminLogApplyFlags(void)
   {
     int b = boolFromOnOff(v);
     if (b >= 0)
-      ktDebug = (b == 1);
+      corLogDebug = (b == 1);
   }
 
   v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "info");
@@ -101,7 +101,7 @@ static void adminLogApplyFlags(void)
   {
     int b = boolFromOnOff(v);
     if (b >= 0)
-      ktInfo = (b == 1);
+      corLogInfo = (b == 1);
   }
 }
 
@@ -117,7 +117,7 @@ bool adminPutLog(void)
 
   const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
-    ktTraceLevelSet(levels, KTRUE);   // replace=true
+    corLogTraceLevelSet(levels, true);    // replace=true
 
   return adminGetLog();
 }
@@ -134,7 +134,7 @@ bool adminPostLog(void)
 
   const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
-    ktTraceLevelSet(levels, KFALSE);  // replace=false (additive)
+    corLogTraceLevelSet(levels, false);   // replace=false (additive)
 
   return adminGetLog();
 }
@@ -162,7 +162,7 @@ bool adminDeleteLog(void)
 
   const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
   if (levels != NULL)
-    ktTraceLevelReset(levels);
+    corLogTraceLevelReset(levels);
 
   return adminGetLog();
 }

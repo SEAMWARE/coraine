@@ -28,7 +28,7 @@
 #include <stdint.h>                                   // uint64_t, int64_t
 #include <time.h>                                     // clock_gettime
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, BridgeRegisterFunc
 #include "corBridge/BridgeBroker.h"                   // BridgeBroker, BRIDGE_*
@@ -357,7 +357,7 @@ static void* loopbackDelivery(void* vP)
       if ((brokerP->abiVersion >= 8) && (brokerP->endpointDiscoveredIn != NULL))
         brokerP->endpointDiscoveredIn("loopback", sample.endpoint, sample.discoverKind);
       else
-        KT_W("loopback: '%s' discovered, but the host predates ABI 8 - not reported", sample.endpoint);
+        COR_W("loopback: '%s' discovered, but the host predates ABI 8 - not reported", sample.endpoint);
 
       free(sample.endpoint);
       free(sample.json);
@@ -416,7 +416,7 @@ static void* loopbackDelivery(void* vP)
                                  sample.goalState, sample.goalFinal, sample.subAttrName, sample.json, 0);
         }
         else
-          KT_E("loopback: a goal event on '%s' has nowhere to go - the host predates the action contract", sample.endpoint);
+          COR_E("loopback: a goal event on '%s' has nowhere to go - the host predates the action contract", sample.endpoint);
       }
       else if ((sample.subAttrName == NULL) && (useMeta == true) && (brokerP->sampleMetaIn != NULL))
         brokerP->sampleMetaIn("loopback", sample.endpoint, sample.json, meta, 0);
@@ -433,7 +433,7 @@ static void* loopbackDelivery(void* vP)
       else if ((brokerP->abiVersion >= 2) && (brokerP->sampleQualifiedIn != NULL))
         brokerP->sampleQualifiedIn("loopback", sample.endpoint, NULL, sample.subAttrName, sample.json, 0);
       else
-        KT_E("loopback: a reply on '%s' has nowhere to go - the host predates the service contract", sample.endpoint);
+        COR_E("loopback: a reply on '%s' has nowhere to go - the host predates the service contract", sample.endpoint);
 
       free(sample.endpoint);
       free(sample.json);
@@ -523,12 +523,12 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   {
     deliveryRunning = false;
     //
-    // KT_E directly, not brokerP->logFunction. A plugin resolves the broker's
+    // COR_E directly, not brokerP->logFunction. A plugin resolves the broker's
     // symbols at dlopen, which is how mongoc and corDB log, and logFunction is
     // for forwarding a TRANSPORT LIBRARY's own log sink - a callback handed
     // file, line, function and severity that has to go somewhere.
     //
-    KT_E("unable to start the loopback delivery thread");
+    COR_E("unable to start the loopback delivery thread");
     return BRIDGE_ERR;
   }
 
@@ -766,7 +766,7 @@ static void loopbackDiscoverPair(const char* endpoint, const char* value)
   else if (strcmp(value, "action") == 0)
     loopbackDiscoverQueue(endpoint, BridgeChannelAction);
   else
-    KT_W("loopback: discover '%s': '%s' is neither 'service' nor 'action' - ignored", endpoint, value);
+    COR_W("loopback: discover '%s': '%s' is neither 'service' nor 'action' - ignored", endpoint, value);
 }
 
 static void loopbackDiscoverAtStart(void)

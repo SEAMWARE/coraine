@@ -15,7 +15,7 @@
 
 #include <string.h>                                    // strcmp
 
-#include "ktrace/kTrace.h"                             // KT_E
+#include "corLog/corLog.h"                             // COR_E
 #include "corTree/CorNode.h"                           // CorNode
 #include "corTree/corTreeClone.h"                      // corTreeClone
 #include "corTree/corTreeBuilder.h"                    // corTreeChildAdd
@@ -96,7 +96,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     CorNode* cloneP = corTreeClone(NULL, inP);
     if (cloneP == NULL)
     {
-      KT_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
+      COR_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
       resultsV[ix] = DB_ERR;
       continue;
     }

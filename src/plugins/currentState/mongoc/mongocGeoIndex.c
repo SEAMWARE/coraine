@@ -21,7 +21,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, ...
 
-#include "ktrace/kTrace.h"                               // KT_I, KT_E, KT_V
+#include "corLog/corLog.h"                               // COR_I, COR_E, COR_V
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT
@@ -80,7 +80,7 @@ static void geoIndexCacheAdd(Tenant* tenantP, const char* fieldPath)
   if (cacheP->count < GEO_INDEX_CACHE_MAX)
     cacheP->fieldPaths[cacheP->count++] = strdup(fieldPath);
   else
-    KT_E("mongoc: geo index cache full (%d entries) for db '%s', cannot track '%s'", GEO_INDEX_CACHE_MAX, tenantP->dbName, fieldPath);
+    COR_E("mongoc: geo index cache full (%d entries) for db '%s', cannot track '%s'", GEO_INDEX_CACHE_MAX, tenantP->dbName, fieldPath);
 }
 
 
@@ -119,9 +119,9 @@ static bool geoIndexCreate(Tenant* tenantP, mongoc_collection_t* collP, const ch
   bool                   ok     = mongoc_collection_create_indexes_with_opts(collP, &indexP, 1, NULL, NULL, &error);
 
   if (ok)
-    KT_I("mongoc: ensured 2dsphere index on '%s' for db '%s'", fieldPath, tenantP->dbName);
+    COR_I("mongoc: ensured 2dsphere index on '%s' for db '%s'", fieldPath, tenantP->dbName);
   else
-    KT_E("mongoc: failed to create 2dsphere index on '%s' for db '%s': %s", fieldPath, tenantP->dbName, error.message);
+    COR_E("mongoc: failed to create 2dsphere index on '%s' for db '%s': %s", fieldPath, tenantP->dbName, error.message);
 
   mongoc_index_model_destroy(indexP);
   bson_destroy(&geoKeys);
@@ -166,7 +166,7 @@ void mongocGeoIndexInit(Tenant* tenantP, mongoc_collection_t* collP)
 
   if (pipelineP == NULL)
   {
-    KT_E("mongoc: failed to parse geo index pipeline: %s", error.message);
+    COR_E("mongoc: failed to parse geo index pipeline: %s", error.message);
     return;
   }
 
@@ -222,13 +222,13 @@ void mongocGeoIndexInit(Tenant* tenantP, mongoc_collection_t* collP)
   }
 
   if (mongoc_cursor_error(cursorP, &error))
-    KT_E("mongoc: geo index scan cursor error: %s", error.message);
+    COR_E("mongoc: geo index scan cursor error: %s", error.message);
 
   mongoc_cursor_destroy(cursorP);
   bson_destroy(pipelineP);
 
   if (indexCount > 0)
-    KT_I("mongoc: created %d 2dsphere geo-indexes from existing data", indexCount);
+    COR_I("mongoc: created %d 2dsphere geo-indexes from existing data", indexCount);
 }
 
 

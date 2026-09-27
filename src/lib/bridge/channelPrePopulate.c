@@ -12,7 +12,7 @@
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
-#include "ktrace/kTrace.h"                            // KT_W, KT_T
+#include "corLog/corLog.h"                            // COR_W, COR_T
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 
 #include "corRest/corRest.h"                          // corRest
@@ -92,7 +92,7 @@ int channelPrePopulate(Tenant* tenantP)
 {
   if ((db.entityRetrieve == NULL) || (db.entityCreate == NULL) || (db.entityAttrsSet == NULL))
   {
-    KT_W("the database plugin cannot pre-populate - channels will write into whatever is already there");
+    COR_W("the database plugin cannot pre-populate - channels will write into whatever is already there");
     return -1;
   }
 
@@ -113,7 +113,7 @@ int channelPrePopulate(Tenant* tenantP)
 
     if ((r != DB_OK) && (r != DB_NOT_FOUND))
     {
-      KT_W("cannot read entity '%s' - not pre-populating it", entityId);
+      COR_W("cannot read entity '%s' - not pre-populating it", entityId);
       continue;
     }
 
@@ -164,8 +164,8 @@ int channelPrePopulate(Tenant* tenantP)
         continue;
 
       if (strcmp(attrChannelP->entityType, channelP->entityType) != 0)
-        KT_W("entity '%s' is declared as both '%s' and '%s' in the configuration - using the first",
-             entityId, channelP->entityType, attrChannelP->entityType);
+        COR_W("entity '%s' is declared as both '%s' and '%s' in the configuration - using the first",
+              entityId, channelP->entityType, attrChannelP->entityType);
 
       corTreeChildAdd(entityP, placeholderAttribute(attrChannelP->attrName));
       ++missing;
@@ -190,7 +190,7 @@ int channelPrePopulate(Tenant* tenantP)
     {
       if (db.entityCreate(tenantP, entityId, entityP) != DB_OK)
       {
-        KT_W("could not create entity '%s'", entityId);
+        COR_W("could not create entity '%s'", entityId);
         continue;
       }
 
@@ -221,7 +221,7 @@ int channelPrePopulate(Tenant* tenantP)
         troeDeferEntityEvent(tevP);
       }
 
-      KT_T(KtBridge, "pre-populated entity '%s' (%d attribute%s)", entityId, missing, (missing == 1) ? "" : "s");
+      COR_T(KtBridge, "pre-populated entity '%s' (%d attribute%s)", entityId, missing, (missing == 1) ? "" : "s");
     }
     else
     {
@@ -237,11 +237,11 @@ int channelPrePopulate(Tenant* tenantP)
 
       if (db.entityAttrsSet(tenantP, entityId, entityP, false, corRest.requestStartTime, &report) != DB_OK)
       {
-        KT_W("could not add the missing attributes of entity '%s'", entityId);
+        COR_W("could not add the missing attributes of entity '%s'", entityId);
         continue;
       }
 
-      KT_T(KtBridge, "entity '%s' gained %d missing attribute%s", entityId, missing, (missing == 1) ? "" : "s");
+      COR_T(KtBridge, "entity '%s' gained %d missing attribute%s", entityId, missing, (missing == 1) ? "" : "s");
     }
 
     attrsCreated += missing;

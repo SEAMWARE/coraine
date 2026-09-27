@@ -10,7 +10,7 @@
 #include <dlfcn.h>                                    // dlclose
 #include <stddef.h>                                   // NULL
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 
 #include "db/DbDriver.h"                              // DbDriver
 #include "db/dbInit.h"                                // Own interface
@@ -33,14 +33,14 @@ int dbStart(void)
 {
   if (db.init == NULL)
   {
-    KT_E("db plugin has no init function");
+    COR_E("db plugin has no init function");
     return DB_ERR;
   }
 
   int r = db.init();
   if (r != DB_OK)
   {
-    KT_E("db driver init failed (rc=%d)", r);
+    COR_E("db driver init failed (rc=%d)", r);
     return r;
   }
 

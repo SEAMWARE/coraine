@@ -11,7 +11,7 @@
 #include <string.h>                                   // memset, strcmp, strncpy, strchr, strtok_r
 
 #include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
-#include "ktrace/kTrace.h"                            // KT_I
+#include "corLog/corLog.h"                            // COR_I
 
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
 #include "troe/TroeDriver.h"                          // TroeDriver, TroeRegisterFunc, troe
@@ -67,7 +67,7 @@ int pluginLoadDb(const char* shortName, char* errorBuf, int errorBufSize)
 
   registerFunc(&db);
 
-  KT_I("db plugin loaded: %s", path);
+  COR_I("db plugin loaded: %s", path);
   return 0;
 }
 
@@ -132,7 +132,7 @@ int pluginLoadApi(const char* commaList, char* errorBuf, int errorBufSize)
     registerFunc(pluginP);
     apiPluginCount++;
 
-    KT_I("api plugin loaded: %s (alias: %s)", path, pluginP->alias ? pluginP->alias : token);
+    COR_I("api plugin loaded: %s (alias: %s)", path, pluginP->alias ? pluginP->alias : token);
 
     token = strtok_r(NULL, ",", &saveptr);
   }
@@ -170,7 +170,7 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   registerFunc(&troe);
 
-  KT_I("troe plugin loaded: %s", path);
+  COR_I("troe plugin loaded: %s", path);
   return 0;
 }
 
@@ -272,10 +272,10 @@ int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize)
     // never asked for.
     //
     if (driverP->abiVersion != BRIDGE_ABI_VERSION)
-      KT_I("bridge plugin '%s' was built against bridge ABI %d, this broker speaks %d - newer entry points will be treated as unsupported",
-           (driverP->alias != NULL) ? driverP->alias : token, driverP->abiVersion, BRIDGE_ABI_VERSION);
+      COR_I("bridge plugin '%s' was built against bridge ABI %d, this broker speaks %d - newer entry points will be treated as unsupported",
+            (driverP->alias != NULL) ? driverP->alias : token, driverP->abiVersion, BRIDGE_ABI_VERSION);
 
-    KT_I("bridge plugin loaded: %s (alias: %s)", path, (driverP->alias != NULL) ? driverP->alias : token);
+    COR_I("bridge plugin loaded: %s (alias: %s)", path, (driverP->alias != NULL) ? driverP->alias : token);
 
     token = strtok_r(NULL, ",", &saveptr);
   }

@@ -13,7 +13,7 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove
@@ -46,7 +46,7 @@ int corDbRegistrationUpdate(Tenant* tenantP, const char* regId, CorNode* regP)
       CorNode* cloneP = corTreeClone(NULL, regP);
       if (cloneP == NULL)
       {
-        KT_E("corDB: corTreeClone failed for registration '%s'", regId);
+        COR_E("corDB: corTreeClone failed for registration '%s'", regId);
         return DB_ERR;
       }
 

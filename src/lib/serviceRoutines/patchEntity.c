@@ -48,7 +48,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
-#include "ktrace/kTrace.h"                           // KT_T
+#include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/patchEntity.h"             // Own interface
@@ -336,7 +336,7 @@ bool patchEntity(void)
       items[kept].url     = mergeUrl(items[i].csr->endpoint, entityId);
       items[kept].body    = body;
       items[kept].bodyLen = strlen(body);
-      KT_T(KtDistOpRequest, "forward: PATCH %s", items[kept].url);
+      COR_T(KtDistOpRequest, "forward: PATCH %s", items[kept].url);
       kept++;
     }
 

@@ -6,7 +6,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "ktrace/kTrace.h"                               // KT_I
+#include "corLog/corLog.h"                               // COR_I
 
 #include "db/Tenant.h"                                   // tenant0
 #include "currentState/corDB/corDbStore.h"             // corDbTenantStore
@@ -27,6 +27,6 @@ int corDbInit(void)
   corDbTenantStore(&tenant0);
   corDbGeoInit();
 
-  KT_I("corDB: in-memory store ready (per-tenant CorNode trees, GEOS enabled)");
+  COR_I("corDB: in-memory store ready (per-tenant CorNode trees, GEOS enabled)");
   return 0;
 }

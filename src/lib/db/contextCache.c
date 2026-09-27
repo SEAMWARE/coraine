@@ -15,7 +15,7 @@
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonParse.h"                     // corJsonParse
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
-#include "ktrace/kTrace.h"                            // KT_*
+#include "corLog/corLog.h"                            // KT_*
 
 #include "corJsonld/CorLdContext.h"                     // CorLdContext
 #include "corJsonld/CorLdContextCache.h"                // CorLdContextCache

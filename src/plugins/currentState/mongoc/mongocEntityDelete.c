@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_delete_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocEntityDelete.h"  // Own interface
@@ -51,7 +51,7 @@ int mongocEntityDelete(Tenant* tenantP, const char* entityId)
 
   if (!ok)
   {
-    KT_E("mongoc: entityDelete failed: %s", error.message);
+    COR_E("mongoc: entityDelete failed: %s", error.message);
     result = DB_ERR;
   }
   else

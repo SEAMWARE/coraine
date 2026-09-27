@@ -11,7 +11,7 @@
 //
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                      // corRest
@@ -53,7 +53,7 @@ int mongocSnapshotQuery(Tenant* tenantP, CorNode** arrayPP)
 
   if (mongoc_cursor_error(cursorP, &error))
   {
-    KT_E("mongoc: snapshotQuery failed: %s", error.message);
+    COR_E("mongoc: snapshotQuery failed: %s", error.message);
     result = DB_ERR;
   }
 

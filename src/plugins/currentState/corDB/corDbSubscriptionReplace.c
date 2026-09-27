@@ -13,7 +13,7 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove
@@ -46,7 +46,7 @@ int corDbSubscriptionReplace(Tenant* tenantP, const char* subId, CorNode* subP)
       CorNode* cloneP = corTreeClone(NULL, subP);
       if (cloneP == NULL)
       {
-        KT_E("corDB: corTreeClone failed for subscription '%s'", subId);
+        COR_E("corDB: corTreeClone failed for subscription '%s'", subId);
         return DB_ERR;
       }
 

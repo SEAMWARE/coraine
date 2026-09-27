@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
@@ -59,7 +59,7 @@ int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, CorNode* subP)
     if (error.code == 11000)
       return DB_ALREADY_EXISTS;
 
-    KT_E("mongoc: subscriptionCreate failed: %s", error.message);
+    COR_E("mongoc: subscriptionCreate failed: %s", error.message);
     return DB_ERR;
   }
 

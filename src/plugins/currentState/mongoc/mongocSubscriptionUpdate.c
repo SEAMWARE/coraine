@@ -18,7 +18,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_update_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
@@ -106,7 +106,7 @@ int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragme
 
     if (!ok)
     {
-      KT_E("mongoc: subscriptionUpdate failed: %s", error.message);
+      COR_E("mongoc: subscriptionUpdate failed: %s", error.message);
       result = DB_ERR;
     }
     else

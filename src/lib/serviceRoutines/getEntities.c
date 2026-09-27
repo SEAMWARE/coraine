@@ -11,7 +11,7 @@
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strcmp, strlen, strcpy
 
-#include "ktrace/kTrace.h"                           // KT_T
+#include "corLog/corLog.h"                           // COR_T
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
@@ -621,7 +621,7 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
     extraN = 1;
   }
 
-  KT_T(KtDistOpRequest, "forward: GET %s", url);
+  COR_T(KtDistOpRequest, "forward: GET %s", url);
 
   int status = ldDistOpSendReceiveEx(csr, CorVerbGet, url, NULL, 0, ownAlias,
                                       (extraN > 0) ? &extraH : NULL, extraN,
@@ -1865,7 +1865,7 @@ bool getEntities(void)
 
           if (csr->endpoint == NULL)
           {
-            KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration has no endpoint", regId);
+            COR_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration has no endpoint", regId);
             continue;
           }
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;   // traces its own reason
@@ -1874,7 +1874,7 @@ bool getEntities(void)
           bool csrQB = ldRegOpSupported(csr, LdOpBatchQuery);
           if (!csrQE && !csrQB)
           {
-            KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: 'operations' covers neither queryEntity nor batch query", regId);
+            COR_T(LdTRegMatch, "%s: matched, but NOT forwarded to: 'operations' covers neither queryEntity nor batch query", regId);
             continue;
           }
           bool postForward = incomingBatch ? csrQB : !csrQE;
@@ -1889,7 +1889,7 @@ bool getEntities(void)
           {
             if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, corNgsild.csfExpr))
             {
-              KT_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration does not match csf '%s'", regId, corNgsild.csf);
+              COR_T(LdTRegMatch, "%s: matched, but NOT forwarded to: the registration does not match csf '%s'", regId, corNgsild.csf);
               continue;
             }
           }
@@ -1988,7 +1988,7 @@ bool getEntities(void)
 
             const char* body = buildQueryBodyFromQs(fullQs, &corRest.kalloc);
 
-            KT_T(KtDistOpRequest, "forward: POST %s body=%s", url, body);
+            COR_T(KtDistOpRequest, "forward: POST %s body=%s", url, body);
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;
@@ -2009,7 +2009,7 @@ bool getEntities(void)
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
 
-          KT_T(KtDistOpRequest, "forward: GET %s", url);
+          COR_T(KtDistOpRequest, "forward: GET %s", url);
           items[itemCount].csr     = csr;
           items[itemCount].url     = url;
           items[itemCount].body    = NULL;
@@ -2038,10 +2038,10 @@ bool getEntities(void)
             corJsonFastRender(results[i].responseTree, rbuf);
             renderedBody = rbuf;
           }
-          KT_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
-               code, results[i].responseBodyLen,
-               results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
-               renderedBody);
+          COR_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
+                code, results[i].responseBodyLen,
+                results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
+                renderedBody);
 
           if (code < 200 || code >= 300) continue;
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;

@@ -134,8 +134,8 @@ set(COR_STATIC_LIBS
   ${COR_LIBS_DIR}/corJson/libcorJson.a
   ${COR_LIBS_DIR}/corTree/libcorTree.a
   ${COR_LIBS_DIR}/kargs/libkargs.a
-  ${COR_LIBS_DIR}/ktrace/libktrace.a
-  ${COR_LIBS_DIR}/khash/libkhash.a
+  ${COR_LIBS_DIR}/corLog/libcorLog.a
+  ${COR_LIBS_DIR}/corHash/libcorHash.a
   ${COR_LIBS_DIR}/kalloc/libkalloc.a
   ${COR_LIBS_DIR}/kbase/libkbase.a
 )

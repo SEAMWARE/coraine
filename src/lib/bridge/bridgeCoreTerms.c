@@ -9,7 +9,7 @@
 #include <stddef.h>                                   // NULL
 
 #include "kalloc/KAlloc.h"                            // KAlloc
-#include "ktrace/kTrace.h"                            // KT_T
+#include "corLog/corLog.h"                            // COR_T
 #include "corJsonld/corLdInit.h"                      // CorLdCoreTerm, corLdCoreTermsAdd
 
 #include "bridge/bridgeCoreTerms.h"                   // Own interface
@@ -59,6 +59,6 @@ int bridgeCoreTermsAdd(KAlloc* kaP)
   if (added < 0)
     return -1;
 
-  KT_T(KtBridge, "%d ContextBridge/Channel/Goal terms added to the core context", added);
+  COR_T(KtBridge, "%d ContextBridge/Channel/Goal terms added to the core context", added);
   return 0;
 }

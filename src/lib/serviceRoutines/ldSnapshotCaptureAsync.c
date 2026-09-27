@@ -14,7 +14,7 @@
 #include <string.h>                                      // memset
 #include <time.h>                                        // clock_gettime
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "kalloc/kaBufferInit.h"                         // kaBufferInit
 #include "kalloc/kaBufferReset.h"                        // kaBufferReset
 #include "corTree/CorNode.h"                             // CorNode
@@ -130,7 +130,7 @@ void ldSnapshotCaptureAsync(LdSnapshotCache*     cacheP,
   SnapshotCaptureCtx* ctx = (SnapshotCaptureCtx*) calloc(1, sizeof(*ctx));
   if (ctx == NULL)
   {
-    KT_E("snapshotCaptureAsync: ctx alloc failed; falling back to inline exec");
+    COR_E("snapshotCaptureAsync: ctx alloc failed; falling back to inline exec");
     ldSnapshotExecQueries(cacheP, itemP, tenantP);
     ldSnapshotNotify(itemP, false);
     return;
@@ -145,7 +145,7 @@ void ldSnapshotCaptureAsync(LdSnapshotCache*     cacheP,
   pthread_t tid;
   if (pthread_create(&tid, NULL, snapshotWorkerThread, ctx) != 0)
   {
-    KT_E("snapshotCaptureAsync: pthread_create failed; falling back to inline exec");
+    COR_E("snapshotCaptureAsync: pthread_create failed; falling back to inline exec");
     free(ctx);
     ldSnapshotExecQueries(cacheP, itemP, tenantP);
     ldSnapshotNotify(itemP, false);

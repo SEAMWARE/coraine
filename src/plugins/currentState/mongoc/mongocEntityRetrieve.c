@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_find_with_opts
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 #include "corRest/CorRestState.h"                      // corRest
 
@@ -62,7 +62,7 @@ int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entity
 
     if (mongoc_cursor_error(cursorP, &error))
     {
-      KT_E("mongoc: entityRetrieve failed: %s", error.message);
+      COR_E("mongoc: entityRetrieve failed: %s", error.message);
       result = DB_ERR;
     }
     else

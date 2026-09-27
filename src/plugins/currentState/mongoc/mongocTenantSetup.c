@@ -8,7 +8,7 @@
 //
 #include <mongoc/mongoc.h>                           // mongoc_client_pool_t, ...
 
-#include "ktrace/kTrace.h"                               // KT_I, KT_E, KT_V
+#include "corLog/corLog.h"                               // COR_I, COR_E, COR_V
 
 #include "db/Tenant.h"                               // Tenant
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
@@ -45,9 +45,9 @@ int mongocTenantSetup(Tenant* tenantP)
   mongoc_index_model_t* indexModelP = mongoc_index_model_new(&keys, NULL);
 
   if (mongoc_collection_create_indexes_with_opts(collP, &indexModelP, 1, NULL, NULL, &error))
-    KT_V("mongoc: ensured index on 'type' for db '%s'", tenantP->dbName);
+    COR_V("mongoc: ensured index on 'type' for db '%s'", tenantP->dbName);
   else
-    KT_E("mongoc: failed to create index on 'type' for db '%s': %s", tenantP->dbName, error.message);
+    COR_E("mongoc: failed to create index on 'type' for db '%s': %s", tenantP->dbName, error.message);
 
   mongoc_index_model_destroy(indexModelP);
   bson_destroy(&keys);
@@ -66,9 +66,9 @@ int mongocTenantSetup(Tenant* tenantP)
   mongoc_index_model_t* cIndexModelP = mongoc_index_model_new(&cKeys, NULL);
 
   if (mongoc_collection_create_indexes_with_opts(collP, &cIndexModelP, 1, NULL, NULL, &error))
-    KT_V("mongoc: ensured index on {createdAt,_id} for db '%s'", tenantP->dbName);
+    COR_V("mongoc: ensured index on {createdAt,_id} for db '%s'", tenantP->dbName);
   else
-    KT_E("mongoc: failed to create {createdAt,_id} index for db '%s': %s", tenantP->dbName, error.message);
+    COR_E("mongoc: failed to create {createdAt,_id} index for db '%s': %s", tenantP->dbName, error.message);
 
   mongoc_index_model_destroy(cIndexModelP);
   bson_destroy(&cKeys);

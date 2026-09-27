@@ -52,7 +52,7 @@
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
 
-#include "ktrace/kTrace.h"                            // KT_T
+#include "corLog/corLog.h"                            // COR_T
 #include "coraineTraceLevels.h"                      // KtDistOpRequest
 
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
@@ -310,8 +310,8 @@ bool postEntityAttrs(void)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
-    KT_T(KtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
-         entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
+    COR_T(KtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
+          entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
 
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
     int              counts[]  = { exclN,       redirN,     inclN      };
@@ -385,7 +385,7 @@ bool postEntityAttrs(void)
           items[itemCount].url     = attrsUrl(csr->endpoint, entityId, noOverwrite);
           items[itemCount].body    = body;
           items[itemCount].bodyLen = strlen(body);
-          KT_T(KtDistOpRequest, "forward: POST %s", items[itemCount].url);
+          COR_T(KtDistOpRequest, "forward: POST %s", items[itemCount].url);
           itemFrag[itemCount]      = fragP;
           itemCount++;
         }
@@ -422,11 +422,11 @@ bool postEntityAttrs(void)
 
       for (int i = 0; i < itemCount; i++)
       {
-        KT_T(KtDistOpRequest,
-             "forward result %d/%d: url=%s status=%d errorDetail=%s bodyLen=%d",
-             i + 1, itemCount, items[i].url, results[i].statusCode,
-             (results[i].errorDetail != NULL ? results[i].errorDetail : "(none)"),
-             results[i].responseBodyLen);
+        COR_T(KtDistOpRequest,
+              "forward result %d/%d: url=%s status=%d errorDetail=%s bodyLen=%d",
+              i + 1, itemCount, items[i].url, results[i].statusCode,
+              (results[i].errorDetail != NULL ? results[i].errorDetail : "(none)"),
+              results[i].responseBodyLen);
 
         ldWriteResultMerge(&wr, items[i].csr->regId,
                            results[i].statusCode, results[i].errorDetail,

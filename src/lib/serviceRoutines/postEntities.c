@@ -54,7 +54,7 @@
 #include "db/Tenant.h"                               // Tenant
 #include "corNgsild/LdGeoRel.h"                       // LdGeoRel, LdGeoWithin
 
-#include "ktrace/kTrace.h"                           // KT_T
+#include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/postEntities.h"            // Own interface
@@ -586,7 +586,7 @@ bool postEntities(void)
 
             char* body = renderFragmentWithContext(wireP);
 
-            KT_T(KtDistOpRequest, "forward: POST %s", url);
+            COR_T(KtDistOpRequest, "forward: POST %s", url);
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;

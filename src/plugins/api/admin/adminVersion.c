@@ -14,8 +14,8 @@
 #include "kbase/version.h"                        // KBASE_VERSION
 #include "kalloc/version.h"                       // KALLOC_VERSION
 #include "kalloc/KAlloc.h"                        // KAlloc
-#include "ktrace/ktraceVersion.h"                  // KTRACE_VERSION
-#include "khash/version.h"                        // KHASH_VERSION
+#include "corLog/version.h"                        // CORLOG_VERSION
+#include "corHash/version.h"                      // CORHASH_VERSION
 #include "corTree/version.h"                      // CORTREE_VERSION
 #include "corJson/version.h"                      // CORJSON_VERSION
 #include "kargs/kargsVersion.h"                   // KARGS_VERSION
@@ -56,8 +56,8 @@ bool adminGetVersion(void)
   corTreeChildAdd(root, corTreeString(allocP, "coraine version", CORAINE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "kbase",            KBASE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "kalloc",           KALLOC_VERSION));
-  corTreeChildAdd(root, corTreeString(allocP, "ktrace",           KTRACE_VERSION));
-  corTreeChildAdd(root, corTreeString(allocP, "khash",            KHASH_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corLog",           CORLOG_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corHash",            CORHASH_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corTree",          CORTREE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corJson",          CORJSON_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "kargs",            KARGS_VERSION));

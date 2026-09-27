@@ -170,7 +170,7 @@ Of the **5101 uncovered lines** in the mongoc run — 2660 in `coraine/src`, 171
 | 5.3% | 268 | inside **31 functions the suite never enters at all** |
 | 2.6% | 132 | guarded by a **DB / driver failure** — `bson_error_t`, a cursor that fails, `!= DB_OK` |
 | 1.3% | 64 | the **NULL-driver-method → 501/422** convention |
-| 0.5% | 25 | **defensive** paths — `KT_X`, `default:` on an exhaustive switch, "cannot happen" |
+| 0.5% | 25 | **defensive** paths — `COR_X`, `default:` on an exhaustive switch, "cannot happen" |
 | 0.2% | 12 | `pthread_create` failing, a short `fread`, an allocator returning NULL |
 | 0.2% | 10 | **network / socket** failure |
 

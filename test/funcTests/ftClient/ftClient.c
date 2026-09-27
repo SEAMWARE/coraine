@@ -36,7 +36,7 @@
 #include "corTree/corTreeFree.h"
 #include "kalloc/kalloc.h"
 #include "kalloc/kaAlloc.h"
-#include "ktrace/kTrace.h"
+#include "corLog/corLog.h"
 #include "kbase/kFileRead.h"                       // kFileRead
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "kalloc/kaBufferInit.h"                  // kaBufferInit
@@ -362,7 +362,7 @@ static int ftBridgeServiceRequest(const char* bridgeName,
 
   if (reply == NULL)
   {
-    KT_W("ftClient: asked on '%s' with no answer set - the request stands unanswered", endpoint);
+    COR_W("ftClient: asked on '%s' with no answer set - the request stands unanswered", endpoint);
     return BRIDGE_OK;
   }
 
@@ -372,9 +372,9 @@ static int ftBridgeServiceRequest(const char* bridgeName,
   if ((serverP != NULL) && (serverP->serviceReply != NULL))
   {
     if (serverP->serviceReply(endpoint, requestId, reply) != BRIDGE_OK)
-      KT_W("ftClient: could not answer on '%s'", endpoint);
+      COR_W("ftClient: could not answer on '%s'", endpoint);
     else
-      KT_T(1, "ftClient: answered on '%s' with %s", endpoint, reply);
+      COR_T(1, "ftClient: answered on '%s' with %s", endpoint, reply);
   }
 
   free(reply);
@@ -400,7 +400,7 @@ static void ftBridgeLog(int severity, const char* fileName, int lineNo, const ch
   default:                  sev = 'T';  break;
   }
 
-  ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
+  corLogOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
 }
 
 
@@ -527,7 +527,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     // the far end both publishes and listens.
     //
     if (driverP->channelAdd(entryP->name, BridgeChannelTopic, BridgeDirectionBoth) != BRIDGE_OK)
-      KT_W("ftClient: bridge '%s' would not carry '%s'", driverP->alias, entryP->name);
+      COR_W("ftClient: bridge '%s' would not carry '%s'", driverP->alias, entryP->name);
   }
 
   //
@@ -542,13 +542,13 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
   const BridgeServer* serverP = (driverP->serverIface != NULL) ? driverP->serverIface() : NULL;
 
   if ((servicesP != NULL) && ((serverP == NULL) || (serverP->serviceServe == NULL)))
-    KT_W("ftClient: bridge '%s' has services configured but cannot serve them", driverP->alias);
+    COR_W("ftClient: bridge '%s' has services configured but cannot serve them", driverP->alias);
   else if (servicesP != NULL)
   {
     for (CorNode* entryP = servicesP->value.head; entryP != NULL; entryP = entryP->next)
     {
       if (serverP->serviceServe(entryP->name, ftBridgeServiceRequest) != BRIDGE_OK)
-        KT_W("ftClient: bridge '%s' would not serve '%s'", driverP->alias, entryP->name);
+        COR_W("ftClient: bridge '%s' would not serve '%s'", driverP->alias, entryP->name);
     }
   }
 
@@ -586,7 +586,7 @@ static void ftBridgesLoad(void)
 
     if (registerFunc == NULL)
     {
-      KT_X(1, "ftClient: bridge plugin '%s' (%s): %s", token, path, openErr);
+      COR_X(1, "ftClient: bridge plugin '%s' (%s): %s", token, path, openErr);
       return;
     }
 
@@ -605,11 +605,11 @@ static void ftBridgesLoad(void)
     ++ftBridgeCount;
 
     if ((driverP->init != NULL) && (driverP->init(ftBridgeConfig, &ftBridgeBroker) != BRIDGE_OK))
-      KT_X(1, "ftClient: init failed for bridge '%s'", token);
+      COR_X(1, "ftClient: init failed for bridge '%s'", token);
 
     ftBridgeTopicsCarry(driverP, ftBridgeConfig);
 
-    KT_I("ftClient: hosting bridge '%s'", (driverP->alias != NULL) ? driverP->alias : token);
+    COR_I("ftClient: hosting bridge '%s'", (driverP->alias != NULL) ? driverP->alias : token);
 
     token = strtok_r(NULL, ",", &saveptr);
   }
@@ -925,7 +925,7 @@ static bool stubServe(void)
     corRest.out.payloadSize = n;
   }
 
-  KT_T(1, "stub served: %s %s -> %d (bodyLen=%d)", s->verb, corRest.in.urlPath, s->status, s->body ? (int) strlen(s->body) : 0);
+  COR_T(1, "stub served: %s %s -> %d (bodyLen=%d)", s->verb, corRest.in.urlPath, s->status, s->body ? (int) strlen(s->body) : 0);
   return true;
 }
 
@@ -974,7 +974,7 @@ static bool postMockReply(void)
   s->next = ftStubs;
   ftStubs = s;
 
-  KT_T(1, "stub programmed: %s <path-contains %s> -> %d", s->verb, s->path, s->status);
+  COR_T(1, "stub programmed: %s <path-contains %s> -> %d", s->verb, s->path, s->status);
   corRest.out.httpStatusCode = 201;
   return true;
 }
@@ -1010,7 +1010,7 @@ static bool deleteMockReply(void)
 static bool postAccumulate(void)
 {
   dumpAccumulate();
-  KT_T(1, "POST %s received (total: %d, status=%u, delay=%ums)", corRest.in.urlPath, dumpCount, ftPostStatus, ftDelayMs);
+  COR_T(1, "POST %s received (total: %d, status=%u, delay=%ums)", corRest.in.urlPath, dumpCount, ftPostStatus, ftDelayMs);
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
@@ -1074,8 +1074,8 @@ static bool getAccumulate(void)
     probeCount++;
   else
     dumpAccumulate();
-  KT_T(1, "GET %s received (probe=%d total: %d, status=%u, delay=%ums)",
-       corRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
+  COR_T(1, "GET %s received (probe=%d total: %d, status=%u, delay=%ums)",
+        corRest.in.urlPath, isProbe, dumpCount, ftPostStatus, ftDelayMs);
 
   if (ftDelayMs > 0)
     usleep(ftDelayMs * 1000);
@@ -1311,7 +1311,7 @@ static bool postBridgeServiceReply(void)
 
   pthread_mutex_unlock(&ftServiceMutex);
 
-  KT_T(1, "ftClient: '%s' will be answered with %s", endpointP->value.s, rendered);
+  COR_T(1, "ftClient: '%s' will be answered with %s", endpointP->value.s, rendered);
 
   corRest.out.httpStatusCode = 204;
 
@@ -1417,9 +1417,9 @@ int main(int argC, char* argV[])
     return 1;
   }
 
-  if (ktInit("ftClient", "/tmp", false, NULL, "0-255", kaBuiltinVerbose, kaBuiltinDebug, false) != 0)
+  if (corLogInit("ftClient", "/tmp", false, NULL, "0-255", kaBuiltinVerbose, kaBuiltinDebug, false) != 0)
   {
-    fprintf(stderr, "ktInit failed\n");
+    fprintf(stderr, "corLogInit failed\n");
     return 1;
   }
 
@@ -1444,7 +1444,7 @@ int main(int argC, char* argV[])
       return 1;
 
     corRestHttpsServerCredentialsSet(keyPem, certPem);
-    KT_I("ftClient serving HTTPS on port %u", ftPort);
+    COR_I("ftClient serving HTTPS on port %u", ftPort);
   }
 
   //
@@ -1468,10 +1468,10 @@ int main(int argC, char* argV[])
       return 1;
     }
     pthread_detach(tid);
-    KT_I("ftClient MQTT listener: localhost:%u topic='%s'", ftMqttPort, ftMqttTopic);
+    COR_I("ftClient MQTT listener: localhost:%u topic='%s'", ftMqttPort, ftMqttTopic);
   }
 
-  KT_I("ftClient running on port %u", ftPort);
+  COR_I("ftClient running on port %u", ftPort);
 
   while (1)
     pause();

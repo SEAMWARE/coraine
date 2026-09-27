@@ -28,7 +28,7 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "ktrace/kTrace.h"                           // KT_E, KT_T
+#include "corLog/corLog.h"                           // COR_E, COR_T
 #include "kalloc/kaStrdup.h"                         // kaStrdup
 
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
@@ -92,9 +92,9 @@ void dbExpiredEntityDispatchPending(void)
     // Not an error worth escalating: the response is already sent, and a
     // concurrent DELETE beating us here is a perfectly ordinary race.
     if (r != DB_OK)
-      KT_T(LdTExpiry, "expired entity '%s' not removed (%d)", corNgsild.expiredV[i].entityId, r);
+      COR_T(LdTExpiry, "expired entity '%s' not removed (%d)", corNgsild.expiredV[i].entityId, r);
     else
-      KT_T(LdTExpiry, "expired entity '%s' removed", corNgsild.expiredV[i].entityId);
+      COR_T(LdTExpiry, "expired entity '%s' removed", corNgsild.expiredV[i].entityId);
   }
 
   corNgsild.expiredN = 0;

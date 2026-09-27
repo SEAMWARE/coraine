@@ -15,7 +15,7 @@
 #include <string.h>                                    // strncpy
 #include <time.h>                                      // clock_gettime
 
-#include "ktrace/kTrace.h"                             // KT_E
+#include "corLog/corLog.h"                             // COR_E
 #include "kalloc/KAlloc.h"                             // KAlloc
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 
@@ -169,5 +169,5 @@ static const LdForwardingPlugin httpPlugin =
 void forwardingHttpRegister(void)
 {
   if (ldForwardingRegister(&httpPlugin) == false)
-    KT_E("forwarding: failed to register HTTP plugin (already claimed?)");
+    COR_E("forwarding: failed to register HTTP plugin (already claimed?)");
 }

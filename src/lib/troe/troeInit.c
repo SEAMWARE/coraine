@@ -9,7 +9,7 @@
 
 #include <stddef.h>                                   // NULL
 
-#include "ktrace/kTrace.h"                            // KT_E, KT_I
+#include "corLog/corLog.h"                            // COR_E, COR_I
 
 #include "troe/TroeDriver.h"                          // TroeDriver
 #include "troe/troeInit.h"                            // Own interface
@@ -42,12 +42,12 @@ int troeStart(void)
   int r = troe.init();
   if (r != TROE_OK)
   {
-    KT_E("troe driver init failed (rc=%d)", r);
+    COR_E("troe driver init failed (rc=%d)", r);
     return r;
   }
 
   if (troe.alias != NULL)
-    KT_I("troe plugin online: %s", troe.alias);
+    COR_I("troe plugin online: %s", troe.alias);
 
   return TROE_OK;
 }

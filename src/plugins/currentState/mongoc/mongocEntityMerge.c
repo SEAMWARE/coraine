@@ -28,7 +28,7 @@
 
 #include <mongoc/mongoc.h>                            // mongoc_collection_*, mongoc_cursor_*
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 
@@ -211,7 +211,7 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
     bson_error_t err;
     if (geoClashP != NULL)
     {
-      KT_E("mongoc: entityChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      COR_E("mongoc: entityChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
       corNgsild.geoConflictAttr = geoClashP;
       result = DB_GEO_TYPE_CONFLICT;
     }
@@ -226,19 +226,19 @@ int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
         const char* mixedP = mongocGeoIndexMixedName(tenantP, mergedEntity);
         if (mixedP != NULL)
         {
-          KT_E("mongoc: entityChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
+          COR_E("mongoc: entityChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
           corNgsild.geoConflictAttr = mixedP;
           result = DB_GEO_TYPE_CONFLICT;
         }
         else
         {
-          KT_E("mongoc: entityChangesApply rejected by 2dsphere: %s", err.message);
+          COR_E("mongoc: entityChangesApply rejected by 2dsphere: %s", err.message);
           result = DB_INVALID_GEOMETRY;
         }
       }
       else
       {
-        KT_E("mongoc: entityChangesApply update_one failed: %s", err.message);
+        COR_E("mongoc: entityChangesApply update_one failed: %s", err.message);
         result = DB_ERR;
       }
     }

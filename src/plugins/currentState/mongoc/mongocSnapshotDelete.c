@@ -12,7 +12,7 @@
 //
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocSnapshotDelete.h" // Own interface
@@ -37,7 +37,7 @@ int mongocSnapshotDelete(Tenant* tenantP, const char* snapId)
   int result = DB_OK;
   if (!ok)
   {
-    KT_E("mongoc: snapshotDelete failed: %s", error.message);
+    COR_E("mongoc: snapshotDelete failed: %s", error.message);
     result = DB_ERR;
   }
   else

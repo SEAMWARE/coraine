@@ -11,7 +11,7 @@
 #include <stdlib.h>                                   // calloc, free
 #include <string.h>                                   // strcmp, strdup
 
-#include "ktrace/kTrace.h"                            // KT_T
+#include "corLog/corLog.h"                            // COR_T
 
 #include "corBridge/BridgeDriver.h"                   // BRIDGES_MAX
 
@@ -105,7 +105,7 @@ bool bridgeDefaultEntitySet(const char* bridgeName, const char* entityId, const 
 
   ++defaultCount;
 
-  KT_T(KtBridge, "bridge '%s': unclaimed endpoints go to %s (%s)", bridgeName, entityId, entityType);
+  COR_T(KtBridge, "bridge '%s': unclaimed endpoints go to %s (%s)", bridgeName, entityId, entityType);
 
   return true;
 }

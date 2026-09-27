@@ -10,7 +10,7 @@
 #include <string.h>                                  // strstr
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
@@ -52,7 +52,7 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
   {
     mongoc_collection_destroy(collP);
     mongoc_client_pool_push(poolP, clientP);
-    KT_E("mongoc: entityCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
+    COR_E("mongoc: entityCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
     corNgsild.geoConflictAttr = geoClashP;
     return DB_GEO_TYPE_CONFLICT;
   }
@@ -90,16 +90,16 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
       const char* mixedP = mongocGeoIndexMixedName(tenantP, entityP);
       if (mixedP != NULL)
       {
-        KT_E("mongoc: entityCreate: '%s' is held as a GeoProperty here and written as another type", mixedP);
+        COR_E("mongoc: entityCreate: '%s' is held as a GeoProperty here and written as another type", mixedP);
         corNgsild.geoConflictAttr = mixedP;
         return DB_GEO_TYPE_CONFLICT;
       }
 
-      KT_E("mongoc: entityCreate rejected by 2dsphere: %s", error.message);
+      COR_E("mongoc: entityCreate rejected by 2dsphere: %s", error.message);
       return DB_INVALID_GEOMETRY;
     }
 
-    KT_E("mongoc: entityCreate failed: %s", error.message);
+    COR_E("mongoc: entityCreate failed: %s", error.message);
     return DB_ERR;
   }
 

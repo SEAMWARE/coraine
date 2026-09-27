@@ -88,7 +88,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
-#include "ktrace/kTrace.h"                           // KT_T
+#include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // KtDistOpRequest
 
 #include "serviceRoutines/postEntityBatchUpsert.h"   // Own interface
@@ -1103,7 +1103,7 @@ bool postEntityBatchUpsert(void)
 
       char* body = renderBatchBody(csr, batchArr);
 
-      KT_T(KtDistOpRequest, "forward: POST %s", url);
+      COR_T(KtDistOpRequest, "forward: POST %s", url);
       bItems[bCount].csr     = csr;
       bItems[bCount].url     = url;
       bItems[bCount].body    = body;
