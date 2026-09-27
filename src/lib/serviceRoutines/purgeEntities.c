@@ -57,8 +57,8 @@
 #include "db/DbQueryFilter.h"                        // DbQueryFilter
 #include "db/Tenant.h"                               // Tenant
 
-#include "ktrace/kTrace.h"                           // KT_T
-#include "coraineTraceLevels.h"                     // KtDistOpRequest
+#include "corLog/corLog.h"                           // COR_T
+#include "coraineTraceLevels.h"                     // CtDistOpRequest
 
 #include "serviceRoutines/purgeEntities.h"           // Own interface
 
@@ -332,8 +332,8 @@ bool purgeEntities(void)
         {
           if ((csr->regTree == NULL) || !ldEntityMatchQ(csr->regTree, corNgsild.csfExpr))
           {
-            KT_T(LdTRegMatch, "%s: matched, but NOT purged: the registration does not match csf '%s'",
-                 (csr->regId != NULL) ? csr->regId : "<no id>", corNgsild.csf);
+            COR_T(LdTRegMatch, "%s: matched, but NOT purged: the registration does not match csf '%s'",
+                  (csr->regId != NULL) ? csr->regId : "<no id>", corNgsild.csf);
             continue;
           }
         }
@@ -353,7 +353,7 @@ bool purgeEntities(void)
         items[itemCount].url     = forwardUrl(csr->endpoint);
         items[itemCount].body    = NULL;
         items[itemCount].bodyLen = 0;
-        KT_T(KtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
+        COR_T(CtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
 
         itemCount++;
       }

@@ -19,7 +19,7 @@
 #include <stdlib.h>                                       // strtol
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E, KT_I, KT_V
+#include "corLog/corLog.h"                                // COR_E, COR_I, COR_V
 
 #include "temporal/timescale/timescaleMigrate.h"          // Own interface
 
@@ -46,7 +46,7 @@ static int execSimple(PGconn* conn, const char* sql)
   ExecStatusType st = PQresultStatus(res);
   if (st != PGRES_COMMAND_OK && st != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: SQL failed: %s — %s", PQerrorMessage(conn), sql);
+    COR_E("timescale: SQL failed: %s — %s", PQerrorMessage(conn), sql);
     PQclear(res);
     return -1;
   }
@@ -291,7 +291,7 @@ static int ensureHypertable(PGconn* conn)
                          "SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' LIMIT 1");
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: pg_extension lookup failed: %s", PQerrorMessage(conn));
+    COR_E("timescale: pg_extension lookup failed: %s", PQerrorMessage(conn));
     PQclear(res);
     return -1;
   }
@@ -300,8 +300,8 @@ static int ensureHypertable(PGconn* conn)
 
   if (!tsInstalled)
   {
-    KT_I("timescale: TimescaleDB extension not installed — running on plain postgres "
-         "(troe_attrs will not be a hypertable)");
+    COR_I("timescale: TimescaleDB extension not installed — running on plain postgres "
+          "(troe_attrs will not be a hypertable)");
     return 0;
   }
 
@@ -314,8 +314,8 @@ static int ensureHypertable(PGconn* conn)
     // Older TimescaleDB versions used _timescaledb_catalog.hypertable —
     // log the lookup failure and skip; conversion can be triggered by
     // an admin manually if needed.
-    KT_I("timescale: hypertables view query failed (%s) — skipping auto-conversion",
-         PQerrorMessage(conn));
+    COR_I("timescale: hypertables view query failed (%s) — skipping auto-conversion",
+          PQerrorMessage(conn));
     PQclear(res);
     return 0;
   }
@@ -324,14 +324,14 @@ static int ensureHypertable(PGconn* conn)
 
   if (alreadyHypertable)
   {
-    KT_V("timescale: troe_attrs is already a hypertable");
+    COR_V("timescale: troe_attrs is already a hypertable");
     return 0;
   }
 
   // 3. Convert. modified_at is NOT NULL on every row (broker-receipt time)
   // so it's the safe time-axis. migrate_data => TRUE handles any rows
   // that were already inserted before this conversion.
-  KT_I("timescale: converting troe_attrs to hypertable (chunk_time_interval = 7 days)");
+  COR_I("timescale: converting troe_attrs to hypertable (chunk_time_interval = 7 days)");
   res = PQexec(conn,
                "SELECT create_hypertable('troe_attrs', 'modified_at', "
                "                         chunk_time_interval => INTERVAL '7 days', "
@@ -339,13 +339,13 @@ static int ensureHypertable(PGconn* conn)
                "                         migrate_data => TRUE)");
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: create_hypertable failed: %s", PQerrorMessage(conn));
+    COR_E("timescale: create_hypertable failed: %s", PQerrorMessage(conn));
     PQclear(res);
     return -1;
   }
   PQclear(res);
 
-  KT_I("timescale: troe_attrs converted to hypertable");
+  COR_I("timescale: troe_attrs converted to hypertable");
   return 0;
 }
 
@@ -369,7 +369,7 @@ int timescaleMigrate(PGconn* conn)
   // not fatal: without PostGIS the CREATE TABLE in migration #1 fails loudly,
   // which is the correct signal that the deployment lacks the extension.
   if (execSimple(conn, "CREATE EXTENSION IF NOT EXISTS postgis") != 0)
-    KT_I("timescale: CREATE EXTENSION postgis failed — geoquery pushdown unavailable");
+    COR_I("timescale: CREATE EXTENSION postgis failed — geoquery pushdown unavailable");
 
   // 2. Bootstrap the meta-table if missing.
   if (execSimple(conn,
@@ -382,7 +382,7 @@ int timescaleMigrate(PGconn* conn)
   }
 
   int current = currentSchemaVersion(conn);
-  KT_V("timescale: current schema version = %d", current);
+  COR_V("timescale: current schema version = %d", current);
 
   // 3. Apply pending migrations.
   for (int i = 0; migrationsV[i].sqlFn != NULL; i++)
@@ -390,7 +390,7 @@ int timescaleMigrate(PGconn* conn)
     if (migrationsV[i].version <= current)
       continue;
 
-    KT_I("timescale: applying migration %d (%s)", migrationsV[i].version, migrationsV[i].label);
+    COR_I("timescale: applying migration %d (%s)", migrationsV[i].version, migrationsV[i].label);
 
     if (execSimple(conn, "BEGIN") != 0)                         return -1;
     if (migrationsV[i].sqlFn(conn) != 0)

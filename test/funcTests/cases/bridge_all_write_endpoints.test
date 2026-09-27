@@ -25,7 +25,7 @@
 # exactly one, which is also the assertion that an arriving sample does not
 # bounce back out again.
 #
-# ⚠ Traces are narrowed to 402 (KtBridge) for the same reason: the grep at the
+# ⚠ Traces are narrowed to 402 (CtBridge) for the same reason: the grep at the
 # end must not be able to match anything else.
 #
 --NAME--

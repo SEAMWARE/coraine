@@ -28,7 +28,7 @@
 #include <string.h>                                       // strcmp, memset
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E, KT_W
+#include "corLog/corLog.h"                                // COR_E, COR_W
 #include "corTree/CorNode.h"                              // CorNode
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeChildAdd
@@ -88,8 +88,8 @@ static bool entityHasRows(const char* entityId)
     1, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: troe_entities existence SELECT failed: %s",
-         PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_entities existence SELECT failed: %s",
+          PQerrorMessage(timescaleConn));
     PQclear(res);
     return false;
   }
@@ -113,8 +113,8 @@ static bool attrHasRows(const char* entityId, const char* attrName)
     2, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: troe_attrs existence SELECT failed: %s",
-         PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs existence SELECT failed: %s",
+          PQerrorMessage(timescaleConn));
     PQclear(res);
     return false;
   }
@@ -175,8 +175,8 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
     // outside - it has to be measured at the moment the decision is made, which
     // is here.
     //
-    KT_W("timescale: temporal delete found nothing for '%s' - troe_entities rows: %d, troe_attrs rows: %d",
-         entityId, rowCount("troe_entities", entityId), rowCount("troe_attrs", entityId));
+    COR_W("timescale: temporal delete found nothing for '%s' - troe_entities rows: %d, troe_attrs rows: %d",
+          entityId, rowCount("troe_entities", entityId), rowCount("troe_attrs", entityId));
 
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -196,7 +196,7 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
     1, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(attrsR) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: troe_attrs DELETE failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(attrsR);
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
     timescaleConn = NULL;
@@ -210,7 +210,7 @@ int timescaleEntityTemporalDelete(Tenant* tenantP, const char* entityId)
     1, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(entR) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: troe_entities DELETE failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_entities DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(entR);
     PQclear(PQexec(timescaleConn, "ROLLBACK"));
     timescaleConn = NULL;
@@ -277,7 +277,7 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: troe_attrs attr-delete failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs attr-delete failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -561,7 +561,7 @@ static bool instanceExists(const char* entityId,
     3, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: instance lookup failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: instance lookup failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     return false;
   }
@@ -686,7 +686,7 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: instance UPDATE failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: instance UPDATE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -736,7 +736,7 @@ int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: instance DELETE failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: instance DELETE failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -829,7 +829,7 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, CorNo
 
       if (PQresultStatus(uRes) != PGRES_COMMAND_OK)
       {
-        KT_E("timescale: entity_type merge failed: %s", PQerrorMessage(timescaleConn));
+        COR_E("timescale: entity_type merge failed: %s", PQerrorMessage(timescaleConn));
         PQclear(uRes);
         timescaleConn = NULL;
         timescaleConnRelease(cP);

@@ -11,10 +11,10 @@
 #include <string.h>                                      // strcmp
 #include <unistd.h>                                      // usleep
 
-#include "ktrace/kTrace.h"                               // KT_*
+#include "corLog/corLog.h"                               // KT_*
 
 #include "db/DbDriver.h"                                 // db
-#include "coraineTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // CtHa
 #include "ha/haEventApply.h"                             // haEventApply
 #include "ha/haInit.h"                                   // Own interface
 
@@ -74,7 +74,7 @@ bool haInit(void)
 {
   if ((haChannel == NULL) || (haChannel[0] == 0))
   {
-    KT_T(KtHa, "HA is off (no --ha)");
+    COR_T(CtHa, "HA is off (no --ha)");
     return true;
   }
 
@@ -88,11 +88,11 @@ bool haInit(void)
     // its caches are in sync.
     //
     if (db.haWatchStart == NULL)
-      KT_X(1, "--ha mongo needs a database plugin that can report what another broker instance wrote; the '%s' plugin cannot. "
+      COR_X(1, "--ha mongo needs a database plugin that can report what another broker instance wrote; the '%s' plugin cannot. "
               "Point the broker at a shared database, or use '--ha <ip:port>' once the haaux server exists",
-           (db.alias != NULL)? db.alias : "current");
+            (db.alias != NULL)? db.alias : "current");
 
-    KT_T(KtHa, "HA: the database change feed is the channel");
+    COR_T(CtHa, "HA: the database change feed is the channel");
 
     return (db.haWatchStart(haEventApply) == DB_OK);
   }
@@ -103,7 +103,7 @@ bool haInit(void)
   // change feed - or no shared database at all - and it is not written yet, so
   // say so rather than start up pretending HA is on.
   //
-  KT_X(1, "--ha %s: an address means the haaux server, which is not implemented yet. Use '--ha mongo'", haChannel);
+  COR_X(1, "--ha %s: an address means the haaux server, which is not implemented yet. Use '--ha mongo'", haChannel);
 
   return false;
 }

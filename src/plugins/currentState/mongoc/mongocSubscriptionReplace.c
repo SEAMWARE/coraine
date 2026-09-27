@@ -17,7 +17,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_replace_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
@@ -64,7 +64,7 @@ int mongocSubscriptionReplace(Tenant* tenantP, const char* subId, CorNode* subP)
 
   if (!ok)
   {
-    KT_E("mongoc: subscriptionReplace failed: %s", error.message);
+    COR_E("mongoc: subscriptionReplace failed: %s", error.message);
     result = DB_ERR;
   }
   else

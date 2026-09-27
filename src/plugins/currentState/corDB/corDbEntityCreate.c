@@ -9,7 +9,7 @@
 #include <stdbool.h>                                 // bool
 #include <string.h>                                   // strcmp
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd
@@ -71,7 +71,7 @@ int corDbEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
   CorNode* cloneP = corTreeClone(NULL, entityP);
   if (cloneP == NULL)
   {
-    KT_E("corDB: corTreeClone failed for entity '%s'", entityId);
+    COR_E("corDB: corTreeClone failed for entity '%s'", entityId);
     return DB_ERR;
   }
 

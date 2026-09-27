@@ -9,9 +9,9 @@
 #include <pthread.h>                                     // pthread_rwlock_destroy
 #include <stdlib.h>                                      // free
 
-#include "ktrace/kTrace.h"                               // KT_I
+#include "corLog/corLog.h"                               // COR_I
 
-#include "khash/khash.h"                               // khashRelease
+#include "corHash/corHash.h"                           // corHashRelease
 #include "corTree/corTreeFree.h"                         // corTreeFree
 
 #include "db/Tenant.h"                                   // tenant0, tenantList
@@ -37,7 +37,7 @@ static void corDbFreeTenantStore(Tenant* tenantP)
     // the HTTP server has stopped - so there is no last writer to wait for.
     //
     if (storeP->idIndex != NULL)
-      khashRelease(storeP->idIndex);
+      corHashRelease(storeP->idIndex);
 
     corTreeFree(storeP->tree);
     pthread_rwlock_destroy(&storeP->lock);
@@ -61,5 +61,5 @@ void corDbClose(void)
     corDbFreeTenantStore(tP);
 
   corDbGeoClose();
-  KT_I("corDB: closed (all tenant stores freed)");
+  COR_I("corDB: closed (all tenant stores freed)");
 }

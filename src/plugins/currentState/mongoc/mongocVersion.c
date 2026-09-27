@@ -11,7 +11,7 @@
 #include <mongoc/mongoc.h>                             // MONGOC_VERSION_S, mongoc_client_*
 
 #include "kalloc/KAlloc.h"                                 // KAlloc
-#include "ktrace/kTrace.h"                                 // KT_E
+#include "corLog/corLog.h"                                 // COR_E
 #include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeString, corTreeChildAdd
 
 #include "currentState/mongoc/mongocVersion.h"         // Own interface
@@ -68,7 +68,7 @@ int mongocServerVersionGet(void)
   {
     bson_destroy(&reply);
     mongoc_client_pool_push(poolP, clientP);
-    KT_E("mongoc: buildinfo command failed: %s", error.message);
+    COR_E("mongoc: buildinfo command failed: %s", error.message);
     return -1;
   }
 

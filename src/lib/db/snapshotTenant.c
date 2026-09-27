@@ -13,7 +13,7 @@
 #include <stdlib.h>                                      // malloc, free
 #include <string.h>                                      // strlen, strcpy, memset
 
-#include "ktrace/kTrace.h"                               // KT_I
+#include "corLog/corLog.h"                               // COR_I
 
 #include "db/DbDriver.h"                                 // db, DB_OK
 #include "db/Tenant.h"                                   // Tenant, tenant0
@@ -90,7 +90,7 @@ Tenant* snapshotTenantCreate(Tenant* origP, int snapSeq)
   }
   tP->initialized = true;
 
-  KT_I("snapshotTenant: created '%s' (db: '%s')", tP->name, tP->dbName);
+  COR_I("snapshotTenant: created '%s' (db: '%s')", tP->name, tP->dbName);
   return tP;
 }
 

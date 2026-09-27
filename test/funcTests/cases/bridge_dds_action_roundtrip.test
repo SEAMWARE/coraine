@@ -21,7 +21,7 @@
 #   07-08  a goal to an action nobody serves: 503, and nothing is written
 #
 # ⭐ The oracle is the entity afterwards and the broker's trace (0 for the
-# plugin, 402 KtBridge) - not the goal's instance mid-flight, which holds
+# plugin, 402 CtBridge) - not the goal's instance mid-flight, which holds
 # whatever the server has said so far and so depends on ROS's timing. How many
 # status updates a goal gets depends on it too; its end, its feedback count and
 # its one result do not. 04b looks mid-flight for two things only, and neither

@@ -19,7 +19,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_update_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocSubscriptionStatsFlush.h"  // Own interface
@@ -105,7 +105,7 @@ int mongocSubscriptionStatsFlush(Tenant*      tenantP,
 
   if (!mongoc_collection_update_one(collP, &filter, &update, NULL, &reply, &error))
   {
-    KT_E("mongoc: subscriptionStatsFlush(%s) failed: %s", subId, error.message);
+    COR_E("mongoc: subscriptionStatsFlush(%s) failed: %s", subId, error.message);
     result = DB_ERR;
   }
   else

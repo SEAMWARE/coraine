@@ -18,7 +18,7 @@
 
 #include <mongoc/mongoc.h>                             // mongoc_collection_*, mongoc_cursor_*
 
-#include "ktrace/kTrace.h"                             // KT_E
+#include "corLog/corLog.h"                             // COR_E
 #include "corTree/CorNode.h"                           // CorNode
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
 #include "corRest/CorRestState.h"                        // corRest
@@ -76,7 +76,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
     int rc = DB_NOT_FOUND;
     if (mongoc_cursor_error(cursorP, &cursorError))
     {
-      KT_E("mongoc: entityAttrsSet fetch failed: %s", cursorError.message);
+      COR_E("mongoc: entityAttrsSet fetch failed: %s", cursorError.message);
       rc = DB_ERR;
     }
     mongoc_cursor_destroy(cursorP);
@@ -211,7 +211,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
     bson_error_t err;
     if (geoClashP != NULL)
     {
-      KT_E("mongoc: entityAttrsSet: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      COR_E("mongoc: entityAttrsSet: '%s' is a GeoProperty here but already held as another type", geoClashP);
       corNgsild.geoConflictAttr = geoClashP;
       result = DB_GEO_TYPE_CONFLICT;
     }
@@ -226,19 +226,19 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
         const char* mixedP = mongocGeoIndexMixedName(tenantP, fragmentDb);
         if (mixedP != NULL)
         {
-          KT_E("mongoc: entityAttrsSet: '%s' is held as a GeoProperty here and set to another type", mixedP);
+          COR_E("mongoc: entityAttrsSet: '%s' is held as a GeoProperty here and set to another type", mixedP);
           corNgsild.geoConflictAttr = mixedP;
           result = DB_GEO_TYPE_CONFLICT;
         }
         else
         {
-          KT_E("mongoc: entityAttrsSet rejected by 2dsphere: %s", err.message);
+          COR_E("mongoc: entityAttrsSet rejected by 2dsphere: %s", err.message);
           result = DB_INVALID_GEOMETRY;
         }
       }
       else
       {
-        KT_E("mongoc: entityAttrsSet update_one failed: %s", err.message);
+        COR_E("mongoc: entityAttrsSet update_one failed: %s", err.message);
         result = DB_ERR;
       }
     }

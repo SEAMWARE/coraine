@@ -18,9 +18,9 @@
 //
 enum CorBrokerTraceLevel
 {
-  KtDistOpRequest = 400,  // Outbound distributed-operation request URL
-  KtHa            = 401,  // Cache sync with the other broker instances
-  KtBridge        = 402   // Bridge plugins: transports to non-NGSI-LD peers
+  CtDistOpRequest = 400,  // Outbound distributed-operation request URL
+  CtHa            = 401,  // Cache sync with the other broker instances
+  CtBridge        = 402   // Bridge plugins: transports to non-NGSI-LD peers
 };
 
 #endif  // CORAINE_TRACE_LEVELS_H_

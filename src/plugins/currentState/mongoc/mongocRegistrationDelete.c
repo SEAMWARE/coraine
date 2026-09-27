@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_delete_one
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocRegistrationDelete.h"  // Own interface
@@ -41,7 +41,7 @@ int mongocRegistrationDelete(Tenant* tenantP, const char* regId)
 
   if (!ok)
   {
-    KT_E("mongoc: registrationDelete failed: %s", error.message);
+    COR_E("mongoc: registrationDelete failed: %s", error.message);
     result = DB_ERR;
   }
   else

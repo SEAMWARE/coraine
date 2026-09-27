@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_find_with_opts
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                      // corRest
@@ -75,7 +75,7 @@ int mongocSubscriptionQuery(Tenant* tenantP, int limit, int offset, CorNode** ar
 
   if (mongoc_cursor_error(cursorP, &error))
   {
-    KT_E("mongoc: subscriptionQuery failed: %s", error.message);
+    COR_E("mongoc: subscriptionQuery failed: %s", error.message);
     result = DB_ERR;
   }
 

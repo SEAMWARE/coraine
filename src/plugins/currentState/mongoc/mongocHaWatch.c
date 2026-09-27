@@ -16,7 +16,7 @@
 
 #include "kalloc/kalloc.h"                             // kaBufferInit, kaBufferReset
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
-#include "ktrace/kTrace.h"                             // KT_*
+#include "corLog/corLog.h"                             // KT_*
 
 #include "db/DbDriver.h"                               // DB_OK, DB_ERR
 #include "db/Tenant.h"                                 // Tenant, tenant0, tenantLookup, tenantGetOrCreate
@@ -80,7 +80,7 @@ static bool replicaSetCheck(void)
 
   if (clientP == NULL)
   {
-    KT_E("HA: no mongo connection to check the deployment with");
+    COR_E("HA: no mongo connection to check the deployment with");
     return false;
   }
 
@@ -98,7 +98,7 @@ static bool replicaSetCheck(void)
       isReplicaSet = true;
   }
   else
-    KT_E("HA: unable to ask mongo whether it is a replica set (%s)", error.message);
+    COR_E("HA: unable to ask mongo whether it is a replica set (%s)", error.message);
 
   bson_destroy(&reply);
   bson_destroy(commandP);
@@ -153,7 +153,7 @@ static void eventTreat(const bson_t* bsonP)
 
   if (eventP == NULL)
   {
-    KT_E("HA: unable to parse a change stream event");
+    COR_E("HA: unable to parse a change stream event");
     return;
   }
 
@@ -162,7 +162,7 @@ static void eventTreat(const bson_t* bsonP)
 
   if ((opTypeP == NULL) || (opTypeP->type != CorString) || (nsP == NULL))
   {
-    KT_E("HA: change stream event without operationType or ns - ignored");
+    COR_E("HA: change stream event without operationType or ns - ignored");
     return;
   }
 
@@ -179,7 +179,7 @@ static void eventTreat(const bson_t* bsonP)
   else if (strcmp(opTypeP->value.s, "delete")  == 0)  op = HaOpDelete;
   else
   {
-    KT_W("HA: change stream event '%s' - not an item change, ignored", opTypeP->value.s);
+    COR_W("HA: change stream event '%s' - not an item change, ignored", opTypeP->value.s);
     return;
   }
 
@@ -188,7 +188,7 @@ static void eventTreat(const bson_t* bsonP)
 
   if ((dbP == NULL) || (collP == NULL) || (dbP->type != CorString) || (collP->type != CorString))
   {
-    KT_E("HA: change stream event with an incomplete 'ns' - ignored");
+    COR_E("HA: change stream event with an incomplete 'ns' - ignored");
     return;
   }
 
@@ -240,7 +240,7 @@ static void eventTreat(const bson_t* bsonP)
 
   if ((idP == NULL) || (idP->type != CorString))
   {
-    KT_W("HA: change in %s.%s with no string _id - ignored", dbP->value.s, collP->value.s);
+    COR_W("HA: change in %s.%s with no string _id - ignored", dbP->value.s, collP->value.s);
     return;
   }
 
@@ -300,7 +300,7 @@ static mongoc_change_stream_t* streamOpen(bson_error_t* errorP)
     return NULL;
   }
 
-  KT_I("HA: watching the database for changes made by the other broker instances");
+  COR_I("HA: watching the database for changes made by the other broker instances");
   return streamP;
 }
 
@@ -364,7 +364,7 @@ static void* haWatchThread(void* vP)
     //
     do
     {
-      KT_E("HA: change stream error (%s) - restarting the stream in 5 seconds", error.message);
+      COR_E("HA: change stream error (%s) - restarting the stream in 5 seconds", error.message);
       sleep(5);
       streamP = streamOpen(&error);
     } while (streamP == NULL);
@@ -392,14 +392,14 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (poolP == NULL)
   {
-    KT_E("HA: the mongo plugin is not connected");
+    COR_E("HA: the mongo plugin is not connected");
     return DB_ERR;
   }
 
   if (replicaSetCheck() == false)
   {
-    KT_E("--ha mongo needs a mongo REPLICA SET - this mongod is a standalone, and a standalone has no oplog for a change stream to read. "
-         "Either point the broker at a replica set (a single node is enough: mongod --replSet <name>, then rs.initiate()) or run without --ha");
+    COR_E("--ha mongo needs a mongo REPLICA SET - this mongod is a standalone, and a standalone has no oplog for a change stream to read. "
+          "Either point the broker at a replica set (a single node is enough: mongod --replSet <name>, then rs.initiate()) or run without --ha");
     return DB_ERR;
   }
 
@@ -409,7 +409,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (haClientP == NULL)
   {
-    KT_E("HA: unable to create a mongo client for the change stream");
+    COR_E("HA: unable to create a mongo client for the change stream");
     return DB_ERR;
   }
 
@@ -427,10 +427,10 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (haStreamP == NULL)
   {
-    KT_E("--ha mongo: unable to open the change stream (%s). "
-         "The stream watches the whole deployment (a tenant is a database of its own), so, if mongo runs with authentication, "
-         "the mongo user needs the actions 'find' and 'changeStream' on ALL databases - see doc/high-availability.md",
-         error.message);
+    COR_E("--ha mongo: unable to open the change stream (%s). "
+          "The stream watches the whole deployment (a tenant is a database of its own), so, if mongo runs with authentication, "
+          "the mongo user needs the actions 'find' and 'changeStream' on ALL databases - see doc/high-availability.md",
+          error.message);
     return DB_ERR;
   }
 
@@ -438,7 +438,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (pthread_create(&tid, NULL, haWatchThread, NULL) != 0)
   {
-    KT_E("HA: unable to create the change stream thread");
+    COR_E("HA: unable to create the change stream thread");
     return DB_ERR;
   }
 

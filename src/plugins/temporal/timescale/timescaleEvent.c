@@ -19,7 +19,7 @@
 #include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E
+#include "corLog/corLog.h"                                // COR_E
 
 #include "corTree/CorNode.h"                              // CorNode
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
@@ -404,7 +404,7 @@ int timescaleExecEntityInsertLocked(const TroeEvent* evP)
   ExecStatusType st = PQresultStatus(res);
   if (st != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: troe_entities INSERT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_entities INSERT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     return TROE_ERR;
   }
@@ -537,7 +537,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   ExecStatusType st = PQresultStatus(res);
   if (st != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: troe_attrs INSERT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs INSERT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     return TROE_ERR;
   }
@@ -613,7 +613,7 @@ int timescaleEventList(const TroeEvent* listHead, int count)
   PGresult* beginR = PQexec(timescaleConn, "BEGIN");
   if (PQresultStatus(beginR) != PGRES_COMMAND_OK)
   {
-    KT_E("timescale: BEGIN failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: BEGIN failed: %s", PQerrorMessage(timescaleConn));
     PQclear(beginR);
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -652,7 +652,7 @@ int timescaleEventList(const TroeEvent* listHead, int count)
     PGresult* commitR = PQexec(timescaleConn, "COMMIT");
     if (PQresultStatus(commitR) != PGRES_COMMAND_OK)
     {
-      KT_E("timescale: COMMIT failed: %s", PQerrorMessage(timescaleConn));
+      COR_E("timescale: COMMIT failed: %s", PQerrorMessage(timescaleConn));
       rc = TROE_ERR;
     }
     PQclear(commitR);

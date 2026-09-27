@@ -12,7 +12,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_init, mongoc_client_pool_new, ...
 
-#include "ktrace/kTrace.h"                               // KT_I, KT_E
+#include "corLog/corLog.h"                               // COR_I, COR_E
 
 #include "db/Tenant.h"                               // tenantInit, tenantGetOrCreate, tenant0
 #include "shared/geoMatch.h"                                      // geoMatchInit
@@ -45,7 +45,7 @@ int mongocInit(void)
   //
   if (mongocDbName != NULL && mongocGlobalDb != NULL && strcmp(mongocDbName, mongocGlobalDb) == 0)
   {
-    KT_E("mongoc: '%s' is the reserved global database name (used for JSON-LD context persistence); pick another -dbName or change --globalDb", mongocDbName);
+    COR_E("mongoc: '%s' is the reserved global database name (used for JSON-LD context persistence); pick another -dbName or change --globalDb", mongocDbName);
     return -1;
   }
 
@@ -80,7 +80,7 @@ int mongocInit(void)
 
   if (uriP == NULL)
   {
-    KT_E("mongoc: invalid URI '%s': %s", uriStr, error.message);
+    COR_E("mongoc: invalid URI '%s': %s", uriStr, error.message);
     mongoc_cleanup();
     return -1;
   }
@@ -98,7 +98,7 @@ int mongocInit(void)
 
   if (poolP == NULL)
   {
-    KT_E("mongoc: failed to create client pool");
+    COR_E("mongoc: failed to create client pool");
     mongoc_cleanup();
     return -1;
   }
@@ -106,7 +106,7 @@ int mongocInit(void)
   //
   // Verify connection with a ping
   //
-  KT_I("mongoc: attempting to connect to %s, will timeout after %d seconds", uriStr, mongocDbTimeout);
+  COR_I("mongoc: attempting to connect to %s, will timeout after %d seconds", uriStr, mongocDbTimeout);
 
   mongoc_client_t* clientP = mongoc_client_pool_pop(poolP);
   bson_t           ping;
@@ -123,14 +123,14 @@ int mongocInit(void)
   if (!ok)
   {
     mongoc_client_pool_push(poolP, clientP);
-    KT_E("mongoc: ping failed: %s", error.message);
+    COR_E("mongoc: ping failed: %s", error.message);
     mongoc_client_pool_destroy(poolP);
     poolP = NULL;
     mongoc_cleanup();
     return -1;
   }
 
-  KT_I("mongoc: connected to %s, database '%s'", uriStr, mongocDbName);
+  COR_I("mongoc: connected to %s, database '%s'", uriStr, mongocDbName);
   mongocServerVersionGet();
 
   //
@@ -170,7 +170,7 @@ int mongocInit(void)
       {
         mongocTenantSetup(tP);
         tP->initialized = true;
-        KT_I("mongoc: discovered tenant '%s' (db: '%s')", tP->name, tP->dbName);
+        COR_I("mongoc: discovered tenant '%s' (db: '%s')", tP->name, tP->dbName);
       }
     }
 

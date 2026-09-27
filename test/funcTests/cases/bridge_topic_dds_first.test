@@ -28,7 +28,7 @@
 #       merge), and nothing ever for P2 or P3 - a refused sample is not
 #       published
 #
-# ⚠ Traces are narrowed to 402 (KtBridge) so the grep matches nothing else.
+# ⚠ Traces are narrowed to 402 (CtBridge) so the grep matches nothing else.
 #
 --NAME--
 Bridges: topics are DDS first - a sample the transport refuses writes nothing (400/503), and a merge publishes the merged value

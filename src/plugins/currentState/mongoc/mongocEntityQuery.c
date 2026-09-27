@@ -12,7 +12,7 @@
 #include <stdlib.h>                                  // strtod
 #include <string.h>                                  // strlen, strcmp
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                      // corRest
@@ -1272,9 +1272,9 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
       // A failed index BUILD lands here too (geoIndexCreate caches only on success), and there
       // Entities do have the GeoProperty - so say so, or the miss is completely silent.
       //
-      KT_W("mongoc: no 2dsphere index for geoproperty '%s' in db '%s' - the geoquery matches nothing. "
-           "Expected when no Entity has that GeoProperty; if some do, look for an earlier index-build error",
-           filterP->geoproperty, tenantP->dbName);
+      COR_W("mongoc: no 2dsphere index for geoproperty '%s' in db '%s' - the geoquery matches nothing. "
+            "Expected when no Entity has that GeoProperty; if some do, look for an earlier index-build error",
+            filterP->geoproperty, tenantP->dbName);
 
       *arrayPP = corTreeArray(corRest.kallocP, NULL);
       return DB_OK;
@@ -1476,7 +1476,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
       }
       bson_error_t cerr;
       if (mongoc_cursor_error(countCursor, &cerr))
-        KT_E("mongoc: $geoNear count aggregation failed: %s", cerr.message);
+        COR_E("mongoc: $geoNear count aggregation failed: %s", cerr.message);
       mongoc_cursor_destroy(countCursor);
     }
     else
@@ -1486,7 +1486,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
 
       if (total < 0)
       {
-        KT_E("mongoc: count_documents failed: %s", countError.message);
+        COR_E("mongoc: count_documents failed: %s", countError.message);
         filterP->totalCount = 0;
       }
       else
@@ -1700,7 +1700,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
 
   if (mongoc_cursor_error(cursorP, &error))
   {
-    KT_E("mongoc: entityQuery failed: %s", error.message);
+    COR_E("mongoc: entityQuery failed: %s", error.message);
     // mongo's PCRE regex validator rejects patterns POSIX regcomp
     // accepted (e.g. `**`). Distinguish bad-user-input (400) from
     // genuine 500-class errors so the service routine doesn't have

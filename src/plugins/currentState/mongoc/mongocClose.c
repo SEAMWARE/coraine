@@ -11,7 +11,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_client_pool_destroy, mongoc_cleanup
 
-#include "ktrace/kTrace.h"                               // KT_I
+#include "corLog/corLog.h"                               // COR_I
 
 #include "shared/geoMatch.h"                             // geoMatchClose
 #include "currentState/mongoc/mongocClose.h"                      // Own interface
@@ -42,5 +42,5 @@ void mongocClose(void)
 
   mongoc_cleanup();
 
-  KT_I("mongoc: closed");
+  COR_I("mongoc: closed");
 }

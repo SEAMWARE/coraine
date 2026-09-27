@@ -9,7 +9,7 @@
 #include <stddef.h>                                  // NULL
 #include <string.h>                                  // strcmp
 
-#include "khash/khash.h"                             // khashTableCreate, khashItemAdd, ...
+#include "corHash/corHash.h"                         // corHashTableCreate, corHashItemAdd, ...
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
@@ -21,7 +21,7 @@
 //
 // COR_DB_INDEX_SLOTS - starting size, and the growth factor
 //
-// khash never rehashes, so a table sized for a thousand entities becomes a
+// corHash never rehashes, so a table sized for a thousand entities becomes a
 // thousand linked lists at a million. corDbIndexAdd grows it instead: when the
 // entity count passes COR_DB_INDEX_LOAD per slot, the table is rebuilt eight
 // times larger. Rebuilding is O(n) and happens log8(n) times, so the amortised
@@ -80,7 +80,7 @@ static unsigned int idHash(const char* name)
 //
 // idCompare - does this stored entity have this id?
 //
-// khash does not keep the key: it hands the lookup name and the stored DATA to
+// corHash does not keep the key: it hands the lookup name and the stored DATA to
 // this function, and the data is the entity, which carries its own id. So there
 // is nothing to copy and nothing whose lifetime has to be managed alongside the
 // entity's.
@@ -135,7 +135,7 @@ static void idFirst(CorNode* entityP)
 //
 static void indexRebuild(CorDbStore* storeP, int slots)
 {
-  KHashTable* newP = khashTableCreate(NULL, idHash, idCompare, slots);
+  CorHashTable* newP = corHashTableCreate(NULL, idHash, idCompare, slots);
 
   if (newP == NULL)
     return;                                          // keep the old one; slower, not wrong
@@ -149,12 +149,12 @@ static void indexRebuild(CorDbStore* storeP, int slots)
       const char* id = corDbEntityId(eP);
 
       if (id != NULL)
-        khashItemAdd(newP, id, eP);
+        corHashItemAdd(newP, id, eP);
     }
   }
 
   if (storeP->idIndex != NULL)
-    khashRelease(storeP->idIndex);
+    corHashRelease(storeP->idIndex);
 
   storeP->idIndex  = newP;
   storeP->idxSlots = slots;
@@ -188,8 +188,8 @@ void corDbIndexAdd(CorDbStore* storeP, CorNode* entityP)
   // Remove any existing entry for this id before adding, so an id can never be
   // in the table twice.
   //
-  // khashItemAdd does not check for duplicates, and a duplicate is invisible
-  // until it is fatal: khashItemRemove unlinks the FIRST match and reports
+  // corHashItemAdd does not check for duplicates, and a duplicate is invisible
+  // until it is fatal: corHashItemRemove unlinks the FIRST match and reports
   // success, so the second entry survives the delete and every later lookup
   // returns a pointer to the freed entity. That is not hypothetical - it is the
   // bug this line fixes. indexRebuild below walks the entity list, and the
@@ -199,10 +199,10 @@ void corDbIndexAdd(CorDbStore* storeP, CorNode* entityP)
   //
   // One bucket walk per add, which is the same walk the add does anyway.
   //
-  if (khashItemRemove(storeP->idIndex, id) == 0)
+  if (corHashItemRemove(storeP->idIndex, id) == 0)
     storeP->idxCount -= 1;
 
-  khashItemAdd(storeP->idIndex, id, entityP);
+  corHashItemAdd(storeP->idIndex, id, entityP);
   storeP->idxCount += 1;
 
   if (storeP->idxCount > (storeP->idxSlots * COR_DB_INDEX_LOAD))
@@ -225,7 +225,7 @@ void corDbIndexRemove(CorDbStore* storeP, CorNode* entityP)
   if (id == NULL)
     return;
 
-  if (khashItemRemove(storeP->idIndex, id) == 0)
+  if (corHashItemRemove(storeP->idIndex, id) == 0)
     storeP->idxCount -= 1;
 }
 
@@ -240,5 +240,5 @@ CorNode* corDbIndexLookup(CorDbStore* storeP, const char* entityId)
   if ((storeP == NULL) || (storeP->idIndex == NULL) || (entityId == NULL))
     return NULL;
 
-  return (CorNode*) khashItemLookup(storeP->idIndex, entityId);
+  return (CorNode*) corHashItemLookup(storeP->idIndex, entityId);
 }

@@ -21,7 +21,7 @@
 #include <mongoc/mongoc.h>                             // mongoc_*
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 #include "kalloc/kaStrdup.h"                           // kaStrdup
-#include "ktrace/kTrace.h"                             // KT_E
+#include "corLog/corLog.h"                             // COR_E
 
 #include "db/DbDriver.h"                               // DbContextRow, DB_OK, DB_ERR
 
@@ -84,7 +84,7 @@ int mongocContextSave(const char* id, const char* url, int kind, const char* bod
   int result = ok ? DB_OK : DB_ERR;
 
   if (!ok)
-    KT_E("mongoc: contextSave failed for '%s': %s", id, error.message);
+    COR_E("mongoc: contextSave failed for '%s': %s", id, error.message);
 
   bson_destroy(&opts);
   bson_destroy(&doc);
@@ -118,7 +118,7 @@ int mongocContextDelete(const char* id)
 
   int result = ok ? DB_OK : DB_ERR;
   if (!ok)
-    KT_E("mongoc: contextDelete failed for '%s': %s", id, error.message);
+    COR_E("mongoc: contextDelete failed for '%s': %s", id, error.message);
 
   bson_destroy(&filter);
   mongoc_collection_destroy(collP);
@@ -179,7 +179,7 @@ int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
     bson_error_t cerr;
     if (mongoc_cursor_error(cursorP, &cerr))
     {
-      KT_E("mongoc: contextGet cursor error: %s", cerr.message);
+      COR_E("mongoc: contextGet cursor error: %s", cerr.message);
       result = DB_ERR;
     }
   }
@@ -226,7 +226,7 @@ int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
   bson_error_t cerr;
   if (mongoc_cursor_error(cursorP, &cerr))
   {
-    KT_E("mongoc: contextList cursor error: %s", cerr.message);
+    COR_E("mongoc: contextList cursor error: %s", cerr.message);
     mongoc_cursor_destroy(cursorP);
     bson_destroy(&emptyFilter);
     mongoc_collection_destroy(collP);

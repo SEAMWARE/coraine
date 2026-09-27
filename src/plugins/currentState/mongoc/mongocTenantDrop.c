@@ -12,7 +12,7 @@
 //
 #include <mongoc/mongoc.h>                           // mongoc_database_t
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocTenantDrop.h"    // Own interface
@@ -37,7 +37,7 @@ int mongocTenantDrop(Tenant* tenantP)
 
   if (!ok)
   {
-    KT_E("mongoc: tenantDrop failed: %s", error.message);
+    COR_E("mongoc: tenantDrop failed: %s", error.message);
     return DB_ERR;
   }
   return DB_OK;

@@ -23,8 +23,8 @@
 #include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
 
 #include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
-#include "ktrace/kTrace.h"                        // KT_I, KT_V, KT_X
-#include "ktrace/ktGlobals.h"                      // ktInfo, ktVerbose, ktDebug
+#include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
+#include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "kbase/kCpuCount.h"                       // kCpuCount
 #include "kargs/kargs.h"                          // kargsInit, kargsParse, kargsPeek, KArg, KArgsStatus, kargsStatus, KARGS_END, kargsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
@@ -91,7 +91,7 @@
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
 #include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs, bridgeRequestsReleasePending
-#include "coraineTraceLevels.h"                    // KtBridge
+#include "coraineTraceLevels.h"                    // CtBridge
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
@@ -540,13 +540,13 @@ static void apiPluginsInit(void)
     if (p->params != NULL)
     {
       if (corRestParamAdd(p->params) == false)
-        KT_X(1, "corRestParamAdd failed for API plugin '%s'", p->alias ? p->alias : "?");
+        COR_X(1, "corRestParamAdd failed for API plugin '%s'", p->alias ? p->alias : "?");
     }
 
     if (p->init != NULL)
     {
       if (p->init() != 0)
-        KT_X(1, "init failed for API plugin '%s'", p->alias ? p->alias : "?");
+        COR_X(1, "init failed for API plugin '%s'", p->alias ? p->alias : "?");
     }
   }
 }
@@ -557,7 +557,7 @@ static void apiPluginsInit(void)
 //
 // bridgeLogFunction - the broker's side of BridgeBroker::logFunction
 //
-// ⚠ The file/line/function are the PLUGIN's, so they are passed to ktOut rather
+// ⚠ The file/line/function are the PLUGIN's, so they are passed to corLogOut rather
 // than captured here. The KT_* macros record their own position, which inside a
 // log helper is this file, every time.
 //
@@ -574,7 +574,7 @@ static void bridgeLogFunction(int severity, const char* fileName, int lineNo, co
   default:                  sev = 'T';  break;
   }
 
-  ktOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
+  corLogOut((char*) fileName, lineNo, (char*) funcName, sev, -1, "%s", msg);
 }
 
 
@@ -630,7 +630,7 @@ static void bridgeChannelsInit(void)
     return;
 
   if (channelCacheInit() != CHANNEL_OK)
-    KT_X(1, "unable to create the channel cache");
+    COR_X(1, "unable to create the channel cache");
 
   int channels = channelConfigLoad(bridgeConfig, (bridgeConfig != NULL), &tenant0);
 
@@ -639,11 +639,11 @@ static void bridgeChannelsInit(void)
     int attrs = channelPrePopulate(&tenant0);
 
     if (attrs > 0)
-      KT_I("%d channel attribute%s created as placeholders", attrs, (attrs == 1) ? "" : "s");
+      COR_I("%d channel attribute%s created as placeholders", attrs, (attrs == 1) ? "" : "s");
   }
 
   if (channels > 0)
-    KT_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
+    COR_I("%d channel%s configured", channels, (channels == 1) ? "" : "s");
 }
 
 
@@ -669,12 +669,12 @@ static void bridgesInit(void)
       continue;
 
     if (driverP->init(bridgeConfig, &bridgeBroker) != BRIDGE_OK)
-      KT_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
+      COR_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
 
-    KT_I("bridge '%s' up%s%s",
-         (driverP->alias != NULL) ? driverP->alias : "?",
-         (driverP->versionInfo != NULL) ? ": " : "",
-         (driverP->versionInfo != NULL) ? driverP->versionInfo() : "");
+    COR_I("bridge '%s' up%s%s",
+          (driverP->alias != NULL) ? driverP->alias : "?",
+          (driverP->versionInfo != NULL) ? ": " : "",
+          (driverP->versionInfo != NULL) ? driverP->versionInfo() : "");
   }
 
   //
@@ -687,8 +687,8 @@ static void bridgesInit(void)
   {
     if (channelP->status != ChannelStatusAvailable)
     {
-      KT_I("channel '%s' is dormant: %s", channelP->endpoint,
-           (channelP->statusReason != NULL) ? channelP->statusReason : "?");
+      COR_I("channel '%s' is dormant: %s", channelP->endpoint,
+            (channelP->statusReason != NULL) ? channelP->statusReason : "?");
       continue;
     }
 
@@ -702,7 +702,7 @@ static void bridgesInit(void)
 
       int r = bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
       if (r != BRIDGE_OK)
-        KT_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
+        COR_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
 
       break;
     }
@@ -1005,7 +1005,7 @@ static void contextSourceExtrasLoad(const char* cliPath)
   if (fp == NULL)
   {
     if (cliSupplied)
-      KT_X(1, "--contextSourceExtras: cannot open '%s'", path);
+      COR_X(1, "--contextSourceExtras: cannot open '%s'", path);
     return;
   }
 
@@ -1015,21 +1015,21 @@ static void contextSourceExtrasLoad(const char* cliPath)
   if (fsz <= 0 || fsz > 1024 * 1024)
   {
     fclose(fp);
-    KT_X(1, "contextSourceExtras: '%s' empty or too large (max 1 MiB)", path);
+    COR_X(1, "contextSourceExtras: '%s' empty or too large (max 1 MiB)", path);
   }
 
   char* buf = (char*) kaAlloc(&corRest.kalloc, fsz + 1);
   if (fread(buf, 1, fsz, fp) != (size_t) fsz)
   {
     fclose(fp);
-    KT_X(1, "contextSourceExtras: read failed on '%s'", path);
+    COR_X(1, "contextSourceExtras: read failed on '%s'", path);
   }
   fclose(fp);
   buf[fsz] = 0;
 
   CorNode* parsed = corJsonParse(corRest.corJsonP, buf);
   if (parsed == NULL)
-    KT_X(1, "contextSourceExtras: '%s' is not valid JSON", path);
+    COR_X(1, "contextSourceExtras: '%s' is not valid JSON", path);
 
   ldContextSourceExtras = corTreeClone(NULL, parsed);
 }
@@ -1189,7 +1189,7 @@ int main(int argC, char* argV[])
 
   KArgsStatus ks = kargsInit(progName, kargV, "CORAINE");
   if (ks != KargsOk)
-    KT_X(1, "kargsInit failed: %s", kargsStatus(ks));
+    COR_X(1, "kargsInit failed: %s", kargsStatus(ks));
 
   corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
 
@@ -1197,7 +1197,7 @@ int main(int argC, char* argV[])
 
   ks = kargsParse(argC, argV);
   if (ks != KargsOk)
-    KT_X(1, "kargsParse failed: %s", kargsStatus(ks));
+    COR_X(1, "kargsParse failed: %s", kargsStatus(ks));
 
   if (startupError)
   {
@@ -1290,41 +1290,41 @@ int main(int argC, char* argV[])
   }
 
 
-  int r = ktInit("coraine", NULL, true, NULL, traceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
+  int r = corLogInit("coraine", NULL, true, NULL, traceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
   if (r != 0)
-    KT_X(1, "ktInit failed");
+    COR_X(1, "corLogInit failed");
 
   //
-  // Each switch steers its OWN class of output: -v drives KT_V, -d drives KT_D,
-  // and a trace level drives KT_T for that level. Nothing else.
+  // Each switch steers its OWN class of output: -v drives COR_V, -d drives COR_D,
+  // and a trace level drives COR_T for that level. Nothing else.
   //
-  // ktInit does not do that. It derives ktInfo/ktVerbose/ktDebug from a single
+  // corLogInit does not do that. It derives corLogInfo/corLogVerbose/corLogDebug from a single
   // CUMULATIVE level (CERO 0, ERR 1, WARN 2, INFO 3, VERBOSE 4, TRACE 5,
   // DEBUG 6), and it sets that level to 5 as soon as ANY trace level is asked
   // for - so `-t 235`, which asks for one line about one decision, silently
-  // turns on every KT_I and KT_V in the broker as well. That is how the admin
+  // turns on every COR_I and COR_V in the broker as well. That is how the admin
   // test came to report three fields changed when one option was passed.
   //
   // We do not pass a logLevel at all (the NULL above), so without the bump the
   // level would stay -1 and both would be off. Restoring that here is therefore
-  // not a policy of our own; it is what ktInit computes for our own arguments,
+  // not a policy of our own; it is what corLogInit computes for our own arguments,
   // minus a bump we never asked for.
   //
-  // Fixing it in ktrace is the right place and NOT today's errand: the library
+  // Fixing it in corLog is the right place and NOT today's errand: the library
   // is shared with consumers that pass a real logLevel and have a large user
   // base, and there the same line silently DOWNGRADES an explicit
-  // `--logLevel DEBUG` to 5 and takes KT_D away. One thing at a time.
+  // `--logLevel DEBUG` to 5 and takes COR_D away. One thing at a time.
   //
-  // ⚠️ ktInfo follows -v because there is no -i: kargs has kaBuiltinVerbose and
+  // ⚠️ corLogInfo follows -v because there is no -i: kargs has kaBuiltinVerbose and
   // kaBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
   // ladder. Give it its own option and this becomes that option.
   //
-  ktInfo    = kaBuiltinVerbose;
-  ktVerbose = kaBuiltinVerbose;
-  ktDebug   = kaBuiltinDebug;
+  corLogInfo    = kaBuiltinVerbose;
+  corLogVerbose = kaBuiltinVerbose;
+  corLogDebug   = kaBuiltinDebug;
 
-  KT_V("coraine  %s", CORAINE_VERSION);
-  KT_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
+  COR_V("coraine  %s", CORAINE_VERSION);
+  COR_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
 
   sem_init(&shutdownSem, 0, 0);
   signal(SIGINT,  onSignal);
@@ -1335,7 +1335,7 @@ int main(int argC, char* argV[])
   // product name (e.g. "coraine") is blocked by some @context CDNs
   // (uri.etsi.org via Cloudflare) but slash-versioned tokens pass.
   if (corRestClientInit(4, 60, "Coraine/" CORAINE_VERSION) != 0)
-    KT_X(1, "corRestClientInit failed");
+    COR_X(1, "corRestClientInit failed");
 
   // --insecureNotif → notifications/forwards to TLS endpoints accept self-signed
   // certificates (set before the first TLS handshake, i.e. before corRestClientTlsInit)
@@ -1355,17 +1355,17 @@ int main(int argC, char* argV[])
   kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
-    KT_X(1, "corLdInit failed");
+    COR_X(1, "corLdInit failed");
 
   //
   // The ContextBridge / Channel / Goal terms are core terms - with or without
   // --bridges: whether a term expands must not depend on a startup flag.
   //
   if (bridgeCoreTermsAdd(&contextAlloc) != 0)
-    KT_X(1, "the ContextBridge/Channel terms could not be added to the core context");
+    COR_X(1, "the ContextBridge/Channel terms could not be added to the core context");
 
   if (ldInit() != 0)
-    KT_X(1, "ldInit failed");
+    COR_X(1, "ldInit failed");
 
   ldDefaultCooldownNs = (uint64_t) cooldownMillis * 1000000ULL;
 
@@ -1393,7 +1393,7 @@ int main(int argC, char* argV[])
   }
 
   if (corRestParamAdd(bridgeParams) == false)
-    KT_X(1, "corRestParamAdd failed for the broker's own URL parameters");
+    COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
 
   apiPluginsInit();
   tenantInit("cor");
@@ -1405,10 +1405,10 @@ int main(int argC, char* argV[])
   corRestSetPostResponseHook(brokerPostResponseHook);
 
   if (dbStart() != 0)
-    KT_X(1, "dbStart failed");
+    COR_X(1, "dbStart failed");
 
   if (troeStart() != 0)
-    KT_X(1, "troeStart failed");
+    COR_X(1, "troeStart failed");
 
   //
   // Load subscriptions from DB into cache.
@@ -1442,7 +1442,7 @@ int main(int argC, char* argV[])
   // Nothing is applied until haApplyEnable() below.
   //
   if (haInit() == false)
-    KT_X(1, "unable to start the HA channel '%s'", haChannel);
+    COR_X(1, "unable to start the HA channel '%s'", haChannel);
 
   tenantSubCacheReload();
   tenantRegCacheReload();
@@ -1500,7 +1500,7 @@ int main(int argC, char* argV[])
   int totalServices = 0;
   CorRestServiceSimplified* allServices = serviceBuild(&totalServices);
   if (allServices == NULL)
-    KT_X(1, "serviceBuild failed (out of memory)");
+    COR_X(1, "serviceBuild failed (out of memory)");
 
   //
   // ?ddsSync on EVERY route, as Orion-LD takes it: a client that sends it
@@ -1554,9 +1554,9 @@ int main(int argC, char* argV[])
   corRestHttpLoopsSet(httpLoops);
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
-    KT_X(1, "corRestInit failed on port %u", port);
+    COR_X(1, "corRestInit failed on port %u", port);
 
-  KT_I("coraine running on port %u", port);
+  COR_I("coraine running on port %u", port);
 
   // Until SIGINT / SIGTERM (onSignal) - sem_wait returns early on EINTR, so wait again
   while (sem_wait(&shutdownSem) != 0)

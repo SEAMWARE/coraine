@@ -9,7 +9,7 @@
 
 #include <stddef.h>                                       // NULL
 
-#include "ktrace/kTrace.h"                                // KT_E, KT_I
+#include "corLog/corLog.h"                                // COR_E, COR_I
 
 #include "db/Tenant.h"                                    // tenant0
 
@@ -35,15 +35,15 @@ int timescaleInit(void)
 {
   if (timescalePoolEnsure(&tenant0) != TROE_OK)
   {
-    KT_E("timescale: failed to initialise the default-tenant database");
+    COR_E("timescale: failed to initialise the default-tenant database");
     return TROE_ERR;
   }
 
-  KT_I("timescale: ready (%s:%d, base db '%s', pool size %d)",
-       timescaleDbHost ? timescaleDbHost : "localhost",
-       timescaleDbPort,
-       timescaleDbName ? timescaleDbName : "corh",
-       timescalePoolSize);
+  COR_I("timescale: ready (%s:%d, base db '%s', pool size %d)",
+        timescaleDbHost ? timescaleDbHost : "localhost",
+        timescaleDbPort,
+        timescaleDbName ? timescaleDbName : "corh",
+        timescalePoolSize);
 
   return TROE_OK;
 }

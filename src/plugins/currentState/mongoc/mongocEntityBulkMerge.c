@@ -31,7 +31,7 @@
 
 #include <mongoc/mongoc.h>                               // mongoc_client_*, mongoc_collection_*
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corRest/CorRestState.h"                          // corRest
@@ -151,7 +151,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
 
   bson_error_t cursorError;
   if (mongoc_cursor_error(cursor, &cursorError))
-    KT_E("mongoc: entityBulkRetrieve $in fetch failed: %s", cursorError.message);
+    COR_E("mongoc: entityBulkRetrieve $in fetch failed: %s", cursorError.message);
 
   mongoc_cursor_destroy(cursor);
   bson_destroy(&filter);
@@ -221,7 +221,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
     const char* geoClashP = mongocGeoIndexEnsure(tenantP, mergedTargetsV[i], collP);
     if (geoClashP != NULL)
     {
-      KT_E("mongoc: entityBulkChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      COR_E("mongoc: entityBulkChangesApply: '%s' is a GeoProperty here but already held as another type", geoClashP);
       corNgsild.geoConflictAttr = geoClashP;
       resultsV[i] = DB_GEO_TYPE_CONFLICT;
       bson_destroy(&update);
@@ -240,7 +240,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
     bson_error_t stageErr;
     if (!mongoc_bulk_operation_update_one_with_opts(bulk, &selector, &update, NULL, &stageErr))
     {
-      KT_E("mongoc: entityBulkChangesApply stage failed for %s: %s", idP->value.s, stageErr.message);
+      COR_E("mongoc: entityBulkChangesApply stage failed for %s: %s", idP->value.s, stageErr.message);
       resultsV[i] = DB_ERR;
     }
     else
@@ -257,7 +257,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
     bool ok = mongoc_bulk_operation_execute(bulk, &reply, &error) > 0;
     if (!ok)
     {
-      KT_E("mongoc: entityBulkChangesApply execute failed: %s", error.message);
+      COR_E("mongoc: entityBulkChangesApply execute failed: %s", error.message);
 
       //
       // Same as the single-entity merge, decided per staged fragment from the
@@ -275,7 +275,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
 
         if (mixedP != NULL)
         {
-          KT_E("mongoc: entityBulkChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
+          COR_E("mongoc: entityBulkChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
           corNgsild.geoConflictAttr = mixedP;
           resultsV[i] = DB_GEO_TYPE_CONFLICT;
         }

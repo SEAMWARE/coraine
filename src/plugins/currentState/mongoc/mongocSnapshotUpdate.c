@@ -15,7 +15,7 @@
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
-#include "ktrace/kTrace.h"                           // KT_E
+#include "corLog/corLog.h"                           // COR_E
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
@@ -75,7 +75,7 @@ int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP
 
     if (!ok)
     {
-      KT_E("mongoc: snapshotUpdate failed: %s", error.message);
+      COR_E("mongoc: snapshotUpdate failed: %s", error.message);
       result = DB_ERR;
     }
     else

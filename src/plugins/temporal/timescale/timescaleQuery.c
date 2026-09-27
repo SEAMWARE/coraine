@@ -38,7 +38,7 @@
 #include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E
+#include "corLog/corLog.h"                                // COR_E
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corJson/corJsonParse.h"                         // corJsonParse
@@ -288,7 +288,7 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
   PGresult* res = PQexecParams(timescaleConn, sql, 1, NULL, idParam, NULL, NULL, 0);
   if (PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: q precondition SELECT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: q precondition SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(res);
     *errOut = true;
     return false;
@@ -402,7 +402,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
     {
-      KT_E("timescale: troe_entities SELECT failed: %s", PQerrorMessage(timescaleConn));
+      COR_E("timescale: troe_entities SELECT failed: %s", PQerrorMessage(timescaleConn));
       PQclear(eRes);
       return TROE_ERR;
     }
@@ -484,7 +484,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   PGresult* gRes = PQexecParams(timescaleConn, groupSql, nParams, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(gRes) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: troe_attrs group-pre-pass failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs group-pre-pass failed: %s", PQerrorMessage(timescaleConn));
     PQclear(gRes);
     return TROE_ERR;
   }
@@ -525,7 +525,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
 
   if (PQresultStatus(aRes) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: troe_attrs SELECT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: troe_attrs SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(aRes);
     return TROE_ERR;
   }
@@ -630,7 +630,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       // a string is a dead broker. No write path records such a row now; one
       // already in a database is skipped.
       //
-      KT_W("timescale: '%s' of '%s' is no Attribute - history row skipped", attrName, entityId);
+      COR_W("timescale: '%s' of '%s' is no Attribute - history row skipped", attrName, entityId);
       continue;
     }
 
@@ -1311,7 +1311,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   PGresult* sRes = PQexecParams(timescaleConn, sSql, nParams, NULL, (nParams > 0) ? paramV : NULL, NULL, NULL, 0);
   if (PQresultStatus(sRes) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: aggregation SELECT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: aggregation SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(sRes);
     return TROE_ERR;
   }
@@ -1365,7 +1365,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   PGresult* tRes = PQexecParams(timescaleConn, tSql, 0, NULL, NULL, NULL, NULL, 0);
   if (PQresultStatus(tRes) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: entity-timestamps SELECT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: entity-timestamps SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(tRes);
     PQclear(sRes);
     return TROE_ERR;
@@ -1559,7 +1559,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
                                 (nParams > 0) ? paramV : NULL, NULL, NULL, 0);
   if (PQresultStatus(eRes) != PGRES_TUPLES_OK)
   {
-    KT_E("timescale: entity-selector SELECT failed: %s", PQerrorMessage(timescaleConn));
+    COR_E("timescale: entity-selector SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(eRes);
     timescaleConn = NULL;
     timescaleConnRelease(cP);
@@ -1643,7 +1643,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     if (PQresultStatus(nRes) == PGRES_TUPLES_OK && PQntuples(nRes) > 0)
       rangeOut->entityCount = strtol(PQgetvalue(nRes, 0, 0), NULL, 10);
     else
-      KT_E("timescale: entity-count SELECT failed: %s", PQerrorMessage(timescaleConn));
+      COR_E("timescale: entity-count SELECT failed: %s", PQerrorMessage(timescaleConn));
     PQclear(nRes);
   }
 

@@ -12,14 +12,14 @@
 #include <stdio.h>                                    // snprintf
 #include <pthread.h>                                  // pthread_rwlock_*
 
-#include "khash/khash.h"                              // KHashTable, khashTableCreate, khashItemAdd, khashItemLookup, khashItemRemove
-#include "ktrace/kTrace.h"                            // KT_I, KT_T
+#include "corHash/corHash.h"                          // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup, corHashItemRemove
+#include "corLog/corLog.h"                            // COR_I, COR_T
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -34,13 +34,13 @@
 // enforces one writer per attribute - happens at configuration time, where a
 // walk over a handful of Channels costs nothing worth measuring.
 //
-// ⭐ The second index is therefore NOT a second hash. khashItemAdd does no
-// lookup at all - it prepends - and khashItemRemove unlinks the first match and
+// ⭐ The second index is therefore NOT a second hash. corHashItemAdd does no
+// lookup at all - it prepends - and corHashItemRemove unlinks the first match and
 // reports success. A structure kept in two hashes that fall out of step gives
 // you a Channel that still delivers and cannot be deleted. One hash, one list,
 // and the list is authoritative.
 //
-static KHashTable*  endpointHash  = NULL;
+static CorHashTable*  endpointHash  = NULL;
 static Channel*     channelList   = NULL;
 
 //
@@ -106,7 +106,7 @@ static unsigned int channelHash(const char* name)
 //
 // channelCompare - does this stored Channel answer to this key?
 //
-// khash does not keep the key: it hands the lookup name and the stored data to
+// corHash does not keep the key: it hands the lookup name and the stored data to
 // this function. So the Channel has to be able to rebuild its own key, which it
 // can - it holds both halves.
 //
@@ -131,7 +131,7 @@ int channelCacheInit(void)
   if (endpointHash != NULL)
     return CHANNEL_OK;
 
-  endpointHash = khashTableCreate(NULL, channelHash, channelCompare, 128);
+  endpointHash = corHashTableCreate(NULL, channelHash, channelCompare, 128);
   if (endpointHash == NULL)
     return CHANNEL_ERR;
 
@@ -153,7 +153,7 @@ static Channel* lookupLocked(const char* bridgeName, const char* endpoint)
   char key[512];
   channelKey(bridgeName, endpoint, key, sizeof(key));
 
-  return (Channel*) khashItemLookup(endpointHash, key);
+  return (Channel*) corHashItemLookup(endpointHash, key);
 }
 
 Channel* channelLookup(const char* bridgeName, const char* endpoint)
@@ -313,7 +313,7 @@ static int createLocked
   char key[512];
   channelKey(bridgeName, endpoint, key, sizeof(key));
 
-  if (khashItemAdd(endpointHash, key, channelP) != 0)
+  if (corHashItemAdd(endpointHash, key, channelP) != 0)
   {
     free(channelP->id);
     free(channelP->bridgeName);
@@ -335,9 +335,9 @@ static int createLocked
   if (channelP->direction != BridgeDirectionIn)
     outCounter++;
 
-  KT_T(KtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
-       endpoint, bridgeName, entityId, attrName,
-       (channelP->status == ChannelStatusAvailable) ? "available" : "dormant");
+  COR_T(CtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
+        endpoint, bridgeName, entityId, attrName,
+        (channelP->status == ChannelStatusAvailable) ? "available" : "dormant");
 
   return CHANNEL_OK;
 }
@@ -384,11 +384,11 @@ static int deleteLocked(const char* bridgeName, const char* endpoint)
   char key[512];
   channelKey(bridgeName, endpoint, key, sizeof(key));
 
-  Channel* channelP = (Channel*) khashItemLookup(endpointHash, key);
+  Channel* channelP = (Channel*) corHashItemLookup(endpointHash, key);
   if (channelP == NULL)
     return CHANNEL_ERR;
 
-  khashItemRemove(endpointHash, key);
+  corHashItemRemove(endpointHash, key);
 
   //
   // Unlink from the list, which is the authoritative side. If this ever fails

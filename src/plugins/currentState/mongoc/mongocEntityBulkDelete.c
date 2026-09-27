@@ -19,7 +19,7 @@
 
 #include <mongoc/mongoc.h>                               // mongoc_*
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                             // CorNode
 
 #include "corRest/CorRestState.h"                          // corRest (kalloc arena)
@@ -135,7 +135,7 @@ int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
     bool ok = mongoc_bulk_operation_execute(bulk, &reply, &error) > 0;
     if (!ok)
     {
-      KT_E("mongoc: entityBulkDelete execute failed: %s", error.message);
+      COR_E("mongoc: entityBulkDelete execute failed: %s", error.message);
       for (int i = 0; i < N; i++)
         if (resultsV[i] == DB_OK)
           resultsV[i] = DB_ERR;

@@ -16,7 +16,7 @@
 #include <errno.h>                                    // ETIMEDOUT
 #include <time.h>                                     // clock_gettime
 
-#include "ktrace/kTrace.h"                            // KT_T, KT_W
+#include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount, BRIDGE_*
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelLookupByTarget
@@ -35,7 +35,7 @@
 #include "bridge/bridgeSampleIn.h"                    // bridgeGoalWrite, bridgeGoalInstanceRemove
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutMs
 #include "bridge/bridgeGoal.h"                        // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -305,12 +305,12 @@ static void goalSubscribe(Goal* goalP)
 
   if (itemP == NULL)
   {
-    KT_W("goal %" PRIu64 ": its subscription for '%s' could not be made - its events go unnotified", goalP->token, goalP->notifyEndpoint);
+    COR_W("goal %" PRIu64 ": its subscription for '%s' could not be made - its events go unnotified", goalP->token, goalP->notifyEndpoint);
     return;
   }
 
   goalP->subId = strdup(subId);
-  KT_T(KtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
+  COR_T(CtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
 }
 
 
@@ -358,8 +358,8 @@ static void goalSweep(void)
 
     if (now - goalP->sentMs > GOAL_TTL_MS)
     {
-      KT_W("goal %" PRIu64 " on '%s' (%s) has not ended in %d minutes - no longer followed",
-           goalP->token, goalP->endpoint, (goalP->goalAlias != NULL) ? goalP->goalAlias : "no alias yet", GOAL_TTL_MS / 60000);
+      COR_W("goal %" PRIu64 " on '%s' (%s) has not ended in %d minutes - no longer followed",
+            goalP->token, goalP->endpoint, (goalP->goalAlias != NULL) ? goalP->goalAlias : "no alias yet", GOAL_TTL_MS / 60000);
       goalUnsubscribe(goalP);
       goalUnlink(goalP);
       goalFree(goalP);
@@ -462,7 +462,7 @@ void bridgeGoalNotifyDefaultSet(const char* bridgeName, const char* uri, const c
 
   if (notifyDefaultCount >= NOTIFY_DEFAULTS_MAX)
   {
-    KT_W("bridge '%s': no room for its default goal endpoint - its goals are notified only where they say", bridgeName);
+    COR_W("bridge '%s': no room for its default goal endpoint - its goals are notified only where they say", bridgeName);
     return;
   }
 
@@ -529,8 +529,8 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
 
   if ((driverP == NULL) || (driverP->actionGoalSend == NULL))
   {
-    KT_W("bridge '%s' carries no goals - the write to %s/%s went nowhere",
-         channelP->bridgeName, channelP->entityId, channelP->attrName);
+    COR_W("bridge '%s' carries no goals - the write to %s/%s went nowhere",
+          channelP->bridgeName, channelP->entityId, channelP->attrName);
     return BRIDGE_UNSUPPORTED;
   }
 
@@ -586,8 +586,8 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
     return r;
   }
 
-  KT_T(KtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
-       channelP->entityId, channelP->attrName, token, channelP->endpoint, channelP->bridgeName);
+  COR_T(CtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
+        channelP->entityId, channelP->attrName, token, channelP->endpoint, channelP->bridgeName);
 
   if (tokenP != NULL)
     *tokenP = token;
@@ -648,7 +648,7 @@ static void goalEndLater(Goal* goalP)
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
   if (pthread_create(&tid, &attr, goalEndThread, (void*) (uintptr_t) goalP->token) != 0)
-    KT_W("goal %" PRIu64 " on '%s': ended, but its instance cannot be removed (no thread) - it stays", goalP->token, goalP->endpoint);
+    COR_W("goal %" PRIu64 " on '%s': ended, but its instance cannot be removed (no thread) - it stays", goalP->token, goalP->endpoint);
 
   pthread_attr_destroy(&attr);
 }
@@ -793,7 +793,7 @@ static void goalEnd(Goal* goalP)
   if (goalP->instanceMade == true)
     bridgeGoalInstanceRemove(goalP->bridgeName, goalP->endpoint, goalP->goalAlias);
 
-  KT_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
+  COR_T(CtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
 
   goalUnlink(goalP);
   goalFree(goalP);
@@ -842,7 +842,7 @@ static int goalEvent(const char* bridgeName,
     pthread_cond_broadcast(&goalAnswered);
     pthread_mutex_unlock(&goalMutex);
 
-    KT_T(KtBridge, "goal %" PRIu64 " on '%s' answered, state %d - handed to its request", token, endpoint, state);
+    COR_T(CtBridge, "goal %" PRIu64 " on '%s' answered, state %d - handed to its request", token, endpoint, state);
     return BRIDGE_OK;
   }
 
@@ -884,7 +884,7 @@ static int goalEvent(const char* bridgeName,
   if (goalP == NULL)
   {
     pthread_mutex_unlock(&goalMutex);
-    KT_T(KtBridge, "event for goal %" PRIu64 " on '%s' - not a goal in flight, dropped", token, endpoint);
+    COR_T(CtBridge, "event for goal %" PRIu64 " on '%s' - not a goal in flight, dropped", token, endpoint);
     return BRIDGE_NOT_FOUND;
   }
 
@@ -903,7 +903,7 @@ static int goalEvent(const char* bridgeName,
     if (r == BRIDGE_OK)
       goalP->instanceMade = true;
     else
-      KT_W("goal %" PRIu64 " on '%s': its '%s' could not be written (%d)", token, endpoint, subAttrName, r);
+      COR_W("goal %" PRIu64 " on '%s': its '%s' could not be written (%d)", token, endpoint, subAttrName, r);
   }
 
   if (final == true)
@@ -1028,7 +1028,7 @@ static void goalDrop(Goal* goalP, const char* why)
                           ? BRIDGE_UNSUPPORTED
                           : driverP->actionGoalCancel(endpoint, token);
 
-  KT_T(KtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
+  COR_T(CtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
 
   free(bridgeName);
   free(endpoint);
@@ -1114,7 +1114,7 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
   //
   if (bridgeGoalRefused(answerP->state) == true)
   {
-    KT_T(KtBridge, "goal %" PRIu64 " on '%s' refused, state %d - nothing written", goalP->token, goalP->endpoint, answerP->state);
+    COR_T(CtBridge, "goal %" PRIu64 " on '%s' refused, state %d - nothing written", goalP->token, goalP->endpoint, answerP->state);
     goalUnsubscribe(goalP);
     goalUnlink(goalP);
     goalFree(goalP);
@@ -1340,8 +1340,8 @@ bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrNam
          ? BRIDGE_UNSUPPORTED
          : driverP->actionGoalCancel(channelP->endpoint, token);
 
-  KT_T(KtBridge, "%s/%s asks to cancel goal %" PRIu64 " (%s) on bridge '%s' (%d)",
-       entityId, attrName, token, datasetId, channelP->bridgeName, *rcP);
+  COR_T(CtBridge, "%s/%s asks to cancel goal %" PRIu64 " (%s) on bridge '%s' (%d)",
+        entityId, attrName, token, datasetId, channelP->bridgeName, *rcP);
 
   return true;
 }

@@ -18,7 +18,7 @@
 
 #include <mongoc/mongoc.h>                            // mongoc_*
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 
 #include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
@@ -119,13 +119,13 @@ static void applyWriteErrors(const bson_t* reply, int* resultsV, int n, const in
       const char* mixedP = mongocGeoIndexMixedName(tenantP, entityAt(entitiesArr, entityIx));
       if (mixedP != NULL)
       {
-        KT_E("mongoc: entityBulkCreate: '%s' is held as a GeoProperty here and created with another type", mixedP);
+        COR_E("mongoc: entityBulkCreate: '%s' is held as a GeoProperty here and created with another type", mixedP);
         corNgsild.geoConflictAttr = mixedP;
         resultsV[entityIx] = DB_GEO_TYPE_CONFLICT;
       }
       else
       {
-        KT_E("mongoc: entityBulkCreate rejected by 2dsphere: %s", errmsg);
+        COR_E("mongoc: entityBulkCreate rejected by 2dsphere: %s", errmsg);
         resultsV[entityIx] = DB_INVALID_GEOMETRY;
       }
       continue;
@@ -177,7 +177,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 
     if (geoClashP != NULL)
     {
-      KT_E("mongoc: entityBulkCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      COR_E("mongoc: entityBulkCreate: '%s' is a GeoProperty here but already held as another type", geoClashP);
       corNgsild.geoConflictAttr = geoClashP;
       resultsV[i] = DB_GEO_TYPE_CONFLICT;
       continue;
@@ -234,7 +234,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     }
     if (!hadWriteErrors)
     {
-      KT_E("mongoc: entityBulkCreate transport failure: %s", error.message);
+      COR_E("mongoc: entityBulkCreate transport failure: %s", error.message);
       for (int k = 0; k < batchN; k++) resultsV[batchIx[k]] = DB_ERR;
     }
   }

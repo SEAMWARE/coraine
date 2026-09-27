@@ -51,7 +51,7 @@ typedef struct CorDbStore
   // whole store doing a corTreeLookup per entity. Guarded by the same lock as the
   // tree, because it changes exactly when the tree does - see corDbIndex.h.
   //
-  struct KHashTable*  idIndex;
+  struct CorHashTable*  idIndex;
   int                 idxSlots;
   int                 idxCount;
 } CorDbStore;

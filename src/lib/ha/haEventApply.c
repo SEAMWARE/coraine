@@ -12,7 +12,7 @@
 #include "kalloc/kalloc.h"                               // kaBufferInit, kaBufferReset
 #include "corJson/CorJson.h"                             // CorJson
 #include "corJson/corJsonCreate.h"                       // corJsonCreate
-#include "ktrace/kTrace.h"                               // KT_*
+#include "corLog/corLog.h"                               // KT_*
 
 #include "corRest/CorRestState.h"                          // corRest
 #include "corNgsild/CorNgsild.h"                           // corNgsild
@@ -20,7 +20,7 @@
 #include "db/Tenant.h"                                   // tenantSubCacheItemRefresh, ...
 #include "db/contextCache.h"                             // contextCacheItemRefresh, contextCacheItemDrop
 #include "ha/haInit.h"                                   // haApplyWait
-#include "coraineTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // CtHa
 #include "ha/haEventApply.h"                             // Own interface
 
 
@@ -109,11 +109,11 @@ bool haEventApply(HaEvent* eventP)
   if ((eventP->kind != HaContext) && (eventP->tenantP == NULL))
     return false;
 
-  KT_T(KtHa, "applying %s of %s '%s' (tenant '%s')",
-       (eventP->op == HaOpDelete)? "a delete" : "an upsert",
-       (eventP->kind == HaSubscription)? "subscription" : (eventP->kind == HaRegistration)? "registration" : "@context",
-       eventP->id,
-       (eventP->tenantP != NULL && eventP->tenantP->name[0])? eventP->tenantP->name : "(default)");
+  COR_T(CtHa, "applying %s of %s '%s' (tenant '%s')",
+        (eventP->op == HaOpDelete)? "a delete" : "an upsert",
+        (eventP->kind == HaSubscription)? "subscription" : (eventP->kind == HaRegistration)? "registration" : "@context",
+        eventP->id,
+        (eventP->tenantP != NULL && eventP->tenantP->name[0])? eventP->tenantP->name : "(default)");
 
   //
   // A channel that carries the item itself (haaux) hands it over in apiP, and
@@ -122,7 +122,7 @@ bool haEventApply(HaEvent* eventP)
   //
   if (eventP->apiP != NULL)
   {
-    KT_E("HA: '%s' arrived with a payload - not implemented yet (haaux)", eventP->id);
+    COR_E("HA: '%s' arrived with a payload - not implemented yet (haaux)", eventP->id);
     return false;
   }
 
@@ -154,7 +154,7 @@ bool haEventApply(HaEvent* eventP)
   }
 
   if (ok == false)
-    KT_W("HA: could not apply the change to '%s'", eventP->id);
+    COR_W("HA: could not apply the change to '%s'", eventP->id);
 
   return ok;
 }

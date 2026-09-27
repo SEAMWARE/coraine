@@ -23,7 +23,7 @@
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/corTreeBuilder.h"                   // corTreeBoolean
 #include "corTree/CorNode.h"                          // CorNode
-#include "ktrace/kTrace.h"                            // KT_W, KT_X, KT_T
+#include "corLog/corLog.h"                            // COR_W, COR_X, COR_T
 
 #include "corJsonld/corLdInit.h"                      // corLdCoreContext
 #include "corNgsild/CorNgsild.h"                     // ldDefaultContext
@@ -37,7 +37,7 @@
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
 #include "bridge/channelConfigLoad.h"                 // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -87,13 +87,13 @@ static bool notificationParse(const char* alias, const char* where, CorNode* not
 
   if ((uri == NULL) || ((strncmp(uri, "http://", 7) != 0) && (strncmp(uri, "https://", 8) != 0)))
   {
-    KT_W("bridge '%s': %s - notification.endpoint.uri must be an http(s) URL - ignored", alias, where);
+    COR_W("bridge '%s': %s - notification.endpoint.uri must be an http(s) URL - ignored", alias, where);
     return false;
   }
 
   if ((accept != NULL) && (strcmp(accept, "application/json") != 0) && (strcmp(accept, "application/ld+json") != 0))
   {
-    KT_W("bridge '%s': %s - notification.endpoint.accept '%s' is neither application/json nor application/ld+json - ignored", alias, where, accept);
+    COR_W("bridge '%s': %s - notification.endpoint.accept '%s' is neither application/json nor application/ld+json - ignored", alias, where, accept);
     return false;
   }
 
@@ -132,7 +132,7 @@ static int channelsLoad(const char*        alias,
 
     if (entryP->type != CorObject)
     {
-      KT_W("bridge '%s': entry '%s' is not an object - skipped", alias, endpoint);
+      COR_W("bridge '%s': entry '%s' is not an object - skipped", alias, endpoint);
       continue;
     }
 
@@ -152,11 +152,11 @@ static int channelsLoad(const char*        alias,
     //
     if ((entityId == NULL) || (entityType == NULL) || (attribute == NULL))
     {
-      KT_W("bridge '%s': endpoint '%s' is incomplete (entityId: %s, entityType: %s, attribute: %s) - skipped",
-           alias, endpoint,
-           (entityId   != NULL) ? entityId   : "-",
-           (entityType != NULL) ? entityType : "-",
-           (attribute  != NULL) ? attribute  : "-");
+      COR_W("bridge '%s': endpoint '%s' is incomplete (entityId: %s, entityType: %s, attribute: %s) - skipped",
+            alias, endpoint,
+            (entityId   != NULL) ? entityId   : "-",
+            (entityType != NULL) ? entityType : "-",
+            (attribute  != NULL) ? attribute  : "-");
       continue;
     }
 
@@ -185,7 +185,7 @@ static int channelsLoad(const char*        alias,
 
     if ((attrExpanded == NULL) || (typeExpanded == NULL))
     {
-      KT_W("bridge '%s': endpoint '%s' - cannot expand '%s'/'%s' - skipped", alias, endpoint, entityType, attribute);
+      COR_W("bridge '%s': endpoint '%s' - cannot expand '%s'/'%s' - skipped", alias, endpoint, entityType, attribute);
       continue;
     }
 
@@ -221,18 +221,18 @@ static int channelsLoad(const char*        alias,
     // same sentence reads like two unrelated problems to whoever has to fix it.
     //
     if (r == CHANNEL_DUP_ENDPOINT)
-      KT_X(1, "bridge '%s': endpoint '%s' appears twice in the configuration - the second entry (%s/%s) could never be reached, the first already claims it",
-           alias, endpoint, entityId, attribute);
+      COR_X(1, "bridge '%s': endpoint '%s' appears twice in the configuration - the second entry (%s/%s) could never be reached, the first already claims it",
+            alias, endpoint, entityId, attribute);
 
     if (r == CHANNEL_BAD_INPUT)
-      KT_X(1, "bridge '%s': endpoint '%s' is not a usable endpoint name", alias, endpoint);
+      COR_X(1, "bridge '%s': endpoint '%s' is not a usable endpoint name", alias, endpoint);
 
     if (r == CHANNEL_DUP_TARGET)
-      KT_X(1, "bridge '%s': endpoints '%s' and '%s' both write %s/%s - they would race, and the value would depend on which arrived last",
-           alias, clashP->endpoint, endpoint, entityId, attribute);
+      COR_X(1, "bridge '%s': endpoints '%s' and '%s' both write %s/%s - they would race, and the value would depend on which arrived last",
+            alias, clashP->endpoint, endpoint, entityId, attribute);
 
     if (r != CHANNEL_OK)
-      KT_X(1, "bridge '%s': endpoint '%s' could not be added (%d)", alias, endpoint, r);
+      COR_X(1, "bridge '%s': endpoint '%s' could not be added (%d)", alias, endpoint, r);
 
     //
     // An action's default goal endpoint - where a goal that names none of its
@@ -242,7 +242,7 @@ static int channelsLoad(const char*        alias,
     CorNode* notificationP = corTreeLookup(entryP, "notification");
 
     if ((notificationP != NULL) && (kind != BridgeChannelAction))
-      KT_W("bridge '%s': endpoint '%s' - 'notification' is for actions only - ignored", alias, endpoint);
+      COR_W("bridge '%s': endpoint '%s' - 'notification' is for actions only - ignored", alias, endpoint);
     else if (notificationP != NULL)
     {
       const char* uri    = NULL;
@@ -292,7 +292,7 @@ static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP
   }
   else
   {
-    KT_W("bridge '%s': 'defaultEntity' is neither true/false nor an object - ignored", alias);
+    COR_W("bridge '%s': 'defaultEntity' is neither true/false nor an object - ignored", alias);
     return;
   }
 
@@ -317,12 +317,12 @@ static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP
 
   if (typeExpanded == NULL)
   {
-    KT_W("bridge '%s': cannot expand the defaultEntity type '%s' - no catch-all", alias, entityType);
+    COR_W("bridge '%s': cannot expand the defaultEntity type '%s' - no catch-all", alias, entityType);
     return;
   }
 
   if (bridgeDefaultEntitySet(alias, entityId, typeExpanded, tenantP) == false)
-    KT_W("bridge '%s': the defaultEntity could not be set up - unclaimed endpoints will be dropped", alias);
+    COR_W("bridge '%s': the defaultEntity could not be set up - unclaimed endpoints will be dropped", alias);
 }
 
 
@@ -344,9 +344,9 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     // is not a mistake at all - a bridge may need no configuration.
     //
     if (explicitly == true)
-      KT_X(1, "--bridgeConfig: cannot read '%s'", path);
+      COR_X(1, "--bridgeConfig: cannot read '%s'", path);
 
-    KT_T(KtBridge, "no bridge configuration at '%s' - no Channels from file", path);
+    COR_T(CtBridge, "no bridge configuration at '%s' - no Channels from file", path);
     return 0;
   }
 
@@ -360,7 +360,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   FILE* fP = fopen(path, "r");
 
   if (fP == NULL)
-    KT_X(1, "cannot read the bridge configuration '%s'", path);
+    COR_X(1, "cannot read the bridge configuration '%s'", path);
 
   fseek(fP, 0, SEEK_END);
   long fileSize = ftell(fP);
@@ -369,7 +369,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   if ((fileSize <= 0) || (fileSize > 4 * 1024 * 1024))
   {
     fclose(fP);
-    KT_X(1, "the bridge configuration '%s' is empty or improbably large", path);
+    COR_X(1, "the bridge configuration '%s' is empty or improbably large", path);
   }
 
   char* buf = (char*) malloc(fileSize + 1);
@@ -377,14 +377,14 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   if (buf == NULL)
   {
     fclose(fP);
-    KT_X(1, "out of memory reading '%s'", path);
+    COR_X(1, "out of memory reading '%s'", path);
   }
 
   if (fread(buf, 1, (size_t) fileSize, fP) != (size_t) fileSize)
   {
     fclose(fP);
     free(buf);
-    KT_X(1, "short read on the bridge configuration '%s'", path);
+    COR_X(1, "short read on the bridge configuration '%s'", path);
   }
   fclose(fP);
   buf[fileSize] = 0;
@@ -412,7 +412,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   {
     kaBufferReset(&kalloc, true);
     free(buf);
-    KT_X(1, "the bridge configuration '%s' is not valid JSON", path);
+    COR_X(1, "the bridge configuration '%s' is not valid JSON", path);
   }
 
   int total = 0;
@@ -436,7 +436,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     CorNode* ngsildP = corTreeLookup(bridgeP, "ngsild");
     if (ngsildP == NULL)
     {
-      KT_W("bridge '%s' is named in '%s' but has no 'ngsild' section - no Channels from it", alias, path);
+      COR_W("bridge '%s' is named in '%s' but has no 'ngsild' section - no Channels from it", alias, path);
       continue;
     }
 
@@ -466,7 +466,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
       if ((syncTimeoutP->type == CorInt) && (syncTimeoutP->value.i > 0) && (syncTimeoutP->value.i <= 600000))
         bridgeSyncTimeoutFromConfig(alias, (int) syncTimeoutP->value.i);
       else
-        KT_W("bridge '%s': 'syncTimeoutMs' must be an integer from 1 to 600000 - ignored", alias);
+        COR_W("bridge '%s': 'syncTimeoutMs' must be an integer from 1 to 600000 - ignored", alias);
     }
 
     CorNode* topicsP = corTreeLookup(ngsildP, "topics");
@@ -512,7 +512,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   kaBufferReset(&kalloc, true);
   free(buf);
 
-  KT_T(KtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);
+  COR_T(CtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);
 
   return total;
 }

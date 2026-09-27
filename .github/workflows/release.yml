@@ -184,7 +184,7 @@ jobs:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
           owner: SEAMWARE
-          repositories: corTree,corJson,corProm,corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corTest,corLibs
+          repositories: corLog,corHash,corTree,corJson,corProm,corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corTest,corLibs
 
       #
       # Tag each Cor-Lib at the commit this release was actually built from.
@@ -243,7 +243,7 @@ jobs:
 
           # the libraries linked into the broker, from the manifest
           while read -r lib sha; do
-            case "$lib" in corTree|corJson|corProm|corRest|corHttp|corNgsild|corJsonld|corPlugin|corBridge) tagRepo "$lib" "$sha" ;; esac
+            case "$lib" in corLog|corHash|corTree|corJson|corProm|corRest|corHttp|corNgsild|corJsonld|corPlugin|corBridge) tagRepo "$lib" "$sha" ;; esac
           done < /tmp/stack.txt
 
           # and the two that are not linked but are part of reproducing the build

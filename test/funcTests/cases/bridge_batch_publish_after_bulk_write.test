@@ -31,7 +31,7 @@
 # ⭐ THE ORACLE IS THE TRACE, as in bridge_all_write_endpoints: one publish line
 # per sample sent.
 #
-# ⚠ Traces are narrowed to 402 (KtBridge) so the grep matches nothing else.
+# ⚠ Traces are narrowed to 402 (CtBridge) so the grep matches nothing else.
 #
 # REQUIRE_DB: mongoc
 #

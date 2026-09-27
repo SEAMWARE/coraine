@@ -26,7 +26,7 @@
 
 #include <mongoc/mongoc.h>                               // mongoc_*
 
-#include "ktrace/kTrace.h"                               // KT_E
+#include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 
@@ -142,14 +142,14 @@ static int applyWriteErrors(const bson_t* reply, int* resultsV, int batchN, cons
       const char* mixedP = mongocGeoIndexMixedName(tenantP, entityAt(entitiesArr, entityIx));
       if (mixedP != NULL)
       {
-        KT_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
+        COR_E("mongoc: entityBulkUpdate: '%s' is held as a GeoProperty here and updated to another type", mixedP);
         corNgsild.geoConflictAttr = mixedP;
         resultsV[entityIx] = DB_GEO_TYPE_CONFLICT;
         continue;
       }
     }
 
-    KT_E("mongoc: entityBulkUpdate: replace of entity %d failed: %s", entityIx, (errmsg != NULL) ? errmsg : "(no errmsg)");
+    COR_E("mongoc: entityBulkUpdate: replace of entity %d failed: %s", entityIx, (errmsg != NULL) ? errmsg : "(no errmsg)");
     resultsV[entityIx] = DB_ERR;
   }
 
@@ -266,7 +266,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     const char* geoClashP = mongocGeoIndexEnsure(tenantP, entityP, collP);
     if (geoClashP != NULL)
     {
-      KT_E("mongoc: entityBulkUpdate: '%s' is a GeoProperty here but already held as another type", geoClashP);
+      COR_E("mongoc: entityBulkUpdate: '%s' is a GeoProperty here but already held as another type", geoClashP);
       corNgsild.geoConflictAttr = geoClashP;
       resultsV[i] = DB_GEO_TYPE_CONFLICT;
       continue;
@@ -303,7 +303,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     bool ok = mongoc_bulk_operation_execute(bulk, &reply, &error) > 0;
     if (!ok)
     {
-      KT_E("mongoc: entityBulkUpdate execute failed: %s", error.message);
+      COR_E("mongoc: entityBulkUpdate execute failed: %s", error.message);
 
       //
       // Unordered: every op that did not fail was written, so only the ones the

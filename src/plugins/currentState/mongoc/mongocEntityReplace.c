@@ -9,7 +9,7 @@
 
 #include <mongoc/mongoc.h>                            // mongoc_*, bson_*
 
-#include "ktrace/kTrace.h"                            // KT_E
+#include "corLog/corLog.h"                            // COR_E
 #include "corTree/CorNode.h"                          // CorNode
 #include "corRest/CorRestState.h"                       // corRest
 
@@ -76,7 +76,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntit
 
   if (geoClashP != NULL)
   {
-    KT_E("mongoc: entityReplace: '%s' is a GeoProperty here but already held as another type", geoClashP);
+    COR_E("mongoc: entityReplace: '%s' is a GeoProperty here but already held as another type", geoClashP);
     corNgsild.geoConflictAttr = geoClashP;
     bson_init(&reply);
     result = DB_GEO_TYPE_CONFLICT;
@@ -102,19 +102,19 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntit
       const char* mixedP = mongocGeoIndexMixedName(tenantP, newEntityP);
       if (mixedP != NULL)
       {
-        KT_E("mongoc: entityReplace: '%s' is held as a GeoProperty here and replaced with another type", mixedP);
+        COR_E("mongoc: entityReplace: '%s' is held as a GeoProperty here and replaced with another type", mixedP);
         corNgsild.geoConflictAttr = mixedP;
         result = DB_GEO_TYPE_CONFLICT;
       }
       else
       {
-        KT_E("mongoc: entityReplace rejected by 2dsphere: %s", error.message);
+        COR_E("mongoc: entityReplace rejected by 2dsphere: %s", error.message);
         result = DB_INVALID_GEOMETRY;
       }
     }
     else
     {
-      KT_E("mongoc: entityReplace failed: %s", error.message);
+      COR_E("mongoc: entityReplace failed: %s", error.message);
       result = DB_ERR;
     }
 

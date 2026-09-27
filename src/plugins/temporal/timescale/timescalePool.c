@@ -18,7 +18,7 @@
 #include <semaphore.h>                                    // sem_*
 #include <libpq-fe.h>                                     // PG*
 
-#include "ktrace/kTrace.h"                                // KT_E, KT_I
+#include "corLog/corLog.h"                                // COR_E, COR_I
 
 #include "db/Tenant.h"                                    // Tenant, tenant0, tenantList
 
@@ -136,7 +136,7 @@ static PGconn* connectTo(const char* dbName)
   PGconn* conn = PQconnectdb(cs);
   if (PQstatus(conn) != CONNECTION_OK)
   {
-    KT_E("timescale: connection to db '%s' failed: %s", dbName, PQerrorMessage(conn));
+    COR_E("timescale: connection to db '%s' failed: %s", dbName, PQerrorMessage(conn));
     PQfinish(conn);
     return NULL;
   }
@@ -168,7 +168,7 @@ static int ensureDatabase(const char* dbName)
     const char* sqlState = PQresultErrorField(r, PG_DIAG_SQLSTATE);
     if (sqlState == NULL || strcmp(sqlState, "42P04") != 0)   // not "duplicate_database"
     {
-      KT_E("timescale: CREATE DATABASE '%s' failed: %s", dbName, PQerrorMessage(admin));
+      COR_E("timescale: CREATE DATABASE '%s' failed: %s", dbName, PQerrorMessage(admin));
       rc = TROE_ERR;
     }
   }
@@ -220,7 +220,7 @@ int timescalePoolEnsure(Tenant* tenantP)
 
   if (timescaleMigrate(migConn) != 0)
   {
-    KT_E("timescale: schema migration failed for db '%s'", dbName);
+    COR_E("timescale: schema migration failed for db '%s'", dbName);
     PQfinish(migConn);
     pthread_mutex_unlock(&poolCreateMutex);
     return TROE_ERR;
@@ -237,7 +237,7 @@ int timescalePoolEnsure(Tenant* tenantP)
     if (poolP != NULL) free(poolP);
     PQfinish(migConn);
     pthread_mutex_unlock(&poolCreateMutex);
-    KT_E("timescale: out of memory building pool for db '%s'", dbName);
+    COR_E("timescale: out of memory building pool for db '%s'", dbName);
     return TROE_ERR;
   }
 
@@ -266,7 +266,7 @@ int timescalePoolEnsure(Tenant* tenantP)
 
   pthread_mutex_unlock(&poolCreateMutex);
 
-  KT_I("timescale: pool ready for db '%s' (%d connections)", dbName, items);
+  COR_I("timescale: pool ready for db '%s' (%d connections)", dbName, items);
   return TROE_OK;
 }
 
@@ -295,8 +295,8 @@ TimescaleConn* timescaleConnGet(Tenant* tenantP)
   ts.tv_sec += TIMESCALE_POOL_WAIT_SECS;
   if (sem_timedwait(&poolP->queueSem, &ts) != 0)
   {
-    KT_E("timescale: connection pool exhausted for db '%s' (waited %ds)",
-         poolP->dbName, TIMESCALE_POOL_WAIT_SECS);
+    COR_E("timescale: connection pool exhausted for db '%s' (waited %ds)",
+          poolP->dbName, TIMESCALE_POOL_WAIT_SECS);
     return NULL;
   }
 
@@ -438,7 +438,7 @@ int timescalePoolDrop(Tenant* tenantP)
     snprintf(sql, sizeof(sql), "DROP DATABASE IF EXISTS \"%s\" WITH (FORCE)", dbName);
     PGresult* r = PQexec(admin, sql);
     if (PQresultStatus(r) != PGRES_COMMAND_OK)
-      KT_E("timescale: DROP DATABASE '%s' failed: %s", dbName, PQerrorMessage(admin));
+      COR_E("timescale: DROP DATABASE '%s' failed: %s", dbName, PQerrorMessage(admin));
     PQclear(r);
     PQfinish(admin);
   }
