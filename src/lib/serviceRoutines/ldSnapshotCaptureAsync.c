@@ -17,11 +17,11 @@
 #include "ktrace/kTrace.h"                               // KT_E
 #include "kalloc/kaBufferInit.h"                         // kaBufferInit
 #include "kalloc/kaBufferReset.h"                        // kaBufferReset
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjBufferCreate.h"                        // kjBufferCreate
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjObject, kjString, kjChildAdd
-#include "kjson/kjClone.h"                               // kjClone
+#include "corTree/CorNode.h"                             // CorNode
+#include "corJson/corJsonCreate.h"                       // corJsonCreate
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeClone.h"                        // corTreeClone
 
 #include "corRest/CorRestState.h"                          // corRest (__thread)
 #include "corNgsild/CorNgsild.h"                           // corNgsild (__thread)
@@ -66,11 +66,12 @@ static void* snapshotWorkerThread(void* arg)
 
   // Per-thread corRest init — minimal. We're not handling an MHD request,
   // so we skip corRestStateInit and set up only what the DB / notify code
-  // touches: kalloc, kjsonP, requestStartTime.
+  // touches: kalloc, corJsonP, kallocP, requestStartTime.
   memset(&corRest, 0, sizeof(corRest));
   kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer),
                256 * 1024, NULL, "snap-async");
-  corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+  corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+  corRest.kallocP  = &corRest.kalloc;
 
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
@@ -90,16 +91,16 @@ static void* snapshotWorkerThread(void* arg)
   // via JSON Merge Patch.
   if (db.snapshotUpdate != NULL && ctx->itemP->tree != NULL)
   {
-    KjNode* fragment = kjObject(corRest.kjsonP, NULL);
-    KjNode* sP       = kjLookup(ctx->itemP->tree, "snapshotStatus");
-    if (sP != NULL && sP->type == KjString)
-      kjChildAdd(fragment, kjString(corRest.kjsonP, "snapshotStatus", sP->value.s));
-    KjNode* dP = kjLookup(ctx->itemP->tree, "snapshotQueriesDetails");
+    CorNode* fragment = corTreeObject(corRest.kallocP, NULL);
+    CorNode* sP      = corTreeLookup(ctx->itemP->tree, "snapshotStatus");
+    if (sP != NULL && sP->type == CorString)
+      corTreeChildAdd(fragment, corTreeString(corRest.kallocP, "snapshotStatus", sP->value.s));
+    CorNode* dP = corTreeLookup(ctx->itemP->tree, "snapshotQueriesDetails");
     if (dP != NULL)
-      kjChildAdd(fragment, kjClone(corRest.kjsonP, dP));
-    KjNode* tdP = kjLookup(ctx->itemP->tree, "snapshotTemporalQueriesDetails");
+      corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, dP));
+    CorNode* tdP = corTreeLookup(ctx->itemP->tree, "snapshotTemporalQueriesDetails");
     if (tdP != NULL)
-      kjChildAdd(fragment, kjClone(corRest.kjsonP, tdP));
+      corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, tdP));
     if (fragment->value.firstChildP != NULL)
       db.snapshotUpdate(ctx->tenantP, ctx->itemP->id, fragment);
   }

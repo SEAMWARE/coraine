@@ -15,11 +15,11 @@
 #include "kalloc/kaBufferReset.h"                     // kaBufferReset
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kjson/kjBufferCreate.h"                     // kjBufferCreate
-#include "kjson/kjParse.h"                            // kjParse
-#include "kjson/kjBuilder.h"                          // kjObject, kjString, kjInteger, kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjClone.h"                            // kjClone
+#include "corJson/corJsonCreate.h"                    // corJsonCreate
+#include "corJson/corJsonParse.h"                     // corJsonParse
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeClone.h"                     // corTreeClone
 #include "ktrace/kTrace.h"                            // KT_T, KT_W
 
 #include "corRest/corRest.h"                          // corRest
@@ -71,8 +71,8 @@
 //
 // A transport runs threads of its own and hands a sample over on one of them.
 // The broker did not create that thread, so its thread-locals - corRest.kalloc,
-// corRest.kjsonP, corNgsild - are zeroed until somebody sets them up. That is
-// this, once per thread, and then a reset per sample.
+// corRest.corJsonP, corRest.kallocP, corNgsild - are zeroed until somebody sets
+// them up. That is this, once per thread, and then a reset per sample.
 //
 // ⚠️ KTRUE = REUSE, and it is not optional. kaBufferReset(kaP, KFALSE) is the
 // TEARDOWN call: it frees the blocks and leaves allocList pointing at them, so
@@ -87,7 +87,8 @@ static void threadBind(Tenant* tenantP)
   if (inited == false)
   {
     kaBufferInit(&corRest.kalloc, buffer, sizeof(buffer), 16 * 1024, NULL, "bridge");
-    corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+    corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+    corRest.kallocP  = &corRest.kalloc;
     inited = true;
   }
   else
@@ -130,13 +131,13 @@ static void threadBind(Tenant* tenantP)
 // would say the value had just been written when nothing had touched it.
 //
 // @param existingValueP  the attribute's current value, from the store. CLONED
-//                        rather than moved: kjChildAdd relinks a node into its
+//                        rather than moved: corTreeChildAdd relinks a node into its
 //                        new parent and truncates the list it came from, and
 //                        that list is a tree the caller still reads.
 // @param meta            the transport's curiosities about the payload (ABI 6),
 //                        a JSON object text or NULL - see metaAdd
 //
-static void metaAdd(KjNode* targetP, const char* meta);
+static void metaAdd(CorNode* targetP, const char* meta);
 
 
 
@@ -146,17 +147,17 @@ static void metaAdd(KjNode* targetP, const char* meta);
 //
 // One builder, so that a reply and the request it answers are shaped alike.
 //
-static KjNode* subAttrFrom(const char* name, KjNode* payloadP, int64_t publishTime, const char* meta)
+static CorNode* subAttrFrom(const char* name, CorNode* payloadP, int64_t publishTime, const char* meta)
 {
-  KjNode* subP = kjObject(corRest.kjsonP, name);
+  CorNode* subP = corTreeObject(corRest.kallocP, name);
 
-  kjChildAdd(subP, kjString(corRest.kjsonP, "type", "Property"));
+  corTreeChildAdd(subP, corTreeString(corRest.kallocP, "type", "Property"));
   payloadP->name = (char*) "value";
-  kjChildAdd(subP, payloadP);
+  corTreeChildAdd(subP, payloadP);
 
   if (publishTime > 0)
   {
-    kjChildAdd(subP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+    corTreeChildAdd(subP, corTreeInteger(corRest.kallocP, "observedAt", (long long) publishTime));
 
     //
     // publishedAt, as Orion-LD writes it on a reply or goal sub-attribute: a
@@ -164,11 +165,11 @@ static KjNode* subAttrFrom(const char* name, KjNode* payloadP, int64_t publishTi
     // transport's nanoseconds by 10^9. Its clients read it, and until ARISE ends
     // that contract does not change. observedAt, just above, keeps the precision.
     //
-    KjNode* publishedAtP = kjObject(corRest.kjsonP, "publishedAt");
+    CorNode* publishedAtP = corTreeObject(corRest.kallocP, "publishedAt");
 
-    kjChildAdd(publishedAtP, kjString(corRest.kjsonP, "type", "Property"));
-    kjChildAdd(publishedAtP, kjInteger(corRest.kjsonP, "value", (long long) (publishTime / 1000000000LL)));
-    kjChildAdd(subP, publishedAtP);
+    corTreeChildAdd(publishedAtP, corTreeString(corRest.kallocP, "type", "Property"));
+    corTreeChildAdd(publishedAtP, corTreeInteger(corRest.kallocP, "value", (long long) (publishTime / 1000000000LL)));
+    corTreeChildAdd(subP, publishedAtP);
   }
 
   metaAdd(subP, meta);
@@ -176,63 +177,63 @@ static KjNode* subAttrFrom(const char* name, KjNode* payloadP, int64_t publishTi
   return subP;
 }
 
-static KjNode* attributeFromSample(const char* attrName,
+static CorNode* attributeFromSample(const char* attrName,
                                    const char* json,
                                    int64_t     publishTime,
                                    const char* datasetId,
                                    const char* subAttrName,
-                                   KjNode*     existingValueP,
+                                   CorNode*    existingValueP,
                                    const char* meta,
                                    const BridgeSubAttr* requestP)
 {
   //
-  // ⚠ The request (ABI 7) is copied BEFORE the payload is parsed. kjParse works
+  // ⚠ The request (ABI 7) is copied BEFORE the payload is parsed. corJsonParse works
   // IN PLACE, and nothing says the two are different texts - a transport whose
   // reply is its request may hand the same buffer twice, and parsing the reply
   // first would leave the request's copy made from a buffer already cut up.
   //
   char* requestJson = ((requestP != NULL) && (requestP->json != NULL)) ? kaStrdup(&corRest.kalloc, requestP->json) : NULL;
 
-  KjNode* payloadP = kjParse(corRest.kjsonP, (char*) json);
+  CorNode* payloadP = corJsonParse(corRest.corJsonP, (char*) json);
 
   if (payloadP == NULL)
     return NULL;
 
-  KjNode* attrP = kjObject(corRest.kjsonP, attrName);
+  CorNode* attrP = corTreeObject(corRest.kallocP, attrName);
 
-  kjChildAdd(attrP, kjString(corRest.kjsonP, "type", "Property"));
+  corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "type", "Property"));
 
   if (subAttrName == NULL)
   {
     payloadP->name = (char*) "value";
-    kjChildAdd(attrP, payloadP);
+    corTreeChildAdd(attrP, payloadP);
 
     if (publishTime > 0)
-      kjChildAdd(attrP, kjInteger(corRest.kjsonP, "observedAt", (long long) publishTime));
+      corTreeChildAdd(attrP, corTreeInteger(corRest.kallocP, "observedAt", (long long) publishTime));
 
     metaAdd(attrP, meta);
   }
   else
   {
-    KjNode* valueP = kjClone(corRest.kjsonP, existingValueP);
+    CorNode* valueP = corTreeClone(corRest.kallocP, existingValueP);
 
     if (valueP == NULL)
       return NULL;
 
     valueP->name = (char*) "value";
-    kjChildAdd(attrP, valueP);
+    corTreeChildAdd(attrP, valueP);
 
-    kjChildAdd(attrP, subAttrFrom(subAttrName, payloadP, publishTime, meta));
+    corTreeChildAdd(attrP, subAttrFrom(subAttrName, payloadP, publishTime, meta));
 
     //
     // ABI 7: the request this answers, beside it, in the same write
     //
     if ((requestP != NULL) && (requestP->name != NULL) && (requestJson != NULL))
     {
-      KjNode* requestPayloadP = kjParse(corRest.kjsonP, requestJson);
+      CorNode* requestPayloadP = corJsonParse(corRest.corJsonP, requestJson);
 
       if (requestPayloadP != NULL)
-        kjChildAdd(attrP, subAttrFrom(requestP->name, requestPayloadP, requestP->time, requestP->meta));
+        corTreeChildAdd(attrP, subAttrFrom(requestP->name, requestPayloadP, requestP->time, requestP->meta));
       else
         KT_W("bridge: the request beside a '%s' reply is not valid JSON - left out", subAttrName);
     }
@@ -243,7 +244,7 @@ static KjNode* attributeFromSample(const char* attrName,
   // it was built in - which is the order a GET returns it in.
   //
   if (datasetId != NULL)
-    kjChildAdd(attrP, kjString(corRest.kjsonP, "datasetId", (char*) datasetId));
+    corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "datasetId", (char*) datasetId));
 
   return attrP;
 }
@@ -262,44 +263,44 @@ static KjNode* attributeFromSample(const char* attrName,
 // publishedAt the broker wrote - a plugin that happens to use one of those
 // names is skipped for it, with a warning, rather than corrupting the attribute.
 //
-static void metaAdd(KjNode* targetP, const char* meta)
+static void metaAdd(CorNode* targetP, const char* meta)
 {
   if ((meta == NULL) || (*meta == 0))
     return;
 
   //
-  // ⚠ kjParse parses IN PLACE, and meta is the plugin's const text - a copy,
+  // ⚠ corJsonParse parses IN PLACE, and meta is the plugin's const text - a copy,
   // in the arena the tree lives in.
   //
-  KjNode* metaP = kjParse(corRest.kjsonP, kaStrdup(&corRest.kalloc, meta));
+  CorNode* metaP = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, meta));
 
-  if ((metaP == NULL) || (metaP->type != KjObject))
+  if ((metaP == NULL) || (metaP->type != CorObject))
   {
     KT_W("bridge: a payload's meta is not a JSON object - ignored");
     return;
   }
 
-  KjNode* nodeP = metaP->value.firstChildP;
+  CorNode* nodeP = metaP->value.firstChildP;
 
   while (nodeP != NULL)
   {
-    KjNode* nextP = nodeP->next;
+    CorNode* nextP = nodeP->next;
     char*   name  = nodeP->name;
 
-    if (kjLookup(targetP, name) != NULL)
+    if (corTreeLookup(targetP, name) != NULL)
       KT_W("bridge: meta member '%s' would replace what is already there - skipped", name);
     else
     {
-      KjNode* propP = kjObject(corRest.kjsonP, name);
+      CorNode* propP = corTreeObject(corRest.kallocP, name);
 
-      kjChildAdd(propP, kjString(corRest.kjsonP, "type", "Property"));
+      corTreeChildAdd(propP, corTreeString(corRest.kallocP, "type", "Property"));
 
-      kjChildRemove(metaP, nodeP);                   // unlinked first - kjChildAdd truncates the list it came from
+      corTreeChildRemove(metaP, nodeP);              // unlinked first - corTreeChildAdd truncates the list it came from
       nodeP->next = NULL;
       nodeP->name = (char*) "value";
-      kjChildAdd(propP, nodeP);
+      corTreeChildAdd(propP, nodeP);
 
-      kjChildAdd(targetP, propP);
+      corTreeChildAdd(targetP, propP);
     }
 
     nodeP = nextP;
@@ -319,9 +320,9 @@ static void metaAdd(KjNode* targetP, const char* meta)
 // The whole instance and not only its value, because everything on it has to
 // survive an answer arriving - see instanceCarryOver.
 //
-static KjNode* attrInstance(Tenant* tenantP, const char* entityId, const char* attrName, const char* datasetId)
+static CorNode* attrInstance(Tenant* tenantP, const char* entityId, const char* attrName, const char* datasetId)
 {
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
 
   if (db.entityRetrieve == NULL)
     return NULL;
@@ -329,12 +330,12 @@ static KjNode* attrInstance(Tenant* tenantP, const char* entityId, const char* a
   if ((db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK) || (entityP == NULL))
     return NULL;
 
-  KjNode* attrP = kjLookup(entityP, attrName);
+  CorNode* attrP = corTreeLookup(entityP, attrName);
 
   if (attrP == NULL)
     return NULL;
 
-  return kjLookup(attrP, (datasetId != NULL) ? datasetId : "@none");
+  return corTreeLookup(attrP, (datasetId != NULL) ? datasetId : "@none");
 }
 
 
@@ -358,20 +359,20 @@ static KjNode* attrInstance(Tenant* tenantP, const char* entityId, const char* a
 // conversion has just written - type, value, createdAt, modifiedAt - are
 // skipped for free by the same rule: anything already there stays.
 //
-static void instanceCarryOver(KjNode* newInstanceP, KjNode* oldInstanceP)
+static void instanceCarryOver(CorNode* newInstanceP, CorNode* oldInstanceP)
 {
   if ((newInstanceP == NULL) || (oldInstanceP == NULL))
     return;
 
-  for (KjNode* childP = oldInstanceP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = oldInstanceP->value.firstChildP; childP != NULL; childP = childP->next)
   {
-    if (kjLookup(newInstanceP, childP->name) != NULL)
+    if (corTreeLookup(newInstanceP, childP->name) != NULL)
       continue;
 
-    KjNode* copyP = kjClone(corRest.kjsonP, childP);
+    CorNode* copyP = corTreeClone(corRest.kallocP, childP);
 
     if (copyP != NULL)
-      kjChildAdd(newInstanceP, copyP);
+      corTreeChildAdd(newInstanceP, copyP);
   }
 }
 
@@ -574,13 +575,13 @@ static int sampleIn(const char* bridgeName,
   // What the attribute holds right now, which only a qualified arrival needs:
   // a reply is added TO an attribute, not written over it.
   //
-  KjNode* existingInstanceP = NULL;
-  KjNode* existingValueP     = NULL;
+  CorNode* existingInstanceP = NULL;
+  CorNode* existingValueP    = NULL;
 
   if (subAttrName != NULL)
   {
     existingInstanceP = attrInstance(tenantP, entityId, attrName, datasetId);
-    existingValueP    = (existingInstanceP != NULL) ? kjLookup(existingInstanceP, "value") : NULL;
+    existingValueP    = (existingInstanceP != NULL) ? corTreeLookup(existingInstanceP, "value") : NULL;
 
     //
     // A goal's first event: the instance is created here, holding what was
@@ -590,7 +591,7 @@ static int sampleIn(const char* bridgeName,
     //
     if ((existingValueP == NULL) && (seedJson != NULL))
     {
-      existingValueP    = kjParse(corRest.kjsonP, kaStrdup(&corRest.kalloc, seedJson));
+      existingValueP    = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, seedJson));
       existingInstanceP = NULL;
 
       if (existingValueP == NULL)
@@ -612,7 +613,7 @@ static int sampleIn(const char* bridgeName,
     }
   }
 
-  KjNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP, meta, requestP);
+  CorNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP, meta, requestP);
 
   if (attrP == NULL)
   {
@@ -624,8 +625,8 @@ static int sampleIn(const char* bridgeName,
   // A fragment carries its attributes and nothing else. An 'id' in one becomes
   // '_id' in the DB model, and the write then does nothing while answering OK.
   //
-  KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(fragmentP, attrP);
+  CorNode* fragmentP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(fragmentP, attrP);
 
   //
   // The catch-all's entity is made here, on the first sample that needs it,
@@ -634,14 +635,14 @@ static int sampleIn(const char* bridgeName,
   //
   if ((catchAll == true) && (bridgeDefaultEntityNeedsCreate(bridgeName) == true))
   {
-    KjNode* existingP = NULL;
+    CorNode* existingP = NULL;
 
     if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, entityId, &existingP) != DB_OK) || (existingP == NULL))
     {
-      KjNode* entityP = kjObject(corRest.kjsonP, NULL);
+      CorNode* entityP = corTreeObject(corRest.kallocP, NULL);
 
-      kjChildAdd(entityP, kjString(corRest.kjsonP, "id",   (char*) entityId));
-      kjChildAdd(entityP, kjString(corRest.kjsonP, "type", (char*) entityType));
+      corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "id", (char*) entityId));
+      corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "type", (char*) entityType));
 
       ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
 
@@ -680,10 +681,10 @@ static int sampleIn(const char* bridgeName,
   //
   if (subAttrName != NULL)
   {
-    KjNode* wrapperP = kjLookup(fragmentP, attrName);
+    CorNode* wrapperP = corTreeLookup(fragmentP, attrName);
 
     if (wrapperP != NULL)
-      instanceCarryOver(kjLookup(wrapperP, (datasetId != NULL) ? datasetId : "@none"), existingInstanceP);
+      instanceCarryOver(corTreeLookup(wrapperP, (datasetId != NULL) ? datasetId : "@none"), existingInstanceP);
   }
 
   //
@@ -711,7 +712,7 @@ static int sampleIn(const char* bridgeName,
   // The notification body is the whole entity, not the fragment - a subscriber
   // asked about an entity.
   //
-  KjNode* mergedP = NULL;
+  CorNode* mergedP = NULL;
 
   if (tenantP->subCacheP != NULL)
   {
@@ -744,7 +745,7 @@ static int sampleIn(const char* bridgeName,
     // hand already, so this costs nothing: the alternative, a retrieve, is
     // what entitySnapshot below does and it is why that one is conditional.
     //
-    tevP->attrSnapshot   = kjLookup(fragmentP, attrName);
+    tevP->attrSnapshot   = corTreeLookup(fragmentP, attrName);
 
     //
     // ⚠ And entitySnapshot is NULL when nothing subscribes, because that is
@@ -810,29 +811,29 @@ static int sampleIn(const char* bridgeName,
 // @return the sub-attribute, in the DB model and unlinked from anything, or
 //         NULL when the reply is not valid JSON.
 //
-KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime, const char* meta)
+CorNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const char* json, int64_t publishTime, const char* meta)
 {
   //
-  // ⚠ kjParse parses IN PLACE - every name and string in the tree points into
+  // ⚠ corJsonParse parses IN PLACE - every name and string in the tree points into
   // the text it was given. The caller's text is not the request's (a reply that
   // was waited for arrives in a buffer freed as soon as it has been grafted), so
   // the tree gets a copy of its own, in the arena it lives in.
   //
   char*   jsonCopy     = kaStrdup(&corRest.kalloc, json);
-  KjNode* placeholderP = kjString(corRest.kjsonP, NULL, "-");
-  KjNode* attrP        = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP, meta, NULL);
+  CorNode* placeholderP = corTreeString(corRest.kallocP, NULL, "-");
+  CorNode* attrP       = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP, meta, NULL);
 
   if (attrP == NULL)
     return NULL;
 
-  KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(fragmentP, attrP);
+  CorNode* fragmentP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(fragmentP, attrP);
 
   corLdExpandTree(fragmentP, corLdCoreContext(), &corRest.kalloc);
   ldApiEntityToDbModel(fragmentP, &corRest.kalloc, 0);
 
-  KjNode* wrapperP  = kjLookup(fragmentP, attrName);
-  KjNode* instanceP = (wrapperP != NULL) ? kjLookup(wrapperP, "@none") : NULL;
+  CorNode* wrapperP = corTreeLookup(fragmentP, attrName);
+  CorNode* instanceP = (wrapperP != NULL) ? corTreeLookup(wrapperP, "@none") : NULL;
 
   if (instanceP == NULL)
     return NULL;
@@ -841,11 +842,11 @@ KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const 
   // The reply is the one object in the instance that is not its value - the
   // name it was given has been expanded on the way, so it is found by shape.
   //
-  for (KjNode* nodeP = instanceP->value.firstChildP; nodeP != NULL; nodeP = nodeP->next)
+  for (CorNode* nodeP = instanceP->value.firstChildP; nodeP != NULL; nodeP = nodeP->next)
   {
-    if ((nodeP->type == KjObject) && (strcmp(nodeP->name, "value") != 0))
+    if ((nodeP->type == CorObject) && (strcmp(nodeP->name, "value") != 0))
     {
-      kjChildRemove(instanceP, nodeP);
+      corTreeChildRemove(instanceP, nodeP);
       nodeP->next = NULL;
       return nodeP;
     }
@@ -866,7 +867,7 @@ KjNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const 
 // instance a request's write makes and one an event would have made must not
 // differ in a single member.
 //
-KjNode* bridgeGoalInstance(const char* attrName,
+CorNode* bridgeGoalInstance(const char* attrName,
                            const char* goalAlias,
                            const char* requestJson,
                            const char* subAttrName,
@@ -874,12 +875,12 @@ KjNode* bridgeGoalInstance(const char* attrName,
                            int64_t     publishTime,
                            const char* meta)
 {
-  KjNode* requestP = kjParse(corRest.kjsonP, kaStrdup(&corRest.kalloc, requestJson));
+  CorNode* requestP = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, requestJson));
 
   if (requestP == NULL)
     return NULL;
 
-  KjNode* attrP;
+  CorNode* attrP;
 
   if ((subAttrName != NULL) && (json != NULL))
     attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP, meta, NULL);
@@ -889,19 +890,19 @@ KjNode* bridgeGoalInstance(const char* attrName,
   if (attrP == NULL)
     return NULL;
 
-  KjNode* fragmentP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(fragmentP, attrP);
+  CorNode* fragmentP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(fragmentP, attrP);
 
   corLdExpandTree(fragmentP, corLdCoreContext(), &corRest.kalloc);   // ⚠ before the conversion - see sampleIn
   ldApiEntityToDbModel(fragmentP, &corRest.kalloc, 0);
 
-  KjNode* wrapperP  = kjLookup(fragmentP, attrName);
-  KjNode* instanceP = (wrapperP != NULL) ? kjLookup(wrapperP, goalAlias) : NULL;
+  CorNode* wrapperP = corTreeLookup(fragmentP, attrName);
+  CorNode* instanceP = (wrapperP != NULL) ? corTreeLookup(wrapperP, goalAlias) : NULL;
 
   if (instanceP == NULL)
     return NULL;
 
-  kjChildRemove(wrapperP, instanceP);
+  corTreeChildRemove(wrapperP, instanceP);
   instanceP->next = NULL;
 
   return instanceP;
@@ -1011,25 +1012,25 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 
   threadBind(tenantP);
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
 
   if ((db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK) || (entityP == NULL))
     return BRIDGE_NOT_FOUND;
 
-  KjNode* attrP     = kjLookup(entityP, attrName);
-  KjNode* instanceP = (attrP != NULL) ? kjLookup(attrP, goalAlias) : NULL;
+  CorNode* attrP    = corTreeLookup(entityP, attrName);
+  CorNode* instanceP = (attrP != NULL) ? corTreeLookup(attrP, goalAlias) : NULL;
 
   if (instanceP == NULL)
     return BRIDGE_NOT_FOUND;
 
-  KjNode* preSnapshotP = kjClone(corRest.kjsonP, attrP);
+  CorNode* preSnapshotP = corTreeClone(corRest.kallocP, attrP);
 
-  kjChildRemove(attrP, instanceP);
+  corTreeChildRemove(attrP, instanceP);
 
   if (attrP->value.firstChildP == NULL)
-    kjChildRemove(entityP, attrP);
+    corTreeChildRemove(entityP, attrP);
 
-  KjNode* oldEntityP = NULL;
+  CorNode* oldEntityP = NULL;
 
   if (db.entityReplace(tenantP, entityId, entityP, &oldEntityP) != DB_OK)
   {
@@ -1040,25 +1041,25 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   if (tenantP->subCacheP != NULL)
   {
     LdMergeReport report;
-    KjNode*       entryP  = kjObject(corRest.kjsonP, NULL);
-    KjNode*       dsKeysP = kjArray(corRest.kjsonP, "datasetIds");
+    CorNode*      entryP  = corTreeObject(corRest.kallocP, NULL);
+    CorNode*      dsKeysP = corTreeArray(corRest.kallocP, "datasetIds");
 
-    report.changes = kjArray(corRest.kjsonP, "changes");
+    report.changes = corTreeArray(corRest.kallocP, "changes");
 
-    kjChildAdd(dsKeysP, kjString(corRest.kjsonP, NULL, (char*) goalAlias));
-    kjChildAdd(entryP, kjString(corRest.kjsonP, "attr",   (char*) attrName));
-    kjChildAdd(entryP, kjString(corRest.kjsonP, "reason", "attributeDeleted"));
-    kjChildAdd(entryP, dsKeysP);
+    corTreeChildAdd(dsKeysP, corTreeString(corRest.kallocP, NULL, (char*) goalAlias));
+    corTreeChildAdd(entryP, corTreeString(corRest.kallocP, "attr", (char*) attrName));
+    corTreeChildAdd(entryP, corTreeString(corRest.kallocP, "reason", "attributeDeleted"));
+    corTreeChildAdd(entryP, dsKeysP);
 
     if (preSnapshotP != NULL)
     {
-      KjNode* preValueP = kjClone(corRest.kjsonP, preSnapshotP);
+      CorNode* preValueP = corTreeClone(corRest.kallocP, preSnapshotP);
 
       preValueP->name = (char*) "preValue";
-      kjChildAdd(entryP, preValueP);
+      corTreeChildAdd(entryP, preValueP);
     }
 
-    kjChildAdd(report.changes, entryP);
+    corTreeChildAdd(report.changes, entryP);
     ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityUpdate, &report);
   }
 

@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "db/Tenant.h"                                // Tenant
 
 
@@ -28,7 +28,7 @@
 //
 int mongocEntityReplace(Tenant*      tenantP,
                         const char*  entityId,
-                        KjNode*      newEntityP,
-                        KjNode**     oldEntityPP);
+                        CorNode*     newEntityP,
+                        CorNode**    oldEntityPP);
 
 #endif  // MONGOC_ENTITY_REPLACE_H_

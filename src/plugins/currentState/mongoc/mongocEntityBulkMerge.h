@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
@@ -22,8 +22,8 @@
 // docs into the request arena. `targetsV` is a caller-allocated, zeroed array
 // parallel to the fragments; same-id fragments share one target tree.
 //
-extern int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr,
-                                    KjNode** targetsV);
+extern int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr,
+                                    CorNode** targetsV);
 
 
 
@@ -34,8 +34,8 @@ extern int mongocEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr,
 // operation and execute it. resultsV[i] is DB_OK for slots the broker merged;
 // staged slots are demoted to DB_ERR on bulk-execute failure.
 //
-extern int mongocEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
-                                        KjNode** mergedTargetsV, LdMergeReport* reportsV,
+extern int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
+                                        CorNode** mergedTargetsV, LdMergeReport* reportsV,
                                         int* resultsV);
 
 #endif  // MONGOC_MONGOCENTITYBULKMERGE_H_

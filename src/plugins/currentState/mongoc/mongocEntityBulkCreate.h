@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                          // KjNode
+#include "corTree/CorNode.h"                       // CorNode
 #include "db/DbDriver.h"                           // Tenant
 
 
@@ -18,6 +18,6 @@
 //
 // mongocEntityBulkCreate - see DbEntityBulkCreateFunc.
 //
-extern int mongocEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+extern int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV);
 
 #endif  // MONGOC_ENTITY_BULK_CREATE_H

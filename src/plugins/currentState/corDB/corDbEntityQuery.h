@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbQueryFilter.h"                          // DbQueryFilter
 #include "db/Tenant.h"                                 // Tenant
@@ -20,6 +20,6 @@
 //
 // corDbEntityQuery -
 //
-extern int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP);
+extern int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP);
 
 #endif  // CORDB_CORDBENTITYQUERY_H_

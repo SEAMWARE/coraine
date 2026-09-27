@@ -9,9 +9,9 @@
 
 #include <string.h>                                   // strcmp, memset
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjObject, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "ktrace/kTrace.h"                            // KT_W, KT_T
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 
@@ -46,12 +46,12 @@
 //
 // placeholderAttribute - { "type": "Property", "value": "uninitialized" }
 //
-static KjNode* placeholderAttribute(const char* attrName)
+static CorNode* placeholderAttribute(const char* attrName)
 {
-  KjNode* attrP = kjObject(corRest.kjsonP, attrName);
+  CorNode* attrP = corTreeObject(corRest.kallocP, attrName);
 
-  kjChildAdd(attrP, kjString(corRest.kjsonP, "type",  "Property"));
-  kjChildAdd(attrP, kjString(corRest.kjsonP, "value", CHANNEL_PLACEHOLDER_VALUE));
+  corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "type", "Property"));
+  corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "value", CHANNEL_PLACEHOLDER_VALUE));
 
   return attrP;
 }
@@ -108,7 +108,7 @@ int channelPrePopulate(Tenant* tenantP)
 
     const char* entityId = channelP->entityId;
 
-    KjNode* existingP = NULL;
+    CorNode* existingP = NULL;
     int     r         = db.entityRetrieve(tenantP, entityId, &existingP);
 
     if ((r != DB_OK) && (r != DB_NOT_FOUND))
@@ -121,15 +121,15 @@ int channelPrePopulate(Tenant* tenantP)
 
     //
     // Built straight into its final object, never into a temporary that is
-    // moved across afterwards. kjChildAdd RE-LINKS the node it is given - it
+    // moved across afterwards. corTreeChildAdd RE-LINKS the node it is given - it
     // sets its next to NULL - so walking a list while adding from it stops
     // dead after the first element, silently and with the right count already
-    // logged. There is no kjChildMove.
+    // logged. There is no corTreeChildMove.
     //
     // A create and an update need exactly the same tree here, so one is built
     // and the choice of which driver call takes it is made afterwards.
     //
-    KjNode* entityP = kjObject(corRest.kjsonP, NULL);
+    CorNode* entityP = corTreeObject(corRest.kallocP, NULL);
     int     missing = 0;
 
     //
@@ -140,8 +140,8 @@ int channelPrePopulate(Tenant* tenantP)
     //
     if (exists == false)
     {
-      kjChildAdd(entityP, kjString(corRest.kjsonP, "id",   entityId));
-      kjChildAdd(entityP, kjString(corRest.kjsonP, "type", channelP->entityType));
+      corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "id", entityId));
+      corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "type", channelP->entityType));
     }
 
     //
@@ -160,14 +160,14 @@ int channelPrePopulate(Tenant* tenantP)
       // attribute that has been carrying real values for a month is not to be
       // reset to a placeholder because the broker restarted.
       //
-      if ((exists == true) && (kjLookup(existingP, attrChannelP->attrName) != NULL))
+      if ((exists == true) && (corTreeLookup(existingP, attrChannelP->attrName) != NULL))
         continue;
 
       if (strcmp(attrChannelP->entityType, channelP->entityType) != 0)
         KT_W("entity '%s' is declared as both '%s' and '%s' in the configuration - using the first",
              entityId, channelP->entityType, attrChannelP->entityType);
 
-      kjChildAdd(entityP, placeholderAttribute(attrChannelP->attrName));
+      corTreeChildAdd(entityP, placeholderAttribute(attrChannelP->attrName));
       ++missing;
     }
 

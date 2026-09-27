@@ -39,11 +39,12 @@
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E
-#include "kjson/kjBuilder.h"                              // kjObject, kjArray, kjString, kjInteger, kjFloat, kjBoolean, kjChildAdd
-#include "kjson/kjLookup.h"                               // kjLookup
-#include "kjson/kjParse.h"                                // kjParse
+#include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
+#include "corJson/corJsonParse.h"                         // corJsonParse
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
+#include "kalloc/KAlloc.h"                                // KAlloc
 
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
@@ -110,14 +111,14 @@ static const char* kindValueFieldName(int kind)
 //
 // makeValueNode - build the value-bearing field from typed columns.
 //
-static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
+static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
                              const char* v_text, const char* v_number,
                              const char* v_bool, const char* v_compnd)
 {
   if (v_compnd != NULL && v_compnd[0] != 0)
   {
     char*   dup    = kaStrdup(&corRest.kalloc, v_compnd);
-    KjNode* parsed = kjParse(kjsonP, dup);
+    CorNode* parsed = corJsonParse(corJsonP, dup);
     if (parsed != NULL)
     {
       parsed->name = (char*) vfn;
@@ -128,13 +129,13 @@ static KjNode* makeValueNode(Kjson* kjsonP, const char* vfn,
   {
     double n = strtod(v_number, NULL);
     if ((double)(long long) n == n)
-      return kjInteger(kjsonP, vfn, (long long) n);
-    return kjFloat(kjsonP, vfn, n);
+      return corTreeInteger(corJsonP->kallocP, vfn, (long long) n);
+    return corTreeFloat(corJsonP->kallocP, vfn, n);
   }
   if (v_bool != NULL)
-    return kjBoolean(kjsonP, vfn, (v_bool[0] == 't') ? KTRUE : KFALSE);
+    return corTreeBoolean(corJsonP->kallocP, vfn, (v_bool[0] == 't') ? KTRUE : KFALSE);
   if (v_text != NULL)
-    return kjString(kjsonP, vfn, kaStrdup(&corRest.kalloc, v_text));
+    return corTreeString(corJsonP->kallocP, vfn, kaStrdup(&corRest.kalloc, v_text));
   return NULL;
 }
 
@@ -311,24 +312,24 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
 // missing or empty list yields NULL and the member is left out entirely, which
 // is what an Entity written before the column became an array looks like.
 //
-static KjNode* typeNodeFromJson(const char* json, Kjson* kjsonP, KAlloc* kaP)
+static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, KAlloc* kaP)
 {
   if ((json == NULL) || (json[0] == 0))
     return NULL;
 
   char*   copy  = kaStrdup(kaP, json);
-  KjNode* arrayP = kjParse(kjsonP, copy);
+  CorNode* arrayP = corJsonParse(corJsonP, copy);
 
-  if ((arrayP == NULL) || (arrayP->type != KjArray) || (arrayP->value.firstChildP == NULL))
+  if ((arrayP == NULL) || (arrayP->type != CorArray) || (arrayP->value.firstChildP == NULL))
     return NULL;
 
-  KjNode* firstP = arrayP->value.firstChildP;
+  CorNode* firstP = arrayP->value.firstChildP;
 
   if (firstP->next == NULL)
   {
-    if ((firstP->type != KjString) || (firstP->value.s == NULL) || (firstP->value.s[0] == 0))
+    if ((firstP->type != CorString) || (firstP->value.s == NULL) || (firstP->value.s[0] == 0))
       return NULL;
-    return kjString(kjsonP, "type", firstP->value.s);
+    return corTreeString(corJsonP->kallocP, "type", firstP->value.s);
   }
 
   arrayP->name = (char*) "type";
@@ -350,7 +351,7 @@ static KjNode* typeNodeFromJson(const char* json, Kjson* kjsonP, KAlloc* kaP)
 //
 static int buildEntityTemporalDocLocked(const char* entityId,
                                         const char* entityTypeIn,
-                                        TroeQueryFilter* fP, KjNode** treePP,
+                                        TroeQueryFilter* fP, CorNode** treePP,
                                         TroeRangeInfo* rangeOut)
 {
   *treePP = NULL;
@@ -394,7 +395,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     const char* idParam[1] = { entityId };
     PGresult* eRes = PQexecParams(timescaleConn,
       // array_to_json so the TEXT[] comes back as ["Vehicle","Car"], which
-      // kjParse turns straight into the node the renderer wants.
+      // corJsonParse turns straight into the node the renderer wants.
       "SELECT array_to_json(entity_type)::text FROM troe_entities "
       "WHERE entity_id = $1 "
       "ORDER BY modified_at DESC LIMIT 1",
@@ -537,14 +538,14 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     return TROE_NOT_FOUND;
   }
 
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* root   = kjObject(kjsonP, NULL);
+  CorJson* corJsonP = corRest.corJsonP;
+  CorNode* root  = corTreeObject(corRest.kallocP, NULL);
 
-  kjChildAdd(root, kjString(kjsonP, "id", entityId));
+  corTreeChildAdd(root, corTreeString(corRest.kallocP, "id", entityId));
 
-  KjNode* typeNodeP = typeNodeFromJson(entityType, kjsonP, &corRest.kalloc);
+  CorNode* typeNodeP = typeNodeFromJson(entityType, corJsonP, &corRest.kalloc);
   if (typeNodeP != NULL)
-    kjChildAdd(root, typeNodeP);
+    corTreeChildAdd(root, typeNodeP);
 
   // § 4.5.2 / § 4.5.6 createdAt / modifiedAt at the entity level — derived
   // from troe_entities. createdAt = the modified_at of the earliest 'created'
@@ -565,10 +566,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)
     {
       if (!PQgetisnull(tRes, 0, 0))
-        kjChildAdd(root, kjString(kjsonP, "createdAt",
+        corTreeChildAdd(root, corTreeString(corRest.kallocP, "createdAt",
                                    stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
       if (!PQgetisnull(tRes, 0, 1))
-        kjChildAdd(root, kjString(kjsonP, "modifiedAt",
+        corTreeChildAdd(root, corTreeString(corRest.kallocP, "modifiedAt",
                                    stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
 
       //
@@ -578,7 +579,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       // to strip: like an instance's deletedAt, it is what says the thing is gone.
       //
       if ((!PQgetisnull(tRes, 0, 1)) && (!PQgetisnull(tRes, 0, 2)) && (strcmp(PQgetvalue(tRes, 0, 2), "deleted") == 0))
-        kjChildAdd(root, kjString(kjsonP, "deletedAt",
+        corTreeChildAdd(root, corTreeString(corRest.kallocP, "deletedAt",
                                    stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
     }
     PQclear(tRes);
@@ -615,13 +616,13 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     const char* instId    = PQgetisnull(aRes, r, 13) ? NULL : PQgetvalue(aRes, r, 13);
     const char* crAtIso   = PQgetisnull(aRes, r, 14) ? NULL : PQgetvalue(aRes, r, 14);
 
-    KjNode* arr = kjLookup(root, attrName);
+    CorNode* arr = corTreeLookup(root, attrName);
     if (arr == NULL)
     {
-      arr = kjArray(kjsonP, kaStrdup(&corRest.kalloc, attrName));
-      kjChildAdd(root, arr);
+      arr = corTreeArray(corRest.kallocP, kaStrdup(&corRest.kalloc, attrName));
+      corTreeChildAdd(root, arr);
     }
-    else if (arr->type != KjArray)
+    else if (arr->type != CorArray)
     {
       //
       // A row named as an Entity member that is no Attribute - "createdAt",
@@ -633,8 +634,8 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       continue;
     }
 
-    KjNode* inst = kjObject(kjsonP, NULL);
-    kjChildAdd(inst, kjString(kjsonP, "type", kindToTypeString(attrKind)));
+    CorNode* inst = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(inst, corTreeString(corRest.kallocP, "type", kindToTypeString(attrKind)));
 
     // § 5.3.2.5: a deleted instance keeps the Attribute's type; its
     // value-field carries the NGSI-LD Null. LanguageProperty nulls take the
@@ -646,19 +647,19 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       const char* vfn = kindValueFieldName(attrKind);
       if (attrKind == LdAttrLanguageProperty)
       {
-        KjNode* lmP = kjObject(kjsonP, vfn);
-        kjChildAdd(lmP, kjString(kjsonP, "@none", "urn:ngsi-ld:null"));
-        kjChildAdd(inst, lmP);
+        CorNode* lmP = corTreeObject(corRest.kallocP, vfn);
+        corTreeChildAdd(lmP, corTreeString(corRest.kallocP, "@none", "urn:ngsi-ld:null"));
+        corTreeChildAdd(inst, lmP);
       }
       else
-        kjChildAdd(inst, kjString(kjsonP, vfn, "urn:ngsi-ld:null"));
+        corTreeChildAdd(inst, corTreeString(corRest.kallocP, vfn, "urn:ngsi-ld:null"));
     }
     else
     {
       const char* vfn = kindValueFieldName(attrKind);
-      KjNode* vNode = makeValueNode(kjsonP, vfn, v_text, v_number, v_bool, v_compnd);
+      CorNode* vNode = makeValueNode(corJsonP, vfn, v_text, v_number, v_bool, v_compnd);
       if (vNode != NULL)
-        kjChildAdd(inst, vNode);
+        corTreeChildAdd(inst, vNode);
     }
 
     // § 6.3.11: createdAt / modifiedAt are sysAttrs and stripped by the
@@ -671,36 +672,36 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     // a regular one (§ 4.5.4) — it travels with the deleted row regardless
     // of sysAttrs (it's not in the strip list).
     if (crAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&corRest.kalloc, crAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "createdAt", stripZeroMs(kaStrdup(&corRest.kalloc, crAtIso))));
     if (modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
     if (isDeleted && modAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "deletedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "observedAt", stripZeroMs(kaStrdup(&corRest.kalloc, obsAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "observedAt", stripZeroMs(kaStrdup(&corRest.kalloc, obsAtIso))));
     if (dsId != NULL && dsId[0] != 0)
-      kjChildAdd(inst, kjString(kjsonP, "datasetId", kaStrdup(&corRest.kalloc, dsId)));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "datasetId", kaStrdup(&corRest.kalloc, dsId)));
     if (instId != NULL)
-      kjChildAdd(inst, kjString(kjsonP, "instanceId", kaStrdup(&corRest.kalloc, instId)));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "instanceId", kaStrdup(&corRest.kalloc, instId)));
 
     if (subAttrs != NULL && subAttrs[0] != 0)
     {
       char* dup = kaStrdup(&corRest.kalloc, subAttrs);
-      KjNode* parsed = kjParse(kjsonP, dup);
-      if (parsed != NULL && parsed->type == KjObject)
+      CorNode* parsed = corJsonParse(corJsonP, dup);
+      if (parsed != NULL && parsed->type == CorObject)
       {
-        // kjChildAdd sets the added node's ->next to NULL - the next one is taken first
-        KjNode* sP = parsed->value.firstChildP;
+        // corTreeChildAdd sets the added node's ->next to NULL - the next one is taken first
+        CorNode* sP = parsed->value.firstChildP;
         while (sP != NULL)
         {
-          KjNode* nextP = sP->next;
-          kjChildAdd(inst, sP);
+          CorNode* nextP = sP->next;
+          corTreeChildAdd(inst, sP);
           sP = nextP;
         }
       }
     }
 
-    kjChildAdd(arr, inst);
+    corTreeChildAdd(arr, inst);
   }
 
   // Accumulate range info for the caller (multi-entity unions, single-entity
@@ -741,7 +742,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
 // timescaleEntityTemporalRetrieve - § 5.7.3 single-entity retrieve.
 //
 int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
-                                    TroeQueryFilter* fP, KjNode** resultPP,
+                                    TroeQueryFilter* fP, CorNode** resultPP,
                                     TroeRangeInfo* rangeOut)
 {
   if (entityId == NULL || resultPP == NULL)
@@ -1138,13 +1139,13 @@ static int aggrPageIndex(PGresult* pageRes, int pageN, const char* entityId, int
 //
 // aggrTuple - [value, bucket-start, bucket-end]
 //
-static KjNode* aggrTuple(Kjson* kjsonP, double v, uint64_t startNs, uint64_t endNs)
+static CorNode* aggrTuple(KAlloc* allocP, double v, uint64_t startNs, uint64_t endNs)
 {
-  KjNode* tupleP = kjArray(kjsonP, NULL);
+  CorNode* tupleP = corTreeArray(allocP, NULL);
 
-  kjChildAdd(tupleP, kjFloat(kjsonP, NULL, v));
-  kjChildAdd(tupleP, kjString(kjsonP, NULL, aggrNsToIso(startNs, &corRest.kalloc)));
-  kjChildAdd(tupleP, kjString(kjsonP, NULL, aggrNsToIso(endNs,   &corRest.kalloc)));
+  corTreeChildAdd(tupleP, corTreeFloat(allocP, NULL, v));
+  corTreeChildAdd(tupleP, corTreeString(allocP, NULL, aggrNsToIso(startNs, &corRest.kalloc)));
+  corTreeChildAdd(tupleP, corTreeString(allocP, NULL, aggrNsToIso(endNs, &corRest.kalloc)));
 
   return tupleP;
 }
@@ -1163,12 +1164,12 @@ static KjNode* aggrTuple(Kjson* kjsonP, double v, uint64_t startNs, uint64_t end
 //
 // sRes columns: 0 entity_id, 1 attr_name, 2 bucket start (epoch us), 3 total, 4 distinct, 5 sum, 6 sumsq, 7 min, 8 max
 //
-static KjNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP, Kjson* kjsonP)
+static CorNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP, KAlloc* allocP)
 {
-  KjNode* wrapperP = kjObject(kjsonP, kaStrdup(&corRest.kalloc, PQgetvalue(sRes, r0, 1)));
-  KjNode* attrP    = kjObject(kjsonP, "@none");
+  CorNode* wrapperP = corTreeObject(allocP, kaStrdup(&corRest.kalloc, PQgetvalue(sRes, r0, 1)));
+  CorNode* attrP   = corTreeObject(allocP, "@none");
 
-  kjChildAdd(attrP, kjString(kjsonP, "type", "Property"));
+  corTreeChildAdd(attrP, corTreeString(allocP, "type", "Property"));
 
   bool     zeroPeriod = (fP->aggrPeriodNs == 0);
   uint64_t endNs      = fP->endTimeAtNs;
@@ -1176,7 +1177,7 @@ static KjNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP
   for (int m = 0; fP->aggrMethodsV[m] != NULL; m++)
   {
     const char* method = fP->aggrMethodsV[m];
-    KjNode*     arrP   = kjArray(kjsonP, method);
+    CorNode*    arrP   = corTreeArray(allocP, method);
 
     for (int r = r0; r < r1; r++)
     {
@@ -1210,13 +1211,13 @@ static KjNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP
       else
         continue;
 
-      kjChildAdd(arrP, aggrTuple(kjsonP, v, bStart, bEnd));
+      corTreeChildAdd(arrP, aggrTuple(allocP, v, bStart, bEnd));
     }
 
-    kjChildAdd(attrP, arrP);
+    corTreeChildAdd(attrP, arrP);
   }
 
-  kjChildAdd(wrapperP, attrP);
+  corTreeChildAdd(wrapperP, attrP);
   return wrapperP;
 }
 
@@ -1245,7 +1246,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
                                 const char*      whereTail,
                                 int              nParams,
                                 const char**     paramV,
-                                KjNode*          arrP,
+                                CorNode*         arrP,
                                 TroeRangeInfo*   rangeOut)
 {
   if (pageN == 0)
@@ -1370,21 +1371,21 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
     return TROE_ERR;
   }
 
-  Kjson*   kjsonP = corRest.kjsonP;
-  KjNode** docV   = (KjNode**) kaAlloc(&corRest.kalloc, pageN * sizeof(KjNode*));
+  KAlloc*  allocP = corRest.kallocP;
+  CorNode** docV  = (CorNode**) kaAlloc(&corRest.kalloc, pageN * sizeof(CorNode*));
   int      hint   = 0;
 
   for (int i = 0; i < pageN; i++)
   {
-    KjNode* docP = kjObject(kjsonP, NULL);
+    CorNode* docP = corTreeObject(allocP, NULL);
 
-    kjChildAdd(docP, kjString(kjsonP, "id", kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 0))));
+    corTreeChildAdd(docP, corTreeString(allocP, "id", kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 0))));
 
     if (!PQgetisnull(pageRes, i, 1))
     {
-      KjNode* typeNodeP = typeNodeFromJson(kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 1)), kjsonP, &corRest.kalloc);
+      CorNode* typeNodeP = typeNodeFromJson(kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 1)), corRest.corJsonP, &corRest.kalloc);
       if (typeNodeP != NULL)
-        kjChildAdd(docP, typeNodeP);
+        corTreeChildAdd(docP, typeNodeP);
     }
 
     docV[i] = docP;
@@ -1397,11 +1398,11 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
       continue;
 
     if (!PQgetisnull(tRes, r, 1))
-      kjChildAdd(docV[i], kjString(kjsonP, "createdAt",  stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
     if (!PQgetisnull(tRes, r, 2))
-      kjChildAdd(docV[i], kjString(kjsonP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
     if (!PQgetisnull(tRes, r, 2) && !PQgetisnull(tRes, r, 3) && (strcmp(PQgetvalue(tRes, r, 3), "deleted") == 0))
-      kjChildAdd(docV[i], kjString(kjsonP, "deletedAt",  stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
   }
   PQclear(tRes);
 
@@ -1422,7 +1423,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
     int i = aggrPageIndex(pageRes, pageN, e, &hint);
     if (i >= 0)
     {
-      kjChildAdd(docV[i], aggrAttribute(sRes, r0, r1, fP, kjsonP));
+      corTreeChildAdd(docV[i], aggrAttribute(sRes, r0, r1, fP, allocP));
       hasAttrsV[i] = true;
     }
 
@@ -1434,7 +1435,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   for (int i = 0; i < pageN; i++)
   {
     if (hasAttrsV[i])
-      kjChildAdd(arrP, docV[i]);
+      corTreeChildAdd(arrP, docV[i]);
   }
 
   if (rangeOut->size == 0)
@@ -1458,7 +1459,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
 // WHERE for NGSILD-Results-Count.
 //
 int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
-                                 KjNode** resultPP, TroeRangeInfo* rangeOut)
+                                 CorNode** resultPP, TroeRangeInfo* rangeOut)
 {
   if (fP == NULL || resultPP == NULL)
     return TROE_ERR;
@@ -1470,8 +1471,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
 
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* arrP   = kjArray(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* arrP  = corTreeArray(allocP, NULL);
 
   // limitGiven distinguishes an explicit limit=0 (count-only page) from an
   // absent limit (broker default). limit=0 → fetch LIMIT 1 (to set
@@ -1594,7 +1595,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     const char* entityId   = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
 
-    KjNode* docP = NULL;
+    CorNode* docP = NULL;
     int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
 
     if (rc == TROE_ERR)
@@ -1611,7 +1612,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     // pathological case where a large per-attribute offsetN pages out every
     // instance, leaving an empty doc.
     bool hasAttrs = false;
-    for (KjNode* c = docP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = docP->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                         continue;
       if (strcmp(c->name, "id")         == 0)      continue;
@@ -1625,7 +1626,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     if (!hasAttrs)
       continue;
 
-    kjChildAdd(arrP, docP);
+    corTreeChildAdd(arrP, docP);
   }
 
   PQclear(eRes);

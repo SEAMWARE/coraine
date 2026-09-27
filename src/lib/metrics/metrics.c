@@ -14,8 +14,8 @@
 #include <time.h>                                  // clock_gettime
 
 #include "kalloc/kaAlloc.h"                        // kaAlloc
-#include "kjson/KjNode.h"                          // KjNode, KjArray
-#include "kprom/kprom.h"                           // kprom*
+#include "corTree/CorNode.h"                       // CorNode, CorArray
+#include "corProm/corProm.h"                       // corProm*
 
 #include "corRest/CorRestState.h"                    // corRest
 #include "corNgsild/LdOp.h"                         // LdOp*
@@ -36,47 +36,47 @@
 // LdOp is a bit-flag, so at most one bit set per service; the index is
 // the trailing-zero count.
 //
-static KpromMetric* reqCounterByOp[64];
+static CorPromMetric* reqCounterByOp[64];
 static bool         initialized = false;
 
 //
 // Error counters
 //
-static KpromMetric* errors4xx;
-static KpromMetric* errors5xx;
+static CorPromMetric* errors4xx;
+static CorPromMetric* errors5xx;
 
 //
 // Notification counters (entity-sub + CSR-sub, each with sent/failed).
 //
-static KpromMetric* notifSent;
-static KpromMetric* notifFailed;
-static KpromMetric* csrNotifSent;
-static KpromMetric* csrNotifFailed;
+static CorPromMetric* notifSent;
+static CorPromMetric* notifFailed;
+static CorPromMetric* csrNotifSent;
+static CorPromMetric* csrNotifFailed;
 
 //
 // Cache-size gauges. Populated on-demand at render time by walking
 // the per-tenant caches. Cheap: a few small linked-list counts per
 // scrape, negligible relative to the HTTP roundtrip.
 //
-static KpromMetric* gTenants;
-static KpromMetric* gSubCacheSize;
-static KpromMetric* gRegSubCacheSize;
-static KpromMetric* gRegCacheSize;
-static KpromMetric* gPernotCacheSize;
-static KpromMetric* gEntityMapStoreSize;
+static CorPromMetric* gTenants;
+static CorPromMetric* gSubCacheSize;
+static CorPromMetric* gRegSubCacheSize;
+static CorPromMetric* gRegCacheSize;
+static CorPromMetric* gPernotCacheSize;
+static CorPromMetric* gEntityMapStoreSize;
 
 //
 // Distop forwarding — counters + latency histogram.
 //
-static KpromMetric* distopForwarded;
-static KpromMetric* distopForwardFailed;
-static KpromMetric* distopLatency;
+static CorPromMetric* distopForwarded;
+static CorPromMetric* distopForwardFailed;
+static CorPromMetric* distopLatency;
 
 // End-to-end request latency — observed in the post-response hook.
 // Buckets cover intra-DC HTTP roundtrips typical for entity ops
 // (fast path sub-ms) and outliers out to a few seconds for distops
 // and large batches.
-static KpromMetric* requestLatency;
+static CorPromMetric* requestLatency;
 static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5 };
 
 // Response body bytes, observed in the same post-response hook. The one
@@ -84,17 +84,17 @@ static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.0
 // latency were all here already, bytes were not. corRest renders the body and
 // leaves its size in corRest.out.payloadSize, which is still valid when the
 // hook runs (the hook fires before corRestStateRelease).
-static KpromMetric* responseBodyBytes;
+static CorPromMetric* responseBodyBytes;
 
 // Buckets in seconds. Tuned for typical intra-DC HTTP roundtrips with
 // tail coverage out to 5s to catch slow CPs. The +Inf bucket is added
-// by kprom automatically.
+// by corProm automatically.
 static double distopLatencyBuckets[] = { 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0 };
 
 // Batch op item count — observed in metricsPreService when the op is
 // one of the six /entityOperations/* batch ops and the payload tree
 // is a JSON array.
-static KpromMetric* batchItemCount;
+static CorPromMetric* batchItemCount;
 static double       batchItemCountBuckets[] = { 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500 };
 
 // Mask of LdOp bits for the six /entityOperations/* batch ops
@@ -175,53 +175,53 @@ bool metricsInit(void)
     return true;
 
   for (int i = 0; i < opTableSize; i++)
-    reqCounterByOp[opTable[i].bit] = kpromCounterCreate(opTable[i].name, opTable[i].help);
+    reqCounterByOp[opTable[i].bit] = corPromCounterCreate(opTable[i].name, opTable[i].help);
 
-  errors4xx = kpromCounterCreate("ngsild_errors_4xx_total",
+  errors4xx = corPromCounterCreate("ngsild_errors_4xx_total",
                                  "Responses with 4xx status code (client-side error)");
-  errors5xx = kpromCounterCreate("ngsild_errors_5xx_total",
+  errors5xx = corPromCounterCreate("ngsild_errors_5xx_total",
                                  "Responses with 5xx status code (server-side error)");
 
-  notifSent      = kpromCounterCreate("ngsild_notifications_sent_total",
+  notifSent      = corPromCounterCreate("ngsild_notifications_sent_total",
                                       "Entity-subscription notifications POSTed (2xx reply)");
-  notifFailed    = kpromCounterCreate("ngsild_notifications_failed_total",
+  notifFailed    = corPromCounterCreate("ngsild_notifications_failed_total",
                                       "Entity-subscription notifications that failed (non-2xx or no reply)");
-  csrNotifSent   = kpromCounterCreate("ngsild_csource_notifications_sent_total",
+  csrNotifSent   = corPromCounterCreate("ngsild_csource_notifications_sent_total",
                                       "CSR-subscription notifications POSTed (§ 5.11)");
-  csrNotifFailed = kpromCounterCreate("ngsild_csource_notifications_failed_total",
+  csrNotifFailed = corPromCounterCreate("ngsild_csource_notifications_failed_total",
                                       "CSR-subscription notifications that failed");
 
-  gTenants            = kpromGaugeCreate("ngsild_tenants_total",
+  gTenants            = corPromGaugeCreate("ngsild_tenants_total",
                                          "Number of tenants (including default)");
-  gSubCacheSize       = kpromGaugeCreate("ngsild_subscription_cache_size",
+  gSubCacheSize       = corPromGaugeCreate("ngsild_subscription_cache_size",
                                          "Entity-subscriptions cached (sum across tenants)");
-  gRegSubCacheSize    = kpromGaugeCreate("ngsild_csource_subscription_cache_size",
+  gRegSubCacheSize    = corPromGaugeCreate("ngsild_csource_subscription_cache_size",
                                          "CSR-subscriptions cached (sum across tenants)");
-  gRegCacheSize       = kpromGaugeCreate("ngsild_csource_registration_cache_size",
+  gRegCacheSize       = corPromGaugeCreate("ngsild_csource_registration_cache_size",
                                          "Context Source registrations cached (sum across tenants)");
-  gPernotCacheSize    = kpromGaugeCreate("ngsild_pernot_cache_size",
+  gPernotCacheSize    = corPromGaugeCreate("ngsild_pernot_cache_size",
                                          "Periodic-notification subscriptions cached (sum across tenants)");
-  gEntityMapStoreSize = kpromGaugeCreate("ngsild_entity_map_store_size",
+  gEntityMapStoreSize = corPromGaugeCreate("ngsild_entity_map_store_size",
                                          "EntityMap store entries (sum across tenants)");
 
-  distopForwarded     = kpromCounterCreate("ngsild_distop_forwarded_total",
+  distopForwarded     = corPromCounterCreate("ngsild_distop_forwarded_total",
                                            "Distributed-op forward attempts (every outbound request)");
-  distopForwardFailed = kpromCounterCreate("ngsild_distop_forward_failed_total",
+  distopForwardFailed = corPromCounterCreate("ngsild_distop_forward_failed_total",
                                            "Distributed-op forwards that failed (transport error or non-2xx)");
-  distopLatency       = kpromHistogramCreate("ngsild_distop_forward_latency_seconds",
+  distopLatency       = corPromHistogramCreate("ngsild_distop_forward_latency_seconds",
                                              "Distributed-op forward round-trip latency (seconds)",
                                              distopLatencyBuckets,
                                              sizeof(distopLatencyBuckets) / sizeof(distopLatencyBuckets[0]));
 
-  responseBodyBytes   = kpromCounterCreate("ngsild_response_body_bytes_total",
+  responseBodyBytes   = corPromCounterCreate("ngsild_response_body_bytes_total",
                                            "Response body bytes rendered (sum over all requests)");
 
-  requestLatency      = kpromHistogramCreate("ngsild_request_latency_seconds",
+  requestLatency      = corPromHistogramCreate("ngsild_request_latency_seconds",
                                              "End-to-end request latency — service-routine processing time (seconds)",
                                              requestLatencyBuckets,
                                              sizeof(requestLatencyBuckets) / sizeof(requestLatencyBuckets[0]));
 
-  batchItemCount      = kpromHistogramCreate("ngsild_batch_item_count",
+  batchItemCount      = corPromHistogramCreate("ngsild_batch_item_count",
                                              "Number of items per /entityOperations batch request",
                                              batchItemCountBuckets,
                                              sizeof(batchItemCountBuckets) / sizeof(batchItemCountBuckets[0]));
@@ -265,12 +265,12 @@ static void tenantCounts(void)
     if (ems != NULL) for (LdEntityMap*    i = ems->head;     i != NULL; i = i->next) maps++;
   }
 
-  kpromGaugeSet(gTenants,            (double) tenants);
-  kpromGaugeSet(gSubCacheSize,       (double) subs);
-  kpromGaugeSet(gRegSubCacheSize,    (double) regSubs);
-  kpromGaugeSet(gRegCacheSize,       (double) regs);
-  kpromGaugeSet(gPernotCacheSize,    (double) pernots);
-  kpromGaugeSet(gEntityMapStoreSize, (double) maps);
+  corPromGaugeSet(gTenants,          (double) tenants);
+  corPromGaugeSet(gSubCacheSize,     (double) subs);
+  corPromGaugeSet(gRegSubCacheSize,  (double) regSubs);
+  corPromGaugeSet(gRegCacheSize,     (double) regs);
+  corPromGaugeSet(gPernotCacheSize,  (double) pernots);
+  corPromGaugeSet(gEntityMapStoreSize, (double) maps);
 }
 
 
@@ -290,18 +290,18 @@ bool metricsPreService(void)
 
   int bit = __builtin_ctzll(op);
   if (bit >= 0 && bit < 64 && reqCounterByOp[bit] != NULL)
-    kpromCounterInc(reqCounterByOp[bit]);
+    corPromCounterInc(reqCounterByOp[bit]);
 
   // For batch ops, observe the array length so we can size payloads
   // in dashboards.
   if ((op & LD_OPS_BATCH_MASK) != 0 &&
       corRest.in.requestTree != NULL &&
-      corRest.in.requestTree->type == KjArray)
+      corRest.in.requestTree->type == CorArray)
   {
     int n = 0;
-    for (KjNode* c = corRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = corRest.in.requestTree->value.firstChildP; c != NULL; c = c->next)
       n++;
-    kpromHistogramObserve(batchItemCount, (double) n);
+    corPromHistogramObserve(batchItemCount, (double) n);
   }
 
   return true;
@@ -317,12 +317,12 @@ void metricsPostResponse(void)
 {
   int sc = corRest.out.httpStatusCode;
   if (sc >= 500 && sc < 600)
-    kpromCounterInc(errors5xx);
+    corPromCounterInc(errors5xx);
   else if (sc >= 400 && sc < 500)
-    kpromCounterInc(errors4xx);
+    corPromCounterInc(errors4xx);
 
   if (corRest.out.payloadSize > 0)
-    kpromCounterAdd(responseBodyBytes, corRest.out.payloadSize);
+    corPromCounterAdd(responseBodyBytes, corRest.out.payloadSize);
 
   // End-to-end request latency. requestStartTimeMono is CLOCK_MONOTONIC
   // nanoseconds (set by corRest on request entry — the CorRestState.h
@@ -334,7 +334,7 @@ void metricsPostResponse(void)
     clock_gettime(CLOCK_MONOTONIC, &now);
     uint64_t nowNs   = (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
     double   latency = (double) (nowNs - corRest.requestStartTimeMono) / 1e9;
-    kpromHistogramObserve(requestLatency, latency);
+    corPromHistogramObserve(requestLatency, latency);
   }
 }
 
@@ -346,8 +346,8 @@ void metricsPostResponse(void)
 //
 void metricsNotificationSent(bool success)
 {
-  if (success) kpromCounterInc(notifSent);
-  else         kpromCounterInc(notifFailed);
+  if (success) corPromCounterInc(notifSent);
+  else         corPromCounterInc(notifFailed);
 }
 
 
@@ -358,8 +358,8 @@ void metricsNotificationSent(bool success)
 //
 void metricsCsrNotificationSent(bool success)
 {
-  if (success) kpromCounterInc(csrNotifSent);
-  else         kpromCounterInc(csrNotifFailed);
+  if (success) corPromCounterInc(csrNotifSent);
+  else         corPromCounterInc(csrNotifFailed);
 }
 
 
@@ -370,10 +370,10 @@ void metricsCsrNotificationSent(bool success)
 //
 void metricsDistopForward(double latencySec, bool success)
 {
-  kpromCounterInc(distopForwarded);
+  corPromCounterInc(distopForwarded);
   if (!success)
-    kpromCounterInc(distopForwardFailed);
-  kpromHistogramObserve(distopLatency, latencySec);
+    corPromCounterInc(distopForwardFailed);
+  corPromHistogramObserve(distopLatency, latencySec);
 }
 
 
@@ -387,14 +387,14 @@ bool metricsRender(void)
   tenantCounts();
 
   //
-  // +1 for the terminating NUL. kpromRenderSize() reports the payload EXCLUDING
-  // it, and kpromRender is built on snprintf, which always writes one - so a
+  // +1 for the terminating NUL. corPromRenderSize() reports the payload EXCLUDING
+  // it, and corPromRender is built on snprintf, which always writes one - so a
   // buffer of exactly bufSize loses its final byte, and that byte is the newline
   // ending the last metric. The result parses as binary rather than as the
-  // Prometheus text format, and kpromRender cannot report it: on an exact fit it
+  // Prometheus text format, and corPromRender cannot report it: on an exact fit it
   // returns the same length it would have returned had everything fitted.
   //
-  int   bufSize = kpromRenderSize();
+  int   bufSize = corPromRenderSize();
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize + 1);
 
   if (buf == NULL)
@@ -407,7 +407,7 @@ bool metricsRender(void)
   // bufSize + 1 here too - this is the buffer LENGTH, which is what snprintf
   // sizes against. Widening the allocation without widening this changes nothing.
   //
-  int rendered = kpromRender(buf, bufSize + 1);
+  int rendered = corPromRender(buf, bufSize + 1);
   if (rendered < 0)
   {
     corRest.out.httpStatusCode = 500;

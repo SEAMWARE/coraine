@@ -11,7 +11,7 @@
 //
 #include <stdbool.h>                                     // bool
 
-#include "kjson/KjNode.h"                                // KjNode
+#include "corTree/CorNode.h"                             // CorNode
 
 #include "db/Tenant.h"                                   // Tenant
 
@@ -70,7 +70,7 @@ typedef struct HaEvent
   HaKind       kind;
   Tenant*      tenantP;   // NULL for HaContext - @contexts are not per tenant
   const char*  id;
-  KjNode*      apiP;      // NULL: read it from the database (mongo channel)
+  CorNode*     apiP;      // NULL: read it from the database (mongo channel)
 } HaEvent;
 
 

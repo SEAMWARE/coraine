@@ -13,7 +13,7 @@
 #include <stdbool.h>                                  // bool
 #include <stdint.h>                                   // uint64_t, int64_t
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // Channel
 
@@ -155,7 +155,7 @@ typedef struct BridgeSyncDone
   bool      accepted;                                 // something went out that is not finished - answer 202
   uint64_t  detachedV[BRIDGE_SYNC_MAX];               // per channelV: the token of a wait that timed out, else 0
   uint64_t  goalV[BRIDGE_SYNC_MAX];                   // per channelV: the token of a goal held for the write, else 0
-  KjNode*   goalAttrV[BRIDGE_SYNC_MAX];               // per goal: its attribute in the fragment - the instance goes in there
+  CorNode*  goalAttrV[BRIDGE_SYNC_MAX];               // per goal: its attribute in the fragment - the instance goes in there
   char*     goalRequestV[BRIDGE_SYNC_MAX];            // per goal: the goal as sent - its instance's value
   char*     goalIdV[BRIDGE_SYNC_MAX];                 // per goal: the transport's id, once accepted (POST /channels/{id}/goals)
   bool      several;                                  // a refusal takes the attribute out, and does not fail the request
@@ -218,7 +218,7 @@ extern bool bridgeSyncRequested(bool* syncP);
 #define BRIDGE_REQ_SEND_ONLY   0x4                    // goals are sent, not waited for - the caller calls bridgeRequestsAwait
 #define BRIDGE_REQ_MERGE       0x8                    // Merge Entity: a topic's sample is the fragment merged into the stored value
 
-extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjNode* fragmentP, int flags, BridgeSyncDone* doneP);
+extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP);
 
 
 
@@ -238,7 +238,7 @@ extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, KjN
 //
 // @return false, with the error set, when the request fails as a whole.
 //
-extern bool bridgeRequestsAwait(KjNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs);
+extern bool bridgeRequestsAwait(CorNode* fragmentP, BridgeSyncDone* doneP, int64_t dueMs);
 
 
 

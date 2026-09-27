@@ -22,8 +22,8 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, ...
 
 #include "ktrace/kTrace.h"                               // KT_I, KT_E, KT_V
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT
 #include "corNgsild/ldTypes.h"                        // ldAttrTypeFromString, LdAttrGeoProperty
 #include "corNgsild/ldIsEntityKeyword.h"           // ldIsNotAttributeName
@@ -254,14 +254,14 @@ static bool notAnAttribute(const char* name)
 //
 // isGeoPropertyInstance - check if a dataset instance has type "GeoProperty"
 //
-static bool isGeoPropertyInstance(KjNode* instP)
+static bool isGeoPropertyInstance(CorNode* instP)
 {
-  if (instP == NULL || instP->type != KjObject)
+  if (instP == NULL || instP->type != CorObject)
     return false;
 
-  KjNode* typeP = kjLookup(instP, "type");
+  CorNode* typeP = corTreeLookup(instP, "type");
 
-  if (typeP != NULL && typeP->type == KjString && ldAttrTypeFromString(typeP->value.s) == LdAttrGeoProperty)
+  if (typeP != NULL && typeP->type == CorString && ldAttrTypeFromString(typeP->value.s) == LdAttrGeoProperty)
     return true;
 
   return false;
@@ -276,14 +276,14 @@ static bool isGeoPropertyInstance(KjNode* instP)
 // Called after entity insertion. Creates 2dsphere indexes for any (attr, datasetKey)
 // combinations not yet in the cache.
 //
-const char* mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t* collP)
+const char* mongocGeoIndexEnsure(Tenant* tenantP, CorNode* entityP, mongoc_collection_t* collP)
 {
-  for (KjNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
   {
-    if (childP->type != KjObject || childP->name == NULL || notAnAttribute(childP->name))
+    if (childP->type != CorObject || childP->name == NULL || notAnAttribute(childP->name))
       continue;
 
-    for (KjNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
     {
       if (!isGeoPropertyInstance(instP))
         continue;
@@ -344,19 +344,19 @@ const char* mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collec
 // Returns the (long) Attribute name, or NULL when no attribute fits — in which
 // case the rejection really was about the geometry.
 //
-const char* mongocGeoIndexMixedName(Tenant* tenantP, KjNode* entityP)
+const char* mongocGeoIndexMixedName(Tenant* tenantP, CorNode* entityP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return NULL;
 
-  for (KjNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
   {
-    if (childP->type != KjObject || childP->name == NULL || notAnAttribute(childP->name))
+    if (childP->type != CorObject || childP->name == NULL || notAnAttribute(childP->name))
       continue;
 
-    for (KjNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
     {
-      if (instP->type != KjObject || isGeoPropertyInstance(instP))
+      if (instP->type != CorObject || isGeoPropertyInstance(instP))
         continue;
 
       char escapedAttrBuf[512];

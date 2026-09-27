@@ -14,9 +14,9 @@
 
 #include <string.h>                                     // strcmp
 
-#include "kjson/KjNode.h"                               // KjNode
-#include "kjson/kjBuilder.h"                            // kjArray, kjObject, kjString, kjInteger, kjChildAdd
-#include "kjson/kjLookup.h"                             // kjLookup
+#include "corTree/CorNode.h"                            // CorNode
+#include "corTree/corTreeBuilder.h"                     // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                      // corTreeLookup
 #include "corRest/CorRestState.h"                         // corRest
 
 #include "corNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
@@ -35,30 +35,30 @@
 //
 // typeEntryLookup - find or create an entry for a given type IRI in result
 //
-static KjNode* typeEntryLookup(KjNode* result, const char* typeIri, bool details)
+static CorNode* typeEntryLookup(CorNode* result, const char* typeIri, bool details)
 {
-  for (KjNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
   {
-    KjNode* iriP = kjLookup(entry, "typeIri");
-    if (iriP != NULL && iriP->type == KjString && strcmp(iriP->value.s, typeIri) == 0)
+    CorNode* iriP = corTreeLookup(entry, "typeIri");
+    if (iriP != NULL && iriP->type == CorString && strcmp(iriP->value.s, typeIri) == 0)
       return entry;
   }
 
-  KjNode* entry = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(entry, kjString(corRest.kjsonP, "typeIri", typeIri));
+  CorNode* entry = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(entry, corTreeString(corRest.kallocP, "typeIri", typeIri));
 
   if (details)
   {
-    kjChildAdd(entry, kjArray(corRest.kjsonP,  "attrs"));
-    kjChildAdd(entry, kjObject(corRest.kjsonP, "attrTypes"));
-    kjChildAdd(entry, kjInteger(corRest.kjsonP, "entityCount", 0));
+    corTreeChildAdd(entry, corTreeArray(corRest.kallocP, "attrs"));
+    corTreeChildAdd(entry, corTreeObject(corRest.kallocP, "attrTypes"));
+    corTreeChildAdd(entry, corTreeInteger(corRest.kallocP, "entityCount", 0));
   }
   else
   {
-    kjChildAdd(entry, kjArray(corRest.kjsonP, "attrs"));
+    corTreeChildAdd(entry, corTreeArray(corRest.kallocP, "attrs"));
   }
 
-  kjChildAdd(result, entry);
+  corTreeChildAdd(result, entry);
   return entry;
 }
 
@@ -68,26 +68,26 @@ static KjNode* typeEntryLookup(KjNode* result, const char* typeIri, bool details
 //
 // stringArrayAddUnique -
 //
-static void stringArrayAddUnique(KjNode* arr, const char* s)
+static void stringArrayAddUnique(CorNode* arr, const char* s)
 {
-  for (KjNode* p = arr->value.firstChildP; p != NULL; p = p->next)
-    if (p->type == KjString && strcmp(p->value.s, s) == 0)
+  for (CorNode* p = arr->value.firstChildP; p != NULL; p = p->next)
+    if (p->type == CorString && strcmp(p->value.s, s) == 0)
       return;
-  kjChildAdd(arr, kjString(corRest.kjsonP, NULL, s));
+  corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, s));
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// firstInstance - first KjObject child of an attr wrapper (dsKey-keyed)
+// firstInstance - first CorObject child of an attr wrapper (dsKey-keyed)
 //
-static KjNode* firstInstance(KjNode* attrP)
+static CorNode* firstInstance(CorNode* attrP)
 {
-  if (attrP == NULL || attrP->type != KjObject)
+  if (attrP == NULL || attrP->type != CorObject)
     return NULL;
-  for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
-    if (instP->type == KjObject)
+  for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    if (instP->type == CorObject)
       return instP;
   return NULL;
 }
@@ -98,17 +98,17 @@ static KjNode* firstInstance(KjNode* attrP)
 //
 // recordAttr - add attrName to entry.attrs (+ attrTypes when details)
 //
-static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrapper, bool details)
+static void recordAttr(CorNode* typeEntry, const char* attrName, CorNode* attrWrapper, bool details)
 {
-  KjNode* attrs = kjLookup(typeEntry, "attrs");
+  CorNode* attrs = corTreeLookup(typeEntry, "attrs");
   stringArrayAddUnique(attrs, attrName);
 
   if (!details)
     return;
 
-  KjNode* attrTypesObj = kjLookup(typeEntry, "attrTypes");
+  CorNode* attrTypesObj = corTreeLookup(typeEntry, "attrTypes");
 
-  KjNode* instP = firstInstance(attrWrapper);
+  CorNode* instP = firstInstance(attrWrapper);
   LdAttrType at = ldAttrTypeDetect(instP);
   if (at == LdAttrNone)
     return;
@@ -117,11 +117,11 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
   if (atStr == NULL)
     return;
 
-  KjNode* attrTypeArr = kjLookup(attrTypesObj, attrName);
+  CorNode* attrTypeArr = corTreeLookup(attrTypesObj, attrName);
   if (attrTypeArr == NULL)
   {
-    attrTypeArr = kjArray(corRest.kjsonP, attrName);
-    kjChildAdd(attrTypesObj, attrTypeArr);
+    attrTypeArr = corTreeArray(corRest.kallocP, attrName);
+    corTreeChildAdd(attrTypesObj, attrTypeArr);
   }
   stringArrayAddUnique(attrTypeArr, atStr);
 }
@@ -132,20 +132,20 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
 //
 // corDbTypeList -
 //
-int corDbTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
+int corDbTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* result = kjArray(corRest.kjsonP, NULL);
+  CorNode* result = corTreeArray(corRest.kallocP, NULL);
   *arrayPP = result;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
   if (entities == NULL)
     return DB_OK;
 
-  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
-    KjNode* typeP = kjLookup(eP, "type");
+    CorNode* typeP = corTreeLookup(eP, "type");
     if (typeP == NULL)
       continue;
 
@@ -155,28 +155,28 @@ int corDbTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
     const char* typeV[16];
     int typeN = 0;
 
-    if (typeP->type == KjString)
+    if (typeP->type == CorString)
     {
       typeV[typeN++] = typeP->value.s;
     }
-    else if (typeP->type == KjArray)
+    else if (typeP->type == CorArray)
     {
-      for (KjNode* tN = typeP->value.firstChildP; tN != NULL && typeN < 16; tN = tN->next)
-        if (tN->type == KjString)
+      for (CorNode* tN = typeP->value.firstChildP; tN != NULL && typeN < 16; tN = tN->next)
+        if (tN->type == CorString)
           typeV[typeN++] = tN->value.s;
     }
 
     for (int t = 0; t < typeN; t++)
     {
-      KjNode* typeEntry = typeEntryLookup(result, typeV[t], details);
+      CorNode* typeEntry = typeEntryLookup(result, typeV[t], details);
 
       if (details)
       {
-        KjNode* countP = kjLookup(typeEntry, "entityCount");
+        CorNode* countP = corTreeLookup(typeEntry, "entityCount");
         if (countP != NULL) countP->value.i++;
       }
 
-      for (KjNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+      for (CorNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
       {
         if (ldIsEntityKeyword(attrP->name)) continue;
         recordAttr(typeEntry, attrP->name, attrP, details);

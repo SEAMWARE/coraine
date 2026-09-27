@@ -12,9 +12,9 @@
 #include <string.h>                                      // strrchr
 
 #include "corRest/CorRestState.h"                          // corRest
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjChildRemove
-#include "kjson/kjClone.h"                               // kjClone
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeChildRemove
+#include "corTree/corTreeClone.h"                        // corTreeClone
 
 #include "corNgsild/corNgsild.h"                           // ldError, corNgsild
 #include "corNgsild/LdProblem.h"                          // LD_ERROR_*
@@ -61,10 +61,10 @@ bool getSnapshot(void)
   // Clone into the per-request kalloc so corRest can render it. Strip
   // the hidden "_snapSeq" field used for boot reload — it's an
   // implementation detail not part of the public Snapshot data type.
-  KjNode* clone = kjClone(corRest.kjsonP, itemP->tree);
-  KjNode* seqP  = (clone != NULL) ? kjLookup(clone, "_snapSeq") : NULL;
+  CorNode* clone = corTreeClone(corRest.kallocP, itemP->tree);
+  CorNode* seqP = (clone != NULL) ? corTreeLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
-    kjChildRemove(clone, seqP);
+    corTreeChildRemove(clone, seqP);
 
   corRest.out.responseTree   = clone;
   corRest.out.httpStatusCode = 200;

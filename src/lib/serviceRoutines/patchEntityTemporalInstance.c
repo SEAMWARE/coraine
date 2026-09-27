@@ -22,12 +22,12 @@
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -53,11 +53,11 @@
 // nothing in it that could disagree with the one in the URL — recognised the
 // same way the TRoE plugins recognise it, by a known Attribute type.
 //
-static bool bodyIsBareInstance(KjNode* bodyP)
+static bool bodyIsBareInstance(CorNode* bodyP)
 {
-  KjNode* tP = kjLookup(bodyP, "type");
+  CorNode* tP = corTreeLookup(bodyP, "type");
 
-  if (tP == NULL || tP->type != KjString || tP->value.s == NULL)
+  if (tP == NULL || tP->type != CorString || tP->value.s == NULL)
     return false;
 
   const char* t = tP->value.s;
@@ -84,19 +84,19 @@ static bool csrCoversAttr(LdRegCacheItem* csr, const char* attrIri)
 
 
 
-static char* renderBodyWithContext(KjNode* bodyP)
+static char* renderBodyWithContext(CorNode* bodyP)
 {
   // Clone first — local TRoE plugin gets bodyP after this and can't
   // tolerate an @context child where it expects only value-bearing fields.
-  KjNode* cloneP = kjClone(corRest.kjsonP, bodyP);
+  CorNode* cloneP = corTreeClone(corRest.kallocP, bodyP);
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(cloneP, "@context");
+  CorNode* atCtx = corTreeLookup(cloneP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(cloneP, atCtx);
+    corTreeChildRemove(cloneP, atCtx);
 
-  int   sz  = kjFastRenderSize(cloneP) + 1;
+  int   sz  = corJsonFastRenderSize(cloneP) + 1;
   char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
-  kjFastRender(cloneP, buf);
+  corJsonFastRender(cloneP, buf);
   return buf;
 }
 
@@ -107,7 +107,7 @@ bool patchEntityTemporalInstance(void)
   const char* entityId   = corRest.in.wildcard[0];
   const char* attrWild   = corRest.in.wildcard[1];
   const char* instanceId = corRest.in.wildcard[2];
-  KjNode*     bodyP      = corRest.in.requestTree;
+  CorNode*    bodyP      = corRest.in.requestTree;
 
   if (entityId == NULL || entityId[0] == 0)
   {
@@ -124,7 +124,7 @@ bool patchEntityTemporalInstance(void)
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing instance id in URL");
     return true;
   }
-  if (bodyP == NULL || bodyP->type != KjObject)
+  if (bodyP == NULL || bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "request body must be a JSON-LD object (EntityTemporal Fragment)");
@@ -159,9 +159,9 @@ bool patchEntityTemporalInstance(void)
   //
   if (!bodyIsBareInstance(bodyP))
   {
-    KjNode* targetP = NULL;
+    CorNode* targetP = NULL;
 
-    for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+    for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
     {
       if (fP->name == NULL)               continue;
       if (fP->name[0] == '@')             continue;
@@ -185,10 +185,10 @@ bool patchEntityTemporalInstance(void)
       return true;
     }
 
-    if (targetP->type == KjArray)
+    if (targetP->type == CorArray)
     {
       int instances = 0;
-      for (KjNode* iP = targetP->value.firstChildP; iP != NULL; iP = iP->next)
+      for (CorNode* iP = targetP->value.firstChildP; iP != NULL; iP = iP->next)
         instances++;
 
       if (instances != 1)
@@ -203,14 +203,14 @@ bool patchEntityTemporalInstance(void)
     // Drop every other Attribute member, so the target instance is the only one
     // the TRoE plugin can pick up regardless of the order they arrived in.
     //
-    KjNode* fP = bodyP->value.firstChildP;
+    CorNode* fP = bodyP->value.firstChildP;
     while (fP != NULL)
     {
-      KjNode* nextP = fP->next;
+      CorNode* nextP = fP->next;
 
       if ((fP != targetP) && (fP->name != NULL) && (fP->name[0] != '@') &&
           (strcmp(fP->name, "id") != 0) && (strcmp(fP->name, "type") != 0))
-        kjChildRemove(bodyP, fP);
+        corTreeChildRemove(bodyP, fP);
 
       fP = nextP;
     }
@@ -218,7 +218,7 @@ bool patchEntityTemporalInstance(void)
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   if (!corNgsild.local && tenantP != NULL && tenantP->regCacheP != NULL)
@@ -340,7 +340,7 @@ bool patchEntityTemporalInstance(void)
   }
 
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {
@@ -348,12 +348,12 @@ bool patchEntityTemporalInstance(void)
     return true;
   }
 
-  KjNode* result     = kjObject(corRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(corRest.kjsonP, "success");
+  CorNode* result    = corTreeObject(corRest.kallocP, NULL);
+  CorNode* successArr = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
-  kjChildAdd(result, successArr);
-  kjChildAdd(result, errorsArrayP);
+    corTreeChildAdd(successArr, corTreeString(corRest.kallocP, NULL, entityId));
+  corTreeChildAdd(result, successArr);
+  corTreeChildAdd(result, errorsArrayP);
 
   corRest.out.responseTree   = result;
   corRest.out.httpStatusCode = anySucceeded ? 207 : 502;

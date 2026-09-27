@@ -11,10 +11,10 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
@@ -37,14 +37,14 @@
 //   · default-emit notificationTrigger (§ 5.2.12)
 //   · `jsonldContext` is spec-visible and passes through untouched
 //
-static void subPostProcess(KjNode* subP)
+static void subPostProcess(CorNode* subP)
 {
-  if (kjLookup(subP, "notificationTrigger") == NULL)
+  if (corTreeLookup(subP, "notificationTrigger") == NULL)
   {
-    KjNode* trigArr = kjArray(corRest.kjsonP, "notificationTrigger");
-    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeCreated"));
-    kjChildAdd(trigArr, kjString(corRest.kjsonP, NULL, "attributeUpdated"));
-    kjChildAdd(subP, trigArr);
+    CorNode* trigArr = corTreeArray(corRest.kallocP, "notificationTrigger");
+    corTreeChildAdd(trigArr, corTreeString(corRest.kallocP, NULL, "attributeCreated"));
+    corTreeChildAdd(trigArr, corTreeString(corRest.kallocP, NULL, "attributeUpdated"));
+    corTreeChildAdd(subP, trigArr);
   }
 
   //
@@ -78,7 +78,7 @@ bool getSubscriptions(void)
   LdSubCache*    scP       = (LdSubCache*)    tenantP->subCacheP   ;
   LdPernotCache* pcP       = (LdPernotCache*) tenantP->pernotCacheP;
 
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
 
   int skip  = (corNgsild.offset > 0) ? corNgsild.offset : 0;
   // corNgsild.limit defaults to 20 (ldHooks); 0 only when the client explicitly
@@ -108,11 +108,11 @@ bool getSubscriptions(void)
       if (it->subTree == NULL) continue;
       if (seen++ < skip)       continue;
 
-      KjNode* subP = kjClone(corRest.kjsonP, it->subTree);
+      CorNode* subP = corTreeClone(corRest.kallocP, it->subTree);
       ldSubscriptionCompactQ(subP, it->qExpr, corNgsild.contextP, &corRest.kalloc);
       ldSubscriptionCountersInject(subP, it);
       subPostProcess(subP);
-      kjChildAdd(arrayP, subP);
+      corTreeChildAdd(arrayP, subP);
       taken++;
     }
   }
@@ -124,11 +124,11 @@ bool getSubscriptions(void)
       if (it->subTree == NULL) continue;
       if (seen++ < skip)       continue;
 
-      KjNode* subP = kjClone(corRest.kjsonP, it->subTree);
+      CorNode* subP = corTreeClone(corRest.kallocP, it->subTree);
       ldSubscriptionCompactQ(subP, it->qExpr, corNgsild.contextP, &corRest.kalloc);
       ldPernotCountersInject(subP, it);
       subPostProcess(subP);
-      kjChildAdd(arrayP, subP);
+      corTreeChildAdd(arrayP, subP);
       taken++;
     }
   }

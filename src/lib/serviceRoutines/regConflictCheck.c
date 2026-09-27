@@ -11,8 +11,8 @@
 //
 #include <string.h>                                  // strcmp
 
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/CorNode.h"                         // CorNode
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kbase/kStringInArray.h"                    // kStringInArray
@@ -64,14 +64,14 @@ static bool attrSetsOverlap(char** attrsA, char** attrsB)
 // stored expanded (ldRegCache.c attrIRIArrayExtract) so we expand the new
 // reg's names on-the-fly to compare apples-to-apples.
 //
-static char** attrIRIArray(KjNode* arrP, KAlloc* allocP)
+static char** attrIRIArray(CorNode* arrP, KAlloc* allocP)
 {
-  if (arrP == NULL || arrP->type != KjArray)
+  if (arrP == NULL || arrP->type != CorArray)
     return NULL;
 
   int count = 0;
-  for (KjNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
-    if (sP->type == KjString)
+  for (CorNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
+    if (sP->type == CorString)
       count++;
 
   if (count == 0)
@@ -79,9 +79,9 @@ static char** attrIRIArray(KjNode* arrP, KAlloc* allocP)
 
   char** v = (char**) kaAlloc(allocP, (count + 1) * sizeof(char*));
   int    ix = 0;
-  for (KjNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = arrP->value.firstChildP; sP != NULL; sP = sP->next)
   {
-    if (sP->type != KjString)
+    if (sP->type != CorString)
       continue;
     char* s = sP->value.s;
     if (corLdAlreadyExpanded(s) == false)
@@ -220,7 +220,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
   if (db.entityRetrieve == NULL)
     return false;
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
   if (r != DB_OK || entityP == NULL)
     return false;
@@ -231,7 +231,7 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
 
   // Walk entity attrs (skipping system fields). The local entity's attr names
   // are already expanded IRIs (post-corLdExpand at create time).
-  for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL)
       continue;
@@ -249,10 +249,10 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
 //
 // regModeOf -
 //
-LdRegMode regModeOf(KjNode* regP)
+LdRegMode regModeOf(CorNode* regP)
 {
-  KjNode* modeP = kjLookup(regP, LD_VOCAB_MODE);
-  if (modeP == NULL || modeP->type != KjString)
+  CorNode* modeP = corTreeLookup(regP, LD_VOCAB_MODE);
+  if (modeP == NULL || modeP->type != CorString)
     return LdRegModeInclusive;
 
   if (strcmp(modeP->value.s, "exclusive") == 0)  return LdRegModeExclusive;
@@ -269,7 +269,7 @@ LdRegMode regModeOf(KjNode* regP)
 //
 // Auxiliary + inclusive regs: spec defines no creation conflicts; skip.
 //
-bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP)
+bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP)
 {
   if (newMode != LdRegModeExclusive && newMode != LdRegModeRedirect)
     return false;
@@ -286,9 +286,9 @@ bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KA
   // instance federates across its own tenants (see the self-forward path).
   if (newMode == LdRegModeRedirect)
   {
-    KjNode* endpointP = kjLookup(regP, "endpoint");
+    CorNode* endpointP = corTreeLookup(regP, "endpoint");
 
-    if ((endpointP != NULL) && (endpointP->type == KjString) && ldDistOpEndpointIsSelf(endpointP->value.s))
+    if ((endpointP != NULL) && (endpointP->type == CorString) && ldDistOpEndpointIsSelf(endpointP->value.s))
     {
       ldError(409, LD_ERROR_CONFLICT, "Conflict",
               "a redirect registration must point at another broker, not at this one ('%s')", endpointP->value.s);
@@ -299,28 +299,28 @@ bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KA
   Tenant*       tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache*   cacheP  = (LdRegCache*) tenantP->regCacheP;
 
-  KjNode* infoArrayP = kjLookup(regP, LD_VOCAB_INFORMATION);
-  if (infoArrayP == NULL || infoArrayP->type != KjArray)
+  CorNode* infoArrayP = corTreeLookup(regP, LD_VOCAB_INFORMATION);
+  if (infoArrayP == NULL || infoArrayP->type != CorArray)
     return false;
 
-  for (KjNode* infoP = infoArrayP->value.firstChildP; infoP != NULL; infoP = infoP->next)
+  for (CorNode* infoP = infoArrayP->value.firstChildP; infoP != NULL; infoP = infoP->next)
   {
-    if (infoP->type != KjObject)
+    if (infoP->type != CorObject)
       continue;
 
-    char** newAttrs = attrIRIArray(kjLookup(infoP, "attributeNames"), allocP);
+    char** newAttrs = attrIRIArray(corTreeLookup(infoP, "attributeNames"), allocP);
 
-    KjNode* entitiesP = kjLookup(infoP, LD_VOCAB_ENTITIES);
-    if (entitiesP == NULL || entitiesP->type != KjArray)
+    CorNode* entitiesP = corTreeLookup(infoP, LD_VOCAB_ENTITIES);
+    if (entitiesP == NULL || entitiesP->type != CorArray)
       continue;
 
-    for (KjNode* entP = entitiesP->value.firstChildP; entP != NULL; entP = entP->next)
+    for (CorNode* entP = entitiesP->value.firstChildP; entP != NULL; entP = entP->next)
     {
-      if (entP->type != KjObject)
+      if (entP->type != CorObject)
         continue;
 
-      KjNode* idP = kjLookup(entP, "id");
-      if (idP == NULL || idP->type != KjString)
+      CorNode* idP = corTreeLookup(entP, "id");
+      if (idP == NULL || idP->type != CorString)
         continue;  // no specific id = nothing to conflict against by id
 
       const char* entityId = idP->value.s;
@@ -330,8 +330,8 @@ bool regConflictCheck(KjNode* regP, LdRegMode newMode, const char* selfRegId, KA
       // doesn't overlap with a Vehicle entity of any id. NULL = no type
       // constraint on the new side, in which case every cached type
       // counts as matching.
-      KjNode*     typeP      = kjLookup(entP, "type");
-      const char* entityType = (typeP != NULL && typeP->type == KjString) ? typeP->value.s : NULL;
+      CorNode*    typeP      = corTreeLookup(entP, "type");
+      const char* entityType = (typeP != NULL && typeP->type == CorString) ? typeP->value.s : NULL;
 
       // Check 1: cached registration overlap
       const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, entityType, newAttrs, selfRegId);

@@ -15,10 +15,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocTreeToBson
 #include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocSnapshotCreate.h" // Own interface
 
@@ -26,19 +26,19 @@
 extern mongoc_client_pool_t* poolP;
 
 
-int mongocSnapshotCreate(Tenant* tenantP, const char* snapId, KjNode* snapP)
+int mongocSnapshotCreate(Tenant* tenantP, const char* snapId, CorNode* snapP)
 {
-  (void) snapId;  // _id comes from the tree's "id" via mongocKjTreeToBson
+  (void) snapId;  // _id comes from the tree's "id" via mongocTreeToBson
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "snapshots");
   bson_t bson;
 
   // `type` is the fixed "Snapshot" constant — strip around BSON emission.
-  KjNode* typeP     = NULL;
-  KjNode* typePrevP = NULL;
+  CorNode* typeP    = NULL;
+  CorNode* typePrevP = NULL;
   mongocStripTypeDecouple(snapP, &typeP, &typePrevP);
 
-  mongocKjTreeToBson(snapP, &bson);
+  mongocTreeToBson(snapP, &bson);
 
   mongocStripTypeRestore(snapP, typeP, typePrevP);
 

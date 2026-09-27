@@ -25,13 +25,14 @@
 
 #include "corRest/CorRestState.h"                        // corRest
 #include "corRest/corRestOutHeader.h"                    // corRestOutHeaderAdd
-#include "kjson/kjson.h"                               // Kjson
-#include "kjson/kjBuilder.h"                           // kjObject, kjString, kjInteger, kjChildAdd
-#include "kjson/kjBufferCreate.h"                      // kjBufferCreate
-#include "kjson/kjParse.h"                             // kjParse
-#include "kjson/kjLookup.h"                            // kjLookup
+#include "corJson/CorJson.h"                           // CorJson
+#include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corJson/corJsonCreate.h"                     // corJsonCreate
+#include "corJson/corJsonParse.h"                      // corJsonParse
+#include "corTree/corTreeLookup.h"                     // corTreeLookup
 #include "kalloc/kaAlloc.h"                            // kaAlloc
 #include "kalloc/kaStrdup.h"                           // kaStrdup
+#include "kalloc/KAlloc.h"                               // KAlloc
 #include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
 #include "corJsonld/CorLdContextCache.h"                 // CorLdContextCache
 #include "corJsonld/corLdCache.h"                        // corLdCacheLookup, corLdCacheInsert
@@ -115,19 +116,19 @@ static CorLdContext* loadFromDb(const char* contextId)
     return NULL;
 
   //
-  // kjParse is destructive — keep a pristine copy for contextP->body
+  // corJsonParse is destructive — keep a pristine copy for contextP->body
   // before handing the original to the parser.
   //
   char*  bodyCopy = kaStrdup(storeP, row.body);
 
-  Kjson  kjson;
-  Kjson* kjsonP = kjBufferCreate(&kjson, storeP);
+  CorJson corJson;
+  CorJson* corJsonP = corJsonCreate(&corJson, storeP);
 
-  KjNode* treeP = kjParse(kjsonP, row.body);
+  CorNode* treeP = corJsonParse(corJsonP, row.body);
   if (treeP == NULL)
     return NULL;
 
-  KjNode* atContextP = kjLookup(treeP, "@context");
+  CorNode* atContextP = corTreeLookup(treeP, "@context");
   if (atContextP == NULL)
     return NULL;
 
@@ -136,13 +137,13 @@ static CorLdContext* loadFromDb(const char* contextId)
   // path as postJsonldContexts; covers Hosted, Cached, and the
   // ImplicitlyCreated entries auto-generated for Subscription bodies.
   CorLdContext* contextP = NULL;
-  if (atContextP->type == KjObject)
+  if (atContextP->type == CorObject)
     contextP = corLdContextFromObject(atContextP, storeP, row.url);
-  else if (atContextP->type == KjArray)
+  else if (atContextP->type == CorArray)
     // row.url is the base any RELATIVE reference inside resolves against - it is
     // set for a Cached @context, and NULL for a Hosted one, which has no URL
     contextP = corLdContextFromTree(atContextP, storeP, row.url);
-  else if (atContextP->type == KjString)
+  else if (atContextP->type == CorString)
     contextP = corLdContextFromUrl(corLdUrlResolve(row.url, atContextP->value.s, storeP), storeP);
   if (contextP == NULL)
     return NULL;
@@ -235,12 +236,12 @@ bool getJsonldContext(void)
       urlOut = buf;
     }
 
-    KjNode* meta = kjObject(corRest.kjsonP, NULL);
-    kjChildAdd(meta, kjString(corRest.kjsonP, "URL",       (char*) urlOut));
-    kjChildAdd(meta, kjString(corRest.kjsonP, "localId",   (char*) localId));
-    kjChildAdd(meta, kjString(corRest.kjsonP, "kind",      (char*) kindString(contextP->kind)));
-    kjChildAdd(meta, kjString(corRest.kjsonP, "createdAt", epochToIso(contextP->createdAt)));
-    kjChildAdd(meta, kjString(corRest.kjsonP, "lastUsage", epochToIso(contextP->usedAt)));
+    CorNode* meta = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(meta, corTreeString(corRest.kallocP, "URL", (char*) urlOut));
+    corTreeChildAdd(meta, corTreeString(corRest.kallocP, "localId", (char*) localId));
+    corTreeChildAdd(meta, corTreeString(corRest.kallocP, "kind", (char*) kindString(contextP->kind)));
+    corTreeChildAdd(meta, corTreeString(corRest.kallocP, "createdAt", epochToIso(contextP->createdAt)));
+    corTreeChildAdd(meta, corTreeString(corRest.kallocP, "lastUsage", epochToIso(contextP->usedAt)));
 
     // Bypass the JSON-LD render hook — its ldStripSysAttrs would otherwise
     // remove the createdAt / modifiedAt members we just put in. The

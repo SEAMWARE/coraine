@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "db/Tenant.h"                                // Tenant
 
 
@@ -23,13 +23,13 @@
 // tree in its place, and hands back the detached old tree via *oldEntityPP.
 //
 // Returns:
-//   DB_OK         — replaced; *oldEntityPP is set (caller may read and kjFree)
+//   DB_OK         — replaced; *oldEntityPP is set (caller may read and corTreeFree)
 //   DB_NOT_FOUND  — no entity with this id; store unchanged
 //   DB_ERR        — clone failure; store unchanged
 //
 int corDbEntityReplace(Tenant*      tenantP,
                        const char*  entityId,
-                       KjNode*      newEntityP,
-                       KjNode**     oldEntityPP);
+                       CorNode*     newEntityP,
+                       CorNode**    oldEntityPP);
 
 #endif  // CORDB_CORDBENTITYREPLACE_H_

@@ -29,14 +29,14 @@
 #include <mongoc/mongoc.h>                            // mongoc_collection_*, mongoc_cursor_*
 
 #include "ktrace/kTrace.h"                            // KT_E
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_CREATED_AT
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjNodeAppend
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
@@ -65,7 +65,7 @@ extern mongoc_client_pool_t*  poolP;
 // No merge logic here — that lives in the broker (ldEntityMerge /
 // ldEntityFragmentApply).
 //
-void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
+void mongocBuildSurgicalUpdate(CorNode*       mergedEntity,
                                LdMergeReport* reportP,
                                bson_t*        updateDocOut,
                                bool*          noChangesOut)
@@ -80,12 +80,12 @@ void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
 
   if (reportP != NULL && reportP->changes != NULL)
   {
-    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    for (CorNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
     {
-      KjNode* attrNameP = kjLookup(change, "attr");
-      KjNode* reasonP   = kjLookup(change, "reason");
+      CorNode* attrNameP = corTreeLookup(change, "attr");
+      CorNode* reasonP  = corTreeLookup(change, "reason");
 
-      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != KjString || reasonP->type != KjString)
+      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != CorString || reasonP->type != CorString)
         continue;
 
       const char* attrName = attrNameP->value.s;
@@ -121,11 +121,11 @@ void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
       }
       else
       {
-        KjNode* attrWrapper = kjLookup(mergedEntity, attrName);
+        CorNode* attrWrapper = corTreeLookup(mergedEntity, attrName);
         if (attrWrapper == NULL)
           continue;
 
-        mongocKjNodeAppend(&setDoc, escaped, attrWrapper);
+        mongocNodeAppend(&setDoc, escaped, attrWrapper);
         hasSet = true;
       }
     }
@@ -136,24 +136,24 @@ void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
   //
   if (hasSet || hasUnset)
   {
-    KjNode* modAtP = kjLookup(mergedEntity, LD_VOCAB_MODIFIED_AT);
-    if (modAtP != NULL && modAtP->type == KjInt)
+    CorNode* modAtP = corTreeLookup(mergedEntity, LD_VOCAB_MODIFIED_AT);
+    if (modAtP != NULL && modAtP->type == CorInt)
     {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
+      mongocNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
       hasSet = true;
     }
 
-    KjNode* typeP = kjLookup(mergedEntity, "type");
+    CorNode* typeP = corTreeLookup(mergedEntity, "type");
     if (typeP != NULL)
     {
-      mongocKjNodeAppend(&setDoc, "type", typeP);
+      mongocNodeAppend(&setDoc, "type", typeP);
       hasSet = true;
     }
 
-    KjNode* scopeP = kjLookup(mergedEntity, LD_VOCAB_SCOPE);
+    CorNode* scopeP = corTreeLookup(mergedEntity, LD_VOCAB_SCOPE);
     if (scopeP != NULL)
     {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
+      mongocNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
       hasSet = true;
     }
   }
@@ -181,7 +181,7 @@ void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
 // (the merge produced no net change) writes nothing and returns DB_OK.
 //
 int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
-                             KjNode* mergedEntity, LdMergeReport* reportP)
+                             CorNode* mergedEntity, LdMergeReport* reportP)
 {
   bson_t update;
   bson_init(&update);

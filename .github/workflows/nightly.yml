@@ -91,7 +91,7 @@ jobs:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
-      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
@@ -344,7 +344,7 @@ jobs:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
-      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
@@ -458,7 +458,7 @@ jobs:
       COR_MONGO_HOST: mongo
       COR_TROE_HOST: timescale
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
-      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }
@@ -655,7 +655,7 @@ jobs:
     env:
       COR_MONGO_HOST: mongo
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
-      KJSON: ${{ github.workspace }}/stack/kjson/bin/kjson
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine }

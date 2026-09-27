@@ -19,7 +19,7 @@
 
 #include "kalloc/KAlloc.h"                                // KAlloc
 #include "kargs/KArg.h"                                   // KArg
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/CorNode.h"                              // CorNode
 
 #include "db/Tenant.h"                                    // Tenant
 
@@ -81,11 +81,11 @@ typedef struct TroeEvent
   // Attribute-level fields (NULL on entity-level ops)
   const char*        attrName;          // expanded IRI
   const char*        datasetId;         // empty string for the default instance
-  KjNode*            attrSnapshot;      // value + observedAt + sub-attrs (post-merge)
+  CorNode*           attrSnapshot;      // value + observedAt + sub-attrs (post-merge)
 
   // Optional entity-level snapshot (used for replaced / created when the
   // plugin wants the full body without re-fetching).
-  KjNode*            entitySnapshot;
+  CorNode*           entitySnapshot;
 
   struct TroeEvent*  next;
 } TroeEvent;
@@ -237,9 +237,9 @@ typedef int  (*TroeEventListFunc)(const TroeEvent* listHead, int count);
 // Read entry-points.
 //
 typedef int  (*TroeEntityTemporalQueryFunc)(Tenant* tenantP, TroeQueryFilter* fP,
-                                            KjNode** resultPP, TroeRangeInfo* rangeOut);
+                                            CorNode** resultPP, TroeRangeInfo* rangeOut);
 typedef int  (*TroeEntityTemporalRetrieveFunc)(Tenant* tenantP, const char* entityId,
-                                               TroeQueryFilter* fP, KjNode** resultPP,
+                                               TroeQueryFilter* fP, CorNode** resultPP,
                                                TroeRangeInfo* rangeOut);
 
 //
@@ -267,9 +267,9 @@ typedef int  (*TroeEntityTemporalAttrDeleteFunc)(Tenant* tenantP, const char* en
 //
 // rootP is the (already JSON-LD expanded) EntityTemporal root.
 //
-typedef int  (*TroeEntityTemporalCreateFunc)(Tenant* tenantP, KjNode* rootP);
+typedef int  (*TroeEntityTemporalCreateFunc)(Tenant* tenantP, CorNode* rootP);
 typedef int  (*TroeEntityTemporalAttrsAddFunc)(Tenant* tenantP, const char* entityId,
-                                               KjNode* rootP);
+                                               CorNode* rootP);
 
 //
 // Modify / delete one specific attribute instance, identified by its
@@ -291,20 +291,20 @@ typedef int  (*TroeEntityTemporalInstanceModifyFunc)(Tenant* tenantP,
                                                      const char* entityId,
                                                      const char* attrName,
                                                      const char* instanceId,
-                                                     KjNode* rootP);
+                                                     CorNode* rootP);
 typedef int  (*TroeEntityTemporalInstanceDeleteFunc)(Tenant* tenantP,
                                                      const char* entityId,
                                                      const char* attrName,
                                                      const char* instanceId);
 
-typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, KjNode* root);
+typedef void (*TroeVersionInfoFunc)(KAlloc* allocP, CorNode* root);
 
 //
 // Dev/test helper: dump recent events captured by the plugin (e.g. corDB).
 // Production plugins (timescale, parquet) leave it NULL — admin route
 // returns 501. Allocates onto allocP, appends children to root.
 //
-typedef void (*TroeDumpInfoFunc)(KAlloc* allocP, KjNode* root);
+typedef void (*TroeDumpInfoFunc)(KAlloc* allocP, CorNode* root);
 
 
 

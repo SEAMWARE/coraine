@@ -11,7 +11,7 @@
 //
 #include <stdbool.h>
 
-#include "kjson/KjNode.h"
+#include "corTree/CorNode.h"
 #include "db/DbQueryFilter.h"
 
 
@@ -39,6 +39,6 @@ extern void corDbGeoClose(void);
 // Returns true if the entity matches (or no geo filter is set).
 // For "near" queries, *distanceP is set to the haversine distance in meters.
 //
-extern bool corDbGeoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP);
+extern bool corDbGeoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP);
 
 #endif  // CORDB_CORDBGEOMATCH_H_

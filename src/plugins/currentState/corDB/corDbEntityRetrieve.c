@@ -8,9 +8,9 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
@@ -24,11 +24,11 @@
 //
 // corDbEntityRetrieve -
 //
-int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP)
+int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entityPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
 
   //
   // O(1) via the id index. The walk below is the fallback for a store built
@@ -36,11 +36,11 @@ int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP
   // index must not mean "entity not found".
   //
   {
-    KjNode* hitP = corDbIndexLookup(corDbStoreOf(tenantP), entityId);
+    CorNode* hitP = corDbIndexLookup(corDbStoreOf(tenantP), entityId);
 
     if (hitP != NULL)
     {
-      *entityPP = kjClone(corRest.kjsonP, hitP);
+      *entityPP = corTreeClone(corRest.kallocP, hitP);
       return DB_OK;
     }
 
@@ -48,16 +48,16 @@ int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP
       return DB_NOT_FOUND;                           // indexed, and it is not there
   }
 
-  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
-    KjNode* idP = kjLookup(eP, "id");
+    CorNode* idP = corTreeLookup(eP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, entityId) == 0)
     {
       // Clone into the request arena (freed at request end), matching mongoc's
       // retrieve. A NULL (malloc) clone would leak — no caller frees the result;
       // they all consume it within the request (render / merge / replace-copy).
-      *entityPP = kjClone(corRest.kjsonP, eP);
+      *entityPP = corTreeClone(corRest.kallocP, eP);
       return DB_OK;
     }
   }

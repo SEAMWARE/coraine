@@ -44,7 +44,7 @@ bool getEntityMap(void)
     return true;
   }
 
-  KjNode* treeP = ldEntityMapToTree(mapP);
+  CorNode* treeP = ldEntityMapToTree(mapP);
   if (treeP == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "failed to render entity map");

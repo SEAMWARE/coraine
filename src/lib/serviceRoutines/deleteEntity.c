@@ -15,9 +15,9 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
 
-#include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
@@ -82,7 +82,7 @@ bool deleteEntity(void)
   //     preventing the forward is the only thing loop-detection
   //     demands; the request itself is legitimate).
   //
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
@@ -167,7 +167,7 @@ bool deleteEntity(void)
   // entity locally if it exists"). Retrieve pre-image first if subs are
   // active so notifications have an entity body.
   //
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   if (tenantP->subCacheP != NULL)
     db.entityRetrieve(tenantP, entityId, &entityP);
 
@@ -187,8 +187,8 @@ bool deleteEntity(void)
       const char* etype = NULL;
       if (entityP != NULL)
       {
-        KjNode* tn = kjLookup(entityP, "type");
-        if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+        CorNode* tn = corTreeLookup(entityP, "type");
+        if (tn != NULL && tn->type == CorString) etype = tn->value.s;
       }
       TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
@@ -217,7 +217,7 @@ bool deleteEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
@@ -231,13 +231,13 @@ bool deleteEntity(void)
     return true;
   }
 
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
 

@@ -8,9 +8,9 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
@@ -23,19 +23,19 @@
 //
 // corDbSubscriptionRetrieve -
 //
-int corDbSubscriptionRetrieve(Tenant* tenantP, const char* subId, KjNode** subPP)
+int corDbSubscriptionRetrieve(Tenant* tenantP, const char* subId, CorNode** subPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* subscriptions = corDbSubscriptions(tenantP);
+  CorNode* subscriptions = corDbSubscriptions(tenantP);
 
-  for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
   {
-    KjNode* idP = kjLookup(sP, "id");
+    CorNode* idP = corTreeLookup(sP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, subId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, subId) == 0)
     {
-      *subPP = kjClone(corRest.kjsonP, sP);
+      *subPP = corTreeClone(corRest.kallocP, sP);
       return DB_OK;
     }
   }

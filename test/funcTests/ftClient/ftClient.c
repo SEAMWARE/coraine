@@ -26,22 +26,22 @@
 
 #include "kargs/kargs.h"
 #include "kargs/kargsBuiltins.h"
-#include "kjson/KjNode.h"
-#include "kjson/kjson.h"
-#include "kjson/kjBuilder.h"
-#include "kjson/kjLookup.h"
-#include "kjson/kjRender.h"
-#include "kjson/kjRenderSize.h"
-#include "kjson/kjClone.h"
-#include "kjson/kjFree.h"
+#include "corTree/CorNode.h"
+#include "corJson/CorJson.h"
+#include "corTree/corTreeBuilder.h"
+#include "corTree/corTreeLookup.h"
+#include "corJson/corJsonRender.h"
+#include "corJson/corJsonRenderSize.h"
+#include "corTree/corTreeClone.h"
+#include "corTree/corTreeFree.h"
 #include "kalloc/kalloc.h"
 #include "kalloc/kaAlloc.h"
 #include "ktrace/kTrace.h"
 #include "kbase/kFileRead.h"                       // kFileRead
-#include "kjson/kjParse.h"                        // kjParse
+#include "corJson/corJsonParse.h"                 // corJsonParse
 #include "kalloc/kaBufferInit.h"                  // kaBufferInit
 #include "kalloc/kaBufferReset.h"                 // kaBufferReset
-#include "kjson/kjBufferCreate.h"                 // kjBufferCreate
+#include "corJson/corJsonCreate.h"                // corJsonCreate
 #include "corPlugin/corPlugin.h"                  // corPluginSetBaseDir, corPluginResolve, corPluginOpen
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, BridgeRegisterFunc, BRIDGES_MAX
 #include "corBridge/BridgeBroker.h"                // BridgeBroker, BRIDGE_*
@@ -54,7 +54,7 @@
 //
 // Globals
 //
-static KjNode* dumpArray     = NULL;     // accumulates requests (malloc allocator)
+static CorNode* dumpArray    = NULL;     // accumulates requests (malloc allocator)
 static int     dumpCount     = 0;
 static int     probeCount    = 0;        // sourceIdentity discovery probes seen (kept OUT of dumpArray)
 
@@ -65,7 +65,7 @@ static int     probeCount    = 0;        // sourceIdentity discovery probes seen
 // dumpAccumulate on two threads and spliced into the same tail unguarded: the
 // order of the two entries flipped, and one of them could be lost outright.
 // GET /dump rendered the list while it was being appended to, and DELETE /dump
-// kjFree'd it out from under a writer.
+// corTreeFree'd it out from under a writer.
 //
 // The mutex existed already - as mqttDumpMutex, taken only by the MQTT
 // listener, which shares this very array with the HTTP path. It was never
@@ -188,7 +188,7 @@ static KArg ftArgV[] =
 //
 static void dumpInit(void)
 {
-  dumpArray  = kjArray(NULL, NULL);
+  dumpArray  = corTreeArray(NULL, NULL);
   dumpCount  = 0;
   probeCount = 0;
 }
@@ -208,9 +208,9 @@ static void dumpInit(void)
 static void dumpDrain(void)
 {
   if (dumpArray != NULL)
-    kjFree(dumpArray);
+    corTreeFree(dumpArray);
 
-  dumpArray = kjArray(NULL, NULL);
+  dumpArray = corTreeArray(NULL, NULL);
   dumpCount = 0;
 }
 
@@ -230,14 +230,14 @@ static void dumpDrain(void)
 //
 static int ftBridgeSampleIn(const char* bridgeName, const char* endpoint, const char* json, int64_t publishTime)
 {
-  KjNode* entry = kjObject(NULL, NULL);
+  CorNode* entry = corTreeObject(NULL, NULL);
 
-  kjChildAdd(entry, kjString(NULL, "bridge",   (bridgeName != NULL) ? bridgeName : "?"));
-  kjChildAdd(entry, kjString(NULL, "endpoint", (endpoint   != NULL) ? endpoint   : "?"));
-  kjChildAdd(entry, kjString(NULL, "payload",  (json       != NULL) ? json       : ""));
+  corTreeChildAdd(entry, corTreeString(NULL, "bridge", (bridgeName != NULL) ? bridgeName : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "endpoint", (endpoint != NULL) ? endpoint : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "payload", (json != NULL) ? json    : ""));
 
   if (publishTime > 0)
-    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+    corTreeChildAdd(entry, corTreeInteger(NULL, "publishTime", (long long) publishTime));
 
   //
   // dumpMutex, like every other path that touches dumpArray - and this one is
@@ -245,8 +245,8 @@ static int ftBridgeSampleIn(const char* bridgeName, const char* endpoint, const 
   //
   pthread_mutex_lock(&dumpMutex);
   if (dumpArray == NULL)
-    dumpArray = kjArray(NULL, NULL);
-  kjChildAdd(dumpArray, entry);
+    dumpArray = corTreeArray(NULL, NULL);
+  corTreeChildAdd(dumpArray, entry);
   ++dumpCount;
   pthread_mutex_unlock(&dumpMutex);
 
@@ -335,20 +335,20 @@ static int ftBridgeServiceRequest(const char* bridgeName,
                                   uint64_t    requestId,
                                   int64_t     publishTime)
 {
-  KjNode* entry = kjObject(NULL, NULL);
+  CorNode* entry = corTreeObject(NULL, NULL);
 
-  kjChildAdd(entry, kjString(NULL, "bridge",    (bridgeName != NULL) ? bridgeName : "?"));
-  kjChildAdd(entry, kjString(NULL, "endpoint",  (endpoint   != NULL) ? endpoint   : "?"));
-  kjChildAdd(entry, kjString(NULL, "kind",      "serviceRequest"));
-  kjChildAdd(entry, kjString(NULL, "payload",   (json       != NULL) ? json       : ""));
+  corTreeChildAdd(entry, corTreeString(NULL, "bridge", (bridgeName != NULL) ? bridgeName : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "endpoint", (endpoint != NULL) ? endpoint : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "kind", "serviceRequest"));
+  corTreeChildAdd(entry, corTreeString(NULL, "payload", (json != NULL) ? json     : ""));
 
   if (publishTime > 0)
-    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+    corTreeChildAdd(entry, corTreeInteger(NULL, "publishTime", (long long) publishTime));
 
   pthread_mutex_lock(&dumpMutex);
   if (dumpArray == NULL)
-    dumpArray = kjArray(NULL, NULL);
-  kjChildAdd(dumpArray, entry);
+    dumpArray = corTreeArray(NULL, NULL);
+  corTreeChildAdd(dumpArray, entry);
   ++dumpCount;
   pthread_mutex_unlock(&dumpMutex);
 
@@ -422,25 +422,25 @@ static int ftBridgeQualifiedIn(const char* bridgeName,
                                const char* json,
                                int64_t     publishTime)
 {
-  KjNode* entry = kjObject(NULL, NULL);
+  CorNode* entry = corTreeObject(NULL, NULL);
 
-  kjChildAdd(entry, kjString(NULL, "bridge",   (bridgeName != NULL) ? bridgeName : "?"));
-  kjChildAdd(entry, kjString(NULL, "endpoint", (endpoint   != NULL) ? endpoint   : "?"));
-  kjChildAdd(entry, kjString(NULL, "payload",  (json       != NULL) ? json       : ""));
+  corTreeChildAdd(entry, corTreeString(NULL, "bridge", (bridgeName != NULL) ? bridgeName : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "endpoint", (endpoint != NULL) ? endpoint : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "payload", (json != NULL) ? json    : ""));
 
   if (subAttrName != NULL)
-    kjChildAdd(entry, kjString(NULL, "subAttribute", (char*) subAttrName));
+    corTreeChildAdd(entry, corTreeString(NULL, "subAttribute", (char*) subAttrName));
 
   if (datasetId != NULL)
-    kjChildAdd(entry, kjString(NULL, "datasetId", (char*) datasetId));
+    corTreeChildAdd(entry, corTreeString(NULL, "datasetId", (char*) datasetId));
 
   if (publishTime > 0)
-    kjChildAdd(entry, kjInteger(NULL, "publishTime", (long long) publishTime));
+    corTreeChildAdd(entry, corTreeInteger(NULL, "publishTime", (long long) publishTime));
 
   pthread_mutex_lock(&dumpMutex);
   if (dumpArray == NULL)
-    dumpArray = kjArray(NULL, NULL);
-  kjChildAdd(dumpArray, entry);
+    dumpArray = corTreeArray(NULL, NULL);
+  corTreeChildAdd(dumpArray, entry);
   ++dumpCount;
   pthread_mutex_unlock(&dumpMutex);
 
@@ -496,18 +496,18 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     return;
 
   //
-  // Its own buffer. This runs BEFORE corRestInit, so corRest.kjsonP is still
+  // Its own buffer. This runs BEFORE corRestInit, so corRest.corJsonP is still
   // NULL - parsing into it takes the process down before it serves anything,
   // which is a confusing way to be told the order is wrong.
   //
   char    kallocBuffer[8192];
   KAlloc  kalloc;
-  Kjson   kjson;
+  CorJson corJson;
 
   kaBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "ftBridge");
 
-  Kjson*  kjP   = kjBufferCreate(&kjson, &kalloc);
-  KjNode* treeP = kjParse(kjP, buf);
+  CorJson* corJsonP = corJsonCreate(&corJson, &kalloc);
+  CorNode* treeP = corJsonParse(corJsonP, buf);
 
   if (treeP == NULL)
   {
@@ -515,12 +515,12 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     return;
   }
 
-  KjNode* bridgeP   = kjLookup(treeP, (driverP->alias != NULL) ? driverP->alias : "dds");
-  KjNode* ngsildP   = (bridgeP != NULL) ? kjLookup(bridgeP, "ngsild")   : NULL;
-  KjNode* topicsP   = (ngsildP != NULL) ? kjLookup(ngsildP, "topics")   : NULL;
-  KjNode* servicesP = (ngsildP != NULL) ? kjLookup(ngsildP, "services") : NULL;
+  CorNode* bridgeP  = corTreeLookup(treeP, (driverP->alias != NULL) ? driverP->alias : "dds");
+  CorNode* ngsildP  = (bridgeP != NULL) ? corTreeLookup(bridgeP, "ngsild") : NULL;
+  CorNode* topicsP  = (ngsildP != NULL) ? corTreeLookup(ngsildP, "topics") : NULL;
+  CorNode* servicesP = (ngsildP != NULL) ? corTreeLookup(ngsildP, "services") : NULL;
 
-  for (KjNode* entryP = (topicsP != NULL) ? topicsP->value.firstChildP : NULL; entryP != NULL; entryP = entryP->next)
+  for (CorNode* entryP = (topicsP != NULL) ? topicsP->value.firstChildP : NULL; entryP != NULL; entryP = entryP->next)
   {
     //
     // BOTH directions: ftClient stands in for whatever is at the far end, and
@@ -545,7 +545,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     KT_W("ftClient: bridge '%s' has services configured but cannot serve them", driverP->alias);
   else if (servicesP != NULL)
   {
-    for (KjNode* entryP = servicesP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+    for (CorNode* entryP = servicesP->value.firstChildP; entryP != NULL; entryP = entryP->next)
     {
       if (serverP->serviceServe(entryP->name, ftBridgeServiceRequest) != BRIDGE_OK)
         KT_W("ftClient: bridge '%s' would not serve '%s'", driverP->alias, entryP->name);
@@ -628,7 +628,7 @@ static void ftBridgesLoad(void)
 //
 static bool postBridgePublish(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
   if ((ftBridgeCount == 0) || (bodyP == NULL))
   {
@@ -636,10 +636,10 @@ static bool postBridgePublish(void)
     return true;
   }
 
-  KjNode* endpointP = kjLookup(bodyP, "endpoint");
-  KjNode* payloadP  = kjLookup(bodyP, "payload");
+  CorNode* endpointP = corTreeLookup(bodyP, "endpoint");
+  CorNode* payloadP = corTreeLookup(bodyP, "payload");
 
-  if ((endpointP == NULL) || (endpointP->type != KjString) || (payloadP == NULL))
+  if ((endpointP == NULL) || (endpointP->type != CorString) || (payloadP == NULL))
   {
     corRest.out.httpStatusCode = 400;
     return true;
@@ -652,11 +652,11 @@ static bool postBridgePublish(void)
   //
   static char   rendered[16384];
   char*         savedName = payloadP->name;
-  KjNode*       savedNext = payloadP->next;
+  CorNode*      savedNext = payloadP->next;
 
   payloadP->name = NULL;
   payloadP->next = NULL;
-  kjFastRender(payloadP, rendered);
+  corJsonFastRender(payloadP, rendered);
   payloadP->name = savedName;
   payloadP->next = savedNext;
 
@@ -686,43 +686,43 @@ static void dumpAccumulate(void)
 {
   //
   // All strings come from per-request allocators that will be freed.
-  // Use kjString with NULL allocator (malloc) — it strdup's the value.
+  // Use corTreeString with NULL allocator (malloc) — it strdup's the value.
   //
-  KjNode* entry = kjObject(NULL, NULL);
+  CorNode* entry = corTreeObject(NULL, NULL);
 
-  kjChildAdd(entry, kjString(NULL, "verb",    corRest.in.verbString ? corRest.in.verbString : "?"));
-  kjChildAdd(entry, kjString(NULL, "url",     corRest.in.urlPath    ? corRest.in.urlPath    : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "verb", corRest.in.verbString ? corRest.in.verbString : "?"));
+  corTreeChildAdd(entry, corTreeString(NULL, "url", corRest.in.urlPath ? corRest.in.urlPath : "?"));
 
   // Headers
-  KjNode* hdrs = kjObject(NULL, "headers");
+  CorNode* hdrs = corTreeObject(NULL, "headers");
   for (int i = 0; i < corRest.in.httpHeaderCount; i++)
-    kjChildAdd(hdrs, kjString(NULL, corRest.in.httpHeaderV[i].key, corRest.in.httpHeaderV[i].value));
-  kjChildAdd(entry, hdrs);
+    corTreeChildAdd(hdrs, corTreeString(NULL, corRest.in.httpHeaderV[i].key, corRest.in.httpHeaderV[i].value));
+  corTreeChildAdd(entry, hdrs);
 
   // URI params
   if (corRest.in.uriParamCount > 0)
   {
-    KjNode* params = kjObject(NULL, "params");
+    CorNode* params = corTreeObject(NULL, "params");
     for (int i = 0; i < corRest.in.uriParamCount; i++)
-      kjChildAdd(params, kjString(NULL, corRest.in.uriParamV[i].key, corRest.in.uriParamV[i].value));
-    kjChildAdd(entry, params);
+      corTreeChildAdd(params, corTreeString(NULL, corRest.in.uriParamV[i].key, corRest.in.uriParamV[i].value));
+    corTreeChildAdd(entry, params);
   }
 
   // Body — deep-clone the request tree since the original is per-request allocated
   if (corRest.in.requestTree != NULL)
   {
-    KjNode* bodyClone = kjClone(NULL, corRest.in.requestTree);
+    CorNode* bodyClone = corTreeClone(NULL, corRest.in.requestTree);
     if (bodyClone != NULL)
     {
       bodyClone->name = (char*) "body";
-      kjChildAdd(entry, bodyClone);
+      corTreeChildAdd(entry, bodyClone);
     }
   }
   else if (corRest.in.payload != NULL && corRest.in.payloadSize > 0)
-    kjChildAdd(entry, kjString(NULL, "body", corRest.in.payload));
+    corTreeChildAdd(entry, corTreeString(NULL, "body", corRest.in.payload));
 
   pthread_mutex_lock(&dumpMutex);
-  kjChildAdd(dumpArray, entry);
+  corTreeChildAdd(dumpArray, entry);
   dumpCount++;
   pthread_mutex_unlock(&dumpMutex);
 }
@@ -753,10 +753,10 @@ static bool getDump(void)
   // body (MHD_RESPMEM_MUST_COPY), so we can free this buffer after
   // the call returns by using kaAlloc from the per-request allocator.
   //
-  int   bufSize = kjFastRenderSize(dumpArray) + 1;
+  int   bufSize = corJsonFastRenderSize(dumpArray) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
-  kjFastRender(dumpArray, buf);
+  corJsonFastRender(dumpArray, buf);
 
   //
   // A dump READS the notifications, and read notifications are gone. What the
@@ -940,35 +940,35 @@ static bool stubServe(void)
 //
 static bool postMockReply(void)
 {
-  KjNode* tree = corRest.in.requestTree;
+  CorNode* tree = corRest.in.requestTree;
   if (tree == NULL)
   {
     corRest.out.httpStatusCode = 400;
     return true;
   }
 
-  KjNode* verbP   = kjLookup(tree, "verb");
-  KjNode* pathP   = kjLookup(tree, "path");
-  KjNode* statusP = kjLookup(tree, "status");
-  KjNode* delayP  = kjLookup(tree, "delayMs"); // sleep before responding (per-path timeout injection)
-  KjNode* bodyP   = kjLookup(tree, "body");
-  KjNode* rawP    = kjLookup(tree, "raw");   // verbatim body (e.g. malformed JSON for a 502 test)
+  CorNode* verbP  = corTreeLookup(tree, "verb");
+  CorNode* pathP  = corTreeLookup(tree, "path");
+  CorNode* statusP = corTreeLookup(tree, "status");
+  CorNode* delayP = corTreeLookup(tree, "delayMs"); // sleep before responding (per-path timeout injection)
+  CorNode* bodyP  = corTreeLookup(tree, "body");
+  CorNode* rawP   = corTreeLookup(tree, "raw"); // verbatim body (e.g. malformed JSON for a 502 test)
 
   FtStub* s = (FtStub*) calloc(1, sizeof(FtStub));
-  s->verb    = strdup(((verbP != NULL) && (verbP->type == KjString)) ? verbP->value.s : "POST");
-  s->path    = strdup(((pathP != NULL) && (pathP->type == KjString)) ? pathP->value.s : "/");
-  s->status  = ((statusP != NULL) && (statusP->type == KjInt)) ? (int) statusP->value.i : 200;
-  s->delayMs = ((delayP  != NULL) && (delayP->type  == KjInt)) ? (int) delayP->value.i  : 0;
+  s->verb    = strdup(((verbP != NULL) && (verbP->type == CorString)) ? verbP->value.s : "POST");
+  s->path    = strdup(((pathP != NULL) && (pathP->type == CorString)) ? pathP->value.s : "/");
+  s->status  = ((statusP != NULL) && (statusP->type == CorInt)) ? (int) statusP->value.i : 200;
+  s->delayMs = ((delayP  != NULL) && (delayP->type  == CorInt)) ? (int) delayP->value.i : 0;
   s->body    = NULL;
 
-  if ((rawP != NULL) && (rawP->type == KjString))
+  if ((rawP != NULL) && (rawP->type == CorString))
     s->body = strdup(rawP->value.s);
   else if (bodyP != NULL)
   {
     bodyP->name = NULL;   // render the value alone, not  "body": {...}
-    int n = kjFastRenderSize(bodyP) + 1;
+    int n = corJsonFastRenderSize(bodyP) + 1;
     s->body = (char*) malloc(n);
-    kjFastRender(bodyP, s->body);
+    corJsonFastRender(bodyP, s->body);
   }
 
   s->next = ftStubs;
@@ -1150,9 +1150,9 @@ static void mqttOnMessage(struct mosquitto* m, void* ud, const struct mosquitto_
   (void) m; (void) ud;
   if (msg == NULL || msg->payload == NULL) return;
 
-  KjNode* entry = kjObject(NULL, NULL);
-  kjChildAdd(entry, kjString(NULL, "verb",  "MQTT"));
-  kjChildAdd(entry, kjString(NULL, "url",   msg->topic ? msg->topic : ""));
+  CorNode* entry = corTreeObject(NULL, NULL);
+  corTreeChildAdd(entry, corTreeString(NULL, "verb", "MQTT"));
+  corTreeChildAdd(entry, corTreeString(NULL, "url", msg->topic ? msg->topic : ""));
 
   // Try to parse payload as JSON; fall back to a string body.
   char* payloadStr = (char*) malloc(msg->payloadlen + 1);
@@ -1162,11 +1162,11 @@ static void mqttOnMessage(struct mosquitto* m, void* ud, const struct mosquitto_
 
   // Store the payload as a string body — same shape as HTTP non-JSON
   // bodies. Tests typically grep on the payload text directly.
-  kjChildAdd(entry, kjString(NULL, "body", payloadStr));
+  corTreeChildAdd(entry, corTreeString(NULL, "body", payloadStr));
   free(payloadStr);
 
   pthread_mutex_lock(&dumpMutex);
-  kjChildAdd(dumpArray, entry);
+  corTreeChildAdd(dumpArray, entry);
   dumpCount++;
   pthread_mutex_unlock(&dumpMutex);
 }
@@ -1247,7 +1247,7 @@ static void* mqttListenerThread(void* arg)
 //
 static bool postBridgeServiceReply(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
   if (bodyP == NULL)
   {
@@ -1255,10 +1255,10 @@ static bool postBridgeServiceReply(void)
     return true;
   }
 
-  KjNode* endpointP = kjLookup(bodyP, "endpoint");
-  KjNode* payloadP  = kjLookup(bodyP, "payload");
+  CorNode* endpointP = corTreeLookup(bodyP, "endpoint");
+  CorNode* payloadP = corTreeLookup(bodyP, "payload");
 
-  if ((endpointP == NULL) || (endpointP->type != KjString) || (payloadP == NULL))
+  if ((endpointP == NULL) || (endpointP->type != CorString) || (payloadP == NULL))
   {
     corRest.out.httpStatusCode = 400;
     return true;
@@ -1271,11 +1271,11 @@ static bool postBridgeServiceReply(void)
   //
   static char rendered[16384];
   char*       savedName = payloadP->name;
-  KjNode*     savedNext = payloadP->next;
+  CorNode*    savedNext = payloadP->next;
 
   payloadP->name = NULL;
   payloadP->next = NULL;
-  kjFastRender(payloadP, rendered);
+  corJsonFastRender(payloadP, rendered);
   payloadP->name = savedName;
   payloadP->next = savedNext;
 

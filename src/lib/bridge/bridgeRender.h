@@ -11,7 +11,7 @@
 //
 #include <stdbool.h>                                  // bool
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corJsonld/CorLdContext.h"                   // CorLdContext
 
 #include "db/Tenant.h"                                // Tenant
@@ -54,7 +54,7 @@ extern const char* bridgeIdOf(const char* bridgeName);
 //
 // Entity type and Attribute name are compacted with the request's @context.
 //
-extern KjNode* channelRender(Channel* channelP, CorLdContext* contextP);
+extern CorNode* channelRender(Channel* channelP, CorLdContext* contextP);
 
 
 
@@ -66,6 +66,6 @@ extern KjNode* channelRender(Channel* channelP, CorLdContext* contextP);
 // Channels name is unavailable - the configuration is valid, the transport is
 // not here (bridge-channels.md 3.3a).
 //
-extern KjNode* bridgeRender(const char* bridgeName, bool loaded);
+extern CorNode* bridgeRender(const char* bridgeName, bool loaded);
 
 #endif  // SRC_LIB_BRIDGE_BRIDGERENDER_H_

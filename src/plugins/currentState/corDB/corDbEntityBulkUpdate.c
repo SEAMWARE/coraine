@@ -15,11 +15,11 @@
 #include <string.h>                                      // strcmp
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjClone.h"                               // kjClone
-#include "kjson/kjFree.h"                                // kjFree
-#include "kjson/kjChildReplace.h"                        // kjChildReplace
-#include "kjson/kjLookup.h"                              // kjLookup
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeClone.h"                        // corTreeClone
+#include "corTree/corTreeFree.h"                         // corTreeFree
+#include "corTree/corTreeChildReplace.h"                 // corTreeChildReplace
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexRemove
@@ -32,32 +32,32 @@
 //
 // corDbEntityBulkUpdate -
 //
-int corDbEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
+int corDbEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
   COR_DB_WRITE(tenantP);
 
-  if (entitiesArr == NULL || entitiesArr->type != KjArray)
+  if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
   int     ix       = 0;
   bool    anyOk    = false;
 
-  for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, ix++)
+  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, ix++)
   {
-    KjNode* idP = kjLookup(inP, "id");
-    if (idP == NULL || idP->type != KjString)
+    CorNode* idP = corTreeLookup(inP, "id");
+    if (idP == NULL || idP->type != CorString)
     {
       resultsV[ix] = DB_ERR;
       continue;
     }
 
     // Locate the existing entity by id
-    KjNode* existing = NULL;
-    for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+    CorNode* existing = NULL;
+    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
     {
-      KjNode* existingId = kjLookup(eP, "id");
-      if (existingId != NULL && existingId->type == KjString &&
+      CorNode* existingId = corTreeLookup(eP, "id");
+      if (existingId != NULL && existingId->type == CorString &&
           strcmp(existingId->value.s, idP->value.s) == 0)
       {
         existing = eP;
@@ -71,26 +71,26 @@ int corDbEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       continue;
     }
 
-    KjNode* cloneP = kjClone(NULL, inP);
+    CorNode* cloneP = corTreeClone(NULL, inP);
     if (cloneP == NULL)
     {
-      KT_E("corDB: kjClone failed for entity '%s'", idP->value.s);
+      KT_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
       resultsV[ix] = DB_ERR;
       continue;
     }
 
     // Replace in place so the entity keeps its store (creation-order) position
     // — a GET without orderBy stays stable and matches mongoc, which preserves
-    // createdAt on update. kjChildReplace does not free the old node.
+    // createdAt on update. corTreeChildReplace does not free the old node.
     //
-    // The index points at `existing`, which kjFree is about to destroy. Drop it
+    // The index points at `existing`, which corTreeFree is about to destroy. Drop it
     // before the swap and add the replacement after, or every later lookup of
     // this id returns a pointer into freed memory.
     //
     corDbIndexRemove(corDbStoreOf(tenantP), existing);
-    kjChildReplace(entities, existing, cloneP);
+    corTreeChildReplace(entities, existing, cloneP);
     corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
-    kjFree(existing);
+    corTreeFree(existing);
     resultsV[ix] = DB_OK;
     anyOk        = true;
   }

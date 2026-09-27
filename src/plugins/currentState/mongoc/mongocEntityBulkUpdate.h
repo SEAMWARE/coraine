@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                              // KjNode
+#include "corTree/CorNode.h"                           // CorNode
 #include "db/Tenant.h"                                 // Tenant
 
 
@@ -21,6 +21,6 @@
 //
 // resultsV[i] ∈ {DB_OK, DB_NOT_FOUND, DB_ERR}.
 //
-extern int mongocEntityBulkUpdate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV);
+extern int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV);
 
 #endif

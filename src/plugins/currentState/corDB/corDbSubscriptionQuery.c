@@ -8,10 +8,10 @@
 //
 #include <stddef.h>                                   // NULL
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, Tenant
@@ -24,19 +24,19 @@
 //
 // corDbSubscriptionQuery -
 //
-int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP)
+int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, CorNode** arrayPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* subscriptions = corDbSubscriptions(tenantP);
+  CorNode* subscriptions = corDbSubscriptions(tenantP);
   // Request-arena array (freed at request end / after cache-load), matching
   // mongoc — a NULL (malloc) array would leak its container on every load.
-  KjNode* resultArray   = kjArray(corRest.kjsonP, NULL);
+  CorNode* resultArray  = corTreeArray(corRest.kallocP, NULL);
 
   int ix    = 0;
   int added = 0;
 
-  for (KjNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
   {
     if (ix < offset)
     {
@@ -47,8 +47,8 @@ int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, KjNode** arra
     if (limit > 0 && added >= limit)
       break;
 
-    KjNode* cloneP = kjClone(corRest.kjsonP, sP);
-    kjChildAdd(resultArray, cloneP);
+    CorNode* cloneP = corTreeClone(corRest.kallocP, sP);
+    corTreeChildAdd(resultArray, cloneP);
     added++;
     ix++;
   }

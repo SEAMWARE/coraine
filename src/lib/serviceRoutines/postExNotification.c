@@ -27,10 +27,10 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestClient.h"                     // CorRestClientRequest, corRestClientSend
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
@@ -82,8 +82,8 @@ bool postExNotification(void)
   // we touch here ("subscriptionId", "data") are core-context terms
   // and survive expansion as short names.
   //
-  KjNode* bodyTree = corRest.in.requestTree;
-  if (bodyTree == NULL || bodyTree->type != KjObject)
+  CorNode* bodyTree = corRest.in.requestTree;
+  if (bodyTree == NULL || bodyTree->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "notification body must be a JSON object");
@@ -94,8 +94,8 @@ bool postExNotification(void)
   // Rewrite subscriptionId from derived to parent. Notifications without
   // the field are still re-dispatched (best-effort).
   //
-  KjNode* subIdP = kjLookup(bodyTree, "subscriptionId");
-  if (subIdP != NULL && subIdP->type == KjString)
+  CorNode* subIdP = corTreeLookup(bodyTree, "subscriptionId");
+  if (subIdP != NULL && subIdP->type == CorString)
     subIdP->value.s = (char*) parentSubId;
 
   //
@@ -120,9 +120,9 @@ bool postExNotification(void)
   //
   // Render the (modified) body and POST to the original subscriber.
   //
-  int   bodyLen = kjFastRenderSize(bodyTree) + 1;
+  int   bodyLen = corJsonFastRenderSize(bodyTree) + 1;
   char* body    = (char*) kaAlloc(&corRest.kalloc, bodyLen);
-  kjFastRender(bodyTree, body);
+  corJsonFastRender(bodyTree, body);
 
   CorRestClientRequest  req;
   CorRestClientResponse resp;

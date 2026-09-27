@@ -12,8 +12,8 @@
 #include <string.h>                                  // strcmp
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
 #include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
@@ -46,7 +46,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
     return;
 
   Tenant* tP    = (Tenant*) userData;
-  KjNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kjsonP);
+  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
   if (fragP == NULL)
     return;
 
@@ -62,7 +62,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 bool patchSubscription(void)
 {
   const char* subId    = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+  CorNode*    fragment = corRest.in.requestTree;
   //
   // PATCH body needs at least one updatable field. § 5.2.12: id and type
   // are read-only; ldParseHook tolerates a `type:"Subscription"` echo for
@@ -71,12 +71,12 @@ bool patchSubscription(void)
   // modify the read-only field" case — surface a 400 with the precise
   // ProblemDetails the test expects.
   //
-  if (fragment != NULL && fragment->type == KjObject)
+  if (fragment != NULL && fragment->type == CorObject)
   {
     bool hasUpdatable = false;
     bool sawType      = false;
     bool sawId        = false;
-    for (KjNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                 continue;
       if (strcmp(c->name, "type") == 0)  { sawType = true; continue; }
@@ -118,8 +118,8 @@ bool patchSubscription(void)
   //
   // Per spec 5.8.2.4: expiresAt in the past is an error
   //
-  KjNode* expiresAtP = kjLookup(fragment, LD_VOCAB_EXPIRES_AT);
-  if (expiresAtP != NULL && expiresAtP->type == KjString)
+  CorNode* expiresAtP = corTreeLookup(fragment, LD_VOCAB_EXPIRES_AT);
+  if (expiresAtP != NULL && expiresAtP->type == CorString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
     if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
@@ -145,9 +145,9 @@ bool patchSubscription(void)
   //
   // Can't switch between periodic (timeInterval) and normal (watchedAttributes)
   //
-  KjNode* tiInFragment = kjLookup(fragment, "timeInterval");
-  KjNode* waInFragment = kjLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
-  KjNode* thInFragment = kjLookup(fragment, LD_VOCAB_THROTTLING);
+  CorNode* tiInFragment = corTreeLookup(fragment, "timeInterval");
+  CorNode* waInFragment = corTreeLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
+  CorNode* thInFragment = corTreeLookup(fragment, LD_VOCAB_THROTTLING);
 
   bool existingIsPernot = (tenantP->pernotCacheP != NULL &&
                            ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) != NULL);
@@ -169,7 +169,7 @@ bool patchSubscription(void)
   //
   // Update Subscription (§ 5.8.3) — the broker owns the merge. Load the current
   // subscription, apply the fragment here (JSON Merge Patch; urn:ngsi-ld:null
-  // members, already resolved to KjNull by the validator, delete their target),
+  // members, already resolved to CorNull by the validator, delete their target),
   // and hand the DB plugin a complete document to store. Keeping the NGSI-LD
   // merge/delete semantics in the broker means every DB plugin is a dumb store.
   //
@@ -194,7 +194,7 @@ bool patchSubscription(void)
 
   ldSubCacheWrLock(subCacheP);
 
-  KjNode* mergedSubP = NULL;
+  CorNode* mergedSubP = NULL;
   int     rr         = db.subscriptionRetrieve(tenantP, subId, &mergedSubP);
 
   if (rr == DB_NOT_FOUND || mergedSubP == NULL)
@@ -211,7 +211,7 @@ bool patchSubscription(void)
     return true;
   }
 
-  ldRegSubMerge(mergedSubP, fragment, corRest.kjsonP);
+  ldRegSubMerge(mergedSubP, fragment, corRest.kallocP);
 
   //
   // § 5.8.3 — re-validate the COMPLETE merged result before persisting. The
@@ -235,7 +235,7 @@ bool patchSubscription(void)
   // that deletes timeInterval from a periodic sub would otherwise slip through
   // and leave it neither periodic nor watch-driven — guard it explicitly.
   //
-  if (existingIsPernot && kjLookup(mergedSubP, "timeInterval") == NULL)
+  if (existingIsPernot && corTreeLookup(mergedSubP, "timeInterval") == NULL)
   {
     ldSubCacheUnlock(subCacheP);
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
@@ -248,13 +248,13 @@ bool patchSubscription(void)
   // merged document, so the single store below persists it (no extra $set).
   //
   {
-    KjNode* isActiveP = kjLookup(mergedSubP, LD_VOCAB_IS_ACTIVE);
-    KjNode* expiresP  = kjLookup(mergedSubP, LD_VOCAB_EXPIRES_AT);
-    KjNode* statusP   = kjLookup(mergedSubP, LD_VOCAB_STATUS);
-    bool    isActive  = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
+    CorNode* isActiveP = corTreeLookup(mergedSubP, LD_VOCAB_IS_ACTIVE);
+    CorNode* expiresP = corTreeLookup(mergedSubP, LD_VOCAB_EXPIRES_AT);
+    CorNode* statusP  = corTreeLookup(mergedSubP, LD_VOCAB_STATUS);
+    bool    isActive  = (isActiveP == NULL || isActiveP->type != CorBoolean || isActiveP->value.b == true);
     bool    isExpired = false;
 
-    if (expiresP != NULL && expiresP->type == KjString)
+    if (expiresP != NULL && expiresP->type == CorString)
     {
       uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
       if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
@@ -263,10 +263,10 @@ bool patchSubscription(void)
 
     const char* newStatus = isExpired ? "expired" : (isActive ? "active" : "paused");
 
-    if (statusP != NULL && statusP->type == KjString)
+    if (statusP != NULL && statusP->type == CorString)
       statusP->value.s = (char*) newStatus;
     else
-      kjChildAdd(mergedSubP, kjString(corRest.kjsonP, LD_VOCAB_STATUS, newStatus));
+      corTreeChildAdd(mergedSubP, corTreeString(corRest.kallocP, LD_VOCAB_STATUS, newStatus));
   }
 
   // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays

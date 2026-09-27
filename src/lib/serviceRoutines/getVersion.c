@@ -14,8 +14,8 @@
 //
 #include <stdbool.h>                                 // bool
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjString, kjChildAdd
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeChildAdd
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/corNgsild.h"                       // corNgsild (rawResponse)
@@ -29,10 +29,10 @@
 
 bool getVersion(void)
 {
-  KjNode* body = kjObject(corRest.kjsonP, NULL);
+  CorNode* body = corTreeObject(corRest.kallocP, NULL);
 
-  kjChildAdd(body, kjString(corRest.kjsonP, "product", "coraine"));
-  kjChildAdd(body, kjString(corRest.kjsonP, "version", CORAINE_VERSION));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "product", "coraine"));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "version", CORAINE_VERSION));
 
   //
   // The libraries are most of this binary, none of them is released, and the
@@ -44,12 +44,12 @@ bool getVersion(void)
   // #defines this replaced said things like "post-0.2.0", which is a promise
   // that something happened after 0.2.0 and no help to anyone holding a bug.
   //
-  KjNode* stack = kjObject(corRest.kjsonP, "stack");
+  CorNode* stack = corTreeObject(corRest.kallocP, "stack");
 
   for (int ix = 0; coraineStack[ix][0] != NULL; ix++)
-    kjChildAdd(stack, kjString(corRest.kjsonP, coraineStack[ix][0], coraineStack[ix][1]));
+    corTreeChildAdd(stack, corTreeString(corRest.kallocP, coraineStack[ix][0], coraineStack[ix][1]));
 
-  kjChildAdd(body, stack);
+  corTreeChildAdd(body, stack);
 
   //
   // The bridges, one member per loaded plugin, its value the plugin's own
@@ -64,17 +64,17 @@ bool getVersion(void)
   //
   if (bridgeCount > 0)
   {
-    KjNode* bridgesP = kjObject(corRest.kjsonP, "bridges");
+    CorNode* bridgesP = corTreeObject(corRest.kallocP, "bridges");
 
     for (int ix = 0; ix < bridgeCount; ix++)
     {
       const char* alias = (bridges[ix].alias       != NULL) ? bridges[ix].alias         : "?";
       const char* info  = (bridges[ix].versionInfo != NULL) ? bridges[ix].versionInfo() : "";
 
-      kjChildAdd(bridgesP, kjString(corRest.kjsonP, alias, info));
+      corTreeChildAdd(bridgesP, corTreeString(corRest.kallocP, alias, info));
     }
 
-    kjChildAdd(body, bridgesP);
+    corTreeChildAdd(body, bridgesP);
   }
 
   // Bypass @context expansion / compaction — this endpoint is non-NGSI-LD.

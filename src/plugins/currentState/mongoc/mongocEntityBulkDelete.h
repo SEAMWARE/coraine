@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "db/Tenant.h"                                // Tenant
 
 
@@ -28,6 +28,6 @@
 // DB_OK -> DB_ERR.
 //
 extern int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
-                                  int* resultsV, KjNode** snapshotsV);
+                                  int* resultsV, CorNode** snapshotsV);
 
 #endif  // MONGOC_MONGOCENTITYBULKDELETE_H_

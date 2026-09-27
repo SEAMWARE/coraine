@@ -11,10 +11,10 @@
 
 #include "kalloc/KAlloc.h"                            // KAlloc
 #include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kjson/kjson.h"                              // Kjson
-#include "kjson/kjBufferCreate.h"                     // kjBufferCreate
-#include "kjson/kjParse.h"                            // kjParse
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corJson/CorJson.h"                          // CorJson
+#include "corJson/corJsonCreate.h"                    // corJsonCreate
+#include "corJson/corJsonParse.h"                     // corJsonParse
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "ktrace/kTrace.h"                            // KT_*
 
 #include "corJsonld/CorLdContext.h"                     // CorLdContext
@@ -53,18 +53,18 @@ static bool contextRowToCache(DbContextRow* rowP)
   // Parse the body (a stand-alone JSON-LD context document) into a tree and pull
   // out @context. The cache allocator is used so the result outlives this call.
   //
-  char*  bodyForParse = kaStrdup(storeP, rowP->body);  // kjParse is destructive
-  Kjson  kjson;
-  Kjson* kjsonP = kjBufferCreate(&kjson, storeP);
+  char*  bodyForParse = kaStrdup(storeP, rowP->body);  // corJsonParse is destructive
+  CorJson corJson;
+  CorJson* corJsonP = corJsonCreate(&corJson, storeP);
 
-  KjNode* treeP = kjParse(kjsonP, bodyForParse);
+  CorNode* treeP = corJsonParse(corJsonP, bodyForParse);
 
   if (treeP == NULL)
     return false;
 
-  KjNode* atContextP = kjLookup(treeP, "@context");
+  CorNode* atContextP = corTreeLookup(treeP, "@context");
 
-  if ((atContextP == NULL) || (atContextP->type != KjObject))
+  if ((atContextP == NULL) || (atContextP->type != CorObject))
     return false;
 
   CorLdContext* contextP = corLdContextFromObject(atContextP, storeP, rowP->url);

@@ -9,7 +9,8 @@
 #include <stddef.h>                               // NULL
 #include <string.h>                               // strcmp
 
-#include "kjson/kjBuilder.h"                      // kjObject, kjString, kjBoolean, kjChildAdd
+#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeBoolean, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 #include "ktrace/ktGlobals.h"                     // ktVerbose, ktDebug, ktInfo
 #include "ktrace/ktTraceLevelGet.h"               // ktTraceLevelGet
@@ -56,14 +57,14 @@ static int boolFromOnOff(const char* s)
 //
 bool adminGetLog(void)
 {
-  Kjson*      kjsonP = corRest.kjsonP;
-  KjNode*     root   = kjObject(kjsonP, NULL);
+  KAlloc*     allocP = corRest.kallocP;
+  CorNode*    root   = corTreeObject(allocP, NULL);
   const char* levels = ktTraceLevelGet();
 
-  kjChildAdd(root, kjBoolean(kjsonP, "verbose", ktVerbose));
-  kjChildAdd(root, kjBoolean(kjsonP, "debug",   ktDebug));
-  kjChildAdd(root, kjBoolean(kjsonP, "info",    ktInfo));
-  kjChildAdd(root, kjString(kjsonP,  "traceLevels", levels ? levels : ""));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "verbose", ktVerbose));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "debug", ktDebug));
+  corTreeChildAdd(root, corTreeBoolean(allocP, "info", ktInfo));
+  corTreeChildAdd(root, corTreeString(allocP, "traceLevels", levels ? levels : ""));
 
   corRest.out.responseTree = root;
   return true;

@@ -739,8 +739,8 @@ ftClientDump() {
   # ftClientCount (reads /count, parser-free).
   [ -z "$raw" ] && raw="[]"
 
-  if [ -n "$KJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
-    echo "$raw" | $KJSON -sort | head -c -1
+  if [ -n "$CORJSON" ] && [ -n "$raw" ] && [ "$raw" != "[]" ]; then
+    echo "$raw" | $CORJSON -sort | head -c -1
   else
     echo -n "$raw"
   fi

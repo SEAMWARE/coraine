@@ -16,10 +16,10 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjString, kjChildAdd, kjChildRemove
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeString, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corNgsild/corNgsild.h"                       // ldContextResolve, corNgsild
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
@@ -42,7 +42,7 @@ bool getCsourceSubscriptions(void)
 
   ldContextResolve();
 
-  KjNode* arrayP  = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
   bool    hasMore = false;
 
   // Total across the CSR-subscription cache — for the count header and to
@@ -70,14 +70,14 @@ bool getCsourceSubscriptions(void)
       if (itemP->subTree == NULL)
         continue;
 
-      KjNode* subP = kjClone(corRest.kjsonP, itemP->subTree);
+      CorNode* subP = corTreeClone(corRest.kallocP, itemP->subTree);
       ldSubscriptionCompactQ(subP, itemP->qExpr, corNgsild.contextP, &corRest.kalloc);
       ldSubscriptionCountersInject(subP, itemP);
 
       // Hide the internal marker
-      KjNode* kindP = kjLookup(subP, "_subKind");
+      CorNode* kindP = corTreeLookup(subP, "_subKind");
       if (kindP != NULL)
-        kjChildRemove(subP, kindP);
+        corTreeChildRemove(subP, kindP);
 
       // § 5.2 Subscription table: `notificationTrigger` is "not applicable
       // and shall be ignored" for CSR-sub. The lib's ldCheckSubscription
@@ -86,9 +86,9 @@ bool getCsourceSubscriptions(void)
 
       // Strip the broker-internal `_jcResolved` so the response only carries
       // user-provided `jsonldContext` (if any).
-      KjNode* jcP = kjLookup(subP, "_jcResolved");
+      CorNode* jcP = corTreeLookup(subP, "_jcResolved");
       if (jcP != NULL)
-        kjChildRemove(subP, jcP);
+        corTreeChildRemove(subP, jcP);
 
       // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
       if (corNgsild.sysAttrs == false)
@@ -96,7 +96,7 @@ bool getCsourceSubscriptions(void)
       else
         ldSysTimestampsToIso(subP, &corRest.kalloc);
 
-      kjChildAdd(arrayP, subP);
+      corTreeChildAdd(arrayP, subP);
     }
   }
 

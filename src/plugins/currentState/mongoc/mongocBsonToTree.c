@@ -1,5 +1,5 @@
 //
-// FILE            mongocBsonToKjTree.c
+// FILE            mongocBsonToTree.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -13,30 +13,29 @@
 
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaStrdup.h"                         // kaStrdup
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjString, kjInteger, kjFloat, kjBoolean, kjNull, kjObject, kjArray, kjChildAdd
-#include "kjson/kjBufferCreate.h"                    // kjBufferCreate
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeNull, corTreeObject, corTreeArray, corTreeChildAdd
 
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocUnescapeDotsInKey
-#include "currentState/mongoc/mongocBsonToKjTree.h"               // Own interface
+#include "currentState/mongoc/mongocBsonToTree.h"                 // Own interface
 
 
 
 // -----------------------------------------------------------------------------
 //
-// bsonIterToKjNode - recursive helper to convert a bson_iter_t to KjNode children
+// bsonIterToNode - recursive helper to convert a bson_iter_t to CorNode children
 //
-static void bsonIterToKjNode(Kjson* kjsonP, KAlloc* kaP, bson_iter_t* iterP, KjNode* containerP)
+static void bsonIterToNode(KAlloc* allocP, KAlloc* kaP, bson_iter_t* iterP, CorNode* containerP)
 {
   while (bson_iter_next(iterP))
   {
     bson_type_t    btype = bson_iter_type(iterP);
-    KjNode*        nodeP = NULL;
+    CorNode*       nodeP = NULL;
 
     // Array elements have no names (BSON uses "0", "1", ... as keys - discard them)
     const char* key = NULL;
 
-    if (containerP->type != KjArray)
+    if (containerP->type != CorArray)
     {
       key = mongocUnescapeDotsInKey(kaP, bson_iter_key(iterP));
 
@@ -51,36 +50,36 @@ static void bsonIterToKjNode(Kjson* kjsonP, KAlloc* kaP, bson_iter_t* iterP, KjN
       {
         uint32_t    len;
         const char* val = bson_iter_utf8(iterP, &len);
-        nodeP = kjString(kjsonP, key, val);
+        nodeP = corTreeString(allocP, key, val);
       }
       break;
 
     case BSON_TYPE_INT32:
-      nodeP = kjInteger(kjsonP, key, bson_iter_int32(iterP));
+      nodeP = corTreeInteger(allocP, key, bson_iter_int32(iterP));
       break;
 
     case BSON_TYPE_INT64:
-      nodeP = kjInteger(kjsonP, key, bson_iter_int64(iterP));
+      nodeP = corTreeInteger(allocP, key, bson_iter_int64(iterP));
       break;
 
     case BSON_TYPE_DOUBLE:
-      nodeP = kjFloat(kjsonP, key, bson_iter_double(iterP));
+      nodeP = corTreeFloat(allocP, key, bson_iter_double(iterP));
       break;
 
     case BSON_TYPE_BOOL:
-      nodeP = kjBoolean(kjsonP, key, bson_iter_bool(iterP));
+      nodeP = corTreeBoolean(allocP, key, bson_iter_bool(iterP));
       break;
 
     case BSON_TYPE_NULL:
-      nodeP = kjNull(kjsonP, key);
+      nodeP = corTreeNull(allocP, key);
       break;
 
     case BSON_TYPE_DOCUMENT:
       {
         bson_iter_t childIter;
         bson_iter_recurse(iterP, &childIter);
-        nodeP = kjObject(kjsonP, key);
-        bsonIterToKjNode(kjsonP, kaP, &childIter, nodeP);
+        nodeP = corTreeObject(allocP, key);
+        bsonIterToNode(allocP, kaP, &childIter, nodeP);
       }
       break;
 
@@ -88,8 +87,8 @@ static void bsonIterToKjNode(Kjson* kjsonP, KAlloc* kaP, bson_iter_t* iterP, KjN
       {
         bson_iter_t childIter;
         bson_iter_recurse(iterP, &childIter);
-        nodeP = kjArray(kjsonP, key);
-        bsonIterToKjNode(kjsonP, kaP, &childIter, nodeP);
+        nodeP = corTreeArray(allocP, key);
+        bsonIterToNode(allocP, kaP, &childIter, nodeP);
       }
       break;
 
@@ -99,7 +98,7 @@ static void bsonIterToKjNode(Kjson* kjsonP, KAlloc* kaP, bson_iter_t* iterP, KjN
     }
 
     if (nodeP != NULL)
-      kjChildAdd(containerP, nodeP);
+      corTreeChildAdd(containerP, nodeP);
   }
 }
 
@@ -107,21 +106,20 @@ static void bsonIterToKjNode(Kjson* kjsonP, KAlloc* kaP, bson_iter_t* iterP, KjN
 
 // -----------------------------------------------------------------------------
 //
-// mongocBsonToKjTree - convert a bson_t document to a KjNode tree
+// mongocBsonToTree - convert a bson_t document to a CorNode tree
 //
-KjNode* mongocBsonToKjTree(KAlloc* kaP, const bson_t* bsonP)
+CorNode* mongocBsonToTree(KAlloc* kaP, const bson_t* bsonP)
 {
   //
-  // Create a local Kjson backed by the KAlloc
+  // Create a local CorJson backed by the KAlloc
   //
-  Kjson        kjsonLocal;
-  Kjson*       kjsonP = kjBufferCreate(&kjsonLocal, kaP);
+  KAlloc*       allocP = kaP;
 
-  KjNode*      treeP = kjObject(kjsonP, NULL);
+  CorNode*     treeP = corTreeObject(allocP, NULL);
   bson_iter_t  iter;
 
   bson_iter_init(&iter, bsonP);
-  bsonIterToKjNode(kjsonP, kaP, &iter, treeP);
+  bsonIterToNode(allocP, kaP, &iter, treeP);
 
   return treeP;
 }

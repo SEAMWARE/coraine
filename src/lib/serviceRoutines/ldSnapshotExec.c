@@ -14,10 +14,11 @@
 #include <string.h>                                      // strcmp, strlen, strcpy, memcpy
 
 #include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kjson/KjNode.h"                                // KjNode
-#include "kjson/kjLookup.h"                              // kjLookup
-#include "kjson/kjBuilder.h"                             // kjArray, kjObject, kjString, kjChildAdd
-#include "kjson/kjParse.h"                               // kjParse
+#include "kalloc/KAlloc.h"                               // KAlloc
+#include "corTree/CorNode.h"                             // CorNode
+#include "corTree/corTreeLookup.h"                       // corTreeLookup
+#include "corTree/corTreeBuilder.h"                      // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
+#include "corJson/corJsonParse.h"                        // corJsonParse
 
 #include "corRest/CorRestState.h"                          // corRest
 #include "corRest/corRestClient.h"                         // CorRestClientRequest, corRestClientSend
@@ -38,10 +39,10 @@
 #include "corNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
-#include "kjson/kjClone.h"                               // kjClone
-#include "kjson/kjFree.h"                                // kjFree
-#include "kjson/kjChildReplace.h"                        // kjChildReplace
-#include "kjson/kjRenderSize.h"                        // kjFastRenderSize
+#include "corTree/corTreeClone.h"                        // corTreeClone
+#include "corTree/corTreeFree.h"                         // corTreeFree
+#include "corTree/corTreeChildReplace.h"                 // corTreeChildReplace
+#include "corJson/corJsonRenderSize.h"                 // corJsonFastRenderSize
 
 #include "db/DbDriver.h"                                 // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
@@ -81,25 +82,25 @@ static const char* expandedTypeOrSelf(const char* shortName)
 // and the type values are unioned into typeV. This matches the typical
 // snapshot use-case (one selector or several with disjoint types).
 //
-static void entitySelectorsToFilter(KjNode* entitiesP, DbQueryFilter* filterP)
+static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
 {
-  if (entitiesP == NULL || entitiesP->type != KjArray)
+  if (entitiesP == NULL || entitiesP->type != CorArray)
     return;
 
   // Worst-case capacity for id / type vectors.
   int idCap = 0, typeCap = 0;
-  for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+  for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
   {
-    if (selP->type != KjObject) continue;
+    if (selP->type != CorObject) continue;
 
-    KjNode* idP = kjLookup(selP, "id");
+    CorNode* idP = corTreeLookup(selP, "id");
     if (idP != NULL)
     {
-      if      (idP->type == KjString) idCap++;
-      else if (idP->type == KjArray)
-        for (KjNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
+      if      (idP->type == CorString) idCap++;
+      else if (idP->type == CorArray)
+        for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
     }
-    if (kjLookup(selP, "type") != NULL) typeCap++;
+    if (corTreeLookup(selP, "type") != NULL) typeCap++;
   }
 
   char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
@@ -107,26 +108,26 @@ static void entitySelectorsToFilter(KjNode* entitiesP, DbQueryFilter* filterP)
   int    nId = 0, nType = 0;
   const char* idPattern = NULL;
 
-  for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+  for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
   {
-    if (selP->type != KjObject) continue;
+    if (selP->type != CorObject) continue;
 
-    KjNode* idP = kjLookup(selP, "id");
+    CorNode* idP = corTreeLookup(selP, "id");
     if (idP != NULL)
     {
-      if (idP->type == KjString)
+      if (idP->type == CorString)
         idV[nId++] = idP->value.s;
-      else if (idP->type == KjArray)
-        for (KjNode* p = idP->value.firstChildP; p != NULL; p = p->next)
-          if (p->type == KjString) idV[nId++] = p->value.s;
+      else if (idP->type == CorArray)
+        for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next)
+          if (p->type == CorString) idV[nId++] = p->value.s;
     }
 
-    KjNode* idPatP = kjLookup(selP, "idPattern");
-    if (idPatP != NULL && idPatP->type == KjString && idPattern == NULL)
+    CorNode* idPatP = corTreeLookup(selP, "idPattern");
+    if (idPatP != NULL && idPatP->type == CorString && idPattern == NULL)
       idPattern = idPatP->value.s;
 
-    KjNode* typeP = kjLookup(selP, "type");
-    if (typeP != NULL && typeP->type == KjString)
+    CorNode* typeP = corTreeLookup(selP, "type");
+    if (typeP != NULL && typeP->type == CorString)
     {
       const char* expanded = expandedTypeOrSelf(typeP->value.s);
       if (expanded != NULL)
@@ -155,21 +156,21 @@ static void entitySelectorsToFilter(KjNode* entitiesP, DbQueryFilter* filterP)
 // alignment with the request-time geoMatchFunc plumbing; it can land
 // in 2c without a wire-format break.
 //
-static void queryToFilter(KjNode* queryP, DbQueryFilter* filterP)
+static void queryToFilter(CorNode* queryP, DbQueryFilter* filterP)
 {
   filterP->limit = 0;        // unbounded
   filterP->offset = 0;
   filterP->count = false;
 
-  KjNode* entitiesP = kjLookup(queryP, "entities");
+  CorNode* entitiesP = corTreeLookup(queryP, "entities");
   entitySelectorsToFilter(entitiesP, filterP);
 
-  KjNode* qP = kjLookup(queryP, "q");
-  if (qP != NULL && qP->type == KjString)
+  CorNode* qP = corTreeLookup(queryP, "q");
+  if (qP != NULL && qP->type == CorString)
     filterP->qExpr = ldQParse(qP->value.s, &corRest.kalloc);
 
-  KjNode* scopeQP = kjLookup(queryP, "scopeQ");
-  if (scopeQP != NULL && scopeQP->type == KjString)
+  CorNode* scopeQP = corTreeLookup(queryP, "scopeQ");
+  if (scopeQP != NULL && scopeQP->type == CorString)
     filterP->scopeExpr = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc);
 }
 
@@ -187,7 +188,7 @@ static void queryToFilter(KjNode* queryP, DbQueryFilter* filterP)
 // pending JSON-array → URL string serialisation; affects only geo
 // snapshots and a follow-up will fold it in.
 //
-static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP)
+static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* kaP)
 {
   //
   // Sized from the Query it renders: every value emitted below is a substring
@@ -195,7 +196,7 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
   // fixed 4096 that used to be here was never checked as it wrote - the one
   // `pos < 4095` guarded the '&' and nothing else.
   //
-  char* qs = (char*) kaAlloc(kaP, 3 * kjFastRenderSize(queryP) + 256);
+  char* qs = (char*) kaAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
   int   pos = 0;
 
   //
@@ -216,19 +217,19 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
   // accept a single value per key, so a multi-selector Query collapses
   // to "type=A,B" / "id=u1,u2". Phase 141 keeps it minimal — first
   // selector wins for id/idPattern.
-  KjNode* entitiesP = kjLookup(queryP, "entities");
-  if (entitiesP != NULL && entitiesP->type == KjArray)
+  CorNode* entitiesP = corTreeLookup(queryP, "entities");
+  if (entitiesP != NULL && entitiesP->type == CorArray)
   {
     char  typeBuf[1024]; int  typeLen = 0;  typeBuf[0] = 0;
     char  idBuf  [4096]; int  idLen   = 0;  idBuf  [0] = 0;
     const char* idPattern = NULL;
 
-    for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
     {
-      if (selP->type != KjObject) continue;
+      if (selP->type != CorObject) continue;
 
-      KjNode* tP = kjLookup(selP, "type");
-      if (tP != NULL && tP->type == KjString)
+      CorNode* tP = corTreeLookup(selP, "type");
+      if (tP != NULL && tP->type == CorString)
       {
         int tl = strlen(tP->value.s);
         if (typeLen + tl + 2 < (int) sizeof(typeBuf))
@@ -239,10 +240,10 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
         }
       }
 
-      KjNode* iP = kjLookup(selP, "id");
+      CorNode* iP = corTreeLookup(selP, "id");
       if (iP != NULL)
       {
-        if (iP->type == KjString)
+        if (iP->type == CorString)
         {
           int il = strlen(iP->value.s);
           if (idLen + il + 2 < (int) sizeof(idBuf))
@@ -252,11 +253,11 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
             idBuf[idLen] = 0;
           }
         }
-        else if (iP->type == KjArray)
+        else if (iP->type == CorArray)
         {
-          for (KjNode* p = iP->value.firstChildP; p != NULL; p = p->next)
+          for (CorNode* p = iP->value.firstChildP; p != NULL; p = p->next)
           {
-            if (p->type != KjString) continue;
+            if (p->type != CorString) continue;
             int il = strlen(p->value.s);
             if (idLen + il + 2 < (int) sizeof(idBuf))
             {
@@ -268,8 +269,8 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
         }
       }
 
-      KjNode* ipP = kjLookup(selP, "idPattern");
-      if (ipP != NULL && ipP->type == KjString && idPattern == NULL)
+      CorNode* ipP = corTreeLookup(selP, "idPattern");
+      if (ipP != NULL && ipP->type == CorString && idPattern == NULL)
         idPattern = ipP->value.s;
     }
 
@@ -278,12 +279,12 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
     if (idPattern) APPEND_KV("idPattern", idPattern);
   }
 
-  KjNode* qP = kjLookup(queryP, "q");
-  if (qP != NULL && qP->type == KjString)
+  CorNode* qP = corTreeLookup(queryP, "q");
+  if (qP != NULL && qP->type == CorString)
     APPEND_KV("q", qP->value.s);
 
-  KjNode* scopeQP = kjLookup(queryP, "scopeQ");
-  if (scopeQP != NULL && scopeQP->type == KjString)
+  CorNode* scopeQP = corTreeLookup(queryP, "scopeQ");
+  if (scopeQP != NULL && scopeQP->type == CorString)
     APPEND_KV("scopeQ", scopeQP->value.s);
 
   // No local=true here: snapshot capture wants full transitive federation
@@ -312,7 +313,7 @@ static const char* buildQueryStringFromSnapshotQuery(KjNode* queryP, KAlloc* kaP
 // type/id/idPattern, fall back to local=true to satisfy the receiver's
 // minimum-filter check (this disables transitive fanout for that hop).
 //
-static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
+static const char* buildSplitForwardQs(CorNode* queryP, KAlloc* kaP)
 {
   //
   // Sized from the Query it renders: every value emitted below is a substring
@@ -320,7 +321,7 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
   // fixed 4096 that used to be here was never checked as it wrote - the one
   // `pos < 4095` guarded the '&' and nothing else.
   //
-  char* qs = (char*) kaAlloc(kaP, 3 * kjFastRenderSize(queryP) + 256);
+  char* qs = (char*) kaAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
   int   pos = 0;
 
   //
@@ -337,19 +338,19 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
       memcpy(qs + pos, ev, vl); pos += vl;                                      \
     } while (0)
 
-  KjNode* entitiesP = kjLookup(queryP, "entities");
-  if (entitiesP != NULL && entitiesP->type == KjArray)
+  CorNode* entitiesP = corTreeLookup(queryP, "entities");
+  if (entitiesP != NULL && entitiesP->type == CorArray)
   {
     char  typeBuf[1024]; int typeLen = 0; typeBuf[0] = 0;
     char  idBuf  [4096]; int idLen   = 0; idBuf  [0] = 0;
     const char* idPattern = NULL;
 
-    for (KjNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
     {
-      if (selP->type != KjObject) continue;
+      if (selP->type != CorObject) continue;
 
-      KjNode* tP = kjLookup(selP, "type");
-      if (tP != NULL && tP->type == KjString)
+      CorNode* tP = corTreeLookup(selP, "type");
+      if (tP != NULL && tP->type == CorString)
       {
         int tl = strlen(tP->value.s);
         if (typeLen + tl + 2 < (int) sizeof(typeBuf))
@@ -360,10 +361,10 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
         }
       }
 
-      KjNode* iP = kjLookup(selP, "id");
+      CorNode* iP = corTreeLookup(selP, "id");
       if (iP != NULL)
       {
-        if (iP->type == KjString)
+        if (iP->type == CorString)
         {
           int il = strlen(iP->value.s);
           if (idLen + il + 2 < (int) sizeof(idBuf))
@@ -373,11 +374,11 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
             idBuf[idLen] = 0;
           }
         }
-        else if (iP->type == KjArray)
+        else if (iP->type == CorArray)
         {
-          for (KjNode* p = iP->value.firstChildP; p != NULL; p = p->next)
+          for (CorNode* p = iP->value.firstChildP; p != NULL; p = p->next)
           {
-            if (p->type != KjString) continue;
+            if (p->type != CorString) continue;
             int il = strlen(p->value.s);
             if (idLen + il + 2 < (int) sizeof(idBuf))
             {
@@ -389,8 +390,8 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
         }
       }
 
-      KjNode* ipP = kjLookup(selP, "idPattern");
-      if (ipP != NULL && ipP->type == KjString && idPattern == NULL)
+      CorNode* ipP = corTreeLookup(selP, "idPattern");
+      if (ipP != NULL && ipP->type == CorString && idPattern == NULL)
         idPattern = ipP->value.s;
     }
 
@@ -424,9 +425,9 @@ static const char* buildSplitForwardQs(KjNode* queryP, KAlloc* kaP)
 
 //
 // forwardSnapshotQueryToCSR - GET <csr.endpoint>/ngsi-ld/v1/entities?<qs>.
-// Returns the response array (KjArray of entities, API format) or NULL.
+// Returns the response array (CorArray of entities, API format) or NULL.
 //
-static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryString)
+static CorNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryString)
 {
   if (csr == NULL || csr->endpoint == NULL) return NULL;
 
@@ -456,7 +457,7 @@ static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryS
   memcpy(bodyCopy, resp.body, resp.bodyLen);
   bodyCopy[resp.bodyLen] = 0;
 
-  KjNode* treeP = kjParse(corRest.kjsonP, bodyCopy);
+  CorNode* treeP = corJsonParse(corRest.corJsonP, bodyCopy);
   if (treeP != NULL) ldStripAtContext(treeP);
   return treeP;
 }
@@ -483,36 +484,36 @@ static KjNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* queryS
 // either. The Entity-level expiresAt itself stays: the snapshot read applies it
 // like any other read.
 //
-static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
+static void snapshotExpiryApply(CorNode* entityP, uint64_t nowNs)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return;
 
-  ldExpiresAtPropagate(entityP, corRest.kjsonP);
+  ldExpiresAtPropagate(entityP, corRest.kallocP);
 
-  KjNode* attrP = entityP->value.firstChildP;
+  CorNode* attrP = entityP->value.firstChildP;
   while (attrP != NULL)
   {
-    KjNode* nextAttr = attrP->next;
+    CorNode* nextAttr = attrP->next;
 
-    if ((attrP->name != NULL) && (attrP->name[0] != '@') && (attrP->type == KjObject) &&
+    if ((attrP->name != NULL) && (attrP->name[0] != '@') && (attrP->type == CorObject) &&
         (strcmp(attrP->name, "id")   != 0) &&
         (strcmp(attrP->name, "_id")  != 0) &&
         (strcmp(attrP->name, "type") != 0))
     {
-      KjNode* instP = attrP->value.firstChildP;
+      CorNode* instP = attrP->value.firstChildP;
       while (instP != NULL)
       {
-        KjNode* nextInst = instP->next;
+        CorNode* nextInst = instP->next;
 
-        if ((instP->type == KjObject) && ldDistInstanceIsExpired(instP, (int64_t) nowNs))
-          kjChildRemove(attrP, instP);
+        if ((instP->type == CorObject) && ldDistInstanceIsExpired(instP, (int64_t) nowNs))
+          corTreeChildRemove(attrP, instP);
 
         instP = nextInst;
       }
 
       if (attrP->value.firstChildP == NULL)
-        kjChildRemove(entityP, attrP);
+        corTreeChildRemove(entityP, attrP);
     }
 
     attrP = nextAttr;
@@ -528,11 +529,11 @@ static void snapshotExpiryApply(KjNode* entityP, uint64_t nowNs)
 // A thin wrapper over the shared § 4.5.5.3 merge, kept for the name at the
 // call sites and for the one thing that is snapshot-specific: clone=true.
 // destDb is frozen into the snap-tenant and outlives srcDb, so instances are
-// copied into corRest.kjsonP rather than moved out of the response tree.
+// copied into corRest.kallocP rather than moved out of the response tree.
 //
-static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
+static void mergeFragmentInto(CorNode* destDb, CorNode* srcDb, uint64_t nowNs)
 {
-  ldDistMergeSourceInto(destDb, srcDb, (int64_t) nowNs, corRest.kjsonP, true);
+  ldDistMergeSourceInto(destDb, srcDb, (int64_t) nowNs, corRest.kallocP, true);
 }
 
 
@@ -544,26 +545,26 @@ static void mergeFragmentInto(KjNode* destDb, KjNode* srcDb, uint64_t nowNs)
 //   - if absent → create
 //   - if present → merge per § 4.5.5.3, then replace
 //
-static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
+static int streamRemoteEntitiesSplit(CorNode* arrayP, Tenant* snapTenantP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray || snapTenantP == NULL)
+  if (arrayP == NULL || arrayP->type != CorArray || snapTenantP == NULL)
     return 0;
 
   uint64_t nowNs = corRest.requestStartTime;
   int      n     = 0;
 
-  for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
   {
-    if (entityP->type != KjObject) continue;
+    if (entityP->type != CorObject) continue;
 
-    KjNode* idP = kjLookup(entityP, "id");
-    if (idP == NULL || idP->type != KjString) continue;
+    CorNode* idP = corTreeLookup(entityP, "id");
+    if (idP == NULL || idP->type != CorString) continue;
 
     corLdExpandTree(entityP, corNgsild.contextP, &corRest.kalloc);
     ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
     snapshotExpiryApply(entityP, nowNs);
 
-    KjNode* existing = NULL;
+    CorNode* existing = NULL;
     int     rc       = db.entityRetrieve(snapTenantP, idP->value.s, &existing);
     if (rc == DB_OK && existing != NULL)
     {
@@ -590,27 +591,27 @@ static int streamRemoteEntitiesSplit(KjNode* arrayP, Tenant* snapTenantP)
 // because that's where forwards are unfiltered and the merged set may
 // contain entities the query doesn't want.
 //
-static int postFilterSnapshotTenant(Tenant* snapTenantP, KjNode* queryP)
+static int postFilterSnapshotTenant(Tenant* snapTenantP, CorNode* queryP)
 {
   DbQueryFilter filter = {0};
   queryToFilter(queryP, &filter);
 
   // Empty filter → fetch all.
   DbQueryFilter empty = {0};
-  KjNode* allP = NULL;
+  CorNode* allP = NULL;
   int rc = db.entityQuery(snapTenantP, &empty, &allP);
-  if (rc != DB_OK || allP == NULL || allP->type != KjArray)
+  if (rc != DB_OK || allP == NULL || allP->type != CorArray)
     return 0;
 
   int kept = 0;
-  KjNode* eP = allP->value.firstChildP;
+  CorNode* eP = allP->value.firstChildP;
   while (eP != NULL)
   {
-    KjNode* nextP = eP->next;
+    CorNode* nextP = eP->next;
 
-    KjNode* idP = kjLookup(eP, "id");
-    if (idP == NULL) idP = kjLookup(eP, "_id");
-    if (idP == NULL || idP->type != KjString) { eP = nextP; continue; }
+    CorNode* idP = corTreeLookup(eP, "id");
+    if (idP == NULL) idP = corTreeLookup(eP, "_id");
+    if (idP == NULL || idP->type != CorString) { eP = nextP; continue; }
 
     bool keep = true;
 
@@ -625,18 +626,18 @@ static int postFilterSnapshotTenant(Tenant* snapTenantP, KjNode* queryP)
     {
       // entitySelectorsToFilter populates typeV (expanded IRIs); entity's
       // "type" in DB-format is also an expanded IRI (string or string-array).
-      KjNode* typeP = kjLookup(eP, "type");
+      CorNode* typeP = corTreeLookup(eP, "type");
       bool match = false;
-      if (typeP != NULL && typeP->type == KjString)
+      if (typeP != NULL && typeP->type == CorString)
       {
         for (int i = 0; filter.typeV[i] != NULL; i++)
           if (strcmp(filter.typeV[i], typeP->value.s) == 0) { match = true; break; }
       }
-      else if (typeP != NULL && typeP->type == KjArray)
+      else if (typeP != NULL && typeP->type == CorArray)
       {
-        for (KjNode* tP = typeP->value.firstChildP; tP != NULL && !match; tP = tP->next)
+        for (CorNode* tP = typeP->value.firstChildP; tP != NULL && !match; tP = tP->next)
         {
-          if (tP->type != KjString) continue;
+          if (tP->type != CorString) continue;
           for (int i = 0; filter.typeV[i] != NULL; i++)
             if (strcmp(filter.typeV[i], tP->value.s) == 0) { match = true; break; }
         }
@@ -649,7 +650,7 @@ static int postFilterSnapshotTenant(Tenant* snapTenantP, KjNode* queryP)
     }
     if (keep && filter.scopeExpr != NULL)
     {
-      KjNode* scopeP = kjLookup(eP, "scope");
+      CorNode* scopeP = corTreeLookup(eP, "scope");
       if (!ldEntityMatchScope(scopeP, filter.scopeExpr)) keep = false;
     }
     if (keep && filter.geoRel != NULL && db.geoMatchFunc != NULL)
@@ -695,23 +696,23 @@ static int postFilterSnapshotTenant(Tenant* snapTenantP, KjNode* queryP)
 //     scan deletes the non-matchers.
 //
 //
-// streamRemoteEntitiesIntoSnapshot - given a CSR-returned KjArray of
+// streamRemoteEntitiesIntoSnapshot - given a CSR-returned CorArray of
 // API-format entities, expand + storage-wrap each and write to the
 // snap-tenant. DB_ALREADY_EXISTS is treated as success ("first writer
 // wins" — local hits and earlier CSRs already covered this id).
 //
-static int streamRemoteEntitiesIntoSnapshot(KjNode* arrayP, Tenant* snapTenantP)
+static int streamRemoteEntitiesIntoSnapshot(CorNode* arrayP, Tenant* snapTenantP)
 {
-  if (arrayP == NULL || arrayP->type != KjArray || snapTenantP == NULL)
+  if (arrayP == NULL || arrayP->type != CorArray || snapTenantP == NULL)
     return 0;
 
   int captured = 0;
-  for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
   {
-    if (entityP->type != KjObject) continue;
+    if (entityP->type != CorObject) continue;
 
-    KjNode* idP = kjLookup(entityP, "id");
-    if (idP == NULL || idP->type != KjString) continue;
+    CorNode* idP = corTreeLookup(entityP, "id");
+    if (idP == NULL || idP->type != CorString) continue;
 
     // CSR responses are in API form — expand short names + wrap attrs
     // into the broker's storage format that db.entityCreate expects.
@@ -729,7 +730,7 @@ static int streamRemoteEntitiesIntoSnapshot(KjNode* arrayP, Tenant* snapTenantP)
 
 
 static int runOneQuery(LdSnapshotCacheItem* itemP,
-                       KjNode*              queryP,
+                       CorNode*             queryP,
                        Tenant*              tenantP)
 {
   if (itemP->snapTenantP == NULL) return -1;
@@ -759,19 +760,19 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
     localFilter.geoproperty = NULL;
   }
 
-  KjNode* arrayP = NULL;
+  CorNode* arrayP = NULL;
   int rc = db.entityQuery(tenantP, &localFilter, &arrayP);
   if (rc != DB_OK)
     return -1;
 
   int n = 0;
-  if (arrayP != NULL && arrayP->type == KjArray)
+  if (arrayP != NULL && arrayP->type == CorArray)
   {
-    for (KjNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
     {
-      KjNode* idP = kjLookup(entityP, "id");
-      if (idP == NULL) idP = kjLookup(entityP, "_id");
-      if (idP == NULL || idP->type != KjString) continue;
+      CorNode* idP = corTreeLookup(entityP, "id");
+      if (idP == NULL) idP = corTreeLookup(entityP, "_id");
+      if (idP == NULL || idP->type != CorString) continue;
 
       int wr = db.entityCreate(snapTenantP, idP->value.s, entityP);
       if (wr == DB_OK || wr == DB_ALREADY_EXISTS)
@@ -802,8 +803,8 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
 
     for (int i = 0; i < matchN; i++)
     {
-      KjNode* remoteArr = forwardSnapshotQueryToCSR(matchV[i], qs);
-      if (remoteArr == NULL || remoteArr->type != KjArray) continue;
+      CorNode* remoteArr = forwardSnapshotQueryToCSR(matchV[i], qs);
+      if (remoteArr == NULL || remoteArr->type != CorArray) continue;
 
       if (splitMode) n += streamRemoteEntitiesSplit(remoteArr, snapTenantP);
       else           n += streamRemoteEntitiesIntoSnapshot(remoteArr, snapTenantP);
@@ -865,17 +866,17 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
   (void) cacheP;
   if (itemP == NULL || itemP->tree == NULL) return false;
 
-  KjNode* qListP   = kjLookup(itemP->tree, "snapshotQueries");
+  CorNode* qListP  = corTreeLookup(itemP->tree, "snapshotQueries");
   // Build the details array directly in the cache's persistent allocator
   // (NULL = malloc) so the data outlives the request / worker thread.
-  KjNode* detailsP = kjArray(NULL, "snapshotQueriesDetails");
+  CorNode* detailsP = corTreeArray(NULL, "snapshotQueriesDetails");
   int nSuccess = 0, nEmpty = 0, nFailure = 0;
 
-  if (qListP != NULL && qListP->type == KjArray)
+  if (qListP != NULL && qListP->type == CorArray)
   {
-    for (KjNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
+    for (CorNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
     {
-      KjNode* detail = kjObject(NULL, NULL);
+      CorNode* detail = corTreeObject(NULL, NULL);
 
       const char* result;
       int matched = runOneQuery(itemP, queryP, tenantP);
@@ -883,32 +884,32 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
       else if (matched == 0) { result = "empty";   nEmpty++;   }
       else                    { result = "failure"; nFailure++; }
 
-      kjChildAdd(detail, kjString(NULL, "resultStatus", (char*) result));
-      kjChildAdd(detailsP, detail);
+      corTreeChildAdd(detail, corTreeString(NULL, "resultStatus", (char*) result));
+      corTreeChildAdd(detailsP, detail);
     }
   }
 
   // Append snapshotQueriesDetails to itemP->tree if any queries ran.
   if (detailsP->value.firstChildP != NULL)
   {
-    KjNode* existing = kjLookup(itemP->tree, "snapshotQueriesDetails");
+    CorNode* existing = corTreeLookup(itemP->tree, "snapshotQueriesDetails");
     if (existing != NULL)
     {
-      // itemP->tree is an all-malloc clone — kjChildRemove only unlinks, so
+      // itemP->tree is an all-malloc clone — corTreeChildRemove only unlinks, so
       // free the previous details to avoid orphaning it on a re-run.
-      kjChildRemove(itemP->tree, existing);
-      kjFree(existing);
+      corTreeChildRemove(itemP->tree, existing);
+      corTreeFree(existing);
     }
-    kjChildAdd(itemP->tree, detailsP);
+    corTreeChildAdd(itemP->tree, detailsP);
   }
   else
-    kjFree(detailsP);   // empty (no queries ran) — never grafted, so free it
+    corTreeFree(detailsP); // empty (no queries ran) — never grafted, so free it
 
   const char* status = pickStatus(nSuccess, nEmpty, nFailure);
 
   // Update snapshotStatus on the cached tree.
-  KjNode* sCachedP = kjLookup(itemP->tree, "snapshotStatus");
-  if (sCachedP != NULL && sCachedP->type == KjString)
+  CorNode* sCachedP = corTreeLookup(itemP->tree, "snapshotStatus");
+  if (sCachedP != NULL && sCachedP->type == CorString)
     sCachedP->value.s = (char*) status;
 
   itemP->status = statusFromString(status);

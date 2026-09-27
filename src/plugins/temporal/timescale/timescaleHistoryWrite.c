@@ -29,11 +29,11 @@
 #include <libpq-fe.h>                                     // PG*
 
 #include "ktrace/kTrace.h"                                // KT_E, KT_W
-#include "kjson/KjNode.h"                                 // KjNode
-#include "kjson/kjLookup.h"                               // kjLookup
-#include "kjson/kjBuilder.h"                              // kjObject, kjChildAdd
-#include "kjson/kjRender.h"                               // kjFastRender
-#include "kjson/kjRenderSize.h"                           // kjFastRenderSize
+#include "corTree/CorNode.h"                              // CorNode
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
+#include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeChildAdd
+#include "corJson/corJsonRender.h"                        // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                    // corJsonFastRenderSize
 #include "kalloc/kaAlloc.h"                               // kaAlloc
 #include "kalloc/kaStrdup.h"                              // kaStrdup
 
@@ -298,20 +298,20 @@ int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entityId,
 // shape that timescaleExecAttrInsertLocked / extractCols expects:
 //   { "<datasetId-or-@none>": <instance> }
 //
-// The wrapper is a fresh KjObject; the instance child node is rehomed (its
+// The wrapper is a fresh CorObject; the instance child node is rehomed (its
 // `next` pointer is stomped) — caller must not iterate the original parent
 // array further after wrapping.
 //
-static KjNode* instanceWrap(KjNode* instanceP)
+static CorNode* instanceWrap(CorNode* instanceP)
 {
-  KjNode* dsP = kjLookup(instanceP, "datasetId");
-  const char* dsKey = (dsP != NULL && dsP->type == KjString) ? dsP->value.s : "@none";
+  CorNode* dsP = corTreeLookup(instanceP, "datasetId");
+  const char* dsKey = (dsP != NULL && dsP->type == CorString) ? dsP->value.s : "@none";
 
-  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
+  CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
   // Detach the instance from its array parent and rename for the wrapper.
   instanceP->next = NULL;
   instanceP->name = (char*) dsKey;
-  kjChildAdd(wrap, instanceP);
+  corTreeChildAdd(wrap, instanceP);
   return wrap;
 }
 
@@ -327,7 +327,7 @@ static KjNode* instanceWrap(KjNode* instanceP)
 // receive +1 ms offsets so the PK stays unique under shared observedAt.
 //
 static int insertInstanceRows(Tenant* tenantP, const char* entityId,
-                              const char* entityType, KjNode* rootP,
+                              const char* entityType, CorNode* rootP,
                               uint64_t modAtNs0)
 {
   uint64_t nsOffset = 0;
@@ -335,10 +335,10 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
   // IMPORTANT: instanceWrap stomps the wrapped node's ->next, which
   // breaks this iteration if attrP itself is wrapped (single-object
   // attr branch). Capture nextP up-front and we're safe in both branches.
-  KjNode* attrP = rootP->value.firstChildP;
+  CorNode* attrP = rootP->value.firstChildP;
   while (attrP != NULL)
   {
-    KjNode* nextAttrP = attrP->next;
+    CorNode* nextAttrP = attrP->next;
 
     if (attrP->name == NULL ||
         attrP->name[0] == '@' ||
@@ -354,13 +354,13 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 
     // EntityTemporal: each attribute is an array of instance objects.
     // Tolerate single-object form (some clients omit the array).
-    if (attrP->type == KjArray)
+    if (attrP->type == CorArray)
     {
       // instanceWrap stomps each instance's ->next. Capture nextP before wrapping.
-      KjNode* instP = attrP->value.firstChildP;
+      CorNode* instP = attrP->value.firstChildP;
       while (instP != NULL)
       {
-        KjNode* nextInstP = instP->next;
+        CorNode* nextInstP = instP->next;
 
         TroeEvent ev;
         memset(&ev, 0, sizeof(ev));
@@ -379,7 +379,7 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
         instP = nextInstP;
       }
     }
-    else if (attrP->type == KjObject)
+    else if (attrP->type == CorObject)
     {
       TroeEvent ev;
       memset(&ev, 0, sizeof(ev));
@@ -415,25 +415,25 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 //
 // Caller already validated the body shape and resolved id/type from it.
 //
-int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
+int timescaleEntityTemporalCreate(Tenant* tenantP, CorNode* rootP)
 {
-  if (rootP == NULL || rootP->type != KjObject)
+  if (rootP == NULL || rootP->type != CorObject)
     return TROE_ERR;
 
-  KjNode* idP   = kjLookup(rootP, "id");
-  KjNode* typeP = kjLookup(rootP, "type");
-  if (idP == NULL || idP->type != KjString || idP->value.s[0] == 0)
+  CorNode* idP  = corTreeLookup(rootP, "id");
+  CorNode* typeP = corTreeLookup(rootP, "type");
+  if (idP == NULL || idP->type != CorString || idP->value.s[0] == 0)
     return TROE_ERR;
   // § 5.2.6.4.2 - one type name or an array of them.
   if (typeP == NULL)
     return TROE_ERR;
-  if ((typeP->type == KjArray) && (typeP->value.firstChildP == NULL))
+  if ((typeP->type == CorArray) && (typeP->value.firstChildP == NULL))
     return TROE_ERR;
-  if ((typeP->type != KjArray) && ((typeP->type != KjString) || (typeP->value.s[0] == 0)))
+  if ((typeP->type != CorArray) && ((typeP->type != CorString) || (typeP->value.s[0] == 0)))
     return TROE_ERR;
 
   const char* entityId   = idP->value.s;
-  const char* entityType = (typeP->type == KjString) ? typeP->value.s : NULL;
+  const char* entityType = (typeP->type == CorString) ? typeP->value.s : NULL;
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
@@ -508,14 +508,14 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP)
 //   (a) { "speed": [ { "type":"Property","value":42, ... } ] }   — fragment
 //   (b) { "type":"Property","value":42, "observedAt":"..." }     — bare instance
 //
-static KjNode* extractInstanceFromBody(KjNode* bodyP)
+static CorNode* extractInstanceFromBody(CorNode* bodyP)
 {
-  if (bodyP == NULL || bodyP->type != KjObject)
+  if (bodyP == NULL || bodyP->type != CorObject)
     return NULL;
 
   // Case (b): the body itself is the instance.
-  KjNode* tP = kjLookup(bodyP, "type");
-  if (tP != NULL && tP->type == KjString)
+  CorNode* tP = corTreeLookup(bodyP, "type");
+  if (tP != NULL && tP->type == CorString)
   {
     const char* t = tP->value.s;
     if (strcmp(t, "Property") == 0 || strcmp(t, "Relationship") == 0 ||
@@ -526,7 +526,7 @@ static KjNode* extractInstanceFromBody(KjNode* bodyP)
   }
 
   // Case (a): walk children for the first attr-shaped array.
-  for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+  for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL)                           continue;
     if (fP->name[0] == '@')                         continue;
@@ -536,9 +536,9 @@ static KjNode* extractInstanceFromBody(KjNode* bodyP)
     if (strcmp(fP->name, "createdAt")  == 0)        continue;
     if (strcmp(fP->name, "modifiedAt") == 0)        continue;
 
-    if (fP->type == KjArray && fP->value.firstChildP != NULL)
+    if (fP->type == CorArray && fP->value.firstChildP != NULL)
       return fP->value.firstChildP;
-    if (fP->type == KjObject)
+    if (fP->type == CorObject)
       return fP;
   }
 
@@ -584,18 +584,18 @@ static bool instanceExists(const char* entityId,
 int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
                                           const char* attrName,
                                           const char* instanceId,
-                                          KjNode* rootP)
+                                          CorNode* rootP)
 {
   if (entityId == NULL || attrName == NULL ||
       instanceId == NULL || rootP == NULL)
     return TROE_ERR;
 
-  KjNode* instP = extractInstanceFromBody(rootP);
+  CorNode* instP = extractInstanceFromBody(rootP);
   if (instP == NULL)
     return TROE_ERR;  // Caller maps to 400.
 
-  KjNode* valueP  = kjLookup(instP, "value");
-  KjNode* observP = kjLookup(instP, "observedAt");
+  CorNode* valueP = corTreeLookup(instP, "value");
+  CorNode* observP = corTreeLookup(instP, "observedAt");
 
   // Render typed columns from the instance's value node.
   const char* v_text   = NULL;
@@ -605,34 +605,34 @@ int timescaleEntityTemporalInstanceModify(Tenant* tenantP, const char* entityId,
 
   if (valueP != NULL)
   {
-    if (valueP->type == KjString)
+    if (valueP->type == CorString)
       v_text = valueP->value.s;
-    else if (valueP->type == KjInt)
+    else if (valueP->type == CorInt)
     {
       char* buf = (char*) kaAlloc(&corRest.kalloc, 32);
       snprintf(buf, 32, "%lld", (long long) valueP->value.i);
       v_number = buf;
     }
-    else if (valueP->type == KjFloat)
+    else if (valueP->type == CorFloat)
     {
       char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, "%.17g", valueP->value.f);
       v_number = buf;
     }
-    else if (valueP->type == KjBoolean)
+    else if (valueP->type == CorBoolean)
     {
       v_bool = valueP->value.b ? "t" : "f";
     }
-    else if (valueP->type == KjObject || valueP->type == KjArray)
+    else if (valueP->type == CorObject || valueP->type == CorArray)
     {
-      int   sz  = kjFastRenderSize(valueP) + 1;
+      int   sz  = corJsonFastRenderSize(valueP) + 1;
       char* buf = (char*) kaAlloc(&corRest.kalloc, sz);
-      kjFastRender(valueP, buf);
+      corJsonFastRender(valueP, buf);
       v_compnd = buf;
     }
   }
 
-  const char* obsAtIso = (observP != NULL && observP->type == KjString) ? observP->value.s : NULL;
+  const char* obsAtIso = (observP != NULL && observP->type == CorString) ? observP->value.s : NULL;
 
   TimescaleConn* cP = timescaleConnGet(tenantP);
   if (cP == NULL) return TROE_ERR;
@@ -759,9 +759,9 @@ int timescaleEntityTemporalInstanceDelete(Tenant* tenantP, const char* entityId,
 // The target entity must already exist in TRoE (otherwise → TROE_NOT_FOUND).
 // No new entity-level row is written — only per-attribute instances.
 //
-int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNode* rootP)
+int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, CorNode* rootP)
 {
-  if (entityId == NULL || rootP == NULL || rootP->type != KjObject)
+  if (entityId == NULL || rootP == NULL || rootP->type != CorObject)
     return TROE_ERR;
 
   TimescaleConn* cP = timescaleConnGet(tenantP);
@@ -793,17 +793,17 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
   //
   {
     char        typeLit[1024];
-    KjNode*     typeP = kjLookup(rootP, "type");
+    CorNode*    typeP = corTreeLookup(rootP, "type");
     int         pos   = 0;
 
     typeLit[pos++] = '{';
 
-    if ((typeP != NULL) && (typeP->type == KjArray))
+    if ((typeP != NULL) && (typeP->type == CorArray))
     {
       bool first = true;
-      for (KjNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
       {
-        if ((tP->type != KjString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
+        if ((tP->type != CorString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
           continue;
         if (!first)
           typeLit[pos++] = ',';
@@ -811,7 +811,7 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNod
         pos = troeTypeNameQuoted(tP->value.s, typeLit, pos, sizeof(typeLit));
       }
     }
-    else if ((typeP != NULL) && (typeP->type == KjString) && (typeP->value.s != NULL) && (typeP->value.s[0] != 0))
+    else if ((typeP != NULL) && (typeP->type == CorString) && (typeP->value.s != NULL) && (typeP->value.s[0] != 0))
       pos = troeTypeNameQuoted(typeP->value.s, typeLit, pos, sizeof(typeLit));
 
     typeLit[pos++] = '}';

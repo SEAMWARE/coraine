@@ -26,7 +26,7 @@
 #include "corRest/CorRestState.h"                        // corRest
 #include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                            // kaAlloc
-#include "kjson/kjBuilder.h"                           // kjObject, kjArray, kjString, kjInteger, kjChildAdd
+#include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corJsonld/CorLdContext.h"                      // CorLdContext, CorLdContextKind
 #include "corJsonld/corLdCache.h"                        // corLdCacheSnapshot
 #include "corNgsild/corNgsild.h"                         // corNgsild
@@ -110,7 +110,7 @@ bool getJsonldContexts(void)
   //
   // Build response array — honouring offset/limit over the filtered view.
   //
-  KjNode* arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
   int     skipN  = (corNgsild.offset > 0) ? corNgsild.offset : 0;
   int     limit  = (corNgsild.limit > 0) ? corNgsild.limit : totalCount;
   int     taken  = 0;
@@ -165,16 +165,16 @@ bool getJsonldContexts(void)
 
     if (!corNgsild.details)
     {
-      kjChildAdd(arrayP, kjString(corRest.kjsonP, NULL, (char*) urlOut));
+      corTreeChildAdd(arrayP, corTreeString(corRest.kallocP, NULL, (char*) urlOut));
     }
     else
     {
       // § 5.13.3.5 metadata field names (NB. spec uses URL/localId, not
       // url/id; kind is one of Hosted/Cached/ImplicitlyCreated).
-      KjNode* obj = kjObject(corRest.kjsonP, NULL);
-      kjChildAdd(obj, kjString(corRest.kjsonP, "URL",       (char*) urlOut));
-      kjChildAdd(obj, kjString(corRest.kjsonP, "localId",   contextId));
-      kjChildAdd(obj, kjString(corRest.kjsonP, "kind",      kindString(c->kind)));
+      CorNode* obj = corTreeObject(corRest.kallocP, NULL);
+      corTreeChildAdd(obj, corTreeString(corRest.kallocP, "URL", (char*) urlOut));
+      corTreeChildAdd(obj, corTreeString(corRest.kallocP, "localId", contextId));
+      corTreeChildAdd(obj, corTreeString(corRest.kallocP, "kind", kindString(c->kind)));
       // § 5.13.3.5: DateTime strings, not Unix timestamps.
       {
         time_t  secs;
@@ -185,7 +185,7 @@ bool getJsonldContexts(void)
         snprintf(ca, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(corRest.kjsonP, "createdAt", ca));
+        corTreeChildAdd(obj, corTreeString(corRest.kallocP, "createdAt", ca));
 
         char* lu = (char*) kaAlloc(&corRest.kalloc, 80);
         secs = (time_t) c->usedAt;
@@ -193,9 +193,9 @@ bool getJsonldContexts(void)
         snprintf(lu, 80, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                  tm.tm_hour, tm.tm_min, tm.tm_sec);
-        kjChildAdd(obj, kjString(corRest.kjsonP, "lastUsage", lu));
+        corTreeChildAdd(obj, corTreeString(corRest.kallocP, "lastUsage", lu));
       }
-      kjChildAdd(arrayP, obj);
+      corTreeChildAdd(arrayP, obj);
     }
   }
 

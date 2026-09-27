@@ -10,12 +10,12 @@
 #include <mongoc/mongoc.h>                            // mongoc_*, bson_*
 
 #include "ktrace/kTrace.h"                            // KT_E
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"   // mongocKjTreeToBson
-#include "currentState/mongoc/mongocBsonToKjTree.h"   // mongocBsonToKjTree
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocTreeToBson
+#include "currentState/mongoc/mongocBsonToTree.h"     // mongocBsonToTree
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityReplace.h"  // Own interface
@@ -34,7 +34,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocEntityReplace -
 //
-int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntityP, KjNode** oldEntityPP)
+int mongocEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntityP, CorNode** oldEntityPP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
@@ -50,7 +50,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
   // Replacement document: the full new entity in BSON form
   //
   bson_t replacement;
-  mongocKjTreeToBson(newEntityP, &replacement);
+  mongocTreeToBson(newEntityP, &replacement);
 
   //
   // find_and_modify: atomic "find by _id, replace with new doc, return pre-image".
@@ -138,7 +138,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, KjNode* newEntity
       if (bson_init_static(&oldDoc, data, len))
       {
         if (oldEntityPP != NULL)
-          *oldEntityPP = mongocBsonToKjTree(&corRest.kalloc, &oldDoc);
+          *oldEntityPP = mongocBsonToTree(&corRest.kalloc, &oldDoc);
       }
       else if (oldEntityPP != NULL)
       {

@@ -25,10 +25,11 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjString, kjChildAdd
-#include "kjson/KjNode.h"                            // KjNode, KjString
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                         // CorNode, CorString
 #include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "kalloc/KAlloc.h"                             // KAlloc
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/CorLdContext.h"                    // CorLdContext
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -62,7 +63,7 @@ static char* csrSubIdGenerate(KAlloc* allocP)
 
 bool postCsourceSubscriptions(void)
 {
-  KjNode* subP = corRest.in.requestTree;
+  CorNode* subP = corRest.in.requestTree;
 
   LdFormat notifFormat = LdFormatNone;
   if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, /*merged*/false, &notifFormat, &corRest.kalloc) == false)
@@ -72,11 +73,11 @@ bool postCsourceSubscriptions(void)
   // Validate it here; it gets transferred to the cache item further
   // down, after the cache add.
   int timeIntervalSec = 0;
-  KjNode* tiP = kjLookup(subP, "timeInterval");
+  CorNode* tiP = corTreeLookup(subP, "timeInterval");
   if (tiP != NULL)
   {
-    long n = (tiP->type == KjInt)   ? (long) tiP->value.i
-           : (tiP->type == KjFloat) ? (long) tiP->value.f
+    long n = (tiP->type == CorInt)  ? (long) tiP->value.i
+           : (tiP->type == CorFloat) ? (long) tiP->value.f
            : -1L;
     if (n < 1)
     {
@@ -90,16 +91,16 @@ bool postCsourceSubscriptions(void)
   //
   // Extract or generate subscription id
   //
-  KjNode* idP = kjLookup(subP, "id");
+  CorNode* idP = corTreeLookup(subP, "id");
 
   if (idP == NULL)
   {
     char* generatedId = csrSubIdGenerate(&corRest.kalloc);
 
-    idP = kjString(corRest.kjsonP, "id", generatedId);
-    kjChildAdd(subP, idP);
+    idP = corTreeString(corRest.kallocP, "id", generatedId);
+    corTreeChildAdd(subP, idP);
   }
-  else if (idP->type != KjString)
+  else if (idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "subscription 'id' must be a string");
     return true;
@@ -139,11 +140,11 @@ bool postCsourceSubscriptions(void)
   //
   // status = "active"|"paused" — expiresAt-past check
   //
-  KjNode* isActiveP  = kjLookup(subP, LD_VOCAB_IS_ACTIVE);
-  bool    isActive   = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
+  CorNode* isActiveP = corTreeLookup(subP, LD_VOCAB_IS_ACTIVE);
+  bool    isActive   = (isActiveP == NULL || isActiveP->type != CorBoolean || isActiveP->value.b == true);
 
-  KjNode* statusP = kjString(corRest.kjsonP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
-  kjChildAdd(subP, statusP);
+  CorNode* statusP = corTreeString(corRest.kallocP, LD_VOCAB_STATUS, isActive ? "active" : "paused");
+  corTreeChildAdd(subP, statusP);
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
   // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
@@ -159,7 +160,7 @@ bool postCsourceSubscriptions(void)
   //   3. anything else (multi-URL or inline object) → fall back to the
   //      compound's own URL, otherwise the core context
   //
-  if (kjLookup(subP, "jsonldContext") == NULL)
+  if (corTreeLookup(subP, "jsonldContext") == NULL)
   {
     const char*  jcUrl   = NULL;
     CorLdContext* reqCtxP = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
@@ -167,18 +168,18 @@ bool postCsourceSubscriptions(void)
     if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
       jcUrl = reqCtxP->url;
     else if (corNgsild.userContextBody != NULL &&
-             corNgsild.userContextBody->type == KjArray &&
+             corNgsild.userContextBody->type == CorArray &&
              corNgsild.userContextBody->value.firstChildP != NULL &&
              corNgsild.userContextBody->value.firstChildP->next == NULL &&
-             corNgsild.userContextBody->value.firstChildP->type == KjString)
+             corNgsild.userContextBody->value.firstChildP->type == CorString)
       jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
     else if (reqCtxP != NULL && reqCtxP->url != NULL)
       jcUrl = reqCtxP->url;
 
     if (jcUrl != NULL)
     {
-      KjNode* jcP = kjString(corRest.kjsonP, "_jcResolved", jcUrl);
-      kjChildAdd(subP, jcP);
+      CorNode* jcP = corTreeString(corRest.kallocP, "_jcResolved", jcUrl);
+      corTreeChildAdd(subP, jcP);
     }
   }
 
@@ -186,7 +187,7 @@ bool postCsourceSubscriptions(void)
   // Internal marker: distinguishes CSR-subs from entity-subs in the
   // shared mongo collection. Stripped from GET responses.
   //
-  kjChildAdd(subP, kjString(corRest.kjsonP, "_subKind", "csr"));
+  corTreeChildAdd(subP, corTreeString(corRest.kallocP, "_subKind", "csr"));
 
   //
   // Persist (same collection as entity subs). If no DB plugin is
@@ -210,7 +211,7 @@ bool postCsourceSubscriptions(void)
       return true;
     }
 
-    // mongocKjTreeToBson renames "id" to "_id" in-place — restore it.
+    // mongocTreeToBson renames "id" to "_id" in-place — restore it.
     if (idP->name[0] == '_')
       idP->name = "id";
   }

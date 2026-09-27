@@ -11,8 +11,8 @@
 //
 
 #include "db/Tenant.h"                               // Tenant
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
-extern int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, KjNode* subP);
+extern int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, CorNode* subP);
 
 #endif  // MONGOC_MONGOCSUBSCRIPTIONCREATE_H_

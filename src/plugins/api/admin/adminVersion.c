@@ -13,17 +13,19 @@
 
 #include "kbase/version.h"                        // KBASE_VERSION
 #include "kalloc/version.h"                       // KALLOC_VERSION
+#include "kalloc/KAlloc.h"                        // KAlloc
 #include "ktrace/ktraceVersion.h"                  // KTRACE_VERSION
 #include "khash/version.h"                        // KHASH_VERSION
-#include "kjson/version.h"                        // KJSON_VERSION
+#include "corTree/version.h"                      // CORTREE_VERSION
+#include "corJson/version.h"                      // CORJSON_VERSION
 #include "kargs/kargsVersion.h"                   // KARGS_VERSION
-#include "kprom/version.h"                        // KPROM_VERSION
+#include "corProm/version.h"                      // CORPROM_VERSION
 #include "corRest/version.h"                       // CORREST_VERSION
 #include "corRest/CorRestState.h"                   // corRest
 #include "corJsonld/corJsonld.h"                    // CORJSONLD_VERSION
 #include "corNgsild/corNgsild.h"                    // CORNGSILD_VERSION
 
-#include "kjson/kjBuilder.h"                      // kjObject, kjString, kjInteger, kjChildAdd
+#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 
 #include "db/DbDriver.h"                         // db
 #include "plugin/ApiPlugin.h"                     // apiPlugins, apiPluginCount
@@ -48,20 +50,21 @@
 //
 bool adminGetVersion(void)
 {
-  Kjson*   kjsonP = corRest.kjsonP;
-  KjNode*  root   = kjObject(kjsonP, NULL);
+  KAlloc*  allocP = corRest.kallocP;
+  CorNode* root   = corTreeObject(allocP, NULL);
 
-  kjChildAdd(root, kjString(kjsonP, "coraine version", CORAINE_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "kbase",            KBASE_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "kalloc",           KALLOC_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "ktrace",           KTRACE_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "khash",            KHASH_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "kjson",            KJSON_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "kargs",            KARGS_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "kprom",            KPROM_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "corRest",           CORREST_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "corJsonld",         CORJSONLD_VERSION));
-  kjChildAdd(root, kjString(kjsonP, "corNgsild",         CORNGSILD_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "coraine version", CORAINE_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "kbase",            KBASE_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "kalloc",           KALLOC_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "ktrace",           KTRACE_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "khash",            KHASH_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corTree",          CORTREE_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corJson",          CORJSON_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "kargs",            KARGS_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corProm",          CORPROM_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corRest",           CORREST_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corJsonld",         CORJSONLD_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corNgsild",         CORNGSILD_VERSION));
 
   //
   // DB plugin version info
@@ -84,7 +87,7 @@ bool adminGetVersion(void)
   int fd = open("/etc/passwd", O_RDONLY);
   if (fd >= 0)
   {
-    kjChildAdd(root, kjInteger(kjsonP, "Next File Descriptor", fd));
+    corTreeChildAdd(root, corTreeInteger(allocP, "Next File Descriptor", fd));
     close(fd);
   }
 

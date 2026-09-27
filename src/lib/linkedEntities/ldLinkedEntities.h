@@ -20,7 +20,7 @@
 //                yet implemented.)
 //
 #include <stdbool.h>                                  // bool
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -37,11 +37,11 @@
 //              follow the targets' Relationships, etc.
 // tenantP    : tenant for db.entityRetrieve calls.
 //
-// Returns a KjArray allocated in corRest.kjsonP. Entities the broker
+// Returns a CorArray allocated in corRest.kallocP. Entities the broker
 // does not hold locally are skipped (per § 4.5.23 "limited to avoid
 // cascades"). distOps integration is a follow-up slice.
 //
-extern KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* tenantP);
+extern CorNode* ldLinkedEntitiesFlat(CorNode* primaryP, int joinLevel, Tenant* tenantP);
 
 
 
@@ -59,7 +59,7 @@ extern KjNode* ldLinkedEntitiesFlat(KjNode* primaryP, int joinLevel, Tenant* ten
 // the walker pre-converts every inlined target to API format itself —
 // the primary is left in storage so the renderHook converts it once.
 //
-extern KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* tenantP);
+extern CorNode* ldLinkedEntitiesInline(CorNode* primaryP, int joinLevel, Tenant* tenantP);
 
 
 
@@ -67,12 +67,12 @@ extern KjNode* ldLinkedEntitiesInline(KjNode* primaryP, int joinLevel, Tenant* t
 //
 // ldLinkedEntitiesExpandArrayFlat - flat-expand every primary in arrayP
 //
-// In-place: appends fetched targets to the same KjArray. The visited-
+// In-place: appends fetched targets to the same CorArray. The visited-
 // set spans all primaries + all newly-fetched targets so a target
 // shared by two primaries lands in the array exactly once (per spec
 // § 4.5.23.3 — both linking and linked are joined into one array).
 //
-extern void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenant* tenantP);
+extern void ldLinkedEntitiesExpandArrayFlat(CorNode* arrayP, int joinLevel, Tenant* tenantP);
 
 
 
@@ -84,7 +84,7 @@ extern void ldLinkedEntitiesExpandArrayFlat(KjNode* arrayP, int joinLevel, Tenan
 // primaries is correctly inlined under both. The array length stays
 // equal to the result count.
 //
-extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Tenant* tenantP);
+extern void ldLinkedEntitiesExpandArrayInline(CorNode* arrayP, int joinLevel, Tenant* tenantP);
 
 
 
@@ -108,7 +108,7 @@ extern void ldLinkedEntitiesExpandArrayInline(KjNode* arrayP, int joinLevel, Ten
 // Returns 0 on success and *entityPP set to a storage-format tree
 // allocated in the request arena. Non-zero on miss.
 //
-extern int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, KjNode** entityPP, Tenant* tenantP);
+extern int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnly, CorNode** entityPP, Tenant* tenantP);
 
 
 
@@ -127,6 +127,6 @@ extern int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRe
 // inline → each Relationship instance gets an "entity" sub-attribute
 //          carrying the target tree (also API-converted).
 //
-extern void ldLinkedEntitiesNotifApiArray(KjNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP);
+extern void ldLinkedEntitiesNotifApiArray(CorNode* arrayP, const char* mode, int joinLevel, bool sysAttrs, Tenant* tenantP);
 
 #endif  // LE_LDLINKEDENTITIES_H_

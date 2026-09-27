@@ -9,10 +9,10 @@
 
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjString, kjChildAdd
-#include "kjson/kjNodeDecouple.h"                     // kjNodeDecouple
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeString, corTreeChildAdd
+#include "corTree/corTreeNodeDecouple.h"              // corTreeNodeDecouple
 
 #include "corRest/CorRestState.h"                       // corRest
 
@@ -24,22 +24,22 @@
 //
 // mongocStripTypeDecouple -
 //
-void mongocStripTypeDecouple(KjNode* treeP, KjNode** typePOut, KjNode** typePrevOut)
+void mongocStripTypeDecouple(CorNode* treeP, CorNode** typePOut, CorNode** typePrevOut)
 {
   *typePOut    = NULL;
   *typePrevOut = NULL;
 
-  if (treeP == NULL || treeP->type != KjObject)
+  if (treeP == NULL || treeP->type != CorObject)
     return;
 
-  KjNode* prev = NULL;
-  for (KjNode* c = treeP->value.firstChildP; c != NULL; c = c->next)
+  CorNode* prev = NULL;
+  for (CorNode* c = treeP->value.firstChildP; c != NULL; c = c->next)
   {
     if (c->name != NULL && strcmp(c->name, "type") == 0)
     {
       *typePOut    = c;
       *typePrevOut = prev;
-      kjNodeDecouple(treeP, c, prev);
+      corTreeNodeDecouple(treeP, c, prev);
       return;
     }
     prev = c;
@@ -52,7 +52,7 @@ void mongocStripTypeDecouple(KjNode* treeP, KjNode** typePOut, KjNode** typePrev
 //
 // mongocStripTypeRestore -
 //
-void mongocStripTypeRestore(KjNode* treeP, KjNode* typeP, KjNode* typePrevP)
+void mongocStripTypeRestore(CorNode* treeP, CorNode* typeP, CorNode* typePrevP)
 {
   if (typeP == NULL || treeP == NULL) return;
 
@@ -76,13 +76,13 @@ void mongocStripTypeRestore(KjNode* treeP, KjNode* typeP, KjNode* typePrevP)
 //
 // mongocInjectTypeAfterId -
 //
-void mongocInjectTypeAfterId(KjNode* objP, const char* typeValue)
+void mongocInjectTypeAfterId(CorNode* objP, const char* typeValue)
 {
-  if (objP == NULL || objP->type != KjObject) return;
-  if (kjLookup(objP, "type") != NULL)         return;
+  if (objP == NULL || objP->type != CorObject) return;
+  if (corTreeLookup(objP, "type") != NULL)    return;
 
-  KjNode* typeNode = kjString(corRest.kjsonP, "type", (char*) typeValue);
-  KjNode* idP      = kjLookup(objP, "id");
+  CorNode* typeNode = corTreeString(corRest.kallocP, "type", (char*) typeValue);
+  CorNode* idP     = corTreeLookup(objP, "id");
 
   if (idP != NULL)
   {
@@ -92,6 +92,6 @@ void mongocInjectTypeAfterId(KjNode* objP, const char* typeValue)
   }
   else
   {
-    kjChildAdd(objP, typeNode);
+    corTreeChildAdd(objP, typeNode);
   }
 }

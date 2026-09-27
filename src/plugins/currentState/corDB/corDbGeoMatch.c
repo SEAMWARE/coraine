@@ -13,4 +13,4 @@
 
 void corDbGeoInit(void)                                              { geoMatchInit(); }
 void corDbGeoClose(void)                                             { geoMatchClose(); }
-bool corDbGeoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP) { return geoMatch(entityP, filterP, distanceP); }
+bool corDbGeoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP) { return geoMatch(entityP, filterP, distanceP); }

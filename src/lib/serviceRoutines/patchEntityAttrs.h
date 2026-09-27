@@ -16,7 +16,7 @@
 #include <stdbool.h>                              // bool
 #include <stdint.h>                               // uint64_t
 
-#include "kjson/KjNode.h"                         // KjNode
+#include "corTree/CorNode.h"                      // CorNode
 
 extern bool patchEntityAttrs(void);
 
@@ -35,6 +35,6 @@ extern bool patchEntityAttrs(void);
 // fragment must be what the route gets: EXPANDED, by corLdExpandTree - the
 // nodes carry the classification bits the NGSI-LD layer reads.
 //
-extern bool patchEntityAttrsOn(const char* entityId, KjNode* fragment, char** goalIdP);
+extern bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP);
 
 #endif  // CORAINE_PATCH_ENTITY_ATTRS_H_

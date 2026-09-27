@@ -24,8 +24,8 @@ SET(SOURCES
   mongocTenantSetup.c
   mongocHaWatch.c
   mongocVersion.c
-  mongocKjTreeToBson.c
-  mongocBsonToKjTree.c
+  mongocTreeToBson.c
+  mongocBsonToTree.c
   mongocDotEscape.c
   mongocTenantDrop.c
   mongocInjectType.c

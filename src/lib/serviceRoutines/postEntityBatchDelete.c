@@ -37,12 +37,12 @@
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjParse.h"                           // kjParse
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonParse.h"                    // corJsonParse
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdOp.h"                           // LdOpBatchDelete
@@ -72,24 +72,24 @@
 //
 // addBatchError -
 //
-static void addBatchError(KjNode* errorsP, const char* entityId, int statusCode,
+static void addBatchError(CorNode* errorsP, const char* entityId, int statusCode,
                           const char* errType, const char* title,
                           const char* detail, const char* regId)
 {
-  KjNode* err = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(err, kjString(corRest.kjsonP, "entityId", (char*) entityId));
+  CorNode* err = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(err, corTreeString(corRest.kallocP, "entityId", (char*) entityId));
 
-  KjNode* pd = kjObject(corRest.kjsonP, "error");
-  kjChildAdd(pd, kjString (corRest.kjsonP, "type",   (char*) errType));
-  kjChildAdd(pd, kjString (corRest.kjsonP, "title",  (char*) title));
-  kjChildAdd(pd, kjInteger(corRest.kjsonP, "status", statusCode));
-  kjChildAdd(pd, kjString (corRest.kjsonP, "detail", (char*) detail));
-  kjChildAdd(err, pd);
+  CorNode* pd = corTreeObject(corRest.kallocP, "error");
+  corTreeChildAdd(pd, corTreeString (corRest.kallocP, "type", (char*) errType));
+  corTreeChildAdd(pd, corTreeString (corRest.kallocP, "title", (char*) title));
+  corTreeChildAdd(pd, corTreeInteger(corRest.kallocP, "status", statusCode));
+  corTreeChildAdd(pd, corTreeString (corRest.kallocP, "detail", (char*) detail));
+  corTreeChildAdd(err, pd);
 
   if (regId != NULL)
-    kjChildAdd(err, kjString(corRest.kjsonP, "registrationId", (char*) regId));
+    corTreeChildAdd(err, corTreeString(corRest.kallocP, "registrationId", (char*) regId));
 
-  kjChildAdd(errorsP, err);
+  corTreeChildAdd(errorsP, err);
 }
 
 
@@ -176,9 +176,9 @@ static void matchCsrForMode(Tenant* tenantP, const char* entityId, LdRegMode mod
 
 
 
-static void applyRemoteBatchResult(int status, KjNode* respTreeP,
+static void applyRemoteBatchResult(int status, CorNode* respTreeP,
                                     const char* csrRegId,
-                                    KjNode* errorsP,
+                                    CorNode* errorsP,
                                     bool* anyOkV,
                                     const char** idV, int N)
 {
@@ -201,41 +201,41 @@ static void applyRemoteBatchResult(int status, KjNode* respTreeP,
     return;
   }
 
-  KjNode* remoteSuccess = kjLookup(respTreeP, "success");
-  KjNode* remoteErrors  = kjLookup(respTreeP, "errors");
+  CorNode* remoteSuccess = corTreeLookup(respTreeP, "success");
+  CorNode* remoteErrors = corTreeLookup(respTreeP, "errors");
 
-  if (remoteSuccess != NULL && remoteSuccess->type == KjArray)
+  if (remoteSuccess != NULL && remoteSuccess->type == CorArray)
   {
-    for (KjNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
+    for (CorNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
     {
-      if (sP->type != KjString) continue;
+      if (sP->type != CorString) continue;
       for (int i = 0; i < N; i++)
         if (strcmp(idV[i], sP->value.s) == 0) { anyOkV[i] = true; break; }
     }
   }
 
-  if (remoteErrors != NULL && remoteErrors->type == KjArray)
+  if (remoteErrors != NULL && remoteErrors->type == CorArray)
   {
-    for (KjNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
     {
-      KjNode* idP     = kjLookup(eP, "entityId");
-      KjNode* errP    = kjLookup(eP, "error");
-      const char* eid = (idP != NULL && idP->type == KjString) ? idP->value.s : "";
+      CorNode* idP    = corTreeLookup(eP, "entityId");
+      CorNode* errP   = corTreeLookup(eP, "error");
+      const char* eid = (idP != NULL && idP->type == CorString) ? idP->value.s : "";
 
       const char* type   = LD_ERROR_INTERNAL_ERROR;
       const char* title  = "Bad Gateway";
       const char* detail = "forward error";
       int         status = 502;
-      if (errP != NULL && errP->type == KjObject)
+      if (errP != NULL && errP->type == CorObject)
       {
-        KjNode* tP = kjLookup(errP, "type");
-        KjNode* hP = kjLookup(errP, "title");
-        KjNode* dP = kjLookup(errP, "detail");
-        KjNode* sP = kjLookup(errP, "status");
-        if (tP != NULL && tP->type == KjString)  type   = tP->value.s;
-        if (hP != NULL && hP->type == KjString)  title  = hP->value.s;
-        if (dP != NULL && dP->type == KjString)  detail = dP->value.s;
-        if (sP != NULL && sP->type == KjInt)     status = sP->value.i;
+        CorNode* tP = corTreeLookup(errP, "type");
+        CorNode* hP = corTreeLookup(errP, "title");
+        CorNode* dP = corTreeLookup(errP, "detail");
+        CorNode* sP = corTreeLookup(errP, "status");
+        if (tP != NULL && tP->type == CorString) type   = tP->value.s;
+        if (hP != NULL && hP->type == CorString) title  = hP->value.s;
+        if (dP != NULL && dP->type == CorString) detail = dP->value.s;
+        if (sP != NULL && sP->type == CorInt)    status = sP->value.i;
       }
       addBatchError(errorsP, eid, status, type, title, detail, csrRegId);
     }
@@ -250,9 +250,9 @@ static void applyRemoteBatchResult(int status, KjNode* respTreeP,
 //
 bool postEntityBatchDelete(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
-  if (bodyP->type != KjArray)
+  if (bodyP->type != CorArray)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "Batch Entity Delete body must be a JSON array");
@@ -260,9 +260,9 @@ bool postEntityBatchDelete(void)
   }
 
   int total = 0;
-  for (KjNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
   {
-    if (c->type == KjNull)
+    if (c->type == CorNull)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
               "Batch Entity Delete: null entry at position %d", total);
@@ -278,8 +278,8 @@ bool postEntityBatchDelete(void)
     return true;
   }
 
-  KjNode* successP = kjArray(corRest.kjsonP, "success");
-  KjNode* errorsP  = kjArray(corRest.kjsonP, "errors");
+  CorNode* successP = corTreeArray(corRest.kallocP, "success");
+  CorNode* errorsP = corTreeArray(corRest.kallocP, "errors");
 
   //
   // Pass 1 — validate each entry is a URI string, collect ids.
@@ -287,9 +287,9 @@ bool postEntityBatchDelete(void)
   const char** idV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * total);
   int          n   = 0;
 
-  for (KjNode* inP = bodyP->value.firstChildP; inP != NULL; inP = inP->next)
+  for (CorNode* inP = bodyP->value.firstChildP; inP != NULL; inP = inP->next)
   {
-    if (inP->type != KjString)
+    if (inP->type != CorString)
     {
       addBatchError(errorsP, "", 400,
                     LD_ERROR_BAD_REQUEST_DATA, "Invalid Array Entry",
@@ -318,9 +318,9 @@ bool postEntityBatchDelete(void)
 
   if (n == 0)
   {
-    KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
+    CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(respBodyP, successP);
+    corTreeChildAdd(respBodyP, errorsP);
     corRest.out.responseTree   = respBodyP;
     corRest.out.httpStatusCode = 400;
     corNgsild.rawResponse      = true;
@@ -404,12 +404,12 @@ bool postEntityBatchDelete(void)
       strcpy(url, csr->endpoint);
       strcpy(url + baseLen, batchPath);
 
-      KjNode* arr = kjArray(corRest.kjsonP, NULL);
+      CorNode* arr = corTreeArray(corRest.kallocP, NULL);
       for (int i = 0; i < a->count; i++)
-        kjChildAdd(arr, kjString(corRest.kjsonP, NULL, (char*) a->idV[i]));
-      int   bufSize = kjFastRenderSize(arr) + 1;
+        corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, (char*) a->idV[i]));
+      int   bufSize = corJsonFastRenderSize(arr) + 1;
       char* body    = (char*) kaAlloc(&corRest.kalloc, bufSize);
-      kjFastRender(arr, body);
+      corJsonFastRender(arr, body);
 
       bItems[bCount].csr     = csr;
       bItems[bCount].url     = url;
@@ -427,10 +427,10 @@ bool postEntityBatchDelete(void)
       {
         CsrAccum* a = &csrAccums[bIdx[bi]];
 
-        KjNode* respTreeP = NULL;
+        CorNode* respTreeP = NULL;
         if (bResults[bi].responseBody != NULL && bResults[bi].responseBodyLen > 0)
         {
-          KjNode* treeP = bResults[bi].responseTree;
+          CorNode* treeP = bResults[bi].responseTree;
           if (treeP != NULL)
           {
             ldStripAtContext(treeP);
@@ -471,7 +471,7 @@ bool postEntityBatchDelete(void)
   }
 
   int*     resultsV   = (int*)     kaAlloc(&corRest.kalloc, sizeof(int)     * n);
-  KjNode** snapshotsV = (KjNode**) kaAlloc(&corRest.kalloc, sizeof(KjNode*) * n);
+  CorNode** snapshotsV = (CorNode**) kaAlloc(&corRest.kalloc, sizeof(CorNode*) * n);
   for (int i = 0; i < n; i++)
   {
     resultsV[i]   = DB_NOT_FOUND;
@@ -501,8 +501,8 @@ bool postEntityBatchDelete(void)
           const char* etype = NULL;
           if (snapshotsV[i] != NULL)
           {
-            KjNode* tn = kjLookup(snapshotsV[i], "type");
-            if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+            CorNode* tn = corTreeLookup(snapshotsV[i], "type");
+            if (tn != NULL && tn->type == CorString) etype = tn->value.s;
           }
           TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(tevP, 0, sizeof(*tevP));
@@ -538,12 +538,12 @@ bool postEntityBatchDelete(void)
   for (int i = 0; i < n; i++)
   {
     if (!anySuccessV[i]) continue;
-    kjChildAdd(successP, kjString(corRest.kjsonP, NULL, (char*) idV[i]));
+    corTreeChildAdd(successP, corTreeString(corRest.kallocP, NULL, (char*) idV[i]));
     successCount++;
   }
 
   int errorCount = 0;
-  for (KjNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
+  for (CorNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
 
   if (errorCount == 0)
   {
@@ -563,9 +563,9 @@ bool postEntityBatchDelete(void)
   }
   else
   {
-    KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-    kjChildAdd(respBodyP, successP);
-    kjChildAdd(respBodyP, errorsP);
+    CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+    corTreeChildAdd(respBodyP, successP);
+    corTreeChildAdd(respBodyP, errorsP);
     corRest.out.responseTree   = respBodyP;
     corRest.out.httpStatusCode = 207;
     corNgsild.rawResponse      = true;

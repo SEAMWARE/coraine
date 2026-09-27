@@ -19,9 +19,9 @@
 #include <string.h>                                     // strcmp
 
 #include "ktrace/kTrace.h"                              // KT_E
-#include "kjson/KjNode.h"                               // KjNode
-#include "kjson/kjBuilder.h"                            // kjArray, kjObject, kjString, kjInteger, kjChildAdd
-#include "kjson/kjLookup.h"                             // kjLookup
+#include "corTree/CorNode.h"                            // CorNode
+#include "corTree/corTreeBuilder.h"                     // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                      // corTreeLookup
 #include "corRest/CorRestState.h"                         // corRest
 
 #include "corNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
@@ -31,7 +31,7 @@
 
 #include "db/DbDriver.h"                                // DB_OK, DB_ERR
 #include "db/Tenant.h"                                  // Tenant
-#include "currentState/mongoc/mongocBsonToKjTree.h"     // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"       // mongocBsonToTree
 #include "currentState/mongoc/mongocTypeList.h"         // Own interface
 
 
@@ -44,63 +44,63 @@ extern mongoc_client_pool_t* poolP;
 //
 // typeEntryLookup -
 //
-static KjNode* typeEntryLookup(KjNode* result, const char* typeIri, bool details)
+static CorNode* typeEntryLookup(CorNode* result, const char* typeIri, bool details)
 {
-  for (KjNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
   {
-    KjNode* iriP = kjLookup(entry, "typeIri");
-    if (iriP != NULL && iriP->type == KjString && strcmp(iriP->value.s, typeIri) == 0)
+    CorNode* iriP = corTreeLookup(entry, "typeIri");
+    if (iriP != NULL && iriP->type == CorString && strcmp(iriP->value.s, typeIri) == 0)
       return entry;
   }
 
-  KjNode* entry = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(entry, kjString(corRest.kjsonP, "typeIri", typeIri));
-  kjChildAdd(entry, kjArray(corRest.kjsonP, "attrs"));
+  CorNode* entry = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(entry, corTreeString(corRest.kallocP, "typeIri", typeIri));
+  corTreeChildAdd(entry, corTreeArray(corRest.kallocP, "attrs"));
   if (details)
   {
-    kjChildAdd(entry, kjObject(corRest.kjsonP,  "attrTypes"));
-    kjChildAdd(entry, kjInteger(corRest.kjsonP, "entityCount", 0));
+    corTreeChildAdd(entry, corTreeObject(corRest.kallocP, "attrTypes"));
+    corTreeChildAdd(entry, corTreeInteger(corRest.kallocP, "entityCount", 0));
   }
 
-  kjChildAdd(result, entry);
+  corTreeChildAdd(result, entry);
   return entry;
 }
 
 
 
-static void stringArrayAddUnique(KjNode* arr, const char* s)
+static void stringArrayAddUnique(CorNode* arr, const char* s)
 {
-  for (KjNode* p = arr->value.firstChildP; p != NULL; p = p->next)
-    if (p->type == KjString && strcmp(p->value.s, s) == 0)
+  for (CorNode* p = arr->value.firstChildP; p != NULL; p = p->next)
+    if (p->type == CorString && strcmp(p->value.s, s) == 0)
       return;
-  kjChildAdd(arr, kjString(corRest.kjsonP, NULL, s));
+  corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, s));
 }
 
 
 
-static KjNode* firstInstance(KjNode* attrP)
+static CorNode* firstInstance(CorNode* attrP)
 {
-  if (attrP == NULL || attrP->type != KjObject)
+  if (attrP == NULL || attrP->type != CorObject)
     return NULL;
-  for (KjNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
-    if (instP->type == KjObject)
+  for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+    if (instP->type == CorObject)
       return instP;
   return NULL;
 }
 
 
 
-static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrapper, bool details)
+static void recordAttr(CorNode* typeEntry, const char* attrName, CorNode* attrWrapper, bool details)
 {
-  KjNode* attrs = kjLookup(typeEntry, "attrs");
+  CorNode* attrs = corTreeLookup(typeEntry, "attrs");
   stringArrayAddUnique(attrs, attrName);
 
   if (!details)
     return;
 
-  KjNode* attrTypesObj = kjLookup(typeEntry, "attrTypes");
+  CorNode* attrTypesObj = corTreeLookup(typeEntry, "attrTypes");
 
-  KjNode* instP = firstInstance(attrWrapper);
+  CorNode* instP = firstInstance(attrWrapper);
   LdAttrType at = ldAttrTypeDetect(instP);
   if (at == LdAttrNone)
     return;
@@ -109,11 +109,11 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
   if (atStr == NULL)
     return;
 
-  KjNode* attrTypeArr = kjLookup(attrTypesObj, attrName);
+  CorNode* attrTypeArr = corTreeLookup(attrTypesObj, attrName);
   if (attrTypeArr == NULL)
   {
-    attrTypeArr = kjArray(corRest.kjsonP, attrName);
-    kjChildAdd(attrTypesObj, attrTypeArr);
+    attrTypeArr = corTreeArray(corRest.kallocP, attrName);
+    corTreeChildAdd(attrTypesObj, attrTypeArr);
   }
   stringArrayAddUnique(attrTypeArr, atStr);
 }
@@ -124,7 +124,7 @@ static void recordAttr(KjNode* typeEntry, const char* attrName, KjNode* attrWrap
 //
 // mongocTypeList -
 //
-int mongocTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
+int mongocTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
 {
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
@@ -133,38 +133,38 @@ int mongocTypeList(Tenant* tenantP, bool details, KjNode** arrayPP)
   bson_init(&filter);
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
 
-  KjNode* result = kjArray(corRest.kjsonP, NULL);
+  CorNode* result = corTreeArray(corRest.kallocP, NULL);
   *arrayPP = result;
 
   const bson_t* doc;
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* eP = mongocBsonToKjTree(&corRest.kalloc, doc);
+    CorNode* eP = mongocBsonToTree(&corRest.kalloc, doc);
     if (eP == NULL) continue;
 
-    KjNode* typeP = kjLookup(eP, "type");
+    CorNode* typeP = corTreeLookup(eP, "type");
     if (typeP == NULL) continue;
 
     const char* typeV[16];
     int typeN = 0;
-    if (typeP->type == KjString)
+    if (typeP->type == CorString)
       typeV[typeN++] = typeP->value.s;
-    else if (typeP->type == KjArray)
-      for (KjNode* tN = typeP->value.firstChildP; tN != NULL && typeN < 16; tN = tN->next)
-        if (tN->type == KjString)
+    else if (typeP->type == CorArray)
+      for (CorNode* tN = typeP->value.firstChildP; tN != NULL && typeN < 16; tN = tN->next)
+        if (tN->type == CorString)
           typeV[typeN++] = tN->value.s;
 
     for (int t = 0; t < typeN; t++)
     {
-      KjNode* entry = typeEntryLookup(result, typeV[t], details);
+      CorNode* entry = typeEntryLookup(result, typeV[t], details);
 
       if (details)
       {
-        KjNode* countP = kjLookup(entry, "entityCount");
+        CorNode* countP = corTreeLookup(entry, "entityCount");
         if (countP != NULL) countP->value.i++;
       }
 
-      for (KjNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+      for (CorNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
       {
         if (ldIsEntityKeyword(attrP->name)) continue;
         recordAttr(entry, attrP->name, attrP, details);

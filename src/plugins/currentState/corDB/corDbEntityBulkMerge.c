@@ -20,11 +20,11 @@
 #include <stddef.h>                                       // NULL
 #include <string.h>                                       // strcmp
 
-#include "kjson/KjNode.h"                                 // KjNode
-#include "kjson/kjClone.h"                                // kjClone
-#include "kjson/kjLookup.h"                               // kjLookup
+#include "corTree/CorNode.h"                              // CorNode
+#include "corTree/corTreeClone.h"                         // corTreeClone
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
 
-#include "corRest/CorRestState.h"                           // corRest (kjsonP for arena clones)
+#include "corRest/CorRestState.h"                           // corRest (kallocP for arena clones)
 
 #include "corNgsild/ldEntityMerge.h"                       // LdMergeReport
 
@@ -37,12 +37,12 @@
 
 // -----------------------------------------------------------------------------
 //
-// fragmentAt - the ix-th child of a KjArray
+// fragmentAt - the ix-th child of a CorArray
 //
-static KjNode* fragmentAt(KjNode* arrP, int ix)
+static CorNode* fragmentAt(CorNode* arrP, int ix)
 {
   int i = 0;
-  for (KjNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
+  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
     if (i == ix) return c;
   return NULL;
 }
@@ -53,12 +53,12 @@ static KjNode* fragmentAt(KjNode* arrP, int ix)
 //
 // liveById - locate the live stored entity with the given id
 //
-static KjNode* liveById(KjNode* entities, const char* id)
+static CorNode* liveById(CorNode* entities, const char* id)
 {
-  for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
   {
-    KjNode* idP = kjLookup(eP, "id");
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, id) == 0)
+    CorNode* idP = corTreeLookup(eP, "id");
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, id) == 0)
       return eP;
   }
   return NULL;
@@ -74,38 +74,38 @@ static KjNode* liveById(KjNode* entities, const char* id)
 // Each slot gets a request-arena clone of the live entity, or stays NULL when
 // no such entity exists. Same-id fragments share one clone.
 //
-int corDbEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** targetsV)
+int corDbEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** targetsV)
 {
   COR_DB_READ(tenantP);
 
-  if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
+  if (fragmentsArr == NULL || fragmentsArr->type != CorArray)
     return DB_ERR;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
 
   int k = 0;
-  for (KjNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
+  for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
   {
     if (targetsV[k] != NULL)
       continue;
 
-    KjNode* idP = kjLookup(fragP, "id");
-    if (idP == NULL || idP->type != KjString)
+    CorNode* idP = corTreeLookup(fragP, "id");
+    if (idP == NULL || idP->type != CorString)
       continue;
 
-    KjNode* live = liveById(entities, idP->value.s);
+    CorNode* live = liveById(entities, idP->value.s);
     if (live == NULL)
       continue;  // slot stays NULL -> DB_NOT_FOUND in the broker
 
-    KjNode* shared = kjClone(corRest.kjsonP, live);
+    CorNode* shared = corTreeClone(corRest.kallocP, live);
 
     int j = 0;
-    for (KjNode* f2 = fragmentsArr->value.firstChildP; f2 != NULL; f2 = f2->next, j++)
+    for (CorNode* f2 = fragmentsArr->value.firstChildP; f2 != NULL; f2 = f2->next, j++)
     {
       if (targetsV[j] != NULL)
         continue;
-      KjNode* id2 = kjLookup(f2, "id");
-      if (id2 != NULL && id2->type == KjString && strcmp(id2->value.s, idP->value.s) == 0)
+      CorNode* id2 = corTreeLookup(f2, "id");
+      if (id2 != NULL && id2->type == CorString && strcmp(id2->value.s, idP->value.s) == 0)
         targetsV[j] = shared;
     }
   }
@@ -120,19 +120,19 @@ int corDbEntityBulkRetrieve(Tenant* tenantP, KjNode* fragmentsArr, KjNode** targ
 // corDbEntityBulkChangesApply - Batch Merge Phase 2: apply each fragment's
 // change report to its live stored entity.
 //
-int corDbEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
-                                KjNode** mergedTargetsV, LdMergeReport* reportsV,
+int corDbEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
+                                CorNode** mergedTargetsV, LdMergeReport* reportsV,
                                 int* resultsV)
 {
   COR_DB_WRITE(tenantP);
 
-  if (fragmentsArr == NULL || fragmentsArr->type != KjArray)
+  if (fragmentsArr == NULL || fragmentsArr->type != CorArray)
     return DB_ERR;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
 
   int  n     = 0;
-  for (KjNode* c = fragmentsArr->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = fragmentsArr->value.firstChildP; c != NULL; c = c->next) n++;
 
   bool anyOk = false;
 
@@ -141,12 +141,12 @@ int corDbEntityBulkChangesApply(Tenant* tenantP, KjNode* fragmentsArr,
     if (resultsV[i] != DB_OK || mergedTargetsV[i] == NULL)
       continue;
 
-    KjNode* fragP = fragmentAt(fragmentsArr, i);
-    KjNode* idP   = (fragP != NULL) ? kjLookup(fragP, "id") : NULL;
-    if (idP == NULL || idP->type != KjString)
+    CorNode* fragP = fragmentAt(fragmentsArr, i);
+    CorNode* idP  = (fragP != NULL) ? corTreeLookup(fragP, "id") : NULL;
+    if (idP == NULL || idP->type != CorString)
       continue;
 
-    KjNode* live = liveById(entities, idP->value.s);
+    CorNode* live = liveById(entities, idP->value.s);
     if (live != NULL)
     {
       corDbApplyReportToLive(live, mergedTargetsV[i], &reportsV[i]);

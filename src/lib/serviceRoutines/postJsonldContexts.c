@@ -25,10 +25,11 @@
 #include "corRest/corRestOutHeader.h"                   // corRestOutHeaderAdd
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 #include "kalloc/kaStrdup.h"                          // kaStrdup
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjRenderSize.h"                       // kjFastRenderSize
-#include "kjson/kjRender.h"                           // kjFastRender
+#include "kalloc/KAlloc.h"                              // KAlloc
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
+#include "corJson/corJsonRender.h"                    // corJsonFastRender
 #include "corJsonld/CorLdContext.h"                     // CorLdContext, CorLdContextKind
 #include "corJsonld/CorLdContextCache.h"                // CorLdContextCache
 #include "corJsonld/corLdCache.h"                       // corLdCacheLookup, corLdCacheInsert
@@ -57,12 +58,12 @@ extern CorLdContextCache* corLdCacheGet(void);
 //
 bool postJsonldContexts(void)
 {
-  KjNode* bodyP = corRest.in.requestTree;
+  CorNode* bodyP = corRest.in.requestTree;
 
   //
   // Content-Type / payload checks
   //
-  if (bodyP->type != KjObject)
+  if (bodyP->type != CorObject)
   {
     // § 5.13.2.4: structurally-wrong @context POST body → InvalidRequest.
     ldError(400, LD_ERROR_INVALID_REQUEST, "Invalid Request", "payload must be a JSON object");
@@ -72,8 +73,8 @@ bool postJsonldContexts(void)
   //
   // Dispatch on body shape: @context ⇒ Hosted, url ⇒ Cached.
   //
-  KjNode* atContextP = kjLookup(bodyP, "@context");
-  KjNode* urlP       = kjLookup(bodyP, "url");
+  CorNode* atContextP = corTreeLookup(bodyP, "@context");
+  CorNode* urlP      = corTreeLookup(bodyP, "url");
 
   CorLdContextCache* cacheP   = corLdCacheGet();
   KAlloc*           storeP   = cacheP->kaP;
@@ -85,7 +86,7 @@ bool postJsonldContexts(void)
     // HOSTED — body is a full JSON-LD Context document. Store it verbatim
     // and parse the inner @context into the name/value hash tables.
     //
-    if (atContextP->type != KjObject && atContextP->type != KjArray)
+    if (atContextP->type != CorObject && atContextP->type != CorArray)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Context",
               "'@context' must be a JSON object or array");
@@ -94,7 +95,7 @@ bool postJsonldContexts(void)
 
     CorLdContext* contextP = NULL;
 
-    if (atContextP->type == KjObject)
+    if (atContextP->type == CorObject)
       contextP = corLdContextFromObject(atContextP, storeP, NULL);
     else
       //
@@ -123,11 +124,11 @@ bool postJsonldContexts(void)
     // Inline-object elements stay Implicit (they have no URL — they
     // can't be Cached per definition).
     //
-    if (atContextP->type == KjArray)
+    if (atContextP->type == CorArray)
     {
-      for (KjNode* el = atContextP->value.firstChildP; el != NULL; el = el->next)
+      for (CorNode* el = atContextP->value.firstChildP; el != NULL; el = el->next)
       {
-        if (el->type != KjString) continue;
+        if (el->type != CorString) continue;
         CorLdContext* refP = corLdCacheLookup(el->value.s);
         if (refP != NULL && refP->kind == CorLdKindImplicit && refP->url != NULL)
         {
@@ -150,11 +151,11 @@ bool postJsonldContexts(void)
     contextP->id   = id;
     contextP->kind = CorLdKindHosted;
 
-    int   bodyLen = kjFastRenderSize(bodyP) + 1;
+    int   bodyLen = corJsonFastRenderSize(bodyP) + 1;
     char* bodyBuf = (char*) kaAlloc(storeP, bodyLen);
     if (bodyBuf != NULL)
     {
-      kjFastRender(bodyP, bodyBuf);
+      corJsonFastRender(bodyP, bodyBuf);
       contextP->body = bodyBuf;
     }
 
@@ -173,7 +174,7 @@ bool postJsonldContexts(void)
     //
     // CACHED — broker downloads the URL and caches.
     //
-    if (urlP->type != KjString || urlP->value.s[0] == '\0')
+    if (urlP->type != CorString || urlP->value.s[0] == '\0')
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'url' must be a non-empty string");

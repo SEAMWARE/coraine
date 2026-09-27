@@ -36,7 +36,7 @@
 #include <stdint.h>                                   // int64_t, uint64_t
 
 #include "db/Tenant.h"                                // Tenant
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "bridge/Channel.h"                           // Channel
 
 
@@ -250,8 +250,8 @@ extern const char* bridgeGoalStateName(int state);
 // Only while a goal is in progress, as phase 1: an ended goal is gone - its end
 // is in TRoE and in the notifications. bridgeGoalRender: NULL when not found.
 //
-extern KjNode* bridgeGoalsRender(Channel* channelP);
-extern KjNode* bridgeGoalRender(Channel* channelP, const char* goalId);
+extern CorNode* bridgeGoalsRender(Channel* channelP);
+extern CorNode* bridgeGoalRender(Channel* channelP, const char* goalId);
 
 
 

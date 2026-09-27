@@ -8,9 +8,9 @@
 //
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
@@ -23,19 +23,19 @@
 //
 // corDbRegistrationRetrieve -
 //
-int corDbRegistrationRetrieve(Tenant* tenantP, const char* regId, KjNode** regPP)
+int corDbRegistrationRetrieve(Tenant* tenantP, const char* regId, CorNode** regPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* registrations = corDbRegistrations(tenantP);
+  CorNode* registrations = corDbRegistrations(tenantP);
 
-  for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
   {
-    KjNode* idP = kjLookup(rP, "id");
+    CorNode* idP = corTreeLookup(rP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, regId) == 0)
     {
-      *regPP = kjClone(corRest.kjsonP, rP);
+      *regPP = corTreeClone(corRest.kallocP, rP);
       return DB_OK;
     }
   }

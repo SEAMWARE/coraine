@@ -11,8 +11,9 @@
 #include <string.h>                                   // strlen, strcmp
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjObject, kjString, kjChildAdd
+#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corRest/CorRestState.h"                     // corRest
 
@@ -124,16 +125,16 @@ static const char* retentionName(ChannelRetention retention)
 //
 // notificationRender - a default goal endpoint, in the subscription's own shape
 //
-static void notificationRender(KjNode* bodyP, const char* uri, const char* accept)
+static void notificationRender(CorNode* bodyP, const char* uri, const char* accept)
 {
-  Kjson*  kjsonP        = corRest.kjsonP;
-  KjNode* notificationP = kjObject(kjsonP, "notification");
-  KjNode* endpointP     = kjObject(kjsonP, "endpoint");
+  KAlloc* allocP        = corRest.kallocP;
+  CorNode* notificationP = corTreeObject(allocP, "notification");
+  CorNode* endpointP    = corTreeObject(allocP, "endpoint");
 
-  kjChildAdd(endpointP, kjString(kjsonP, "uri",    (char*) uri));
-  kjChildAdd(endpointP, kjString(kjsonP, "accept", (char*) ((accept != NULL) ? accept : "application/json")));
-  kjChildAdd(notificationP, endpointP);
-  kjChildAdd(bodyP, notificationP);
+  corTreeChildAdd(endpointP, corTreeString(allocP, "uri", (char*) uri));
+  corTreeChildAdd(endpointP, corTreeString(allocP, "accept", (char*) ((accept != NULL) ? accept : "application/json")));
+  corTreeChildAdd(notificationP, endpointP);
+  corTreeChildAdd(bodyP, notificationP);
 }
 
 
@@ -142,29 +143,29 @@ static void notificationRender(KjNode* bodyP, const char* uri, const char* accep
 //
 // channelRender -
 //
-KjNode* channelRender(Channel* channelP, CorLdContext* contextP)
+CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 {
-  Kjson*  kjsonP  = corRest.kjsonP;
-  KjNode* bodyP   = kjObject(kjsonP, NULL);
-  KjNode* entityP = kjObject(kjsonP, "entity");
+  KAlloc* allocP  = corRest.kallocP;
+  CorNode* bodyP  = corTreeObject(allocP, NULL);
+  CorNode* entityP = corTreeObject(allocP, "entity");
 
-  kjChildAdd(bodyP, kjString(kjsonP, "id",               (char*) channelIdOf(channelP)));
-  kjChildAdd(bodyP, kjString(kjsonP, "type",             "Channel"));
-  kjChildAdd(bodyP, kjString(kjsonP, "bridgeId",         (char*) bridgeIdOf(channelP->bridgeName)));
-  kjChildAdd(bodyP, kjString(kjsonP, "channelTarget",    channelP->endpoint));
-  kjChildAdd(bodyP, kjString(kjsonP, "channelKind",      (char*) kindName(channelP->kind)));
-  kjChildAdd(bodyP, kjString(kjsonP, "channelDirection", (char*) directionName(channelP->direction)));
-  kjChildAdd(bodyP, kjString(kjsonP, "retention",        (char*) retentionName(channelP->retention)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "id",     (char*) channelIdOf(channelP)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "type",   "Channel"));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "bridgeId", (char*) bridgeIdOf(channelP->bridgeName)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "channelTarget", channelP->endpoint));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "channelKind", (char*) kindName(channelP->kind)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "channelDirection", (char*) directionName(channelP->direction)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "retention", (char*) retentionName(channelP->retention)));
 
-  kjChildAdd(entityP, kjString(kjsonP, "id",   channelP->entityId));
-  kjChildAdd(entityP, kjString(kjsonP, "type", (char*) shortOrSelf(contextP, channelP->entityType)));
-  kjChildAdd(bodyP, entityP);
+  corTreeChildAdd(entityP, corTreeString(allocP, "id", channelP->entityId));
+  corTreeChildAdd(entityP, corTreeString(allocP, "type", (char*) shortOrSelf(contextP, channelP->entityType)));
+  corTreeChildAdd(bodyP, entityP);
 
-  kjChildAdd(bodyP, kjString(kjsonP, "entityAttribute",  (char*) shortOrSelf(contextP, channelP->attrName)));
-  kjChildAdd(bodyP, kjString(kjsonP, "status",           (channelP->status == ChannelStatusAvailable) ? "available" : "dormant"));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "entityAttribute", (char*) shortOrSelf(contextP, channelP->attrName)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (channelP->status == ChannelStatusAvailable) ? "available" : "dormant"));
 
   if (channelP->statusReason != NULL)
-    kjChildAdd(bodyP, kjString(kjsonP, "statusReason", channelP->statusReason));
+    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", channelP->statusReason));
 
   if (channelP->notifyUri != NULL)
     notificationRender(bodyP, channelP->notifyUri, channelP->notifyAccept);
@@ -178,15 +179,15 @@ KjNode* channelRender(Channel* channelP, CorLdContext* contextP)
 //
 // bridgeRender -
 //
-KjNode* bridgeRender(const char* bridgeName, bool loaded)
+CorNode* bridgeRender(const char* bridgeName, bool loaded)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* bodyP  = kjObject(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* bodyP = corTreeObject(allocP, NULL);
 
-  kjChildAdd(bodyP, kjString(kjsonP, "id",     (char*) bridgeIdOf(bridgeName)));
-  kjChildAdd(bodyP, kjString(kjsonP, "type",   "ContextBridge"));
-  kjChildAdd(bodyP, kjString(kjsonP, "plugin", (char*) bridgeName));
-  kjChildAdd(bodyP, kjString(kjsonP, "status", loaded ? "available" : "unavailable"));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "id", (char*) bridgeIdOf(bridgeName)));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "type", "ContextBridge"));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "plugin", (char*) bridgeName));
+  corTreeChildAdd(bodyP, corTreeString(allocP, "status", loaded ? "available" : "unavailable"));
 
   if (loaded == false)
   {
@@ -194,7 +195,7 @@ KjNode* bridgeRender(const char* bridgeName, bool loaded)
     char* reason = (char*) kaAlloc(&corRest.kalloc, len);
 
     snprintf(reason, len, "plugin '%s' not loaded - not named on --bridges", bridgeName);
-    kjChildAdd(bodyP, kjString(kjsonP, "statusReason", reason));
+    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", reason));
   }
 
   const char* uri    = NULL;

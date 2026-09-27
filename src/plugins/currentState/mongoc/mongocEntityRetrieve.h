@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/Tenant.h"                                 // Tenant
 
@@ -20,6 +20,6 @@
 //
 // mongocEntityRetrieve -
 //
-extern int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP);
+extern int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entityPP);
 
 #endif  // MONGOC_MONGOCENTITYRETRIEVE_H_

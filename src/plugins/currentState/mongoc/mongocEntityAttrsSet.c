@@ -19,16 +19,16 @@
 #include <mongoc/mongoc.h>                             // mongoc_collection_*, mongoc_cursor_*
 
 #include "ktrace/kTrace.h"                             // KT_E
-#include "kjson/KjNode.h"                              // KjNode
-#include "kjson/kjLookup.h"                            // kjLookup
+#include "corTree/CorNode.h"                           // CorNode
+#include "corTree/corTreeLookup.h"                     // corTreeLookup
 #include "corRest/CorRestState.h"                        // corRest
 
 #include "corNgsild/LdVocab.h"                          // LD_VOCAB_MODIFIED_AT
 #include "corNgsild/ldEntityAttrsSet.h"                 // ldEntityAttrsSet
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocBsonToKjTree.h"    // mongocBsonToKjTree
-#include "currentState/mongoc/mongocKjTreeToBson.h"    // mongocKjNodeAppend
+#include "currentState/mongoc/mongocBsonToTree.h"      // mongocBsonToTree
+#include "currentState/mongoc/mongocTreeToBson.h"      // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
 #include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"        // mongocGeoIndexEnsure
@@ -46,7 +46,7 @@ extern mongoc_client_pool_t* poolP;
 //
 int mongocEntityAttrsSet(Tenant*        tenantP,
                          const char*    entityId,
-                         KjNode*        fragmentDb,
+                         CorNode*       fragmentDb,
                          bool           overwriteScope,
                          uint64_t       ts,
                          LdMergeReport* reportP)
@@ -64,11 +64,11 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   mongoc_cursor_t* cursorP = mongoc_collection_find_with_opts(collP, &filter, NULL, NULL);
 
   const bson_t* doc    = NULL;
-  KjNode*       target = NULL;
+  CorNode*      target = NULL;
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    target = mongocBsonToKjTree(&corRest.kalloc, doc);
+    target = mongocBsonToTree(&corRest.kalloc, doc);
   }
   else
   {
@@ -92,7 +92,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   // 2. Apply append semantics in memory. Target + grafted fragment nodes
   //    share the request arena.
   //
-  ldEntityAttrsSet(target, fragmentDb, overwriteScope, ts, reportP, corRest.kjsonP);
+  ldEntityAttrsSet(target, fragmentDb, overwriteScope, ts, reportP, corRest.kallocP);
 
   //
   // 3. Build a surgical $set + $unset from the merge report.
@@ -111,14 +111,14 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
   if (reportP != NULL && reportP->changes != NULL)
   {
-    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    for (CorNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
     {
-      KjNode* attrNameP = kjLookup(change, "attr");
-      if (attrNameP == NULL || attrNameP->type != KjString)
+      CorNode* attrNameP = corTreeLookup(change, "attr");
+      if (attrNameP == NULL || attrNameP->type != CorString)
         continue;
 
-      KjNode*     reasonP  = kjLookup(change, "reason");
-      const char* reason   = (reasonP != NULL && reasonP->type == KjString) ? reasonP->value.s : "";
+      CorNode*    reasonP  = corTreeLookup(change, "reason");
+      const char* reason   = (reasonP != NULL && reasonP->type == CorString) ? reasonP->value.s : "";
       const char* attrName = attrNameP->value.s;
 
       // Entity-level type / scope changes are signalled in the report
@@ -135,7 +135,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
       //
       if (strcmp(attrName, LD_VOCAB_SCOPE) == 0)
       {
-        if (kjLookup(target, LD_VOCAB_SCOPE) == NULL)
+        if (corTreeLookup(target, LD_VOCAB_SCOPE) == NULL)
         {
           BSON_APPEND_UTF8(&unsetDoc, mongocEscapeDotsInKey(attrName), "");
           hasUnset = true;
@@ -155,11 +155,11 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
         continue;
       }
 
-      KjNode* attrWrapper = kjLookup(target, attrName);
+      CorNode* attrWrapper = corTreeLookup(target, attrName);
       if (attrWrapper == NULL)
         continue;
 
-      mongocKjNodeAppend(&setDoc, escaped, attrWrapper);
+      mongocNodeAppend(&setDoc, escaped, attrWrapper);
       hasSet = true;
     }
   }
@@ -171,24 +171,24 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
   //
   if (hasSet || hasUnset)
   {
-    KjNode* modAtP = kjLookup(target, LD_VOCAB_MODIFIED_AT);
-    if (modAtP != NULL && modAtP->type == KjInt)
+    CorNode* modAtP = corTreeLookup(target, LD_VOCAB_MODIFIED_AT);
+    if (modAtP != NULL && modAtP->type == CorInt)
     {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
+      mongocNodeAppend(&setDoc, LD_VOCAB_MODIFIED_AT, modAtP);
       hasSet = true;
     }
 
-    KjNode* typeP = kjLookup(target, "type");
+    CorNode* typeP = corTreeLookup(target, "type");
     if (typeP != NULL)
     {
-      mongocKjNodeAppend(&setDoc, "type", typeP);
+      mongocNodeAppend(&setDoc, "type", typeP);
       hasSet = true;
     }
 
-    KjNode* scopeP = kjLookup(target, LD_VOCAB_SCOPE);
+    CorNode* scopeP = corTreeLookup(target, LD_VOCAB_SCOPE);
     if (scopeP != NULL)
     {
-      mongocKjNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
+      mongocNodeAppend(&setDoc, LD_VOCAB_SCOPE, scopeP);
       hasSet = true;
     }
   }

@@ -16,10 +16,10 @@
 #include <string.h>                                    // strcmp
 
 #include "ktrace/kTrace.h"                             // KT_E
-#include "kjson/KjNode.h"                              // KjNode
-#include "kjson/kjClone.h"                             // kjClone
-#include "kjson/kjBuilder.h"                           // kjChildAdd
-#include "kjson/kjLookup.h"                            // kjLookup
+#include "corTree/CorNode.h"                           // CorNode
+#include "corTree/corTreeClone.h"                      // corTreeClone
+#include "corTree/corTreeBuilder.h"                    // corTreeChildAdd
+#include "corTree/corTreeLookup.h"                     // corTreeLookup
 
 #include "db/DbDriver.h"                               // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
 #include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexLookup
@@ -32,21 +32,21 @@
 //
 // corDbEntityBulkCreate -
 //
-int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
+int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
   COR_DB_WRITE(tenantP);
 
-  if (entitiesArr == NULL || entitiesArr->type != KjArray)
+  if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
   int     ix       = 0;
   bool    anyOk    = false;
 
-  for (KjNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, ix++)
+  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, ix++)
   {
-    KjNode* idP = kjLookup(inP, "id");
-    if (idP == NULL || idP->type != KjString)
+    CorNode* idP = corTreeLookup(inP, "id");
+    if (idP == NULL || idP->type != CorString)
     {
       resultsV[ix] = DB_ERR;
       continue;
@@ -60,7 +60,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
     // index as it was added to the store, so it is found here like any other.
     //
     // This walked the WHOLE entity list for every incoming entity, with a
-    // kjLookup per comparison, while the index sat right there being maintained
+    // corTreeLookup per comparison, while the index sat right there being maintained
     // by the bottom of this very loop. It cost a factor of 24 against the batch
     // UPDATE endpoint next door - 530 requests/s where batchUpdate does 12 968 -
     // and it got worse as the store grew, because a batch create is the one
@@ -75,10 +75,10 @@ int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       exists = true;
     else if (corDbStoreOf(tenantP)->idIndex == NULL)
     {
-      for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
       {
-        KjNode* existingId = kjLookup(eP, "id");
-        if (existingId != NULL && existingId->type == KjString &&
+        CorNode* existingId = corTreeLookup(eP, "id");
+        if (existingId != NULL && existingId->type == CorString &&
             strcmp(existingId->value.s, idP->value.s) == 0)
         {
           exists = true;
@@ -93,15 +93,15 @@ int corDbEntityBulkCreate(Tenant* tenantP, KjNode* entitiesArr, int* resultsV)
       continue;
     }
 
-    KjNode* cloneP = kjClone(NULL, inP);
+    CorNode* cloneP = corTreeClone(NULL, inP);
     if (cloneP == NULL)
     {
-      KT_E("corDB: kjClone failed for entity '%s'", idP->value.s);
+      KT_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
       resultsV[ix] = DB_ERR;
       continue;
     }
 
-    kjChildAdd(entities, cloneP);
+    corTreeChildAdd(entities, cloneP);
     corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
     resultsV[ix] = DB_OK;
     anyOk        = true;

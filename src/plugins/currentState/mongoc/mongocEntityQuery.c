@@ -13,9 +13,8 @@
 #include <string.h>                                  // strlen, strcmp
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjChildAdd
-#include "kjson/kjBufferCreate.h"                    // kjBufferCreate
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
 #include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
@@ -27,7 +26,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
-#include "currentState/mongoc/mongocBsonToKjTree.h"               // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocBsonToTree
 #include "currentState/mongoc/mongocEntityQuery.h"                // Own interface
 
 
@@ -1249,7 +1248,7 @@ static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
 //
 // mongocEntityQuery -
 //
-int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
+int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
 {
   //
   // A geoquery on a GeoProperty that has no 2dsphere index matches NOTHING - the indexes are
@@ -1277,7 +1276,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
            "Expected when no Entity has that GeoProperty; if some do, look for an earlier index-build error",
            filterP->geoproperty, tenantP->dbName);
 
-      *arrayPP = kjArray(corRest.kjsonP, NULL);
+      *arrayPP = corTreeArray(corRest.kallocP, NULL);
       return DB_OK;
     }
   }
@@ -1502,7 +1501,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   //
   if (countOnly)
   {
-    *arrayPP = kjArray(corRest.kjsonP, NULL);
+    *arrayPP = corTreeArray(corRest.kallocP, NULL);
     bson_destroy(&opts);
     bson_destroy(&filter);
     mongoc_collection_destroy(collP);
@@ -1684,13 +1683,13 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, KjNode** arrayPP)
   //
   // Build result array
   //
-  KjNode*       arrayP = kjArray(corRest.kjsonP, NULL);
+  CorNode*      arrayP = corTreeArray(corRest.kallocP, NULL);
   const bson_t* doc;
 
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    KjNode* entityP = mongocBsonToKjTree(&corRest.kalloc, doc);
-    kjChildAdd(arrayP, entityP);
+    CorNode* entityP = mongocBsonToTree(&corRest.kalloc, doc);
+    corTreeChildAdd(arrayP, entityP);
   }
 
   //

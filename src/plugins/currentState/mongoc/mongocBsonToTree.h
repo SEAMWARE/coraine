@@ -1,8 +1,8 @@
-#ifndef MONGOC_MONGOCBSONTOKJTREE_H_
-#define MONGOC_MONGOCBSONTOKJTREE_H_
+#ifndef MONGOC_MONGOCBSONTOTREE_H_
+#define MONGOC_MONGOCBSONTOTREE_H_
 
 //
-// FILE            mongocBsonToKjTree.h
+// FILE            mongocBsonToTree.h
 //
 // AUTHOR          Ken Zangelin
 //
@@ -13,14 +13,14 @@
 #include <bson/bson.h>                               // bson_t
 
 #include "kalloc/KAlloc.h"                           // KAlloc
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 
 
 // -----------------------------------------------------------------------------
 //
-// mongocBsonToKjTree - convert a bson_t document to a KjNode tree
+// mongocBsonToTree - convert a bson_t document to a CorNode tree
 //
-extern KjNode* mongocBsonToKjTree(KAlloc* kaP, const bson_t* bsonP);
+extern CorNode* mongocBsonToTree(KAlloc* kaP, const bson_t* bsonP);
 
-#endif  // MONGOC_MONGOCBSONTOKJTREE_H_
+#endif  // MONGOC_MONGOCBSONTOTREE_H_

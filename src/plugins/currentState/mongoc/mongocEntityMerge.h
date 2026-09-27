@@ -15,7 +15,7 @@
 
 #include <mongoc/mongoc.h>                            // bson_t
 
-#include "kjson/KjNode.h"                             // KjNode
+#include "corTree/CorNode.h"                          // CorNode
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/Tenant.h"                                 // Tenant
@@ -31,7 +31,7 @@
 // caller-initialised `updateDocOut`. *noChangesOut is set true when there is
 // nothing to write. Shared by the single-entity and batch persist paths.
 //
-extern void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
+extern void mongocBuildSurgicalUpdate(CorNode*       mergedEntity,
                                       LdMergeReport* reportP,
                                       bson_t*        updateDocOut,
                                       bool*          noChangesOut);
@@ -46,6 +46,6 @@ extern void mongocBuildSurgicalUpdate(KjNode*        mergedEntity,
 // builds the surgical update and runs one update_one.
 //
 extern int mongocEntityChangesApply(Tenant* tenantP, const char* entityId,
-                                    KjNode* mergedEntity, LdMergeReport* reportP);
+                                    CorNode* mergedEntity, LdMergeReport* reportP);
 
 #endif  // MONGOC_MONGOCENTITYMERGE_H_

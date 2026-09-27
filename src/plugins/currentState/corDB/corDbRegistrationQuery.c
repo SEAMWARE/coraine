@@ -8,9 +8,9 @@
 //
 #include <stddef.h>                                   // NULL
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjBuilder.h"                          // kjArray, kjChildAdd
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeChildAdd
 #include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, Tenant
@@ -23,19 +23,19 @@
 //
 // corDbRegistrationQuery -
 //
-int corDbRegistrationQuery(Tenant* tenantP, int limit, int offset, KjNode** arrayPP)
+int corDbRegistrationQuery(Tenant* tenantP, int limit, int offset, CorNode** arrayPP)
 {
   COR_DB_READ(tenantP);
 
-  KjNode* registrations = corDbRegistrations(tenantP);
+  CorNode* registrations = corDbRegistrations(tenantP);
   // Request-arena array (freed after use), matching mongoc — a NULL (malloc)
   // array would leak its container on every cache-load.
-  KjNode* resultArray   = kjArray(corRest.kjsonP, NULL);
+  CorNode* resultArray  = corTreeArray(corRest.kallocP, NULL);
 
   int ix    = 0;
   int added = 0;
 
-  for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
   {
     if (ix < offset)
     {
@@ -46,8 +46,8 @@ int corDbRegistrationQuery(Tenant* tenantP, int limit, int offset, KjNode** arra
     if (limit > 0 && added >= limit)
       break;
 
-    KjNode* cloneP = kjClone(corRest.kjsonP, rP);
-    kjChildAdd(resultArray, cloneP);
+    CorNode* cloneP = corTreeClone(corRest.kallocP, rP);
+    corTreeChildAdd(resultArray, cloneP);
     added++;
     ix++;
   }

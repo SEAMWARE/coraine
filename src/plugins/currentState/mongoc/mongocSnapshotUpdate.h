@@ -2,9 +2,9 @@
 #ifndef PLUGINS_MONGOC_MONGOCSNAPSHOTUPDATE_H_
 #define PLUGINS_MONGOC_MONGOCSNAPSHOTUPDATE_H_
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 #include "db/Tenant.h"                               // Tenant
 
-extern int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, KjNode* fragmentP);
+extern int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP);
 
 #endif  // PLUGINS_MONGOC_MONGOCSNAPSHOTUPDATE_H_

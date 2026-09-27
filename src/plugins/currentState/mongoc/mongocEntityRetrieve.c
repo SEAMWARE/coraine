@@ -10,11 +10,11 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_find_with_opts
 
 #include "ktrace/kTrace.h"                               // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 #include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocBsonToKjTree.h"               // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocBsonToTree
 #include "currentState/mongoc/mongocEntityRetrieve.h"             // Own interface
 
 
@@ -31,7 +31,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocEntityRetrieve -
 //
-int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityPP)
+int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entityPP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
@@ -53,7 +53,7 @@ int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, KjNode** entityP
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    *entityPP = mongocBsonToKjTree(&corRest.kalloc, doc);
+    *entityPP = mongocBsonToTree(&corRest.kalloc, doc);
     result = DB_OK;
   }
   else

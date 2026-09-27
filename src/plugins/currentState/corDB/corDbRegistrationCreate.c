@@ -9,10 +9,10 @@
 #include <string.h>                                   // strcmp
 
 #include "ktrace/kTrace.h"                            // KT_E
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjBuilder.h"                          // kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeBuilder.h"                   // corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
 #include "currentState/corDB/corDbStore.h"          // corDbRegistrations
@@ -24,28 +24,28 @@
 //
 // corDbRegistrationCreate -
 //
-int corDbRegistrationCreate(Tenant* tenantP, const char* regId, KjNode* regP)
+int corDbRegistrationCreate(Tenant* tenantP, const char* regId, CorNode* regP)
 {
   COR_DB_WRITE(tenantP);
 
-  KjNode* registrations = corDbRegistrations(tenantP);
+  CorNode* registrations = corDbRegistrations(tenantP);
 
-  for (KjNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
   {
-    KjNode* idP = kjLookup(rP, "id");
+    CorNode* idP = corTreeLookup(rP, "id");
 
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, regId) == 0)
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, regId) == 0)
       return DB_ALREADY_EXISTS;
   }
 
-  KjNode* cloneP = kjClone(NULL, regP);
+  CorNode* cloneP = corTreeClone(NULL, regP);
   if (cloneP == NULL)
   {
-    KT_E("corDB: kjClone failed for registration '%s'", regId);
+    KT_E("corDB: corTreeClone failed for registration '%s'", regId);
     return DB_ERR;
   }
 
-  kjChildAdd(registrations, cloneP);
+  corTreeChildAdd(registrations, cloneP);
 
   return DB_OK;
 }

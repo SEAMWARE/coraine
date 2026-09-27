@@ -27,6 +27,6 @@ int corDbInit(void)
   corDbTenantStore(&tenant0);
   corDbGeoInit();
 
-  KT_I("corDB: in-memory store ready (per-tenant KjNode trees, GEOS enabled)");
+  KT_I("corDB: in-memory store ready (per-tenant CorNode trees, GEOS enabled)");
   return 0;
 }

@@ -18,12 +18,11 @@
 #include "kalloc/KAlloc.h"                           // KAlloc
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 #include "kbase/kStringInArray.h"                    // kStringInArray
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
-#include "kjson/kjChildReplace.h"                    // kjChildReplace
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjParse.h"                           // kjParse
-#include "kjson/kjBufferCreate.h"                    // kjBufferCreate
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeChildReplace.h"             // corTreeChildReplace
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonParse.h"                    // corJsonParse
 
 #include "corRest/CorRestState.h"                      // corRest
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
@@ -65,17 +64,17 @@
 // If the RegistrationInfo has no attr restriction (wildcard), ALL non-keyword
 // attrs are stripped.
 //
-static void stripInfoAttrsFromLocal(KjNode* localP, LdRegInfo* riP)
+static void stripInfoAttrsFromLocal(CorNode* localP, LdRegInfo* riP)
 {
-  if (localP == NULL || localP->type != KjObject)
+  if (localP == NULL || localP->type != CorObject)
     return;
 
   bool wildcard = (riP->attributeNamesV == NULL);
 
-  KjNode* curP = localP->value.firstChildP;
+  CorNode* curP = localP->value.firstChildP;
   while (curP != NULL)
   {
-    KjNode* nextP = curP->next;
+    CorNode* nextP = curP->next;
 
     if (curP->name != NULL && curP->name[0] != '@' &&
         strcmp(curP->name, "id")   != 0 &&
@@ -83,7 +82,7 @@ static void stripInfoAttrsFromLocal(KjNode* localP, LdRegInfo* riP)
         (wildcard ||
          kStringInArray(curP->name, riP->attributeNamesV)))
     {
-      kjChildRemove(localP, curP);
+      corTreeChildRemove(localP, curP);
     }
 
     curP = nextP;
@@ -113,34 +112,34 @@ static int64_t nowNanoseconds(void)
 // (attrName, dsKey) in srcP, add it to destP ONLY if destP doesn't already
 // have that combination. No conflict resolution, no timestamp comparison.
 //
-static void mergeAuxiliaryInto(KjNode* destP, KjNode* srcP)
+static void mergeAuxiliaryInto(CorNode* destP, CorNode* srcP)
 {
-  if (destP == NULL || srcP == NULL || srcP->type != KjObject)
+  if (destP == NULL || srcP == NULL || srcP->type != CorObject)
     return;
 
-  KjNode* srcAttrP = srcP->value.firstChildP;
+  CorNode* srcAttrP = srcP->value.firstChildP;
   while (srcAttrP != NULL)
   {
-    KjNode* nextSrcAttr = srcAttrP->next;
+    CorNode* nextSrcAttr = srcAttrP->next;
 
     if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
         strcmp(srcAttrP->name, "id")   == 0 ||
         strcmp(srcAttrP->name, "type") == 0 ||
-        srcAttrP->type != KjObject)
+        srcAttrP->type != CorObject)
     {
       srcAttrP = nextSrcAttr;
       continue;
     }
 
-    KjNode* destAttrP = kjLookup(destP, srcAttrP->name);
+    CorNode* destAttrP = corTreeLookup(destP, srcAttrP->name);
 
-    KjNode* srcInstP = srcAttrP->value.firstChildP;
+    CorNode* srcInstP = srcAttrP->value.firstChildP;
     while (srcInstP != NULL)
     {
-      KjNode* nextSrcInst = srcInstP->next;
+      CorNode* nextSrcInst = srcInstP->next;
 
       // Only add if dest doesn't already have this (attrName, dsKey)
-      KjNode* destInstP = (destAttrP != NULL) ? kjLookup(destAttrP, srcInstP->name) : NULL;
+      CorNode* destInstP = (destAttrP != NULL) ? corTreeLookup(destAttrP, srcInstP->name) : NULL;
       if (destInstP != NULL)
       {
         srcInstP = nextSrcInst;
@@ -148,15 +147,15 @@ static void mergeAuxiliaryInto(KjNode* destP, KjNode* srcP)
       }
 
       // Detach from src
-      kjChildRemove(srcAttrP, srcInstP);
+      corTreeChildRemove(srcAttrP, srcInstP);
       srcInstP->next = NULL;
 
       if (destAttrP == NULL)
       {
-        destAttrP = kjObject(corRest.kjsonP, srcAttrP->name);
-        kjChildAdd(destP, destAttrP);
+        destAttrP = corTreeObject(corRest.kallocP, srcAttrP->name);
+        corTreeChildAdd(destP, destAttrP);
       }
-      kjChildAdd(destAttrP, srcInstP);
+      corTreeChildAdd(destAttrP, srcInstP);
 
       srcInstP = nextSrcInst;
     }
@@ -182,38 +181,38 @@ static void mergeAuxiliaryInto(KjNode* destP, KjNode* srcP)
 //
 // Sub-attributes are not handled in this slice.
 //
-static void apiAttrToStorageWrap(KjNode* entityP, Kjson* kjP)
+static void apiAttrToStorageWrap(CorNode* entityP, KAlloc* allocP)
 {
-  if (entityP == NULL || entityP->type != KjObject)
+  if (entityP == NULL || entityP->type != CorObject)
     return;
 
-  KjNode* curP = entityP->value.firstChildP;
+  CorNode* curP = entityP->value.firstChildP;
   while (curP != NULL)
   {
-    KjNode* nextP = curP->next;
+    CorNode* nextP = curP->next;
 
     if (curP->name == NULL || curP->name[0] == '@' ||
         strcmp(curP->name, "id")   == 0 ||
         strcmp(curP->name, "type") == 0 ||
-        curP->type != KjObject)
+        curP->type != CorObject)
     {
       curP = nextP;
       continue;
     }
 
-    KjNode*     dsP   = kjLookup(curP, LD_VOCAB_DATASET_ID);
+    CorNode*    dsP   = corTreeLookup(curP, LD_VOCAB_DATASET_ID);
     const char* dsKey = "@none";
     if (dsP != NULL)
     {
       dsKey = dsP->value.s;
-      kjChildRemove(curP, dsP);
+      corTreeChildRemove(curP, dsP);
     }
 
-    KjNode* wrapperP = kjObject(kjP, curP->name);
-    kjChildReplace(entityP, curP, wrapperP);
+    CorNode* wrapperP = corTreeObject(allocP, curP->name);
+    corTreeChildReplace(entityP, curP, wrapperP);
     curP->name = (char*) dsKey;
     curP->next = NULL;
-    kjChildAdd(wrapperP, curP);
+    corTreeChildAdd(wrapperP, curP);
 
     curP = nextP;
   }
@@ -506,11 +505,11 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
 // see buildInfoPickParam, which prepends `type` to the forward pick list
 // for the same reason.
 //
-static void ensureEntityId(KjNode* treeP, const char* entityId)
+static void ensureEntityId(CorNode* treeP, const char* entityId)
 {
-  if (treeP == NULL || treeP->type != KjObject) return;
-  if (kjLookup(treeP, "id") != NULL)            return;
-  kjChildAdd(treeP, kjString(corRest.kjsonP, "id", (char*) entityId));
+  if (treeP == NULL || treeP->type != CorObject) return;
+  if (corTreeLookup(treeP, "id") != NULL)       return;
+  corTreeChildAdd(treeP, corTreeString(corRest.kallocP, "id", (char*) entityId));
 }
 
 
@@ -543,7 +542,7 @@ static void ensureEntityId(KjNode* treeP, const char* entityId)
 // (retrieveEntity → 502) or merely a missed link (join → leave unfollowed).
 // DistRetrieveErr + this prototype live in getEntity.h.
 //
-KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
+CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
                                bool wholeForward, bool* matchedP, DistRetrieveErr* errP)
 {
   if (matchedP != NULL) *matchedP = false;
@@ -585,7 +584,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
   if (matchedP != NULL) *matchedP = true;
 
   // Local lookup (always — per § 5.7.1.4)
-  KjNode* destP = NULL;
+  CorNode* destP = NULL;
   db.entityRetrieve(tP, entityId, &destP);
 
   // § 5.2.4: an expired local copy contributes nothing to the merge — the
@@ -717,10 +716,10 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
         continue;  // multi-source redir / incl / aux: tolerate failures
       }
 
-      KjNode* upP = results[i].responseTree;
+      CorNode* upP = results[i].responseTree;
       if (upP == NULL) continue;
 
-      if (upP->type == KjArray)
+      if (upP->type == CorArray)
       {
         upP = upP->value.firstChildP;
         if (upP == NULL) continue;
@@ -733,8 +732,8 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
         respCtxP = corLdCoreContext();
       corLdExpandTree(upP, respCtxP, &corRest.kalloc);
       ldStripAtContext(upP);
-      apiAttrToStorageWrap(upP, corRest.kjsonP);
-      ldExpiresAtPropagate(upP, corRest.kjsonP);
+      apiAttrToStorageWrap(upP, corRest.kallocP);
+      ldExpiresAtPropagate(upP, corRest.kallocP);
       ensureEntityId(upP, entityId);
 
       if (destP == NULL)
@@ -742,7 +741,7 @@ KjNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
       else if (g == 3)
         mergeAuxiliaryInto(destP, upP);
       else
-        ldDistMergeSourceInto(destP, upP, nowNs, corRest.kjsonP, false);
+        ldDistMergeSourceInto(destP, upP, nowNs, corRest.kallocP, false);
     }
 
     // § 6.3.5 — a best-effort source (inclusive, auxiliary, or a redirect among
@@ -861,7 +860,7 @@ bool getEntity(void)
     // Request-driven retrieve: scope the reg match by the request's type
     // (NULL = no type filter), and let buildInfoPickParam honour the
     // request projection for the forward pick (wholeForward = false).
-    KjNode*          destP   = distributedRetrieveOne(entityId, corNgsild.typeV, tP, false, &matched, &err);
+    CorNode*         destP   = distributedRetrieveOne(entityId, corNgsild.typeV, tP, false, &matched, &err);
 
     if (matched)
     {
@@ -904,7 +903,7 @@ bool getEntity(void)
     }
   }
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int     r       = db.entityRetrieve((Tenant*) corNgsild.tenantP, entityId, &entityP);
 
   // § 5.2.4: a transient Entity past its expiresAt is invalid — answered as if
@@ -948,7 +947,7 @@ bool getEntity(void)
     ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     bool hasMembers = false;
-    for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;
@@ -981,7 +980,7 @@ bool getEntity(void)
     // system-managed timestamps — the filter preserves them but they
     // don't satisfy the attrs existence rule).
     bool hasUserAttr = false;
-    for (KjNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = entityP->value.firstChildP; c != NULL; c = c->next)
     {
       if (c->name == NULL)                            continue;
       if (strcmp(c->name, "id")               == 0)   continue;
@@ -1011,16 +1010,16 @@ bool getEntity(void)
     int level = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;
     if (strcmp(corNgsild.join, "flat") == 0)
     {
-      KjNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) corNgsild.tenantP);
+      CorNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) corNgsild.tenantP);
       // Single-entity Retrieve shape: if flat returned only the
       // primary (no linked targets resolved), unwrap the array so the
       // response stays a plain Entity object. § 4.5.23 doesn't mandate
       // a single-element array — the array shape is for "primary +
       // targets" and degenerates to "just the primary" when no targets
       // were found.
-      if (flatP != NULL && flatP->type == KjArray)
+      if (flatP != NULL && flatP->type == CorArray)
       {
-        KjNode* first = flatP->value.firstChildP;
+        CorNode* first = flatP->value.firstChildP;
         if (first != NULL && first->next == NULL)
         {
           first->name = NULL;

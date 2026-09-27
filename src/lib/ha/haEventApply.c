@@ -10,8 +10,8 @@
 #include <stddef.h>                                      // NULL
 
 #include "kalloc/kalloc.h"                               // kaBufferInit, kaBufferReset
-#include "kjson/kjson.h"                                 // Kjson
-#include "kjson/kjBufferCreate.h"                        // kjBufferCreate
+#include "corJson/CorJson.h"                             // CorJson
+#include "corJson/corJsonCreate.h"                       // corJsonCreate
 #include "ktrace/kTrace.h"                               // KT_*
 
 #include "corRest/CorRestState.h"                          // corRest
@@ -30,7 +30,7 @@
 // stateBind - bring this thread's request state up to working order
 //
 // A channel runs in a thread of its own, with no request behind it, and the DB
-// driver allocates what it reads through corRest.kalloc/kjsonP. Both are __thread
+// driver allocates what it reads through corRest.kalloc/kallocP. Both are __thread
 // (via the per-connection fallback), so the channel thread gets its own - zeroed
 // until somebody sets them up, which is what this does, once.
 //
@@ -45,7 +45,8 @@ static void stateBind(Tenant* tenantP)
   if (inited == false)
   {
     kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "ha");
-    corRest.kjsonP = kjBufferCreate(&corRest.kjson, &corRest.kalloc);
+    corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+    corRest.kallocP  = &corRest.kalloc;
     inited = true;
   }
   else

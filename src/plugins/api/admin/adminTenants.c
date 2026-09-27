@@ -8,7 +8,8 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kjson/kjBuilder.h"                      // kjArray, kjString, kjChildAdd
+#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corTree/corTreeBuilder.h"               // corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 
 #include "db/Tenant.h"                            // Tenant, tenantList
@@ -26,11 +27,11 @@
 //
 bool adminGetTenants(void)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* root   = kjArray(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* root  = corTreeArray(allocP, NULL);
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
-    kjChildAdd(root, kjString(kjsonP, NULL, tP->name));
+    corTreeChildAdd(root, corTreeString(allocP, NULL, tP->name));
 
   corRest.out.responseTree = root;
   return true;

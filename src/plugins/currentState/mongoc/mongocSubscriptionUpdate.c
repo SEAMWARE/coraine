@@ -19,10 +19,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_update_one
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjNodeAppend
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocSubscriptionUpdate.h"  // Own interface
 
@@ -40,7 +40,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocSubscriptionUpdate -
 //
-int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmentP)
+int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragmentP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "subscriptions");
@@ -65,7 +65,7 @@ int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmen
   bool hasSet   = false;
   bool hasUnset = false;
 
-  for (KjNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
+  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL)
       continue;
@@ -76,14 +76,14 @@ int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, KjNode* fragmen
 
     const char* key = mongocEscapeDotsInKey(fieldP->name);
 
-    if (fieldP->type == KjNull)
+    if (fieldP->type == CorNull)
     {
       BSON_APPEND_INT32(&unsetDoc, key, 1);
       hasUnset = true;
     }
     else
     {
-      mongocKjNodeAppend(&setDoc, key, fieldP);
+      mongocNodeAppend(&setDoc, key, fieldP);
       hasSet = true;
     }
   }

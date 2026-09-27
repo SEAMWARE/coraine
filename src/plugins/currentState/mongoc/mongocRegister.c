@@ -62,7 +62,7 @@
 //
 // mongocGeoMatchCb - generic geo match callback
 //
-static bool mongocGeoMatchCb(KjNode* entityP, LdGeoRel* geoRel, const char* geometry,
+static bool mongocGeoMatchCb(CorNode* entityP, LdGeoRel* geoRel, const char* geometry,
                               const char* coordinates, const char* geoproperty)
 {
   DbQueryFilter filter;

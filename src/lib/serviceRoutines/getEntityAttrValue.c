@@ -22,11 +22,11 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
@@ -63,7 +63,7 @@ bool getEntityAttrValue(void)
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* entityP = NULL;
+  CorNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
 
   if (r == DB_NOT_FOUND || entityP == NULL)
@@ -79,8 +79,8 @@ bool getEntityAttrValue(void)
     return true;
   }
 
-  KjNode* attrWrapperP = kjLookup(entityP, attrIri);
-  if (attrWrapperP == NULL || attrWrapperP->type != KjObject)
+  CorNode* attrWrapperP = corTreeLookup(entityP, attrIri);
+  if (attrWrapperP == NULL || attrWrapperP->type != CorObject)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "attribute '%s' not found in entity '%s'", attrWild, entityId);
@@ -93,10 +93,10 @@ bool getEntityAttrValue(void)
   //
   if (corNgsild.datasetIdV != NULL)
   {
-    KjNode* instP = attrWrapperP->value.firstChildP;
+    CorNode* instP = attrWrapperP->value.firstChildP;
     while (instP != NULL)
     {
-      KjNode* nextP = instP->next;
+      CorNode* nextP = instP->next;
       bool    keep  = false;
       for (int i = 0; corNgsild.datasetIdV[i] != NULL; i++)
       {
@@ -107,7 +107,7 @@ bool getEntityAttrValue(void)
         }
       }
       if (!keep)
-        kjChildRemove(attrWrapperP, instP);
+        corTreeChildRemove(attrWrapperP, instP);
       instP = nextP;
     }
     if (attrWrapperP->value.firstChildP == NULL)
@@ -121,9 +121,9 @@ bool getEntityAttrValue(void)
   //
   // Unwrap storage-format to API-format via a transient single-attribute entity.
   //
-  kjChildRemove(entityP, attrWrapperP);
-  KjNode* wrap = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(wrap, attrWrapperP);
+  corTreeChildRemove(entityP, attrWrapperP);
+  CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(wrap, attrWrapperP);
 
   ldEntityToApi(wrap, &corRest.kalloc);
 
@@ -136,11 +136,11 @@ bool getEntityAttrValue(void)
   // the default instance's value (datasetId already narrowed above); pick the
   // first instance when an array remains.
   //
-  KjNode* attrP = wrap->value.firstChildP;
-  if (attrP != NULL && attrP->type == KjArray)
+  CorNode* attrP = wrap->value.firstChildP;
+  if (attrP != NULL && attrP->type == CorArray)
     attrP = attrP->value.firstChildP;
 
-  KjNode* valueP = (attrP != NULL) ? ldAttrValueNode(attrP) : NULL;
+  CorNode* valueP = (attrP != NULL) ? ldAttrValueNode(attrP) : NULL;
   if (valueP == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
@@ -150,19 +150,19 @@ bool getEntityAttrValue(void)
 
   //
   // Render the value alone (no member name, no sibling comma, no @context) —
-  // the value-only body. Detach from its siblings so kjFastRender emits just
+  // the value-only body. Detach from its siblings so corJsonFastRender emits just
   // the value with no trailing separator.
   //
   valueP->name = NULL;
   valueP->next = NULL;
-  int   len = kjFastRenderSize(valueP) + 1;
+  int   len = corJsonFastRenderSize(valueP) + 1;
   char* buf = (char*) kaAlloc(&corRest.kalloc, len);
   if (buf == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering attribute value");
     return true;
   }
-  kjFastRender(valueP, buf);
+  corJsonFastRender(valueP, buf);
 
   corRest.out.payload        = buf;
   corRest.out.payloadSize    = strlen(buf);

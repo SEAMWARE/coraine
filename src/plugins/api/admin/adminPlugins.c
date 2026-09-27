@@ -8,7 +8,8 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kjson/kjBuilder.h"                      // kjObject, kjArray, kjString, kjChildAdd
+#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 
 #include "db/DbDriver.h"                         // db
@@ -30,17 +31,17 @@
 //
 bool adminGetPlugins(void)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* root   = kjObject(kjsonP, NULL);
+  KAlloc* allocP = corRest.kallocP;
+  CorNode* root  = corTreeObject(allocP, NULL);
 
   // DB plugin
-  kjChildAdd(root, kjString(kjsonP, "db", db.alias ? db.alias : "none"));
+  corTreeChildAdd(root, corTreeString(allocP, "db", db.alias ? db.alias : "none"));
 
   // API plugins
-  KjNode* apiArray = kjArray(kjsonP, "api");
+  CorNode* apiArray = corTreeArray(allocP, "api");
   for (int i = 0; i < apiPluginCount; i++)
-    kjChildAdd(apiArray, kjString(kjsonP, NULL, apiPlugins[i].alias ? apiPlugins[i].alias : "?"));
-  kjChildAdd(root, apiArray);
+    corTreeChildAdd(apiArray, corTreeString(allocP, NULL, apiPlugins[i].alias ? apiPlugins[i].alias : "?"));
+  corTreeChildAdd(root, apiArray);
 
   corRest.out.responseTree = root;
   return true;

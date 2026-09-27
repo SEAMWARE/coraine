@@ -16,18 +16,18 @@
 //
 // The tenant store uses a malloc-backed allocator, so any node grafted into the
 // live tree is cloned with the NULL (malloc) allocator; replaced/removed nodes
-// are kjFree'd.
+// are corTreeFree'd.
 //
 
 #include <stdbool.h>                                 // bool
 #include <string.h>                                   // strcmp
 
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjFree.h"                             // kjFree
-#include "kjson/kjBuilder.h"                          // kjChildRemove, kjChildAdd
-#include "kjson/kjChildReplace.h"                     // kjChildReplace
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeFree.h"                      // corTreeFree
+#include "corTree/corTreeBuilder.h"                   // corTreeChildRemove, corTreeChildAdd
+#include "corTree/corTreeChildReplace.h"              // corTreeChildReplace
 
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_MODIFIED_AT, LD_VOCAB_SCOPE
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
@@ -45,21 +45,21 @@
 // replaceOrAdd - graft a malloc-clone of `srcNode` into `live` under `name`,
 // replacing (and freeing) any existing same-named child.
 //
-static void replaceOrAdd(KjNode* live, const char* name, KjNode* srcNode)
+static void replaceOrAdd(CorNode* live, const char* name, CorNode* srcNode)
 {
   if (srcNode == NULL)
     return;
 
-  KjNode* clone = kjClone(NULL, srcNode);  // NULL allocator == malloc == store lifetime
-  KjNode* old   = kjLookup(live, name);
+  CorNode* clone = corTreeClone(NULL, srcNode); // NULL allocator == malloc == store lifetime
+  CorNode* old  = corTreeLookup(live, name);
 
   if (old != NULL)
   {
-    kjChildReplace(live, old, clone);
-    kjFree(old);
+    corTreeChildReplace(live, old, clone);
+    corTreeFree(old);
   }
   else
-    kjChildAdd(live, clone);
+    corTreeChildAdd(live, clone);
 }
 
 
@@ -72,18 +72,18 @@ static void replaceOrAdd(KjNode* live, const char* name, KjNode* srcNode)
 // against; the new attribute wrappers (and refreshed modifiedAt/type/scope) are
 // copied from it into `live`. Shared by the single-entity and batch paths.
 //
-void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP)
+void corDbApplyReportToLive(CorNode* live, CorNode* merged, LdMergeReport* reportP)
 {
   bool anyChange = false;
 
   if (reportP != NULL && reportP->changes != NULL)
   {
-    for (KjNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    for (CorNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
     {
-      KjNode* attrNameP = kjLookup(change, "attr");
-      KjNode* reasonP   = kjLookup(change, "reason");
+      CorNode* attrNameP = corTreeLookup(change, "attr");
+      CorNode* reasonP  = corTreeLookup(change, "reason");
 
-      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != KjString || reasonP->type != KjString)
+      if (attrNameP == NULL || reasonP == NULL || attrNameP->type != CorString || reasonP->type != CorString)
         continue;
 
       const char* attrName = attrNameP->value.s;
@@ -91,17 +91,17 @@ void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP
 
       if (strcmp(reason, "attributeDeleted") == 0)
       {
-        KjNode* old = kjLookup(live, attrName);
+        CorNode* old = corTreeLookup(live, attrName);
         if (old != NULL)
         {
-          kjChildRemove(live, old);
-          kjFree(old);
+          corTreeChildRemove(live, old);
+          corTreeFree(old);
           anyChange = true;
         }
       }
       else
       {
-        replaceOrAdd(live, attrName, kjLookup(merged, attrName));
+        replaceOrAdd(live, attrName, corTreeLookup(merged, attrName));
         anyChange = true;
       }
     }
@@ -109,9 +109,9 @@ void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP
 
   if (anyChange)
   {
-    replaceOrAdd(live, LD_VOCAB_MODIFIED_AT, kjLookup(merged, LD_VOCAB_MODIFIED_AT));
-    replaceOrAdd(live, "type",               kjLookup(merged, "type"));
-    replaceOrAdd(live, LD_VOCAB_SCOPE,        kjLookup(merged, LD_VOCAB_SCOPE));
+    replaceOrAdd(live, LD_VOCAB_MODIFIED_AT, corTreeLookup(merged, LD_VOCAB_MODIFIED_AT));
+    replaceOrAdd(live, "type",               corTreeLookup(merged, "type"));
+    replaceOrAdd(live, LD_VOCAB_SCOPE,        corTreeLookup(merged, LD_VOCAB_SCOPE));
   }
 }
 
@@ -122,7 +122,7 @@ void corDbApplyReportToLive(KjNode* live, KjNode* merged, LdMergeReport* reportP
 // corDbEntityChangesApply - persist a merged single entity (DB driver entry)
 //
 int corDbEntityChangesApply(Tenant* tenantP, const char* entityId,
-                            KjNode* mergedEntity, LdMergeReport* reportP)
+                            CorNode* mergedEntity, LdMergeReport* reportP)
 {
   COR_DB_WRITE(tenantP);
 
@@ -135,24 +135,24 @@ int corDbEntityChangesApply(Tenant* tenantP, const char* entityId,
   if (!geoEntityValidate(mergedEntity))
     return DB_INVALID_GEOMETRY;
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
 
   //
   // One hop via the id index instead of a walk of the whole store with a
-  // kjLookup per entity. The loop shape is kept so the body below is unchanged:
+  // corTreeLookup per entity. The loop shape is kept so the body below is unchanged:
   // indexed, it runs exactly once for the hit and not at all for a miss;
   // unindexed - a store that predates the index - it walks as it always did.
   //
   CorDbStore* idxStoreP = corDbStoreOf(tenantP);
-  KjNode*     idxHitP   = corDbIndexLookup(idxStoreP, entityId);
+  CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
   bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
 
-  for (KjNode* eP = indexed ? idxHitP : entities->value.firstChildP;
+  for (CorNode* eP = indexed ? idxHitP : entities->value.firstChildP;
        eP != NULL;
        eP = indexed ? NULL : eP->next)
   {
-    KjNode* idP = kjLookup(eP, "id");
-    if (idP != NULL && idP->type == KjString && strcmp(idP->value.s, entityId) == 0)
+    CorNode* idP = corTreeLookup(eP, "id");
+    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, entityId) == 0)
     {
       corDbApplyReportToLive(eP, mergedEntity, reportP);
       return DB_OK;

@@ -18,12 +18,12 @@
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbPut
 
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjBuilder.h"                          // kjObject, kjArray, kjString, kjChildAdd
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjRender.h"                           // kjFastRender
-#include "kjson/kjRenderSize.h"                       // kjFastRenderSize
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
+#include "corTree/CorNode.h"                          // CorNode
+#include "corJson/corJsonRender.h"                    // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
 
@@ -64,26 +64,26 @@
 // Both must be the same shape (string vs. array) and carry the same set of
 // values. String comparison is exact (the values are expanded IRIs).
 //
-static bool typeEqual(KjNode* a, KjNode* b)
+static bool typeEqual(CorNode* a, CorNode* b)
 {
   if ((a == NULL) || (b == NULL))
     return false;
 
-  if ((a->type == KjString) && (b->type == KjString))
+  if ((a->type == CorString) && (b->type == CorString))
     return strcmp(a->value.s, b->value.s) == 0;
 
-  if ((a->type != KjArray) || (b->type != KjArray))
+  if ((a->type != CorArray) || (b->type != CorArray))
     return false;
 
-  for (KjNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
+  for (CorNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
   {
-    if (aI->type != KjString)
+    if (aI->type != CorString)
       return false;
 
     bool found = false;
-    for (KjNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
+    for (CorNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
     {
-      if ((bI->type == KjString) && (strcmp(aI->value.s, bI->value.s) == 0))
+      if ((bI->type == CorString) && (strcmp(aI->value.s, bI->value.s) == 0))
       {
         found = true;
         break;
@@ -93,15 +93,15 @@ static bool typeEqual(KjNode* a, KjNode* b)
       return false;
   }
 
-  for (KjNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
+  for (CorNode* bI = b->value.firstChildP; bI != NULL; bI = bI->next)
   {
-    if (bI->type != KjString)
+    if (bI->type != CorString)
       return false;
 
     bool found = false;
-    for (KjNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
+    for (CorNode* aI = a->value.firstChildP; aI != NULL; aI = aI->next)
     {
-      if ((aI->type == KjString) && (strcmp(bI->value.s, aI->value.s) == 0))
+      if ((aI->type == CorString) && (strcmp(bI->value.s, aI->value.s) == 0))
       {
         found = true;
         break;
@@ -141,17 +141,17 @@ static char* replaceUrl(const char* endpoint, const char* entityId)
 //
 // renderFragmentWithContext - serialize fragment with @context for remote
 //
-static char* renderFragmentWithContext(KjNode* fragP)
+static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(fragP, "@context");
+  CorNode* atCtx = corTreeLookup(fragP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(fragP, atCtx);
+    corTreeChildRemove(fragP, atCtx);
 
-  int   bufSize = kjFastRenderSize(fragP) + 1;
+  int   bufSize = corJsonFastRenderSize(fragP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
 
-  kjFastRender(fragP, buf);
+  corJsonFastRender(fragP, buf);
   return buf;
 }
 
@@ -166,7 +166,7 @@ bool replaceEntity(void)
   bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
   const char* entityId = corRest.in.wildcard[0];
-  KjNode*     entityP  = corRest.in.requestTree;
+  CorNode*    entityP  = corRest.in.requestTree;
 
   //
   // Validate payload as a full entity (id + type mandatory, no null-marker).
@@ -177,8 +177,8 @@ bool replaceEntity(void)
   //
   // Id consistency: body id (if present) must match URL id
   //
-  KjNode* bodyIdP = kjLookup(entityP, "id");
-  if (bodyIdP != NULL && bodyIdP->type == KjString && strcmp(bodyIdP->value.s, entityId) != 0)
+  CorNode* bodyIdP = corTreeLookup(entityP, "id");
+  if (bodyIdP != NULL && bodyIdP->type == CorString && strcmp(bodyIdP->value.s, entityId) != 0)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Entity Id Mismatch",
             "entity id in payload ('%s') does not match URL ('%s')",
@@ -211,7 +211,7 @@ bool replaceEntity(void)
   // local path will run at all (if local entity doesn't exist, we skip
   // the local replace and rely on forwards succeeding).
   //
-  KjNode* oldStored   = NULL;
+  CorNode* oldStored  = NULL;
   int     rr          = db.entityRetrieve(tenantP, entityId, &oldStored);
   bool    localExists = (rr == DB_OK && oldStored != NULL);
 
@@ -231,8 +231,8 @@ bool replaceEntity(void)
   //
   if (localExists)
   {
-    KjNode* newTypeP = kjLookup(entityP, "type");
-    KjNode* oldTypeP = kjLookup(oldStored, "type");
+    CorNode* newTypeP = corTreeLookup(entityP, "type");
+    CorNode* oldTypeP = corTreeLookup(oldStored, "type");
 
     if (!typeEqual(newTypeP, oldTypeP))
     {
@@ -256,7 +256,7 @@ bool replaceEntity(void)
   // input. Exclusive/redirect DETACH (chop); inclusive CLONE (keep
   // local copy for the post-dispatch remains).
   //
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
@@ -275,10 +275,10 @@ bool replaceEntity(void)
 
   if (dispatch)
   {
-    KjNode* typeP = kjLookup(entityP, "type");
+    CorNode* typeP = corTreeLookup(entityP, "type");
     char*   typeArr[2] = { NULL, NULL };
     char**  typeArgP   = NULL;
-    if (typeP != NULL && typeP->type == KjString)
+    if (typeP != NULL && typeP->type == CorString)
     {
       typeArr[0] = typeP->value.s;
       typeArgP   = typeArr;
@@ -328,7 +328,7 @@ bool replaceEntity(void)
     {
       bool isExclusive = (items[i].modeIdx == 0);
 
-      KjNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kjsonP,
+      CorNode* fragP = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kallocP,
                                               /*detach=*/isExclusive);
       if (fragP == NULL) continue;
 
@@ -364,7 +364,7 @@ bool replaceEntity(void)
     for (int i = 0; i < n; i++)
     {
       if (items[i].modeIdx != 1) continue;  // redirect only
-      KjNode* drop = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kjsonP,
+      CorNode* drop = ldEntityFragmentForInfo(entityP, items[i].riP, corRest.kallocP,
                                               /*detach=*/true);
       (void) drop;  // freed with the arena
     }
@@ -417,8 +417,8 @@ bool replaceEntity(void)
     // entity first entered the system); only modifiedAt is bumped. Hand the
     // stored createdAt to ldApiEntityToDbModel so it stamps that instead of
     // 'now'. oldStored is non-NULL here (localExists implies it).
-    KjNode*  oldCreatedAt  = kjLookup(oldStored, "createdAt");
-    int64_t  keepCreatedAt = (oldCreatedAt != NULL && oldCreatedAt->type == KjInt) ? oldCreatedAt->value.i : 0;
+    CorNode* oldCreatedAt  = corTreeLookup(oldStored, "createdAt");
+    int64_t  keepCreatedAt = (oldCreatedAt != NULL && oldCreatedAt->type == CorInt) ? oldCreatedAt->value.i : 0;
     ldApiEntityToDbModel(entityP, &corRest.kalloc, keepCreatedAt);
 
     //
@@ -436,10 +436,10 @@ bool replaceEntity(void)
     for (int ix = 0; ix < syncDone.failedN; ix++)
     {
       int     st    = syncDone.failedStatusV[ix];
-      KjNode* keptP = kjLookup(oldStored, syncDone.failedAttrV[ix]);
+      CorNode* keptP = corTreeLookup(oldStored, syncDone.failedAttrV[ix]);
 
       if (keptP != NULL)
-        kjChildAdd(entityP, kjClone(corRest.kjsonP, keptP));
+        corTreeChildAdd(entityP, corTreeClone(corRest.kallocP, keptP));
 
       ldDistOpBatchErrorAdd(errorsArrayP, entityId, st,
                             syncDone.failedTypeV[ix],
@@ -447,7 +447,7 @@ bool replaceEntity(void)
                             syncDone.failedReasonV[ix], NULL);
     }
 
-    KjNode* replacedOld = NULL;
+    CorNode* replacedOld = NULL;
     int     r           = db.entityReplace(tenantP, entityId, entityP, &replacedOld);
 
     bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
@@ -485,8 +485,8 @@ bool replaceEntity(void)
       // alike: nothing on the read side closes them, the history said they
       // still lived.
       {
-        KjNode* typeNode = kjLookup(entityP, "type");
-        const char* etype = (typeNode != NULL && typeNode->type == KjString) ? typeNode->value.s : NULL;
+        CorNode* typeNode = corTreeLookup(entityP, "type");
+        const char* etype = (typeNode != NULL && typeNode->type == CorString) ? typeNode->value.s : NULL;
 
         TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
         memset(tevP, 0, sizeof(*tevP));
@@ -498,7 +498,7 @@ bool replaceEntity(void)
         tevP->entitySnapshot = entityP;
         troeDeferEntityEvent(tevP);
 
-        for (KjNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+        for (CorNode* attrP = entityP->value.firstChildP; attrP != NULL; attrP = attrP->next)
         {
           if (attrP->name == NULL)                       continue;
           if (attrP->name[0] == '@')                     continue;
@@ -542,7 +542,7 @@ bool replaceEntity(void)
   //   - something succeeded AND errors[] non-empty → 207 Multi-Status + body
   //
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
@@ -556,13 +556,13 @@ bool replaceEntity(void)
     return true;
   }
 
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
 

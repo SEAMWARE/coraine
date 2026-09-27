@@ -20,8 +20,8 @@
 #include <string.h>                                  // strlen, strcpy
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjArray, kjObject, kjString, kjChildAdd
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
 #include "kalloc/kaAlloc.h"                          // kaAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -56,7 +56,7 @@ bool deleteEntityTemporal(void)
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // Distop dispatch — broadcast to every matching CSR (3 modes; auxiliary
@@ -153,7 +153,7 @@ bool deleteEntityTemporal(void)
   }
 
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (errorsCount == 0)
   {
@@ -161,12 +161,12 @@ bool deleteEntityTemporal(void)
     return true;
   }
 
-  KjNode* result     = kjObject(corRest.kjsonP, NULL);
-  KjNode* successArr = kjArray(corRest.kjsonP, "success");
+  CorNode* result    = corTreeObject(corRest.kallocP, NULL);
+  CorNode* successArr = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArr, kjString(corRest.kjsonP, NULL, entityId));
-  kjChildAdd(result, successArr);
-  kjChildAdd(result, errorsArrayP);
+    corTreeChildAdd(successArr, corTreeString(corRest.kallocP, NULL, entityId));
+  corTreeChildAdd(result, successArr);
+  corTreeChildAdd(result, errorsArrayP);
 
   corRest.out.responseTree   = result;
   corRest.out.httpStatusCode = anySucceeded ? 207 : 502;

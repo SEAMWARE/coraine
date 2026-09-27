@@ -15,7 +15,7 @@
 #include <mongoc/mongoc.h>                             // mongoc_*
 
 #include "kalloc/kalloc.h"                             // kaBufferInit, kaBufferReset
-#include "kjson/kjLookup.h"                            // kjLookup
+#include "corTree/corTreeLookup.h"                     // corTreeLookup
 #include "ktrace/kTrace.h"                             // KT_*
 
 #include "db/DbDriver.h"                               // DB_OK, DB_ERR
@@ -24,7 +24,7 @@
 #include "ha/haInit.h"                                 // haApplyWait
 
 #include "currentState/mongoc/mongocGlobals.h"         // mongocDbName, mongocGlobalDb, mongocUriString
-#include "currentState/mongoc/mongocBsonToKjTree.h"    // mongocBsonToKjTree
+#include "currentState/mongoc/mongocBsonToTree.h"      // mongocBsonToTree
 #include "currentState/mongoc/mongocHaWatch.h"         // Own interface
 
 
@@ -149,7 +149,7 @@ static void eventTreat(const bson_t* bsonP)
   //
   haApplyWait();
 
-  KjNode* eventP = mongocBsonToKjTree(&haAlloc, bsonP);
+  CorNode* eventP = mongocBsonToTree(&haAlloc, bsonP);
 
   if (eventP == NULL)
   {
@@ -157,10 +157,10 @@ static void eventTreat(const bson_t* bsonP)
     return;
   }
 
-  KjNode* opTypeP = kjLookup(eventP, "operationType");
-  KjNode* nsP     = kjLookup(eventP, "ns");
+  CorNode* opTypeP = corTreeLookup(eventP, "operationType");
+  CorNode* nsP    = corTreeLookup(eventP, "ns");
 
-  if ((opTypeP == NULL) || (opTypeP->type != KjString) || (nsP == NULL))
+  if ((opTypeP == NULL) || (opTypeP->type != CorString) || (nsP == NULL))
   {
     KT_E("HA: change stream event without operationType or ns - ignored");
     return;
@@ -183,10 +183,10 @@ static void eventTreat(const bson_t* bsonP)
     return;
   }
 
-  KjNode* dbP   = kjLookup(nsP, "db");
-  KjNode* collP = kjLookup(nsP, "coll");
+  CorNode* dbP  = corTreeLookup(nsP, "db");
+  CorNode* collP = corTreeLookup(nsP, "coll");
 
-  if ((dbP == NULL) || (collP == NULL) || (dbP->type != KjString) || (collP->type != KjString))
+  if ((dbP == NULL) || (collP == NULL) || (dbP->type != CorString) || (collP->type != CorString))
   {
     KT_E("HA: change stream event with an incomplete 'ns' - ignored");
     return;
@@ -228,17 +228,17 @@ static void eventTreat(const bson_t* bsonP)
   // The id. Every document this broker writes to these three collections has a
   // string _id (a URI, or the @context identifier).
   //
-  // ⚠️ It is looked up as "id": mongocBsonToKjTree renames _id on the way in, and
+  // ⚠️ It is looked up as "id": mongocBsonToTree renames _id on the way in, and
   // that applies to the change event's documentKey as much as to a document. The
   // raw name is tried too, so this does not silently break if that ever changes.
   //
-  KjNode* documentKeyP = kjLookup(eventP, "documentKey");
-  KjNode* idP          = (documentKeyP != NULL)? kjLookup(documentKeyP, "id") : NULL;
+  CorNode* documentKeyP = corTreeLookup(eventP, "documentKey");
+  CorNode* idP         = (documentKeyP != NULL)? corTreeLookup(documentKeyP, "id") : NULL;
 
   if ((idP == NULL) && (documentKeyP != NULL))
-    idP = kjLookup(documentKeyP, "_id");
+    idP = corTreeLookup(documentKeyP, "_id");
 
-  if ((idP == NULL) || (idP->type != KjString))
+  if ((idP == NULL) || (idP->type != CorString))
   {
     KT_W("HA: change in %s.%s with no string _id - ignored", dbP->value.s, collP->value.s);
     return;

@@ -14,13 +14,13 @@
 #include <stddef.h>                                       // NULL
 #include <string.h>                                       // strcmp
 
-#include "kjson/KjNode.h"                                 // KjNode
-#include "kjson/kjBuilder.h"                              // kjChildRemove
-#include "kjson/kjClone.h"                                // kjClone
-#include "kjson/kjFree.h"                                 // kjFree
-#include "kjson/kjLookup.h"                               // kjLookup
+#include "corTree/CorNode.h"                              // CorNode
+#include "corTree/corTreeBuilder.h"                       // corTreeChildRemove
+#include "corTree/corTreeClone.h"                         // corTreeClone
+#include "corTree/corTreeFree.h"                          // corTreeFree
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
 
-#include "corRest/CorRestState.h"                           // corRest (kjsonP arena)
+#include "corRest/CorRestState.h"                           // corRest (kallocP arena)
 
 #include "db/DbDriver.h"                                  // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/corDB/corDbIndex.h"        // corDbIndexRemove
@@ -34,20 +34,20 @@
 // corDbEntityBulkDelete -
 //
 int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
-                          int* resultsV, KjNode** snapshotsV)
+                          int* resultsV, CorNode** snapshotsV)
 {
   COR_DB_WRITE(tenantP);
 
-  KjNode* entities = corDbEntities(tenantP);
+  CorNode* entities = corDbEntities(tenantP);
   bool    anyOk    = false;
 
   for (int i = 0; i < N; i++)
   {
-    KjNode* match = NULL;
-    for (KjNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+    CorNode* match = NULL;
+    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
     {
-      KjNode* storedIdP = kjLookup(eP, "id");
-      if (storedIdP != NULL && storedIdP->type == KjString &&
+      CorNode* storedIdP = corTreeLookup(eP, "id");
+      if (storedIdP != NULL && storedIdP->type == CorString &&
           strcmp(storedIdP->value.s, idV[i]) == 0)
       {
         match = eP;
@@ -62,10 +62,10 @@ int corDbEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
       continue;
     }
 
-    snapshotsV[i] = kjClone(corRest.kjsonP, match);   // arena snapshot for notify
+    snapshotsV[i] = corTreeClone(corRest.kallocP, match); // arena snapshot for notify
     corDbIndexRemove(corDbStoreOf(tenantP), match);
-    kjChildRemove(entities, match);
-    kjFree(match);                                    // free the malloc store node
+    corTreeChildRemove(entities, match);
+    corTreeFree(match);                               // free the malloc store node
     resultsV[i] = DB_OK;
     anyOk       = true;
   }

@@ -10,10 +10,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, mongoc_collection_insert_one
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocTreeToBson
 #include "currentState/mongoc/mongocInjectType.h"    // mongocStripTypeDecouple, mongocStripTypeRestore
 #include "currentState/mongoc/mongocSubscriptionCreate.h"  // Own interface
 
@@ -31,7 +31,7 @@ extern mongoc_client_pool_t*  poolP;
 //
 // mongocSubscriptionCreate -
 //
-int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, KjNode* subP)
+int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, CorNode* subP)
 {
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "subscriptions");
@@ -39,11 +39,11 @@ int mongocSubscriptionCreate(Tenant* tenantP, const char* subId, KjNode* subP)
 
   // `type` is the fixed JSON-LD constant "Subscription" — redundant in DB.
   // Strip it around BSON emission, preserving the caller's tree.
-  KjNode* typeP     = NULL;
-  KjNode* typePrevP = NULL;
+  CorNode* typeP    = NULL;
+  CorNode* typePrevP = NULL;
   mongocStripTypeDecouple(subP, &typeP, &typePrevP);
 
-  mongocKjTreeToBson(subP, &bson);
+  mongocTreeToBson(subP, &bson);
 
   mongocStripTypeRestore(subP, typeP, typePrevP);
 

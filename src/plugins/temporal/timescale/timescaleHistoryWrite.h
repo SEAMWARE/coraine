@@ -14,7 +14,7 @@
 // the event-deferral pipeline — the client is dictating history.
 //
 
-#include "kjson/KjNode.h"                                 // KjNode
+#include "corTree/CorNode.h"                              // CorNode
 
 #include "troe/TroeDriver.h"                              // TROE_*
 #include "db/Tenant.h"                                    // Tenant
@@ -28,15 +28,15 @@ extern int timescaleEntityTemporalAttrDelete(Tenant* tenantP, const char* entity
                                              const char* attrName,
                                              const char* datasetId, bool deleteAll);
 
-extern int timescaleEntityTemporalCreate(Tenant* tenantP, KjNode* rootP);
+extern int timescaleEntityTemporalCreate(Tenant* tenantP, CorNode* rootP);
 
-extern int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, KjNode* rootP);
+extern int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, CorNode* rootP);
 
 extern int timescaleEntityTemporalInstanceModify(Tenant* tenantP,
                                                  const char* entityId,
                                                  const char* attrName,
                                                  const char* instanceId,
-                                                 KjNode* rootP);
+                                                 CorNode* rootP);
 
 extern int timescaleEntityTemporalInstanceDelete(Tenant* tenantP,
                                                  const char* entityId,

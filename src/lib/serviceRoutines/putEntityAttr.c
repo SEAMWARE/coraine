@@ -24,12 +24,12 @@
 #include "corRest/CorRestVerb.h"                       // CorVerbPut
 
 #include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjBuilder.h"                         // kjObject, kjChildAdd, kjChildRemove
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjClone.h"                           // kjClone
-#include "kjson/kjRender.h"                          // kjFastRender
-#include "kjson/kjRenderSize.h"                      // kjFastRenderSize
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 #include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
@@ -83,15 +83,15 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
 
 
 
-static char* renderBodyWithContext(KjNode* bodyP)
+static char* renderBodyWithContext(CorNode* bodyP)
 {
   // Strip body @context: forward goes out as application/json + Link.
-  KjNode* atCtx = kjLookup(bodyP, "@context");
+  CorNode* atCtx = corTreeLookup(bodyP, "@context");
   if (atCtx != NULL)
-    kjChildRemove(bodyP, atCtx);
-  int   bufSize = kjFastRenderSize(bodyP) + 1;
+    corTreeChildRemove(bodyP, atCtx);
+  int   bufSize = corJsonFastRenderSize(bodyP) + 1;
   char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
-  kjFastRender(bodyP, buf);
+  corJsonFastRender(bodyP, buf);
   return buf;
 }
 
@@ -107,9 +107,9 @@ bool putEntityAttr(void)
 
   const char* entityId = corRest.in.wildcard[0];
   const char* attrWild = corRest.in.wildcard[1];
-  KjNode*     bodyP    = corRest.in.requestTree;
+  CorNode*    bodyP    = corRest.in.requestTree;
 
-  if (bodyP->type != KjObject)
+  if (bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "attribute fragment must be a JSON object");
@@ -144,8 +144,8 @@ bool putEntityAttr(void)
     return true;
   }
 
-  KjNode* ctxNodeP = kjLookup(bodyP, "@context");
-  if (ctxNodeP != NULL) kjChildRemove(bodyP, ctxNodeP);
+  CorNode* ctxNodeP = corTreeLookup(bodyP, "@context");
+  if (ctxNodeP != NULL) corTreeChildRemove(bodyP, ctxNodeP);
 
   //
   // Wrapped-fragment form — {"<attrName>": {...}}: the ETSI suite (and
@@ -153,18 +153,18 @@ bool putEntityAttr(void)
   // than the bare Attribute Fragment of § 5.3. Accept it: unwrap for
   // local processing. Forwards mirror the incoming shape (fwdSrcP).
   //
-  KjNode* fwdSrcP = bodyP;
-  KjNode* soleP   = bodyP->value.firstChildP;
-  if (soleP != NULL && soleP->next == NULL && soleP->type == KjObject &&
+  CorNode* fwdSrcP = bodyP;
+  CorNode* soleP  = bodyP->value.firstChildP;
+  if (soleP != NULL && soleP->next == NULL && soleP->type == CorObject &&
       soleP->name != NULL && strcmp(soleP->name, attrIri) == 0)
     bodyP = soleP;
 
   //
   // Wrap the attribute fragment into a fake entity fragment.
   //
-  KjNode* entityFrag = kjObject(corRest.kjsonP, NULL);
+  CorNode* entityFrag = corTreeObject(corRest.kallocP, NULL);
   bodyP->name = (char*) attrIri;
-  kjChildAdd(entityFrag, bodyP);
+  corTreeChildAdd(entityFrag, bodyP);
 
   //
   // § 5.4.2 — an Attribute Fragment may arrive concise or simplified, and both
@@ -213,7 +213,7 @@ bool putEntityAttr(void)
 
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
 
-  KjNode* errorsArrayP = kjArray(corRest.kjsonP, "errors");
+  CorNode* errorsArrayP = corTreeArray(corRest.kallocP, "errors");
   bool    anySucceeded = false;
 
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
@@ -267,7 +267,7 @@ bool putEntityAttr(void)
       // compact with different contexts (csi.jsonldContext). Clone from
       // fwdSrcP so the forward mirrors the incoming shape (wrapped or
       // bare) and the local-apply tree stays pristine.
-      KjNode*      fwdBody = kjClone(corRest.kjsonP, fwdSrcP);
+      CorNode*     fwdBody = corTreeClone(corRest.kallocP, fwdSrcP);
       CorLdContext* fwdCtx  = ldDistOpForwardContext(items[i].csr);
 
       corLdCompactTreeWith(fwdBody, fwdCtx);
@@ -318,7 +318,7 @@ bool putEntityAttr(void)
   //
   if (localApply)
   {
-    KjNode* targetEntity = NULL;
+    CorNode* targetEntity = NULL;
     int     rr           = db.entityRetrieve(tenantP, entityId, &targetEntity);
 
     if (rr == DB_NOT_FOUND)
@@ -341,7 +341,7 @@ bool putEntityAttr(void)
     }
     else
     {
-      KjNode* tAttrP = kjLookup(targetEntity, attrIri);
+      CorNode* tAttrP = corTreeLookup(targetEntity, attrIri);
       if (tAttrP == NULL)
       {
         // Attribute absent locally and nothing succeeded. A distributed error
@@ -408,7 +408,7 @@ bool putEntityAttr(void)
         {
           anySucceeded = true;
 
-          KjNode* merged = NULL;
+          CorNode* merged = NULL;
           if (tenantP->subCacheP != NULL)
             db.entityRetrieve(tenantP, entityId, &merged);
 
@@ -423,8 +423,8 @@ bool putEntityAttr(void)
             const char* etype = NULL;
             if (merged != NULL)
             {
-              KjNode* tn = kjLookup(merged, "type");
-              if (tn != NULL && tn->type == KjString) etype = tn->value.s;
+              CorNode* tn = corTreeLookup(merged, "type");
+              if (tn != NULL && tn->type == CorString) etype = tn->value.s;
             }
             TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
             memset(tevP, 0, sizeof(*tevP));
@@ -443,7 +443,7 @@ bool putEntityAttr(void)
             // dataset-keyed; the entity has the others too, which it did not
             // touch.
             //
-            tevP->attrSnapshot   = kjLookup(entityFrag, attrIri);
+            tevP->attrSnapshot   = corTreeLookup(entityFrag, attrIri);
             troeDeferAttrEvent(tevP);
           }
         }
@@ -452,7 +452,7 @@ bool putEntityAttr(void)
   }
 
   int errorsCount = 0;
-  for (KjNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {
@@ -467,13 +467,13 @@ bool putEntityAttr(void)
     return true;
   }
 
-  KjNode* successArrayP = kjArray(corRest.kjsonP, "success");
+  CorNode* successArrayP = corTreeArray(corRest.kallocP, "success");
   if (anySucceeded)
-    kjChildAdd(successArrayP, kjString(corRest.kjsonP, NULL, entityId));
+    corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, entityId));
 
-  KjNode* respBodyP = kjObject(corRest.kjsonP, NULL);
-  kjChildAdd(respBodyP, successArrayP);
-  kjChildAdd(respBodyP, errorsArrayP);
+  CorNode* respBodyP = corTreeObject(corRest.kallocP, NULL);
+  corTreeChildAdd(respBodyP, successArrayP);
+  corTreeChildAdd(respBodyP, errorsArrayP);
 
   corRest.out.responseTree   = respBodyP;
 

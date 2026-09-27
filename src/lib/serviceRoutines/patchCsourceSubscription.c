@@ -21,11 +21,11 @@
 #include <string.h>                                  // strcmp
 
 #include "corRest/CorRestState.h"                      // corRest
-#include "kjson/KjNode.h"                            // KjNode, KjNull
-#include "kjson/kjLookup.h"                          // kjLookup
-#include "kjson/kjBuilder.h"                         // kjChildAdd, kjChildRemove, kjString
-#include "kjson/kjFree.h"                            // kjFree
-#include "kjson/kjClone.h"                           // kjClone
+#include "corTree/CorNode.h"                         // CorNode, CorNull
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeChildAdd, corTreeChildRemove, corTreeString
+#include "corTree/corTreeFree.h"                     // corTreeFree
+#include "corTree/corTreeClone.h"                    // corTreeClone
 
 #include "corNgsild/corNgsild.h"                       // ldError, corNgsild
 #include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription
@@ -48,7 +48,7 @@
 bool patchCsourceSubscription(void)
 {
   const char* subId    = corRest.in.wildcard[0];
-  KjNode*     fragment = corRest.in.requestTree;
+  CorNode*    fragment = corRest.in.requestTree;
 
   // Fragment validation only. The post-merge re-validation (and single-parse
   // format capture) for the csource-sub PATCH path is part of the deferred
@@ -58,8 +58,8 @@ bool patchCsourceSubscription(void)
     return true;
 
   // expiresAt-past check
-  KjNode* expiresAtP = kjLookup(fragment, LD_VOCAB_EXPIRES_AT);
-  if (expiresAtP != NULL && expiresAtP->type == KjString)
+  CorNode* expiresAtP = corTreeLookup(fragment, LD_VOCAB_EXPIRES_AT);
+  if (expiresAtP != NULL && expiresAtP->type == CorString)
   {
     uint64_t expiresNs = ldIsoToNanoseconds(expiresAtP->value.s);
     if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
@@ -71,7 +71,7 @@ bool patchCsourceSubscription(void)
   }
 
   // timeInterval not supported for CSR subs (defer to follow-up)
-  if (kjLookup(fragment, "timeInterval") != NULL)
+  if (corTreeLookup(fragment, "timeInterval") != NULL)
   {
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
             "periodic CSR subscriptions ('timeInterval') are not supported");
@@ -102,23 +102,23 @@ bool patchCsourceSubscription(void)
   // Apply JSON Merge Patch to itemP->subTree.
   // Fragment field == null → remove; else replace/add (clone to detach).
   //
-  KjNode* subTree = itemP->subTree;
-  KjNode* next;
+  CorNode* subTree = itemP->subTree;
+  CorNode* next;
 
-  for (KjNode* fieldP = fragment->value.firstChildP; fieldP != NULL; fieldP = next)
+  for (CorNode* fieldP = fragment->value.firstChildP; fieldP != NULL; fieldP = next)
   {
     next = fieldP->next;
 
-    KjNode* existingP = kjLookup(subTree, fieldP->name);
+    CorNode* existingP = corTreeLookup(subTree, fieldP->name);
 
-    if (fieldP->type == KjNull)
+    if (fieldP->type == CorNull)
     {
       if (existingP != NULL)
       {
         // Unlink AND free — the cache subTree is a malloc-backed clone
-        // (kjClone), so a bare kjChildRemove would orphan the old field.
-        kjChildRemove(subTree, existingP);
-        kjFree(existingP);
+        // (corTreeClone), so a bare corTreeChildRemove would orphan the old field.
+        corTreeChildRemove(subTree, existingP);
+        corTreeFree(existingP);
       }
     }
     else
@@ -126,13 +126,13 @@ bool patchCsourceSubscription(void)
       if (existingP != NULL)
       {
         // Unlink AND free — the cache subTree is a malloc-backed clone
-        // (kjClone), so a bare kjChildRemove would orphan the old field.
-        kjChildRemove(subTree, existingP);
-        kjFree(existingP);
+        // (corTreeClone), so a bare corTreeChildRemove would orphan the old field.
+        corTreeChildRemove(subTree, existingP);
+        corTreeFree(existingP);
       }
 
-      KjNode* cloneP = kjClone(NULL, fieldP);
-      kjChildAdd(subTree, cloneP);
+      CorNode* cloneP = corTreeClone(NULL, fieldP);
+      corTreeChildAdd(subTree, cloneP);
     }
   }
 
@@ -140,13 +140,13 @@ bool patchCsourceSubscription(void)
   // Recompute status from isActive + expiresAt (spec § 5.8.2.4 analogue)
   //
   {
-    KjNode* isActiveP = kjLookup(subTree, LD_VOCAB_IS_ACTIVE);
-    KjNode* expiresP  = kjLookup(subTree, LD_VOCAB_EXPIRES_AT);
-    KjNode* statusP   = kjLookup(subTree, LD_VOCAB_STATUS);
-    bool    isActive  = (isActiveP == NULL || isActiveP->type != KjBoolean || isActiveP->value.b == true);
+    CorNode* isActiveP = corTreeLookup(subTree, LD_VOCAB_IS_ACTIVE);
+    CorNode* expiresP = corTreeLookup(subTree, LD_VOCAB_EXPIRES_AT);
+    CorNode* statusP  = corTreeLookup(subTree, LD_VOCAB_STATUS);
+    bool    isActive  = (isActiveP == NULL || isActiveP->type != CorBoolean || isActiveP->value.b == true);
     bool    isExpired = false;
 
-    if (expiresP != NULL && expiresP->type == KjString)
+    if (expiresP != NULL && expiresP->type == CorString)
     {
       uint64_t expiresNs = ldIsoToNanoseconds(expiresP->value.s);
       if (expiresNs > 0 && expiresNs < corRest.requestStartTime)
@@ -155,10 +155,10 @@ bool patchCsourceSubscription(void)
 
     const char* newStatus = isExpired ? "expired" : (isActive ? "active" : "paused");
 
-    if (statusP != NULL && statusP->type == KjString)
+    if (statusP != NULL && statusP->type == CorString)
       statusP->value.s = (char*) newStatus;
     else
-      kjChildAdd(subTree, kjString(NULL, LD_VOCAB_STATUS, newStatus));
+      corTreeChildAdd(subTree, corTreeString(NULL, LD_VOCAB_STATUS, newStatus));
   }
 
   // § 6.4.5 — bump modifiedAt to now (in-place on the existing integer node;
@@ -177,10 +177,10 @@ bool patchCsourceSubscription(void)
   // Re-add cache item so parsed shortcuts are rebuilt.
   // Preserve the subTree reference by cloning once more via the cache's own path.
   //
-  KjNode* newTree = kjClone(NULL, subTree);
+  CorNode* newTree = corTreeClone(NULL, subTree);
   ldSubCacheItemRemove(cacheP, subId);
   LdSubCacheItem* newItemP = ldSubCacheItemAdd(cacheP, newTree, NULL, LdFormatUnset);
-  kjFree(newTree);   // ItemAdd deep-clones its input; the intermediate is ours to free
+  corTreeFree(newTree); // ItemAdd deep-clones its input; the intermediate is ours to free
 
   // Pin the rebuilt item and drop the wrlock before the reg-touching notify.
   if (newItemP != NULL)

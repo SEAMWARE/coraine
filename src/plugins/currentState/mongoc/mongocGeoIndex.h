@@ -11,7 +11,7 @@
 //
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 #include "db/Tenant.h"                               // Tenant
 
 
@@ -48,7 +48,7 @@ extern bool mongocGeoIndexExists(Tenant* tenantP, const char* geoproperty);
 // unaffected: only the first appearance of a name as a GeoProperty in a tenant
 // creates an index at all.
 //
-extern const char* mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc_collection_t* collP);
+extern const char* mongocGeoIndexEnsure(Tenant* tenantP, CorNode* entityP, mongoc_collection_t* collP);
 
 
 
@@ -60,6 +60,6 @@ extern const char* mongocGeoIndexEnsure(Tenant* tenantP, KjNode* entityP, mongoc
 // Returns NULL when the rejection was really about a bad geometry rather than a
 // clash of Attribute kinds.
 //
-extern const char* mongocGeoIndexMixedName(Tenant* tenantP, KjNode* entityP);
+extern const char* mongocGeoIndexMixedName(Tenant* tenantP, CorNode* entityP);
 
 #endif  // MONGOC_MONGOCGEOINDEX_H_

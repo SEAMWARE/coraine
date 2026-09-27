@@ -34,13 +34,13 @@
 #include <string.h>                                   // strlen
 
 #include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kjson/KjNode.h"                             // KjNode
-#include "kjson/kjBuilder.h"                          // kjObject, kjString, kjChildAdd
-#include "kjson/kjLookup.h"                           // kjLookup
-#include "kjson/kjClone.h"                            // kjClone
-#include "kjson/kjParse.h"                            // kjParse
-#include "kjson/kjRender.h"                           // kjFastRender
-#include "kjson/kjRenderSize.h"                       // kjFastRenderSize
+#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corTree/corTreeClone.h"                     // corTreeClone
+#include "corJson/corJsonParse.h"                     // corJsonParse
+#include "corJson/corJsonRender.h"                    // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 #include "corRest/CorRestState.h"                     // corRest
 #include "corRest/corRestOutHeader.h"                 // corRestOutHeaderAdd
 #include "corJsonld/corLdExpandTree.h"                // corLdExpandTree
@@ -63,33 +63,33 @@
 // and without them the NGSI-LD layer takes "type" and "value" for
 // sub-Attributes.
 //
-static KjNode* goalFragment(Channel* channelP, KjNode* requestP, KjNode* endpointP)
+static CorNode* goalFragment(Channel* channelP, CorNode* requestP, CorNode* endpointP)
 {
-  Kjson*  kjsonP = corRest.kjsonP;
-  KjNode* fragP  = kjObject(kjsonP, NULL);
-  KjNode* attrP  = kjObject(kjsonP, channelP->attrName);
-  KjNode* valueP = kjClone(kjsonP, requestP);
+  CorJson* corJsonP = corRest.corJsonP;
+  CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
+  CorNode* attrP = corTreeObject(corRest.kallocP, channelP->attrName);
+  CorNode* valueP = corTreeClone(corRest.kallocP, requestP);
 
   valueP->name = (char*) "value";
 
-  kjChildAdd(attrP, kjString(kjsonP, "type", "Property"));
-  kjChildAdd(attrP, valueP);
+  corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "type", "Property"));
+  corTreeChildAdd(attrP, valueP);
 
   if (endpointP != NULL)
   {
-    KjNode* epP = kjObject(kjsonP, "endpoint");
+    CorNode* epP = corTreeObject(corRest.kallocP, "endpoint");
 
-    kjChildAdd(epP, kjString(kjsonP, "type",  "Property"));
-    kjChildAdd(epP, kjString(kjsonP, "value", endpointP->value.s));
-    kjChildAdd(attrP, epP);
+    corTreeChildAdd(epP, corTreeString(corRest.kallocP, "type", "Property"));
+    corTreeChildAdd(epP, corTreeString(corRest.kallocP, "value", endpointP->value.s));
+    corTreeChildAdd(attrP, epP);
   }
 
-  kjChildAdd(fragP, attrP);
+  corTreeChildAdd(fragP, attrP);
 
-  char* text = (char*) kaAlloc(&corRest.kalloc, kjFastRenderSize(fragP) + 1);
-  kjFastRender(fragP, text);
+  char* text = (char*) kaAlloc(&corRest.kalloc, corJsonFastRenderSize(fragP) + 1);
+  corJsonFastRender(fragP, text);
 
-  KjNode* parsedP = kjParse(kjsonP, text);
+  CorNode* parsedP = corJsonParse(corJsonP, text);
 
   if (parsedP != NULL)
     corLdExpandTree(parsedP, corNgsild.contextP, &corRest.kalloc);
@@ -110,17 +110,17 @@ bool postChannelGoals(void)
   if (channelP == NULL)
     return true;   // the error is set
 
-  KjNode* bodyP     = corRest.in.requestTree;
-  KjNode* requestP  = (bodyP != NULL) ? kjLookup(bodyP, "goalRequest") : NULL;
-  KjNode* endpointP = (bodyP != NULL) ? kjLookup(bodyP, "endpoint")    : NULL;
+  CorNode* bodyP    = corRest.in.requestTree;
+  CorNode* requestP = (bodyP != NULL) ? corTreeLookup(bodyP, "goalRequest") : NULL;
+  CorNode* endpointP = (bodyP != NULL) ? corTreeLookup(bodyP, "endpoint") : NULL;
 
-  if ((bodyP == NULL) || (bodyP->type != KjObject) || (requestP == NULL))
+  if ((bodyP == NULL) || (bodyP->type != CorObject) || (requestP == NULL))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Goal", "a goal needs a goalRequest - the goal, as the transport takes it");
     return true;
   }
 
-  if ((endpointP != NULL) && (endpointP->type != KjString))
+  if ((endpointP != NULL) && (endpointP->type != CorString))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Goal", "endpoint: the URL the goal's events are notified to");
     return true;
@@ -128,7 +128,7 @@ bool postChannelGoals(void)
 
   ldContextResolve();
 
-  KjNode* fragP = goalFragment(channelP, requestP, endpointP);
+  CorNode* fragP = goalFragment(channelP, requestP, endpointP);
 
   if (fragP == NULL)
   {

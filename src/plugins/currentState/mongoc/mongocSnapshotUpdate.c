@@ -16,10 +16,10 @@
 #include <mongoc/mongoc.h>                           // mongoc_collection_t
 
 #include "ktrace/kTrace.h"                           // KT_E
-#include "kjson/KjNode.h"                            // KjNode
+#include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocKjTreeToBson.h"  // mongocKjNodeAppend
+#include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocSnapshotUpdate.h" // Own interface
 
@@ -27,7 +27,7 @@
 extern mongoc_client_pool_t* poolP;
 
 
-int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, KjNode* fragmentP)
+int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP)
 {
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "snapshots");
@@ -43,21 +43,21 @@ int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, KjNode* fragmentP)
 
   bool hasSet = false, hasUnset = false;
 
-  for (KjNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
+  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL) continue;
     if (strcmp(fieldP->name, "id") == 0 || strcmp(fieldP->name, "type") == 0) continue;
 
     const char* key = mongocEscapeDotsInKey(fieldP->name);
 
-    if (fieldP->type == KjNull)
+    if (fieldP->type == CorNull)
     {
       BSON_APPEND_INT32(&unsetDoc, key, 1);
       hasUnset = true;
     }
     else
     {
-      mongocKjNodeAppend(&setDoc, key, fieldP);
+      mongocNodeAppend(&setDoc, key, fieldP);
       hasSet = true;
     }
   }

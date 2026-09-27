@@ -31,8 +31,8 @@
 
 #include "corRest/CorRestState.h"                      // corRest
 
-#include "kjson/KjNode.h"                            // KjNode
-#include "kjson/kjLookup.h"                          // kjLookup
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckDateTime.h"                // ldCheckDateTime, ldIsoToNanoseconds
@@ -52,9 +52,9 @@
 bool patchEntityMap(void)
 {
   const char* mapId = corRest.in.wildcard[0];
-  KjNode*     bodyP = corRest.in.requestTree;
+  CorNode*    bodyP = corRest.in.requestTree;
 
-  if (bodyP->type != KjObject)
+  if (bodyP->type != CorObject)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Object",
             "EntityMap fragment must be a JSON object");
@@ -66,8 +66,8 @@ bool patchEntityMap(void)
   // accepted. The output-only members are ignored. Any other field (id,
   // type, or an unknown name) → 400.
   //
-  KjNode* expiresAtP = NULL;
-  for (KjNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+  CorNode* expiresAtP = NULL;
+  for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL) continue;
     if (fP->name[0] == '@') continue;       // @context and friends
@@ -94,7 +94,7 @@ bool patchEntityMap(void)
     return true;
   }
 
-  if (expiresAtP->type != KjString)
+  if (expiresAtP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
             "expiresAt must be an ISO 8601 DateTime string");

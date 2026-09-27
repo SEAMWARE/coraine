@@ -14,14 +14,14 @@
 //
 #include <stdbool.h>
 
-#include "kjson/KjNode.h"
+#include "corTree/CorNode.h"
 #include "db/DbQueryFilter.h"
 
 #include "corNgsild/LdGeoRel.h"                            // LdGeoRel
 
 extern void geoMatchInit(void);
 extern void geoMatchClose(void);
-extern bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP);
+extern bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP);
 
 // -----------------------------------------------------------------------------
 //
@@ -29,7 +29,7 @@ extern bool geoMatch(KjNode* entityP, DbQueryFilter* filterP, double* distanceP)
 // is a valid GEOS geometry; false for a degenerate / self-intersecting polygon.
 // Lets an in-memory store reject geometry a 2dsphere index would refuse.
 //
-extern bool geoEntityValidate(KjNode* entityP);
+extern bool geoEntityValidate(CorNode* entityP);
 
 // -----------------------------------------------------------------------------
 //
@@ -43,7 +43,7 @@ extern bool geoEntityValidate(KjNode* entityP);
 // when its geometry overlaps the geoQ's reference geometry. For "near"
 // with maxDistance, the CSR matches when GEOSDistance ≤ maxDistance.
 //
-extern bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
+extern bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
 
 
 
@@ -64,6 +64,6 @@ extern bool csrGeoMatchOverlap(KjNode* csrGeoP, LdGeoRel* geoRel, const char* ge
 // NULL csrGeoP means the registration declares no restriction on the queried
 // property, so it is returned: it covers this area like any other.
 //
-extern bool csrGeoMatchExact(KjNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
+extern bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates);
 
 #endif  // SHARED_GEOMATCH_H_
