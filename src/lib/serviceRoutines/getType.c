@@ -18,7 +18,7 @@
 #include <string.h>                                   // strcmp
 
 #include "corRest/CorRestState.h"                       // corRest
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup

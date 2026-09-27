@@ -10,8 +10,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kalloc/KAlloc.h"                            // KAlloc
-#include "kargs/KArg.h"                               // KArg
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
+#include "corArgs/CorArg.h"                           // CorArg
 #include "corTree/CorNode.h"                          // CorNode
 #include "corRest/CorRestService.h"                     // CorRestServiceSimplified, CorRestParam
 
@@ -36,13 +36,13 @@ typedef struct ApiPlugin
 {
   const char*                alias;               // "admin", "test", etc.
   const char*                version;             // plugin version string
-  KArg*                      args;                // plugin CLI args (NULL if none)
+  CorArg*                    args;                // plugin CLI args (NULL if none)
   CorRestParam*               params;              // plugin URL params (NULL if none)
   CorRestServiceSimplified*   services;            // flat array of services (each includes verb)
   int                        serviceCount;        // number of entries in services[]
-  int                      (*init)(void);         // post-kargsParse init
+  int                      (*init)(void);         // post-corArgsParse init
   void                     (*close)(void);        // shutdown cleanup
-  void                     (*versionInfo)(KAlloc* allocP, CorNode* root);
+  void                     (*versionInfo)(CorAlloc* allocP, CorNode* root);
 } ApiPlugin;
 
 

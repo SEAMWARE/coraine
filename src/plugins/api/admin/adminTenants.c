@@ -8,7 +8,7 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 
@@ -27,7 +27,7 @@
 //
 bool adminGetTenants(void)
 {
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* root  = corTreeArray(allocP, NULL);
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)

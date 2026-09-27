@@ -10,11 +10,11 @@
 #include <string.h>                                   // memset, strlen, strcpy, strcat
 #include <time.h>                                     // clock_gettime
 
-#include "kalloc/KAlloc.h"                            // KAlloc
-#include "kalloc/kaBufferInit.h"                      // kaBufferInit
-#include "kalloc/kaBufferReset.h"                     // kaBufferReset
-#include "kalloc/kaAlloc.h"                           // kaAlloc
-#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
+#include "corAlloc/corAllocBufferInit.h"              // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"             // corAllocBufferReset
+#include "corAlloc/corAlloc.h"                        // corAlloc
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonParse.h"                     // corJsonParse
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
@@ -74,7 +74,7 @@
 // corRest.corJsonP, corRest.kallocP, corNgsild - are zeroed until somebody sets
 // them up. That is this, once per thread, and then a reset per sample.
 //
-// ⚠️ KTRUE = REUSE, and it is not optional. kaBufferReset(kaP, KFALSE) is the
+// ⚠️ true = REUSE, and it is not optional. corAllocBufferReset(kaP, false) is the
 // TEARDOWN call: it frees the blocks and leaves allocList pointing at them, so
 // reaching it a second time on the same arena walks a dangling list and frees
 // the same pointers again.
@@ -86,13 +86,13 @@ static void threadBind(Tenant* tenantP)
 
   if (inited == false)
   {
-    kaBufferInit(&corRest.kalloc, buffer, sizeof(buffer), 16 * 1024, NULL, "bridge");
+    corAllocBufferInit(&corRest.kalloc, buffer, sizeof(buffer), 16 * 1024, NULL, "bridge");
     corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
     corRest.kallocP  = &corRest.kalloc;
     inited = true;
   }
   else
-    kaBufferReset(&corRest.kalloc, KTRUE);
+    corAllocBufferReset(&corRest.kalloc, true);
 
   //
   // The write runs AS the target's tenant. Not everything downstream takes a
@@ -192,7 +192,7 @@ static CorNode* attributeFromSample(const char* attrName,
   // reply is its request may hand the same buffer twice, and parsing the reply
   // first would leave the request's copy made from a buffer already cut up.
   //
-  char* requestJson = ((requestP != NULL) && (requestP->json != NULL)) ? kaStrdup(&corRest.kalloc, requestP->json) : NULL;
+  char* requestJson = ((requestP != NULL) && (requestP->json != NULL)) ? corAllocStrdup(&corRest.kalloc, requestP->json) : NULL;
 
   CorNode* payloadP = corJsonParse(corRest.corJsonP, (char*) json);
 
@@ -272,7 +272,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
   // ⚠ corJsonParse parses IN PLACE, and meta is the plugin's const text - a copy,
   // in the arena the tree lives in.
   //
-  CorNode* metaP = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, meta));
+  CorNode* metaP = corJsonParse(corRest.corJsonP, corAllocStrdup(&corRest.kalloc, meta));
 
   if ((metaP == NULL) || (metaP->type != CorObject))
   {
@@ -401,7 +401,7 @@ static char* catchAllAttrName(const char* bridgeName, const char* endpoint)
   }
 
   int   len   = strlen(coreP->vocab) + strlen(endpoint) + 1;
-  char* nameP = (char*) kaAlloc(&corRest.kalloc, len);
+  char* nameP = (char*) corAlloc(&corRest.kalloc, len);
 
   if (nameP == NULL)
     return NULL;
@@ -591,7 +591,7 @@ static int sampleIn(const char* bridgeName,
     //
     if ((existingValueP == NULL) && (seedJson != NULL))
     {
-      existingValueP    = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, seedJson));
+      existingValueP    = corJsonParse(corRest.corJsonP, corAllocStrdup(&corRest.kalloc, seedJson));
       existingInstanceP = NULL;
 
       if (existingValueP == NULL)
@@ -724,7 +724,7 @@ static int sampleIn(const char* bridgeName,
 
   if (troe.attrEvent != NULL || troe.eventList != NULL)
   {
-    TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+    TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
 
     memset(tevP, 0, sizeof(TroeEvent));
     tevP->op             = TroeOpAttrReplaced;
@@ -819,7 +819,7 @@ CorNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const
   // was waited for arrives in a buffer freed as soon as it has been grafted), so
   // the tree gets a copy of its own, in the arena it lives in.
   //
-  char*   jsonCopy     = kaStrdup(&corRest.kalloc, json);
+  char*   jsonCopy     = corAllocStrdup(&corRest.kalloc, json);
   CorNode* placeholderP = corTreeString(corRest.kallocP, NULL, "-");
   CorNode* attrP       = attributeFromSample(attrName, jsonCopy, publishTime, NULL, subAttrName, placeholderP, meta, NULL);
 
@@ -875,7 +875,7 @@ CorNode* bridgeGoalInstance(const char* attrName,
                            int64_t     publishTime,
                            const char* meta)
 {
-  CorNode* requestP = corJsonParse(corRest.corJsonP, kaStrdup(&corRest.kalloc, requestJson));
+  CorNode* requestP = corJsonParse(corRest.corJsonP, corAllocStrdup(&corRest.kalloc, requestJson));
 
   if (requestP == NULL)
     return NULL;
@@ -883,9 +883,9 @@ CorNode* bridgeGoalInstance(const char* attrName,
   CorNode* attrP;
 
   if ((subAttrName != NULL) && (json != NULL))
-    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP, meta, NULL);
+    attrP = attributeFromSample(attrName, corAllocStrdup(&corRest.kalloc, json), publishTime, goalAlias, subAttrName, requestP, meta, NULL);
   else
-    attrP = attributeFromSample(attrName, kaStrdup(&corRest.kalloc, requestJson), 0, goalAlias, NULL, NULL, NULL, NULL);   // the request as the value, and no more
+    attrP = attributeFromSample(attrName, corAllocStrdup(&corRest.kalloc, requestJson), 0, goalAlias, NULL, NULL, NULL, NULL);   // the request as the value, and no more
 
   if (attrP == NULL)
     return NULL;
@@ -1065,7 +1065,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 
   if (troe.attrEvent != NULL || troe.eventList != NULL)
   {
-    TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+    TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
 
     memset(tevP, 0, sizeof(TroeEvent));
     tevP->op             = TroeOpAttrDeleted;
@@ -1145,7 +1145,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   threadBind(tenantP);
 
-  char* shortName = kaStrdup(&corRest.kalloc, endpoint);
+  char* shortName = corAllocStrdup(&corRest.kalloc, endpoint);
 
   for (char* cP = shortName; *cP != 0; cP++)
   {

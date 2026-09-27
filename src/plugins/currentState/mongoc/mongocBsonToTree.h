@@ -12,7 +12,7 @@
 
 #include <bson/bson.h>                               // bson_t
 
-#include "kalloc/KAlloc.h"                           // KAlloc
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corTree/CorNode.h"                         // CorNode
 
 
@@ -21,6 +21,6 @@
 //
 // mongocBsonToTree - convert a bson_t document to a CorNode tree
 //
-extern CorNode* mongocBsonToTree(KAlloc* kaP, const bson_t* bsonP);
+extern CorNode* mongocBsonToTree(CorAlloc* kaP, const bson_t* bsonP);
 
 #endif  // MONGOC_MONGOCBSONTOTREE_H_

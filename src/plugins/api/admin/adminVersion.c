@@ -12,13 +12,13 @@
 #include <unistd.h>                               // close
 
 #include "kbase/version.h"                        // KBASE_VERSION
-#include "kalloc/version.h"                       // KALLOC_VERSION
-#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corAlloc/version.h"                     // CORALLOC_VERSION
+#include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corLog/version.h"                        // CORLOG_VERSION
 #include "corHash/version.h"                      // CORHASH_VERSION
 #include "corTree/version.h"                      // CORTREE_VERSION
 #include "corJson/version.h"                      // CORJSON_VERSION
-#include "kargs/kargsVersion.h"                   // KARGS_VERSION
+#include "corArgs/version.h"                      // CORARGS_VERSION
 #include "corProm/version.h"                      // CORPROM_VERSION
 #include "corRest/version.h"                       // CORREST_VERSION
 #include "corRest/CorRestState.h"                   // corRest
@@ -50,17 +50,17 @@
 //
 bool adminGetVersion(void)
 {
-  KAlloc*  allocP = corRest.kallocP;
-  CorNode* root   = corTreeObject(allocP, NULL);
+  CorAlloc* allocP = corRest.kallocP;
+  CorNode*  root   = corTreeObject(allocP, NULL);
 
   corTreeChildAdd(root, corTreeString(allocP, "coraine version", CORAINE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "kbase",            KBASE_VERSION));
-  corTreeChildAdd(root, corTreeString(allocP, "kalloc",           KALLOC_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corAlloc",         CORALLOC_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corLog",           CORLOG_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corHash",            CORHASH_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corTree",          CORTREE_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corJson",          CORJSON_VERSION));
-  corTreeChildAdd(root, corTreeString(allocP, "kargs",            KARGS_VERSION));
+  corTreeChildAdd(root, corTreeString(allocP, "corArgs",          CORARGS_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corProm",          CORPROM_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corRest",           CORREST_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "corJsonld",         CORJSONLD_VERSION));

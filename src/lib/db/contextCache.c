@@ -9,8 +9,8 @@
 
 #include <stddef.h>                                   // NULL
 
-#include "kalloc/KAlloc.h"                            // KAlloc
-#include "kalloc/kaStrdup.h"                          // kaStrdup
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "corJson/CorJson.h"                          // CorJson
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonParse.h"                     // corJsonParse
@@ -47,13 +47,13 @@ static bool contextRowToCache(DbContextRow* rowP)
   if ((rowP->id == NULL) || (rowP->body == NULL))
     return false;
 
-  KAlloc* storeP = corLdCacheGet()->kaP;
+  CorAlloc* storeP = corLdCacheGet()->kaP;
 
   //
   // Parse the body (a stand-alone JSON-LD context document) into a tree and pull
   // out @context. The cache allocator is used so the result outlives this call.
   //
-  char*  bodyForParse = kaStrdup(storeP, rowP->body);  // corJsonParse is destructive
+  char*  bodyForParse = corAllocStrdup(storeP, rowP->body);  // corJsonParse is destructive
   CorJson corJson;
   CorJson* corJsonP = corJsonCreate(&corJson, storeP);
 
@@ -72,8 +72,8 @@ static bool contextRowToCache(DbContextRow* rowP)
   if (contextP == NULL)
     return false;
 
-  contextP->id   = kaStrdup(storeP, rowP->id);
-  contextP->body = kaStrdup(storeP, rowP->body);
+  contextP->id   = corAllocStrdup(storeP, rowP->id);
+  contextP->body = corAllocStrdup(storeP, rowP->body);
   contextP->kind = (rowP->kind == DB_CONTEXT_KIND_HOSTED)? CorLdKindHosted : CorLdKindCached;
 
   corLdCacheInsert(contextP);

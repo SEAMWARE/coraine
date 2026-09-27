@@ -10,7 +10,7 @@
 
 #include <mongoc/mongoc.h>                             // MONGOC_VERSION_S, mongoc_client_*
 
-#include "kalloc/KAlloc.h"                                 // KAlloc
+#include "corAlloc/CorAlloc.h"                             // CorAlloc
 #include "corLog/corLog.h"                                 // COR_E
 #include "corTree/corTreeBuilder.h"                    // corTreeObject, corTreeString, corTreeChildAdd
 
@@ -95,7 +95,7 @@ int mongocServerVersionGet(void)
 //
 // mongocVersionInfo - add version entries to the root object
 //
-void mongocVersionInfo(KAlloc* allocP, CorNode* root)
+void mongocVersionInfo(CorAlloc* allocP, CorNode* root)
 {
   corTreeChildAdd(root, corTreeString(allocP, "mongoc plugin",  MONGOC_PLUGIN_VERSION));
   corTreeChildAdd(root, corTreeString(allocP, "mongoc driver",  MONGOC_VERSION_S));

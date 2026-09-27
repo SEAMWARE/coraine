@@ -39,7 +39,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
@@ -200,7 +200,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   }
 
   int   bufSize = corJsonFastRenderSize(batchArr) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(batchArr, buf);
   return buf;
 }
@@ -361,7 +361,7 @@ static void dispatchOneMode(Tenant*       tenantP,
         if (gN >= gCap)
         {
           int newCap = gCap == 0 ? 4 : gCap * 2;
-          Group* newGroups = (Group*) kaAlloc(&corRest.kalloc, sizeof(Group) * newCap);
+          Group* newGroups = (Group*) corAlloc(&corRest.kalloc, sizeof(Group) * newCap);
           for (int c = 0; c < gN; c++) newGroups[c] = groups[c];
           groups = newGroups;
           gCap   = newCap;
@@ -378,8 +378,8 @@ static void dispatchOneMode(Tenant*       tenantP,
       if (g->count >= g->capacity)
       {
         int newCap = g->capacity == 0 ? 4 : g->capacity * 2;
-        int*        newIdx = (int*)        kaAlloc(&corRest.kalloc, sizeof(int)        * newCap);
-        LdRegInfo** newRi  = (LdRegInfo**) kaAlloc(&corRest.kalloc, sizeof(LdRegInfo*) * newCap);
+        int*        newIdx = (int*)        corAlloc(&corRest.kalloc, sizeof(int)       * newCap);
+        LdRegInfo** newRi  = (LdRegInfo**) corAlloc(&corRest.kalloc, sizeof(LdRegInfo*) * newCap);
         for (int c = 0; c < g->count; c++)
         {
           newIdx[c] = g->idxV[c];
@@ -402,12 +402,12 @@ static void dispatchOneMode(Tenant*       tenantP,
   // Conflict errors when relevant). Phase 2: ldDistOpSendMulti across all
   // supported groups in parallel. Phase 3: apply each per-CSR result.
   //
-  LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, gN * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, gN * sizeof(LdDistOpBatchItem));
   memset(bItems, 0, gN * sizeof(LdDistOpBatchItem));
-  LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, gN * sizeof(LdDistOpBatchResult));
-  const char***        bFwdIdV  = (const char***)        kaAlloc(&corRest.kalloc, gN * sizeof(const char**));
-  int**                bFwdOrig = (int**)                kaAlloc(&corRest.kalloc, gN * sizeof(int*));
-  int*                 bFwdN    = (int*)                 kaAlloc(&corRest.kalloc, gN * sizeof(int));
+  LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, gN * sizeof(LdDistOpBatchResult));
+  const char***        bFwdIdV  = (const char***)        corAlloc(&corRest.kalloc, gN * sizeof(const char**));
+  int**                bFwdOrig = (int**)                corAlloc(&corRest.kalloc, gN * sizeof(int*));
+  int*                 bFwdN    = (int*)                 corAlloc(&corRest.kalloc, gN * sizeof(int));
   int                  bItemCount = 0;
   memset(bResults, 0, gN * sizeof(LdDistOpBatchResult));
 
@@ -443,8 +443,8 @@ static void dispatchOneMode(Tenant*       tenantP,
     }
 
     CorNode*     batchArr      = corTreeArray(corRest.kallocP, NULL);
-    const char** forwardedIdV  = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * g->count);
-    int*         forwardedOrigIdx = (int*)      kaAlloc(&corRest.kalloc, sizeof(int)   * g->count);
+    const char** forwardedIdV  = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * g->count);
+    int*         forwardedOrigIdx = (int*)      corAlloc(&corRest.kalloc, sizeof(int)  * g->count);
     int          forwardedN    = 0;
 
     for (int e = 0; e < g->count; e++)
@@ -465,7 +465,7 @@ static void dispatchOneMode(Tenant*       tenantP,
     if (forwardedN == 0) continue;
 
     int   baseLen = strlen(csr->endpoint);
-    char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
+    char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + batchPathLen + 1);
     strcpy(url, csr->endpoint);
     strcpy(url + baseLen, batchPath);
 
@@ -499,7 +499,7 @@ static void dispatchOneMode(Tenant*       tenantP,
         }
       }
 
-      bool* groupOk = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * bFwdN[i]);
+      bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * bFwdN[i]);
       for (int k = 0; k < bFwdN[i]; k++) groupOk[k] = false;
 
       applyRemoteBatchResult(bResults[i].statusCode, respTreeP, bItems[i].csr->regId, errorsP,
@@ -590,8 +590,8 @@ bool postEntityBatchCreate(void)
   // Pass 1 — validate, normalise, dedup.
   //
   CorNode*     eligibleP = corTreeArray(corRest.kallocP, NULL);
-  const char** eligIdV   = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * total);
-  bool*        hadAttrsV = (bool*)        kaAlloc(&corRest.kalloc, sizeof(bool)  * total);
+  const char** eligIdV   = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * total);
+  bool*        hadAttrsV = (bool*)        corAlloc(&corRest.kalloc, sizeof(bool) * total);
   int          eligN     = 0;
 
   CorNode* seen = corTreeObject(corRest.kallocP, NULL);
@@ -720,7 +720,7 @@ bool postEntityBatchCreate(void)
   // Pass 2 — distops forwarding (§ 5.6.7.4). Group-by-CSR + one batch
   // forward per CSR.
   //
-  bool* anySuccessV = (bool*) kaAlloc(&corRest.kalloc, sizeof(bool) * eligN);
+  bool* anySuccessV = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * eligN);
   for (int i = 0; i < eligN; i++) anySuccessV[i] = false;
 
   Tenant*     tenantP  = (Tenant*) corNgsild.tenantP;
@@ -788,7 +788,7 @@ bool postEntityBatchCreate(void)
   // redirect chopping skip the local store.
   //
   CorNode* localArr = corTreeArray(corRest.kallocP, NULL);
-  int*    localIdxV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * eligN);
+  int*    localIdxV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * eligN);
   int     localN    = 0;
 
   {
@@ -848,7 +848,7 @@ bool postEntityBatchCreate(void)
 
     if (requestsFirst == true)                            // nothing at all without a bridge
     {
-      doneV = (BridgeSyncDone**) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN);
+      doneV = (BridgeSyncDone**) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN);
       memset(doneV, 0, sizeof(BridgeSyncDone*) * localN);
 
       CorNode* ddsEntP = localArr->value.head;
@@ -861,7 +861,7 @@ bool postEntityBatchCreate(void)
         if ((ddsEntP == NULL) || ((db.entityRetrieve != NULL) && (db.entityRetrieve(tenantP, eid, &existsP) == DB_OK) && (existsP != NULL)))
           continue;
 
-        doneV[k] = (BridgeSyncDone*) kaAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
+        doneV[k] = (BridgeSyncDone*) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[k], 0, sizeof(BridgeSyncDone));
 
 
@@ -897,7 +897,7 @@ bool postEntityBatchCreate(void)
       }
     }
 
-    int* resultsV = (int*) kaAlloc(&corRest.kalloc, sizeof(int) * localN);
+    int* resultsV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * localN);
     db.entityBulkCreate(tenantP, localArr, resultsV);
 
     for (int k = 0; (doneV != NULL) && (k < localN); k++)
@@ -926,7 +926,7 @@ bool postEntityBatchCreate(void)
           {
             CorNode* tn = corTreeLookup(entP, "type");
             const char* etype = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
-            TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+            TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
             memset(tevP, 0, sizeof(*tevP));
             tevP->op             = TroeOpEntityCreated;
             tevP->tenantP        = tenantP;

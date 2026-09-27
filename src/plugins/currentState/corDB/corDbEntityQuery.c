@@ -10,7 +10,7 @@
 #include <stdlib.h>                                    // strtod, qsort
 #include <string.h>                                    // strcmp
 
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeClone, corTreeFloat, corTreeChildAdd
 #include "corTree/corTreeClone.h"                     // corTreeClone
@@ -155,7 +155,7 @@ int corDbEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
   else
     total = needed;
 
-  GeoCand* cands = (GeoCand*) kaAlloc(&corRest.kalloc, sizeof(GeoCand) * (total > 0 ? total : 1));
+  GeoCand* cands = (GeoCand*) corAlloc(&corRest.kalloc, sizeof(GeoCand) * (total > 0 ? total : 1));
   int      nCand = 0;
 
   // § 7.6.2.2 sort-by-distance — a synthetic near filter reused per entity to

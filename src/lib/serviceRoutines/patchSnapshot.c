@@ -25,7 +25,7 @@
 
 #include "corRest/CorRestState.h"                          // corRest
 
-#include "kalloc/kaAlloc.h"                              // kaAlloc
+#include "corAlloc/corAlloc.h"                           // corAlloc
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corTree/corTreeBuilder.h"                      // corTreeString, corTreeInteger, corTreeChildAdd, corTreeChildReplace
@@ -56,7 +56,7 @@ static char* nsToIso(uint64_t ns)
   struct tm tm;
   gmtime_r(&s, &tm);
 
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 80);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 80);
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);

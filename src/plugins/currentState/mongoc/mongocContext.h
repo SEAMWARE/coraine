@@ -13,7 +13,7 @@
 // "coraine" database (collection "contexts"), independent of any tenant.
 //
 
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "db/DbDriver.h"                              // DbContextRow
 
 
@@ -38,7 +38,7 @@ extern int mongocContextDelete(const char* id);
 //
 // mongocContextList - load all rows; allocate the array in allocP.
 //
-extern int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP);
+extern int mongocContextList(CorAlloc* allocP, DbContextRow** rowsPP, int* countP);
 
 
 
@@ -50,6 +50,6 @@ extern int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
 //   DB_NOT_FOUND  — no row with that id
 //   DB_ERR        — driver/server error
 //
-extern int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut);
+extern int mongocContextGet(const char* id, CorAlloc* allocP, DbContextRow* rowOut);
 
 #endif

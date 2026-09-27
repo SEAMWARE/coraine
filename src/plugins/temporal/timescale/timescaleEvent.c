@@ -27,9 +27,9 @@
 #include "corTree/corTreeClone.h"                         // corTreeClone
 #include "corJson/corJsonRender.h"                        // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                    // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                               // kaAlloc
-#include "kalloc/kaStrdup.h"                              // kaStrdup
-#include "kalloc/KAlloc.h"                                // KAlloc
+#include "corAlloc/corAlloc.h"                            // corAlloc
+#include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
 
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
@@ -105,14 +105,14 @@ typedef struct
 //
 // numberToText - render a number node as a decimal text string for v_number.
 //
-static const char* numberToText(CorNode* nP, KAlloc* allocP)
+static const char* numberToText(CorNode* nP, CorAlloc* allocP)
 {
   char buf[64];
   if (nP->type == CorInt)
     snprintf(buf, sizeof(buf), "%lld", (long long) nP->value.i);
   else
     snprintf(buf, sizeof(buf), "%.17g", nP->value.f);
-  return kaStrdup(allocP, buf);
+  return corAllocStrdup(allocP, buf);
 }
 
 
@@ -121,10 +121,10 @@ static const char* numberToText(CorNode* nP, KAlloc* allocP)
 //
 // renderJsonb - render a CorNode subtree as JSON text suitable for ::jsonb.
 //
-static const char* renderJsonb(CorNode* nP, KAlloc* allocP)
+static const char* renderJsonb(CorNode* nP, CorAlloc* allocP)
 {
   int   sz  = corJsonFastRenderSize(nP) + 1;
-  char* buf = (char*) kaAlloc(allocP, sz);
+  char* buf = (char*) corAlloc(allocP, sz);
   corJsonFastRender(nP, buf);
   return buf;
 }
@@ -249,7 +249,7 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
     }
     else if (observP->type == CorInt)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 64);
       double secs = (double) observP->value.i / 1e9;
       // ::timestamptz accepts "epoch" floats via to_timestamp(); for direct
       // cast we want an ISO string. Build it.

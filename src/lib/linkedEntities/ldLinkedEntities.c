@@ -11,7 +11,7 @@
 #include <stdlib.h>                                   // calloc, free
 #include <string.h>                                   // strcmp, strdup, memcpy
 
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
@@ -230,7 +230,7 @@ static char** instObjectTypeV(CorNode* instP)
 
   if (otP->type == CorString && otP->value.s != NULL)
   {
-    char** v = (char**) kaAlloc(&corRest.kalloc, 2 * sizeof(char*));
+    char** v = (char**) corAlloc(&corRest.kalloc, 2 * sizeof(char*));
     v[0] = otP->value.s;
     v[1] = NULL;
     return v;
@@ -245,7 +245,7 @@ static char** instObjectTypeV(CorNode* instP)
     if (n == 0)
       return NULL;
 
-    char** v = (char**) kaAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+    char** v = (char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
     int    i = 0;
     for (CorNode* eP = otP->value.head; eP != NULL; eP = eP->next)
       if (eP->type == CorString && eP->value.s != NULL)

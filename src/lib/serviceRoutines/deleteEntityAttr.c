@@ -26,7 +26,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeChildAdd, corTreeArray
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
@@ -81,7 +81,7 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
   int extra = (dsKey != NULL ? 1 + 10 + lenDs : 0) + (delAll ? 1 + 15 : 0);
   //   "?datasetId=" = 11; "?deleteAll=true" = 15; "&..." sep = 1 each.
 
-  char* buf = (char*) kaAlloc(&corRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + extra + 1);
+  char* buf = (char*) corAlloc(&corRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + extra + 1);
   char* p = buf;
   memcpy(p, endpoint, lenE); p += lenE;
   memcpy(p, p1, lenP1);      p += lenP1;
@@ -437,7 +437,7 @@ bool deleteEntityAttr(void)
                 CorNode* tn = corTreeLookup(targetEntity, "type");
                 if (tn != NULL && tn->type == CorString) etype = tn->value.s;
               }
-              TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+              TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
               memset(tevP, 0, sizeof(*tevP));
               tevP->op             = TroeOpAttrDeleted;
               tevP->tenantP        = tenantP;

@@ -8,8 +8,8 @@
 //
 #include <stddef.h>                                       // NULL
 
-#include "kargs/kargs.h"                                  // KARGS_END
-#include "kargs/KArg.h"                                   // KArg
+#include "corArgs/corArgs.h"                              // CORARGS_END
+#include "corArgs/CorArg.h"                               // CorArg
 
 #include "temporal/timescale/timescaleGlobals.h"          // Own interface
 
@@ -52,14 +52,14 @@ int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-
 //
 // timescaleArgV - plugin-contributed CLI args
 //
-KArg timescaleArgV[] =
+CorArg timescaleArgV[] =
 {
-  { "--troeHost", "-troeHost", KaString, _vp &timescaleDbHost, KaOpt, _vp "localhost", NULL, NULL, "TRoE postgres host" },
-  { "--troeName", "-troeName", KaString, _vp &timescaleDbName, KaOpt, _vp "corh",   NULL, NULL, "TRoE postgres database name" },
-  { "--troeUser", "-troeUser", KaString, _vp &timescaleDbUser, KaOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
-  { "--troePwd",  "-troePwd",  KaString, _vp &timescaleDbPwd,  KaOpt, _vp NULL,        NULL, NULL, "TRoE postgres password" },
-  { "--troePort", "-troePort", KaInt,    _vp &timescaleDbPort, KaOpt, _vp 5432,        _vp 1, _vp 65535, "TRoE postgres port" },
-  { "--troePoolSize", "-troePoolSize", KaInt, _vp &timescalePoolSize, KaOpt, _vp 10,   _vp 1, _vp 256, "TRoE per-tenant postgres connection-pool size" },
-  { "--troeInstanceCap", "-troeCap", KaInt, _vp &timescaleInstanceCap, KaOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
-  KARGS_END
+  { "--troeHost", "-troeHost", CorArgString, _vp &timescaleDbHost, CorArgOpt, _vp "localhost", NULL, NULL, "TRoE postgres host" },
+  { "--troeName", "-troeName", CorArgString, _vp &timescaleDbName, CorArgOpt, _vp "corh",   NULL, NULL, "TRoE postgres database name" },
+  { "--troeUser", "-troeUser", CorArgString, _vp &timescaleDbUser, CorArgOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
+  { "--troePwd",  "-troePwd",  CorArgString, _vp &timescaleDbPwd,  CorArgOpt, _vp NULL,    NULL, NULL, "TRoE postgres password" },
+  { "--troePort", "-troePort", CorArgInt,    _vp &timescaleDbPort, CorArgOpt, _vp 5432,    _vp 1, _vp 65535, "TRoE postgres port" },
+  { "--troePoolSize", "-troePoolSize", CorArgInt, _vp &timescalePoolSize, CorArgOpt, _vp 10,   _vp 1, _vp 256, "TRoE per-tenant postgres connection-pool size" },
+  { "--troeInstanceCap", "-troeCap", CorArgInt, _vp &timescaleInstanceCap, CorArgOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
+  CORARGS_END
 };

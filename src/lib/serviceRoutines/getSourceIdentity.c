@@ -25,7 +25,7 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeChildAdd
 #include "corTree/corTreeClone.h"                    // corTreeClone
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // corNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -105,7 +105,7 @@ bool getSourceIdentity(void)
   //
   static const char idPrefix[] = "urn:ngsi-ld:ContextSource:";
   int   aliasLen = strlen(alias);
-  char* idBuf    = (char*) kaAlloc(&corRest.kalloc, sizeof(idPrefix) + aliasLen);
+  char* idBuf    = (char*) corAlloc(&corRest.kalloc, sizeof(idPrefix) + aliasLen);
   strcpy(idBuf, idPrefix);
   strcpy(idBuf + sizeof(idPrefix) - 1, alias);
 

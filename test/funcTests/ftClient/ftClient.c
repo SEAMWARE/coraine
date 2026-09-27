@@ -24,8 +24,8 @@
 
 #include <mosquitto.h>
 
-#include "kargs/kargs.h"
-#include "kargs/kargsBuiltins.h"
+#include "corArgs/corArgs.h"
+#include "corArgs/corArgsBuiltins.h"
 #include "corTree/CorNode.h"
 #include "corJson/CorJson.h"
 #include "corTree/corTreeBuilder.h"
@@ -34,13 +34,13 @@
 #include "corJson/corJsonRenderSize.h"
 #include "corTree/corTreeClone.h"
 #include "corTree/corTreeFree.h"
-#include "kalloc/kalloc.h"
-#include "kalloc/kaAlloc.h"
+#include "corAlloc/corAlloc.h"
+#include "corAlloc/corAlloc.h"
 #include "corLog/corLog.h"
 #include "kbase/kFileRead.h"                       // kFileRead
 #include "corJson/corJsonParse.h"                 // corJsonParse
-#include "kalloc/kaBufferInit.h"                  // kaBufferInit
-#include "kalloc/kaBufferReset.h"                 // kaBufferReset
+#include "corAlloc/corAllocBufferInit.h"          // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"         // corAllocBufferReset
 #include "corJson/corJsonCreate.h"                // corJsonCreate
 #include "corPlugin/corPlugin.h"                  // corPluginSetBaseDir, corPluginResolve, corPluginOpen
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, BridgeRegisterFunc, BRIDGES_MAX
@@ -162,22 +162,22 @@ static BridgeDriver  ftBridgeV[BRIDGES_MAX];
 static int           ftBridgeCount = 0;
 
 
-static KArg ftArgV[] =
+static CorArg ftArgV[] =
 {
-  { "--port",            "-p",  KaUShort, _vp &ftPort,       KaOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
-  { "--foreground",      "-fg", KaBool,   _vp &ftFg,         KaOpt, _vp KTRUE, _vp KFALSE, _vp KTRUE, "run in foreground" },
-  { "--status",          "-s",  KaUShort, _vp &ftPostStatus, KaOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
-  { "--delay",           NULL,  KaUInt,   _vp &ftDelayMs,    KaOpt, _vp 0,     _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
-  { "--mqttPort",        NULL,  KaUShort, _vp &ftMqttPort,   KaOpt, _vp 0,     _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
-  { "--mqttTopic",       NULL,  KaString, _vp &ftMqttTopic,  KaOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
-  { "--mqttUser",        NULL,  KaString, _vp &ftMqttUser,   KaOpt, NULL,      NULL,  NULL,      "MQTT username (auth-required broker)" },
-  { "--mqttPassword",    NULL,  KaString, _vp &ftMqttPass,   KaOpt, NULL,      NULL,  NULL,      "MQTT password" },
-  { "--mqttTls",         NULL,  KaBool,   _vp &ftMqttTls,    KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "subscribe over TLS (mqtts), accept self-signed" },
-  { "--httpsKey",        "-k",  KaString, _vp &ftHttpsKey,   KaOpt, NULL,      NULL,  NULL,      "PEM private key file (serve HTTPS; needs --httpsCertificate)" },
-  { "--httpsCertificate","-c",  KaString, _vp &ftHttpsCert,  KaOpt, NULL,      NULL,  NULL,      "PEM certificate file (serve HTTPS; needs --httpsKey)" },
-  { "--bridges",         "-br", KaString, _vp &ftBridges,    KaOpt, NULL,      NULL,  NULL,      "bridge plugins to host (comma-separated)" },
-  { "--bridgeConfig",    "-brc",KaString, _vp &ftBridgeConfig, KaOpt, NULL,    NULL,  NULL,      "bridge configuration file (the broker's own)" },
-  KARGS_END
+  { "--port",            "-p",  CorArgUShort, _vp &ftPort,   CorArgOpt, _vp 7701,  _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--foreground",      "-fg", CorArgBool,   _vp &ftFg,         CorArgOpt, _vp true, _vp false, _vp true, "run in foreground" },
+  { "--status",          "-s",  CorArgUShort, _vp &ftPostStatus, CorArgOpt, _vp 200,   _vp 100, _vp 599, "HTTP status for accumulate POSTs (misbehave mode)" },
+  { "--delay",           NULL,  CorArgUInt,   _vp &ftDelayMs,    CorArgOpt, _vp 0, _vp 0, _vp 600000, "sleep N ms before responding (timeout tests)" },
+  { "--mqttPort",        NULL,  CorArgUShort, _vp &ftMqttPort,   CorArgOpt, _vp 0, _vp 0, _vp 65535, "MQTT broker port to subscribe to (0 = disabled)" },
+  { "--mqttTopic",       NULL,  CorArgString, _vp &ftMqttTopic,  CorArgOpt, _vp "#",   NULL,  NULL,      "MQTT topic to subscribe (default '#')" },
+  { "--mqttUser",        NULL,  CorArgString, _vp &ftMqttUser,   CorArgOpt, NULL,  NULL,  NULL,      "MQTT username (auth-required broker)" },
+  { "--mqttPassword",    NULL,  CorArgString, _vp &ftMqttPass,   CorArgOpt, NULL,  NULL,  NULL,      "MQTT password" },
+  { "--mqttTls",         NULL,  CorArgBool,   _vp &ftMqttTls,    CorArgOpt, _vp false, _vp false, _vp true, "subscribe over TLS (mqtts), accept self-signed" },
+  { "--httpsKey",        "-k",  CorArgString, _vp &ftHttpsKey,   CorArgOpt, NULL,  NULL,  NULL,      "PEM private key file (serve HTTPS; needs --httpsCertificate)" },
+  { "--httpsCertificate","-c",  CorArgString, _vp &ftHttpsCert,  CorArgOpt, NULL,  NULL,  NULL,      "PEM certificate file (serve HTTPS; needs --httpsKey)" },
+  { "--bridges",         "-br", CorArgString, _vp &ftBridges,    CorArgOpt, NULL,  NULL,  NULL,      "bridge plugins to host (comma-separated)" },
+  { "--bridgeConfig",    "-brc",CorArgString, _vp &ftBridgeConfig, CorArgOpt, NULL,    NULL,  NULL,      "bridge configuration file (the broker's own)" },
+  CORARGS_END
 };
 
 
@@ -500,18 +500,18 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
   // NULL - parsing into it takes the process down before it serves anything,
   // which is a confusing way to be told the order is wrong.
   //
-  char    kallocBuffer[8192];
-  KAlloc  kalloc;
-  CorJson corJson;
+  char      kallocBuffer[8192];
+  CorAlloc  kalloc;
+  CorJson   corJson;
 
-  kaBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "ftBridge");
+  corAllocBufferInit(&kalloc, kallocBuffer, sizeof(kallocBuffer), 8 * 1024, NULL, "ftBridge");
 
   CorJson* corJsonP = corJsonCreate(&corJson, &kalloc);
   CorNode* treeP = corJsonParse(corJsonP, buf);
 
   if (treeP == NULL)
   {
-    kaBufferReset(&kalloc, KTRUE);
+    corAllocBufferReset(&kalloc, true);
     return;
   }
 
@@ -552,7 +552,7 @@ static void ftBridgeTopicsCarry(BridgeDriver* driverP, const char* configFile)
     }
   }
 
-  kaBufferReset(&kalloc, KTRUE);
+  corAllocBufferReset(&kalloc, true);
 }
 
 
@@ -751,10 +751,10 @@ static bool getDump(void)
   // Use a scratch buffer allocated via malloc so the output survives
   // beyond the per-request kalloc lifetime — corRest copies the response
   // body (MHD_RESPMEM_MUST_COPY), so we can free this buffer after
-  // the call returns by using kaAlloc from the per-request allocator.
+  // the call returns by using corAlloc from the per-request allocator.
   //
   int   bufSize = corJsonFastRenderSize(dumpArray) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
 
   corJsonFastRender(dumpArray, buf);
 
@@ -795,7 +795,7 @@ static bool getDump(void)
 //
 static bool getCount(void)
 {
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 16);
 
   pthread_mutex_lock(&dumpMutex);
   snprintf(buf, 16, "%d", dumpCount);
@@ -826,7 +826,7 @@ static bool getCount(void)
 //
 static bool getMqttReady(void)
 {
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 4);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 4);
 
   int state = ((ftMqttPort == 0) || (ftMqttSubscribed == true))?  1 :
               (ftMqttFailed == true)?                            -1 : 0;
@@ -851,7 +851,7 @@ static bool getMqttReady(void)
 //
 static bool getProbeCount(void)
 {
-  char* buf = (char*) kaAlloc(&corRest.kalloc, 16);
+  char* buf = (char*) corAlloc(&corRest.kalloc, 16);
 
   snprintf(buf, 16, "%d", probeCount);
   corRest.out.payload     = buf;
@@ -919,7 +919,7 @@ static bool stubServe(void)
   if (s->body != NULL)
   {
     int   n   = strlen(s->body);
-    char* buf = (char*) kaAlloc(&corRest.kalloc, n + 1);
+    char* buf = (char*) corAlloc(&corRest.kalloc, n + 1);
     memcpy(buf, s->body, n + 1);
     corRest.out.payload     = buf;
     corRest.out.payloadSize = n;
@@ -1403,21 +1403,21 @@ int main(int argC, char* argV[])
   char* progName = strrchr(argV[0], '/');
   progName = (progName != NULL) ? progName + 1 : argV[0];
 
-  KArgsStatus ks = kargsInit(progName, ftArgV, "FTCLIENT");
-  if (ks != KargsOk)
+  CorArgsStatus ks = corArgsInit(progName, ftArgV, "FTCLIENT");
+  if (ks != CorArgsOk)
   {
-    fprintf(stderr, "kargsInit failed\n");
+    fprintf(stderr, "corArgsInit failed\n");
     return 1;
   }
 
-  ks = kargsParse(argC, argV);
-  if (ks != KargsOk)
+  ks = corArgsParse(argC, argV);
+  if (ks != CorArgsOk)
   {
-    fprintf(stderr, "kargsParse failed\n");
+    fprintf(stderr, "corArgsParse failed\n");
     return 1;
   }
 
-  if (corLogInit("ftClient", "/tmp", false, NULL, "0-255", kaBuiltinVerbose, kaBuiltinDebug, false) != 0)
+  if (corLogInit("ftClient", "/tmp", false, NULL, "0-255", corArgsBuiltinVerbose, corArgsBuiltinDebug, false) != 0)
   {
     fprintf(stderr, "corLogInit failed\n");
     return 1;

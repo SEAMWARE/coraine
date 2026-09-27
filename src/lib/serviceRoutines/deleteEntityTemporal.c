@@ -22,7 +22,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
@@ -92,7 +92,7 @@ bool deleteEntityTemporal(void)
       for (int i = 0; i < n; i++)
       {
         int   baseLen = strlen(items[i].csr->endpoint);
-        char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
+        char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
         strcpy(url, items[i].csr->endpoint);
         strcpy(url + baseLen, path);
         strcpy(url + baseLen + pathLen, entityId);

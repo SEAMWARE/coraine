@@ -24,7 +24,7 @@
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
@@ -138,7 +138,7 @@ bool deleteEntityTemporalInstance(void)
       for (int i = 0; i < n; i++)
       {
         int   baseLen = strlen(items[i].csr->endpoint);
-        char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
+        char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + prefLen + idLen + midLen + atLen + 1 + inLen + 1);
         int pos = 0;
         memcpy(url + pos, items[i].csr->endpoint, baseLen); pos += baseLen;
         memcpy(url + pos, prefix, prefLen);                 pos += prefLen;

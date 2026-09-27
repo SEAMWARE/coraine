@@ -57,8 +57,8 @@ make di            # debug build + install (binary + plugins → /opt/seamware, 
 
 ## Dependency stack
 
-- **k-libs** (gitlab.com/kzangeli): `kbase kalloc kargs`
-- **Cor-Libs** (github.com/SEAMWARE): `corLog corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
+- **k-libs** (gitlab.com/kzangeli): `kbase`
+- **Cor-Libs** (github.com/SEAMWARE): `corLog corAlloc corArgs corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
 - **umbrella / test runner**: `corLibs`, `corTest`
 
 `make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
@@ -296,7 +296,7 @@ check that it took. A running broker reports it as `build.httpServer` on
 `GET /build`.
 
 `builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on
-edge-triggered epoll loops, depending on nothing but kalloc and libc. Requests
+edge-triggered epoll loops, depending on nothing but corAlloc and libc. Requests
 still run on corRest's worker pool — the loops only do I/O — and the wire
 format it emits is byte-for-byte the one libmicrohttpd produced, because several
 hundred functional tests compare captured responses line by line.

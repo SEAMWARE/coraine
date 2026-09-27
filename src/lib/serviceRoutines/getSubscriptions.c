@@ -143,7 +143,7 @@ bool getSubscriptions(void)
   // § 7.5 / § 6.4.6 (TS 104-176): relay the total element count when requested.
   if (corNgsild.count)
   {
-    char* countStr = (char*) kaAlloc(&corRest.kalloc, 32);
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
     snprintf(countStr, 32, "%d", total);
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }

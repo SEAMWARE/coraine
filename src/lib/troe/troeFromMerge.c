@@ -11,7 +11,7 @@
 #include <stddef.h>                                   // NULL
 #include <string.h>                                   // strcmp, memset
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd
@@ -63,7 +63,7 @@ static bool multiInstance(CorNode* attrP)
 static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, const char* entityType, const char* attrName,
                           CorNode* mergedEntity, CorNode* attrP, CorNode* instP, uint64_t modifiedAtNs)
 {
-  CorNode* wrapperP = (CorNode*) kaAlloc(&corRest.kalloc, sizeof(CorNode));
+  CorNode* wrapperP = (CorNode*) corAlloc(&corRest.kalloc, sizeof(CorNode));
 
   *wrapperP = *attrP;
   wrapperP->next              = NULL;
@@ -71,7 +71,7 @@ static void instanceEvent(TroeOp op, Tenant* tenantP, const char* entityId, cons
   wrapperP->value.tail        = NULL;
   corTreeChildAdd(wrapperP, corTreeClone(corRest.kallocP, instP));
 
-  TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+  TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
   memset(tevP, 0, sizeof(*tevP));
   tevP->op             = op;
   tevP->tenantP        = tenantP;
@@ -189,7 +189,7 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
       continue;
     }
 
-    TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+    TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
     memset(tevP, 0, sizeof(*tevP));
     tevP->op             = reasonToOp(reason);
     tevP->tenantP        = tenantP;

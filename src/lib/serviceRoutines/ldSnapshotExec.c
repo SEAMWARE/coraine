@@ -13,8 +13,8 @@
 #include <stdlib.h>                                      // free
 #include <string.h>                                      // strcmp, strlen, strcpy, memcpy
 
-#include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kalloc/KAlloc.h"                               // KAlloc
+#include "corAlloc/corAlloc.h"                           // corAlloc
+#include "corAlloc/CorAlloc.h"                           // CorAlloc
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 #include "corTree/corTreeBuilder.h"                      // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
@@ -103,8 +103,8 @@ static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
     if (corTreeLookup(selP, "type") != NULL) typeCap++;
   }
 
-  char** idV   = (idCap   > 0) ? (char**) kaAlloc(&corRest.kalloc, (idCap   + 1) * sizeof(char*)) : NULL;
-  char** typeV = (typeCap > 0) ? (char**) kaAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
+  char** idV   = (idCap   > 0) ? (char**) corAlloc(&corRest.kalloc, (idCap  + 1) * sizeof(char*)) : NULL;
+  char** typeV = (typeCap > 0) ? (char**) corAlloc(&corRest.kalloc, (typeCap + 1) * sizeof(char*)) : NULL;
   int    nId = 0, nType = 0;
   const char* idPattern = NULL;
 
@@ -188,7 +188,7 @@ static void queryToFilter(CorNode* queryP, DbQueryFilter* filterP)
 // pending JSON-array → URL string serialisation; affects only geo
 // snapshots and a follow-up will fold it in.
 //
-static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* kaP)
+static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, CorAlloc* kaP)
 {
   //
   // Sized from the Query it renders: every value emitted below is a substring
@@ -196,7 +196,7 @@ static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* ka
   // fixed 4096 that used to be here was never checked as it wrote - the one
   // `pos < 4095` guarded the '&' and nothing else.
   //
-  char* qs = (char*) kaAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
+  char* qs = (char*) corAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
   int   pos = 0;
 
   //
@@ -313,7 +313,7 @@ static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* ka
 // type/id/idPattern, fall back to local=true to satisfy the receiver's
 // minimum-filter check (this disables transitive fanout for that hop).
 //
-static const char* buildSplitForwardQs(CorNode* queryP, KAlloc* kaP)
+static const char* buildSplitForwardQs(CorNode* queryP, CorAlloc* kaP)
 {
   //
   // Sized from the Query it renders: every value emitted below is a substring
@@ -321,7 +321,7 @@ static const char* buildSplitForwardQs(CorNode* queryP, KAlloc* kaP)
   // fixed 4096 that used to be here was never checked as it wrote - the one
   // `pos < 4095` guarded the '&' and nothing else.
   //
-  char* qs = (char*) kaAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
+  char* qs = (char*) corAlloc(kaP, 3 * corJsonFastRenderSize(queryP) + 256);
   int   pos = 0;
 
   //
@@ -436,7 +436,7 @@ static CorNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* query
   int   baseLen = strlen(base);
   int   pathLen = strlen(path);
   int   qsLen   = strlen(queryString);
-  char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
+  char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + qsLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
@@ -453,7 +453,7 @@ static CorNode* forwardSnapshotQueryToCSR(LdRegCacheItem* csr, const char* query
   if (rc != 0 || resp.statusCode < 200 || resp.statusCode >= 300) return NULL;
   if (resp.body == NULL || resp.bodyLen == 0)                     return NULL;
 
-  char* bodyCopy = (char*) kaAlloc(&corRest.kalloc, resp.bodyLen + 1);
+  char* bodyCopy = (char*) corAlloc(&corRest.kalloc, resp.bodyLen + 1);
   memcpy(bodyCopy, resp.body, resp.bodyLen);
   bodyCopy[resp.bodyLen] = 0;
 

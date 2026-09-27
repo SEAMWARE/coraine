@@ -21,8 +21,8 @@
 
 #include "corRest/CorRestState.h"                          // corRest
 
-#include "kalloc/kaAlloc.h"                              // kaAlloc
-#include "kalloc/kaStrdup.h"                             // kaStrdup
+#include "corAlloc/corAlloc.h"                           // corAlloc
+#include "corAlloc/corAllocStrdup.h"                     // corAllocStrdup
 #include "corTree/CorNode.h"                             // CorNode
 
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
@@ -231,7 +231,7 @@ bool purgeSnapshots(void)
   const char** victims = NULL;
   int          n       = 0;
   if (cap > 0)
-    victims = (const char**) kaAlloc(&corRest.kalloc, cap * sizeof(char*));
+    victims = (const char**) corAlloc(&corRest.kalloc, cap * sizeof(char*));
 
   for (LdSnapshotCacheItem* p = cacheP->head; p != NULL; p = p->next)
   {
@@ -240,7 +240,7 @@ bool purgeSnapshots(void)
     // copy it into the request arena so it stays valid across the delete loop
     // (db.snapshotDelete still needs the id after the item is gone).
     if (match && n < cap)
-      victims[n++] = kaStrdup(&corRest.kalloc, p->id);
+      victims[n++] = corAllocStrdup(&corRest.kalloc, p->id);
   }
 
   for (int i = 0; i < n; i++)

@@ -15,8 +15,8 @@
 #include <time.h>                                    // clock_gettime
 #include <regex.h>                                   // regexec
 
-#include "kalloc/KAlloc.h"                           // KAlloc
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "kbase/kStringInArray.h"                    // kStringInArray
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
@@ -181,7 +181,7 @@ static void mergeAuxiliaryInto(CorNode* destP, CorNode* srcP)
 //
 // Sub-attributes are not handled in this slice.
 //
-static void apiAttrToStorageWrap(CorNode* entityP, KAlloc* allocP)
+static void apiAttrToStorageWrap(CorNode* entityP, CorAlloc* allocP)
 {
   if (entityP == NULL || entityP->type != CorObject)
     return;
@@ -313,7 +313,7 @@ static bool userWantsField(const char* name)
 // `id` is NOT included — the broker knows the id (it's the URL it
 // forwarded to) and reinjects it via ensureEntityId on the way back.
 //
-static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAlloc* kaP, bool forceTypeScope)
+static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, CorAlloc* kaP, bool forceTypeScope)
 {
   if (riP->attributeNamesV == NULL)
     return "";
@@ -347,7 +347,7 @@ static const char* buildInfoPickParam(LdRegCacheItem* csr, LdRegInfo* riP, KAllo
     return "";
 
   // Header room: "&pick=" + "type," (5) + "scope," (6) = up to 17 chars.
-  char* buf = (char*) kaAlloc(kaP, 6 + 11 + totalLen + 1);
+  char* buf = (char*) corAlloc(kaP, 6 + 11 + totalLen + 1);
   strcpy(buf, "&pick=");
   int pos = 6;
 
@@ -393,7 +393,7 @@ static char* buildQueryFormUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* 
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
   int pickLen = strlen(pickRaw);
-  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
+  char* url   = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
 
   char* p = url;
   memcpy(p, base, baseLen);       p += baseLen;
@@ -417,7 +417,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
 {
   const char* path    = "/ngsi-ld/v1/entityOperations/query?sysAttrs=true";
   int   baseLen = strlen(csr->endpoint);
-  char* url     = (char*) kaAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
+  char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
   strcpy(url, csr->endpoint);
   strcpy(url + baseLen, path);
 
@@ -425,7 +425,7 @@ static void buildQueryBatchForm(LdRegCacheItem* csr, LdRegInfo* riP, const char*
   static const char bodyPre[]  = "{\"type\":\"Query\",\"entities\":[{\"id\":\"";
   static const char bodyPost[] = "\"}]}";
   int   idLen = strlen(entityId);
-  char* body  = (char*) kaAlloc(&corRest.kalloc, sizeof(bodyPre) - 1 + idLen + sizeof(bodyPost));
+  char* body  = (char*) corAlloc(&corRest.kalloc, sizeof(bodyPre) - 1 + idLen + sizeof(bodyPost));
   char* p     = body;
   memcpy(p, bodyPre, sizeof(bodyPre) - 1);  p += sizeof(bodyPre) - 1;
   memcpy(p, entityId, idLen);               p += idLen;
@@ -483,7 +483,7 @@ static char* buildForwardUrl(LdRegCacheItem* csr, LdRegInfo* riP, const char* en
   int idLen   = strlen(entityId);
   int qsLen   = strlen(qs);
   int pickLen = strlen(pick);
-  char* url   = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
+  char* url   = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + qsLen + pickLen + 1);
 
   strcpy(url, base);
   strcpy(url + baseLen, path);
@@ -618,11 +618,11 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
     for (int i = 0; i < counts[g]; i++)
       for (LdRegInfo* riP = groups[g][i]->infoV; riP != NULL; riP = riP->next) total++;
 
-  LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchItem*   items     = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem));
   memset(items, 0, total * sizeof(LdDistOpBatchItem));
-  LdDistOpBatchResult* results   = (LdDistOpBatchResult*) kaAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
-  int*                 itemGroup = (int*)                 kaAlloc(&corRest.kalloc, total * sizeof(int));
-  LdRegInfo**          itemRiP   = (LdRegInfo**)          kaAlloc(&corRest.kalloc, total * sizeof(LdRegInfo*));
+  LdDistOpBatchResult* results   = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult));
+  int*                 itemGroup = (int*)                 corAlloc(&corRest.kalloc, total * sizeof(int));
+  LdRegInfo**          itemRiP   = (LdRegInfo**)          corAlloc(&corRest.kalloc, total * sizeof(LdRegInfo*));
   int                  itemCount = 0;
   memset(results, 0, total * sizeof(LdDistOpBatchResult));
 

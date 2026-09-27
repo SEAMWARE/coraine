@@ -19,7 +19,7 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdProblem.h"                      // LD_ERROR_CONFLICT
@@ -54,7 +54,7 @@ static char* deleteUrl(const char* endpoint, const char* entityId)
   int         baseLen = strlen(endpoint);
   int         pathLen = strlen(path);
   int         idLen   = strlen(entityId);
-  char*       url     = (char*) kaAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
+  char*       url     = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + idLen + 1);
   strcpy(url, endpoint);
   strcpy(url + baseLen, path);
   strcpy(url + baseLen + pathLen, entityId);
@@ -190,7 +190,7 @@ bool deleteEntity(void)
         CorNode* tn = corTreeLookup(entityP, "type");
         if (tn != NULL && tn->type == CorString) etype = tn->value.s;
       }
-      TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+      TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
       memset(tevP, 0, sizeof(*tevP));
       tevP->op             = TroeOpEntityDeleted;
       tevP->tenantP        = tenantP;

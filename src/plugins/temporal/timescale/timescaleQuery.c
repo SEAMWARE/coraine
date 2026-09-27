@@ -42,9 +42,9 @@
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corJson/corJsonParse.h"                         // corJsonParse
-#include "kalloc/kaAlloc.h"                               // kaAlloc
-#include "kalloc/kaStrdup.h"                              // kaStrdup
-#include "kalloc/KAlloc.h"                                // KAlloc
+#include "corAlloc/corAlloc.h"                            // corAlloc
+#include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
 
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
@@ -117,7 +117,7 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
 {
   if (v_compnd != NULL && v_compnd[0] != 0)
   {
-    char*   dup    = kaStrdup(&corRest.kalloc, v_compnd);
+    char*   dup    = corAllocStrdup(&corRest.kalloc, v_compnd);
     CorNode* parsed = corJsonParse(corJsonP, dup);
     if (parsed != NULL)
     {
@@ -133,9 +133,9 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
     return corTreeFloat(corJsonP->kallocP, vfn, n);
   }
   if (v_bool != NULL)
-    return corTreeBoolean(corJsonP->kallocP, vfn, (v_bool[0] == 't') ? KTRUE : KFALSE);
+    return corTreeBoolean(corJsonP->kallocP, vfn, (v_bool[0] == 't') ? true : false);
   if (v_text != NULL)
-    return corTreeString(corJsonP->kallocP, vfn, kaStrdup(&corRest.kalloc, v_text));
+    return corTreeString(corJsonP->kallocP, vfn, corAllocStrdup(&corRest.kalloc, v_text));
   return NULL;
 }
 
@@ -146,7 +146,7 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
 // stripZeroMs - trim an all-zero fractional part so a clean second renders
 // without the artificial sub-second padding (matches the canonical fixtures used
 // by ETSI's temporal tests). The buffer is in-place rewritable: postgres'
-// to_char output lives in PQgetvalue's libpq-owned storage, so we kaStrdup
+// to_char output lives in PQgetvalue's libpq-owned storage, so we corAllocStrdup
 // first, then trim. Caller passes in the strdup'd copy.
 //
 // Both widths are handled: created_at/modified_at render with microseconds (.US)
@@ -194,7 +194,7 @@ static const char* timeColumn(const char* timeProp)
 //
 // attrsInClause - " AND attr_name IN ('a','b',...)" or "" when attrV is NULL.
 //
-static const char* attrsInClause(char** attrV, KAlloc* kaP)
+static const char* attrsInClause(char** attrV, CorAlloc* kaP)
 {
   if (attrV == NULL || attrV[0] == NULL)
     return "";
@@ -203,7 +203,7 @@ static const char* attrsInClause(char** attrV, KAlloc* kaP)
   for (int i = 0; attrV[i] != NULL; i++)
     needed += (int) strlen(attrV[i]) * 2 + 4;
 
-  char* buf = (char*) kaAlloc(kaP, needed);
+  char* buf = (char*) corAlloc(kaP, needed);
   int   p   = 0;
   p += snprintf(buf + p, needed - p, " AND attr_name IN (");
 
@@ -232,7 +232,7 @@ static const char* attrsInClause(char** attrV, KAlloc* kaP)
 // "@none" in the URL param maps to the empty-string dataset_id we store for
 // the default instance.
 //
-static const char* datasetIdsInClause(char** dsV, KAlloc* kaP)
+static const char* datasetIdsInClause(char** dsV, CorAlloc* kaP)
 {
   if (dsV == NULL || dsV[0] == NULL)
     return "";
@@ -241,7 +241,7 @@ static const char* datasetIdsInClause(char** dsV, KAlloc* kaP)
   for (int i = 0; dsV[i] != NULL; i++)
     needed += (int) strlen(dsV[i]) * 2 + 4;
 
-  char* buf = (char*) kaAlloc(kaP, needed);
+  char* buf = (char*) corAlloc(kaP, needed);
   int   p   = 0;
   p += snprintf(buf + p, needed - p, " AND dataset_id IN (");
 
@@ -282,7 +282,7 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
   // caller binds that one param here (the connection identifies the tenant).
   const char* idParam[1] = { entityId };
   int   sz  = (int) strlen(qPred) + 32;
-  char* sql = (char*) kaAlloc(&corRest.kalloc, sz);
+  char* sql = (char*) corAlloc(&corRest.kalloc, sz);
   snprintf(sql, sz, "SELECT %s", qPred);
 
   PGresult* res = PQexecParams(timescaleConn, sql, 1, NULL, idParam, NULL, NULL, 0);
@@ -312,12 +312,12 @@ static bool runQPreconditionLocked(const char* qPred, const char* entityId,
 // missing or empty list yields NULL and the member is left out entirely, which
 // is what an Entity written before the column became an array looks like.
 //
-static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, KAlloc* kaP)
+static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, CorAlloc* kaP)
 {
   if ((json == NULL) || (json[0] == 0))
     return NULL;
 
-  char*   copy  = kaStrdup(kaP, json);
+  char*   copy  = corAllocStrdup(kaP, json);
   CorNode* arrayP = corJsonParse(corJsonP, copy);
 
   if ((arrayP == NULL) || (arrayP->type != CorArray) || (arrayP->value.head == NULL))
@@ -407,7 +407,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       return TROE_ERR;
     }
     if (PQntuples(eRes) > 0)
-      entityType = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, 0, 0));
+      entityType = corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, 0, 0));
     PQclear(eRes);
   }
 
@@ -427,7 +427,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     //   between — [timeAt, endTimeAt): lower inclusive, upper exclusive
     if (strcmp(timerel, "before") == 0)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, " AND %s < $2::timestamptz", tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -435,7 +435,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     }
     else if (strcmp(timerel, "after") == 0)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 64);
       snprintf(buf, 64, " AND %s >= $2::timestamptz", tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -443,7 +443,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     }
     else if (strcmp(timerel, "between") == 0)
     {
-      char* buf = (char*) kaAlloc(&corRest.kalloc, 96);
+      char* buf = (char*) corAlloc(&corRest.kalloc, 96);
       snprintf(buf, 96, " AND %s >= $2::timestamptz AND %s < $3::timestamptz", tCol, tCol);
       timePred = buf;
       paramV[1] = timeAt;
@@ -503,7 +503,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     return TROE_NOT_FOUND;
 
   int   sqlSize = 8192;
-  char* sql     = (char*) kaAlloc(&corRest.kalloc, sqlSize);
+  char* sql     = (char*) corAlloc(&corRest.kalloc, sqlSize);
 
   // Per-partition page clip. The window function ORDER BY follows the
   // pagination direction so rn=1 is the first instance of the page
@@ -567,10 +567,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     {
       if (!PQgetisnull(tRes, 0, 0))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "createdAt",
-                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
+                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
       if (!PQgetisnull(tRes, 0, 1))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "modifiedAt",
-                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
 
       //
       // § 5.2.6.2: an Entity's deletedAt is used "in the temporal
@@ -580,7 +580,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       //
       if ((!PQgetisnull(tRes, 0, 1)) && (!PQgetisnull(tRes, 0, 2)) && (strcmp(PQgetvalue(tRes, 0, 2), "deleted") == 0))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "deletedAt",
-                                   stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
     }
     PQclear(tRes);
   }
@@ -619,7 +619,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     CorNode* arr = corTreeLookup(root, attrName);
     if (arr == NULL)
     {
-      arr = corTreeArray(corRest.kallocP, kaStrdup(&corRest.kalloc, attrName));
+      arr = corTreeArray(corRest.kallocP, corAllocStrdup(&corRest.kalloc, attrName));
       corTreeChildAdd(root, arr);
     }
     else if (arr->type != CorArray)
@@ -672,21 +672,21 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     // a regular one (§ 4.5.4) — it travels with the deleted row regardless
     // of sysAttrs (it's not in the strip list).
     if (crAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "createdAt", stripZeroMs(kaStrdup(&corRest.kalloc, crAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "createdAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, crAtIso))));
     if (modAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, modAtIso))));
     if (isDeleted && modAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "deletedAt", stripZeroMs(kaStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "deletedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "observedAt", stripZeroMs(kaStrdup(&corRest.kalloc, obsAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "observedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, obsAtIso))));
     if (dsId != NULL && dsId[0] != 0)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "datasetId", kaStrdup(&corRest.kalloc, dsId)));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "datasetId", corAllocStrdup(&corRest.kalloc, dsId)));
     if (instId != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "instanceId", kaStrdup(&corRest.kalloc, instId)));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "instanceId", corAllocStrdup(&corRest.kalloc, instId)));
 
     if (subAttrs != NULL && subAttrs[0] != 0)
     {
-      char* dup = kaStrdup(&corRest.kalloc, subAttrs);
+      char* dup = corAllocStrdup(&corRest.kalloc, subAttrs);
       CorNode* parsed = corJsonParse(corJsonP, dup);
       if (parsed != NULL && parsed->type == CorObject)
       {
@@ -708,7 +708,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   // takes its values straight). Only the first writer fills size — it stays
   // constant across entities for one request.
   // minIso / maxIso point straight into aRes' libpq-owned storage, so
-  // kaStrdup BEFORE the PQclear that frees them.
+  // corAllocStrdup BEFORE the PQclear that frees them.
   if (rangeOut != NULL)
   {
     if (hasMore)
@@ -717,12 +717,12 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     if (minIso != NULL)
     {
       if (rangeOut->rangeStartIso == NULL || strcmp(minIso, rangeOut->rangeStartIso) < 0)
-        rangeOut->rangeStartIso = stripZeroMs(kaStrdup(&corRest.kalloc, minIso));
+        rangeOut->rangeStartIso = stripZeroMs(corAllocStrdup(&corRest.kalloc, minIso));
     }
     if (maxIso != NULL)
     {
       if (rangeOut->rangeEndIso == NULL || strcmp(maxIso, rangeOut->rangeEndIso) > 0)
-        rangeOut->rangeEndIso = stripZeroMs(kaStrdup(&corRest.kalloc, maxIso));
+        rangeOut->rangeEndIso = stripZeroMs(corAllocStrdup(&corRest.kalloc, maxIso));
     }
 
     if (rangeOut->size == 0)
@@ -767,7 +767,7 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
 //
 // idsInClause - " AND entity_id IN ('a','b',...)" or "" when idV is empty.
 //
-static const char* idsInClause(char** idV, KAlloc* kaP)
+static const char* idsInClause(char** idV, CorAlloc* kaP)
 {
   if (idV == NULL || idV[0] == NULL)
     return "";
@@ -776,7 +776,7 @@ static const char* idsInClause(char** idV, KAlloc* kaP)
   for (int i = 0; idV[i] != NULL; i++)
     needed += (int) strlen(idV[i]) * 2 + 4;
 
-  char* buf = (char*) kaAlloc(kaP, needed);
+  char* buf = (char*) corAlloc(kaP, needed);
   int   p   = 0;
   p += snprintf(buf + p, needed - p, " AND entity_id IN (");
 
@@ -806,7 +806,7 @@ static const char* idsInClause(char** idV, KAlloc* kaP)
 // the filter is an array-OVERLAP test: the Entity matches when ANY of its types
 // is among the requested ones. The GIN index on entity_type serves &&.
 //
-static const char* typesInClause(char** typeV, KAlloc* kaP)
+static const char* typesInClause(char** typeV, CorAlloc* kaP)
 {
   if (typeV == NULL || typeV[0] == NULL)
     return "";
@@ -815,7 +815,7 @@ static const char* typesInClause(char** typeV, KAlloc* kaP)
   for (int i = 0; typeV[i] != NULL; i++)
     needed += (int) strlen(typeV[i]) * 2 + 4;
 
-  char* buf = (char*) kaAlloc(kaP, needed);
+  char* buf = (char*) corAlloc(kaP, needed);
   int   p   = 0;
   p += snprintf(buf + p, needed - p, " AND entity_type && ARRAY[");
 
@@ -841,13 +841,13 @@ static const char* typesInClause(char** typeV, KAlloc* kaP)
 //
 // idPatternClause - " AND entity_id ~ '<pattern>'" or "".
 //
-static const char* idPatternClause(const char* idPattern, KAlloc* kaP)
+static const char* idPatternClause(const char* idPattern, CorAlloc* kaP)
 {
   if (idPattern == NULL || idPattern[0] == 0)
     return "";
 
   int   sz  = (int) strlen(idPattern) * 2 + 32;
-  char* buf = (char*) kaAlloc(kaP, sz);
+  char* buf = (char*) corAlloc(kaP, sz);
   int   p   = 0;
   p += snprintf(buf + p, sz - p, " AND entity_id ~ '");
   for (const char* s = idPattern; *s; s++)
@@ -870,7 +870,7 @@ static const char* idPatternClause(const char* idPattern, KAlloc* kaP)
 // for the set query we correlate it to the selector's row instead, i.e.
 // replace every "$1" with "latest.entity_id".
 //
-static const char* correlateQPred(const char* qPred, KAlloc* kaP)
+static const char* correlateQPred(const char* qPred, CorAlloc* kaP)
 {
   int   sz  = (int) strlen(qPred) + 64;   // "latest.entity_id" is longer than "$1"
   // Each "$1" (2 chars) grows to 16 chars → +14 per occurrence; bound generously.
@@ -878,7 +878,7 @@ static const char* correlateQPred(const char* qPred, KAlloc* kaP)
     if (s[0] == '$' && s[1] == '1')
       sz += 16;
 
-  char* buf = (char*) kaAlloc(kaP, sz);
+  char* buf = (char*) corAlloc(kaP, sz);
   int   p   = 0;
   for (const char* s = qPred; *s != 0; )
   {
@@ -965,7 +965,7 @@ static int geoRefGeometry(char* buf, int sz, int p, const char* geometry, const 
 //
 static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
                                           const char* timePred, const char* opPred,
-                                          KAlloc* kaP)
+                                          CorAlloc* kaP)
 {
   if (fP->geoRelType == LdGeoNone)
     return "";
@@ -978,7 +978,7 @@ static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
             + (int) strlen(fP->geoGeometry) * 4
             + (int) strlen(fP->geoCoordinates) * 4
             + (int) strlen(timePred) + (int) strlen(opPred) + 768;
-  char* buf = (char*) kaAlloc(kaP, sz);
+  char* buf = (char*) corAlloc(kaP, sz);
   int   p   = 0;
 
   p += snprintf(buf + p, sz - p,
@@ -1056,9 +1056,9 @@ static const char* geoPredicateCorrelated(TroeQueryFilter* fP, const char* tCol,
 // the two paths answer the same query, depending only on where it was
 // aggregated.
 //
-static char* aggrNsToIso(uint64_t ns, KAlloc* kaP)
+static char* aggrNsToIso(uint64_t ns, CorAlloc* kaP)
 {
-  char*     buf = (char*) kaAlloc(kaP, 64);
+  char*     buf = (char*) corAlloc(kaP, 64);
   time_t    t   = (time_t) (ns / 1000000000ULL);
   long      ms  = (long) ((ns % 1000000000ULL) / 1000000);
   struct tm tmv;
@@ -1139,7 +1139,7 @@ static int aggrPageIndex(PGresult* pageRes, int pageN, const char* entityId, int
 //
 // aggrTuple - [value, bucket-start, bucket-end]
 //
-static CorNode* aggrTuple(KAlloc* allocP, double v, uint64_t startNs, uint64_t endNs)
+static CorNode* aggrTuple(CorAlloc* allocP, double v, uint64_t startNs, uint64_t endNs)
 {
   CorNode* tupleP = corTreeArray(allocP, NULL);
 
@@ -1164,9 +1164,9 @@ static CorNode* aggrTuple(KAlloc* allocP, double v, uint64_t startNs, uint64_t e
 //
 // sRes columns: 0 entity_id, 1 attr_name, 2 bucket start (epoch us), 3 total, 4 distinct, 5 sum, 6 sumsq, 7 min, 8 max
 //
-static CorNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP, KAlloc* allocP)
+static CorNode* aggrAttribute(PGresult* sRes, int r0, int r1, TroeQueryFilter* fP, CorAlloc* allocP)
 {
-  CorNode* wrapperP = corTreeObject(allocP, kaStrdup(&corRest.kalloc, PQgetvalue(sRes, r0, 1)));
+  CorNode* wrapperP = corTreeObject(allocP, corAllocStrdup(&corRest.kalloc, PQgetvalue(sRes, r0, 1)));
   CorNode* attrP   = corTreeObject(allocP, "@none");
 
   corTreeChildAdd(attrP, corTreeString(allocP, "type", "Property"));
@@ -1252,7 +1252,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   if (pageN == 0)
     return TROE_OK;
 
-  char** idV = (char**) kaAlloc(&corRest.kalloc, (pageN + 1) * sizeof(char*));
+  char** idV = (char**) corAlloc(&corRest.kalloc, (pageN + 1) * sizeof(char*));
   for (int i = 0; i < pageN; i++)
     idV[i] = PQgetvalue(pageRes, i, 0);
   idV[pageN] = NULL;
@@ -1296,7 +1296,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   // plan, which is most of the gain.
   //
   int   sSize = (int) strlen(idPred) + (int) strlen(whereTail) + 2048;
-  char* sSql  = (char*) kaAlloc(&corRest.kalloc, sSize);
+  char* sSql  = (char*) corAlloc(&corRest.kalloc, sSize);
 
   snprintf(sSql, sSize,
     "SELECT entity_id, attr_name, (EXTRACT(EPOCH FROM bucket) * 1000000)::bigint, COUNT(*), %s, SUM(num), SUM(num * num), MIN(num), MAX(num), BOOL_AND(ok) "
@@ -1352,7 +1352,7 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
 
   // The Entities' system timestamps - see buildEntityTemporalDocLocked
   int   tSize = (int) strlen(idPred) + 512;
-  char* tSql  = (char*) kaAlloc(&corRest.kalloc, tSize);
+  char* tSql  = (char*) corAlloc(&corRest.kalloc, tSize);
 
   snprintf(tSql, tSize,
     "SELECT entity_id, "
@@ -1371,19 +1371,19 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
     return TROE_ERR;
   }
 
-  KAlloc*  allocP = corRest.kallocP;
-  CorNode** docV  = (CorNode**) kaAlloc(&corRest.kalloc, pageN * sizeof(CorNode*));
-  int      hint   = 0;
+  CorAlloc* allocP = corRest.kallocP;
+  CorNode** docV   = (CorNode**) corAlloc(&corRest.kalloc, pageN * sizeof(CorNode*));
+  int       hint   = 0;
 
   for (int i = 0; i < pageN; i++)
   {
     CorNode* docP = corTreeObject(allocP, NULL);
 
-    corTreeChildAdd(docP, corTreeString(allocP, "id", kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 0))));
+    corTreeChildAdd(docP, corTreeString(allocP, "id", corAllocStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 0))));
 
     if (!PQgetisnull(pageRes, i, 1))
     {
-      CorNode* typeNodeP = typeNodeFromJson(kaStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 1)), corRest.corJsonP, &corRest.kalloc);
+      CorNode* typeNodeP = typeNodeFromJson(corAllocStrdup(&corRest.kalloc, PQgetvalue(pageRes, i, 1)), corRest.corJsonP, &corRest.kalloc);
       if (typeNodeP != NULL)
         corTreeChildAdd(docP, typeNodeP);
     }
@@ -1398,16 +1398,16 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
       continue;
 
     if (!PQgetisnull(tRes, r, 1))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
     if (!PQgetisnull(tRes, r, 2))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
     if (!PQgetisnull(tRes, r, 2) && !PQgetisnull(tRes, r, 3) && (strcmp(PQgetvalue(tRes, r, 3), "deleted") == 0))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", stripZeroMs(kaStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
   }
   PQclear(tRes);
 
   // One Attribute per (entity, attr_name) run of bucket rows
-  bool* hasAttrsV = (bool*) kaAlloc(&corRest.kalloc, pageN * sizeof(bool));
+  bool* hasAttrsV = (bool*) corAlloc(&corRest.kalloc, pageN * sizeof(bool));
   memset(hasAttrsV, 0, pageN * sizeof(bool));
 
   hint = 0;
@@ -1471,7 +1471,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
 
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* arrP  = corTreeArray(allocP, NULL);
 
   // limitGiven distinguishes an explicit limit=0 (count-only page) from an
@@ -1506,19 +1506,19 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   {
     if (strcmp(fP->timerel, "before") == 0)
     {
-      char* b = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* b = (char*) corAlloc(&corRest.kalloc, 64);
       snprintf(b, 64, " AND %s < $1::timestamptz", tCol);
       timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
     }
     else if (strcmp(fP->timerel, "after") == 0)
     {
-      char* b = (char*) kaAlloc(&corRest.kalloc, 64);
+      char* b = (char*) corAlloc(&corRest.kalloc, 64);
       snprintf(b, 64, " AND %s >= $1::timestamptz", tCol);
       timePred = b; paramV[0] = fP->timeAtIso; nParams = 1;
     }
     else if (strcmp(fP->timerel, "between") == 0)
     {
-      char* b = (char*) kaAlloc(&corRest.kalloc, 96);
+      char* b = (char*) corAlloc(&corRest.kalloc, 96);
       snprintf(b, 96, " AND %s >= $1::timestamptz AND %s < $2::timestamptz", tCol, tCol);
       timePred = b; paramV[0] = fP->timeAtIso; paramV[1] = fP->endTimeAtIso; nParams = 2;
     }
@@ -1530,7 +1530,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   {
     const char* c  = correlateQPred(fP->qSqlPredicate, &corRest.kalloc);
     int         sz = (int) strlen(c) + 8;
-    char*       b  = (char*) kaAlloc(&corRest.kalloc, sz);
+    char*       b  = (char*) corAlloc(&corRest.kalloc, sz);
     snprintf(b, sz, " AND %s", c);
     qCorr = b;
   }
@@ -1540,7 +1540,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   // WHERE body shared by the page query and the count query.
   int   wSize = 16384;
-  char* where = (char*) kaAlloc(&corRest.kalloc, wSize);
+  char* where = (char*) corAlloc(&corRest.kalloc, wSize);
   snprintf(where, wSize,
     "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
     "FROM troe_entities ORDER BY entity_id, modified_at DESC) latest "
@@ -1550,7 +1550,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   // Page query — fetch limit+1 so we can tell whether more entities remain.
   int   pSize = wSize + 256;
-  char* pageSql = (char*) kaAlloc(&corRest.kalloc, pSize);
+  char* pageSql = (char*) corAlloc(&corRest.kalloc, pSize);
   snprintf(pageSql, pSize,
     "SELECT entity_id, array_to_json(entity_type)::text %s ORDER BY entity_id LIMIT %d OFFSET %d",
     where, limit + 1, offset);
@@ -1576,7 +1576,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (aggrPushdownOk(fP))
   {
     int   tailSize = (int) (strlen(timePred) + strlen(opPred) + strlen(attrPred) + strlen(dsPred)) + 1;
-    char* tail     = (char*) kaAlloc(&corRest.kalloc, tailSize);
+    char* tail     = (char*) corAlloc(&corRest.kalloc, tailSize);
 
     snprintf(tail, tailSize, "%s%s%s%s", timePred, opPred, attrPred, dsPred);
 
@@ -1592,8 +1592,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   for (int r = 0; (aggrRc == AGGR_DECLINED) && (r < pageN); r++)
   {
-    const char* entityId   = kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
-    const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : kaStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
+    const char* entityId   = corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
+    const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
 
     CorNode* docP = NULL;
     int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
@@ -1635,7 +1635,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   if (fP->count)
   {
     int   cSize = wSize + 64;
-    char* countSql = (char*) kaAlloc(&corRest.kalloc, cSize);
+    char* countSql = (char*) corAlloc(&corRest.kalloc, cSize);
     snprintf(countSql, cSize, "SELECT COUNT(*) %s", where);
 
     PGresult* nRes = PQexecParams(timescaleConn, countSql, nParams, NULL,

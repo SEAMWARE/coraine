@@ -14,7 +14,7 @@
 
 #include <mongoc/mongoc.h>                             // mongoc_*
 
-#include "kalloc/kalloc.h"                             // kaBufferInit, kaBufferReset
+#include "corAlloc/corAlloc.h"                         // corAllocBufferInit, corAllocBufferReset
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
 #include "corLog/corLog.h"                             // KT_*
 
@@ -45,8 +45,8 @@ extern mongoc_client_pool_t* poolP;
 // database, and the event tree - which the HaEvent's id points into - has to
 // outlive the apply. One arena per owner, each reset by its owner.
 //
-static KAlloc  haAlloc;
-static char    haAllocBuffer[8 * 1024];
+static CorAlloc  haAlloc;
+static char      haAllocBuffer[8 * 1024];
 
 
 
@@ -333,10 +333,10 @@ static void* haWatchThread(void* vP)
       if (mongoc_change_stream_next(streamP, &bsonP) == true)
       {
         //
-        // ⚠️ KTRUE = REUSE. With KFALSE the blocks are freed but the list that
+        // ⚠️ true = REUSE. With false the blocks are freed but the list that
         // holds them is left dangling - the next event frees them again.
         //
-        kaBufferReset(&haAlloc, KTRUE);
+        corAllocBufferReset(&haAlloc, true);
         eventTreat(bsonP);
         continue;
       }
@@ -403,7 +403,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
     return DB_ERR;
   }
 
-  kaBufferInit(&haAlloc, haAllocBuffer, sizeof(haAllocBuffer), 4096, NULL, "ha-watch");
+  corAllocBufferInit(&haAlloc, haAllocBuffer, sizeof(haAllocBuffer), 4096, NULL, "ha-watch");
 
   haClientP = mongoc_client_new(mongocUriString);
 

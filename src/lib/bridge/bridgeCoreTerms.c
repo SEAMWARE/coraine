@@ -8,7 +8,7 @@
 //
 #include <stddef.h>                                   // NULL
 
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corLog/corLog.h"                            // COR_T
 #include "corJsonld/corLdInit.h"                      // CorLdCoreTerm, corLdCoreTermsAdd
 
@@ -52,7 +52,7 @@ static const CorLdCoreTerm bridgeCoreTermV[] =
 //
 // bridgeCoreTermsAdd -
 //
-int bridgeCoreTermsAdd(KAlloc* kaP)
+int bridgeCoreTermsAdd(CorAlloc* kaP)
 {
   int added = corLdCoreTermsAdd(bridgeCoreTermV, kaP);
 

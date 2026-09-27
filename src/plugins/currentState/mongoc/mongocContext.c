@@ -19,8 +19,8 @@
 #include <string.h>                                    // strlen
 
 #include <mongoc/mongoc.h>                             // mongoc_*
-#include "kalloc/kaAlloc.h"                            // kaAlloc
-#include "kalloc/kaStrdup.h"                           // kaStrdup
+#include "corAlloc/corAlloc.h"                         // corAlloc
+#include "corAlloc/corAllocStrdup.h"                   // corAllocStrdup
 #include "corLog/corLog.h"                             // COR_E
 
 #include "db/DbDriver.h"                               // DbContextRow, DB_OK, DB_ERR
@@ -133,7 +133,7 @@ int mongocContextDelete(const char* id)
 //
 // mongocContextGet -
 //
-int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
+int mongocContextGet(const char* id, CorAlloc* allocP, DbContextRow* rowOut)
 {
   if (id == NULL || rowOut == NULL || poolP == NULL)
     return DB_ERR;
@@ -164,12 +164,12 @@ int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
       {
         const char* k = bson_iter_key(&it);
 
-        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->id   = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
-        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->url  = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->id   = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->url  = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT32(&it))  rowOut->kind = bson_iter_int32(&it);
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT64(&it))  rowOut->kind = (int) bson_iter_int64(&it);
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_DOUBLE(&it)) rowOut->kind = (int) bson_iter_double(&it);
-        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->body = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))   rowOut->body = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
       }
     }
     result = DB_OK;
@@ -198,7 +198,7 @@ int mongocContextGet(const char* id, KAlloc* allocP, DbContextRow* rowOut)
 //
 // mongocContextList -
 //
-int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
+int mongocContextList(CorAlloc* allocP, DbContextRow** rowsPP, int* countP)
 {
   *rowsPP = NULL;
   *countP = 0;
@@ -244,7 +244,7 @@ int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
     return DB_OK;
   }
 
-  DbContextRow* rows = (DbContextRow*) kaAlloc(allocP, count * sizeof(DbContextRow));
+  DbContextRow* rows = (DbContextRow*) corAlloc(allocP, count * sizeof(DbContextRow));
   if (rows == NULL)
   {
     bson_destroy(&emptyFilter);
@@ -271,12 +271,12 @@ int mongocContextList(KAlloc* allocP, DbContextRow** rowsPP, int* countP)
       {
         const char* k = bson_iter_key(&it);
 
-        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->id   = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
-        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->url  = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        if      ((strcmp(k, "_id")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->id   = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "url")  == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->url  = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT32(&it))   r->kind = bson_iter_int32(&it);
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_INT64(&it))   r->kind = (int) bson_iter_int64(&it);
         else if ((strcmp(k, "kind") == 0) && BSON_ITER_HOLDS_DOUBLE(&it))  r->kind = (int) bson_iter_double(&it);
-        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->body = kaStrdup(allocP, bson_iter_utf8(&it, NULL));
+        else if ((strcmp(k, "body") == 0) && BSON_ITER_HOLDS_UTF8(&it))    r->body = corAllocStrdup(allocP, bson_iter_utf8(&it, NULL));
       }
     }
 

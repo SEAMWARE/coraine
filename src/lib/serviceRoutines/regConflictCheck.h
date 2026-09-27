@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "corTree/CorNode.h"                          // CorNode
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corNgsild/LdRegCache.h"                      // LdRegMode
 
 
@@ -39,6 +39,6 @@ extern LdRegMode regModeOf(CorNode* regP);
 // Returns true if a conflict was found AND ldError (409) was raised — the caller
 // must then just return. Returns false when there is no conflict.
 //
-extern bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, KAlloc* allocP);
+extern bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, CorAlloc* allocP);
 
 #endif  // SRC_LIB_SERVICEROUTINES_REGCONFLICTCHECK_H_

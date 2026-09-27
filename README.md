@@ -140,7 +140,7 @@ Five things worth taking from that table:
   machine did not already have — and three libraries, two of which are GEOS.**
   1.00 MiB of it is coraine, and the cor and k libraries are whole-archived into
   that binary, so it is not a `main` calling out to something else: `corNgsild`,
-  `corRest`, `corJsonld`, `corTree`, `kalloc` and the rest are *in* the megabyte.
+  `corRest`, `corJsonld`, `corTree`, `corAlloc` and the rest are *in* the megabyte.
 - **`--database corDB --troe corDB` needs no other service at all** — and
   temporal history in the same process is **free**: 40 257 req/s against
   40 073 with history off, 123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of

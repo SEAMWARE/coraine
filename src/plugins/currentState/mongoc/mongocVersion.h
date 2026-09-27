@@ -10,7 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "kalloc/KAlloc.h"                           // KAlloc
+#include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corTree/CorNode.h"                         // CorNode
 
 
@@ -27,6 +27,6 @@ extern int mongocServerVersionGet(void);
 //
 // mongocVersionInfo - add version entries to root object
 //
-extern void mongocVersionInfo(KAlloc* allocP, CorNode* root);
+extern void mongocVersionInfo(CorAlloc* allocP, CorNode* root);
 
 #endif  // CURRENTSTATE_MONGOC_MONGOCVERSION_H_

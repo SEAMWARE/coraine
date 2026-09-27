@@ -13,7 +13,7 @@
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corLog/corLog.h"                            // COR_W, COR_T
-#include "kalloc/kaAlloc.h"                           // kaAlloc
+#include "corAlloc/corAlloc.h"                        // corAlloc
 
 #include "corRest/corRest.h"                          // corRest
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
@@ -209,7 +209,7 @@ int channelPrePopulate(Tenant* tenantP)
       //
       if (troe.entityEvent != NULL || troe.eventList != NULL)
       {
-        TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+        TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
 
         memset(tevP, 0, sizeof(TroeEvent));
         tevP->op             = TroeOpEntityCreated;

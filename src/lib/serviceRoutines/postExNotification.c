@@ -31,7 +31,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTree
@@ -121,7 +121,7 @@ bool postExNotification(void)
   // Render the (modified) body and POST to the original subscriber.
   //
   int   bodyLen = corJsonFastRenderSize(bodyTree) + 1;
-  char* body    = (char*) kaAlloc(&corRest.kalloc, bodyLen);
+  char* body    = (char*) corAlloc(&corRest.kalloc, bodyLen);
   corJsonFastRender(bodyTree, body);
 
   CorRestClientRequest  req;

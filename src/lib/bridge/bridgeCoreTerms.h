@@ -9,7 +9,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "kalloc/KAlloc.h"                            // KAlloc
+#include "corAlloc/CorAlloc.h"                        // CorAlloc
 
 
 
@@ -35,6 +35,6 @@
 // so until it is deleted it is dead weight, not a conflict. Check the names
 // ETSI settles on: any that differ from ours is a rename for our clients.
 //
-extern int bridgeCoreTermsAdd(KAlloc* kaP);
+extern int bridgeCoreTermsAdd(CorAlloc* kaP);
 
 #endif  // SRC_LIB_BRIDGE_BRIDGECORETERMS_H_

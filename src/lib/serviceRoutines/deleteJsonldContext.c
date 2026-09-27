@@ -183,7 +183,7 @@ bool deleteJsonldContext(void)
     // install itself; if download fails, reinstate the old entry.
     //
     const char* url      = existingP->url;
-    KAlloc*     storeP   = corLdCacheGet()->kaP;
+    CorAlloc*   storeP   = corLdCacheGet()->kaP;
     CorLdContext* removed = corLdCacheRemove(contextId);
 
     CorLdContext* fresh = corLdContextFromUrl(url, storeP);

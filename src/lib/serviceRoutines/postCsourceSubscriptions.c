@@ -28,8 +28,8 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeChildAdd
 #include "corTree/CorNode.h"                         // CorNode, CorString
-#include "kalloc/kaAlloc.h"                          // kaAlloc
-#include "kalloc/KAlloc.h"                             // KAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corAlloc/CorAlloc.h"                         // CorAlloc
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 #include "corJsonld/CorLdContext.h"                    // CorLdContext
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -49,10 +49,10 @@
 
 
 
-static char* csrSubIdGenerate(KAlloc* allocP)
+static char* csrSubIdGenerate(CorAlloc* allocP)
 {
   static int counter = 0;
-  char*      buf     = kaAlloc(allocP, 128);
+  char*      buf     = corAlloc(allocP, 128);
 
   snprintf(buf, 128, "urn:ngsi-ld:Subscription:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
 
@@ -242,7 +242,7 @@ bool postCsourceSubscriptions(void)
 
   const char* prefix  = "/ngsi-ld/v1/csourceSubscriptions/";
   int         locLen  = strlen(prefix) + strlen(idP->value.s) + 1;
-  char*       locBuf  = kaAlloc(&corRest.kalloc, locLen);
+  char*       locBuf  = corAlloc(&corRest.kalloc, locLen);
 
   strcpy(locBuf, prefix);
   strcat(locBuf, idP->value.s);

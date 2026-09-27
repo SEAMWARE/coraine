@@ -8,7 +8,7 @@
 //
 #include <stddef.h>                               // NULL
 
-#include "kalloc/KAlloc.h"                        // KAlloc
+#include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 
@@ -31,7 +31,7 @@
 //
 bool adminGetPlugins(void)
 {
-  KAlloc* allocP = corRest.kallocP;
+  CorAlloc* allocP = corRest.kallocP;
   CorNode* root  = corTreeObject(allocP, NULL);
 
   // DB plugin

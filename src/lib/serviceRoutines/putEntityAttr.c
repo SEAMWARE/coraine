@@ -23,7 +23,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPut
 
-#include "kalloc/kaAlloc.h"                          // kaAlloc
+#include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeChildAdd, corTreeChildRemove
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
@@ -70,7 +70,7 @@ static char* attrUrl(const char* endpoint, const char* entityId, const char* att
   const char* p2 = "/attrs/";
   int  lenE = strlen(endpoint), lenP1 = strlen(p1), lenId = strlen(entityId);
   int  lenP2 = strlen(p2),      lenA  = strlen(attrWild);
-  char* buf = (char*) kaAlloc(&corRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + 1);
+  char* buf = (char*) corAlloc(&corRest.kalloc, lenE + lenP1 + lenId + lenP2 + lenA + 1);
   char* p = buf;
   memcpy(p, endpoint, lenE); p += lenE;
   memcpy(p, p1, lenP1);      p += lenP1;
@@ -90,7 +90,7 @@ static char* renderBodyWithContext(CorNode* bodyP)
   if (atCtx != NULL)
     corTreeChildRemove(bodyP, atCtx);
   int   bufSize = corJsonFastRenderSize(bodyP) + 1;
-  char* buf     = (char*) kaAlloc(&corRest.kalloc, bufSize);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize);
   corJsonFastRender(bodyP, buf);
   return buf;
 }
@@ -426,7 +426,7 @@ bool putEntityAttr(void)
               CorNode* tn = corTreeLookup(merged, "type");
               if (tn != NULL && tn->type == CorString) etype = tn->value.s;
             }
-            TroeEvent* tevP = (TroeEvent*) kaAlloc(&corRest.kalloc, sizeof(TroeEvent));
+            TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
             memset(tevP, 0, sizeof(*tevP));
             tevP->op             = TroeOpAttrReplaced;
             tevP->tenantP        = tenantP;

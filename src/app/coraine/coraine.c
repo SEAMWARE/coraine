@@ -22,11 +22,11 @@
 #include <netinet/in.h>                           // struct sockaddr_in
 #include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
 
-#include "kalloc/kalloc.h"                        // KAlloc, kaBufferInit
+#include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "kbase/kCpuCount.h"                       // kCpuCount
-#include "kargs/kargs.h"                          // kargsInit, kargsParse, kargsPeek, KArg, KArgsStatus, kargsStatus, KARGS_END, kargsUsage
+#include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
 #include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet
@@ -43,8 +43,8 @@
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "corTree/corTreeLookup.h"                // corTreeLookup
 #include "corTree/corTreeClone.h"                 // corTreeClone
-#include "kalloc/kaAlloc.h"                       // kaAlloc
-#include "kalloc/kaStrdup.h"                      // kaStrdup
+#include "corAlloc/corAlloc.h"                    // corAlloc
+#include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "corNgsild/ldHooks.h"                      // ldAcceptPrecondition
@@ -182,7 +182,7 @@ char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
-bool           versionOnly  = false;   // --version: handled before kargsInit; in the table so --usage lists it
+bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 32;
 int            httpLoops    = 0;   // 0: auto - see the kCpuCount call in main()
 char*          corsOrigin   = NULL;
@@ -201,42 +201,42 @@ int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 =
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
 
-static KArg kargV[] =
+static CorArg kargV[] =
 {
-  { "--traceLevels",        "-t",           KaString, _vp &traceLevels,  KaOpt, _vp NULL,      NULL,  NULL,      "trace levels" },
-  { "--port",               "-p",           KaUShort, _vp &port,         KaOpt, _vp 1026,     _vp 1, _vp 65535, "TCP port to listen on" },
-  { "--database",           "-db",          KaString, _vp &dbName,       KaOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
-  { "--troe",               "-troe",        KaString, _vp &troeName,     KaOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
-  { "--troeSync",           "-troeSync",    KaBool,   _vp &troeSync,    KaOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
-  { "--apiPlugins",         "-api",         KaString, _vp &apiNames,     KaOpt, _vp NULL,      NULL,  NULL,      "API plugins (comma-separated)" },
-  { "--bridges",            "-br",          KaString, _vp &bridgeNames,  KaOpt, _vp NULL,      NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
-  { "--bridgeConfig",       "-brc",         KaString, _vp &bridgeConfig, KaOpt, _vp NULL,      NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
-  { "--ddsSync",            "-ddsSync",     KaBool,   _vp &bridgeSyncDefault,   KaOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
-  { "--ddsSyncTimeout",     "-ddsSyncTimeout", KaInt, _vp &bridgeSyncTimeoutMs, KaOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
-  { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", KaInt, _vp &bridgeSyncWaitMax,   KaOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
-  { "--pretty-print",       "-pp",          KaUInt,   _vp &prettySpaces, KaOpt, _vp 0,         _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         KaInt,    _vp &poolSize,     KaOpt, _vp 32,        _vp 1, _vp 200,  "MHD thread pool size" },
-  { "--httpLoops",          "-hl",          KaInt,    _vp &httpLoops,    KaOpt, _vp 0,         _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
-  { "--notifyValueChangeOnly", "-nvco",     KaBool,   _vp &notifyValueChangeOnly, KaOpt, _vp KFALSE, _vp KFALSE, _vp KTRUE, "only notify when an attribute value changed (suppress value-neutral updates)" },
-  { "--corsOrigin",         "-corsOrigin",  KaString, _vp &corsOrigin,   KaOpt, _vp NULL,      NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
-  { "--corsMaxAge",         "-corsMaxAge",  KaInt,    _vp &corsMaxAge,   KaOpt, _vp 86400,     _vp 0, _vp 864000, "preflight cache max age in seconds" },
-  { "--defaultUserContext", "-duc",         KaString, _vp &defaultUserContext, KaOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
-  { "--csourceAlias",       "-csourceAlias",KaString, _vp &csourceAlias, KaOpt, _vp NULL,      NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
-  { "--httpEndpoint",       "-he",          KaString, _vp &httpEndpoint, KaOpt, _vp NULL,      NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
-  { "--contextSourceExtras","-csx",         KaString, _vp &contextSourceExtras, KaOpt, _vp NULL, NULL, NULL,      "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
-  { "--distributed",        "-dist",        KaBool,   _vp &distributed, KaOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
-  { "--noSplitEntities",    "-noSplitEntities",KaBool, _vp &noSplitEntities,KaOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
-  { "--high-precision",     "-hp",          KaBool,   _vp &highPrecision, KaOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
-  { "--asyncSnapshot",      "-asyncSnapshot",  KaBool, _vp &asyncSnapshot, KaOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
-  { "--maxRequestSize",     "-mrs",            KaInt,  _vp &maxRequestSize, KaOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
-  { "--subStatsFlushInterval","-ssfi",      KaInt,    _vp &subStatsFlushInterval, KaOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
-  { "--distOpTimeout",      "-dtmo",        KaInt,    _vp &corRestClientDefaultRequestTimeoutMs, KaOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
-  { "--cooldownMillis",     "-cms",         KaInt,    _vp &cooldownMillis, KaOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
-  { "--version",            "-V",           KaBool,   _vp &versionOnly,  KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "print version and exit" },
-  { "--foreground",         "-fg",          KaBool,   _vp &fg,           KaOpt, _vp KFALSE,    _vp KFALSE, _vp KTRUE, "run in foreground (don't daemonize)" },
-  { "--insecureNotif",      "-insecureNotif",KaBool,  _vp &insecureNotif, KaOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
-  { "--high-availability",  "-ha",          KaString, _vp &haChannel,    KaOpt, _vp NULL,      NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
-  KARGS_END
+  { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels" },
+  { "--port",               "-p",           CorArgUShort, _vp &port,     CorArgOpt, _vp 1026, _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
+  { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
+  { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
+  { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
+  { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+  { "--bridgeConfig",       "-brc",         CorArgString, _vp &bridgeConfig, CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
+  { "--ddsSync",            "-ddsSync",     CorArgBool,   _vp &bridgeSyncDefault,   CorArgOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
+  { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
+  { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
+  { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
+  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 32,    _vp 1, _vp 200,  "MHD thread pool size" },
+  { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
+  { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
+  { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
+  { "--corsMaxAge",         "-corsMaxAge",  CorArgInt,    _vp &corsMaxAge,   CorArgOpt, _vp 86400, _vp 0, _vp 864000, "preflight cache max age in seconds" },
+  { "--defaultUserContext", "-duc",         CorArgString, _vp &defaultUserContext, CorArgOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
+  { "--csourceAlias",       "-csourceAlias",CorArgString, _vp &csourceAlias, CorArgOpt, _vp NULL,  NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
+  { "--httpEndpoint",       "-he",          CorArgString, _vp &httpEndpoint, CorArgOpt, _vp NULL,  NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
+  { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
+  { "--distributed",        "-dist",        CorArgBool,   _vp &distributed, CorArgOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
+  { "--noSplitEntities",    "-noSplitEntities",CorArgBool, _vp &noSplitEntities,CorArgOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
+  { "--high-precision",     "-hp",          CorArgBool,   _vp &highPrecision, CorArgOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
+  { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
+  { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
+  { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
+  { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
+  { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
+  { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
+  { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgOpt, _vp false,    _vp false, _vp true, "run in foreground (don't daemonize)" },
+  { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
+  { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
+  CORARGS_END
 };
 
 
@@ -337,7 +337,7 @@ static void shutdownInOrder(void)
 //
 // pluginsLoad - load DB + API plugins, register their CLI args
 //
-// Called between kargsInit and kargsParse so that plugin-contributed args
+// Called between corArgsInit and corArgsParse so that plugin-contributed args
 // are known before parsing.
 //
 static bool pluginsLoad(int argC, char* argV[])
@@ -345,16 +345,16 @@ static bool pluginsLoad(int argC, char* argV[])
   bool startupError = false;
 
   //
-  // Which plugins to load has to be known BEFORE kargsParse, because the plugins
+  // Which plugins to load has to be known BEFORE corArgsParse, because the plugins
   // contribute options of their own to the table that parse then resolves. So
-  // each of the four is taken from the command line by kargsPeek, falling back
+  // each of the four is taken from the command line by corArgsPeek, falling back
   // to the variable behind the option.
   //
-  // That fallback is not "the default" - kargsInit has already run (see main)
+  // That fallback is not "the default" - corArgsInit has already run (see main)
   // and has resolved CORAINE_DATABASE / CORAINE_TROE / CORAINE_APIPLUGINS /
   // CORAINE_BRIDGES into
   // these variables, so it is "the environment, or failing that the default".
-  // kargsPeek itself reads argv and nothing else - it has no idea an
+  // corArgsPeek itself reads argv and nothing else - it has no idea an
   // environment exists.
   //
   // --apiPlugins had no fallback line, which is why it alone ignored its
@@ -365,19 +365,19 @@ static bool pluginsLoad(int argC, char* argV[])
   // container by environment - which is what container users do, and what no
   // functest here does.
   //
-  char* dbPeek = kargsPeek(argC, argV, kargV, "--database");
+  char* dbPeek = corArgsPeek(argC, argV, kargV, "--database");
   if (dbPeek == NULL)
     dbPeek = dbName;  // use default
 
-  char* troePeek = kargsPeek(argC, argV, kargV, "--troe");
+  char* troePeek = corArgsPeek(argC, argV, kargV, "--troe");
   if (troePeek == NULL)
     troePeek = troeName;  // use default ("none")
 
-  char* apiPeek = kargsPeek(argC, argV, kargV, "--apiPlugins");
+  char* apiPeek = corArgsPeek(argC, argV, kargV, "--apiPlugins");
   if (apiPeek == NULL)
-    apiPeek = apiNames;  // CORAINE_APIPLUGINS - kargsInit ran above and has already resolved it
+    apiPeek = apiNames;  // CORAINE_APIPLUGINS - corArgsInit ran above and has already resolved it
 
-  char* bridgePeek = kargsPeek(argC, argV, kargV, "--bridges");
+  char* bridgePeek = corArgsPeek(argC, argV, kargV, "--bridges");
   if (bridgePeek == NULL)
     bridgePeek = bridgeNames;  // CORAINE_BRIDGES - and it needs this line for the same reason --apiPlugins did
 
@@ -400,10 +400,10 @@ static bool pluginsLoad(int argC, char* argV[])
       else
         snprintf(dbSepText, sizeof(dbSepText), "Database plugin options:");
 
-      static KArg dbSepArgV[] = { KARGS_SEPARATOR(NULL), KARGS_END };
+      static CorArg dbSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
       dbSepArgV[0].description = dbSepText;
-      kargsAdd(dbSepArgV);
-      kargsAdd(db.args);
+      corArgsAdd(dbSepArgV);
+      corArgsAdd(db.args);
     }
   }
 
@@ -425,10 +425,10 @@ static bool pluginsLoad(int argC, char* argV[])
       else
         snprintf(troeSepText, sizeof(troeSepText), "TRoE plugin options:");
 
-      static KArg troeSepArgV[] = { KARGS_SEPARATOR(NULL), KARGS_END };
+      static CorArg troeSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
       troeSepArgV[0].description = troeSepText;
-      kargsAdd(troeSepArgV);
-      kargsAdd(troe.args);
+      corArgsAdd(troeSepArgV);
+      corArgsAdd(troe.args);
     }
   }
 
@@ -448,7 +448,7 @@ static bool pluginsLoad(int argC, char* argV[])
       for (int i = 0; i < apiPluginCount; i++)
       {
         if (apiPlugins[i].args != NULL)
-          kargsAdd(apiPlugins[i].args);
+          corArgsAdd(apiPlugins[i].args);
       }
     }
   }
@@ -481,12 +481,12 @@ static bool pluginsLoad(int argC, char* argV[])
           else
             snprintf(bridgeSepText[i], sizeof(bridgeSepText[i]), "Bridge plugin options:");
 
-          static KArg bridgeSepArgV[BRIDGES_MAX][2];
-          bridgeSepArgV[i][0] = (KArg) KARGS_SEPARATOR(NULL);
-          bridgeSepArgV[i][1] = (KArg) KARGS_END;
+          static CorArg bridgeSepArgV[BRIDGES_MAX][2];
+          bridgeSepArgV[i][0] = (CorArg) CORARGS_SEPARATOR(NULL);
+          bridgeSepArgV[i][1] = (CorArg) CORARGS_END;
           bridgeSepArgV[i][0].description = bridgeSepText[i];
-          kargsAdd(bridgeSepArgV[i]);
-          kargsAdd(bridges[i].args);
+          corArgsAdd(bridgeSepArgV[i]);
+          corArgsAdd(bridges[i].args);
         }
       }
     }
@@ -503,9 +503,9 @@ static bool pluginsLoad(int argC, char* argV[])
   // Add footer showing plugin directory
   static char footerText[256];
   snprintf(footerText, sizeof(footerText), "Plugins are loaded from %s", corPluginBaseDir());
-  static KArg footerArgV[] = { KARGS_SEPARATOR(NULL), KARGS_END };
+  static CorArg footerArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
   footerArgV[0].description = footerText;
-  kargsAdd(footerArgV);
+  corArgsAdd(footerArgV);
 
   return startupError;
 }
@@ -615,7 +615,7 @@ static BridgeBroker bridgeBroker =
 //
 // ⚠ RUNS WHILE THE STARTUP ALLOCATOR IS STILL ALIVE, and that is why it is not
 // part of bridgesInit below. The DB plugins allocate what they read through
-// corRest.kalloc, and the startup buffer is torn down - kaBufferReset with
+// corRest.kalloc, and the startup buffer is torn down - corAllocBufferReset with
 // reuse false, which frees every block and leaves allocList pointing at them -
 // once the caches are loaded. Touching the database after that point means
 // allocating from an arena that has been freed.
@@ -754,7 +754,7 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
   static __thread bool pernotCorRestInited = false;
   if (!pernotCorRestInited)
   {
-    kaBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "pernot");
+    corAllocBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 256 * 1024, NULL, "pernot");
     corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
     corRest.kallocP  = &corRest.kalloc;
     pernotCorRestInited = true;
@@ -762,12 +762,12 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
   else
   {
     //
-    // KTRUE = reuse. KFALSE frees the extra blocks and leaves the list that
+    // true = reuse. false frees the extra blocks and leaves the list that
     // holds them dangling, so the NEXT cycle frees them a second time - a
     // double free that only shows up once a cycle has outgrown the inline
     // buffer twice.
     //
-    kaBufferReset(&corRest.kalloc, KTRUE);
+    corAllocBufferReset(&corRest.kalloc, true);
   }
 
   // Build a minimal filter from the pernot item's entity selectors
@@ -1018,7 +1018,7 @@ static void contextSourceExtrasLoad(const char* cliPath)
     COR_X(1, "contextSourceExtras: '%s' empty or too large (max 1 MiB)", path);
   }
 
-  char* buf = (char*) kaAlloc(&corRest.kalloc, fsz + 1);
+  char* buf = (char*) corAlloc(&corRest.kalloc, fsz + 1);
   if (fread(buf, 1, fsz, fp) != (size_t) fsz)
   {
     fclose(fp);
@@ -1150,11 +1150,11 @@ int main(int argC, char* argV[])
   // being present, nor on a DB plugin being loadable. It is the one question a
   // broken installation still has to be able to answer.
   //
-  // kargsPeek is what makes that possible without hand-parsing argV - it reads
-  // the option table directly, answers "SET" for a KaBool, and matches the short
+  // corArgsPeek is what makes that possible without hand-parsing argV - it reads
+  // the option table directly, answers "SET" for a CorArgBool, and matches the short
   // name too. It is the same mechanism the plugin peek below uses.
   //
-  if (kargsPeek(argC, argV, kargV, "--version") != NULL)
+  if (corArgsPeek(argC, argV, kargV, "--version") != NULL)
   {
     printf("%s %s\n", progName, CORAINE_VERSION);
 
@@ -1187,21 +1187,21 @@ int main(int argC, char* argV[])
     exit(0);
   }
 
-  KArgsStatus ks = kargsInit(progName, kargV, "CORAINE");
-  if (ks != KargsOk)
-    COR_X(1, "kargsInit failed: %s", kargsStatus(ks));
+  CorArgsStatus ks = corArgsInit(progName, kargV, "CORAINE");
+  if (ks != CorArgsOk)
+    COR_X(1, "corArgsInit failed: %s", corArgsStatus(ks));
 
   corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
 
   bool startupError = pluginsLoad(argC, argV);
 
-  ks = kargsParse(argC, argV);
-  if (ks != KargsOk)
-    COR_X(1, "kargsParse failed: %s", kargsStatus(ks));
+  ks = corArgsParse(argC, argV);
+  if (ks != CorArgsOk)
+    COR_X(1, "corArgsParse failed: %s", corArgsStatus(ks));
 
   if (startupError)
   {
-    kargsUsage();
+    corArgsUsage();
     exit(1);
   }
 
@@ -1290,7 +1290,7 @@ int main(int argC, char* argV[])
   }
 
 
-  int r = corLogInit("coraine", NULL, true, NULL, traceLevels, kaBuiltinVerbose, kaBuiltinDebug, false);
+  int r = corLogInit("coraine", NULL, true, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false);
   if (r != 0)
     COR_X(1, "corLogInit failed");
 
@@ -1315,13 +1315,13 @@ int main(int argC, char* argV[])
   // base, and there the same line silently DOWNGRADES an explicit
   // `--logLevel DEBUG` to 5 and takes COR_D away. One thing at a time.
   //
-  // ⚠️ corLogInfo follows -v because there is no -i: kargs has kaBuiltinVerbose and
-  // kaBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
+  // ⚠️ corLogInfo follows -v because there is no -i: kargs has corArgsBuiltinVerbose and
+  // corArgsBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
   // ladder. Give it its own option and this becomes that option.
   //
-  corLogInfo    = kaBuiltinVerbose;
-  corLogVerbose = kaBuiltinVerbose;
-  corLogDebug   = kaBuiltinDebug;
+  corLogInfo    = corArgsBuiltinVerbose;
+  corLogVerbose = corArgsBuiltinVerbose;
+  corLogDebug   = corArgsBuiltinDebug;
 
   COR_V("coraine  %s", CORAINE_VERSION);
   COR_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
@@ -1345,14 +1345,14 @@ int main(int argC, char* argV[])
     ldMqttTlsInsecureSet(true);   // same for mqtts:// notification endpoints
   }
 
-  static KAlloc  contextAlloc;
-  static char    contextBuffer[64 * 1024];
+  static CorAlloc  contextAlloc;
+  static char      contextBuffer[64 * 1024];
 
-  // allocSize must be non-zero — kaAlloc falls back to calloc(1, allocSize)
+  // allocSize must be non-zero — corAlloc falls back to calloc(1, allocSize)
   // when the static 64 KiB initial buffer runs out, and calloc(1, 0) returns
   // NULL/empty, leading to a SEGV on the next memset. 256 KiB matches the
   // pernot/corRest convention for "ample headroom for normal growth".
-  kaBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
+  corAllocBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     COR_X(1, "corLdInit failed");
@@ -1416,7 +1416,7 @@ int main(int argC, char* argV[])
   // Cache items get cloned into persistent (malloc) storage, so this is short-lived.
   //
   static char startupKallocBuf[16384];
-  kaBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
+  corAllocBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
   corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
   corRest.kallocP  = &corRest.kalloc;
 
@@ -1461,7 +1461,7 @@ int main(int argC, char* argV[])
   bridgeChannelsInit();
   bridgeSyncTimeoutSettle();   // --ddsSyncTimeout, else the bridge configuration's syncTimeoutMs, else 200
 
-  kaBufferReset(&corRest.kalloc, false);
+  corAllocBufferReset(&corRest.kalloc, false);
 
   // Register the pernot subsystem with the shared periodic-dispatch
   // engine. The engine itself is launched once below.
