@@ -35,7 +35,7 @@ places it deliberately does it differently. This page says what, in short.
 | Writing to DDS | the value is stored first, then published | **DDS first**: sent first, stored only if DDS took it |
 | A service that is slow to answer | the write waits (5 s), then `504`, nothing stored | the write waits briefly if asked, then `202`; the reply lands when it comes |
 | Discovered services | visible | visible **and callable** |
-| After an action's last goal | the whole attribute is removed | the attribute stays |
+| After an action's last goal | the whole attribute is removed | the attribute stays - its default instance, without the goals |
 | ROS names with a `/` | - | `robot1/navigate` becomes the attribute `robot1_navigate` |
 | One write, several attributes, one refused by DDS | the whole write fails | the others are written, `207` names the refused one |
 
