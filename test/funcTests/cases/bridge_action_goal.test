@@ -33,7 +33,7 @@
 #   - a subscription watching navigate@urn:goal:1 - every event of the
 #     first goal, in its own instance, and the instance going away at the end
 #   - the entity, read while a goal is held and after each has ended
-#   - the bridge's trace (402, KtBridge), for how each goal ended
+#   - the bridge's trace (402, CtBridge), for how each goal ended
 #
 --NAME--
 Bridges: an action Channel - a goal, its events in its own instance, cancel, reject

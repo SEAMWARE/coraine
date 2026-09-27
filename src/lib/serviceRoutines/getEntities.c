@@ -62,7 +62,7 @@
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntities
 
-#include "coraineTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // CtDistOpRequest
 
 #include "serviceRoutines/getEntities.h"             // Own interface
 
@@ -621,7 +621,7 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
     extraN = 1;
   }
 
-  COR_T(KtDistOpRequest, "forward: GET %s", url);
+  COR_T(CtDistOpRequest, "forward: GET %s", url);
 
   int status = ldDistOpSendReceiveEx(csr, CorVerbGet, url, NULL, 0, ownAlias,
                                       (extraN > 0) ? &extraH : NULL, extraN,
@@ -1988,7 +1988,7 @@ bool getEntities(void)
 
             const char* body = buildQueryBodyFromQs(fullQs, &corRest.kalloc);
 
-            COR_T(KtDistOpRequest, "forward: POST %s body=%s", url, body);
+            COR_T(CtDistOpRequest, "forward: POST %s body=%s", url, body);
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;
@@ -2009,7 +2009,7 @@ bool getEntities(void)
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
 
-          COR_T(KtDistOpRequest, "forward: GET %s", url);
+          COR_T(CtDistOpRequest, "forward: GET %s", url);
           items[itemCount].csr     = csr;
           items[itemCount].url     = url;
           items[itemCount].body    = NULL;
@@ -2038,7 +2038,7 @@ bool getEntities(void)
             corJsonFastRender(results[i].responseTree, rbuf);
             renderedBody = rbuf;
           }
-          COR_T(KtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
+          COR_T(CtDistOpRequest, "forward response: status=%d, bodyLen=%d, error=%s, body=%s",
                 code, results[i].responseBodyLen,
                 results[i].errorDetail != NULL ? results[i].errorDetail : "(none)",
                 renderedBody);

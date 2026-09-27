@@ -49,7 +49,7 @@
 #include "bridge/channelPrePopulate.h"                 // channelPrePopulate
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet, bridgeDefaultEntityCreated
 #include "bridge/bridgeSampleIn.h"                    // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -474,13 +474,13 @@ static int sampleIn(const char* bridgeName,
     {
       if (channelP->direction == BridgeDirectionOut)
       {
-        COR_T(KtBridge, "sample on '%s' - the channel is outbound only", endpoint);
+        COR_T(CtBridge, "sample on '%s' - the channel is outbound only", endpoint);
         return BRIDGE_NOT_FOUND;
       }
     }
     else if ((subAttrName == NULL) && (goal == false))
     {
-      COR_T(KtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
+      COR_T(CtBridge, "unqualified sample on '%s', which is a %s channel - dropped",
             endpoint, corBridgeKindName(channelP->kind));
       return BRIDGE_NOT_FOUND;
     }
@@ -506,7 +506,7 @@ static int sampleIn(const char* bridgeName,
     catchAll = true;
   else
   {
-    COR_T(KtBridge, "sample on '%s' from bridge '%s' - no channel claims it", endpoint, bridgeName);
+    COR_T(CtBridge, "sample on '%s' from bridge '%s' - no channel claims it", endpoint, bridgeName);
     return BRIDGE_NOT_FOUND;
   }
 
@@ -565,7 +565,7 @@ static int sampleIn(const char* bridgeName,
 
     if (clashP != NULL)
     {
-      COR_T(KtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
+      COR_T(CtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
             endpoint, entityId, attrName, clashP->endpoint);
       return BRIDGE_NOT_FOUND;
     }
@@ -784,9 +784,9 @@ static int sampleIn(const char* bridgeName,
   corNgsildFallbackRelease();
 
   if (subAttrName == NULL)
-    COR_T(KtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
+    COR_T(CtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
   else
-    COR_T(KtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
+    COR_T(CtBridge, "'%s' on '%s' -> %s/%s.%s", subAttrName, endpoint, entityId, attrName, subAttrName);
 
   return BRIDGE_OK;
 }
@@ -1089,7 +1089,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   ldSubEntityTypeExprsRelease();
   corNgsildFallbackRelease();                         // this thread's queues - see sampleIn()
 
-  COR_T(KtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
+  COR_T(CtBridge, "instance %s of %s/%s removed", goalAlias, entityId, attrName);
 
   return BRIDGE_OK;
 }
@@ -1129,7 +1129,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   if (channelLookup(bridgeName, endpoint) != NULL)
   {
-    COR_T(KtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
+    COR_T(CtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
     return BRIDGE_OK;
   }
 
@@ -1139,7 +1139,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
   if (bridgeDefaultEntityGet(bridgeName, &entityId, &entityType, &tenantP) == false)
   {
-    COR_T(KtBridge, "bridge '%s': '%s' discovered - no catch-all to carry it on, left alone", bridgeName, endpoint);
+    COR_T(CtBridge, "bridge '%s': '%s' discovered - no catch-all to carry it on, left alone", bridgeName, endpoint);
     return BRIDGE_NOT_FOUND;
   }
 

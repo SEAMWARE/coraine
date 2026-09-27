@@ -16,7 +16,7 @@
 #include "corBridge/BridgeDriver.h"                   // BRIDGES_MAX
 
 #include "bridge/bridgeDefaultEntity.h"               // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -105,7 +105,7 @@ bool bridgeDefaultEntitySet(const char* bridgeName, const char* entityId, const 
 
   ++defaultCount;
 
-  COR_T(KtBridge, "bridge '%s': unclaimed endpoints go to %s (%s)", bridgeName, entityId, entityType);
+  COR_T(CtBridge, "bridge '%s': unclaimed endpoints go to %s (%s)", bridgeName, entityId, entityType);
 
   return true;
 }

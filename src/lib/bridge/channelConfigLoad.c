@@ -37,7 +37,7 @@
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
 #include "bridge/channelConfigLoad.h"                 // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -346,7 +346,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     if (explicitly == true)
       COR_X(1, "--bridgeConfig: cannot read '%s'", path);
 
-    COR_T(KtBridge, "no bridge configuration at '%s' - no Channels from file", path);
+    COR_T(CtBridge, "no bridge configuration at '%s' - no Channels from file", path);
     return 0;
   }
 
@@ -512,7 +512,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
   kaBufferReset(&kalloc, true);
   free(buf);
 
-  COR_T(KtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);
+  COR_T(CtBridge, "%d channel%s from '%s'", total, (total == 1) ? "" : "s", path);
 
   return total;
 }

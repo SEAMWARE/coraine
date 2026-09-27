@@ -35,7 +35,7 @@
 #include "bridge/bridgeSampleIn.h"                    // bridgeGoalWrite, bridgeGoalInstanceRemove
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutMs
 #include "bridge/bridgeGoal.h"                        // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -310,7 +310,7 @@ static void goalSubscribe(Goal* goalP)
   }
 
   goalP->subId = strdup(subId);
-  COR_T(KtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
+  COR_T(CtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
 }
 
 
@@ -586,7 +586,7 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
     return r;
   }
 
-  COR_T(KtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
+  COR_T(CtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
         channelP->entityId, channelP->attrName, token, channelP->endpoint, channelP->bridgeName);
 
   if (tokenP != NULL)
@@ -793,7 +793,7 @@ static void goalEnd(Goal* goalP)
   if (goalP->instanceMade == true)
     bridgeGoalInstanceRemove(goalP->bridgeName, goalP->endpoint, goalP->goalAlias);
 
-  COR_T(KtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
+  COR_T(CtBridge, "goal %" PRIu64 " on '%s' (%s) ended, state %d", goalP->token, goalP->endpoint, goalP->goalAlias, goalP->state);
 
   goalUnlink(goalP);
   goalFree(goalP);
@@ -842,7 +842,7 @@ static int goalEvent(const char* bridgeName,
     pthread_cond_broadcast(&goalAnswered);
     pthread_mutex_unlock(&goalMutex);
 
-    COR_T(KtBridge, "goal %" PRIu64 " on '%s' answered, state %d - handed to its request", token, endpoint, state);
+    COR_T(CtBridge, "goal %" PRIu64 " on '%s' answered, state %d - handed to its request", token, endpoint, state);
     return BRIDGE_OK;
   }
 
@@ -884,7 +884,7 @@ static int goalEvent(const char* bridgeName,
   if (goalP == NULL)
   {
     pthread_mutex_unlock(&goalMutex);
-    COR_T(KtBridge, "event for goal %" PRIu64 " on '%s' - not a goal in flight, dropped", token, endpoint);
+    COR_T(CtBridge, "event for goal %" PRIu64 " on '%s' - not a goal in flight, dropped", token, endpoint);
     return BRIDGE_NOT_FOUND;
   }
 
@@ -1028,7 +1028,7 @@ static void goalDrop(Goal* goalP, const char* why)
                           ? BRIDGE_UNSUPPORTED
                           : driverP->actionGoalCancel(endpoint, token);
 
-  COR_T(KtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
+  COR_T(CtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
 
   free(bridgeName);
   free(endpoint);
@@ -1114,7 +1114,7 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
   //
   if (bridgeGoalRefused(answerP->state) == true)
   {
-    COR_T(KtBridge, "goal %" PRIu64 " on '%s' refused, state %d - nothing written", goalP->token, goalP->endpoint, answerP->state);
+    COR_T(CtBridge, "goal %" PRIu64 " on '%s' refused, state %d - nothing written", goalP->token, goalP->endpoint, answerP->state);
     goalUnsubscribe(goalP);
     goalUnlink(goalP);
     goalFree(goalP);
@@ -1340,7 +1340,7 @@ bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrNam
          ? BRIDGE_UNSUPPORTED
          : driverP->actionGoalCancel(channelP->endpoint, token);
 
-  COR_T(KtBridge, "%s/%s asks to cancel goal %" PRIu64 " (%s) on bridge '%s' (%d)",
+  COR_T(CtBridge, "%s/%s asks to cancel goal %" PRIu64 " (%s) on bridge '%s' (%d)",
         entityId, attrName, token, datasetId, channelP->bridgeName, *rcP);
 
   return true;

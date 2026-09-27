@@ -91,7 +91,7 @@
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
 #include "bridge/bridgeServiceSync.h"             // bridgeReplyIn, bridgeSyncDefault, bridgeSyncTimeoutMs, bridgeRequestsReleasePending
-#include "coraineTraceLevels.h"                    // KtBridge
+#include "coraineTraceLevels.h"                    // CtBridge
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister

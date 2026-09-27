@@ -58,7 +58,7 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "corLog/corLog.h"                           // COR_T
-#include "coraineTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // CtDistOpRequest
 
 #include "serviceRoutines/purgeEntities.h"           // Own interface
 
@@ -353,7 +353,7 @@ bool purgeEntities(void)
         items[itemCount].url     = forwardUrl(csr->endpoint);
         items[itemCount].body    = NULL;
         items[itemCount].bodyLen = 0;
-        COR_T(KtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
+        COR_T(CtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
 
         itemCount++;
       }

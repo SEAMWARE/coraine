@@ -36,7 +36,7 @@
 #include "bridge/bridgeGoal.h"                        // bridgeGoalSend, bridgeGoalAwait, bridgeGoalAbandon, BridgeGoalAnswer
 #include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr, bridgeGoalInstance
 #include "bridge/bridgeServiceSync.h"                 // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -299,12 +299,12 @@ void bridgeSyncTimeoutFromConfig(const char* alias, int ms)
 {
   if (bridgeSyncTimeoutMs != 0)
   {
-    COR_T(KtBridge, "bridge '%s': syncTimeoutMs %d in the configuration - --ddsSyncTimeout %d wins", alias, ms, bridgeSyncTimeoutMs);
+    COR_T(CtBridge, "bridge '%s': syncTimeoutMs %d in the configuration - --ddsSyncTimeout %d wins", alias, ms, bridgeSyncTimeoutMs);
     return;
   }
 
   bridgeSyncTimeoutMs = ms;
-  COR_T(KtBridge, "bridge '%s': sync timeout %d ms, from the configuration", alias, ms);
+  COR_T(CtBridge, "bridge '%s': sync timeout %d ms, from the configuration", alias, ms);
 }
 
 
@@ -531,7 +531,7 @@ static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channe
     return SyncFailed;
   }
 
-  COR_T(KtBridge, "%s/%s asks service '%s' on bridge '%s', and waits (token %llu)",
+  COR_T(CtBridge, "%s/%s asks service '%s' on bridge '%s', and waits (token %llu)",
         entityId, attrName, channelP->endpoint, channelP->bridgeName, (unsigned long long) wP->token);
 
   //
@@ -563,7 +563,7 @@ static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channe
     *tokenP          = wP->token;
     pthread_mutex_unlock(&syncMutex);
 
-    COR_T(KtBridge, "service '%s' did not answer within %d ms - accepted (202), its reply will land when it comes",
+    COR_T(CtBridge, "service '%s' did not answer within %d ms - accepted (202), its reply will land when it comes",
           channelP->endpoint, bridgeSyncTimeoutMs);
     return SyncTimedOut;
   }
@@ -841,7 +841,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
         return requestsFailed(doneP);
       }
 
-      COR_T(KtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrP->name, channelP->endpoint, channelP->bridgeName);
+      COR_T(CtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrP->name, channelP->endpoint, channelP->bridgeName);
       continue;
     }
 
@@ -947,7 +947,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
       }
 
       if (wait == true)
-        COR_T(KtBridge, "%s/%s asks service '%s' without waiting - %d requests wait already",
+        COR_T(CtBridge, "%s/%s asks service '%s' without waiting - %d requests wait already",
               entityId, attrP->name, channelP->endpoint, bridgeSyncWaitMax);
 
       doneP->accepted = true;
@@ -1304,7 +1304,7 @@ static int replyIn(const char* bridgeName,
       waiterFree(wP);
       pthread_mutex_unlock(&syncMutex);
 
-      COR_T(KtBridge, "bridge '%s': service '%s' answered late - written as an ordinary reply",
+      COR_T(CtBridge, "bridge '%s': service '%s' answered late - written as an ordinary reply",
             (bridgeName != NULL) ? bridgeName : "?", (endpoint != NULL) ? endpoint : "?");
 
       return bridgeSampleQualifiedMetaIn(bridgeName, endpoint, datasetId, subAttrName, json, meta, publishTime, requestP);

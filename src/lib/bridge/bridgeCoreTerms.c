@@ -13,7 +13,7 @@
 #include "corJsonld/corLdInit.h"                      // CorLdCoreTerm, corLdCoreTermsAdd
 
 #include "bridge/bridgeCoreTerms.h"                   // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -59,6 +59,6 @@ int bridgeCoreTermsAdd(KAlloc* kaP)
   if (added < 0)
     return -1;
 
-  COR_T(KtBridge, "%d ContextBridge/Channel/Goal terms added to the core context", added);
+  COR_T(CtBridge, "%d ContextBridge/Channel/Goal terms added to the core context", added);
   return 0;
 }

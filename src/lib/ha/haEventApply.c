@@ -20,7 +20,7 @@
 #include "db/Tenant.h"                                   // tenantSubCacheItemRefresh, ...
 #include "db/contextCache.h"                             // contextCacheItemRefresh, contextCacheItemDrop
 #include "ha/haInit.h"                                   // haApplyWait
-#include "coraineTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // CtHa
 #include "ha/haEventApply.h"                             // Own interface
 
 
@@ -109,7 +109,7 @@ bool haEventApply(HaEvent* eventP)
   if ((eventP->kind != HaContext) && (eventP->tenantP == NULL))
     return false;
 
-  COR_T(KtHa, "applying %s of %s '%s' (tenant '%s')",
+  COR_T(CtHa, "applying %s of %s '%s' (tenant '%s')",
         (eventP->op == HaOpDelete)? "a delete" : "an upsert",
         (eventP->kind == HaSubscription)? "subscription" : (eventP->kind == HaRegistration)? "registration" : "@context",
         eventP->id,

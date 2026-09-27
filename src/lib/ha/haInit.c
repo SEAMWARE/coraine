@@ -14,7 +14,7 @@
 #include "corLog/corLog.h"                               // KT_*
 
 #include "db/DbDriver.h"                                 // db
-#include "coraineTraceLevels.h"                         // KtHa
+#include "coraineTraceLevels.h"                         // CtHa
 #include "ha/haEventApply.h"                             // haEventApply
 #include "ha/haInit.h"                                   // Own interface
 
@@ -74,7 +74,7 @@ bool haInit(void)
 {
   if ((haChannel == NULL) || (haChannel[0] == 0))
   {
-    COR_T(KtHa, "HA is off (no --ha)");
+    COR_T(CtHa, "HA is off (no --ha)");
     return true;
   }
 
@@ -92,7 +92,7 @@ bool haInit(void)
               "Point the broker at a shared database, or use '--ha <ip:port>' once the haaux server exists",
             (db.alias != NULL)? db.alias : "current");
 
-    COR_T(KtHa, "HA: the database change feed is the channel");
+    COR_T(CtHa, "HA: the database change feed is the channel");
 
     return (db.haWatchStart(haEventApply) == DB_OK);
   }

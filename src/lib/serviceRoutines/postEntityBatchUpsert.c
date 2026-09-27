@@ -89,7 +89,7 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "corLog/corLog.h"                           // COR_T
-#include "coraineTraceLevels.h"                     // KtDistOpRequest
+#include "coraineTraceLevels.h"                     // CtDistOpRequest
 
 #include "serviceRoutines/postEntityBatchUpsert.h"   // Own interface
 
@@ -1103,7 +1103,7 @@ bool postEntityBatchUpsert(void)
 
       char* body = renderBatchBody(csr, batchArr);
 
-      COR_T(KtDistOpRequest, "forward: POST %s", url);
+      COR_T(CtDistOpRequest, "forward: POST %s", url);
       bItems[bCount].csr     = csr;
       bItems[bCount].url     = url;
       bItems[bCount].body    = body;

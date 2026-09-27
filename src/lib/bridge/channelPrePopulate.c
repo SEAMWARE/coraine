@@ -24,7 +24,7 @@
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/channelPrePopulate.h"                // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -221,7 +221,7 @@ int channelPrePopulate(Tenant* tenantP)
         troeDeferEntityEvent(tevP);
       }
 
-      COR_T(KtBridge, "pre-populated entity '%s' (%d attribute%s)", entityId, missing, (missing == 1) ? "" : "s");
+      COR_T(CtBridge, "pre-populated entity '%s' (%d attribute%s)", entityId, missing, (missing == 1) ? "" : "s");
     }
     else
     {
@@ -241,7 +241,7 @@ int channelPrePopulate(Tenant* tenantP)
         continue;
       }
 
-      COR_T(KtBridge, "entity '%s' gained %d missing attribute%s", entityId, missing, (missing == 1) ? "" : "s");
+      COR_T(CtBridge, "entity '%s' gained %d missing attribute%s", entityId, missing, (missing == 1) ? "" : "s");
     }
 
     attrsCreated += missing;

@@ -19,7 +19,7 @@
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // Own interface
-#include "coraineTraceLevels.h"                       // KtBridge
+#include "coraineTraceLevels.h"                       // CtBridge
 
 
 
@@ -335,7 +335,7 @@ static int createLocked
   if (channelP->direction != BridgeDirectionIn)
     outCounter++;
 
-  COR_T(KtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
+  COR_T(CtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
         endpoint, bridgeName, entityId, attrName,
         (channelP->status == ChannelStatusAvailable) ? "available" : "dormant");
 

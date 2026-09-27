@@ -53,7 +53,7 @@
 #include "db/Tenant.h"                                // Tenant
 
 #include "corLog/corLog.h"                            // COR_T
-#include "coraineTraceLevels.h"                      // KtDistOpRequest
+#include "coraineTraceLevels.h"                      // CtDistOpRequest
 
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
 
@@ -310,7 +310,7 @@ bool postEntityAttrs(void)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
-    COR_T(KtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
+    COR_T(CtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
           entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
 
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
@@ -385,7 +385,7 @@ bool postEntityAttrs(void)
           items[itemCount].url     = attrsUrl(csr->endpoint, entityId, noOverwrite);
           items[itemCount].body    = body;
           items[itemCount].bodyLen = strlen(body);
-          COR_T(KtDistOpRequest, "forward: POST %s", items[itemCount].url);
+          COR_T(CtDistOpRequest, "forward: POST %s", items[itemCount].url);
           itemFrag[itemCount]      = fragP;
           itemCount++;
         }
@@ -422,7 +422,7 @@ bool postEntityAttrs(void)
 
       for (int i = 0; i < itemCount; i++)
       {
-        COR_T(KtDistOpRequest,
+        COR_T(CtDistOpRequest,
               "forward result %d/%d: url=%s status=%d errorDetail=%s bodyLen=%d",
               i + 1, itemCount, items[i].url, results[i].statusCode,
               (results[i].errorDetail != NULL ? results[i].errorDetail : "(none)"),
