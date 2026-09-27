@@ -335,7 +335,7 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
   // IMPORTANT: instanceWrap stomps the wrapped node's ->next, which
   // breaks this iteration if attrP itself is wrapped (single-object
   // attr branch). Capture nextP up-front and we're safe in both branches.
-  CorNode* attrP = rootP->value.firstChildP;
+  CorNode* attrP = rootP->value.head;
   while (attrP != NULL)
   {
     CorNode* nextAttrP = attrP->next;
@@ -357,7 +357,7 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
     if (attrP->type == CorArray)
     {
       // instanceWrap stomps each instance's ->next. Capture nextP before wrapping.
-      CorNode* instP = attrP->value.firstChildP;
+      CorNode* instP = attrP->value.head;
       while (instP != NULL)
       {
         CorNode* nextInstP = instP->next;
@@ -427,7 +427,7 @@ int timescaleEntityTemporalCreate(Tenant* tenantP, CorNode* rootP)
   // § 5.2.6.4.2 - one type name or an array of them.
   if (typeP == NULL)
     return TROE_ERR;
-  if ((typeP->type == CorArray) && (typeP->value.firstChildP == NULL))
+  if ((typeP->type == CorArray) && (typeP->value.head == NULL))
     return TROE_ERR;
   if ((typeP->type != CorArray) && ((typeP->type != CorString) || (typeP->value.s[0] == 0)))
     return TROE_ERR;
@@ -526,7 +526,7 @@ static CorNode* extractInstanceFromBody(CorNode* bodyP)
   }
 
   // Case (a): walk children for the first attr-shaped array.
-  for (CorNode* fP = bodyP->value.firstChildP; fP != NULL; fP = fP->next)
+  for (CorNode* fP = bodyP->value.head; fP != NULL; fP = fP->next)
   {
     if (fP->name == NULL)                           continue;
     if (fP->name[0] == '@')                         continue;
@@ -536,8 +536,8 @@ static CorNode* extractInstanceFromBody(CorNode* bodyP)
     if (strcmp(fP->name, "createdAt")  == 0)        continue;
     if (strcmp(fP->name, "modifiedAt") == 0)        continue;
 
-    if (fP->type == CorArray && fP->value.firstChildP != NULL)
-      return fP->value.firstChildP;
+    if (fP->type == CorArray && fP->value.head != NULL)
+      return fP->value.head;
     if (fP->type == CorObject)
       return fP;
   }
@@ -801,7 +801,7 @@ int timescaleEntityTemporalAttrsAdd(Tenant* tenantP, const char* entityId, CorNo
     if ((typeP != NULL) && (typeP->type == CorArray))
     {
       bool first = true;
-      for (CorNode* tP = typeP->value.firstChildP; tP != NULL; tP = tP->next)
+      for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
       {
         if ((tP->type != CorString) || (tP->value.s == NULL) || (tP->value.s[0] == 0))
           continue;

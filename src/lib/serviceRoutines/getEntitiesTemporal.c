@@ -103,7 +103,7 @@ static void stripInfoAttrsFromEntity(CorNode* entityP, LdRegInfo* riP)
 
   bool wildcard = (riP->attributeNamesV == NULL);
 
-  CorNode* curP = entityP->value.firstChildP;
+  CorNode* curP = entityP->value.head;
   while (curP != NULL)
   {
     CorNode* nextP = curP->next;
@@ -144,7 +144,7 @@ static void mergeTemporalEntity(CorNode* destP, CorNode* upP, bool keepOnlyMissi
   if (destP == NULL || upP == NULL || destP->type != CorObject || upP->type != CorObject)
     return;
 
-  CorNode* upChild = upP->value.firstChildP;
+  CorNode* upChild = upP->value.head;
   while (upChild != NULL)
   {
     CorNode* upNext = upChild->next;
@@ -167,7 +167,7 @@ static void mergeTemporalEntity(CorNode* destP, CorNode* upP, bool keepOnlyMissi
     }
     else if (!keepOnlyMissing && upChild->type == CorArray && destAttr->type == CorArray)
     {
-      CorNode* inst = upChild->value.firstChildP;
+      CorNode* inst = upChild->value.head;
       while (inst != NULL)
       {
         CorNode* instNext = inst->next;
@@ -283,7 +283,7 @@ static CorNode* findEntityById(CorNode* arrayP, const char* id)
   if (arrayP == NULL || arrayP->type != CorArray || id == NULL)
     return NULL;
 
-  for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
   {
     CorNode* idP = corTreeLookup(ep, "id");
     if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, id) == 0)
@@ -308,7 +308,7 @@ static void mergeRemoteArray(CorNode* arrayP, CorNode* remoteArrayP, bool keepOn
   if (arrayP == NULL || remoteArrayP == NULL || remoteArrayP->type != CorArray)
     return;
 
-  CorNode* remEntity = remoteArrayP->value.firstChildP;
+  CorNode* remEntity = remoteArrayP->value.head;
   while (remEntity != NULL)
   {
     CorNode* nextRem = remEntity->next;
@@ -375,7 +375,7 @@ static void stripInfoAttrsFromArray(CorNode* arrayP, LdRegInfo* riP)
   if (arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
   {
     CorNode* idP = corTreeLookup(ep, "id");
     if ((idP != NULL) && (idP->type == CorString) && !entityInfoCoversId(riP, idP->value.s))
@@ -778,7 +778,7 @@ bool getEntitiesTemporal(void)
   // are dropped.
   if (corNgsild.scopeExpr != NULL && db.entityRetrieve != NULL)
   {
-    CorNode* ep = result->value.firstChildP;
+    CorNode* ep = result->value.head;
     while (ep != NULL)
     {
       CorNode* nextEp = ep->next;
@@ -811,7 +811,7 @@ bool getEntitiesTemporal(void)
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (CorNode* ep = result->value.firstChildP; ep != NULL; ep = ep->next)
+    for (CorNode* ep = result->value.head; ep != NULL; ep = ep->next)
       ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
   }
 
@@ -830,7 +830,7 @@ bool getEntitiesTemporal(void)
   // more pending. When more entities remain (moreEntities) the next pointer is
   // kept even on an empty page (e.g. limit=0&count=true) so the client can
   // advance to the first data page.
-  if ((result != NULL && result->value.firstChildP != NULL) || rangeInfo.moreEntities)
+  if ((result != NULL && result->value.head != NULL) || rangeInfo.moreEntities)
     ldPaginationLinkHeader(rangeInfo.moreEntities);
 
   // § 6.4.7.3: when any entity's instances remain beyond the returned

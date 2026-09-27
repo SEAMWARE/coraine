@@ -118,7 +118,7 @@ static void applyLinkedQPostFilter(CorNode* arrayP)
 
   Tenant* tP = (Tenant*) corNgsild.tenantP;
 
-  CorNode* entityP = arrayP->value.firstChildP;
+  CorNode* entityP = arrayP->value.head;
   while (entityP != NULL)
   {
     CorNode* nextP = entityP->next;
@@ -152,7 +152,7 @@ static void applyResultFilters(CorNode* arrayP)
   if (arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  CorNode* entityP = arrayP->value.firstChildP;
+  CorNode* entityP = arrayP->value.head;
   while (entityP != NULL)
   {
     CorNode* nextP = entityP->next;
@@ -486,7 +486,7 @@ static void apiAttrToStorageWrap(CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return;
 
-  CorNode* curP = entityP->value.firstChildP;
+  CorNode* curP = entityP->value.head;
   while (curP != NULL)
   {
     CorNode* nextP = curP->next;
@@ -536,7 +536,7 @@ static void srcMapAdd(CorNode* srcMap, const char* entityId, const char* source)
     corTreeChildAdd(srcMap, arrP);
   }
 
-  for (CorNode* s = arrP->value.firstChildP; s != NULL; s = s->next)
+  for (CorNode* s = arrP->value.head; s != NULL; s = s->next)
   {
     if (s->type == CorString && strcmp(s->value.s, source) == 0)
       return;
@@ -559,7 +559,7 @@ static void srcMapStampLocalFrom(CorNode* srcMap, CorNode* arrayP)
   if (srcMap == NULL || arrayP == NULL || arrayP->type != CorArray)
     return;
 
-  for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+  for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
   {
     CorNode* idP = corTreeLookup(ep, "id");
     if (idP != NULL && idP->type == CorString)
@@ -791,7 +791,7 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
       corTreeChildAdd(entitiesP, selP);
     }
   }
-  if (entitiesP->value.firstChildP != NULL)
+  if (entitiesP->value.head != NULL)
     corTreeChildAdd(bodyP, entitiesP);
 
   if (q != NULL)
@@ -807,7 +807,7 @@ static const char* buildQueryBodyFromQs(const char* qs, KAlloc* kaP)
         continue;
       corTreeChildAdd(attrsP, corTreeString(allocP, NULL, a));
     }
-    if (attrsP->value.firstChildP != NULL)
+    if (attrsP->value.head != NULL)
       corTreeChildAdd(bodyP, attrsP);
   }
 
@@ -1233,27 +1233,27 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
 //
 static void orderBySkip(CorNode* arrayP, int offset)
 {
-  if ((arrayP == NULL) || (offset <= 0) || (arrayP->value.firstChildP == NULL))
+  if ((arrayP == NULL) || (offset <= 0) || (arrayP->value.head == NULL))
     return;
 
   int count = 0;
 
-  for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
     ++count;
 
   if (offset >= count)
   {
     // The overshoot of § 6.4.7.2 - the last element, not an empty page.
-    arrayP->value.firstChildP = arrayP->lastChild;
+    arrayP->value.head = arrayP->value.tail;
     return;
   }
 
-  CorNode* eP = arrayP->value.firstChildP;
+  CorNode* eP = arrayP->value.head;
 
   for (int ix = 0; ix < offset; ix++)
     eP = eP->next;
 
-  arrayP->value.firstChildP = eP;
+  arrayP->value.head = eP;
 }
 
 
@@ -1406,7 +1406,7 @@ static bool entityMapPaginate(void)
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+    for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
       ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — § 4.21 / § 5.7.2 are
@@ -1417,12 +1417,12 @@ static bool entityMapPaginate(void)
     // the dropped ones — a count mismatch the spec is yet to address.
     if (corNgsild.pickV != NULL)
     {
-      CorNode* ep = arrayP->value.firstChildP;
+      CorNode* ep = arrayP->value.head;
       CorNode* prev = NULL;
       while (ep != NULL)
       {
         CorNode* next = ep->next;
-        if (ep->type == CorObject && ep->value.firstChildP == NULL)
+        if (ep->type == CorObject && ep->value.head == NULL)
           corTreeChildRemove(arrayP, ep);
         else
           prev = ep;
@@ -1437,7 +1437,7 @@ static bool entityMapPaginate(void)
     // an entity carrying NONE of the listed attributes does not match
     // the query at all. Project each entity, then drop the ones left
     // with no attributes (only keywords like id/type/scope remain).
-    CorNode* ep  = arrayP->value.firstChildP;
+    CorNode* ep  = arrayP->value.head;
     CorNode* prev = NULL;
     while (ep != NULL)
     {
@@ -1445,7 +1445,7 @@ static bool entityMapPaginate(void)
       ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
-      for (CorNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
         if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
       }
@@ -1742,7 +1742,7 @@ bool getEntities(void)
   // § 6.4.7.2: whether the LOCAL query came back empty (before any
   // distributed merge / post-filter touches arrayP). An empty local page
   // with a positive offset is the offset-past-the-end case handled below.
-  bool localQueryEmpty = (arrayP == NULL || arrayP->value.firstChildP == NULL);
+  bool localQueryEmpty = (arrayP == NULL || arrayP->value.head == NULL);
   bool distForwarded   = false;
 
   //
@@ -2064,7 +2064,7 @@ bool getEntities(void)
             if (emObj == NULL || emObj->type != CorObject) continue;
 
             remoteArray = corTreeArray(corRest.kallocP, NULL);
-            for (CorNode* entryP = emObj->value.firstChildP; entryP != NULL; entryP = entryP->next)
+            for (CorNode* entryP = emObj->value.head; entryP != NULL; entryP = entryP->next)
             {
               if (entryP->name == NULL) continue;
               CorNode* synth = corTreeObject(corRest.kallocP, NULL);
@@ -2103,7 +2103,7 @@ bool getEntities(void)
           if (respCtxP == NULL)
             respCtxP = corLdCoreContext();
 
-          for (CorNode* remoteEntity = remoteArray->value.firstChildP; remoteEntity != NULL; )
+          for (CorNode* remoteEntity = remoteArray->value.head; remoteEntity != NULL; )
           {
             CorNode* nextRemote = remoteEntity->next;
 
@@ -2115,7 +2115,7 @@ bool getEntities(void)
             }
 
             CorNode* existingP = NULL;
-            for (CorNode* ep = arrayP->value.firstChildP; ep != NULL; ep = ep->next)
+            for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
             {
               CorNode* eidP = corTreeLookup(ep, "id");
               if (eidP != NULL && eidP->type == CorString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
@@ -2147,7 +2147,7 @@ bool getEntities(void)
               LdRegCache* excRc  = (LdRegCache*) ((Tenant*) corNgsild.tenantP)->regCacheP;
               CorNode*    etP    = corTreeLookup(remoteEntity, "type");
               char*       etV[2] = { (etP != NULL && etP->type == CorString) ? etP->value.s : NULL, NULL };
-              for (CorNode* aP = remoteEntity->value.firstChildP; aP != NULL; )
+              for (CorNode* aP = remoteEntity->value.head; aP != NULL; )
               {
                 CorNode* nextAP = aP->next;
                 if (aP->name != NULL && aP->name[0] != '@' &&
@@ -2219,7 +2219,7 @@ bool getEntities(void)
 
     if (arrayP != NULL)
     {
-      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
         ++brokerTotal;
     }
 
@@ -2256,7 +2256,7 @@ bool getEntities(void)
       // its provenance: look up the entity in srcMap and flatten the
       // CorArray of source strings into a char** for ldEntityMapAddEntry.
       //
-      for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+      for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
       {
         CorNode* idP = corTreeLookup(entityP, "id");
         if (idP == NULL || idP->type != CorString)
@@ -2266,7 +2266,7 @@ bool getEntities(void)
 
         int n = 0;
         if (srcArr != NULL && srcArr->type == CorArray)
-          for (CorNode* s = srcArr->value.firstChildP; s != NULL; s = s->next) n++;
+          for (CorNode* s = srcArr->value.head; s != NULL; s = s->next) n++;
 
         if (n == 0)
         {
@@ -2279,7 +2279,7 @@ bool getEntities(void)
         {
           const char** srcV = (const char**) kaAlloc(&corRest.kalloc, n * sizeof(char*));
           int i = 0;
-          for (CorNode* s = srcArr->value.firstChildP; s != NULL; s = s->next)
+          for (CorNode* s = srcArr->value.head; s != NULL; s = s->next)
             if (s->type == CorString)
               srcV[i++] = s->value.s;
           ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
@@ -2289,7 +2289,7 @@ bool getEntities(void)
       // Flush per-CSR linkedMaps tracker (§ 5.14.4.4) into the map.
       if (linkedMapsTracker != NULL)
       {
-        for (CorNode* p = linkedMapsTracker->value.firstChildP; p != NULL; p = p->next)
+        for (CorNode* p = linkedMapsTracker->value.head; p != NULL; p = p->next)
         {
           if (p->name == NULL || p->type != CorString)
             continue;
@@ -2386,7 +2386,7 @@ bool getEntities(void)
     orderBySkip(arrayP, corNgsild.offset);
 
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
-  if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
+  if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
 
   //
@@ -2394,18 +2394,18 @@ bool getEntities(void)
   //
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
     // Drop entities reduced to empty by pick — see the earlier
     // identical block; spec is silent, ETSI plenary chose to drop.
     if (corNgsild.pickV != NULL)
     {
-      CorNode* ep = arrayP->value.firstChildP;
+      CorNode* ep = arrayP->value.head;
       while (ep != NULL)
       {
         CorNode* next = ep->next;
-        if (ep->type == CorObject && ep->value.firstChildP == NULL)
+        if (ep->type == CorObject && ep->value.head == NULL)
           corTreeChildRemove(arrayP, ep);
         ep = next;
       }
@@ -2415,14 +2415,14 @@ bool getEntities(void)
   {
     // attrs = selection + projection: drop entities with none of the
     // listed attributes (see the identical block in the local path).
-    CorNode* ep = arrayP->value.firstChildP;
+    CorNode* ep = arrayP->value.head;
     while (ep != NULL)
     {
       CorNode* next = ep->next;
       ldAttrsFilter(ep, corNgsild.attrsV);
 
       bool hasAttr = false;
-      for (CorNode* cP = ep->value.firstChildP; cP != NULL; cP = cP->next)
+      for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
         if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
       }

@@ -206,7 +206,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteSuccess != NULL && remoteSuccess->type == CorArray)
   {
-    for (CorNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
+    for (CorNode* sP = remoteSuccess->value.head; sP != NULL; sP = sP->next)
     {
       if (sP->type != CorString) continue;
       for (int i = 0; i < N; i++)
@@ -216,7 +216,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteErrors != NULL && remoteErrors->type == CorArray)
   {
-    for (CorNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = remoteErrors->value.head; eP != NULL; eP = eP->next)
     {
       CorNode* idP    = corTreeLookup(eP, "entityId");
       CorNode* errP   = corTreeLookup(eP, "error");
@@ -260,7 +260,7 @@ bool postEntityBatchDelete(void)
   }
 
   int total = 0;
-  for (CorNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = bodyP->value.head; c != NULL; c = c->next)
   {
     if (c->type == CorNull)
     {
@@ -287,7 +287,7 @@ bool postEntityBatchDelete(void)
   const char** idV = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*) * total);
   int          n   = 0;
 
-  for (CorNode* inP = bodyP->value.firstChildP; inP != NULL; inP = inP->next)
+  for (CorNode* inP = bodyP->value.head; inP != NULL; inP = inP->next)
   {
     if (inP->type != CorString)
     {
@@ -543,7 +543,7 @@ bool postEntityBatchDelete(void)
   }
 
   int errorCount = 0;
-  for (CorNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
+  for (CorNode* p = errorsP->value.head; p != NULL; p = p->next) errorCount++;
 
   if (errorCount == 0)
   {

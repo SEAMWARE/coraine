@@ -105,7 +105,7 @@ bool patchCsourceSubscription(void)
   CorNode* subTree = itemP->subTree;
   CorNode* next;
 
-  for (CorNode* fieldP = fragment->value.firstChildP; fieldP != NULL; fieldP = next)
+  for (CorNode* fieldP = fragment->value.head; fieldP != NULL; fieldP = next)
   {
     next = fieldP->next;
 

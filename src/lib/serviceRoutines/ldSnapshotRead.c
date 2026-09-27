@@ -161,12 +161,12 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
-  if ((arrayP != NULL && arrayP->value.firstChildP != NULL) || hasMore)
+  if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
-    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
       ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
   }
 

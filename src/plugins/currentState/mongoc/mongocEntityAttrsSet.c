@@ -111,7 +111,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
   if (reportP != NULL && reportP->changes != NULL)
   {
-    for (CorNode* change = reportP->changes->value.firstChildP; change != NULL; change = change->next)
+    for (CorNode* change = reportP->changes->value.head; change != NULL; change = change->next)
     {
       CorNode* attrNameP = corTreeLookup(change, "attr");
       if (attrNameP == NULL || attrNameP->type != CorString)

@@ -136,7 +136,7 @@ static bool applyLocalDelete(CorNode* entityP, const char* attrIri)
   corTreeChildRemove(attrP, instP);
 
   // If the wrapper became empty after removing the only instance, drop it.
-  if (attrP->value.firstChildP == NULL)
+  if (attrP->value.head == NULL)
     corTreeChildRemove(entityP, attrP);
 
   return true;
@@ -406,7 +406,7 @@ bool deleteEntityAttr(void)
               else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject) &&
                        (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
               {
-                for (CorNode* instP = preSnapshot->value.firstChildP; instP != NULL; instP = instP->next)
+                for (CorNode* instP = preSnapshot->value.head; instP != NULL; instP = instP->next)
                   corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL, instP->name));
               }
               else
@@ -465,7 +465,7 @@ bool deleteEntityAttr(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {

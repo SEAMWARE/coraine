@@ -36,7 +36,7 @@ int corDbSubscriptionQuery(Tenant* tenantP, int limit, int offset, CorNode** arr
   int ix    = 0;
   int added = 0;
 
-  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.head; sP != NULL; sP = sP->next)
   {
     if (ix < offset)
     {

@@ -278,12 +278,12 @@ static bool isGeoPropertyInstance(CorNode* instP)
 //
 const char* mongocGeoIndexEnsure(Tenant* tenantP, CorNode* entityP, mongoc_collection_t* collP)
 {
-  for (CorNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = entityP->value.head; childP != NULL; childP = childP->next)
   {
     if (childP->type != CorObject || childP->name == NULL || notAnAttribute(childP->name))
       continue;
 
-    for (CorNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = childP->value.head; instP != NULL; instP = instP->next)
     {
       if (!isGeoPropertyInstance(instP))
         continue;
@@ -349,12 +349,12 @@ const char* mongocGeoIndexMixedName(Tenant* tenantP, CorNode* entityP)
   if (entityP == NULL || entityP->type != CorObject)
     return NULL;
 
-  for (CorNode* childP = entityP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = entityP->value.head; childP != NULL; childP = childP->next)
   {
     if (childP->type != CorObject || childP->name == NULL || notAnAttribute(childP->name))
       continue;
 
-    for (CorNode* instP = childP->value.firstChildP; instP != NULL; instP = instP->next)
+    for (CorNode* instP = childP->value.head; instP != NULL; instP = instP->next)
     {
       if (instP->type != CorObject || isGeoPropertyInstance(instP))
         continue;

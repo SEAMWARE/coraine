@@ -37,7 +37,7 @@
 //
 static CorNode* attrEntryLookup(CorNode* result, const char* attrIri, bool details)
 {
-  for (CorNode* entry = result->value.firstChildP; entry != NULL; entry = entry->next)
+  for (CorNode* entry = result->value.head; entry != NULL; entry = entry->next)
   {
     CorNode* iriP = corTreeLookup(entry, "attrIri");
     if (iriP != NULL && iriP->type == CorString && strcmp(iriP->value.s, attrIri) == 0)
@@ -66,7 +66,7 @@ static CorNode* attrEntryLookup(CorNode* result, const char* attrIri, bool detai
 //
 static void stringArrayAddUnique(CorNode* arr, const char* s)
 {
-  for (CorNode* p = arr->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = arr->value.head; p != NULL; p = p->next)
     if (p->type == CorString && strcmp(p->value.s, s) == 0)
       return;
   corTreeChildAdd(arr, corTreeString(corRest.kallocP, NULL, s));
@@ -82,7 +82,7 @@ static CorNode* firstInstance(CorNode* attrP)
 {
   if (attrP == NULL || attrP->type != CorObject)
     return NULL;
-  for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+  for (CorNode* instP = attrP->value.head; instP != NULL; instP = instP->next)
     if (instP->type == CorObject)
       return instP;
   return NULL;
@@ -98,7 +98,7 @@ static int instanceCount(CorNode* attrP)
 {
   int n = 0;
   if (attrP == NULL || attrP->type != CorObject) return 0;
-  for (CorNode* instP = attrP->value.firstChildP; instP != NULL; instP = instP->next)
+  for (CorNode* instP = attrP->value.head; instP != NULL; instP = instP->next)
     if (instP->type == CorObject) n++;
   return n;
 }
@@ -119,7 +119,7 @@ static void recordTypeNamesFromEntity(CorNode* typeNamesArr, CorNode* typeP)
   }
   else if (typeP->type == CorArray)
   {
-    for (CorNode* tN = typeP->value.firstChildP; tN != NULL; tN = tN->next)
+    for (CorNode* tN = typeP->value.head; tN != NULL; tN = tN->next)
       if (tN->type == CorString)
         stringArrayAddUnique(typeNamesArr, tN->value.s);
   }
@@ -142,11 +142,11 @@ int corDbAttrList(Tenant* tenantP, bool details, CorNode** arrayPP)
   if (entities == NULL)
     return DB_OK;
 
-  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
   {
     CorNode* typeP = corTreeLookup(eP, "type");
 
-    for (CorNode* attrP = eP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+    for (CorNode* attrP = eP->value.head; attrP != NULL; attrP = attrP->next)
     {
       if (ldIsEntityKeyword(attrP->name)) continue;
 

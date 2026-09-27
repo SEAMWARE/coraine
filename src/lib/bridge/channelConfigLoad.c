@@ -126,7 +126,7 @@ static int channelsLoad(const char*        alias,
 {
   int created = 0;
 
-  for (CorNode* entryP = sectionP->value.firstChildP; entryP != NULL; entryP = entryP->next)
+  for (CorNode* entryP = sectionP->value.head; entryP != NULL; entryP = entryP->next)
   {
     const char* endpoint = entryP->name;
 

@@ -131,7 +131,7 @@ bool putEntityAttrValue(void)
 
   // Storage keys each instance by datasetId ("@none" for the default); the type
   // lives on the instance object.
-  CorNode*    firstInstP = attrWrapperP->value.firstChildP;
+  CorNode*    firstInstP = attrWrapperP->value.head;
   CorNode*    typeNodeP  = (firstInstP != NULL) ? corTreeLookup(firstInstP, "type") : NULL;
   const char* typeStr    = (typeNodeP != NULL && typeNodeP->type == CorString) ? typeNodeP->value.s : NULL;
   const char* member     = valueMemberForType(typeStr);

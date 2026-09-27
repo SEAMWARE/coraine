@@ -250,7 +250,7 @@ bool cloneSnapshot(void)
     if (db.entityQuery(sourceSnapP, &all, &arrayP) == DB_OK &&
         arrayP != NULL && arrayP->type == CorArray)
     {
-      for (CorNode* eP = arrayP->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
       {
         CorNode* idP = corTreeLookup(eP, "id");
         if (idP == NULL) idP = corTreeLookup(eP, "_id");
@@ -275,7 +275,7 @@ bool cloneSnapshot(void)
       if (troe.entityTemporalQuery(sourceSnapP, &tqf, &tArr, &tRange) == TROE_OK &&
           tArr != NULL && tArr->type == CorArray)
       {
-        for (CorNode* eP = tArr->value.firstChildP; eP != NULL; eP = eP->next)
+        for (CorNode* eP = tArr->value.head; eP != NULL; eP = eP->next)
         {
           if (eP->type != CorObject) continue;
           troe.entityTemporalCreate(cloneSnapP, eP);

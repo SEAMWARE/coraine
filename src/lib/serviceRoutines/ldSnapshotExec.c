@@ -89,7 +89,7 @@ static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
 
   // Worst-case capacity for id / type vectors.
   int idCap = 0, typeCap = 0;
-  for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+  for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
   {
     if (selP->type != CorObject) continue;
 
@@ -98,7 +98,7 @@ static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
     {
       if      (idP->type == CorString) idCap++;
       else if (idP->type == CorArray)
-        for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
+        for (CorNode* p = idP->value.head; p != NULL; p = p->next) idCap++;
     }
     if (corTreeLookup(selP, "type") != NULL) typeCap++;
   }
@@ -108,7 +108,7 @@ static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
   int    nId = 0, nType = 0;
   const char* idPattern = NULL;
 
-  for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+  for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
   {
     if (selP->type != CorObject) continue;
 
@@ -118,7 +118,7 @@ static void entitySelectorsToFilter(CorNode* entitiesP, DbQueryFilter* filterP)
       if (idP->type == CorString)
         idV[nId++] = idP->value.s;
       else if (idP->type == CorArray)
-        for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next)
+        for (CorNode* p = idP->value.head; p != NULL; p = p->next)
           if (p->type == CorString) idV[nId++] = p->value.s;
     }
 
@@ -224,7 +224,7 @@ static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* ka
     char  idBuf  [4096]; int  idLen   = 0;  idBuf  [0] = 0;
     const char* idPattern = NULL;
 
-    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
     {
       if (selP->type != CorObject) continue;
 
@@ -255,7 +255,7 @@ static const char* buildQueryStringFromSnapshotQuery(CorNode* queryP, KAlloc* ka
         }
         else if (iP->type == CorArray)
         {
-          for (CorNode* p = iP->value.firstChildP; p != NULL; p = p->next)
+          for (CorNode* p = iP->value.head; p != NULL; p = p->next)
           {
             if (p->type != CorString) continue;
             int il = strlen(p->value.s);
@@ -345,7 +345,7 @@ static const char* buildSplitForwardQs(CorNode* queryP, KAlloc* kaP)
     char  idBuf  [4096]; int idLen   = 0; idBuf  [0] = 0;
     const char* idPattern = NULL;
 
-    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
     {
       if (selP->type != CorObject) continue;
 
@@ -376,7 +376,7 @@ static const char* buildSplitForwardQs(CorNode* queryP, KAlloc* kaP)
         }
         else if (iP->type == CorArray)
         {
-          for (CorNode* p = iP->value.firstChildP; p != NULL; p = p->next)
+          for (CorNode* p = iP->value.head; p != NULL; p = p->next)
           {
             if (p->type != CorString) continue;
             int il = strlen(p->value.s);
@@ -491,7 +491,7 @@ static void snapshotExpiryApply(CorNode* entityP, uint64_t nowNs)
 
   ldExpiresAtPropagate(entityP, corRest.kallocP);
 
-  CorNode* attrP = entityP->value.firstChildP;
+  CorNode* attrP = entityP->value.head;
   while (attrP != NULL)
   {
     CorNode* nextAttr = attrP->next;
@@ -501,7 +501,7 @@ static void snapshotExpiryApply(CorNode* entityP, uint64_t nowNs)
         (strcmp(attrP->name, "_id")  != 0) &&
         (strcmp(attrP->name, "type") != 0))
     {
-      CorNode* instP = attrP->value.firstChildP;
+      CorNode* instP = attrP->value.head;
       while (instP != NULL)
       {
         CorNode* nextInst = instP->next;
@@ -512,7 +512,7 @@ static void snapshotExpiryApply(CorNode* entityP, uint64_t nowNs)
         instP = nextInst;
       }
 
-      if (attrP->value.firstChildP == NULL)
+      if (attrP->value.head == NULL)
         corTreeChildRemove(entityP, attrP);
     }
 
@@ -553,7 +553,7 @@ static int streamRemoteEntitiesSplit(CorNode* arrayP, Tenant* snapTenantP)
   uint64_t nowNs = corRest.requestStartTime;
   int      n     = 0;
 
-  for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
   {
     if (entityP->type != CorObject) continue;
 
@@ -604,7 +604,7 @@ static int postFilterSnapshotTenant(Tenant* snapTenantP, CorNode* queryP)
     return 0;
 
   int kept = 0;
-  CorNode* eP = allP->value.firstChildP;
+  CorNode* eP = allP->value.head;
   while (eP != NULL)
   {
     CorNode* nextP = eP->next;
@@ -635,7 +635,7 @@ static int postFilterSnapshotTenant(Tenant* snapTenantP, CorNode* queryP)
       }
       else if (typeP != NULL && typeP->type == CorArray)
       {
-        for (CorNode* tP = typeP->value.firstChildP; tP != NULL && !match; tP = tP->next)
+        for (CorNode* tP = typeP->value.head; tP != NULL && !match; tP = tP->next)
         {
           if (tP->type != CorString) continue;
           for (int i = 0; filter.typeV[i] != NULL; i++)
@@ -707,7 +707,7 @@ static int streamRemoteEntitiesIntoSnapshot(CorNode* arrayP, Tenant* snapTenantP
     return 0;
 
   int captured = 0;
-  for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
   {
     if (entityP->type != CorObject) continue;
 
@@ -768,7 +768,7 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
   int n = 0;
   if (arrayP != NULL && arrayP->type == CorArray)
   {
-    for (CorNode* entityP = arrayP->value.firstChildP; entityP != NULL; entityP = entityP->next)
+    for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
     {
       CorNode* idP = corTreeLookup(entityP, "id");
       if (idP == NULL) idP = corTreeLookup(entityP, "_id");
@@ -874,7 +874,7 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
 
   if (qListP != NULL && qListP->type == CorArray)
   {
-    for (CorNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
+    for (CorNode* queryP = qListP->value.head; queryP != NULL; queryP = queryP->next)
     {
       CorNode* detail = corTreeObject(NULL, NULL);
 
@@ -890,7 +890,7 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
   }
 
   // Append snapshotQueriesDetails to itemP->tree if any queries ran.
-  if (detailsP->value.firstChildP != NULL)
+  if (detailsP->value.head != NULL)
   {
     CorNode* existing = corTreeLookup(itemP->tree, "snapshotQueriesDetails");
     if (existing != NULL)

@@ -42,7 +42,7 @@ const char* corDbEntityId(CorNode* entityP)
   if (entityP == NULL)
     return NULL;
 
-  CorNode* idP = entityP->value.firstChildP;
+  CorNode* idP = entityP->value.head;
 
   //
   // The invariant says this IS "id". The check is cheap and the alternative -
@@ -103,7 +103,7 @@ static int idCompare(const char* name, void* itemP)
 //
 static void idFirst(CorNode* entityP)
 {
-  CorNode* first = entityP->value.firstChildP;
+  CorNode* first = entityP->value.head;
 
   if ((first != NULL) && (first->name != NULL) && (strcmp(first->name, "id") == 0))
     return;
@@ -118,11 +118,11 @@ static void idFirst(CorNode* entityP)
     if (prev != NULL)
       prev->next = p->next;
 
-    if (entityP->lastChild == p)
-      entityP->lastChild = prev;
+    if (entityP->value.tail == p)
+      entityP->value.tail = prev;
 
-    p->next = entityP->value.firstChildP;
-    entityP->value.firstChildP = p;
+    p->next = entityP->value.head;
+    entityP->value.head = p;
     return;
   }
 }
@@ -144,7 +144,7 @@ static void indexRebuild(CorDbStore* storeP, int slots)
 
   if (entities != NULL)
   {
-    for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
     {
       const char* id = corDbEntityId(eP);
 

@@ -84,7 +84,7 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
   if (entitiesP != NULL && entitiesP->type == CorArray)
   {
     int idCap = 0, typeCap = 0;
-    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
     {
       if (selP->type != CorObject) continue;
       CorNode* idP = corTreeLookup(selP, "id");
@@ -92,7 +92,7 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
       {
         if      (idP->type == CorString) idCap++;
         else if (idP->type == CorArray)
-          for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next) idCap++;
+          for (CorNode* p = idP->value.head; p != NULL; p = p->next) idCap++;
       }
       if (corTreeLookup(selP, "type") != NULL) typeCap++;
     }
@@ -102,7 +102,7 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
     int    nId = 0, nType = 0;
     const char* idPattern = NULL;
 
-    for (CorNode* selP = entitiesP->value.firstChildP; selP != NULL; selP = selP->next)
+    for (CorNode* selP = entitiesP->value.head; selP != NULL; selP = selP->next)
     {
       if (selP->type != CorObject) continue;
 
@@ -111,7 +111,7 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
       {
         if (idP->type == CorString) idV[nId++] = idP->value.s;
         else if (idP->type == CorArray)
-          for (CorNode* p = idP->value.firstChildP; p != NULL; p = p->next)
+          for (CorNode* p = idP->value.head; p != NULL; p = p->next)
             if (p->type == CorString) idV[nId++] = p->value.s;
       }
       CorNode* idPatP = corTreeLookup(selP, "idPattern");
@@ -172,11 +172,11 @@ static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, CorNode* queryP, Tena
   CorNode* result = NULL;
   int     r      = troe.entityTemporalQuery(tenantP, &filter, &result, &rangeInfo);
   if (r != TROE_OK) return -1;
-  if (result == NULL || result->type != CorArray || result->value.firstChildP == NULL)
+  if (result == NULL || result->type != CorArray || result->value.head == NULL)
     return 0;
 
   int n = 0;
-  for (CorNode* entityP = result->value.firstChildP; entityP != NULL; entityP = entityP->next)
+  for (CorNode* entityP = result->value.head; entityP != NULL; entityP = entityP->next)
   {
     if (entityP->type != CorObject) continue;
     if (troe.entityTemporalCreate(snapTenantP, entityP) == TROE_OK)
@@ -220,7 +220,7 @@ static LdSnapshotStatus statusFromString(const char* s)
 static void countDetails(CorNode* detailsP, int* nSuccessP, int* nEmptyP, int* nFailureP)
 {
   if (detailsP == NULL || detailsP->type != CorArray) return;
-  for (CorNode* d = detailsP->value.firstChildP; d != NULL; d = d->next)
+  for (CorNode* d = detailsP->value.head; d != NULL; d = d->next)
   {
     CorNode* sP = corTreeLookup(d, "resultStatus");
     if (sP == NULL || sP->type != CorString) continue;
@@ -240,7 +240,7 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
   if (itemP == NULL || itemP->tree == NULL) return false;
 
   CorNode* qListP = corTreeLookup(itemP->tree, "snapshotTemporalQueries");
-  if (qListP == NULL || qListP->type != CorArray || qListP->value.firstChildP == NULL)
+  if (qListP == NULL || qListP->type != CorArray || qListP->value.head == NULL)
     return true;  // nothing to do — current-state status (if any) stands
 
   // Plugin guard. Without entityTemporalQuery+Create this is a no-op
@@ -250,7 +250,7 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
 
   CorNode* detailsP = corTreeArray(NULL, "snapshotTemporalQueriesDetails");
 
-  for (CorNode* queryP = qListP->value.firstChildP; queryP != NULL; queryP = queryP->next)
+  for (CorNode* queryP = qListP->value.head; queryP != NULL; queryP = queryP->next)
   {
     CorNode* detail = corTreeObject(NULL, NULL);
     const char* result;

@@ -154,7 +154,7 @@ bool putEntityAttr(void)
   // local processing. Forwards mirror the incoming shape (fwdSrcP).
   //
   CorNode* fwdSrcP = bodyP;
-  CorNode* soleP  = bodyP->value.firstChildP;
+  CorNode* soleP  = bodyP->value.head;
   if (soleP != NULL && soleP->next == NULL && soleP->type == CorObject &&
       soleP->name != NULL && strcmp(soleP->name, attrIri) == 0)
     bodyP = soleP;
@@ -326,7 +326,7 @@ bool putEntityAttr(void)
       // Not local and nothing succeeded. A distributed error means the entity is
       // held by a source that failed — fall through to the § 6.3.5 decision
       // (504/502/409/207) rather than masking it as a local 404.
-      if (!anySucceeded && errorsArrayP->value.firstChildP == NULL)
+      if (!anySucceeded && errorsArrayP->value.head == NULL)
       {
         ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                 "entity '%s' not found", entityId);
@@ -347,7 +347,7 @@ bool putEntityAttr(void)
         // Attribute absent locally and nothing succeeded. A distributed error
         // means the attribute is owned by a source that failed — fall through to
         // the § 6.3.5 decision rather than masking it as a local 404.
-        if (!anySucceeded && errorsArrayP->value.firstChildP == NULL)
+        if (!anySucceeded && errorsArrayP->value.head == NULL)
         {
           ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                   "attribute '%s' not found in entity '%s'", attrWild, entityId);
@@ -452,7 +452,7 @@ bool putEntityAttr(void)
   }
 
   int errorsCount = 0;
-  for (CorNode* p = errorsArrayP->value.firstChildP; p != NULL; p = p->next) errorsCount++;
+  for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
   if (!anySucceeded && errorsCount == 0)
   {

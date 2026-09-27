@@ -33,7 +33,7 @@ int corDbSubscriptionCreate(Tenant* tenantP, const char* subId, CorNode* subP)
   //
   // Check for duplicate
   //
-  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.head; sP != NULL; sP = sP->next)
   {
     CorNode* idP = corTreeLookup(sP, "id");
 

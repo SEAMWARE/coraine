@@ -79,7 +79,7 @@ static void addNotUpdated(CorNode* arrP, const char* attrName,
 
 static void updatedRemove(CorNode* arrP, const char* attrName)
 {
-  for (CorNode* p = arrP->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = arrP->value.head; p != NULL; p = p->next)
   {
     if ((p->type == CorString) && (strcmp(p->value.s, attrName) == 0))
     {
@@ -91,7 +91,7 @@ static void updatedRemove(CorNode* arrP, const char* attrName)
 
 static void addUpdatedUnique(CorNode* arrP, const char* attrName)
 {
-  for (CorNode* p = arrP->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = arrP->value.head; p != NULL; p = p->next)
     if (p->type == CorString && strcmp(p->value.s, attrName) == 0)
       return;
   corTreeChildAdd(arrP, corTreeString(corRest.kallocP, NULL, attrName));
@@ -168,7 +168,7 @@ static void recordFragmentAttrsNotUpdated(CorNode* targetP, CorNode* fragP,
                                           const char* reason, const char* regId)
 {
   if (fragP == NULL) return;
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if (ldIsNotAttributeName(c->name)) continue;
     addNotUpdated(targetP, c->name, reason, regId);
@@ -178,7 +178,7 @@ static void recordFragmentAttrsNotUpdated(CorNode* targetP, CorNode* fragP,
 static void recordFragmentAttrsUpdated(CorNode* targetP, CorNode* fragP)
 {
   if (fragP == NULL) return;
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if (ldIsNotAttributeName(c->name)) continue;
     addUpdatedUnique(targetP, c->name);
@@ -412,7 +412,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
   // and silently drop the change (ETSI 011_06_*).
   //
   bool localHasAttrs = false;
-  for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
     if (!ldIsNotAttributeName(c->name)) { localHasAttrs = true; break; }
 
   //
@@ -466,7 +466,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     // output says "List of Attributes actually updated". Null-markers
     // count as updates too (delete is a kind of update).
     //
-    for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
     {
       if (ldIsNotAttributeName(c->name)) continue;
       addUpdatedUnique(updatedP, c->name);
@@ -501,7 +501,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     //
     bool nothingLeft = (syncDone.failedN > 0);
 
-    for (CorNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
       if (ldIsNotAttributeName(c->name) == false)
         nothingLeft = false;
@@ -596,7 +596,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
   }
 
   int notUpdatedCount = 0;
-  for (CorNode* p = notUpdatedP->value.firstChildP; p != NULL; p = p->next) notUpdatedCount++;
+  for (CorNode* p = notUpdatedP->value.head; p != NULL; p = p->next) notUpdatedCount++;
 
   if (notUpdatedCount == 0)
   {

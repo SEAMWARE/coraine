@@ -29,7 +29,7 @@ int corDbSubscriptionRetrieve(Tenant* tenantP, const char* subId, CorNode** subP
 
   CorNode* subscriptions = corDbSubscriptions(tenantP);
 
-  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.head; sP != NULL; sP = sP->next)
   {
     CorNode* idP = corTreeLookup(sP, "id");
 

@@ -43,7 +43,7 @@ int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP
 
   bool hasSet = false, hasUnset = false;
 
-  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = fieldP->next)
+  for (CorNode* fieldP = fragmentP->value.head; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL) continue;
     if (strcmp(fieldP->name, "id") == 0 || strcmp(fieldP->name, "type") == 0) continue;

@@ -29,7 +29,7 @@ int corDbRegistrationDelete(Tenant* tenantP, const char* regId)
 
   CorNode* registrations = corDbRegistrations(tenantP);
 
-  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.head; rP != NULL; rP = rP->next)
   {
     CorNode* idP = corTreeLookup(rP, "id");
 

@@ -48,7 +48,7 @@ int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entityP
       return DB_NOT_FOUND;                           // indexed, and it is not there
   }
 
-  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
   {
     CorNode* idP = corTreeLookup(eP, "id");
 

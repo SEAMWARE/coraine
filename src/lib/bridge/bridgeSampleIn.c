@@ -280,7 +280,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
     return;
   }
 
-  CorNode* nodeP = metaP->value.firstChildP;
+  CorNode* nodeP = metaP->value.head;
 
   while (nodeP != NULL)
   {
@@ -364,7 +364,7 @@ static void instanceCarryOver(CorNode* newInstanceP, CorNode* oldInstanceP)
   if ((newInstanceP == NULL) || (oldInstanceP == NULL))
     return;
 
-  for (CorNode* childP = oldInstanceP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = oldInstanceP->value.head; childP != NULL; childP = childP->next)
   {
     if (corTreeLookup(newInstanceP, childP->name) != NULL)
       continue;
@@ -842,7 +842,7 @@ CorNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const
   // The reply is the one object in the instance that is not its value - the
   // name it was given has been expanded on the way, so it is found by shape.
   //
-  for (CorNode* nodeP = instanceP->value.firstChildP; nodeP != NULL; nodeP = nodeP->next)
+  for (CorNode* nodeP = instanceP->value.head; nodeP != NULL; nodeP = nodeP->next)
   {
     if ((nodeP->type == CorObject) && (strcmp(nodeP->name, "value") != 0))
     {
@@ -1027,7 +1027,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 
   corTreeChildRemove(attrP, instanceP);
 
-  if (attrP->value.firstChildP == NULL)
+  if (attrP->value.head == NULL)
     corTreeChildRemove(entityP, attrP);
 
   CorNode* oldEntityP = NULL;

@@ -138,7 +138,7 @@ static char* renderFragmentWithContext(CorNode* fragP)
 //
 static void updatedRemove(CorNode* updatedP, const char* attrName)
 {
-  for (CorNode* p = updatedP->value.firstChildP; p != NULL; p = p->next)
+  for (CorNode* p = updatedP->value.head; p != NULL; p = p->next)
   {
     if ((p->type == CorString) && (strcmp(p->value.s, attrName) == 0))
     {
@@ -164,7 +164,7 @@ static void classifyAndChopLocal(CorNode* fragment, CorNode* existing, bool noOv
 {
   if (fragment == NULL || existing == NULL) return;
 
-  CorNode* fAttrP = fragment->value.firstChildP;
+  CorNode* fAttrP = fragment->value.head;
   while (fAttrP != NULL)
   {
     CorNode* nextAttr = fAttrP->next;
@@ -182,7 +182,7 @@ static void classifyAndChopLocal(CorNode* fragment, CorNode* existing, bool noOv
 
     if (tAttrP != NULL)
     {
-      CorNode* fInstP = fAttrP->value.firstChildP;
+      CorNode* fInstP = fAttrP->value.head;
       while (fInstP != NULL)
       {
         CorNode* nextInst = fInstP->next;
@@ -454,7 +454,7 @@ bool postEntityAttrs(void)
   // § 5.6.3 §  4.5.6, and id is immutable). `scope` flows through
   // ldEntityAttrsSet::applyScope and respects ?options=noOverwrite.
   bool localHasAttrs = false;
-  for (CorNode* c = fragment->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)               continue;
     if (c->name[0] == '@')             continue;
@@ -517,7 +517,7 @@ bool postEntityAttrs(void)
     //
     bool nothingLeft = (syncDone.failedN > 0);
 
-    for (CorNode* c = fragment->value.firstChildP; (c != NULL) && (nothingLeft == true); c = c->next)
+    for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
       if (ldIsNotAttributeName(c->name) == false)
         nothingLeft = false;
@@ -589,7 +589,7 @@ bool postEntityAttrs(void)
   //   - otherwise → 207 Multi-Status + UpdateResult body (§ 5.2.18).
   //
   int notUpdatedCount = 0;
-  for (CorNode* p = notUpdatedP->value.firstChildP; p != NULL; p = p->next) notUpdatedCount++;
+  for (CorNode* p = notUpdatedP->value.head; p != NULL; p = p->next) notUpdatedCount++;
 
   if (notUpdatedCount == 0)
   {

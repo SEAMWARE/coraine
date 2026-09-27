@@ -43,7 +43,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
   int     ix       = 0;
   bool    anyOk    = false;
 
-  for (CorNode* inP = entitiesArr->value.firstChildP; inP != NULL; inP = inP->next, ix++)
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
   {
     CorNode* idP = corTreeLookup(inP, "id");
     if (idP == NULL || idP->type != CorString)
@@ -75,7 +75,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
       exists = true;
     else if (corDbStoreOf(tenantP)->idIndex == NULL)
     {
-      for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+      for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
       {
         CorNode* existingId = corTreeLookup(eP, "id");
         if (existingId != NULL && existingId->type == CorString &&

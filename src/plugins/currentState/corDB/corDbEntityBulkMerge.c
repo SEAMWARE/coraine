@@ -42,7 +42,7 @@
 static CorNode* fragmentAt(CorNode* arrP, int ix)
 {
   int i = 0;
-  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next, i++)
+  for (CorNode* c = arrP->value.head; c != NULL; c = c->next, i++)
     if (i == ix) return c;
   return NULL;
 }
@@ -55,7 +55,7 @@ static CorNode* fragmentAt(CorNode* arrP, int ix)
 //
 static CorNode* liveById(CorNode* entities, const char* id)
 {
-  for (CorNode* eP = entities->value.firstChildP; eP != NULL; eP = eP->next)
+  for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
   {
     CorNode* idP = corTreeLookup(eP, "id");
     if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, id) == 0)
@@ -84,7 +84,7 @@ int corDbEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** ta
   CorNode* entities = corDbEntities(tenantP);
 
   int k = 0;
-  for (CorNode* fragP = fragmentsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, k++)
+  for (CorNode* fragP = fragmentsArr->value.head; fragP != NULL; fragP = fragP->next, k++)
   {
     if (targetsV[k] != NULL)
       continue;
@@ -100,7 +100,7 @@ int corDbEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** ta
     CorNode* shared = corTreeClone(corRest.kallocP, live);
 
     int j = 0;
-    for (CorNode* f2 = fragmentsArr->value.firstChildP; f2 != NULL; f2 = f2->next, j++)
+    for (CorNode* f2 = fragmentsArr->value.head; f2 != NULL; f2 = f2->next, j++)
     {
       if (targetsV[j] != NULL)
         continue;
@@ -132,7 +132,7 @@ int corDbEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
   CorNode* entities = corDbEntities(tenantP);
 
   int  n     = 0;
-  for (CorNode* c = fragmentsArr->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = fragmentsArr->value.head; c != NULL; c = c->next) n++;
 
   bool anyOk = false;
 

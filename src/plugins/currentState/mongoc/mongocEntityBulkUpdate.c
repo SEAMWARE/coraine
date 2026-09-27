@@ -50,7 +50,7 @@ extern mongoc_client_pool_t* poolP;
 static int countEntries(CorNode* arrP)
 {
   int n = 0;
-  for (CorNode* c = arrP->value.firstChildP; c != NULL; c = c->next) n++;
+  for (CorNode* c = arrP->value.head; c != NULL; c = c->next) n++;
   return n;
 }
 
@@ -63,7 +63,7 @@ static int countEntries(CorNode* arrP)
 static const char* entityIdAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
+  for (CorNode* e = entitiesArr->value.head; e != NULL; e = e->next, i++)
   {
     if (i != ix) continue;
     CorNode* idP = corTreeLookup(e, "id");
@@ -82,7 +82,7 @@ static const char* entityIdAt(CorNode* entitiesArr, int ix)
 static CorNode* entityAt(CorNode* entitiesArr, int ix)
 {
   int i = 0;
-  for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, i++)
+  for (CorNode* e = entitiesArr->value.head; e != NULL; e = e->next, i++)
   {
     if (i == ix)
       return e;
@@ -252,7 +252,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 
     int ix = 0;
     CorNode* entityP = NULL;
-    for (CorNode* e = entitiesArr->value.firstChildP; e != NULL; e = e->next, ix++)
+    for (CorNode* e = entitiesArr->value.head; e != NULL; e = e->next, ix++)
     {
       if (ix == i) { entityP = e; break; }
     }

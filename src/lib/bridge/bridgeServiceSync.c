@@ -734,7 +734,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
   //
   int attrCount = 0;
 
-  for (CorNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = attrP->next)
+  for (CorNode* attrP = fragmentP->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (ldIsNotAttributeName(attrP->name) == false)
       attrCount++;
@@ -753,7 +753,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
   CorNode* nextP;
 
-  for (CorNode* attrP = fragmentP->value.firstChildP; attrP != NULL; attrP = nextP)
+  for (CorNode* attrP = fragmentP->value.head; attrP != NULL; attrP = nextP)
   {
     nextP = attrP->next;                              // attrP may be taken out of the fragment
 

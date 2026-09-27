@@ -39,7 +39,7 @@ int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragmen
   //
   CorNode* subP = NULL;
 
-  for (CorNode* sP = subscriptions->value.firstChildP; sP != NULL; sP = sP->next)
+  for (CorNode* sP = subscriptions->value.head; sP != NULL; sP = sP->next)
   {
     CorNode* idP = corTreeLookup(sP, "id");
 
@@ -58,7 +58,7 @@ int corDbSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragmen
   //
   CorNode* next;
 
-  for (CorNode* fieldP = fragmentP->value.firstChildP; fieldP != NULL; fieldP = next)
+  for (CorNode* fieldP = fragmentP->value.head; fieldP != NULL; fieldP = next)
   {
     next = fieldP->next;
 

@@ -320,10 +320,10 @@ static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, KAlloc* ka
   char*   copy  = kaStrdup(kaP, json);
   CorNode* arrayP = corJsonParse(corJsonP, copy);
 
-  if ((arrayP == NULL) || (arrayP->type != CorArray) || (arrayP->value.firstChildP == NULL))
+  if ((arrayP == NULL) || (arrayP->type != CorArray) || (arrayP->value.head == NULL))
     return NULL;
 
-  CorNode* firstP = arrayP->value.firstChildP;
+  CorNode* firstP = arrayP->value.head;
 
   if (firstP->next == NULL)
   {
@@ -691,7 +691,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       if (parsed != NULL && parsed->type == CorObject)
       {
         // corTreeChildAdd sets the added node's ->next to NULL - the next one is taken first
-        CorNode* sP = parsed->value.firstChildP;
+        CorNode* sP = parsed->value.head;
         while (sP != NULL)
         {
           CorNode* nextP = sP->next;
@@ -1612,7 +1612,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     // pathological case where a large per-attribute offsetN pages out every
     // instance, leaving an empty doc.
     bool hasAttrs = false;
-    for (CorNode* c = docP->value.firstChildP; c != NULL; c = c->next)
+    for (CorNode* c = docP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                         continue;
       if (strcmp(c->name, "id")         == 0)      continue;

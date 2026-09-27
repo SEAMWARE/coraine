@@ -122,7 +122,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   //
   CorLdContext* fwdCtx = ldDistOpForwardContext(csr);
 
-  for (CorNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
+  for (CorNode* fragP = batchArr->value.head; fragP != NULL; fragP = fragP->next)
   {
     corLdCompactTreeWith(fragP, fwdCtx);
 
@@ -169,7 +169,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteSuccess != NULL && remoteSuccess->type == CorArray)
   {
-    for (CorNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
+    for (CorNode* sP = remoteSuccess->value.head; sP != NULL; sP = sP->next)
     {
       if (sP->type != CorString) continue;
       for (int i = 0; i < N; i++)
@@ -179,7 +179,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteErrors != NULL && remoteErrors->type == CorArray)
   {
-    for (CorNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = remoteErrors->value.head; eP != NULL; eP = eP->next)
     {
       CorNode* idP    = corTreeLookup(eP, "entityId");
       CorNode* errP   = corTreeLookup(eP, "error");
@@ -356,7 +356,7 @@ static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
 static bool hasAnyNonKeywordAttr(CorNode* fragP)
 {
   if (fragP == NULL || fragP->type != CorObject) return false;
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
@@ -388,7 +388,7 @@ static const char* fragmentId(CorNode* fragP, const char* fallback)
 //
 static bool hasAttribute(CorNode* fragP)
 {
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if ((c->type == CorObject) && (ldIsNotAttributeName(c->name) == false))
       return true;
@@ -415,7 +415,7 @@ bool postEntityBatchMerge(void)
   }
 
   int total = 0;
-  for (CorNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = bodyP->value.head; c != NULL; c = c->next)
   {
     if (c->type == CorNull)
     {
@@ -427,7 +427,7 @@ bool postEntityBatchMerge(void)
   }
 
   bool hasPreErrors = (corNgsild.batchPreErrors != NULL &&
-                       corNgsild.batchPreErrors->value.firstChildP != NULL);
+                       corNgsild.batchPreErrors->value.head != NULL);
   if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
@@ -440,8 +440,8 @@ bool postEntityBatchMerge(void)
 
   if (hasPreErrors)
   {
-    errorsP->value.firstChildP = corNgsild.batchPreErrors->value.firstChildP;
-    errorsP->lastChild         = corNgsild.batchPreErrors->lastChild;
+    errorsP->value.head = corNgsild.batchPreErrors->value.head;
+    errorsP->value.tail        = corNgsild.batchPreErrors->value.tail;
     corNgsild.batchPreErrors    = NULL;
   }
 
@@ -454,7 +454,7 @@ bool postEntityBatchMerge(void)
   const char** idV     = (const char**) kaAlloc(&corRest.kalloc, sizeof(char*)  * total);
   int          fragN   = 0;
 
-  for (CorNode* inP = bodyP->value.firstChildP; inP != NULL; inP = inP->next)
+  for (CorNode* inP = bodyP->value.head; inP != NULL; inP = inP->next)
   {
     if (inP->type != CorObject)
     {
@@ -803,7 +803,7 @@ bool postEntityBatchMerge(void)
     {
       int fk = 0;
 
-      for (CorNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fk++)
+      for (CorNode* fragP = localFragsArr->value.head; fragP != NULL; fragP = fragP->next, fk++)
       {
         if (targetsV[fk] == NULL)
           continue;
@@ -817,7 +817,7 @@ bool postEntityBatchMerge(void)
       int64_t dueMs = bridgeRequestsDeadline();
 
       fk = 0;
-      for (CorNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fk++)
+      for (CorNode* fragP = localFragsArr->value.head; fragP != NULL; fragP = fragP->next, fk++)
       {
         if (doneV[fk] == NULL)
           continue;
@@ -840,7 +840,7 @@ bool postEntityBatchMerge(void)
     }
 
     int fi = 0;
-    for (CorNode* fragP = localFragsArr->value.firstChildP; fragP != NULL; fragP = fragP->next, fi++)
+    for (CorNode* fragP = localFragsArr->value.head; fragP != NULL; fragP = fragP->next, fi++)
     {
       if (targetsV[fi] == NULL)
       {
@@ -949,7 +949,7 @@ bool postEntityBatchMerge(void)
   }
 
   int errorCount = 0;
-  for (CorNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
+  for (CorNode* p = errorsP->value.head; p != NULL; p = p->next) errorCount++;
 
   // § 5.6.17 — batch ops return 204 when there are no errors. The
   // successCount==0 && errorCount==0 case (e.g. an "empty" merge fragment

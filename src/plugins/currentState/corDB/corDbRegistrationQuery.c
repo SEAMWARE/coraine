@@ -35,7 +35,7 @@ int corDbRegistrationQuery(Tenant* tenantP, int limit, int offset, CorNode** arr
   int ix    = 0;
   int added = 0;
 
-  for (CorNode* rP = registrations->value.firstChildP; rP != NULL; rP = rP->next)
+  for (CorNode* rP = registrations->value.head; rP != NULL; rP = rP->next)
   {
     if (ix < offset)
     {

@@ -132,7 +132,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
   //
   CorLdContext* fwdCtx = ldDistOpForwardContext(csr);
 
-  for (CorNode* fragP = batchArr->value.firstChildP; fragP != NULL; fragP = fragP->next)
+  for (CorNode* fragP = batchArr->value.head; fragP != NULL; fragP = fragP->next)
   {
     corLdCompactTreeWith(fragP, fwdCtx);
 
@@ -179,7 +179,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteSuccess != NULL && remoteSuccess->type == CorArray)
   {
-    for (CorNode* sP = remoteSuccess->value.firstChildP; sP != NULL; sP = sP->next)
+    for (CorNode* sP = remoteSuccess->value.head; sP != NULL; sP = sP->next)
     {
       if (sP->type != CorString) continue;
       for (int i = 0; i < N; i++)
@@ -189,7 +189,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
 
   if (remoteErrors != NULL && remoteErrors->type == CorArray)
   {
-    for (CorNode* eP = remoteErrors->value.firstChildP; eP != NULL; eP = eP->next)
+    for (CorNode* eP = remoteErrors->value.head; eP != NULL; eP = eP->next)
     {
       CorNode* idP    = corTreeLookup(eP, "entityId");
       CorNode* errP   = corTreeLookup(eP, "error");
@@ -414,7 +414,7 @@ static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
 static bool hasAnyNonKeywordAttr(CorNode* fragP)
 {
   if (fragP == NULL || fragP->type != CorObject) return false;
-  for (CorNode* c = fragP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
@@ -443,7 +443,7 @@ bool postEntityBatchUpsert(void)
   }
 
   int total = 0;
-  for (CorNode* c = bodyP->value.firstChildP; c != NULL; c = c->next)
+  for (CorNode* c = bodyP->value.head; c != NULL; c = c->next)
   {
     if (c->type == CorNull)
     {
@@ -455,7 +455,7 @@ bool postEntityBatchUpsert(void)
   }
 
   bool hasPreErrors = (corNgsild.batchPreErrors != NULL &&
-                       corNgsild.batchPreErrors->value.firstChildP != NULL);
+                       corNgsild.batchPreErrors->value.head != NULL);
   if (total == 0 && !hasPreErrors)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Empty Array",
@@ -468,8 +468,8 @@ bool postEntityBatchUpsert(void)
 
   if (hasPreErrors)
   {
-    errorsP->value.firstChildP = corNgsild.batchPreErrors->value.firstChildP;
-    errorsP->lastChild         = corNgsild.batchPreErrors->lastChild;
+    errorsP->value.head = corNgsild.batchPreErrors->value.head;
+    errorsP->value.tail        = corNgsild.batchPreErrors->value.tail;
     corNgsild.batchPreErrors    = NULL;
   }
 
@@ -482,7 +482,7 @@ bool postEntityBatchUpsert(void)
   int    gN     = 0;
   int    gCap   = 0;
 
-  for (CorNode* inP = bodyP->value.firstChildP; inP != NULL; inP = inP->next)
+  for (CorNode* inP = bodyP->value.head; inP != NULL; inP = inP->next)
   {
     if (inP->type != CorObject)
     {
@@ -917,7 +917,7 @@ bool postEntityBatchUpsert(void)
           // datasetId: { "@none": {createdAt,...}, "urn:x": {...} }.
           // Walk newFinalP's attrs and patch instance-level createdAt
           // from the matching prev instance (same attr + datasetId).
-          for (CorNode* nAttr = newFinalP->value.firstChildP; nAttr != NULL; nAttr = nAttr->next)
+          for (CorNode* nAttr = newFinalP->value.head; nAttr != NULL; nAttr = nAttr->next)
           {
             if (nAttr->name == NULL || ldIsEntityKeyword(nAttr->name)) continue;
             if (nAttr->type != CorObject)                               continue;
@@ -925,7 +925,7 @@ bool postEntityBatchUpsert(void)
             CorNode* pAttr = corTreeLookup(prevP, nAttr->name);
             if (pAttr == NULL || pAttr->type != CorObject)              continue;
 
-            for (CorNode* nInst = nAttr->value.firstChildP; nInst != NULL; nInst = nInst->next)
+            for (CorNode* nInst = nAttr->value.head; nInst != NULL; nInst = nInst->next)
             {
               if (nInst->type != CorObject) continue;
               CorNode* pInst = corTreeLookup(pAttr, nInst->name);
@@ -955,7 +955,7 @@ bool postEntityBatchUpsert(void)
         else
         {
           report.changes = corTreeArray(corRest.kallocP, NULL);
-          for (CorNode* fAttr = fragP->value.firstChildP; fAttr != NULL; fAttr = fAttr->next)
+          for (CorNode* fAttr = fragP->value.head; fAttr != NULL; fAttr = fAttr->next)
           {
             if (fAttr->name == NULL || ldIsNotAttributeName(fAttr->name))  continue;
             CorNode* chg = corTreeObject(corRest.kallocP, NULL);
@@ -1039,7 +1039,7 @@ bool postEntityBatchUpsert(void)
   //
   for (int gi = 0; gi < gN; gi++)
   {
-    CorNode* errP = (groupErrorsV[gi] != NULL) ? groupErrorsV[gi]->value.firstChildP : NULL;
+    CorNode* errP = (groupErrorsV[gi] != NULL) ? groupErrorsV[gi]->value.head : NULL;
 
     while (errP != NULL)
     {
@@ -1265,7 +1265,7 @@ bool postEntityBatchUpsert(void)
   }
 
   int errorCount = 0;
-  for (CorNode* p = errorsP->value.firstChildP; p != NULL; p = p->next) errorCount++;
+  for (CorNode* p = errorsP->value.head; p != NULL; p = p->next) errorCount++;
 
   //
   // Status code per § 6.15.3.1:

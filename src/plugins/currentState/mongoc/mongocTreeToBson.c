@@ -63,7 +63,7 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
       bson_append_document_begin(bsonP, key, -1, &child);
 
       int ix = 0;
-      for (CorNode* childP = nodeP->value.firstChildP; childP != NULL; childP = childP->next)
+      for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
         nodeToBson(childP, &child, false, ix++);
 
       bson_append_document_end(bsonP, &child);
@@ -76,7 +76,7 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
       bson_append_array_begin(bsonP, key, -1, &child);
 
       int ix = 0;
-      for (CorNode* childP = nodeP->value.firstChildP; childP != NULL; childP = childP->next)
+      for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
         nodeToBson(childP, &child, true, ix++);
 
       bson_append_array_end(bsonP, &child);
@@ -102,7 +102,7 @@ void mongocTreeToBson(CorNode* treeP, bson_t* bsonP)
   // doc with "id" rewritten to "_id". The node is mutated temporarily
   // so nodeToBson sees the right key, then restored — the tree is
   // shared with the service routine / notifier, which expect "id".
-  for (CorNode* childP = treeP->value.firstChildP; childP != NULL; childP = childP->next)
+  for (CorNode* childP = treeP->value.head; childP != NULL; childP = childP->next)
   {
     bool idRewritten = false;
     if (childP->name != NULL && strcmp(childP->name, "id") == 0)

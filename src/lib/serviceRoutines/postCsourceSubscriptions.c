@@ -169,10 +169,10 @@ bool postCsourceSubscriptions(void)
       jcUrl = reqCtxP->url;
     else if (corNgsild.userContextBody != NULL &&
              corNgsild.userContextBody->type == CorArray &&
-             corNgsild.userContextBody->value.firstChildP != NULL &&
-             corNgsild.userContextBody->value.firstChildP->next == NULL &&
-             corNgsild.userContextBody->value.firstChildP->type == CorString)
-      jcUrl = corNgsild.userContextBody->value.firstChildP->value.s;
+             corNgsild.userContextBody->value.head != NULL &&
+             corNgsild.userContextBody->value.head->next == NULL &&
+             corNgsild.userContextBody->value.head->type == CorString)
+      jcUrl = corNgsild.userContextBody->value.head->value.s;
     else if (reqCtxP != NULL && reqCtxP->url != NULL)
       jcUrl = reqCtxP->url;
 
