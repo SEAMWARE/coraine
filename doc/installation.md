@@ -161,7 +161,7 @@ Create an Entity, read it back and delete it. Each step names the answer that me
 "working".
 
 ```sh
-# 1. The broker answers, and says which build it is  -> 200, JSON with "coraine version" and every library's
+# 1. The broker answers, and says which build it is  -> 200, "coraine version" and each library's version
 curl -s localhost:1026/admin/version
 
 # 2. Create an Entity  -> 201 Created, with a Location header
