@@ -15,6 +15,7 @@
 
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocTreeToBson.h"                 // Own interface
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 
@@ -105,7 +106,7 @@ void mongocTreeToBson(CorNode* treeP, bson_t* bsonP)
   for (CorNode* childP = treeP->value.head; childP != NULL; childP = childP->next)
   {
     bool idRewritten = false;
-    if (childP->name != NULL && strcmp(childP->name, "id") == 0)
+    if (childP->name != NULL && ldTermId(childP) == CorTermId)
     {
       childP->name = "_id";
       idRewritten  = true;

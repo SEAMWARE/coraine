@@ -14,6 +14,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "currentState/corDB/corDbIndex.h"           // Own interface
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 
@@ -49,7 +50,7 @@ const char* corDbEntityId(CorNode* entityP)
   // indexing an entity under whatever its first member happened to be - is a
   // store that silently cannot find its own entities.
   //
-  if ((idP == NULL) || (idP->name == NULL) || (strcmp(idP->name, "id") != 0))
+  if ((idP == NULL) || (idP->name == NULL) || (ldTermId(idP) != CorTermId))
     idP = corTreeLookup(entityP, "id");
 
   return ((idP != NULL) && (idP->type == CorString)) ? idP->value.s : NULL;
@@ -105,14 +106,14 @@ static void idFirst(CorNode* entityP)
 {
   CorNode* first = entityP->value.head;
 
-  if ((first != NULL) && (first->name != NULL) && (strcmp(first->name, "id") == 0))
+  if ((first != NULL) && (first->name != NULL) && (ldTermId(first) == CorTermId))
     return;
 
   CorNode* prev = NULL;
 
   for (CorNode* p = first; p != NULL; prev = p, p = p->next)
   {
-    if ((p->name == NULL) || (strcmp(p->name, "id") != 0))
+    if ((p->name == NULL) || (ldTermId(p) != CorTermId))
       continue;
 
     if (prev != NULL)

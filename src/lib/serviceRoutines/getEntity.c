@@ -44,6 +44,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityIs
@@ -77,8 +78,8 @@ static void stripInfoAttrsFromLocal(CorNode* localP, LdRegInfo* riP)
     CorNode* nextP = curP->next;
 
     if (curP->name != NULL && curP->name[0] != '@' &&
-        strcmp(curP->name, "id")   != 0 &&
-        strcmp(curP->name, "type") != 0 &&
+        ldTermId(curP) != CorTermId &&
+        ldTermId(curP) != CorTermType &&
         (wildcard ||
          corStringInArray(curP->name, riP->attributeNamesV)))
     {
@@ -123,8 +124,8 @@ static void mergeAuxiliaryInto(CorNode* destP, CorNode* srcP)
     CorNode* nextSrcAttr = srcAttrP->next;
 
     if (srcAttrP->name == NULL || srcAttrP->name[0] == '@' ||
-        strcmp(srcAttrP->name, "id")   == 0 ||
-        strcmp(srcAttrP->name, "type") == 0 ||
+        ldTermId(srcAttrP) == CorTermId ||
+        ldTermId(srcAttrP) == CorTermType ||
         srcAttrP->type != CorObject)
     {
       srcAttrP = nextSrcAttr;
@@ -192,8 +193,8 @@ static void apiAttrToStorageWrap(CorNode* entityP, CorAlloc* allocP)
     CorNode* nextP = curP->next;
 
     if (curP->name == NULL || curP->name[0] == '@' ||
-        strcmp(curP->name, "id")   == 0 ||
-        strcmp(curP->name, "type") == 0 ||
+        ldTermId(curP) == CorTermId ||
+        ldTermId(curP) == CorTermType ||
         curP->type != CorObject)
     {
       curP = nextP;
@@ -952,9 +953,9 @@ bool getEntity(void)
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;
       if (!corNgsild.sysAttrs &&
-          (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0 ||
-           strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0 ||
-           strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0))
+          (ldTermId(c) == CorTermCreatedAt ||
+           ldTermId(c) == CorTermModifiedAt ||
+           ldTermId(c) == CorTermExpiresAt))
         continue;
       hasMembers = true;
       break;
@@ -983,13 +984,13 @@ bool getEntity(void)
     for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                            continue;
-      if (strcmp(c->name, "id")               == 0)   continue;
-      if (strcmp(c->name, "type")             == 0)   continue;
+      if (ldTermId(c) == CorTermId)   continue;
+      if (ldTermId(c) == CorTermType)   continue;
       if (strcmp(c->name, "@context")         == 0)   continue;
-      if (strcmp(c->name, LD_VOCAB_SCOPE)     == 0)   continue;
-      if (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0) continue;
-      if (strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0) continue;
-      if (strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0) continue;
+      if (ldTermId(c) == CorTermScope)   continue;
+      if (ldTermId(c) == CorTermCreatedAt) continue;
+      if (ldTermId(c) == CorTermModifiedAt) continue;
+      if (ldTermId(c) == CorTermExpiresAt) continue;
       hasUserAttr = true;
       break;
     }

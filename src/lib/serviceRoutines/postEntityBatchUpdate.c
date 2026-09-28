@@ -86,6 +86,7 @@
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 #include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
 #include "db/Tenant.h"                               // Tenant
@@ -552,7 +553,7 @@ static bool hasLocalPayload(CorNode* fragP)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
-    if (strcmp(c->name, "id")   == 0)    continue;
+    if (ldTermId(c) == CorTermId)    continue;
     return true;
   }
   return false;

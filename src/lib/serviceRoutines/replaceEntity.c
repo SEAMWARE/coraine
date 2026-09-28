@@ -49,6 +49,7 @@
 #include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 #include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -502,12 +503,12 @@ bool replaceEntity(void)
         {
           if (attrP->name == NULL)                       continue;
           if (attrP->name[0] == '@')                     continue;
-          if (strcmp(attrP->name, "id")         == 0)    continue;
+          if (ldTermId(attrP) == CorTermId)    continue;
           if (strcmp(attrP->name, "_id")        == 0)    continue;
-          if (strcmp(attrP->name, "type")       == 0)    continue;
-          if (strcmp(attrP->name, "scope")      == 0)    continue;
-          if (strcmp(attrP->name, "createdAt")  == 0)    continue;
-          if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
+          if (ldTermId(attrP) == CorTermType)    continue;
+          if (ldTermId(attrP) == CorTermScope)    continue;
+          if (ldTermId(attrP) == CorTermCreatedAt)    continue;
+          if (ldTermId(attrP) == CorTermModifiedAt)    continue;
 
           TroeEvent* aevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(aevP, 0, sizeof(*aevP));

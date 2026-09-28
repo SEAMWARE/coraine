@@ -25,6 +25,7 @@
 #include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocSubscriptionUpdate.h"  // Own interface
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 
@@ -71,7 +72,7 @@ int mongocSubscriptionUpdate(Tenant* tenantP, const char* subId, CorNode* fragme
       continue;
 
     // Skip "id" and "type" — not updatable
-    if (strcmp(fieldP->name, "id") == 0 || strcmp(fieldP->name, "type") == 0)
+    if (ldTermId(fieldP) == CorTermId || ldTermId(fieldP) == CorTermType)
       continue;
 
     const char* key = mongocEscapeDotsInKey(fieldP->name);

@@ -53,6 +53,7 @@
 #include "corNgsild/LdTypeExpr.h"                     // ldTypeExprParse
 #include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
@@ -492,8 +493,8 @@ static void apiAttrToStorageWrap(CorNode* entityP)
     CorNode* nextP = curP->next;
 
     if (curP->name == NULL || curP->name[0] == '@' ||
-        strcmp(curP->name, "id")   == 0 ||
-        strcmp(curP->name, "type") == 0 ||
+        ldTermId(curP) == CorTermId ||
+        ldTermId(curP) == CorTermType ||
         curP->type != CorObject)
     {
       curP = nextP;
@@ -2151,7 +2152,7 @@ bool getEntities(void)
               {
                 CorNode* nextAP = aP->next;
                 if (aP->name != NULL && aP->name[0] != '@' &&
-                    strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
+                    ldTermId(aP) != CorTermId && ldTermId(aP) != CorTermType &&
                     ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, corRest.requestStartTime))
                   corTreeChildRemove(remoteEntity, aP);
                 aP = nextAP;

@@ -34,6 +34,7 @@
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
 #include "corNgsild/ldAttrTypeDetect.h"                    // ldAttrTypeDetect
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp*
 
@@ -189,19 +190,19 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
 
     if (fP->name == NULL) { fP = nextP; continue; }
 
-    if (strcmp(fP->name, "type")       == 0) { fP = nextP; continue; }
-    if (strcmp(fP->name, "createdAt")  == 0) { fP = nextP; continue; }
-    if (strcmp(fP->name, "modifiedAt") == 0) { fP = nextP; continue; }
-    if (strcmp(fP->name, "datasetId")  == 0) { fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermType) { fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermCreatedAt) { fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermModifiedAt) { fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermDatasetId) { fP = nextP; continue; }
 
-    if (strcmp(fP->name, "observedAt") == 0)   { observP = fP;       fP = nextP; continue; }
-    if (strcmp(fP->name, "value")      == 0 ||
-        strcmp(fP->name, "object")     == 0 ||
-        strcmp(fP->name, "languageMap") == 0 ||
-        strcmp(fP->name, "vocab")      == 0 ||
-        strcmp(fP->name, "valueList")  == 0 ||
-        strcmp(fP->name, "objectList") == 0 ||
-        strcmp(fP->name, "json")       == 0)   { valueP  = fP;       fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermObservedAt)   { observP = fP;       fP = nextP; continue; }
+    if (ldTermId(fP) == CorTermValue ||
+        ldTermId(fP) == CorTermObject ||
+        ldTermId(fP) == CorTermLanguageMap ||
+        ldTermId(fP) == CorTermVocab ||
+        ldTermId(fP) == CorTermValueList ||
+        ldTermId(fP) == CorTermObjectList ||
+        ldTermId(fP) == CorTermJson)   { valueP  = fP;       fP = nextP; continue; }
 
     //
     // Sub-attribute. It belongs to the CALLER's entity tree, so it is CLONED
@@ -568,12 +569,12 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
   {
     if (attrP->name == NULL)                       continue;
     if (attrP->name[0] == '@')                     continue;
-    if (strcmp(attrP->name, "id")         == 0)    continue;
+    if (ldTermId(attrP) == CorTermId)    continue;
     if (strcmp(attrP->name, "_id")        == 0)    continue;
-    if (strcmp(attrP->name, "type")       == 0)    continue;
-    if (strcmp(attrP->name, "scope")      == 0)    continue;
-    if (strcmp(attrP->name, "createdAt")  == 0)    continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
+    if (ldTermId(attrP) == CorTermType)    continue;
+    if (ldTermId(attrP) == CorTermScope)    continue;
+    if (ldTermId(attrP) == CorTermCreatedAt)    continue;
+    if (ldTermId(attrP) == CorTermModifiedAt)    continue;
 
     TroeEvent attrEv;
     memset(&attrEv, 0, sizeof(attrEv));

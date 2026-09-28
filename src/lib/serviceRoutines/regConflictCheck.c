@@ -21,6 +21,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "corNgsild/ldDistOp.h"                       // ldDistOpEndpointIsSelf
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -235,8 +236,8 @@ static bool localEntityConflict(Tenant* tenantP, const char* entityId, char** ne
   {
     if (attrP->name == NULL)
       continue;
-    if (strcmp(attrP->name, "id") == 0)   continue;
-    if (strcmp(attrP->name, "type") == 0) continue;
+    if (ldTermId(attrP) == CorTermId)   continue;
+    if (ldTermId(attrP) == CorTermType) continue;
 
     if (corStringInArray(attrP->name, newAttrs)) return true;
   }

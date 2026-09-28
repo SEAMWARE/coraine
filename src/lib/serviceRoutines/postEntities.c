@@ -54,6 +54,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 #include "corNgsild/LdGeoRel.h"                       // LdGeoRel, LdGeoWithin
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
@@ -77,8 +78,8 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
-    if (strcmp(curP->name, "id")   == 0)          continue;
-    if (strcmp(curP->name, "type") == 0)          continue;
+    if (ldTermId(curP) == CorTermId)          continue;
+    if (ldTermId(curP) == CorTermType)          continue;
     return true;
   }
   return false;
@@ -267,8 +268,8 @@ static const char* fragmentAttrList(CorNode* fragP)
   {
     if (c->name == NULL)                       continue;
     if (c->name[0] == '@')                     continue;
-    if (strcmp(c->name, "id")   == 0)          continue;
-    if (strcmp(c->name, "type") == 0)          continue;
+    if (ldTermId(c) == CorTermId)          continue;
+    if (ldTermId(c) == CorTermType)          continue;
 
     const char* attrFqn = c->name;
 

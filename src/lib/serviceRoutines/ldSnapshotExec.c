@@ -38,6 +38,7 @@
 #include "corNgsild/ldDistMerge.h"                        // ldDistMergeSourceInto, ldDistInstanceIsExpired
 #include "corNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "corTree/corTreeClone.h"                        // corTreeClone
 #include "corTree/corTreeFree.h"                         // corTreeFree
@@ -497,9 +498,9 @@ static void snapshotExpiryApply(CorNode* entityP, uint64_t nowNs)
     CorNode* nextAttr = attrP->next;
 
     if ((attrP->name != NULL) && (attrP->name[0] != '@') && (attrP->type == CorObject) &&
-        (strcmp(attrP->name, "id")   != 0) &&
+        (ldTermId(attrP) != CorTermId) &&
         (strcmp(attrP->name, "_id")  != 0) &&
-        (strcmp(attrP->name, "type") != 0))
+        (ldTermId(attrP) != CorTermType))
     {
       CorNode* instP = attrP->value.head;
       while (instP != NULL)

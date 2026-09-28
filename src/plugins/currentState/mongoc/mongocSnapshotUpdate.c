@@ -22,6 +22,7 @@
 #include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocSnapshotUpdate.h" // Own interface
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 extern mongoc_client_pool_t* poolP;
@@ -46,7 +47,7 @@ int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP
   for (CorNode* fieldP = fragmentP->value.head; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL) continue;
-    if (strcmp(fieldP->name, "id") == 0 || strcmp(fieldP->name, "type") == 0) continue;
+    if (ldTermId(fieldP) == CorTermId || ldTermId(fieldP) == CorTermType) continue;
 
     const char* key = mongocEscapeDotsInKey(fieldP->name);
 

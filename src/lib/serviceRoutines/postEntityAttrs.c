@@ -48,6 +48,7 @@
 #include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
 #include "corNgsild/ldWriteResult.h"                   // LdWriteResult, ldWriteResultMerge, ldWriteResult*Add
 #include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -458,8 +459,8 @@ bool postEntityAttrs(void)
   {
     if (c->name == NULL)               continue;
     if (c->name[0] == '@')             continue;
-    if (strcmp(c->name, "id")   == 0)  continue;
-    if (strcmp(c->name, "type") == 0)  continue;
+    if (ldTermId(c) == CorTermId)  continue;
+    if (ldTermId(c) == CorTermType)  continue;
     localHasAttrs = true;
     break;
   }

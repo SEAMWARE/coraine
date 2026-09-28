@@ -84,6 +84,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -418,8 +419,8 @@ static bool hasAnyNonKeywordAttr(CorNode* fragP)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
-    if (strcmp(c->name, "id")   == 0)    continue;
-    if (strcmp(c->name, "type") == 0)    continue;
+    if (ldTermId(c) == CorTermId)    continue;
+    if (ldTermId(c) == CorTermType)    continue;
     return true;
   }
   return false;

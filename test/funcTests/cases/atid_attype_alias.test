@@ -277,12 +277,12 @@ Content-Length: 173
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 148
 
 {
-  "detail": "Subscription 'type' is mandatory for create",
+  "detail": "Not a valid URI: '123'",
   "status": 400,
-  "title": "Missing Type",
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -293,12 +293,12 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 169
 
 {
-  "detail": "Subscription 'type' is mandatory for create",
+  "detail": "Subscription 'type' must be 'Subscription'",
   "status": 400,
-  "title": "Missing Type",
+  "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -325,12 +325,12 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 148
 
 {
-  "detail": "Registration 'type' is mandatory for create",
+  "detail": "Not a valid URI: '123'",
   "status": 400,
-  "title": "Missing Type",
+  "title": "Invalid URI",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -341,12 +341,12 @@ Content-Length: 170
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 182
 
 {
-  "detail": "Registration 'type' is mandatory for create",
+  "detail": "Registration 'type' must be 'ContextSourceRegistration'",
   "status": 400,
-  "title": "Missing Type",
+  "title": "Invalid Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

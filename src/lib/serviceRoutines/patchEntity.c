@@ -44,6 +44,7 @@
 #include "corNgsild/ldIsEntityKeyword.h"                // ldIsNotAttributeName
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -68,8 +69,8 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
-    if (strcmp(curP->name, "id")   == 0)          continue;
-    if (strcmp(curP->name, "type") == 0)          continue;
+    if (ldTermId(curP) == CorTermId)          continue;
+    if (ldTermId(curP) == CorTermType)          continue;
     return true;
   }
   return false;

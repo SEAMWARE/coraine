@@ -38,6 +38,7 @@
 #include "corNgsild/ldCheckDateTime.h"                // ldCheckDateTime, ldIsoToNanoseconds
 #include "corNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
 #include "corNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapSetExpiresAt
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -72,14 +73,14 @@ bool patchEntityMap(void)
     if (fP->name == NULL) continue;
     if (fP->name[0] == '@') continue;       // @context and friends
 
-    if (strcmp(fP->name, "expiresAt") == 0)
+    if (ldTermId(fP) == CorTermExpiresAt)
     {
       expiresAtP = fP;
       continue;
     }
 
     // Output-only (§ 5.2.6.5.5) — silently ignored, per § 14.3.4.
-    if ((strcmp(fP->name, "entityMap") == 0) || (strcmp(fP->name, "linkedMaps") == 0))
+    if ((ldTermId(fP) == CorTermEntityMap) || (ldTermId(fP) == CorTermLinkedMaps))
       continue;
 
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",

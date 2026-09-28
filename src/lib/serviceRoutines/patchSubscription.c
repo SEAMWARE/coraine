@@ -29,6 +29,7 @@
 #include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/CorNgsild.h"                       // ldDistributed
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -79,8 +80,8 @@ bool patchSubscription(void)
     for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                 continue;
-      if (strcmp(c->name, "type") == 0)  { sawType = true; continue; }
-      if (strcmp(c->name, "id")   == 0)  { sawId   = true; continue; }
+      if (ldTermId(c) == CorTermType)  { sawType = true; continue; }
+      if (ldTermId(c) == CorTermId)  { sawId   = true; continue; }
       hasUpdatable = true;
     }
     //

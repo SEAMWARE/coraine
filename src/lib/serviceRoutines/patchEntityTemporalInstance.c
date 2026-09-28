@@ -34,6 +34,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -165,8 +166,8 @@ bool patchEntityTemporalInstance(void)
     {
       if (fP->name == NULL)               continue;
       if (fP->name[0] == '@')             continue;
-      if (strcmp(fP->name, "id")   == 0)  continue;
-      if (strcmp(fP->name, "type") == 0)  continue;
+      if (ldTermId(fP) == CorTermId)  continue;
+      if (ldTermId(fP) == CorTermType)  continue;
 
       const char* fIri = corLdExpand(ctxP, fP->name, &corRest.kalloc, NULL, NULL);
       if (fIri == NULL) fIri = fP->name;
@@ -209,7 +210,7 @@ bool patchEntityTemporalInstance(void)
       CorNode* nextP = fP->next;
 
       if ((fP != targetP) && (fP->name != NULL) && (fP->name[0] != '@') &&
-          (strcmp(fP->name, "id") != 0) && (strcmp(fP->name, "type") != 0))
+          (ldTermId(fP) != CorTermId) && (ldTermId(fP) != CorTermType))
         corTreeChildRemove(bodyP, fP);
 
       fP = nextP;
