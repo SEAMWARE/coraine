@@ -1,0 +1,307 @@
+#
+# FILE            value_keys_are_jsonld.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The member names inside a Property's compound value, and a LanguageProperty's
+# language tags, are JSON-LD: the core context defines "value" as a plain term
+# (ngsi-ld:hasValue), so its object's keys are terms. TS 104 175 clause 7 says the
+# same from the query side - the attribute path, the bracketed trailing path
+# included, "is always a composition of short hand names" with an @context
+# "properly defining all the terms", and its Example 11 addresses
+# rawdata[airquality.particulate] - keys INSIDE a value.
+#
+# Inside the broker those keys are stored EXPANDED - its internal encoding - and
+# compacted back on the way out, so what a client sends is what it gets back.
+# Consequences asserted here:
+#
+#   - normalized and simplified input store a compound value the SAME way (they
+#     used to differ: short keys vs expanded keys), so one q finds both
+#   - a q/orderBy trailing path is expanded with the request @context, exactly as
+#     the value's keys were
+#   - a LanguageProperty's tags are expanded too, so q=L[es] is ONE path for a
+#     LanguageProperty and a Property alike (KZ 2026-09-28)
+#   - member names inside a value are NOT held to the NGSI-LD name grammar
+#     (clause 5.2.2.3 restricts Entity Type, Property and Relationship names):
+#     "my key" and "es-419" are fine, and come back as sent
+#   - a key a user @context defines is a term: read with that context it is short,
+#     read without it, it is that term's IRI
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Compound value keys and language tags are JSON-LD terms - stored expanded, returned as sent
+
+--TAGS--
+context q orderBy langprop value
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+contextServerStart
+coraineStart
+
+contextServerPush /jsonldContexts/ctxA '{
+  "@context": {
+    "city": "https://example.org/terms/city"
+  }
+}'
+
+--RUN--
+
+#
+# 01. E1: rawdata (spec Example 11 shape), NORMALIZED input
+# 02. E2: rawdata, SIMPLIFIED input (keyValues-style attribute)
+# 03. q=rawdata[airquality.particulate]==40 - both E1 and E2
+# 04. orderBy=rawdata[airquality.particulate] - E2 (30) before E1 (40)
+# 05. E3: value keys that are not NGSI-LD names ("my key", "es-419") - 201
+# 06. GET E3 - the keys come back exactly as sent
+# 07. q=v[my%20key]==7 - E3
+# 08. E4: LanguageProperty L {es, es-419}; E5: Property L with value {es}
+# 09. q=L[es]=="uno" - both E4 and E5: one path
+# 10. q=L[es-419]=="una" - E4
+# 11. GET E4 with lang=es-419 - the tag, not an IRI
+# 12. E6: address {city} via ctxA; q=address[city]=="Berlin" via ctxA - E6
+# 13. GET E6 via ctxA - "city"; via the core context - the term's IRI
+#
+
+echo "01. E1: rawdata, normalized input"
+echo "================================="
+payload='{
+  "id": "urn:VK:E1",
+  "type": "T",
+  "rawdata": { "type": "Property", "value": { "airquality": { "particulate": 40, "PM20": 85 } } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. E2: rawdata, simplified input"
+echo "================================="
+payload='{
+  "id": "urn:VK:E2",
+  "type": "T",
+  "rawdata": { "airquality": { "particulate": 30, "PM20": 70 } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. q=rawdata[airquality.particulate]>=30 - both E1 and E2"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=rawdata%5Bairquality.particulate%5D%3E%3D30' | grep '"id"'
+echo
+echo
+
+
+echo "04. orderBy=rawdata[airquality.particulate] - E2 (30) before E1 (40)"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=rawdata&orderBy=rawdata%5Bairquality.particulate%5D' | grep '"id"'
+echo
+echo
+
+
+echo "05. E3: value keys that are not NGSI-LD names - 201"
+echo "==================================================="
+payload='{
+  "id": "urn:VK:E3",
+  "type": "U",
+  "v": { "type": "Property", "value": { "my key": 7, "es-419": "x" } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "06. GET E3 - the keys come back exactly as sent"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:VK:E3
+echo
+echo
+
+
+echo "07. q=v[my%20key]==7 - E3"
+echo "========================="
+corCurl --url '/ngsi-ld/v1/entities?type=U&q=v%5Bmy%2520key%5D%3D%3D7' | grep '"id"'
+echo
+echo
+
+
+echo "08. E4: LanguageProperty L; E5: Property L with a compound value"
+echo "================================================================"
+payload='{
+  "id": "urn:VK:E4",
+  "type": "L",
+  "L": { "type": "LanguageProperty", "languageMap": { "es": "uno", "es-419": "una" } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+payload='{
+  "id": "urn:VK:E5",
+  "type": "L",
+  "L": { "type": "Property", "value": { "es": "uno" } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "09. q=L[es]==\"uno\" - both E4 and E5: one path"
+echo "=============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes%5D%3D%3D%22uno%22' | grep '"id"'
+echo
+echo
+
+
+echo "10. q=L[es-419]==\"una\" - E4"
+echo "==========================="
+corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes-419%5D%3D%3D%22una%22' | grep '"id"'
+echo
+echo
+
+
+echo "11. GET E4 with lang=es-419 - the tag, not an IRI"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:VK:E4 --urlParams 'lang=es-419'
+echo
+echo
+
+
+echo "12. E6: address {city} via ctxA; q=address[city]==\"Berlin\" via ctxA"
+echo "===================================================================="
+payload='{
+  "id": "urn:VK:E6",
+  "type": "A",
+  "address": { "type": "Property", "value": { "city": "Berlin" } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+corCurl --url '/ngsi-ld/v1/entities?type=A&q=address%5Bcity%5D%3D%3D%22Berlin%22' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"id"'
+echo
+echo
+
+
+echo "13. GET E6 via ctxA - \"city\"; via the core context - the term's IRI"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:VK:E6 --urlParams 'attrs=address' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxA>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep -A2 '"value"'
+corCurl --url /ngsi-ld/v1/entities/urn:VK:E6 --urlParams 'attrs=address' | grep -A2 '"value"'
+echo
+echo
+
+
+--EXPECT--
+01. E1: rawdata, normalized input
+=================================
+HTTP/1.1 201 Created
+
+
+02. E2: rawdata, simplified input
+=================================
+HTTP/1.1 201 Created
+
+
+03. q=rawdata[airquality.particulate]>=30 - both E1 and E2
+==========================================================
+    "id": "urn:VK:E1",
+    "id": "urn:VK:E2",
+
+
+04. orderBy=rawdata[airquality.particulate] - E2 (30) before E1 (40)
+====================================================================
+    "id": "urn:VK:E2",
+    "id": "urn:VK:E1",
+
+
+05. E3: value keys that are not NGSI-LD names - 201
+===================================================
+HTTP/1.1 201 Created
+
+
+06. GET E3 - the keys come back exactly as sent
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 137
+
+{
+  "id": "urn:VK:E3",
+  "type": "U",
+  "v": {
+    "type": "Property",
+    "value": {
+      "es-419": "x",
+      "my key": 7
+    }
+  }
+}
+
+
+
+07. q=v[my%20key]==7 - E3
+=========================
+    "id": "urn:VK:E3",
+
+
+08. E4: LanguageProperty L; E5: Property L with a compound value
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+09. q=L[es]=="uno" - both E4 and E5: one path
+==============================================
+    "id": "urn:VK:E4",
+    "id": "urn:VK:E5",
+
+
+10. q=L[es-419]=="una" - E4
+===========================
+    "id": "urn:VK:E4",
+
+
+11. GET E4 with lang=es-419 - the tag, not an IRI
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 118
+
+{
+  "L": {
+    "lang": "es-419",
+    "type": "Property",
+    "value": "una"
+  },
+  "id": "urn:VK:E4",
+  "type": "L"
+}
+
+
+
+12. E6: address {city} via ctxA; q=address[city]=="Berlin" via ctxA
+====================================================================
+HTTP/1.1 201 Created
+    "id": "urn:VK:E6",
+
+
+13. GET E6 via ctxA - "city"; via the core context - the term's IRI
+===================================================================
+    "value": {
+      "city": "Berlin"
+    }
+    "value": {
+      "https://example.org/terms/city": "Berlin"
+    }
+
+
+--TEARDOWN--
+coraineStop
+contextServerStop

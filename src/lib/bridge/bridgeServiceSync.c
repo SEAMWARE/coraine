@@ -23,6 +23,8 @@
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corRest/corRest.h"                          // corRest
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext
+#include "corJsonld/corLdCompactTree.h"               // corLdCompactTreeWith
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
 #include "corNgsild/ldError.h"                        // ldErrorExtraString
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
@@ -709,6 +711,41 @@ static CorNode* mergedValue(Tenant* tenantP, const char* entityId, CorNode* attr
 
 // -----------------------------------------------------------------------------
 //
+// wireValue - the value as it goes on the wire: the application's own JSON
+//
+// Inside the broker a compound value's member names are EXPANDED (they are
+// JSON-LD terms); on the DDS side they are the field names of the type, as the
+// application wrote them. So the value is compacted - with the request's
+// @context, the one it was expanded with - on a CLONE: the value itself is
+// about to be stored, expanded. Compacted as the value of a {"value": ...}
+// wrapper, so the rules are exactly those of any response body.
+//
+// The clone is detached (no name, no next): corJsonFastRender follows the
+// sibling chain and renders a name, and the wire carries neither.
+//
+static CorNode* wireValue(CorNode* valueP)
+{
+  CorNode* wrapperP = corTreeObject(corRest.kallocP, NULL);
+  CorNode* cloneP   = corTreeClone(corRest.kallocP, valueP);
+
+  if ((wrapperP == NULL) || (cloneP == NULL))
+    return valueP;
+
+  cloneP->name = (char*) "value";
+  corTreeChildAdd(wrapperP, cloneP);
+  corLdCompactTreeWith(wrapperP, (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext());
+
+  cloneP       = wrapperP->value.head;
+  cloneP->name = NULL;
+  cloneP->next = NULL;
+
+  return cloneP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsBeforeWrite -
 //
 bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP)
@@ -805,14 +842,8 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
     // nothing at all.
     //
     static __thread char buf[SYNC_OUT_MAX];
-    char*   savedName = valueP->name;
-    CorNode* savedNext = valueP->next;
 
-    valueP->name = NULL;
-    valueP->next = NULL;
-    corJsonFastRender(valueP, buf);
-    valueP->name = savedName;
-    valueP->next = savedNext;
+    corJsonFastRender(wireValue(valueP), buf);
 
     //
     // A topic: the sample is published now. One the transport refuses - a value
