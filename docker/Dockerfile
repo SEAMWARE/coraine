@@ -85,7 +85,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #
 # corDdsBridge's makefile detects the Enabler and builds the plugin when it is
 # there (COR_BRIDGE_DDS=auto), so nothing below has to ask for it: the umbrella
-# `make -C corLibs di` walks corDdsBridge like every other lib and dds.so lands
+# `make -C corLibs install` walks corDdsBridge like every other lib and dds.so lands
 # in /opt/seamware/plugins/bridge, which stage 2 copies wholesale.
 #
 COPY --from=ddsstack /opt/dds/include/ /usr/local/include/
@@ -129,8 +129,10 @@ RUN set -eux; \
     cat /tmp/vendor/MANIFEST.txt; \
     rm -rf /tmp/vendor
 
-# The umbrella builds every lib in dependency order and collects the artifacts.
-RUN make -C /root/git/corLibs di
+# The umbrella builds every lib in dependency order and collects the artifacts - as
+# RELEASE builds (BUILD=release; a lib without flavours ignores it). `make i` below
+# rebuilds the broker's own siblings as release too (makefile: libs-release).
+RUN make -C /root/git/corLibs install BUILD=release
 
 # The broker itself. .dockerignore keeps the host build trees out, so CMake
 # starts clean instead of inheriting a cache full of host paths.

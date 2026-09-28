@@ -123,6 +123,22 @@ libs:
 	done
 
 #
+# libs-release - the sibling libs as RELEASE builds, for `make release` / `make i`
+#
+# `release` used to depend on `libs` above, which is every sibling lib's `di`: a DEBUG
+# build (-DDEBUG). So every release broker - the Docker image, the nightly perf job -
+# linked debug libraries. Harmless while no lib had DEBUG-dependent code; corNgsild's
+# ldTermId does (a full lookup + a stale check on every call in DEBUG), and a release
+# broker must not carry that. corRest, corJsonld and corNgsild build per flavour
+# (obj/debug, obj/release) and copy the one just built into place, so switching flavours
+# is safe for them; corHttp archives in place and has no DEBUG-dependent code.
+#
+libs-release:
+	@for lib in $(SIBLING_LIBS); do \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) BUILD=release install || exit 1; \
+	done
+
+#
 # The way OUT of a coverage build - and it has to be a separate target.
 #
 # `libs` above is each lib's own incremental `make di`, and a change of COMPILER
@@ -191,7 +207,7 @@ src/app/coraine/coraineBuild.h: FORCE
 	   echo '#endif  // CORAINE_BUILD_H_'; \
 	 } > $@
 
-release: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
+release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
