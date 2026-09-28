@@ -149,6 +149,75 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 Log and trace levels are changeable on a running broker through `/admin/log`, which
 is the intended way to debug a live instance rather than restarting it with `-t`.
 
+## Sanity check procedures
+
+The steps below verify that a new installation is complete and working. They assume
+the defaults - port **1026**, the `mongoc` plugin on a local MongoDB - and the
+`admin` API plugin loaded (`--apiPlugins admin`). Adjust host and port to match.
+
+### End-to-end test
+
+Create an Entity, read it back and delete it. Each step names the answer that means
+"working".
+
+```sh
+# 1. The broker answers, and says which build it is  -> 200, JSON with "coraine version" and every library's
+curl -s localhost:1026/admin/version
+
+# 2. Create an Entity  -> 201 Created, with a Location header
+curl -si localhost:1026/ngsi-ld/v1/entities -H 'Content-Type: application/json' \
+     -d '{"id": "urn:ngsi-ld:SanityCheck:1", "type": "SanityCheck",
+          "temperature": {"type": "Property", "value": 21.5}}'
+
+# 3. Read it back  -> 200, the same Entity, "temperature" with value 21.5
+curl -s localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:SanityCheck:1
+
+# 4. Delete it  -> 204 No Content; a second GET then answers 404
+curl -si -X DELETE localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:SanityCheck:1
+```
+
+With `--database corDB` the same steps apply; the Entity lives in memory instead.
+
+### List of running processes
+
+One process, `coraine`:
+
+```sh
+pgrep -a -x coraine              # a native installation
+docker ps --filter name=coraine  # the Docker image
+```
+
+It runs in the background by default; `-fg` keeps it in the foreground (the Docker
+image runs it that way).
+
+### Network interfaces up and open
+
+- **TCP 1026** (or the `--port` given), for NGSI-LD and the admin API:
+  `ss -ltnp | grep 1026`
+- **TCP 27017** to MongoDB, outgoing, when the `mongoc` plugin is used.
+
+### Databases
+
+With the `mongoc` plugin, the default tenant is the database named by `--dbName`
+(default `mongoc`); every other tenant has a database of its own. After step 2 of the
+end-to-end test the database exists:
+
+```sh
+mongosh --quiet --eval 'db.getMongo().getDBNames()'
+```
+
+`corDB` keeps its state in the broker process and needs no database.
+
+### Diagnosis
+
+- **The log:** `/tmp/coraine.log`. Errors (`E:`) and warnings (`W:`) are always
+  written there.
+- **Liveness:** `GET /admin/health`. **Loaded plugins:** `GET /admin/plugins`.
+- **More detail from a running broker:** raise the trace levels through
+  `/admin/log` (see [Administration](#administration)) instead of restarting it with `-t`.
+- **The broker does not start:** run it with `-fg`, which prints the reason
+  on the terminal. A MongoDB that cannot be reached is the most common cause.
+
 ## Multi-tenancy
 
 Tenants are selected per request with the `NGSILD-Tenant` header. With the `mongoc`
