@@ -34,7 +34,7 @@
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
 #include "corNgsild/ldAttrTypeDetect.h"                    // ldAttrTypeDetect
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                            // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp*
 
@@ -569,12 +569,12 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
   {
     if (attrP->name == NULL)                       continue;
     if (attrP->name[0] == '@')                     continue;
-    if (ldTermId(attrP) == CorTermId)    continue;
+    if (ldTermId(attrP) == CorTermId)  continue;
     if (strcmp(attrP->name, "_id")        == 0)    continue;
-    if (ldTermId(attrP) == CorTermType)    continue;
-    if (ldTermId(attrP) == CorTermScope)    continue;
-    if (ldTermId(attrP) == CorTermCreatedAt)    continue;
-    if (ldTermId(attrP) == CorTermModifiedAt)    continue;
+    if (ldTermId(attrP) == CorTermType)        continue;
+    if (ldTermId(attrP) == CorTermScope)       continue;
+    if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+    if (ldTermId(attrP) == CorTermModifiedAt)  continue;
 
     TroeEvent attrEv;
     memset(&attrEv, 0, sizeof(attrEv));

@@ -23,7 +23,7 @@
 
 #include "corAlloc/corAlloc.h"                       // corAlloc
 
-#include "corJsonld/corLdInit.h"                       // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
 #include "corNgsild/corNgsild.h"                       // ldError, ldCheckEntity, LdOp*, LD_ERROR_*, corNgsild
@@ -41,10 +41,10 @@
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "corNgsild/ldIsEntityKeyword.h"                // ldIsNotAttributeName
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -69,8 +69,8 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   {
     if (curP->name == NULL)                       continue;
     if (curP->name[0] == '@')                     continue;
-    if (ldTermId(curP) == CorTermId)          continue;
-    if (ldTermId(curP) == CorTermType)          continue;
+    if (ldTermId(curP) == CorTermId)    continue;
+    if (ldTermId(curP) == CorTermType)  continue;
     return true;
   }
   return false;

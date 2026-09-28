@@ -15,7 +15,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
 #include "currentState/mongoc/mongocTreeToBson.h"                 // mongocTreeToBson
-#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                                  // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
 

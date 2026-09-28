@@ -1,0 +1,218 @@
+#
+# FILE            attribute_members_by_source.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An Attribute's own members (TS 104 175 clause 5.2.5 matrix) - what a CLIENT may send
+# depends on where it sends it (corNgsild ldAttrMember.h, KZ 2026-09-28):
+#
+#   entity routes    instanceId ("only used in temporal representation"), previousValue
+#                    ("only used in Notifications"), deletedAt: 400 - core non-reified
+#                    terms "shall not be used as Attribute names". Until 2026-09-28 they
+#                    were stored as SUB-ATTRIBUTES of those names.
+#                    createdAt / modifiedAt: ignored, the broker sets its own.
+#                    expiresAt, valueType: kept (spec members).
+#                    A member twice (one of them as its compact IRI): 400.
+#   temporal routes  instanceId: ignored - "systems should maintain an instanceId". Until
+#                    2026-09-28 a client-chosen instanceId was stored and returned.
+#
+--NAME--
+Attribute members by source - broker-generated members 400 on entity routes, ignored on temporal ones
+
+--TAGS--
+entity temporal troe validation attribute
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. instanceId on an Attribute - 400
+# 02. previousValue on an Attribute - 400
+# 03. deletedAt on an Attribute - 400
+# 04. createdAt/modifiedAt from the client - ignored (201, the broker's own timestamps)
+# 05. expiresAt and valueType - kept as members, not reified into sub-attributes
+# 06. observedAt twice (short and ngsi-ld:observedAt) - 400
+# 07. Temporal create with a client instanceId - ignored: the broker's own id comes back
+#
+
+echo "01. instanceId on an Attribute - 400"
+echo "===================================="
+payload='{ "id": "urn:AM:E1", "type": "T", "p": { "type": "Property", "value": 1, "instanceId": "urn:x:1" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. previousValue on an Attribute - 400"
+echo "======================================="
+payload='{ "id": "urn:AM:E2", "type": "T", "p": { "type": "Property", "value": 1, "previousValue": 0 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. deletedAt on an Attribute - 400"
+echo "==================================="
+payload='{ "id": "urn:AM:E3", "type": "T", "p": { "type": "Property", "value": 1, "deletedAt": "2026-01-01T00:00:00Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. createdAt/modifiedAt from the client - ignored"
+echo "================================================="
+payload='{ "id": "urn:AM:E4", "type": "T", "p": { "type": "Property", "value": 1, "createdAt": "2001-01-01T00:00:00Z", "modifiedAt": "2001-01-01T00:00:00Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:AM:E4 --urlParams 'options=sysAttrs' | grep -c '2001-01-01'
+echo
+echo
+
+
+echo "05. expiresAt and valueType - kept as members, not sub-attributes"
+echo "================================================================"
+payload='{ "id": "urn:AM:E5", "type": "T", "p": { "type": "Property", "value": 1, "valueType": "Number", "expiresAt": "2100-01-01T00:00:00Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:AM:E5
+corCurl --url /ngsi-ld/v1/entities/urn:AM:E5 --urlParams 'format=simplified'
+echo
+echo
+
+
+echo "06. observedAt twice (short and ngsi-ld:observedAt) - 400"
+echo "========================================================="
+payload='{ "id": "urn:AM:E6", "type": "T", "p": { "type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z", "ngsi-ld:observedAt": "2026-01-02T00:00:00Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Temporal create with a client instanceId - ignored: the broker's own id"
+echo "==========================================================================="
+payload='{ "id": "urn:AM:T1", "type": "T", "p": [ { "type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z", "instanceId": "urn:client:chosen:1" } ] }'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:AM:T1 | grep -c 'urn:client:chosen:1'
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:AM:T1 | grep -c '"instanceId"'
+echo
+echo
+
+
+--EXPECT--
+01. instanceId on an Attribute - 400
+====================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 257
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' of type Property has a forbidden NGSI-LD term: 'instanceId'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. previousValue on an Attribute - 400
+=======================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 260
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' of type Property has a forbidden NGSI-LD term: 'previousValue'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. deletedAt on an Attribute - 400
+===================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 256
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' of type Property has a forbidden NGSI-LD term: 'deletedAt'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. createdAt/modifiedAt from the client - ignored
+=================================================
+HTTP/1.1 201 Created
+0
+
+
+05. expiresAt and valueType - kept as members, not sub-attributes
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:AM:E5",
+  "p": {
+    "expiresAt": "2100-01-01T00:00:00Z",
+    "type": "Property",
+    "value": 1,
+    "valueType": "Number"
+  },
+  "type": "T"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 49
+
+{
+  "id": "urn:AM:E5",
+  "p": 1,
+  "type": "T"
+}
+
+
+
+06. observedAt twice (short and ngsi-ld:observedAt) - 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 233
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' has the member 'observedAt' twice",
+  "status": 400,
+  "title": "Duplicate Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Temporal create with a client instanceId - ignored: the broker's own id
+===========================================================================
+HTTP/1.1 201 Created
+0
+1
+
+
+--TEARDOWN--
+coraineStop

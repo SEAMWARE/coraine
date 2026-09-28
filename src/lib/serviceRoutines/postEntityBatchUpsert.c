@@ -55,7 +55,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
@@ -84,7 +84,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -420,7 +420,7 @@ static bool hasAnyNonKeywordAttr(CorNode* fragP)
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
     if (ldTermId(c) == CorTermId)    continue;
-    if (ldTermId(c) == CorTermType)    continue;
+    if (ldTermId(c) == CorTermType)  continue;
     return true;
   }
   return false;

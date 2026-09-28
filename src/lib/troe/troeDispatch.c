@@ -16,7 +16,7 @@
 
 #include <stddef.h>                                   // NULL
 
-#include "corNgsild/CorNgsild.h"                         // corNgsild (per-conn troeQ*)
+#include "corNgsild/CorNgsild.h"                      // corNgsild (per-conn troeQ*)
 #include "troe/TroeDriver.h"                          // troe, TroeEvent
 #include "troe/troeDispatch.h"                        // Own interface
 

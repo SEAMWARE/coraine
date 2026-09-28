@@ -30,7 +30,7 @@
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "corNgsild/ldOrderSort.h"                    // ldOrderSort
-#include "corNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsEntityKeyword
 #include "corAlloc/corAllocStrdup.h"                // corAllocStrdup
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
@@ -53,7 +53,7 @@
 #include "corNgsild/LdTypeExpr.h"                     // ldTypeExprParse
 #include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter

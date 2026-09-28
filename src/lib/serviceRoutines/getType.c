@@ -23,7 +23,7 @@
 #include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 
-#include "corJsonld/corLdCompact.h"                     // corLdCompact
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corJsonld/corLdExpand.h"                      // corLdExpand
 #include "corJsonld/corLdInit.h"                        // corLdCoreContext
 

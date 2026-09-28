@@ -30,11 +30,12 @@
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corAlloc/corAlloc.h"                       // corAlloc
 
+#include "corNgsild/ldAttrMember.h"                  // ldTemporalMembersStrip
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -166,7 +167,7 @@ bool patchEntityTemporalInstance(void)
     {
       if (fP->name == NULL)               continue;
       if (fP->name[0] == '@')             continue;
-      if (ldTermId(fP) == CorTermId)  continue;
+      if (ldTermId(fP) == CorTermId)    continue;
       if (ldTermId(fP) == CorTermType)  continue;
 
       const char* fIri = corLdExpand(ctxP, fP->name, &corRest.kalloc, NULL, NULL);
@@ -308,6 +309,7 @@ bool patchEntityTemporalInstance(void)
     }
   }
 
+  ldTemporalMembersStrip(bodyP);   // instanceId & co are the broker's: "systems should maintain an instanceId"
   int r = troe.entityTemporalInstanceModify(tenantP, entityId, attrIri, instanceId, bodyP);
 
   bool localOk       = (r == TROE_OK);

@@ -21,8 +21,8 @@
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 #include "currentState/mongoc/mongocSnapshotUpdate.h" // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 extern mongoc_client_pool_t* poolP;
@@ -47,7 +47,7 @@ int mongocSnapshotUpdate(Tenant* tenantP, const char* snapId, CorNode* fragmentP
   for (CorNode* fieldP = fragmentP->value.head; fieldP != NULL; fieldP = fieldP->next)
   {
     if (fieldP->name == NULL) continue;
-    if (ldTermId(fieldP) == CorTermId || ldTermId(fieldP) == CorTermType) continue;
+    if (ldTermId(fieldP) == CorTermId || ldTermId(fieldP) == CorTermType)  continue;
 
     const char* key = mongocEscapeDotsInKey(fieldP->name);
 

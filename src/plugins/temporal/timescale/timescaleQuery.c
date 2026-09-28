@@ -49,8 +49,8 @@
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
 #include "corNgsild/LdGeoRel.h"                            // LdGeoNear, LdGeoRelType
-#include "corNgsild/CorNgsild.h"                            // corNgsild
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/CorNgsild.h"                           // corNgsild
+#include "corNgsild/ldTermId.h"                            // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
 
@@ -1616,11 +1616,11 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     for (CorNode* c = docP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                         continue;
-      if (ldTermId(c) == CorTermId)      continue;
-      if (ldTermId(c) == CorTermType)      continue;
-      if (ldTermId(c) == CorTermScope)      continue;
-      if (ldTermId(c) == CorTermCreatedAt)      continue;
-      if (ldTermId(c) == CorTermModifiedAt)      continue;
+      if (ldTermId(c) == CorTermId)          continue;
+      if (ldTermId(c) == CorTermType)        continue;
+      if (ldTermId(c) == CorTermScope)       continue;
+      if (ldTermId(c) == CorTermCreatedAt)   continue;
+      if (ldTermId(c) == CorTermModifiedAt)  continue;
       hasAttrs = true;
       break;
     }

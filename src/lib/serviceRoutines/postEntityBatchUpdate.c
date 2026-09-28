@@ -58,7 +58,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
@@ -85,8 +85,8 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
 #include "db/Tenant.h"                               // Tenant
@@ -553,7 +553,7 @@ static bool hasLocalPayload(CorNode* fragP)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
-    if (ldTermId(c) == CorTermId)    continue;
+    if (ldTermId(c) == CorTermId)  continue;
     return true;
   }
   return false;

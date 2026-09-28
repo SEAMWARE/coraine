@@ -44,8 +44,8 @@
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease, timescalePoolDrop
 #include "temporal/timescale/timescaleEvent.h"            // timescaleExec*Locked
+#include "corNgsild/ldTermId.h"                           // ldTermId, CorTerm*
 #include "temporal/timescale/timescaleHistoryWrite.h"     // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 
@@ -531,11 +531,11 @@ static CorNode* extractInstanceFromBody(CorNode* bodyP)
   {
     if (fP->name == NULL)                           continue;
     if (fP->name[0] == '@')                         continue;
-    if (ldTermId(fP) == CorTermId)         continue;
-    if (ldTermId(fP) == CorTermType)         continue;
-    if (ldTermId(fP) == CorTermScope)         continue;
-    if (ldTermId(fP) == CorTermCreatedAt)        continue;
-    if (ldTermId(fP) == CorTermModifiedAt)        continue;
+    if (ldTermId(fP) == CorTermId)          continue;
+    if (ldTermId(fP) == CorTermType)        continue;
+    if (ldTermId(fP) == CorTermScope)       continue;
+    if (ldTermId(fP) == CorTermCreatedAt)   continue;
+    if (ldTermId(fP) == CorTermModifiedAt)  continue;
 
     if (fP->type == CorArray && fP->value.head != NULL)
       return fP->value.head;

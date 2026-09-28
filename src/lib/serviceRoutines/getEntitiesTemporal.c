@@ -61,7 +61,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql

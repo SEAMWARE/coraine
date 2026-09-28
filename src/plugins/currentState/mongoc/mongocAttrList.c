@@ -20,7 +20,7 @@
 #include "corTree/corTreeLookup.h"                      // corTreeLookup
 #include "corRest/CorRestState.h"                         // corRest
 
-#include "corNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
+#include "corNgsild/ldIsEntityKeyword.h"                  // ldIsEntityKeyword
 #include "corNgsild/LdAttrType.h"                        // LdAttrType
 #include "corNgsild/ldAttrTypeDetect.h"                  // ldAttrTypeDetect
 #include "corNgsild/ldTypes.h"                           // ldAttrTypeToString

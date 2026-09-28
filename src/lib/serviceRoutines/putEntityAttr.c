@@ -31,7 +31,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode

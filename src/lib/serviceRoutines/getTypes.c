@@ -23,8 +23,8 @@
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corTree/corTreeClone.h"                     // corTreeClone
 
-#include "corJsonld/corLdCompact.h"                     // corLdCompact
-#include "corJsonld/corLdInit.h"                        // corLdCoreContext
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext
 
 #include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_*

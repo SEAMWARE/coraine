@@ -64,7 +64,7 @@
 #include "corNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "corNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
-#include "corNgsild/CorNgsild.h"                    // corNgsild, ldCsourceAliasBase
+#include "corNgsild/CorNgsild.h"                  // corNgsild, ldCsourceAliasBase
 #include "corNgsild/ldError.h"                     // ldError
 #include "corNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 

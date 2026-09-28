@@ -37,7 +37,7 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer, ldNotifyDispatchPending
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubDispatchPending
 #include "corNgsild/ldCheckSubscription.h"            // ldSubEntityTypeExprsRelease
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK, BRIDGE_NOT_FOUND, BRIDGE_BAD_INPUT
 #include "corBridge/corBridge.h"                      // corBridgeKindName

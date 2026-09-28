@@ -13,8 +13,8 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
+#include "corNgsild/ldTermId.h"                      // ldTermId, CorTerm*
 #include "currentState/corDB/corDbIndex.h"           // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 

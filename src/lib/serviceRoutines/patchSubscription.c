@@ -28,8 +28,8 @@
 #include "corNgsild/ldDistSub.h"                      // ldDistSubReconcile, ldDistSubSubordinatesFragment
 #include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "corNgsild/CorNgsild.h"                       // ldDistributed
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/CorNgsild.h"                      // ldDistributed
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant

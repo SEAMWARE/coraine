@@ -41,7 +41,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 #include "currentState/mongoc/mongocBsonToTree.h"        // mongocBsonToTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
-#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkMerge.h"   // Own interface
 

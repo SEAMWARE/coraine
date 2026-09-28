@@ -38,7 +38,7 @@
 #include "corNgsild/ldCheckDateTime.h"                // ldCheckDateTime, ldIsoToNanoseconds
 #include "corNgsild/LdEntityMap.h"                    // LdEntityMapStore, LdEntityMap
 #include "corNgsild/ldEntityMap.h"                    // ldEntityMapLookup, ldEntityMapSetExpiresAt
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/Tenant.h"                               // Tenant
 

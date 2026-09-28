@@ -35,7 +35,7 @@
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 
-#include "corJsonld/corLdCompact.h"                     // corLdCompact
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corJsonld/corLdCompactTree.h"                 // corLdCompactTreeWith
 #include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 
@@ -57,7 +57,7 @@
 #include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpCsrWouldLoop
 #include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
-#include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
+#include "corNgsild/ldIsEntityKeyword.h"               // ldIsNotAttributeName
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant

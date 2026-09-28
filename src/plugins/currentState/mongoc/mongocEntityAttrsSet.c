@@ -30,7 +30,7 @@
 #include "currentState/mongoc/mongocBsonToTree.h"      // mongocBsonToTree
 #include "currentState/mongoc/mongocTreeToBson.h"      // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
-#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                       // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"        // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityAttrsSet.h"  // Own interface
 

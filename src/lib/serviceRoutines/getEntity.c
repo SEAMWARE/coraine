@@ -44,7 +44,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityIs
@@ -984,13 +984,13 @@ bool getEntity(void)
     for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                            continue;
-      if (ldTermId(c) == CorTermId)   continue;
-      if (ldTermId(c) == CorTermType)   continue;
+      if (ldTermId(c) == CorTermId)    continue;
+      if (ldTermId(c) == CorTermType)  continue;
       if (strcmp(c->name, "@context")         == 0)   continue;
-      if (ldTermId(c) == CorTermScope)   continue;
-      if (ldTermId(c) == CorTermCreatedAt) continue;
-      if (ldTermId(c) == CorTermModifiedAt) continue;
-      if (ldTermId(c) == CorTermExpiresAt) continue;
+      if (ldTermId(c) == CorTermScope)       continue;
+      if (ldTermId(c) == CorTermCreatedAt)   continue;
+      if (ldTermId(c) == CorTermModifiedAt)  continue;
+      if (ldTermId(c) == CorTermExpiresAt)   continue;
       hasUserAttr = true;
       break;
     }

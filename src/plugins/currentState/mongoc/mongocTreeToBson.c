@@ -14,8 +14,8 @@
 #include "corTree/CorNode.h"                         // CorNode, CorValueType
 
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
+#include "corNgsild/ldTermId.h"                                   // ldTermId, CorTerm*
 #include "currentState/mongoc/mongocTreeToBson.h"                 // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 

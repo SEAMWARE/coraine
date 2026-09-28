@@ -52,7 +52,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -557,13 +557,13 @@ bool getEntityTemporal(void)
     {
       if (c->name == NULL)                                  continue;
       if (c->name[0] == '@')                                continue;
-      if (ldTermId(c) == CorTermId)               continue;
-      if (ldTermId(c) == CorTermType)               continue;
-      if (ldTermId(c) == CorTermScope)               continue;
+      if (ldTermId(c) == CorTermId)     continue;
+      if (ldTermId(c) == CorTermType)   continue;
+      if (ldTermId(c) == CorTermScope)  continue;
       // System temporal properties surfaced by the plugin for orderBy /
       // sysAttrs handling — not "user attributes" for the empty-result test.
-      if (ldTermId(c) == CorTermCreatedAt)               continue;
-      if (ldTermId(c) == CorTermModifiedAt)               continue;
+      if (ldTermId(c) == CorTermCreatedAt)   continue;
+      if (ldTermId(c) == CorTermModifiedAt)  continue;
       hasUserAttr = true;
       break;
     }

@@ -38,7 +38,7 @@
 #include "corNgsild/ldDistMerge.h"                        // ldDistMergeSourceInto, ldDistInstanceIsExpired
 #include "corNgsild/ldEntityMatch.h"                      // ldEntityMatchType, ldEntityMatchQ, ldEntityMatchScope
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                           // ldTermId, CorTerm*
 
 #include "corTree/corTreeClone.h"                        // corTreeClone
 #include "corTree/corTreeFree.h"                         // corTreeFree

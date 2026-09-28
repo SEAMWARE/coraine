@@ -47,10 +47,10 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
-#include "corTree/corTreeBuilder.h"                  // corTreeChildRemove — already transitively pulled by the earlier include
+#include "corTree/corTreeBuilder.h"                    // corTreeChildRemove — already transitively pulled by the earlier include
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdOp.h"                           // LdOpCreateEntity
@@ -74,7 +74,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS, DB_ERR
 #include "db/Tenant.h"                               // Tenant
@@ -527,8 +527,8 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   {
     if (c->name == NULL)                     continue;
     if (c->name[0] == '@')                   continue;
-    if (ldTermId(c) == CorTermId)        continue;
-    if (ldTermId(c) == CorTermType)        continue;
+    if (ldTermId(c) == CorTermId)    continue;
+    if (ldTermId(c) == CorTermType)  continue;
     return true;
   }
   return false;

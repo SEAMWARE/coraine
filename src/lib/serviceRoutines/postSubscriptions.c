@@ -29,7 +29,7 @@
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
 extern CorLdContextCache* corLdCacheGet(void);
-#include "corNgsild/CorNgsild.h"                       // ldBrokerHttpEndpoint, corNgsild
+#include "corNgsild/CorNgsild.h"                     // ldBrokerHttpEndpoint, corNgsild
 #include "db/DbDriver.h"                             // db, DB_CONTEXT_KIND_IMPLICIT
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckSubscription.h"            // ldCheckSubscription

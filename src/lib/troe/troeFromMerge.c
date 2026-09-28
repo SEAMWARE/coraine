@@ -19,7 +19,7 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 #include "corNgsild/ldInstanceWritten.h"              // ldInstanceWritten
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferAttrEvent
@@ -218,12 +218,12 @@ void troeDeferRemovedByReplace(Tenant* tenantP, const char* entityId, const char
   for (CorNode* oldAttrP = oldEntity->value.head; oldAttrP != NULL; oldAttrP = oldAttrP->next)
   {
     if ((oldAttrP->name == NULL) || (oldAttrP->name[0] == '@') || (oldAttrP->type != CorObject)) continue;
-    if (ldTermId(oldAttrP) == CorTermId)    continue;
+    if (ldTermId(oldAttrP) == CorTermId)  continue;
     if (strcmp(oldAttrP->name, "_id")        == 0)    continue;
-    if (ldTermId(oldAttrP) == CorTermType)    continue;
-    if (ldTermId(oldAttrP) == CorTermScope)    continue;
-    if (ldTermId(oldAttrP) == CorTermCreatedAt)    continue;
-    if (ldTermId(oldAttrP) == CorTermModifiedAt)    continue;
+    if (ldTermId(oldAttrP) == CorTermType)        continue;
+    if (ldTermId(oldAttrP) == CorTermScope)       continue;
+    if (ldTermId(oldAttrP) == CorTermCreatedAt)   continue;
+    if (ldTermId(oldAttrP) == CorTermModifiedAt)  continue;
 
     CorNode* newAttrP = (newEntity != NULL) ? corTreeLookup(newEntity, oldAttrP->name) : NULL;
 

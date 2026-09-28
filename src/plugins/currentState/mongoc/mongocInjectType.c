@@ -16,8 +16,8 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 #include "currentState/mongoc/mongocInjectType.h"     // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 

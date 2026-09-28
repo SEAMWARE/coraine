@@ -24,8 +24,8 @@
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
 #include "currentState/mongoc/mongocTreeToBson.h"    // mongocNodeAppend
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
+#include "corNgsild/ldTermId.h"                            // ldTermId, CorTerm*
 #include "currentState/mongoc/mongocSubscriptionUpdate.h"  // Own interface
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
 
 
 

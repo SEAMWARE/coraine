@@ -25,8 +25,8 @@
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 
-#include "corJsonld/corLdCompact.h"                     // corLdCompact
-#include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 
 #include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldCheckEntity.h"                   // ldCheckEntity
@@ -47,8 +47,8 @@
 #include "corNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpCsrWouldLoop
 #include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
 #include "corNgsild/ldWriteResult.h"                   // LdWriteResult, ldWriteResultMerge, ldWriteResult*Add
-#include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
-#include "corNgsild/ldTermId.h"                         // ldTermId, CorTerm*
+#include "corNgsild/ldIsEntityKeyword.h"               // ldIsNotAttributeName
+#include "corNgsild/ldTermId.h"                        // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -459,7 +459,7 @@ bool postEntityAttrs(void)
   {
     if (c->name == NULL)               continue;
     if (c->name[0] == '@')             continue;
-    if (ldTermId(c) == CorTermId)  continue;
+    if (ldTermId(c) == CorTermId)    continue;
     if (ldTermId(c) == CorTermType)  continue;
     localHasAttrs = true;
     break;
