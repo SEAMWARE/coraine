@@ -48,6 +48,7 @@
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
+#include "corNgsild/ldCoreTermIds.h"               // ldCoreTermIdsInit
 #include "corNgsild/ldHooks.h"                      // ldAcceptPrecondition
 #include "corNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "corNgsild/ldRegCache.h"                  // ldRegCacheProbePending
@@ -1372,6 +1373,12 @@ int main(int argC, char* argV[])
   //
   if (bridgeCoreTermsAdd(&contextAlloc) != 0)
     COR_X(1, "the ContextBridge/Channel terms could not be added to the core context");
+
+  //
+  // Every core term gets its CorTerm id - after the Bridge/Channel terms, which are core terms too.
+  //
+  if (ldCoreTermIdsInit(&contextAlloc) != 0)
+    COR_X(1, "the core context terms could not be given their CorTerm ids");
 
   if (ldInit() != 0)
     COR_X(1, "ldInit failed");
