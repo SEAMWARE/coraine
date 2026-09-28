@@ -425,7 +425,7 @@ bool patchEntity(void)
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
-      if (ldIsNotAttributeName(c->name) == false)
+      if (ldIsNotAttribute(c) == false)
         nothingLeft = false;
     }
 

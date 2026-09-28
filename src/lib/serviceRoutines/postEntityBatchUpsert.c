@@ -919,7 +919,7 @@ bool postEntityBatchUpsert(void)
           // from the matching prev instance (same attr + datasetId).
           for (CorNode* nAttr = newFinalP->value.head; nAttr != NULL; nAttr = nAttr->next)
           {
-            if (nAttr->name == NULL || ldIsEntityKeyword(nAttr->name)) continue;
+            if (nAttr->name == NULL || ldIsEntityMember(nAttr)) continue;
             if (nAttr->type != CorObject)                               continue;
 
             CorNode* pAttr = corTreeLookup(prevP, nAttr->name);
@@ -957,7 +957,7 @@ bool postEntityBatchUpsert(void)
           report.changes = corTreeArray(corRest.kallocP, NULL);
           for (CorNode* fAttr = fragP->value.head; fAttr != NULL; fAttr = fAttr->next)
           {
-            if (fAttr->name == NULL || ldIsNotAttributeName(fAttr->name))  continue;
+            if (fAttr->name == NULL || ldIsNotAttribute(fAttr))  continue;
             CorNode* chg = corTreeObject(corRest.kallocP, NULL);
             corTreeChildAdd(chg, corTreeString(corRest.kallocP, "attr", (char*) fAttr->name));
             corTreeChildAdd(chg, corTreeString(corRest.kallocP, "reason", (char*) "attributeCreated"));

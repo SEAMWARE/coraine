@@ -390,7 +390,7 @@ static bool hasAttribute(CorNode* fragP)
 {
   for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
-    if ((c->type == CorObject) && (ldIsNotAttributeName(c->name) == false))
+    if ((c->type == CorObject) && (ldIsNotAttribute(c) == false))
       return true;
   }
 

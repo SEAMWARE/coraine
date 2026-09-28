@@ -137,7 +137,7 @@ int mongocAttrList(Tenant* tenantP, bool details, CorNode** arrayPP)
 
     for (CorNode* attrP = eP->value.head; attrP != NULL; attrP = attrP->next)
     {
-      if (ldIsEntityKeyword(attrP->name)) continue;
+      if (ldIsEntityMember(attrP)) continue;
 
       CorNode* entry = attrEntryLookup(result, attrP->name, details);
       if (!details) continue;

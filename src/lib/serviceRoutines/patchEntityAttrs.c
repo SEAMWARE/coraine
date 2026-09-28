@@ -170,7 +170,7 @@ static void recordFragmentAttrsNotUpdated(CorNode* targetP, CorNode* fragP,
   if (fragP == NULL) return;
   for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
-    if (ldIsNotAttributeName(c->name)) continue;
+    if (ldIsNotAttribute(c)) continue;
     addNotUpdated(targetP, c->name, reason, regId);
   }
 }
@@ -180,7 +180,7 @@ static void recordFragmentAttrsUpdated(CorNode* targetP, CorNode* fragP)
   if (fragP == NULL) return;
   for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
-    if (ldIsNotAttributeName(c->name)) continue;
+    if (ldIsNotAttribute(c)) continue;
     addUpdatedUnique(targetP, c->name);
   }
 }
@@ -413,7 +413,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
   //
   bool localHasAttrs = false;
   for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
-    if (!ldIsNotAttributeName(c->name)) { localHasAttrs = true; break; }
+    if (!ldIsNotAttribute(c)) { localHasAttrs = true; break; }
 
   //
   // The Entity members ldEntityAttrsSet acts on - keep this in step with its first pass.
@@ -468,7 +468,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     //
     for (CorNode* c = fragment->value.head; c != NULL; c = c->next)
     {
-      if (ldIsNotAttributeName(c->name)) continue;
+      if (ldIsNotAttribute(c)) continue;
       addUpdatedUnique(updatedP, c->name);
     }
 
@@ -503,7 +503,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
-      if (ldIsNotAttributeName(c->name) == false)
+      if (ldIsNotAttribute(c) == false)
         nothingLeft = false;
     }
 

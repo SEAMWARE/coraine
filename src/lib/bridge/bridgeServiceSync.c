@@ -773,7 +773,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
   for (CorNode* attrP = fragmentP->value.head; attrP != NULL; attrP = attrP->next)
   {
-    if (ldIsNotAttributeName(attrP->name) == false)
+    if (ldIsNotAttribute(attrP) == false)
       attrCount++;
   }
 
@@ -794,7 +794,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
   {
     nextP = attrP->next;                              // attrP may be taken out of the fragment
 
-    if (ldIsNotAttributeName(attrP->name) == true)
+    if (ldIsNotAttribute(attrP) == true)
       continue;
 
     Channel* channelP = channelLookupByTarget(tenantP, entityId, attrP->name);

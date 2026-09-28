@@ -1447,7 +1447,7 @@ static bool entityMapPaginate(void)
       bool hasAttr = false;
       for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
-        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+        if (cP->name != NULL && !ldIsEntityMember(cP)) { hasAttr = true; break; }
       }
       if (!hasAttr)
         corTreeChildRemove(arrayP, ep);
@@ -2424,7 +2424,7 @@ bool getEntities(void)
       bool hasAttr = false;
       for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
-        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+        if (cP->name != NULL && !ldIsEntityMember(cP)) { hasAttr = true; break; }
       }
       if (!hasAttr)
         corTreeChildRemove(arrayP, ep);

@@ -168,7 +168,7 @@ static void classifyAndChopLocal(CorNode* fragment, CorNode* existing, bool noOv
   while (fAttrP != NULL)
   {
     CorNode* nextAttr = fAttrP->next;
-    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != CorObject)
+    if (ldIsNotAttribute(fAttrP) || fAttrP->type != CorObject)
     {
       fAttrP = nextAttr;
       continue;
@@ -519,7 +519,7 @@ bool postEntityAttrs(void)
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
-      if (ldIsNotAttributeName(c->name) == false)
+      if (ldIsNotAttribute(c) == false)
         nothingLeft = false;
     }
 
