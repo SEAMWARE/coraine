@@ -39,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "bridge/channelCache.h"                   // channelOutCount
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -672,10 +673,16 @@ bool postEntities(void)
     // created; of several, it is left out of the Entity and the rest goes on
     // (207). See bridgeServiceSync.h.
     //
+    // ⚠ The existence check is a full retrieve - a Mongo round-trip and a tree - so it
+    // is asked ONLY when a Channel sends: with none, bridgeRequestsBeforeWrite returns
+    // at once and the retrieve was pure cost on EVERY create (-35% creates/s on mongoc,
+    // -27% on corDB, from 2026-09-24 until this check).
+    //
     BridgeSyncDone syncDone = { { NULL }, 0 };
     CorNode*       existsP  = NULL;
 
-    if ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL))
+    if ((channelOutCount() > 0) &&
+        ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL)))
     {
       if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, 0, &syncDone) == false)
         return true;  // ldError already set - nothing has been created
