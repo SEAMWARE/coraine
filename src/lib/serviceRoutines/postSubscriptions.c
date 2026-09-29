@@ -7,7 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <string.h>                                  // strlen, strcpy, strcat
+#include <string.h>                                  // strlen, strcpy, strcat, strstr, strchr, memcpy
+#include <strings.h>                                 // strcasecmp
 #include <stdio.h>                                   // snprintf
 #include <time.h>                                    // time
 
@@ -85,6 +86,51 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 static char* subIdGenerate(CorAlloc* allocP)
 {
   return ldIdGenerate(allocP, "Subscription");   // shared, atomic counter - see corNgsild ldIdGenerate.c
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// receiverInfoContextUrl - the URL of an @context Link in notification.endpoint.receiverInfo, or NULL
+//
+// {"key": "Link", "value": "<URL>; rel=\"http://www.w3.org/ns/json-ld#context\"; ..."} - a Link of
+// another rel is just a header for the receiver.
+//
+static const char* receiverInfoContextUrl(CorNode* subP, CorAlloc* allocP)
+{
+  CorNode* notifP    = corTreeLookup(subP, LD_VOCAB_NOTIFICATION);
+  CorNode* endpointP = (notifP != NULL) ? corTreeLookup(notifP, LD_VOCAB_ENDPOINT) : NULL;
+  CorNode* riP       = (endpointP != NULL) ? corTreeLookup(endpointP, "receiverInfo") : NULL;
+
+  if ((riP == NULL) || (riP->type != CorArray))
+    return NULL;
+
+  for (CorNode* kvP = riP->value.head; kvP != NULL; kvP = kvP->next)
+  {
+    CorNode* kP = (kvP->type == CorObject) ? corTreeLookup(kvP, "key")   : NULL;
+    CorNode* vP = (kvP->type == CorObject) ? corTreeLookup(kvP, "value") : NULL;
+
+    if ((kP == NULL) || (kP->type != CorString) || (vP == NULL) || (vP->type != CorString))
+      continue;
+    if ((strcasecmp(kP->value.s, "Link") != 0) || (strstr(vP->value.s, "json-ld#context") == NULL))
+      continue;
+
+    const char* lt = strchr(vP->value.s, '<');
+    const char* gt = (lt != NULL) ? strchr(lt, '>') : NULL;
+
+    if ((gt == NULL) || (gt == lt + 1))
+      return NULL;
+
+    int   len = (int) (gt - (lt + 1));
+    char* url = (char*) corAlloc(allocP, len + 1);
+
+    memcpy(url, lt + 1, len);
+    url[len] = 0;
+    return url;
+  }
+
+  return NULL;
 }
 
 
@@ -225,10 +271,20 @@ bool postSubscriptions(void)
 
   if (corTreeLookup(subP, "jsonldContext") == NULL)
   {
-    const char* jcUrl = NULL;
+    const char* jcUrl = receiverInfoContextUrl(subP, &corRest.kalloc);
 
     CorLdContext* reqCtxP = corNgsild.contextP;
-    if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
+    if (jcUrl != NULL)
+    {
+      //
+      // An @context Link in notification.endpoint.receiverInfo - the way to choose a notification's
+      // @context from before the jsonldContext member existed - is the subscriber's own choice, so
+      // it initializes jsonldContext, before the request's @context. Initializing it with the
+      // request's instead made the Link a dead letter: the subscription cache takes a jsonldContext
+      // over a receiverInfo Link, and there always was one.
+      //
+    }
+    else if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
     {
       jcUrl = reqCtxP->url;
     }
