@@ -30,57 +30,73 @@
 //
 int corDbEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntityP, CorNode** oldEntityPP)
 {
-  COR_DB_WRITE(tenantP);
-
-  CorNode* entities = corDbEntities(tenantP);
-
   //
-  // One hop via the id index instead of a walk of the whole store with a
-  // corTreeLookup per entity. The loop shape is kept so the body below is unchanged:
-  // indexed, it runs exactly once for the hit and not at all for a miss;
-  // unindexed - a store that predates the index - it walks as it always did.
+  // Only the swap needs the write lock. The clone of the new entity reads nothing but the
+  // request, so it is made BEFORE the lock; the old entity, once swapped out and dropped from
+  // the index, is reachable by nobody else, so the caller's copy of it and its free come AFTER
+  // (see corDbEntityBulkCreate for what doing them under the lock cost).
   //
-  CorDbStore* idxStoreP = corDbStoreOf(tenantP);
-  CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
-  bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+  CorNode* cloneP = corTreeClone(NULL, newEntityP);
+  CorNode* oldP   = NULL;
 
-  for (CorNode* eP = indexed ? idxHitP : entities->value.head;
-       eP != NULL;
-       eP = indexed ? NULL : eP->next)
+  if (cloneP == NULL)
   {
-    CorNode* idP = corTreeLookup(eP, "id");
+    COR_E("corDB: corTreeClone failed for entity '%s'", entityId);
+    return DB_ERR;
+  }
 
-    if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, entityId) == 0)
+  {
+    COR_DB_WRITE(tenantP);
+
+    CorNode* entities = corDbEntities(tenantP);
+
+    //
+    // One hop via the id index instead of a walk of the whole store with a
+    // corTreeLookup per entity. The loop shape is kept so the body below is unchanged:
+    // indexed, it runs exactly once for the hit and not at all for a miss;
+    // unindexed - a store that predates the index - it walks as it always did.
+    //
+    CorDbStore* idxStoreP = corDbStoreOf(tenantP);
+    CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
+    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+
+    for (CorNode* eP = indexed ? idxHitP : entities->value.head;
+         eP != NULL;
+         eP = indexed ? NULL : eP->next)
     {
-      CorNode* cloneP = corTreeClone(NULL, newEntityP);
-      if (cloneP == NULL)
+      CorNode* idP = corTreeLookup(eP, "id");
+
+      if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, entityId) == 0)
       {
-        COR_E("corDB: corTreeClone failed for entity '%s'", entityId);
-        return DB_ERR;
+        // Replace in place so the entity keeps its store (creation-order)
+        // position — a GET without orderBy stays stable and matches mongoc,
+        // which preserves createdAt on Replace.
+        //
+        // The index points at the OLD node, which is about to be freed. Drop it
+        // before the swap and add the new one after - an index entry surviving a
+        // replace is a pointer to freed memory that every later lookup returns.
+        //
+        corDbIndexRemove(corDbStoreOf(tenantP), eP);
+        corTreeChildReplace(entities, eP, cloneP);
+        corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
+        oldP = eP;
+        break;
       }
-
-      // Replace in place so the entity keeps its store (creation-order)
-      // position — a GET without orderBy stays stable and matches mongoc,
-      // which preserves createdAt on Replace.
-      //
-      // The index points at the OLD node, which is about to be freed. Drop it
-      // before the swap and add the new one after - an index entry surviving a
-      // replace is a pointer to freed memory that every later lookup returns.
-      //
-      corDbIndexRemove(corDbStoreOf(tenantP), eP);
-      corTreeChildReplace(entities, eP, cloneP);
-      corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
-
-      // Hand the caller a request-arena copy of the pre-replace entity (freed at
-      // request end, matching mongoc's oldEntityPP), then free the malloc store
-      // node — returning the raw malloc node would leak (no caller frees it).
-      if (oldEntityPP != NULL)
-        *oldEntityPP = corTreeClone(corRest.kallocP, eP);
-      corTreeFree(eP);
-
-      return DB_OK;
     }
   }
 
-  return DB_NOT_FOUND;
+  if (oldP == NULL)
+  {
+    corTreeFree(cloneP);
+    return DB_NOT_FOUND;
+  }
+
+  // Hand the caller a request-arena copy of the pre-replace entity (freed at
+  // request end, matching mongoc's oldEntityPP), then free the malloc store
+  // node — returning the raw malloc node would leak (no caller frees it).
+  if (oldEntityPP != NULL)
+    *oldEntityPP = corTreeClone(corRest.kallocP, oldP);
+  corTreeFree(oldP);
+
+  return DB_OK;
 }

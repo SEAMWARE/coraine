@@ -383,6 +383,35 @@ Tracked in [ToDo § 17](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
 
 ## Reproducing this
 
+### On your own machine, from a published image
+
+Don't take these numbers on trust. [`test/perf/reproduce.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/reproduce.sh)
+produces them from nothing but a published image, Docker and `wrk`, and it is
+written to be read before it is run: the load scripts are inside it.
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/SEAMWARE/coraine/main/test/perf/reproduce.sh
+less reproduce.sh                                   # read it first
+bash reproduce.sh quay.io/seamware/coraine:<version>
+```
+
+It pins the broker to 1 and then 4 **physical** cores (core 0 and the SMT
+siblings left out, the topology read from `/sys`), runs `wrk` on other cores,
+and reports the median of three runs per scenario: `POST /entities`, batch create
+(20 per request), retrieve by id, and a 20-entity query. The store is corDB, in
+memory and without persistence, and the report says so beside the figures.
+
+A figure is printed only if it survives two checks: every response was a 2xx,
+and, for the writes, the broker's own entity count afterwards matches what `wrk`
+saw acknowledged. A batch answered 207 (some entities refused) passes the first
+check and fails the second. The report names the image **by digest**, the CPU
+and the kernel, so two people comparing results know they measured the same
+thing. Linux only: the broker runs with `--network host`.
+
+`CORES="1 2 4 8"`, `DURATION` and `REPEATS` change the sweep.
+
+### From source
+
 - **Throughput, writes, page sizes** — [`test/perf/perfRun.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/perfRun.sh)
   measures the fixed request shapes and prints one JSON object per run. Set
   `PERF_BROKER_CORES=n` to pin the broker to *n* physical cores and the load

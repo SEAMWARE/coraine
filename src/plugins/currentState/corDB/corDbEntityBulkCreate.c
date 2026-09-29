@@ -13,11 +13,13 @@
 // BatchOperationResult.
 //
 
+#include <stdlib.h>                                    // malloc, free
 #include <string.h>                                    // strcmp
 
 #include "corLog/corLog.h"                             // COR_E
 #include "corTree/CorNode.h"                           // CorNode
 #include "corTree/corTreeClone.h"                      // corTreeClone
+#include "corTree/corTreeFree.h"                       // corTreeFree
 #include "corTree/corTreeBuilder.h"                    // corTreeChildAdd
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
 
@@ -34,15 +36,45 @@
 //
 int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
-  COR_DB_WRITE(tenantP);
-
   if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
-  CorNode* entities = corDbEntities(tenantP);
-  int     ix       = 0;
-  bool    anyOk    = false;
+  //
+  // Clone BEFORE taking the lock.
+  //
+  // The clone is the deep copy into the store's own heap nodes - hundreds of mallocs for a
+  // batch - and it reads nothing but the request's tree, which no other thread can see. Done
+  // under the write lock it was most of the time the lock was held, and every other writer of
+  // the tenant waited it out: batch create on one tenant was capped by it, and got SLOWER as
+  // the request path got faster (more threads arriving at the lock sooner, each contended
+  // acquisition a futex sleep and wake). Under the lock now: the existence check, the link,
+  // the index insert. A clone that turns out not to be needed (the id exists) is freed.
+  //
+  int count = 0;
 
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next)
+    ++count;
+
+  CorNode** cloneV = (count > 0) ? (CorNode**) malloc(count * sizeof(CorNode*)) : NULL;
+
+  if ((count > 0) && (cloneV == NULL))
+    return DB_ERR;
+
+  int ix = 0;
+
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
+  {
+    CorNode* idP = corTreeLookup(inP, "id");
+
+    cloneV[ix] = ((idP != NULL) && (idP->type == CorString)) ? corTreeClone(NULL, inP) : NULL;
+  }
+
+  COR_DB_WRITE(tenantP);
+
+  CorNode* entities = corDbEntities(tenantP);
+  bool     anyOk    = false;
+
+  ix = 0;
   for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
   {
     CorNode* idP = corTreeLookup(inP, "id");
@@ -87,13 +119,17 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
       }
     }
 
+    CorNode* cloneP = cloneV[ix];
+
     if (exists)
     {
+      if (cloneP != NULL)
+        corTreeFree(cloneP);
+
       resultsV[ix] = DB_ALREADY_EXISTS;
       continue;
     }
 
-    CorNode* cloneP = corTreeClone(NULL, inP);
     if (cloneP == NULL)
     {
       COR_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
@@ -106,6 +142,8 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     resultsV[ix] = DB_OK;
     anyOk        = true;
   }
+
+  free(cloneV);
 
   return anyOk ? DB_OK : DB_ERR;
 }

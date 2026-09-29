@@ -12,6 +12,7 @@
 // routine can assemble the BatchOperationResult.
 //
 
+#include <stdlib.h>                                      // malloc, free
 #include <string.h>                                      // strcmp
 
 #include "corLog/corLog.h"                               // COR_E
@@ -34,66 +35,117 @@
 //
 int corDbEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 {
-  COR_DB_WRITE(tenantP);
-
   if (entitiesArr == NULL || entitiesArr->type != CorArray)
     return DB_ERR;
 
-  CorNode* entities = corDbEntities(tenantP);
-  int     ix       = 0;
-  bool    anyOk    = false;
+  //
+  // Clones BEFORE the write lock, the replaced entities freed AFTER it - only the swaps need
+  // the lock (see corDbEntityBulkCreate for what doing the rest under it cost). An entity
+  // swapped out and dropped from the index is reachable by nobody else, so it is parked in
+  // the same slot of cloneV (its clone went into the store) until the lock is released.
+  //
+  int count = 0;
+
+  for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next)
+    ++count;
+
+  CorNode** cloneV = (count > 0) ? (CorNode**) malloc(count * sizeof(CorNode*)) : NULL;
+
+  if ((count > 0) && (cloneV == NULL))
+    return DB_ERR;
+
+  int ix = 0;
 
   for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
   {
     CorNode* idP = corTreeLookup(inP, "id");
-    if (idP == NULL || idP->type != CorString)
-    {
-      resultsV[ix] = DB_ERR;
-      continue;
-    }
 
-    // Locate the existing entity by id
-    CorNode* existing = NULL;
-    for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
-    {
-      CorNode* existingId = corTreeLookup(eP, "id");
-      if (existingId != NULL && existingId->type == CorString &&
-          strcmp(existingId->value.s, idP->value.s) == 0)
-      {
-        existing = eP;
-        break;
-      }
-    }
-
-    if (existing == NULL)
-    {
-      resultsV[ix] = DB_NOT_FOUND;
-      continue;
-    }
-
-    CorNode* cloneP = corTreeClone(NULL, inP);
-    if (cloneP == NULL)
-    {
-      COR_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
-      resultsV[ix] = DB_ERR;
-      continue;
-    }
-
-    // Replace in place so the entity keeps its store (creation-order) position
-    // — a GET without orderBy stays stable and matches mongoc, which preserves
-    // createdAt on update. corTreeChildReplace does not free the old node.
-    //
-    // The index points at `existing`, which corTreeFree is about to destroy. Drop it
-    // before the swap and add the replacement after, or every later lookup of
-    // this id returns a pointer into freed memory.
-    //
-    corDbIndexRemove(corDbStoreOf(tenantP), existing);
-    corTreeChildReplace(entities, existing, cloneP);
-    corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
-    corTreeFree(existing);
-    resultsV[ix] = DB_OK;
-    anyOk        = true;
+    cloneV[ix] = ((idP != NULL) && (idP->type == CorString)) ? corTreeClone(NULL, inP) : NULL;
   }
+
+  bool anyOk = false;
+
+  {
+    COR_DB_WRITE(tenantP);
+
+    CorNode*    entities  = corDbEntities(tenantP);
+    CorDbStore* idxStoreP = corDbStoreOf(tenantP);
+    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+
+    ix = 0;
+    for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
+    {
+      CorNode* idP = corTreeLookup(inP, "id");
+      if (idP == NULL || idP->type != CorString)
+      {
+        resultsV[ix] = DB_ERR;
+        continue;
+      }
+
+      //
+      // Locate the existing entity by id - one hop via the id index. This walked the WHOLE
+      // store for every entity of the batch, under the write lock, the same walk that cost
+      // corDbEntityBulkCreate a factor of 24. The walk stays as the fallback for a store with
+      // no index: a NULL index must not mean "not there".
+      //
+      CorNode* existing = indexed ? corDbIndexLookup(idxStoreP, idP->value.s) : NULL;
+
+      if (indexed == false)
+      {
+        for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
+        {
+          CorNode* existingId = corTreeLookup(eP, "id");
+          if (existingId != NULL && existingId->type == CorString &&
+              strcmp(existingId->value.s, idP->value.s) == 0)
+          {
+            existing = eP;
+            break;
+          }
+        }
+      }
+
+      if (existing == NULL)
+      {
+        resultsV[ix] = DB_NOT_FOUND;
+        continue;
+      }
+
+      CorNode* cloneP = cloneV[ix];
+      if (cloneP == NULL)
+      {
+        COR_E("corDB: corTreeClone failed for entity '%s'", idP->value.s);
+        resultsV[ix] = DB_ERR;
+        continue;
+      }
+
+      // Replace in place so the entity keeps its store (creation-order) position
+      // — a GET without orderBy stays stable and matches mongoc, which preserves
+      // createdAt on update. corTreeChildReplace does not free the old node.
+      //
+      // The index points at `existing`, which corTreeFree is about to destroy. Drop it
+      // before the swap and add the replacement after, or every later lookup of
+      // this id returns a pointer into freed memory.
+      //
+      corDbIndexRemove(idxStoreP, existing);
+      corTreeChildReplace(entities, existing, cloneP);
+      corDbIndexAdd(idxStoreP, cloneP);
+      cloneV[ix]   = existing;   // stored clone out, replaced entity in - freed below, unlocked
+      resultsV[ix] = DB_OK;
+      anyOk        = true;
+    }
+  }
+
+  //
+  // Every slot now holds something the store does not: an entity that was replaced, or a clone
+  // that was not used (not found, no id)
+  //
+  for (ix = 0; ix < count; ix++)
+  {
+    if (cloneV[ix] != NULL)
+      corTreeFree(cloneV[ix]);
+  }
+
+  free(cloneV);
 
   return anyOk ? DB_OK : DB_ERR;
 }

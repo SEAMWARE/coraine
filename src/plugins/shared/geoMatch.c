@@ -12,6 +12,7 @@
 #include <string.h>                                      // strcmp, strlen
 #include <stdbool.h>                                     // bool
 
+#include <pthread.h>                                     // pthread_mutex_t
 #include <geos_c.h>                                      // GEOS C API
 
 #include "corTree/CorNode.h"                             // CorNode
@@ -27,9 +28,89 @@
 
 // -----------------------------------------------------------------------------
 //
-// GEOS context handle (threadsafe)
+// GeosCtx - a pool of GEOS context handles
 //
-static GEOSContextHandle_t geosCtx = NULL;
+// GEOS is thread-safe PER CONTEXT: its _r functions may run concurrently only on different
+// context handles. There was ONE for the whole process, used by every geo query at once (corDB
+// queries run under a READ lock, so concurrently) and by every subscription match. So each
+// public function below takes a context from this pool for the length of the call and gives it
+// back: the pool grows to the most geo operations ever in flight at once, and never shrinks.
+// Taking one is a mutex held for a pointer swap - nothing next to what a call does with it.
+//
+//
+// Each context also keeps the last REFERENCE geometry it was asked about - the query's, which
+// is the same for every entity (and every registration) a query tests. Parsed once and GEOS-
+// prepared, and found again by a strcmp of its coordinates: a query over n entities parsed it
+// n times, building a GeoJSON string and a reader for each. The cache is as private to its
+// caller as the context it lives in.
+//
+typedef struct GeosCtx
+{
+  GEOSContextHandle_t            handle;
+  char*                          refGeometry;      // the cached reference: its geometry type ...
+  char*                          refCoordinates;   // ... and coordinates, as given
+  GEOSGeometry*                  refGeom;          // parsed
+  const GEOSPreparedGeometry*    refPrep;          // prepared (NULL if GEOS would not)
+  struct GeosCtx*                nextFree;         // free list
+  struct GeosCtx*                nextAll;          // every context ever made - for geoMatchClose
+} GeosCtx;
+
+static pthread_mutex_t  geosPoolMutex = PTHREAD_MUTEX_INITIALIZER;
+static GeosCtx*         geosFree      = NULL;
+static GeosCtx*         geosAll       = NULL;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geosCtxTake - a context no other thread is using; NULL if none can be made
+//
+static GeosCtx* geosCtxTake(void)
+{
+  pthread_mutex_lock(&geosPoolMutex);
+
+  GeosCtx* ctxP = geosFree;
+
+  if (ctxP != NULL)
+    geosFree = ctxP->nextFree;
+
+  pthread_mutex_unlock(&geosPoolMutex);
+
+  if (ctxP != NULL)
+    return ctxP;
+
+  ctxP = (GeosCtx*) calloc(1, sizeof(GeosCtx));
+  if (ctxP == NULL)
+    return NULL;
+
+  ctxP->handle = GEOS_init_r();
+  if (ctxP->handle == NULL)
+  {
+    free(ctxP);
+    return NULL;
+  }
+
+  pthread_mutex_lock(&geosPoolMutex);
+  ctxP->nextAll = geosAll;
+  geosAll       = ctxP;
+  pthread_mutex_unlock(&geosPoolMutex);
+
+  return ctxP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geosCtxGive - back to the pool
+//
+static void geosCtxGive(GeosCtx* ctxP)
+{
+  pthread_mutex_lock(&geosPoolMutex);
+  ctxP->nextFree = geosFree;
+  geosFree       = ctxP;
+  pthread_mutex_unlock(&geosPoolMutex);
+}
 
 
 
@@ -39,15 +120,33 @@ static GEOSContextHandle_t geosCtx = NULL;
 //
 void geoMatchInit(void)
 {
-  geosCtx = GEOS_init_r();
+  // Nothing to do - contexts are made on first use, by geosCtxTake
 }
 
 void geoMatchClose(void)
 {
-  if (geosCtx != NULL)
+  pthread_mutex_lock(&geosPoolMutex);
+
+  GeosCtx* ctxP = geosAll;
+
+  geosAll  = NULL;
+  geosFree = NULL;
+
+  pthread_mutex_unlock(&geosPoolMutex);
+
+  while (ctxP != NULL)
   {
-    GEOS_finish_r(geosCtx);
-    geosCtx = NULL;
+    GeosCtx* nextP = ctxP->nextAll;
+
+    if (ctxP->refPrep != NULL)
+      GEOSPreparedGeom_destroy_r(ctxP->handle, ctxP->refPrep);
+    if (ctxP->refGeom != NULL)
+      GEOSGeom_destroy_r(ctxP->handle, ctxP->refGeom);
+    free(ctxP->refGeometry);
+    free(ctxP->refCoordinates);
+    GEOS_finish_r(ctxP->handle);
+    free(ctxP);
+    ctxP = nextP;
   }
 }
 
@@ -60,7 +159,7 @@ void geoMatchClose(void)
 // geometry:    "Point", "Polygon", "LineString", "MultiPolygon", etc.
 // coordinates: JSON array string, e.g. "[-3.703,40.417]" or "[[[...]]]"
 //
-static GEOSGeometry* geojsonToGeos(const char* geometry, const char* coordinates)
+static GEOSGeometry* geojsonToGeos(GEOSContextHandle_t geosCtx, const char* geometry, const char* coordinates)
 {
   // Build a GeoJSON string:  {"type":"Point","coordinates":[-3.703,40.417]}
   char buf[4096];
@@ -159,9 +258,80 @@ static int coordsRender(CorNode* nodeP, char* buf, int bufSize)
 
 // -----------------------------------------------------------------------------
 //
+// refGet - the reference geometry (geometry + coordinates), parsed and prepared, from the cache
+//
+// Owned by the context: never destroyed by the caller. NULL if it does not parse (not cached,
+// so the caller's own error path runs every time, as it did).
+//
+static GEOSGeometry* refGet(GeosCtx* ctxP, const char* geometry, const char* coordinates, const GEOSPreparedGeometry** prepPP)
+{
+  *prepPP = NULL;
+
+  if ((geometry == NULL) || (coordinates == NULL))   // nothing to key on: parsed as it always was, not cached
+    return geojsonToGeos(ctxP->handle, geometry, coordinates);
+
+  if ((ctxP->refGeom != NULL) &&
+      (strcmp(ctxP->refCoordinates, coordinates) == 0) &&
+      (strcmp(ctxP->refGeometry, geometry) == 0))
+  {
+    *prepPP = ctxP->refPrep;
+    return ctxP->refGeom;
+  }
+
+  GEOSGeometry* geomP = geojsonToGeos(ctxP->handle, geometry, coordinates);
+
+  *prepPP = NULL;
+  if (geomP == NULL)
+    return NULL;
+
+  char* geometryCopy    = strdup(geometry);
+  char* coordinatesCopy = strdup(coordinates);
+
+  if ((geometryCopy == NULL) || (coordinatesCopy == NULL))
+  {
+    //
+    // Not cached - the caller still gets its geometry, and gives it back via refDone
+    //
+    free(geometryCopy);
+    free(coordinatesCopy);
+    return geomP;
+  }
+
+  if (ctxP->refPrep != NULL)
+    GEOSPreparedGeom_destroy_r(ctxP->handle, ctxP->refPrep);
+  if (ctxP->refGeom != NULL)
+    GEOSGeom_destroy_r(ctxP->handle, ctxP->refGeom);
+  free(ctxP->refGeometry);
+  free(ctxP->refCoordinates);
+
+  ctxP->refGeom        = geomP;
+  ctxP->refPrep        = GEOSPrepare_r(ctxP->handle, geomP);
+  ctxP->refGeometry    = geometryCopy;
+  ctxP->refCoordinates = coordinatesCopy;
+
+  *prepPP = ctxP->refPrep;
+  return geomP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// refDone - the reference is finished with: destroyed only if refGet could not cache it
+//
+static void refDone(GeosCtx* ctxP, GEOSGeometry* refGeom)
+{
+  if ((refGeom != NULL) && (refGeom != ctxP->refGeom))
+    GEOSGeom_destroy_r(ctxP->handle, refGeom);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // entityGeoToGeos - convert an entity's GeoJSON value node to a GEOS geometry
 //
-static GEOSGeometry* entityGeoToGeos(CorNode* geojsonP)
+static GEOSGeometry* entityGeoToGeos(GEOSContextHandle_t geosCtx, CorNode* geojsonP)
 {
   CorNode* typeP  = corTreeLookup(geojsonP, "type");
   CorNode* coordsP = corTreeLookup(geojsonP, "coordinates");
@@ -175,7 +345,7 @@ static GEOSGeometry* entityGeoToGeos(CorNode* geojsonP)
     return NULL;
   coordBuf[pos] = 0;
 
-  return geojsonToGeos(typeP->value.s, coordBuf);
+  return geojsonToGeos(geosCtx, typeP->value.s, coordBuf);
 }
 
 
@@ -191,8 +361,10 @@ static GEOSGeometry* entityGeoToGeos(CorNode* geojsonP)
 // accept geometry that cannot be indexed. entityP is in DB-model form
 // (attr -> dataset instance -> { type: GeoProperty, value: GeoJSON }).
 //
-bool geoEntityValidate(CorNode* entityP)
+static bool geoEntityValidateWith(GeosCtx* ctxP, CorNode* entityP)
 {
+  GEOSContextHandle_t geosCtx = ctxP->handle;
+
   if (entityP == NULL || entityP->type != CorObject)
     return true;
 
@@ -214,7 +386,7 @@ bool geoEntityValidate(CorNode* entityP)
       if (geojsonP == NULL || geojsonP->type != CorObject)
         continue;
 
-      GEOSGeometry* geom = entityGeoToGeos(geojsonP);
+      GEOSGeometry* geom = entityGeoToGeos(geosCtx, geojsonP);
       if (geom == NULL)
         return false;  // unparseable / unbuildable geometry
 
@@ -269,7 +441,7 @@ static double haversineDistance(double lon1, double lat1, double lon2, double la
 // Shared by the dispatch filter and the exact matcher, which need the same
 // arithmetic and disagree only about the topological relations.
 //
-static double csrDistanceMeters(const GEOSGeometry* refGeom, const GEOSGeometry* csrGeom)
+static double csrDistanceMeters(GEOSContextHandle_t geosCtx, const GEOSGeometry* refGeom, const GEOSGeometry* csrGeom)
 {
   double xRef, yRef, xCsr, yCsr;
 
@@ -302,8 +474,27 @@ static double csrDistanceMeters(const GEOSGeometry* refGeom, const GEOSGeometry*
 // Not to be confused with the dispatch filter below, which asks a different
 // question and must not use this.
 //
-static bool geoRelEval(LdGeoRelType rel, const GEOSGeometry* refGeom, const GEOSGeometry* targetGeom)
+static bool geoRelEval(GEOSContextHandle_t geosCtx, LdGeoRelType rel, const GEOSGeometry* refGeom, const GEOSPreparedGeometry* refPrep, const GEOSGeometry* targetGeom)
 {
+  //
+  // The reference prepared: GEOS indexes it once, and each predicate against it is then far
+  // cheaper. Same answers - a prepared predicate is exact. The direction is kept: "within"
+  // asks whether the REFERENCE contains the target, "contains" whether it lies within it.
+  // equals has no prepared form.
+  //
+  if (refPrep != NULL)
+  {
+    switch (rel)
+    {
+    case LdGeoWithin:      return (GEOSPreparedContains_r(geosCtx, refPrep, targetGeom) == 1);
+    case LdGeoContains:    return (GEOSPreparedWithin_r(geosCtx, refPrep, targetGeom) == 1);
+    case LdGeoIntersects:  return (GEOSPreparedIntersects_r(geosCtx, refPrep, targetGeom) == 1);
+    case LdGeoDisjoint:    return (GEOSPreparedDisjoint_r(geosCtx, refPrep, targetGeom) == 1);
+    case LdGeoOverlaps:    return (GEOSPreparedOverlaps_r(geosCtx, refPrep, targetGeom) == 1);
+    default:               break;
+    }
+  }
+
   switch (rel)
   {
   case LdGeoWithin:      return (GEOSContains_r(geosCtx, refGeom, targetGeom) == 1);
@@ -326,8 +517,10 @@ static bool geoRelEval(LdGeoRelType rel, const GEOSGeometry* refGeom, const GEOS
 
 
 
-bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
+static bool geoMatchWith(GeosCtx* ctxP, CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
 {
+  GEOSContextHandle_t geosCtx = ctxP->handle;
+
   if (distanceP != NULL)
     *distanceP = -1;
 
@@ -392,21 +585,22 @@ bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
   //
   // Topological predicates — use GEOS
   //
-  GEOSGeometry* refGeom = geojsonToGeos(filterP->geometry, filterP->coordinates);
+  const GEOSPreparedGeometry* refPrep = NULL;
+  GEOSGeometry*               refGeom = refGet(ctxP, filterP->geometry, filterP->coordinates, &refPrep);
   if (refGeom == NULL)
     return false;
 
-  GEOSGeometry* entityGeom = entityGeoToGeos(geojsonP);
+  GEOSGeometry* entityGeom = entityGeoToGeos(geosCtx, geojsonP);
   if (entityGeom == NULL)
   {
-    GEOSGeom_destroy_r(geosCtx, refGeom);
+    refDone(ctxP, refGeom);
     return false;
   }
 
-  bool match = geoRelEval(rel, refGeom, entityGeom);
+  bool match = geoRelEval(geosCtx, rel, refGeom, refPrep, entityGeom);
 
   GEOSGeom_destroy_r(geosCtx, entityGeom);
-  GEOSGeom_destroy_r(geosCtx, refGeom);
+  refDone(ctxP, refGeom);
 
   return match;
 }
@@ -423,8 +617,10 @@ bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
 // property (csrGeoP NULL), the CSR is unconstrained: the function returns
 // true so the dispatcher keeps it as a candidate.
 //
-bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+static bool csrGeoMatchOverlapWith(GeosCtx* ctxP, CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
 {
+  GEOSContextHandle_t geosCtx = ctxP->handle;
+
   if (geoRel == NULL || geometry == NULL || coordinates == NULL)
     return true;  // no geo constraint
   //
@@ -452,14 +648,15 @@ bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry
   if (csrGeoP == NULL)
     return true;
 
-  GEOSGeometry* refGeom = geojsonToGeos(geometry, coordinates);
+  const GEOSPreparedGeometry* refPrep = NULL;
+  GEOSGeometry*               refGeom = refGet(ctxP, geometry, coordinates, &refPrep);
   if (refGeom == NULL)
     return true;  // can't parse query geometry — be permissive
 
-  GEOSGeometry* csrGeom = entityGeoToGeos(csrGeoP);
+  GEOSGeometry* csrGeom = entityGeoToGeos(geosCtx, csrGeoP);
   if (csrGeom == NULL)
   {
-    GEOSGeom_destroy_r(geosCtx, refGeom);
+    refDone(ctxP, refGeom);
     return true;  // CSR geometry malformed — pass through, downstream filter will catch
   }
 
@@ -474,7 +671,7 @@ bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry
     }
     else
     {
-      double distanceMeters = csrDistanceMeters(refGeom, csrGeom);
+      double distanceMeters = csrDistanceMeters(geosCtx, refGeom, csrGeom);
       if (distanceMeters >= 0)
         match = (distanceMeters <= geoRel->maxDistance);
     }
@@ -512,11 +709,11 @@ bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry
     // envelope is a superset, not a union - so a pass here is a candidate to
     // ASK, never an answer.
     //
-    match = (GEOSIntersects_r(geosCtx, refGeom, csrGeom) == 1);
+    match = (refPrep != NULL) ? (GEOSPreparedIntersects_r(geosCtx, refPrep, csrGeom) == 1) : (GEOSIntersects_r(geosCtx, refGeom, csrGeom) == 1);
   }
 
   GEOSGeom_destroy_r(geosCtx, csrGeom);
-  GEOSGeom_destroy_r(geosCtx, refGeom);
+  refDone(ctxP, refGeom);
 
   return match;
 }
@@ -526,8 +723,10 @@ bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry
 //
 // csrGeoMatchExact - see header
 //
-bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+static bool csrGeoMatchExactWith(GeosCtx* ctxP, CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
 {
+  GEOSContextHandle_t geosCtx = ctxP->handle;
+
   if (geoRel == NULL || geometry == NULL || coordinates == NULL)
     return true;                      // no geo constraint
 
@@ -543,11 +742,12 @@ bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, 
   if (csrGeoP == NULL)
     return true;
 
-  GEOSGeometry* refGeom = geojsonToGeos(geometry, coordinates);
+  const GEOSPreparedGeometry* refPrep = NULL;
+  GEOSGeometry*               refGeom = refGet(ctxP, geometry, coordinates, &refPrep);
   if (refGeom == NULL)
     return true;                      // unparseable query geometry - be permissive
 
-  GEOSGeometry* csrGeom = entityGeoToGeos(csrGeoP);
+  GEOSGeometry* csrGeom = entityGeoToGeos(geosCtx, csrGeoP);
   if (csrGeom == NULL)
   {
     //
@@ -555,7 +755,7 @@ bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, 
     // object lands here, as does a malformed one. entityGeoToGeos expects the
     // GeoProperty's "value" shape; the CSR stores the geometry directly.
     //
-    GEOSGeom_destroy_r(geosCtx, refGeom);
+    refDone(ctxP, refGeom);
     return true;
   }
 
@@ -567,15 +767,91 @@ bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, 
       match = true;
     else
     {
-      double d = csrDistanceMeters(refGeom, csrGeom);
+      double d = csrDistanceMeters(geosCtx, refGeom, csrGeom);
       match = (d >= 0) && (d <= geoRel->maxDistance);
     }
   }
   else
-    match = geoRelEval(geoRel->rel, refGeom, csrGeom);
+    match = geoRelEval(geosCtx, geoRel->rel, refGeom, refPrep, csrGeom);
 
   GEOSGeom_destroy_r(geosCtx, csrGeom);
-  GEOSGeom_destroy_r(geosCtx, refGeom);
+  refDone(ctxP, refGeom);
 
   return match;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoEntityValidate - on a context of its own for the length of the call
+//
+bool geoEntityValidate(CorNode* entityP)
+{
+  GeosCtx* ctxP = geosCtxTake();
+
+  if (ctxP == NULL)
+    return true;
+
+  bool r = geoEntityValidateWith(ctxP, entityP);
+
+  geosCtxGive(ctxP);
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoMatch - on a context of its own for the length of the call
+//
+bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
+{
+  GeosCtx* ctxP = geosCtxTake();
+
+  if (ctxP == NULL)
+    return false;
+
+  bool r = geoMatchWith(ctxP, entityP, filterP, distanceP);
+
+  geosCtxGive(ctxP);
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrGeoMatchOverlap - on a context of its own for the length of the call
+//
+bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  GeosCtx* ctxP = geosCtxTake();
+
+  if (ctxP == NULL)
+    return false;
+
+  bool r = csrGeoMatchOverlapWith(ctxP, csrGeoP, geoRel, geometry, coordinates);
+
+  geosCtxGive(ctxP);
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrGeoMatchExact - on a context of its own for the length of the call
+//
+bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)
+{
+  GeosCtx* ctxP = geosCtxTake();
+
+  if (ctxP == NULL)
+    return false;
+
+  bool r = csrGeoMatchExactWith(ctxP, csrGeoP, geoRel, geometry, coordinates);
+
+  geosCtxGive(ctxP);
+  return r;
 }
