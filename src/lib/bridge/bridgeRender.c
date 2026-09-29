@@ -13,13 +13,14 @@
 #include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corTree/CorNode.h"                          // CorNode
-#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeChildAdd
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeBoolean, corTreeChildAdd
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corRest/CorRestState.h"                     // corRest
 
 #include "bridge/Channel.h"                           // Channel, ChannelStatus*, ChannelRetention*
 #include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefault
+#include "bridge/bridgeSampleIn.h"                    // bridgeSamplesDropped
 #include "bridge/bridgeRender.h"                      // Own interface
 
 
@@ -167,6 +168,19 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
   if (channelP->statusReason != NULL)
     corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", channelP->statusReason));
 
+  //
+  // endpointDiscovered only once the transport said so (endpointDiscoveredIn): absent means not
+  // reported - yet, or by a transport that does not discover - never a false that would read as
+  // "looked, and it is not there".
+  //
+  if (__atomic_load_n(&channelP->endpointDiscovered, __ATOMIC_ACQUIRE) == true)
+    corTreeChildAdd(bodyP, corTreeBoolean(allocP, "endpointDiscovered", true));
+
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "samplesIn",         (long long) __atomic_load_n(&channelP->samplesIn,         __ATOMIC_RELAXED)));
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "samplesOut",        (long long) __atomic_load_n(&channelP->samplesOut,        __ATOMIC_RELAXED)));
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsWaiting",   (long long) __atomic_load_n(&channelP->requestsWaiting,   __ATOMIC_RELAXED)));
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsNotWaited", (long long) __atomic_load_n(&channelP->requestsNotWaited, __ATOMIC_RELAXED)));
+
   if (channelP->notifyUri != NULL)
     notificationRender(bodyP, channelP->notifyUri, channelP->notifyAccept);
 
@@ -188,6 +202,7 @@ CorNode* bridgeRender(const char* bridgeName, bool loaded)
   corTreeChildAdd(bodyP, corTreeString(allocP, "type", "ContextBridge"));
   corTreeChildAdd(bodyP, corTreeString(allocP, "plugin", (char*) bridgeName));
   corTreeChildAdd(bodyP, corTreeString(allocP, "status", loaded ? "available" : "unavailable"));
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "samplesDropped", (long long) bridgeSamplesDropped(bridgeName)));
 
   if (loaded == false)
   {

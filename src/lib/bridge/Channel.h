@@ -11,6 +11,7 @@
 //
 
 #include <stdbool.h>                                  // bool
+#include <stdint.h>                                   // uint64_t
 
 #include "corBridge/BridgeDriver.h"                   // BridgeChannelKind, BridgeDirection
 
@@ -88,6 +89,18 @@ typedef struct Channel
   char*              statusReason;                    // why, when dormant. NULL otherwise
   char*              notifyUri;                       // action: where a goal naming no endpoint is notified. NULL: the Bridge's default
   char*              notifyAccept;                    // its accept - application/json unless the file said otherwise
+
+  //
+  // What the transport said, and what crossed - rendered by GET /channels. A test waits on THESE,
+  // never on the log: a trace depends on the trace levels, and on how the plugin was built.
+  // Updated with __atomic builtins (plugin threads and workers alike), read the same way.
+  //
+  bool               endpointDiscovered;              // the transport reported finding the endpoint (endpointDiscoveredIn, ABI 8)
+  uint64_t           samplesIn;                       // samples written to the entity
+  uint64_t           samplesOut;                      // values published
+  uint64_t           requestsNotWaited;               // requests sent without waiting for the reply - every wait slot taken
+  int                requestsWaiting;                 // requests waiting for their reply right now
+
   struct Channel*    next;
 } Channel;
 

@@ -112,12 +112,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 141
+Content-Length: 166
 
 [
   {
     "id": "urn:ngsi-ld:ContextBridge:loopback",
     "plugin": "loopback",
+    "samplesDropped": 0,
     "status": "available",
     "type": "ContextBridge"
   }
@@ -131,11 +132,12 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 125
+Content-Length: 148
 
 {
   "id": "urn:ngsi-ld:ContextBridge:loopback",
   "plugin": "loopback",
+  "samplesDropped": 0,
   "status": "available",
   "type": "ContextBridge"
 }
@@ -164,7 +166,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 756
+Content-Length: 946
 
 [
   {
@@ -178,7 +180,11 @@ Content-Length: 756
     },
     "entityAttribute": "navigate",
     "id": "urn:ngsi-ld:Channel:loopback:A1",
+    "requestsNotWaited": 0,
+    "requestsWaiting": 0,
     "retention": "mirror",
+    "samplesIn": 0,
+    "samplesOut": 0,
     "status": "available",
     "type": "Channel"
   },
@@ -193,7 +199,11 @@ Content-Length: 756
     },
     "entityAttribute": "temperature",
     "id": "urn:ngsi-ld:Channel:loopback:P1",
+    "requestsNotWaited": 0,
+    "requestsWaiting": 0,
     "retention": "mirror",
+    "samplesIn": 0,
+    "samplesOut": 0,
     "status": "available",
     "type": "Channel"
   }
@@ -207,7 +217,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 343
+Content-Length: 430
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -220,7 +230,11 @@ Content-Length: 343
   },
   "entityAttribute": "navigate",
   "id": "urn:ngsi-ld:Channel:loopback:A1",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
   "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
   "status": "available",
   "type": "Channel"
 }
