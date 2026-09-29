@@ -15,7 +15,6 @@
 #include <string.h>                               // strcmp, memcpy, strpbrk
 #include <time.h>                                 // time
 #include <stdint.h>                               // uint32_t
-#include <execinfo.h>                             // backtrace, backtrace_symbols
 #include <ifaddrs.h>                              // getifaddrs, freeifaddrs, struct ifaddrs
 #include <net/if.h>                               // IFF_LOOPBACK, IFF_UP, IFF_RUNNING, IFF_POINTOPOINT
 #include <sys/socket.h>                           // AF_INET
@@ -110,6 +109,7 @@
 
 #include "coraineFeatures.h"                      // coraineFeatures
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
+#include "crashReport.h"                          // crashReportInstall
 
 
 
@@ -247,26 +247,6 @@ static CorArg kargV[] =
   { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
   CORARGS_END
 };
-
-
-
-// -----------------------------------------------------------------------------
-//
-// onCrash - print backtrace on segfault
-//
-static void onCrash(int sigNo)
-{
-  void*  frames[64];
-  int    count = backtrace(frames, 64);
-  char** syms  = backtrace_symbols(frames, count);
-
-  fprintf(stderr, "\n=== SIGSEGV backtrace ===\n");
-  for (int i = 0; i < count; i++)
-    fprintf(stderr, "  %s\n", syms[i]);
-  fprintf(stderr, "=========================\n");
-
-  _exit(139);
-}
 
 
 
@@ -1273,6 +1253,8 @@ int main(int argC, char* argV[])
   char* progName = strrchr(argV[0], '/');
   progName = (progName != NULL) ? progName + 1 : argV[0];
 
+  crashReportInstall(argC, argV);
+
   //
   // --version is answered before kargs is initialized and before any plugin is
   // loaded: asking a binary what it is must not depend on a plugin directory
@@ -1472,7 +1454,6 @@ int main(int argC, char* argV[])
   sem_init(&shutdownSem, 0, 0);
   signal(SIGINT,  onSignal);
   signal(SIGTERM, onSignal);
-  signal(SIGSEGV, onCrash);
 
   // User-Agent uses the <product>/<version> form — a bare
   // product name (e.g. "coraine") is blocked by some @context CDNs
