@@ -9,8 +9,16 @@
 # Likewise a q of sub-attribute paths, OR'ed (a.b.c|d.e.f) - and GET with a user @context that
 # names the same six IRIs g..l renders that q as g.h.i|j.k.l: every segment compacted with the
 # requester's context, not echoed as sent. And an update written with THOSE names (g.h.i) is the
-# same attribute path as a.b.c - it matches, and the notification says a/b/c: the subscription's
-# names, not the updater's. A short name is an alias; the IRI is the attribute.
+# same attribute path as a.b.c - it matches, and the notification says a/b/c: a notification is
+# compacted with the @context the subscription was created with, not the updater's. UNLESS the
+# subscription has a jsonldContext: then with that one - an update written as a.b.c, notified as
+# g/h/i. A short name is an alias; the IRI is the attribute.
+#
+# And the older way to the same thing, from before jsonldContext existed: an @context Link in
+# notification.endpoint.receiverInfo. Precedence: jsonldContext > receiverInfo Link > the
+# @context the subscription was created with. Either way the notification carries ONE @context -
+# the one its body is compacted with - the receiverInfo Link is not passed on as a second one. For
+# an application/ld+json notification that @context is in the body, and there is no Link header.
 #
 # A value's member names are JSON-LD, so the value path is stored expanded, like the attribute
 # name - with an IRI's dots written as '^' in the stored form. The attribute path turned them back
@@ -179,6 +187,106 @@ echo
 echo
 
 
+echo "13. A subscription with jsonldContext = the g..l context: E5 written as a.b.c, notified as g/h/i"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP3",
+  "type": "Subscription",
+  "entities": [{"type": "T3"}],
+  "q": "a.b.c",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/ghijkl",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E5", "type": "T3",
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2, "c": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP3"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+echo "names in it - g/h/i: $(grep -c '"[ghi]": {' /tmp/vp.$$), a/b/c: $(grep -c '"[abc]": {' /tmp/vp.$$)"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+echo "14. receiverInfo Link = the g..l context, no jsonldContext: E6 written as a.b.c, notified as g/h/i"
+echo "================================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP4",
+  "type": "Subscription",
+  "entities": [{"type": "T4"}],
+  "q": "a.b.c",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify",
+    "receiverInfo": [{"key": "Link", "value": "<http://localhost:7080/jsonldContexts/ghijkl>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""}] } }
+}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E6", "type": "T4",
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2, "c": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP4"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+echo "names in it - g/h/i: $(grep -c '"[ghi]": {' /tmp/vp.$$), a/b/c: $(grep -c '"[abc]": {' /tmp/vp.$$)"
+echo "Link headers: $(grep -c '"Link":' /tmp/vp.$$), naming: $(grep -o '"Link": "<[^>]*>' /tmp/vp.$$ | sed 's/.*<//; s/>//')"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+echo "15. jsonldContext = an x/y/z context AND a receiverInfo Link to g..l: jsonldContext wins"
+echo "========================================================================================"
+contextServerPush /jsonldContexts/xyz '{
+  "@context": {
+    "x": "https://uri.etsi.org/ngsi-ld/default-context/a",
+    "y": "https://uri.etsi.org/ngsi-ld/default-context/b",
+    "z": "https://uri.etsi.org/ngsi-ld/default-context/c"
+  }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP5",
+  "type": "Subscription",
+  "entities": [{"type": "T5"}],
+  "q": "a.b.c",
+  "jsonldContext": "http://localhost:7080/jsonldContexts/xyz",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify",
+    "receiverInfo": [{"key": "Link", "value": "<http://localhost:7080/jsonldContexts/ghijkl>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""}] } }
+}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E7", "type": "T5",
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2, "c": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP5"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+echo "names in it - x/y/z: $(grep -c '"[xyz]": {' /tmp/vp.$$), g/h/i: $(grep -c '"[ghi]": {' /tmp/vp.$$), a/b/c: $(grep -c '"[abc]": {' /tmp/vp.$$)"
+echo "Link headers: $(grep -c '"Link":' /tmp/vp.$$), naming: $(grep -o '"Link": "<[^>]*>' /tmp/vp.$$ | sed 's/.*<//; s/>//')"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+echo "16. accept=ld+json + receiverInfo Link = the g..l context: that @context in the BODY, g/h/i, no Link header"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP6",
+  "type": "Subscription",
+  "entities": [{"type": "T6"}],
+  "q": "a.b.c",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify", "accept": "application/ld+json",
+    "receiverInfo": [{"key": "Link", "value": "<http://localhost:7080/jsonldContexts/ghijkl>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""}] } }
+}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E8", "type": "T6",
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2, "c": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP6"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+echo "names in it - g/h/i: $(grep -c '"[ghi]": {' /tmp/vp.$$), a/b/c: $(grep -c '"[abc]": {' /tmp/vp.$$)"
+echo "@context in the body: $(grep -o '"@context": "[^"]*"' /tmp/vp.$$ | cut -d'"' -f4 | sort -u | tr '\n' ' ')"
+echo "Link headers: $(grep -c '"Link":' /tmp/vp.$$)"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
 --EXPECT--
 01. Entity E1, m = {c: {d: 1}}
 ==============================
@@ -247,6 +355,42 @@ after the create - notifications: 0
 HTTP/1.1 204 No Content
 after the PATCH - notifications: 1, entity: urn:E4
 names in it - a/b/c: 3, g/h/i: 0
+
+
+13. A subscription with jsonldContext = the g..l context: E5 written as a.b.c, notified as g/h/i
+===============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 1, entity: urn:E5
+names in it - g/h/i: 3, a/b/c: 0
+
+
+14. receiverInfo Link = the g..l context, no jsonldContext: E6 written as a.b.c, notified as g/h/i
+================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 1, entity: urn:E6
+names in it - g/h/i: 3, a/b/c: 0
+Link headers: 1, naming: http://localhost:7080/jsonldContexts/ghijkl
+
+
+15. jsonldContext = an x/y/z context AND a receiverInfo Link to g..l: jsonldContext wins
+========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 1, entity: urn:E7
+names in it - x/y/z: 3, g/h/i: 0, a/b/c: 0
+Link headers: 1, naming: http://localhost:7080/jsonldContexts/xyz
+
+
+16. accept=ld+json + receiverInfo Link = the g..l context: that @context in the BODY, g/h/i, no Link header
+========================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 1, entity: urn:E8
+names in it - g/h/i: 3, a/b/c: 0
+@context in the body: http://localhost:7080/jsonldContexts/ghijkl 
+Link headers: 0
 
 
 --TEARDOWN--
