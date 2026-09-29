@@ -1,0 +1,123 @@
+#
+# FILE            subscription_periodic_patch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# PATCH of a periodic subscription (timeInterval) takes effect - and it stays periodic.
+#
+# PATCH rebuilt the subscription into the CHANGE-DRIVEN cache, as for any other subscription,
+# and never touched the periodic one: the periodic notifications went on with the old values
+# (a new timeInterval, endpoint, q ... ignored), and the copy in the change-driven cache made
+# the subscription ALSO fire on entity changes.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+PATCH of a periodic subscription takes effect and keeps it periodic
+
+--TAGS--
+pernot subscription patch
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. Create entity V1
+# 02. Create a periodic subscription, timeInterval 3600 - the first notification comes at once
+# 03. PATCH timeInterval to 1 - the next notification is due within a second
+# 04. PATCH timeInterval back to 3600, and drain
+# 05. Update the entity - a periodic subscription does not notify on a change
+#
+
+echo "01. Create entity V1"
+echo "===================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 80}
+}' | head -1
+echo
+echo
+
+
+echo "02. Create a periodic subscription (timeInterval 3600) - the first notification comes at once"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:PP1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "timeInterval": 3600,
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+if ftClientWait 1; then echo "first notification arrived"; else echo "NO first notification"; fi
+ftClientSettle
+ftClientDump > /dev/null
+echo
+echo
+
+
+echo "03. PATCH timeInterval to 1 - the next notification is due within a second"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:PP1 -X PATCH --payload '{ "timeInterval": 1 }' | head -1
+if ftClientWait 1; then echo "notification at the new interval"; else echo "NO notification - the old interval still applies"; fi
+echo
+echo
+
+
+echo "04. PATCH timeInterval back to 3600, and drain"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:PP1 -X PATCH --payload '{ "timeInterval": 3600 }' | head -1
+ftClientSettle
+ftClientDump > /dev/null
+echo
+echo
+
+
+echo "05. Update the entity - a periodic subscription does not notify on a change"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{ "speed": {"type": "Property", "value": 90} }' | head -1
+sleep 2
+echo "notifications after the change: $(ftClientCount)"
+echo
+echo
+
+
+--EXPECT--
+01. Create entity V1
+====================
+HTTP/1.1 201 Created
+
+
+02. Create a periodic subscription (timeInterval 3600) - the first notification comes at once
+==============================================================================================
+HTTP/1.1 201 Created
+first notification arrived
+
+
+03. PATCH timeInterval to 1 - the next notification is due within a second
+===========================================================================
+HTTP/1.1 204 No Content
+notification at the new interval
+
+
+04. PATCH timeInterval back to 3600, and drain
+==============================================
+HTTP/1.1 204 No Content
+
+
+05. Update the entity - a periodic subscription does not notify on a change
+===========================================================================
+HTTP/1.1 204 No Content
+notifications after the change: 0
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

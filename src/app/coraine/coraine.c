@@ -12,7 +12,7 @@
 #include <unistd.h>                               // pause
 #include <signal.h>                               // signal, SIGINT, SIGTERM
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
-#include <string.h>                               // strcmp, memcpy
+#include <string.h>                               // strcmp, memcpy, strpbrk
 #include <time.h>                                 // time
 #include <stdint.h>                               // uint32_t
 #include <execinfo.h>                             // backtrace, backtrace_symbols
@@ -43,6 +43,7 @@
 #include "corJson/corJsonCreate.h"                // corJsonCreate
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "corTree/corTreeLookup.h"                // corTreeLookup
+#include "corTree/corTreeBuilder.h"               // corTreeChildAdd
 #include "corTree/corTreeClone.h"                 // corTreeClone
 #include "corAlloc/corAlloc.h"                    // corAlloc
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
@@ -58,6 +59,8 @@
 #include "corNgsild/ldLinkedEntitiesHook.h"        // ldLinkedEntitiesHookSet
 #include "linkedEntities/ldLinkedEntities.h"      // ldLinkedEntitiesNotifApiArray
 #include "corNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
+#include "corNgsild/LdTypeExpr.h"                   // ldTypeExprParse
+#include "corNgsild/LdVocab.h"                      // LD_VOCAB_ENTITIES
 #include "corNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "corNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
 #include "corNgsild/ldContextHost.h"               // ldContextHostReaperStart
@@ -775,37 +778,120 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
     corAllocBufferReset(&corRest.kalloc, true);
   }
 
-  // Build a minimal filter from the pernot item's entity selectors
-  DbQueryFilter filter = {0};
+  //
+  // One query per entity selector, the results merged without duplicates - a subscription's
+  // entities[] is an OR of selectors, each an AND of its own type / id / idPattern, which one
+  // filter cannot say. And the rest of the subscription's query - q, scopeQ, geoQ - on every one.
+  //
+  // It used to be one query, from the FIRST selector's type (and id) alone: the other selectors,
+  // idPattern, scopeQ and geoQ were ignored (the last two were never even parsed), and it was
+  // capped at 20 entities - a notification silently left the rest out. The selectors are read
+  // from the stored subscription (the item is pinned by the loop), where their idPattern text is.
+  //
+  CorNode* entitiesP = corTreeLookup(itemP->subTree, LD_VOCAB_ENTITIES);
+  CorNode* resultP   = NULL;
 
-  // Extract type from the first entity selector (simplified — full selector
-  // support would need to union all types across all selectors)
-  if (itemP->entitySelectors != NULL && itemP->entitySelectors->type != NULL)
+  for (CorNode* selP = (entitiesP != NULL) ? entitiesP->value.head : NULL; selP != NULL; selP = selP->next)
   {
-    static __thread char* typeVBuf[2];
-    typeVBuf[0] = itemP->entitySelectors->type;
-    typeVBuf[1] = NULL;
-    filter.typeV = typeVBuf;
+    if (selP->type != CorObject)
+      continue;
+
+    CorNode* typeP      = corTreeLookup(selP, "type");
+    CorNode* idP        = corTreeLookup(selP, "id");
+    CorNode* idPatternP = corTreeLookup(selP, "idPattern");
+
+    DbQueryFilter filter = {0};
+    char*         typeV[2];
+    char*         idV[2];
+
+    if ((typeP != NULL) && (typeP->type == CorString))
+    {
+      if (strpbrk(typeP->value.s, "|&!(),;") != NULL)   // a type-selection expression (§ 4.17)
+        filter.typeExpr = ldTypeExprParse(typeP->value.s, &corRest.kalloc);
+      else
+      {
+        typeV[0] = typeP->value.s;
+        typeV[1] = NULL;
+        filter.typeV = typeV;
+      }
+    }
+
+    if ((idP != NULL) && (idP->type == CorString))
+    {
+      idV[0] = idP->value.s;
+      idV[1] = NULL;
+      filter.idV = idV;
+    }
+
+    if ((idPatternP != NULL) && (idPatternP->type == CorString))
+      filter.idPattern = idPatternP->value.s;
+
+    filter.qExpr       = itemP->qExpr;
+    filter.scopeExpr   = itemP->scopeExpr;
+    filter.geoRel      = itemP->geoRel;
+    filter.geometry    = itemP->geoGeometry;
+    filter.coordinates = itemP->geoCoordinates;
+    filter.geoproperty = itemP->geoProperty;
+    filter.unpaged     = true;                     // every match - a notification is not a page
+
+    CorNode* arrayP = NULL;
+    if ((db.entityQuery((Tenant*) tenantP, &filter, &arrayP) != DB_OK) || (arrayP == NULL))
+      continue;
+
+    if (resultP == NULL)
+    {
+      resultP = arrayP;
+      continue;
+    }
+
+    // Merge: an entity two selectors both match goes out once
+    CorNode* nextP;
+    for (CorNode* eP = arrayP->value.head; eP != NULL; eP = nextP)
+    {
+      nextP = eP->next;
+
+      CorNode* eIdP = corTreeLookup(eP, "id");
+      bool     dup  = false;
+
+      if ((eIdP != NULL) && (eIdP->type == CorString))
+      {
+        for (CorNode* rP = resultP->value.head; (rP != NULL) && (dup == false); rP = rP->next)
+        {
+          CorNode* rIdP = corTreeLookup(rP, "id");
+          dup = (rIdP != NULL) && (rIdP->type == CorString) && (strcmp(rIdP->value.s, eIdP->value.s) == 0);
+        }
+      }
+
+      if (dup == false)
+      {
+        eP->next = NULL;
+        corTreeChildAdd(resultP, eP);
+      }
+    }
   }
 
-  // Extract id if specific
-  if (itemP->entitySelectors != NULL && itemP->entitySelectors->id != NULL)
+  return resultP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerPernotCaches - every tenant's pernot cache, for the periodic loop
+//
+// The tenants: tenant0, then the list - published with a release store and never freed, so it
+// is walked here without the tenant mutex, tenants created after startup included.
+//
+static void brokerPernotCaches(LdPernotCacheVisitFn visit, void* arg)
+{
+  if (tenant0.pernotCacheP != NULL)
+    visit((LdPernotCache*) tenant0.pernotCacheP, arg);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
   {
-    static __thread char* idVBuf[2];
-    idVBuf[0] = itemP->entitySelectors->id;
-    idVBuf[1] = NULL;
-    filter.idV = idVBuf;
+    if (tP->pernotCacheP != NULL)
+      visit((LdPernotCache*) tP->pernotCacheP, arg);
   }
-
-  filter.qExpr     = itemP->qExpr;
-  filter.scopeExpr = itemP->scopeExpr;
-  filter.geoRel    = itemP->geoRel;
-  filter.limit     = 20;
-
-  CorNode* arrayP = NULL;
-  int r = db.entityQuery((Tenant*) tenantP, &filter, &arrayP);
-
-  return (r == DB_OK) ? arrayP : NULL;
 }
 
 
@@ -1505,8 +1591,7 @@ int main(int argC, char* argV[])
 
   // Register the pernot subsystem with the shared periodic-dispatch
   // engine. The engine itself is launched once below.
-  if (tenant0.pernotCacheP != NULL)
-    ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
+  ldPernotLoopStart(brokerPernotCaches, pernotQueryCallback);   // every tenant, not only tenant0
 
   // § 5.2.x throttling — register the coalesce-to-latest flush (sole sender for
   // throttled subs; the synchronous path only buffers into the dirty set).

@@ -1,0 +1,115 @@
+#
+# FILE            subscription_periodic_q_after_restart.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A periodic subscription (timeInterval) keeps its q across a broker restart.
+#
+# The periodic cache took the parsed q from its caller and never parsed it itself: a
+# subscription loaded from the database at startup (or by the HA watch) got NONE, and after a
+# restart it notified every entity of its type.
+#
+# REQUIRE_DB: mongoc
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Periodic subscription keeps its q after a restart
+
+--TAGS--
+pernot subscription restart
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. Vehicles V1 (speed 10) and V2 (speed 80)
+# 02. A periodic subscription (timeInterval 1) with q=speed>50 - V2 notified, V1 not
+# 03. Restart the broker
+# 04. After the restart: still V2 notified, V1 not
+#
+
+echo "01. Vehicles V1 (speed 10) and V2 (speed 80)"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 10}},
+  {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 80}}
+]' | head -1
+echo
+echo
+
+
+echo "02. A periodic subscription with q=speed>50 - V2 only"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:PQ1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "speed>50",
+  "timeInterval": 1,
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+ftClientWait 1 || echo "NO notification"
+ftClientSettle
+ftClientDump > /tmp/pq1.$$
+v1=$(grep -c '"id": "urn:V1"' /tmp/pq1.$$); v2=$(grep -c '"id": "urn:V2"' /tmp/pq1.$$)
+echo "V1 notified: $([ $v1 -gt 0 ] && echo yes || echo no), V2 notified: $([ $v2 -gt 0 ] && echo yes || echo no)"
+rm -f /tmp/pq1.$$
+echo
+echo
+
+
+echo "03. Restart the broker"
+echo "======================"
+coraineStop
+ftClientSettle
+ftClientDump > /dev/null      # what came before the restart must not answer for what comes after
+coraineStart
+echo "restarted"
+echo
+echo
+
+
+echo "04. The first notification after the restart - still V2 only"
+echo "============================================================="
+ftClientWait 1 || echo "NO notification"
+ftClientSettle
+ftClientDump > /tmp/pq1.$$
+v1=$(grep -c '"id": "urn:V1"' /tmp/pq1.$$); v2=$(grep -c '"id": "urn:V2"' /tmp/pq1.$$)
+echo "V1 notified: $([ $v1 -gt 0 ] && echo yes || echo no), V2 notified: $([ $v2 -gt 0 ] && echo yes || echo no)"
+rm -f /tmp/pq1.$$
+echo
+echo
+
+
+--EXPECT--
+01. Vehicles V1 (speed 10) and V2 (speed 80)
+============================================
+HTTP/1.1 201 Created
+
+
+02. A periodic subscription with q=speed>50 - V2 only
+=====================================================
+HTTP/1.1 201 Created
+V1 notified: no, V2 notified: yes
+
+
+03. Restart the broker
+======================
+restarted
+
+
+04. The first notification after the restart - still V2 only
+=============================================================
+V1 notified: no, V2 notified: yes
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

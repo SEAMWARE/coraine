@@ -39,8 +39,6 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
-#include "corNgsild/ldQParse.h"                       // ldQParse
-#include "corNgsild/ldQRender.h"                      // ldQRender
 #include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "corNgsild/ldDistSub.h"                      // ldDistSubFanout
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -149,32 +147,13 @@ bool postSubscriptions(void)
   }
 
   //
-  // Expand q-filter attribute names using the request's @context.
-  // The q string is opaque to JSON-LD expansion, so we parse it (which expands
-  // attr names via corNgsild.contextP), then render back to a string with the
-  // expanded IRIs and replace the value in the subscription tree.
+  // q is stored as the client sent it, and each cache parses it itself (with this request's
+  // @context), into memory it owns. This used to parse it into the subscription cache's shared
+  // arena - outside its lock, so two POSTs at once raced on it - meaning to store it EXPANDED;
+  // but it looked q up by an IRI the tree does not carry, so that never ran. It could not have
+  // worked anyway: ldQParse cannot read an expanded q back (an IRI's dots read as path
+  // separators).
   //
-  //
-  // Expand q-filter and store expanded version + pre-parsed tree for the cache.
-  // Parse once with the cache's allocator so the tree persists across requests.
-  //
-  LdQNode* qExprForCache = NULL;
-  CorNode* qP            = corTreeLookup(subP, "https://uri.etsi.org/ngsi-ld/q");
-  if (qP != NULL && qP->type == CorString)
-  {
-    Tenant* tP = (Tenant*) corNgsild.tenantP;
-    CorAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
-
-    // Single parse — expands attr names via corNgsild.contextP, allocates with cache allocator
-    qExprForCache = ldQParse(qP->value.s, cacheAllocP);
-    if (qExprForCache != NULL)
-    {
-      // Render back to expanded q-string for DB storage
-      char* expandedQ = ldQRender(qExprForCache, NULL, &corRest.kalloc, false);
-      if (expandedQ != NULL)
-        qP->value.s = expandedQ;
-    }
-  }
 
   //
   // Add "status" = "active"|"paused"|"expired" (read-only field, computed from isActive + expiresAt)
@@ -386,7 +365,7 @@ bool postSubscriptions(void)
   if (isPernot)
   {
     if (tenantP->pernotCacheP != NULL)
-      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, qExprForCache, tenantP);
+      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP);
   }
   else
   {
@@ -398,7 +377,7 @@ bool postSubscriptions(void)
     ldSubCacheWrLock(subCacheP);
     if (subCacheP != NULL)
     {
-      cachedP = ldSubCacheItemAdd(subCacheP, subP, qExprForCache, notifFormat);
+      cachedP = ldSubCacheItemAdd(subCacheP, subP, NULL, notifFormat);   // parses the stored q
       if (cachedP != NULL)
         ldSubCacheItemPin(cachedP);
     }

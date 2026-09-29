@@ -436,7 +436,7 @@ int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace)
     if (replace && (subId != NULL))
       ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
 
-    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, NULL, tP);
+    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP);
     return TENANT_SUB_KIND_PERNOT;
   }
 

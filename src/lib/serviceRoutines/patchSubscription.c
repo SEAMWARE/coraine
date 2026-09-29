@@ -20,7 +20,7 @@
 #include "corNgsild/LdOp.h"                           // LdOpUpdateSubscription
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdPernotCache.h"                  // LdPernotCache
-#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup, ldPernotCacheItemReplace
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
@@ -288,6 +288,19 @@ bool patchSubscription(void)
   {
     ldSubCacheUnlock(subCacheP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating subscription '%s'", subId);
+    return true;
+  }
+
+  //
+  // A periodic subscription lives in the periodic cache, and is replaced THERE. This went on to
+  // rebuild it into the change-driven cache, as any other subscription - leaving the periodic one
+  // untouched (old interval, endpoint, filters) and adding a copy that fired on entity changes.
+  //
+  if (existingIsPernot)
+  {
+    ldSubCacheUnlock(subCacheP);
+    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP);
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 
