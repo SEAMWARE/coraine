@@ -21,6 +21,7 @@
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheRdLock, ldSubCacheUnlock
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheRdLock, ldPernotCacheUnlock
 #include "corNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
 #include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "corNgsild/ldPagination.h"                   // ldPaginationLinkHeader
@@ -124,12 +125,14 @@ bool getSubscriptions(void)
     ldSubCacheUnlock(scP);
   }
 
+  // The pernot cache the same way, under its own rdlock (never both locks at once)
   if (pcP != NULL)
+  {
+    ldPernotCacheRdLock(pcP);
+
     for (LdPernotItem* it = pcP->head; it != NULL; it = it->next)
       if (it->subTree != NULL) total++;
 
-  if (pcP != NULL)
-  {
     for (LdPernotItem* it = pcP->head; it != NULL && (limit < 0 || taken < limit); it = it->next)
     {
       if (it->subTree == NULL) continue;
@@ -142,6 +145,8 @@ bool getSubscriptions(void)
       corTreeChildAdd(arrayP, subP);
       taken++;
     }
+
+    ldPernotCacheUnlock(pcP);
   }
 
   // § 7.4.2.2: prev/next pointers describe iterating the pages of a result set;

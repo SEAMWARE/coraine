@@ -156,8 +156,11 @@ bool patchSubscription(void)
   CorNode* waInFragment = corTreeLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
   CorNode* thInFragment = corTreeLookup(fragment, LD_VOCAB_THROTTLING);
 
-  bool existingIsPernot = (tenantP->pernotCacheP != NULL &&
-                           ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) != NULL);
+  LdPernotCache* pernotCacheP = (LdPernotCache*) tenantP->pernotCacheP;
+
+  ldPernotCacheRdLock(pernotCacheP);   // the loop thread and other requests change it
+  bool existingIsPernot = (pernotCacheP != NULL) && (ldPernotCacheItemLookup(pernotCacheP, subId) != NULL);
+  ldPernotCacheUnlock(pernotCacheP);
 
   if (tiInFragment != NULL && !existingIsPernot)
   {

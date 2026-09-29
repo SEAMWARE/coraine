@@ -21,7 +21,7 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
 #include "corNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
-#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookupPinned, ldPernotCacheItemUnpin
 #include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "corNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 
@@ -39,7 +39,7 @@
 // plus live counters. Cloning into the request arena so the response path
 // can compact IRIs and add stats without mutating cache.
 //
-static bool subscriptionRender(Tenant* tenantP, const char* subId, LdSubCacheItem* cacheItem);
+static bool subscriptionRender(const char* subId, LdSubCacheItem* cacheItem, LdPernotItem* pernotItem);
 
 bool getSubscription(void)
 {
@@ -63,10 +63,18 @@ bool getSubscription(void)
     ldSubCacheUnlock(subCacheP);
   }
 
-  bool r = subscriptionRender(tenantP, subId, cacheItem);
+  // Not a regular subscription? A periodic one, from the pernot cache - pinned the same way
+  LdPernotItem* pernotItem = NULL;
+
+  if ((cacheItem == NULL) && (tenantP->pernotCacheP != NULL))
+    pernotItem = ldPernotCacheItemLookupPinned((LdPernotCache*) tenantP->pernotCacheP, subId);
+
+  bool r = subscriptionRender(subId, cacheItem, pernotItem);
 
   if (cacheItem != NULL)
     ldSubCacheItemUnpin(cacheItem);
+  if (pernotItem != NULL)
+    ldPernotCacheItemUnpin(pernotItem);
 
   return r;
 }
@@ -75,11 +83,10 @@ bool getSubscription(void)
 
 // -----------------------------------------------------------------------------
 //
-// subscriptionRender - the response, from a PINNED cache item (or the pernot cache)
+// subscriptionRender - the response, from a PINNED item of the sub cache or of the pernot cache
 //
-static bool subscriptionRender(Tenant* tenantP, const char* subId, LdSubCacheItem* cacheItem)
+static bool subscriptionRender(const char* subId, LdSubCacheItem* cacheItem, LdPernotItem* pernotItem)
 {
-  LdPernotItem*   pernotItem = (tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
   CorNode*        srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
 
   if (srcTree == NULL)
