@@ -33,7 +33,7 @@
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
 #include "currentState/mongoc/mongocTreeToBson.h"        // mongocTreeToBson
-#include "corNgsild/CorNgsild.h"                          // corNgsild (geoConflictAttr)
+#include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkUpdate.h"  // Own interface
 

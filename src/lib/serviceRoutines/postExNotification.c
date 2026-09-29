@@ -33,7 +33,7 @@
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corAlloc/corAlloc.h"                       // corAlloc
 
-#include "corJsonld/corLdInit.h"                       // corLdCoreContext
+#include "corJsonld/corLdInit.h"                     // corLdCoreContext
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTree
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild

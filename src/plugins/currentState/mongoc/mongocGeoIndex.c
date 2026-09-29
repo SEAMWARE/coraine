@@ -26,7 +26,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT
 #include "corNgsild/ldTypes.h"                        // ldAttrTypeFromString, LdAttrGeoProperty
-#include "corNgsild/ldIsEntityKeyword.h"           // ldIsNotAttributeName
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 
 #include "db/Tenant.h"                                             // Tenant
 #include "currentState/mongoc/mongocDotEscape.h"                   // mongocEscapeDotsInKey

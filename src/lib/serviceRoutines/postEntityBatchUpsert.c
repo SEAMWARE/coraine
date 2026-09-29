@@ -55,7 +55,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
@@ -84,6 +84,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -418,8 +419,8 @@ static bool hasAnyNonKeywordAttr(CorNode* fragP)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
-    if (strcmp(c->name, "id")   == 0)    continue;
-    if (strcmp(c->name, "type") == 0)    continue;
+    if (ldTermId(c) == CorTermId)    continue;
+    if (ldTermId(c) == CorTermType)  continue;
     return true;
   }
   return false;
@@ -919,7 +920,7 @@ bool postEntityBatchUpsert(void)
           // from the matching prev instance (same attr + datasetId).
           for (CorNode* nAttr = newFinalP->value.head; nAttr != NULL; nAttr = nAttr->next)
           {
-            if (nAttr->name == NULL || ldIsEntityKeyword(nAttr->name)) continue;
+            if (nAttr->name == NULL || ldIsEntityMember(nAttr)) continue;
             if (nAttr->type != CorObject)                               continue;
 
             CorNode* pAttr = corTreeLookup(prevP, nAttr->name);
@@ -957,7 +958,7 @@ bool postEntityBatchUpsert(void)
           report.changes = corTreeArray(corRest.kallocP, NULL);
           for (CorNode* fAttr = fragP->value.head; fAttr != NULL; fAttr = fAttr->next)
           {
-            if (fAttr->name == NULL || ldIsNotAttributeName(fAttr->name))  continue;
+            if (fAttr->name == NULL || ldIsNotAttribute(fAttr))  continue;
             CorNode* chg = corTreeObject(corRest.kallocP, NULL);
             corTreeChildAdd(chg, corTreeString(corRest.kallocP, "attr", (char*) fAttr->name));
             corTreeChildAdd(chg, corTreeString(corRest.kallocP, "reason", (char*) "attributeCreated"));

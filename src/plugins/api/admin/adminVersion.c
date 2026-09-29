@@ -25,7 +25,7 @@
 #include "corJsonld/corJsonld.h"                    // CORJSONLD_VERSION
 #include "corNgsild/corNgsild.h"                    // CORNGSILD_VERSION
 
-#include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "corTree/corTreeBuilder.h"                 // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 
 #include "db/DbDriver.h"                         // db
 #include "plugin/ApiPlugin.h"                     // apiPlugins, apiPluginCount

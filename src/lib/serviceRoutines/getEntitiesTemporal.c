@@ -61,6 +61,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForQuery, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
@@ -109,8 +110,8 @@ static void stripInfoAttrsFromEntity(CorNode* entityP, LdRegInfo* riP)
     CorNode* nextP = curP->next;
 
     if (curP->name != NULL && curP->name[0] != '@' &&
-        strcmp(curP->name, "id")   != 0 &&
-        strcmp(curP->name, "type") != 0)
+        ldTermId(curP) != CorTermId &&
+        ldTermId(curP) != CorTermType)
     {
       bool covered = wildcard;
       if (!covered && riP->attributeNamesV != NULL)
@@ -151,8 +152,8 @@ static void mergeTemporalEntity(CorNode* destP, CorNode* upP, bool keepOnlyMissi
 
     if (upChild->name == NULL ||
         upChild->name[0] == '@' ||
-        strcmp(upChild->name, "id")   == 0 ||
-        strcmp(upChild->name, "type") == 0)
+        ldTermId(upChild) == CorTermId ||
+        ldTermId(upChild) == CorTermType)
     {
       upChild = upNext;
       continue;

@@ -33,11 +33,13 @@
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corAlloc/corAlloc.h"                       // corAlloc
 
+#include "corNgsild/ldAttrMember.h"                  // ldTemporalMembersStrip
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSend, ldDistOpLoopDetected, ldDistOpCsrWouldLoop, ldDistOpBatchErrorAdd, ldDistOpForwardFailureReason
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -56,8 +58,8 @@ static bool hasNonKeywordAttr(CorNode* entityP)
   {
     if (c->name == NULL)             continue;
     if (c->name[0] == '@')           continue;
-    if (strcmp(c->name, "id")   == 0) continue;
-    if (strcmp(c->name, "type") == 0) continue;
+    if (ldTermId(c) == CorTermId)    continue;
+    if (ldTermId(c) == CorTermType)  continue;
     return true;
   }
   return false;
@@ -238,6 +240,7 @@ bool postEntityTemporalAttrs(void)
 
   if (!distopsConsumedAll)
   {
+    ldTemporalMembersStrip(bodyP);   // instanceId & co are the broker's: "systems should maintain an instanceId"
     int r = troe.entityTemporalAttrsAdd(tenantP, entityId, bodyP);
 
     if (r == TROE_NOT_FOUND)

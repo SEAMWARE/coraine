@@ -201,7 +201,7 @@ static int partialPurge(Tenant* tenantP, const char* entityId, char** dropV, cha
 
     for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
     {
-      if (ldIsEntityKeyword(attrP->name)) continue;
+      if (ldIsEntityMember(attrP)) continue;
       if (inStringV((char**) keepIri, attrP->name)) continue;
 
       corTreeChildAdd(fragment, corTreeString(corRest.kallocP, attrP->name, LD_VOCAB_NGSILD_NULL));

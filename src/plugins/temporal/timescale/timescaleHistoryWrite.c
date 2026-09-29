@@ -44,6 +44,7 @@
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease, timescalePoolDrop
 #include "temporal/timescale/timescaleEvent.h"            // timescaleExec*Locked
+#include "corNgsild/ldTermId.h"                           // ldTermId, CorTerm*
 #include "temporal/timescale/timescaleHistoryWrite.h"     // Own interface
 
 
@@ -310,7 +311,7 @@ static CorNode* instanceWrap(CorNode* instanceP)
   CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
   // Detach the instance from its array parent and rename for the wrapper.
   instanceP->next = NULL;
-  instanceP->name = (char*) dsKey;
+  ldNodeRename(instanceP, (char*) dsKey);
   corTreeChildAdd(wrap, instanceP);
   return wrap;
 }
@@ -342,11 +343,11 @@ static int insertInstanceRows(Tenant* tenantP, const char* entityId,
 
     if (attrP->name == NULL ||
         attrP->name[0] == '@' ||
-        strcmp(attrP->name, "id")         == 0 ||
-        strcmp(attrP->name, "type")       == 0 ||
-        strcmp(attrP->name, "scope")      == 0 ||
-        strcmp(attrP->name, "createdAt")  == 0 ||
-        strcmp(attrP->name, "modifiedAt") == 0)
+        ldTermId(attrP) == CorTermId ||
+        ldTermId(attrP) == CorTermType ||
+        ldTermId(attrP) == CorTermScope ||
+        ldTermId(attrP) == CorTermCreatedAt ||
+        ldTermId(attrP) == CorTermModifiedAt)
     {
       attrP = nextAttrP;
       continue;
@@ -530,11 +531,11 @@ static CorNode* extractInstanceFromBody(CorNode* bodyP)
   {
     if (fP->name == NULL)                           continue;
     if (fP->name[0] == '@')                         continue;
-    if (strcmp(fP->name, "id")        == 0)         continue;
-    if (strcmp(fP->name, "type")      == 0)         continue;
-    if (strcmp(fP->name, "scope")     == 0)         continue;
-    if (strcmp(fP->name, "createdAt")  == 0)        continue;
-    if (strcmp(fP->name, "modifiedAt") == 0)        continue;
+    if (ldTermId(fP) == CorTermId)          continue;
+    if (ldTermId(fP) == CorTermType)        continue;
+    if (ldTermId(fP) == CorTermScope)       continue;
+    if (ldTermId(fP) == CorTermCreatedAt)   continue;
+    if (ldTermId(fP) == CorTermModifiedAt)  continue;
 
     if (fP->type == CorArray && fP->value.head != NULL)
       return fP->value.head;

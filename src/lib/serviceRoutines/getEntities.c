@@ -30,7 +30,7 @@
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/ldParamsValidate.h"               // ldParamsValidate
 #include "corNgsild/ldOrderSort.h"                    // ldOrderSort
-#include "corNgsild/ldIsEntityKeyword.h"             // ldIsEntityKeyword
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsEntityKeyword
 #include "corAlloc/corAllocStrdup.h"                // corAllocStrdup
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
@@ -53,6 +53,7 @@
 #include "corNgsild/LdTypeExpr.h"                     // ldTypeExprParse
 #include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
@@ -492,8 +493,8 @@ static void apiAttrToStorageWrap(CorNode* entityP)
     CorNode* nextP = curP->next;
 
     if (curP->name == NULL || curP->name[0] == '@' ||
-        strcmp(curP->name, "id")   == 0 ||
-        strcmp(curP->name, "type") == 0 ||
+        ldTermId(curP) == CorTermId ||
+        ldTermId(curP) == CorTermType ||
         curP->type != CorObject)
     {
       curP = nextP;
@@ -502,7 +503,7 @@ static void apiAttrToStorageWrap(CorNode* entityP)
 
     CorNode* wrapperP = corTreeObject(corRest.kallocP, curP->name);
     corTreeChildReplace(entityP, curP, wrapperP);
-    curP->name = (char*) "@none";
+    ldNodeRename(curP, (char*) "@none");
     curP->next = NULL;
     corTreeChildAdd(wrapperP, curP);
 
@@ -1447,7 +1448,7 @@ static bool entityMapPaginate(void)
       bool hasAttr = false;
       for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
-        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+        if (cP->name != NULL && !ldIsEntityMember(cP)) { hasAttr = true; break; }
       }
       if (!hasAttr)
         corTreeChildRemove(arrayP, ep);
@@ -2151,7 +2152,7 @@ bool getEntities(void)
               {
                 CorNode* nextAP = aP->next;
                 if (aP->name != NULL && aP->name[0] != '@' &&
-                    strcmp(aP->name, "id") != 0 && strcmp(aP->name, "type") != 0 &&
+                    ldTermId(aP) != CorTermId && ldTermId(aP) != CorTermType &&
                     ldRegCacheAttrExclusivelyClaimed(excRc, remoteIdP->value.s, etV[0] != NULL ? etV : NULL, aP->name, corRest.requestStartTime))
                   corTreeChildRemove(remoteEntity, aP);
                 aP = nextAP;
@@ -2424,7 +2425,7 @@ bool getEntities(void)
       bool hasAttr = false;
       for (CorNode* cP = ep->value.head; cP != NULL; cP = cP->next)
       {
-        if (cP->name != NULL && !ldIsEntityKeyword(cP->name)) { hasAttr = true; break; }
+        if (cP->name != NULL && !ldIsEntityMember(cP)) { hasAttr = true; break; }
       }
       if (!hasAttr)
         corTreeChildRemove(arrayP, ep);

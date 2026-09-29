@@ -19,8 +19,8 @@
 #include "corTree/corTreeBuilder.h"                   // corTreeArray, corTreeObject, corTreeString, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 
-#include "corJsonld/corLdCompact.h"                     // corLdCompact
-#include "corJsonld/corLdInit.h"                        // corLdCoreContext
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext
 
 #include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdRegCache.h"                      // LdRegCache

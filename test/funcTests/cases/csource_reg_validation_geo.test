@@ -198,10 +198,10 @@ Content-Length: 169
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 214
+Content-Length: 169
 
 {
-  "detail": "Unknown GeoJSON geometry type: 'https://uri.etsi.org/ngsi-ld/default-context/Square'",
+  "detail": "Unknown GeoJSON geometry type: 'Square'",
   "status": 400,
   "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

@@ -22,7 +22,7 @@
 #include "corRest/CorRestVerb.h"                        // CorVerbGet
 
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_HAS_OBJECT
-#include "corNgsild/CorNgsild.h"                        // ldDistributed, corNgsild
+#include "corNgsild/CorNgsild.h"                       // ldDistributed, corNgsild
 #include "corNgsild/LdProj.h"                          // LdProjItem, ldProjectionFindChild, ldProjectionTopLevelNames
 #include "corNgsild/ldPickOmit.h"                      // ldPickOmit
 #include "corNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode
@@ -31,6 +31,7 @@
 #include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 #include "corNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
 #include "corNgsild/ldStripAtContext.h"                // ldStripAtContext
+#include "corNgsild/ldTermId.h"                        // ldTermId, CorTerm*
 
 #include "corJsonld/corLdExpandTree.h"                  // corLdExpandTree
 
@@ -371,11 +372,11 @@ static void flatBfs(CorNode*        outArr,
         if (attrP->name == NULL)                                      continue;
         if (attrP->name[0] == '@')                                    continue;
         if (attrP->type != CorObject)                                 continue;
-        if (strcmp(attrP->name, "id")         == 0)                   continue;
-        if (strcmp(attrP->name, "type")       == 0)                   continue;
-        if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
-        if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
-        if (strcmp(attrP->name, "scope")      == 0)                   continue;
+        if (ldTermId(attrP) == CorTermId)          continue;
+        if (ldTermId(attrP) == CorTermType)        continue;
+        if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+        if (ldTermId(attrP) == CorTermModifiedAt)  continue;
+        if (ldTermId(attrP) == CorTermScope)       continue;
 
         LdProjItem* subPick = ldProjectionFindChild(fromPick, attrP->name);
         LdProjItem* subOmit = ldProjectionFindChild(fromOmit, attrP->name);
@@ -606,11 +607,11 @@ static void inlineWalk(CorNode*      entityP,
     if (attrP->name == NULL)                                      continue;
     if (attrP->name[0] == '@')                                    continue;
     if (attrP->type != CorObject)                                 continue;
-    if (strcmp(attrP->name, "id")         == 0)                   continue;
-    if (strcmp(attrP->name, "type")       == 0)                   continue;
-    if (strcmp(attrP->name, "createdAt")  == 0)                   continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)                   continue;
-    if (strcmp(attrP->name, "scope")      == 0)                   continue;
+    if (ldTermId(attrP) == CorTermId)          continue;
+    if (ldTermId(attrP) == CorTermType)        continue;
+    if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+    if (ldTermId(attrP) == CorTermModifiedAt)  continue;
+    if (ldTermId(attrP) == CorTermScope)       continue;
 
     // § 4.21 / § 4.5.23 attribute projection: when pick/omit is
     // `parent{child1,child2}`, the {…} sub-projection applies to the
@@ -638,7 +639,7 @@ static void inlineWalk(CorNode*      entityP,
         CorNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
         if (targetP != NULL)
         {
-          targetP->name = "entity";
+          ldNodeRename(targetP, "entity");
           corTreeChildAdd(instP, targetP);
         }
       }
@@ -653,7 +654,7 @@ static void inlineWalk(CorNode*      entityP,
           CorNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
           if (targetP != NULL)
           {
-            targetP->name = NULL;
+            ldNodeRename(targetP, NULL);
             corTreeChildAdd(entityArr, targetP);
           }
         }
@@ -725,11 +726,11 @@ static void collectRelationshipTargetsApi(CorNode* entityP, const char*** outIds
   for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL || attrP->name[0] == '@')               continue;
-    if (strcmp(attrP->name, "id")         == 0)                     continue;
-    if (strcmp(attrP->name, "type")       == 0)                     continue;
-    if (strcmp(attrP->name, "createdAt")  == 0)                     continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
-    if (strcmp(attrP->name, "scope")      == 0)                     continue;
+    if (ldTermId(attrP) == CorTermId)          continue;
+    if (ldTermId(attrP) == CorTermType)        continue;
+    if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+    if (ldTermId(attrP) == CorTermModifiedAt)  continue;
+    if (ldTermId(attrP) == CorTermScope)       continue;
 
     CorNode* instances[16];
     int     instCount = 0;
@@ -888,11 +889,11 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
   for (CorNode* attrP = primaryP->value.head; attrP != NULL; attrP = attrP->next)
   {
     if (attrP->name == NULL || attrP->name[0] == '@')               continue;
-    if (strcmp(attrP->name, "id")         == 0)                     continue;
-    if (strcmp(attrP->name, "type")       == 0)                     continue;
-    if (strcmp(attrP->name, "createdAt")  == 0)                     continue;
-    if (strcmp(attrP->name, "modifiedAt") == 0)                     continue;
-    if (strcmp(attrP->name, "scope")      == 0)                     continue;
+    if (ldTermId(attrP) == CorTermId)          continue;
+    if (ldTermId(attrP) == CorTermType)        continue;
+    if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+    if (ldTermId(attrP) == CorTermModifiedAt)  continue;
+    if (ldTermId(attrP) == CorTermScope)       continue;
 
     CorNode* instances[16];
     int     instCount = 0;
@@ -922,7 +923,7 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
         CorNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
         if (targetEntityP != NULL)
         {
-          targetEntityP->name = (char*) "entity";
+          ldNodeRename(targetEntityP, (char*) "entity");
           corTreeChildAdd(instances[i], targetEntityP);
         }
       }
@@ -936,7 +937,7 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
           CorNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
           if (targetEntityP != NULL)
           {
-            targetEntityP->name = NULL;
+            ldNodeRename(targetEntityP, NULL);
             corTreeChildAdd(entityArr, targetEntityP);
           }
         }

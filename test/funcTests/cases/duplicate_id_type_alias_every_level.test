@@ -1,0 +1,134 @@
+#
+# FILE            duplicate_id_type_alias_every_level.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# "@type" IS "type" (it is what "type" expands to), and "@id" is "id" (KZ 2026-09-28).
+# A container that holds both spellings holds one member twice: 400 - at every level,
+# not only at the Entity's. Until 2026-09-28 only the Entity level checked: an
+# Attribute with both "type" and "@type" was created (201).
+#
+# 01. Attribute with both type and @type - 400
+# 02. Sub-attribute with both type and @type - 400
+# 03. Entity selector of a Subscription with both id and @id - 400
+# 04. An Attribute with "@type" only - created, and GET returns it as "type"
+#
+--NAME--
+Duplicate id/@id and type/@type - 400 at every level; the @ spelling is stored as the plain one
+
+--TAGS--
+entity subscription validation alias
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+coraineStart
+
+--RUN--
+
+echo "01. Attribute with both type and @type - 400"
+echo "============================================"
+payload='{ "id": "urn:DUP:E1", "type": "T", "p": { "type": "Property", "@type": "Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Sub-attribute with both type and @type - 400"
+echo "================================================"
+payload='{ "id": "urn:DUP:E2", "type": "T", "p": { "type": "Property", "value": 1, "s": { "type": "Property", "@type": "Property", "value": 2 } } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Subscription entity selector with both id and @id - 400"
+echo "==========================================================="
+payload='{ "type": "Subscription", "entities": [ { "id": "urn:DUP:E3", "@id": "urn:DUP:E4", "type": "T" } ], "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } } }'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "04. Attribute with @type only - created; GET returns it as type"
+echo "==============================================================="
+payload='{ "id": "urn:DUP:E5", "type": "T", "p": { "@type": "Property", "value": 1 } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:DUP:E5
+echo
+echo
+
+
+--EXPECT--
+01. Attribute with both type and @type - 400
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 162
+
+{
+  "detail": "Duplicate 'type' / '@type' in 'p'",
+  "status": 400,
+  "title": "Duplicate Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. Sub-attribute with both type and @type - 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 162
+
+{
+  "detail": "Duplicate 'type' / '@type' in 's'",
+  "status": 400,
+  "title": "Duplicate Type",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Subscription entity selector with both id and @id - 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Duplicate 'id' / '@id' in 'an array item'",
+  "status": 400,
+  "title": "Duplicate Id",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Attribute with @type only - created; GET returns it as type
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:DUP:E5",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop

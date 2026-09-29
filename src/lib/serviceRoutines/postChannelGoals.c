@@ -45,6 +45,7 @@
 #include "corRest/corRestOutHeader.h"                 // corRestOutHeaderAdd
 #include "corJsonld/corLdExpandTree.h"                // corLdExpandTree
 #include "corNgsild/corNgsild.h"                      // corNgsild, ldError, ldContextResolve, LD_ERROR_*
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/bridgeRender.h"                      // channelIdOf
@@ -70,7 +71,7 @@ static CorNode* goalFragment(Channel* channelP, CorNode* requestP, CorNode* endp
   CorNode* attrP = corTreeObject(corRest.kallocP, channelP->attrName);
   CorNode* valueP = corTreeClone(corRest.kallocP, requestP);
 
-  valueP->name = (char*) "value";
+  ldNodeRename(valueP, (char*) "value");
 
   corTreeChildAdd(attrP, corTreeString(corRest.kallocP, "type", "Property"));
   corTreeChildAdd(attrP, valueP);

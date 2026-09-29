@@ -52,6 +52,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve, ldRegOpSupported
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
@@ -83,8 +84,8 @@ static void stripInfoAttrsFromTemporal(CorNode* localP, LdRegInfo* riP)
     CorNode* nextP = curP->next;
 
     if (curP->name != NULL && curP->name[0] != '@' &&
-        strcmp(curP->name, "id")   != 0 &&
-        strcmp(curP->name, "type") != 0)
+        ldTermId(curP) != CorTermId &&
+        ldTermId(curP) != CorTermType)
     {
       bool covered = wildcard;
       if (!covered && riP->attributeNamesV != NULL)
@@ -125,8 +126,8 @@ static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing
 
     if (upChild->name == NULL ||
         upChild->name[0] == '@' ||
-        strcmp(upChild->name, "id")   == 0 ||
-        strcmp(upChild->name, "type") == 0)
+        ldTermId(upChild) == CorTermId ||
+        ldTermId(upChild) == CorTermType)
     {
       upChild = upNext;
       continue;
@@ -556,13 +557,13 @@ bool getEntityTemporal(void)
     {
       if (c->name == NULL)                                  continue;
       if (c->name[0] == '@')                                continue;
-      if (strcmp(c->name, "id")         == 0)               continue;
-      if (strcmp(c->name, "type")       == 0)               continue;
-      if (strcmp(c->name, "scope")      == 0)               continue;
+      if (ldTermId(c) == CorTermId)     continue;
+      if (ldTermId(c) == CorTermType)   continue;
+      if (ldTermId(c) == CorTermScope)  continue;
       // System temporal properties surfaced by the plugin for orderBy /
       // sysAttrs handling — not "user attributes" for the empty-result test.
-      if (strcmp(c->name, "createdAt")  == 0)               continue;
-      if (strcmp(c->name, "modifiedAt") == 0)               continue;
+      if (ldTermId(c) == CorTermCreatedAt)   continue;
+      if (ldTermId(c) == CorTermModifiedAt)  continue;
       hasUserAttr = true;
       break;
     }
@@ -591,9 +592,9 @@ bool getEntityTemporal(void)
       if (c->name == NULL)                          continue;
       if (strcmp(c->name, "@context")        == 0)  continue;
       if (!corNgsild.sysAttrs &&
-          (strcmp(c->name, LD_VOCAB_CREATED_AT)  == 0 ||
-           strcmp(c->name, LD_VOCAB_MODIFIED_AT) == 0 ||
-           strcmp(c->name, LD_VOCAB_EXPIRES_AT)  == 0))
+          (ldTermId(c) == CorTermCreatedAt ||
+           ldTermId(c) == CorTermModifiedAt ||
+           ldTermId(c) == CorTermExpiresAt))
         continue;
       hasMembers = true;
       break;

@@ -24,7 +24,7 @@
 #include "corTree/corTreeLookup.h"                      // corTreeLookup
 #include "corRest/CorRestState.h"                         // corRest
 
-#include "corNgsild/ldIsEntityKeyword.h"                 // ldIsEntityKeyword
+#include "corNgsild/ldIsEntityKeyword.h"                  // ldIsEntityKeyword
 #include "corNgsild/LdAttrType.h"                        // LdAttrType
 #include "corNgsild/ldAttrTypeDetect.h"                  // ldAttrTypeDetect
 #include "corNgsild/ldTypes.h"                           // ldAttrTypeToString
@@ -166,7 +166,7 @@ int mongocTypeList(Tenant* tenantP, bool details, CorNode** arrayPP)
 
       for (CorNode* attrP = eP->value.head; attrP != NULL; attrP = attrP->next)
       {
-        if (ldIsEntityKeyword(attrP->name)) continue;
+        if (ldIsEntityMember(attrP)) continue;
         recordAttr(entry, attrP->name, attrP, details);
       }
     }

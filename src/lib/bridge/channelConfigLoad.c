@@ -26,7 +26,7 @@
 #include "corLog/corLog.h"                            // COR_W, COR_X, COR_T
 
 #include "corJsonld/corLdInit.h"                      // corLdCoreContext
-#include "corNgsild/CorNgsild.h"                     // ldDefaultContext
+#include "corNgsild/CorNgsild.h"                      // ldDefaultContext
 #include "corJsonld/corLdExpand.h"                    // corLdExpand
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount

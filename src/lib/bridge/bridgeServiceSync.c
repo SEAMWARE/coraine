@@ -23,11 +23,14 @@
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corRest/corRest.h"                          // corRest
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext
+#include "corJsonld/corLdCompactTree.h"               // corLdCompactTreeWith
 #include "corNgsild/corNgsild.h"                      // ldError, LD_ERROR_*
 #include "corNgsild/ldError.h"                        // ldErrorExtraString
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "corNgsild/ldEntityMerge.h"                  // ldEntityMerge, LdMergeReport
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 #include "db/DbDriver.h"                              // db, DB_OK
@@ -709,6 +712,41 @@ static CorNode* mergedValue(Tenant* tenantP, const char* entityId, CorNode* attr
 
 // -----------------------------------------------------------------------------
 //
+// wireValue - the value as it goes on the wire: the application's own JSON
+//
+// Inside the broker a compound value's member names are EXPANDED (they are
+// JSON-LD terms); on the DDS side they are the field names of the type, as the
+// application wrote them. So the value is compacted - with the request's
+// @context, the one it was expanded with - on a CLONE: the value itself is
+// about to be stored, expanded. Compacted as the value of a {"value": ...}
+// wrapper, so the rules are exactly those of any response body.
+//
+// The clone is detached (no name, no next): corJsonFastRender follows the
+// sibling chain and renders a name, and the wire carries neither.
+//
+static CorNode* wireValue(CorNode* valueP)
+{
+  CorNode* wrapperP = corTreeObject(corRest.kallocP, NULL);
+  CorNode* cloneP   = corTreeClone(corRest.kallocP, valueP);
+
+  if ((wrapperP == NULL) || (cloneP == NULL))
+    return valueP;
+
+  ldNodeRename(cloneP, (char*) "value");
+  corTreeChildAdd(wrapperP, cloneP);
+  corLdCompactTreeWith(wrapperP, (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext());
+
+  cloneP       = wrapperP->value.head;
+  ldNodeRename(cloneP, NULL);
+  cloneP->next = NULL;
+
+  return cloneP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsBeforeWrite -
 //
 bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP)
@@ -736,7 +774,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
   for (CorNode* attrP = fragmentP->value.head; attrP != NULL; attrP = attrP->next)
   {
-    if (ldIsNotAttributeName(attrP->name) == false)
+    if (ldIsNotAttribute(attrP) == false)
       attrCount++;
   }
 
@@ -757,7 +795,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
   {
     nextP = attrP->next;                              // attrP may be taken out of the fragment
 
-    if (ldIsNotAttributeName(attrP->name) == true)
+    if (ldIsNotAttribute(attrP) == true)
       continue;
 
     Channel* channelP = channelLookupByTarget(tenantP, entityId, attrP->name);
@@ -805,14 +843,8 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
     // nothing at all.
     //
     static __thread char buf[SYNC_OUT_MAX];
-    char*   savedName = valueP->name;
-    CorNode* savedNext = valueP->next;
 
-    valueP->name = NULL;
-    valueP->next = NULL;
-    corJsonFastRender(valueP, buf);
-    valueP->name = savedName;
-    valueP->next = savedNext;
+    corJsonFastRender(wireValue(valueP), buf);
 
     //
     // A topic: the sample is published now. One the transport refuses - a value

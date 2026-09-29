@@ -37,6 +37,7 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer, ldNotifyDispatchPending
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubDispatchPending
 #include "corNgsild/ldCheckSubscription.h"            // ldSubEntityTypeExprsRelease
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK, BRIDGE_NOT_FOUND, BRIDGE_BAD_INPUT
 #include "corBridge/corBridge.h"                      // corBridgeKindName
@@ -152,7 +153,7 @@ static CorNode* subAttrFrom(const char* name, CorNode* payloadP, int64_t publish
   CorNode* subP = corTreeObject(corRest.kallocP, name);
 
   corTreeChildAdd(subP, corTreeString(corRest.kallocP, "type", "Property"));
-  payloadP->name = (char*) "value";
+  ldNodeRename(payloadP, (char*) "value");
   corTreeChildAdd(subP, payloadP);
 
   if (publishTime > 0)
@@ -205,7 +206,7 @@ static CorNode* attributeFromSample(const char* attrName,
 
   if (subAttrName == NULL)
   {
-    payloadP->name = (char*) "value";
+    ldNodeRename(payloadP, (char*) "value");
     corTreeChildAdd(attrP, payloadP);
 
     if (publishTime > 0)
@@ -220,7 +221,7 @@ static CorNode* attributeFromSample(const char* attrName,
     if (valueP == NULL)
       return NULL;
 
-    valueP->name = (char*) "value";
+    ldNodeRename(valueP, (char*) "value");
     corTreeChildAdd(attrP, valueP);
 
     corTreeChildAdd(attrP, subAttrFrom(subAttrName, payloadP, publishTime, meta));
@@ -297,7 +298,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
 
       corTreeChildRemove(metaP, nodeP);              // unlinked first - corTreeChildAdd truncates the list it came from
       nodeP->next = NULL;
-      nodeP->name = (char*) "value";
+      ldNodeRename(nodeP, (char*) "value");
       corTreeChildAdd(propP, nodeP);
 
       corTreeChildAdd(targetP, propP);
@@ -844,7 +845,7 @@ CorNode* bridgeReplySubAttr(const char* attrName, const char* subAttrName, const
   //
   for (CorNode* nodeP = instanceP->value.head; nodeP != NULL; nodeP = nodeP->next)
   {
-    if ((nodeP->type == CorObject) && (strcmp(nodeP->name, "value") != 0))
+    if ((nodeP->type == CorObject) && (ldTermId(nodeP) != CorTermValue))
     {
       corTreeChildRemove(instanceP, nodeP);
       nodeP->next = NULL;
@@ -1055,7 +1056,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
     {
       CorNode* preValueP = corTreeClone(corRest.kallocP, preSnapshotP);
 
-      preValueP->name = (char*) "preValue";
+      ldNodeRename(preValueP, (char*) "preValue");
       corTreeChildAdd(entryP, preValueP);
     }
 

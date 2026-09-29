@@ -16,6 +16,7 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 #include "currentState/mongoc/mongocInjectType.h"     // Own interface
 
 
@@ -35,7 +36,7 @@ void mongocStripTypeDecouple(CorNode* treeP, CorNode** typePOut, CorNode** typeP
   CorNode* prev = NULL;
   for (CorNode* c = treeP->value.head; c != NULL; c = c->next)
   {
-    if (c->name != NULL && strcmp(c->name, "type") == 0)
+    if (c->name != NULL && ldTermId(c) == CorTermType)
     {
       *typePOut    = c;
       *typePrevOut = prev;

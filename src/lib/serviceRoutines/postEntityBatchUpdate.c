@@ -58,7 +58,7 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 
-#include "corJsonld/corLdInit.h"                       // CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
 
@@ -85,7 +85,8 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldEntityFragment.h"               // ldEntityFragmentForInfo
-#include "corNgsild/ldIsEntityKeyword.h"                   // ldIsNotAttributeName
+#include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
+#include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
 #include "db/Tenant.h"                               // Tenant
@@ -115,7 +116,7 @@ static int noOverwriteChopLocal(CorNode* fragment, CorNode* existing)
   while (fAttrP != NULL)
   {
     CorNode* nextAttr = fAttrP->next;
-    if (ldIsNotAttributeName(fAttrP->name) || fAttrP->type != CorObject)
+    if (ldIsNotAttribute(fAttrP) || fAttrP->type != CorObject)
     {
       fAttrP = nextAttr;
       continue;
@@ -552,7 +553,7 @@ static bool hasLocalPayload(CorNode* fragP)
   {
     if (c->name == NULL)                 continue;
     if (c->name[0] == '@')               continue;
-    if (strcmp(c->name, "id")   == 0)    continue;
+    if (ldTermId(c) == CorTermId)  continue;
     return true;
   }
   return false;
@@ -567,7 +568,7 @@ static bool hasAttribute(CorNode* fragP)
 {
   for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
   {
-    if ((c->type == CorObject) && (ldIsNotAttributeName(c->name) == false))
+    if ((c->type == CorObject) && (ldIsNotAttribute(c) == false))
       return true;
   }
 
@@ -592,7 +593,7 @@ static CorNode* seenAdd(CorNode* seenP, CorNode* fragP)
 
   for (CorNode* attrP = fragP->value.head; attrP != NULL; attrP = attrP->next)
   {
-    if ((attrP->type != CorObject) || (ldIsNotAttributeName(attrP->name) == true))
+    if ((attrP->type != CorObject) || (ldIsNotAttribute(attrP) == true))
       continue;
 
     CorNode* seenAttrP = corTreeLookup(seenP, attrP->name);
@@ -924,7 +925,7 @@ bool postEntityBatchUpdate(void)
       for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
       {
         if (c->type != CorObject) continue;
-        if (ldIsNotAttributeName(c->name)) continue;
+        if (ldIsNotAttribute(c)) continue;
         realAttrsBefore++;
       }
 
@@ -984,7 +985,7 @@ bool postEntityBatchUpdate(void)
         for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
         {
           if (c->type != CorObject) continue;
-          if (ldIsNotAttributeName(c->name)) continue;
+          if (ldIsNotAttribute(c)) continue;
           realAttrsAfter++;
         }
         if (realAttrsAfter == 0)
@@ -1030,7 +1031,7 @@ bool postEntityBatchUpdate(void)
         for (CorNode* c = fragP->value.head; c != NULL; c = c->next)
         {
           if (c->type != CorObject) continue;
-          if (ldIsNotAttributeName(c->name)) continue;
+          if (ldIsNotAttribute(c)) continue;
           anyAttrLeft = true;
           break;
         }

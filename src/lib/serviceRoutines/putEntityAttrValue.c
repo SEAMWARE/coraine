@@ -35,6 +35,7 @@
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -171,7 +172,7 @@ bool putEntityAttrValue(void)
   CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
   if (typeStr != NULL)
     corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "type", typeStr));
-  valueP->name = (char*) member;
+  ldNodeRename(valueP, (char*) member);
   corTreeChildAdd(fragP, valueP);
 
   // § 10.2.6.4 observedAt: remove it when the attribute had one and no ?observedAt

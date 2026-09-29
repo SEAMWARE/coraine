@@ -49,7 +49,8 @@
 #include "corRest/CorRestState.h"                           // corRest
 #include "corNgsild/LdAttrType.h"                          // LdAttr*
 #include "corNgsild/LdGeoRel.h"                            // LdGeoNear, LdGeoRelType
-#include "corNgsild/CorNgsild.h"                            // corNgsild
+#include "corNgsild/CorNgsild.h"                           // corNgsild
+#include "corNgsild/ldTermId.h"                            // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
 
@@ -121,7 +122,7 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
     CorNode* parsed = corJsonParse(corJsonP, dup);
     if (parsed != NULL)
     {
-      parsed->name = (char*) vfn;
+      ldNodeRename(parsed, (char*) vfn);
       return parsed;
     }
   }
@@ -332,7 +333,7 @@ static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, CorAlloc* 
     return corTreeString(corJsonP->kallocP, "type", firstP->value.s);
   }
 
-  arrayP->name = (char*) "type";
+  ldNodeRename(arrayP, (char*) "type");
   return arrayP;
 }
 
@@ -1615,11 +1616,11 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     for (CorNode* c = docP->value.head; c != NULL; c = c->next)
     {
       if (c->name == NULL)                         continue;
-      if (strcmp(c->name, "id")         == 0)      continue;
-      if (strcmp(c->name, "type")       == 0)      continue;
-      if (strcmp(c->name, "scope")      == 0)      continue;
-      if (strcmp(c->name, "createdAt")  == 0)      continue;
-      if (strcmp(c->name, "modifiedAt") == 0)      continue;
+      if (ldTermId(c) == CorTermId)          continue;
+      if (ldTermId(c) == CorTermType)        continue;
+      if (ldTermId(c) == CorTermScope)       continue;
+      if (ldTermId(c) == CorTermCreatedAt)   continue;
+      if (ldTermId(c) == CorTermModifiedAt)  continue;
       hasAttrs = true;
       break;
     }

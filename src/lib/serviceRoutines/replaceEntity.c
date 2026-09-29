@@ -27,7 +27,7 @@
 
 #include "corAlloc/corAlloc.h"                        // corAlloc
 
-#include "corJsonld/corLdInit.h"                        // corLdCoreContext, CORLD_CORE_CONTEXT_URL
+#include "corJsonld/corLdInit.h"                      // corLdCoreContext, CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdCompactTree.h"                 // corLdCompactTreeWith
 
 #include "corNgsild/corNgsild.h"                        // ldError, LD_ERROR_*, corNgsild
@@ -49,6 +49,7 @@
 #include "corNgsild/ldCsourceAlias.h"                  // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                        // ldDistOpLoopDetected, ldDistOpSend, ldDistOpBatchErrorAdd
 #include "corNgsild/ldEntityFragment.h"                // ldEntityFragmentForInfo
+#include "corNgsild/ldTermId.h"                        // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
@@ -465,7 +466,7 @@ bool replaceEntity(void)
 
       // mongoc's entityReplace renames "id" to "_id" in-place. Restore.
       if (bodyIdP != NULL && bodyIdP->name[0] == '_')
-        bodyIdP->name = "id";
+        ldNodeRename(bodyIdP, "id");
 
       if (tenantP->subCacheP != NULL)
       {
@@ -502,12 +503,12 @@ bool replaceEntity(void)
         {
           if (attrP->name == NULL)                       continue;
           if (attrP->name[0] == '@')                     continue;
-          if (strcmp(attrP->name, "id")         == 0)    continue;
+          if (ldTermId(attrP) == CorTermId)  continue;
           if (strcmp(attrP->name, "_id")        == 0)    continue;
-          if (strcmp(attrP->name, "type")       == 0)    continue;
-          if (strcmp(attrP->name, "scope")      == 0)    continue;
-          if (strcmp(attrP->name, "createdAt")  == 0)    continue;
-          if (strcmp(attrP->name, "modifiedAt") == 0)    continue;
+          if (ldTermId(attrP) == CorTermType)        continue;
+          if (ldTermId(attrP) == CorTermScope)       continue;
+          if (ldTermId(attrP) == CorTermCreatedAt)   continue;
+          if (ldTermId(attrP) == CorTermModifiedAt)  continue;
 
           TroeEvent* aevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
           memset(aevP, 0, sizeof(*aevP));
