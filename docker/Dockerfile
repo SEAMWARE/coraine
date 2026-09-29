@@ -129,17 +129,32 @@ RUN set -eux; \
     cat /tmp/vendor/MANIFEST.txt; \
     rm -rf /tmp/vendor
 
-# The umbrella builds every lib in dependency order and collects the artifacts - as
-# RELEASE builds (BUILD=release; a lib without flavours ignores it). `make i` below
-# rebuilds the broker's own siblings as release too (makefile: libs-release).
-RUN make -C /root/git/corLibs install BUILD=release
+#
+# BUILD - release (the default) or debug: the same stack, two images.
+#
+#   release  traces compiled OUT (COR_T/COR_LIB_T - corLog.h), -O2 -g. What is deployed.
+#            A crash writes a report (request, payload, command line, build id, stack);
+#            --traceLevels turns on nothing, and says so.
+#   debug    traces compiled in - the image to REPRODUCE a crash report with, or to
+#            run with --traceLevels. Tagged <tag>-debug beside the release one.
+#
+# The umbrella builds every lib in dependency order and collects the artifacts, in the
+# flavour asked for - dds.so included (a lib without flavours ignores it).
+#
+ARG BUILD=release
+RUN test "$BUILD" = release -o "$BUILD" = debug || { echo "BUILD must be release or debug, not '$BUILD'"; exit 1; }
+RUN make -C /root/git/corLibs install BUILD=$BUILD
 
 # The broker itself. .dockerignore keeps the host build trees out, so CMake
 # starts clean instead of inheriting a cache full of host paths.
 COPY . /root/git/coraine
 WORKDIR /root/git/coraine
 
-RUN make i
+#
+# `make i` rebuilds the broker's own siblings as release too (makefile: libs-release);
+# `make di` is the Debug broker (-DCOR_T_ON) over the debug libs built above.
+#
+RUN if [ "$BUILD" = debug ]; then make di; else make i; fi
 
 # Stamp real provenance. The makefile regenerates etc/contextSourceExtras.json on every
 # build, but .git is out of the build context, so its `git rev-parse` yields "unknown"

@@ -483,6 +483,8 @@ cdi:        clean debug install_debug
 # build with them unset would ship an image that cannot say what it is.
 #
 DOCKER_TAG ?= coraine:local
+# DOCKER_BUILD - release, or debug: traces compiled in (docker/README.md)
+DOCKER_BUILD ?= release
 
 #
 # CI_IMAGE is where the eProsima DDS stack comes from - the CI image builds it
@@ -500,6 +502,7 @@ CI_IMAGE ?=
 docker:
 	@./docker/vendor-libs.sh
 	@docker build -f docker/Dockerfile \
+	  --build-arg BUILD=$(DOCKER_BUILD) \
 	  --build-arg GIT_SHA=$$(git rev-parse --short HEAD) \
 	  --build-arg BUILD_AT=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 	  $(if $(CI_IMAGE),--build-arg CI_IMAGE=$(CI_IMAGE),) \
