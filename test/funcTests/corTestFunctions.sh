@@ -1630,14 +1630,14 @@ sys.exit(1)
 # ended is read where it stays: GET /temporal/entities (needs --troe timescale; --troeSync for it to be
 # there at once). Prints the status codes in order (each once), how many feedbacks (when any), whether
 # a result was written, and whether the instance was then removed - or that the goal left no history
-# (refused before anything was written). In order of modifiedAt: the temporal representation does not
-# promise the instances in time order.
+# (refused before anything was written). Asked for in modifiedAt order (timerel + timeproperty): a goal's
+# instances have no observedAt, and without a time property the order is not one.
 #
 # [prefix]: what the bridge names its members with - dds: ddsAction (ddsActionStatus, ddsActionFeedback,
 # ddsActionResult); none: status, feedback, result.
 #
 bridgeGoalHistory() {
-  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2&options=sysAttrs" 2>/dev/null | python3 -c '
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt" 2>/dev/null | python3 -c '
 import json, sys
 attr, alias, prefix = sys.argv[1:4]
 name = lambda m: prefix + m.capitalize() if prefix else m
@@ -1647,7 +1647,7 @@ except Exception:
   print("no temporal entity"); sys.exit(0)
 inst = e.get(attr, [])
 inst = inst if isinstance(inst, list) else [inst]
-mine = sorted([i for i in inst if i.get("datasetId") == alias], key=lambda i: i.get("modifiedAt", ""))
+mine = [i for i in inst if i.get("datasetId") == alias]
 if not mine:
   print("%s: no history" % alias); sys.exit(0)
 codes    = []
