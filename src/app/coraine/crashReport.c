@@ -182,6 +182,40 @@ static const char* signalName(int sigNo)
 
 // -----------------------------------------------------------------------------
 //
+// pathOut - the URL path as it was SENT, repaired in the output (the buffer is not touched)
+//
+// The service lookup matches the path IN PLACE: it ends each wildcard's value with a NUL written
+// over the separator that follows it - always the '/' before the next part (.../entities/{id}/attrs
+// leaves ".../entities/{id}"). urlPathLen is the length before that, so a '/' for every NUL up to
+// it gives back the path. Not yet measured (0): up to the first NUL.
+//
+static void pathOut(const char* path, int len)
+{
+  if (len <= 0)
+  {
+    out(path);
+    return;
+  }
+
+  int start = 0;
+
+  for (int i = 0; i < len; i++)
+  {
+    if (path[i] == 0)
+    {
+      outN(&path[start], i - start);
+      out("/");
+      start = i + 1;
+    }
+  }
+
+  outN(&path[start], len - start);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // queryOut - the query string, as far as it can be had
 //
 // The query is parsed IN PLACE: split on '&' and '=' (NULs written over both) and percent-decoded
@@ -290,7 +324,7 @@ static void requestReport(void)
   out("request:      ");
   out(rP->in.verbString);
   out(" ");
-  out(rP->in.urlPath);
+  pathOut(rP->in.urlPath, rP->in.urlPathLen);
   queryOut(rP);
   out("\n");
   flush();
