@@ -47,6 +47,7 @@
 #include "corAlloc/corAlloc.h"                    // corAlloc
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
 #include "corNgsild/LdSnapshotCache.h"                // ldSnapshotCacheDestroyHookSet, ldSnapshotRequestRelease
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapRequestRelease
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "corNgsild/ldCoreTermIds.h"               // ldCoreTermIdsInit
@@ -954,6 +955,7 @@ static void brokerPostResponseHook(void)
   ldRegCacheProbePending();
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
   ldSnapshotRequestRelease();      // the Snapshot a read was routed to (NGSILD-Snapshot), pinned till now
+  ldEntityMapRequestRelease();     // the EntityMap the request created or paged, pinned till now
 }
 
 

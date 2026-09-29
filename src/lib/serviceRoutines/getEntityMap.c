@@ -37,7 +37,8 @@ bool getEntityMap(void)
     return true;
   }
 
-  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, mapId);
+  // Pinned while it is rendered - a DELETE or the expiry purge of another request frees it
+  LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, mapId);
   if (mapP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found", mapId);
@@ -45,6 +46,7 @@ bool getEntityMap(void)
   }
 
   CorNode* treeP = ldEntityMapToTree(mapP);
+  ldEntityMapUnpin(mapP);
   if (treeP == NULL)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "failed to render entity map");

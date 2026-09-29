@@ -24,6 +24,7 @@
 #include "corNgsild/ldSubCache.h"                   // ldSubCacheRdLock, ldSubCacheUnlock
 #include "corNgsild/ldRegCache.h"                   // ldRegCacheRdLock, ldRegCacheUnlock
 #include "corNgsild/ldPernotCache.h"                // ldPernotCacheRdLock, ldPernotCacheUnlock
+#include "corNgsild/ldEntityMap.h"                  // ldEntityMapStoreRdLock, ldEntityMapStoreUnlock
 #include "corNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
 #include "corNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
 
@@ -269,7 +270,7 @@ static void tenantCounts(void)
     if (rsc != NULL) { ldSubCacheRdLock(rsc); for (LdSubCacheItem* i = rsc->itemList; i != NULL; i = i->next) regSubs++; ldSubCacheUnlock(rsc); }
     if (rc != NULL)  { ldRegCacheRdLock(rc);  for (LdRegCacheItem* i = rc->itemList;  i != NULL; i = i->next) regs++;    ldRegCacheUnlock(rc);  }
     if (pc != NULL)  { ldPernotCacheRdLock(pc); for (LdPernotItem* i = pc->head; i != NULL; i = i->next) pernots++; ldPernotCacheUnlock(pc); }
-    if (ems != NULL) for (LdEntityMap*    i = ems->head;     i != NULL; i = i->next) maps++;
+    if (ems != NULL) { ldEntityMapStoreRdLock(ems); for (LdEntityMap* i = ems->head; i != NULL; i = i->next) maps++; ldEntityMapStoreUnlock(ems); }
   }
 
   corPromGaugeSet(gTenants,          (double) tenants);
