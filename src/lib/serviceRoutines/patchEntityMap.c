@@ -118,7 +118,7 @@ bool patchEntityMap(void)
     return true;
   }
 
-  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tenantP->entityMapStoreP, mapId);
+  LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tenantP->entityMapStoreP, mapId);
   if (mapP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
@@ -127,6 +127,7 @@ bool patchEntityMap(void)
   }
 
   ldEntityMapSetExpiresAt(mapP, ldIsoToNanoseconds(expiresAtP->value.s));
+  ldEntityMapUnpin(mapP);
 
   corRest.out.httpStatusCode = 204;
   return true;

@@ -12,7 +12,7 @@
 #include <unistd.h>                               // pause
 #include <signal.h>                               // signal, SIGINT, SIGTERM
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
-#include <string.h>                               // strcmp, memcpy
+#include <string.h>                               // strcmp, memcpy, strpbrk
 #include <time.h>                                 // time
 #include <stdint.h>                               // uint32_t
 #include <execinfo.h>                             // backtrace, backtrace_symbols
@@ -22,7 +22,7 @@
 #include <netinet/in.h>                           // struct sockaddr_in
 #include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
 
-#include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit
+#include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit, corAllocThreadSafe
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "corBase/corCpuCount.h"                   // corCpuCount
@@ -43,9 +43,12 @@
 #include "corJson/corJsonCreate.h"                // corJsonCreate
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "corTree/corTreeLookup.h"                // corTreeLookup
+#include "corTree/corTreeBuilder.h"               // corTreeChildAdd
 #include "corTree/corTreeClone.h"                 // corTreeClone
 #include "corAlloc/corAlloc.h"                    // corAlloc
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
+#include "corNgsild/LdSnapshotCache.h"                // ldSnapshotCacheDestroyHookSet, ldSnapshotRequestRelease
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapRequestRelease
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "corNgsild/ldCoreTermIds.h"               // ldCoreTermIdsInit
@@ -56,10 +59,13 @@
 #include "corNgsild/ldLinkedEntitiesHook.h"        // ldLinkedEntitiesHookSet
 #include "linkedEntities/ldLinkedEntities.h"      // ldLinkedEntitiesNotifApiArray
 #include "corNgsild/LdPernotCache.h"               // LdPernotCache, LdPernotItem
+#include "corNgsild/LdTypeExpr.h"                   // ldTypeExprParse
+#include "corNgsild/LdVocab.h"                      // LD_VOCAB_ENTITIES
 #include "corNgsild/ldPernotLoop.h"                // ldPernotLoopStart
 #include "corNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
 #include "corNgsild/ldContextHost.h"               // ldContextHostReaperStart
 #include "corNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
+#include "corNgsild/ldTenantCaches.h"              // LdTenantCaches, LdTenantCachesFn
 #include "corNgsild/ldCheckSubscription.h"         // ldSubEntityTypeExprsRelease
 #include "corNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "corNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
@@ -68,6 +74,7 @@
 #include "corNgsild/ldError.h"                     // ldError
 #include "corNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
+#include "db/snapshotTenant.h"                     // snapshotItemDestroy
 #include "db/DbDriver.h"                          // db, DB_OK
 #include "db/DbQueryFilter.h"                     // DbQueryFilter
 #include "db/dbInit.h"                            // dbStart
@@ -772,37 +779,120 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
     corAllocBufferReset(&corRest.kalloc, true);
   }
 
-  // Build a minimal filter from the pernot item's entity selectors
-  DbQueryFilter filter = {0};
+  //
+  // One query per entity selector, the results merged without duplicates - a subscription's
+  // entities[] is an OR of selectors, each an AND of its own type / id / idPattern, which one
+  // filter cannot say. And the rest of the subscription's query - q, scopeQ, geoQ - on every one.
+  //
+  // It used to be one query, from the FIRST selector's type (and id) alone: the other selectors,
+  // idPattern, scopeQ and geoQ were ignored (the last two were never even parsed), and it was
+  // capped at 20 entities - a notification silently left the rest out. The selectors are read
+  // from the stored subscription (the item is pinned by the loop), where their idPattern text is.
+  //
+  CorNode* entitiesP = corTreeLookup(itemP->subTree, LD_VOCAB_ENTITIES);
+  CorNode* resultP   = NULL;
 
-  // Extract type from the first entity selector (simplified — full selector
-  // support would need to union all types across all selectors)
-  if (itemP->entitySelectors != NULL && itemP->entitySelectors->type != NULL)
+  for (CorNode* selP = (entitiesP != NULL) ? entitiesP->value.head : NULL; selP != NULL; selP = selP->next)
   {
-    static __thread char* typeVBuf[2];
-    typeVBuf[0] = itemP->entitySelectors->type;
-    typeVBuf[1] = NULL;
-    filter.typeV = typeVBuf;
+    if (selP->type != CorObject)
+      continue;
+
+    CorNode* typeP      = corTreeLookup(selP, "type");
+    CorNode* idP        = corTreeLookup(selP, "id");
+    CorNode* idPatternP = corTreeLookup(selP, "idPattern");
+
+    DbQueryFilter filter = {0};
+    char*         typeV[2];
+    char*         idV[2];
+
+    if ((typeP != NULL) && (typeP->type == CorString))
+    {
+      if (strpbrk(typeP->value.s, "|&!(),;") != NULL)   // a type-selection expression (§ 4.17)
+        filter.typeExpr = ldTypeExprParse(typeP->value.s, &corRest.kalloc);
+      else
+      {
+        typeV[0] = typeP->value.s;
+        typeV[1] = NULL;
+        filter.typeV = typeV;
+      }
+    }
+
+    if ((idP != NULL) && (idP->type == CorString))
+    {
+      idV[0] = idP->value.s;
+      idV[1] = NULL;
+      filter.idV = idV;
+    }
+
+    if ((idPatternP != NULL) && (idPatternP->type == CorString))
+      filter.idPattern = idPatternP->value.s;
+
+    filter.qExpr       = itemP->qExpr;
+    filter.scopeExpr   = itemP->scopeExpr;
+    filter.geoRel      = itemP->geoRel;
+    filter.geometry    = itemP->geoGeometry;
+    filter.coordinates = itemP->geoCoordinates;
+    filter.geoproperty = itemP->geoProperty;
+    filter.unpaged     = true;                     // every match - a notification is not a page
+
+    CorNode* arrayP = NULL;
+    if ((db.entityQuery((Tenant*) tenantP, &filter, &arrayP) != DB_OK) || (arrayP == NULL))
+      continue;
+
+    if (resultP == NULL)
+    {
+      resultP = arrayP;
+      continue;
+    }
+
+    // Merge: an entity two selectors both match goes out once
+    CorNode* nextP;
+    for (CorNode* eP = arrayP->value.head; eP != NULL; eP = nextP)
+    {
+      nextP = eP->next;
+
+      CorNode* eIdP = corTreeLookup(eP, "id");
+      bool     dup  = false;
+
+      if ((eIdP != NULL) && (eIdP->type == CorString))
+      {
+        for (CorNode* rP = resultP->value.head; (rP != NULL) && (dup == false); rP = rP->next)
+        {
+          CorNode* rIdP = corTreeLookup(rP, "id");
+          dup = (rIdP != NULL) && (rIdP->type == CorString) && (strcmp(rIdP->value.s, eIdP->value.s) == 0);
+        }
+      }
+
+      if (dup == false)
+      {
+        eP->next = NULL;
+        corTreeChildAdd(resultP, eP);
+      }
+    }
   }
 
-  // Extract id if specific
-  if (itemP->entitySelectors != NULL && itemP->entitySelectors->id != NULL)
+  return resultP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerPernotCaches - every tenant's pernot cache, for the periodic loop
+//
+// The tenants: tenant0, then the list - published with a release store and never freed, so it
+// is walked here without the tenant mutex, tenants created after startup included.
+//
+static void brokerPernotCaches(LdPernotCacheVisitFn visit, void* arg)
+{
+  if (tenant0.pernotCacheP != NULL)
+    visit((LdPernotCache*) tenant0.pernotCacheP, arg);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
   {
-    static __thread char* idVBuf[2];
-    idVBuf[0] = itemP->entitySelectors->id;
-    idVBuf[1] = NULL;
-    filter.idV = idVBuf;
+    if (tP->pernotCacheP != NULL)
+      visit((LdPernotCache*) tP->pernotCacheP, arg);
   }
-
-  filter.qExpr     = itemP->qExpr;
-  filter.scopeExpr = itemP->scopeExpr;
-  filter.geoRel    = itemP->geoRel;
-  filter.limit     = 20;
-
-  CorNode* arrayP = NULL;
-  int r = db.entityQuery((Tenant*) tenantP, &filter, &arrayP);
-
-  return (r == DB_OK) ? arrayP : NULL;
 }
 
 
@@ -817,19 +907,54 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
 // entity is the open spec-doubt #105 — until that resolves, the flush sends the
 // triggering broker's local view (a distributed assemble per notification would
 // be unaffordable on the write path; here it would be once-per-window, but the
-// requirement itself is unsettled). Single-tenant (tenant0) for now, like pernot.
+// requirement itself is unsettled). From the SUBSCRIPTION's tenant - it was tenant0's,
+// whatever the subscription's.
 //
-static CorNode* throttleRetrieveCallback(const char* entityId, void* allocP)
+static CorNode* throttleRetrieveCallback(void* tenantP, const char* entityId, void* allocP)
 {
   (void) allocP;
   if (db.entityRetrieve == NULL)
     return NULL;
 
   CorNode* entityP = NULL;
-  if (db.entityRetrieve(&tenant0, entityId, &entityP) != DB_OK)
+  if (db.entityRetrieve((tenantP != NULL) ? (Tenant*) tenantP : &tenant0, entityId, &entityP) != DB_OK)
     return NULL;
 
   return entityP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerTenantCaches - every tenant's caches, for the periodic ticks (throttle flush, CSR-subs)
+//
+// tenant0, then the list - published with a release store and never freed, so it is walked
+// without the tenant mutex, tenants created after startup included.
+//
+static void tenantCachesVisit(Tenant* tP, LdTenantCachesVisitFn visit, void* arg)
+{
+  LdTenantCaches tc = { tP, (LdSubCache*) tP->subCacheP, (LdSubCache*) tP->regSubCacheP, (LdRegCache*) tP->regCacheP };
+
+  //
+  // The tick runs AS the visited tenant, as a request runs as its own: what it sends goes out
+  // tagged with it (NGSILD-Tenant), and it has no request to take the tenant from.
+  //
+  corNgsild.tenantP    = tP;
+  corNgsild.tenantName = tP->name;
+
+  visit(&tc, arg);
+
+  corNgsild.tenantP    = NULL;
+  corNgsild.tenantName = NULL;
+}
+
+static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)
+{
+  tenantCachesVisit(&tenant0, visit, arg);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
+    tenantCachesVisit(tP, visit, arg);
 }
 
 
@@ -951,6 +1076,8 @@ static void brokerPostResponseHook(void)
   dbExpiredEntityDispatchPending();   // transient Entities a read found expired
   ldRegCacheProbePending();
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
+  ldSnapshotRequestRelease();      // the Snapshot a read was routed to (NGSILD-Snapshot), pinned till now
+  ldEntityMapRequestRelease();     // the EntityMap the request created or paged, pinned till now
 }
 
 
@@ -1370,6 +1497,13 @@ int main(int argC, char* argV[])
   // pernot/corRest convention for "ample headroom for normal growth".
   corAllocBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
+  //
+  // The context store is SHARED: every thread that downloads or parses an @context allocates
+  // into it, outside the context cache's own mutex. Two different uncached @contexts arriving
+  // at once raced on its allocation pointer - overlapping allocations, a corrupted block list.
+  //
+  corAllocThreadSafe(&contextAlloc);
+
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     COR_X(1, "corLdInit failed");
 
@@ -1418,6 +1552,12 @@ int main(int argC, char* argV[])
     COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
 
   apiPluginsInit();
+  //
+  // Before any snapshot is loaded: a snapshot's stores and tenant are destroyed by whoever
+  // releases its last reference (see snapshotItemDestroy), which is not always the DELETE.
+  //
+  ldSnapshotCacheDestroyHookSet(snapshotItemDestroy);
+
   tenantInit("cor");
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);
@@ -1487,19 +1627,15 @@ int main(int argC, char* argV[])
 
   // Register the pernot subsystem with the shared periodic-dispatch
   // engine. The engine itself is launched once below.
-  if (tenant0.pernotCacheP != NULL)
-    ldPernotLoopStart((LdPernotCache*) tenant0.pernotCacheP, pernotQueryCallback);
+  ldPernotLoopStart(brokerPernotCaches, pernotQueryCallback);   // every tenant, not only tenant0
 
   // § 5.2.x throttling — register the coalesce-to-latest flush (sole sender for
   // throttled subs; the synchronous path only buffers into the dirty set).
-  if (tenant0.subCacheP != NULL)
-    ldThrottleFlushStart((LdSubCache*) tenant0.subCacheP, throttleRetrieveCallback);
+  ldThrottleFlushStart(brokerTenantCaches, throttleRetrieveCallback);   // every tenant, not only tenant0
 
   // § 5.11.7 — register the CSR-Sub periodic ticker. Skips items with
   // timeInterval == 0 (change-driven) by design.
-  if (tenant0.regSubCacheP != NULL && tenant0.regCacheP != NULL)
-    ldCsrSubPeriodicLoopRegister((LdSubCache*) tenant0.regSubCacheP,
-                                  (LdRegCache*) tenant0.regCacheP);
+  ldCsrSubPeriodicLoopRegister(brokerTenantCaches);   // every tenant, not only tenant0
 
   // Register the volatile-context reaper — drops never-fetched one-shot
   // hosted contexts (response / forward Link targets) past their TTL.

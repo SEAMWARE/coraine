@@ -1276,12 +1276,19 @@ static bool entityMapPaginate(void)
     return true;
   }
 
-  LdEntityMap* mapP = ldEntityMapLookup((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
+  //
+  // PINNED for the request: the page is built across local and REMOTE retrieves, and
+  // bindEntityMapFilters points the request's query parameters at the map's own strings. A
+  // DELETE - or the expiry purge of another request - freed the map under all of that.
+  //
+  LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
   if (mapP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
     return true;
   }
+
+  ldEntityMapRequestPin(mapP);     // unpinned post-response
 
   // § 9 same-parameters: reject a modified / newly-introduced filter; default
   // an omitted bound filter so it is re-applied live (see bindEntityMapFilters).
@@ -1322,13 +1329,27 @@ static bool entityMapPaginate(void)
       }
       else if (tP->regCacheP != NULL)
       {
-        LdRegCacheItem* csr = ldRegCacheItemLookup((LdRegCache*) tP->regCacheP, src);
+        //
+        // Looked up under the rdlock and PINNED for the retrieve - a GET to the source. The
+        // lookup had no lock at all, and a registration DELETE during the forward freed the
+        // item it was forwarding with.
+        //
+        LdRegCache*     regCacheP = (LdRegCache*) tP->regCacheP;
+        LdRegCacheItem* csr;
+
+        ldRegCacheRdLock(regCacheP);
+        csr = ldRegCacheItemLookup(regCacheP, src);
+        if (csr != NULL)
+          ldRegCacheItemPin(csr);
+        ldRegCacheUnlock(regCacheP);
+
         if (csr != NULL)
         {
           // § 5.14.4.4: forward the CP's own EntityMap id (from linkedMaps)
           // so the CP serves from its frozen snapshot.
           const char* remoteMapId = ldEntityMapLinkedMapLookup(mapP, src);
           partialP = retrieveEntityFromCSR(csr, entryP->entityId, ownAlias, remoteMapId);
+          ldRegCacheItemUnpin(csr);
         }
       }
       // Source not reachable / deleted / reg removed → skip silently;
@@ -2244,6 +2265,14 @@ bool getEntities(void)
       // Default lifetime: 5 minutes
       LdEntityMap* mapP = ldEntityMapCreate((LdEntityMapStore*) tP->entityMapStoreP,
                                              5ULL * 60 * 1000000000ULL, tP);
+
+      if (mapP == NULL)
+      {
+        ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory creating an EntityMap");
+        return true;
+      }
+
+      ldEntityMapRequestPin(mapP);   // created pinned; held (and filled, rendered) till the request ends
 
       // Bind the query's filter params to the map (§ 9 same-parameters): a
       // later paginated reuse may re-send these with the same value or omit

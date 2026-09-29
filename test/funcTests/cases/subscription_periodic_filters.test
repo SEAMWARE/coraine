@@ -1,0 +1,173 @@
+#
+# FILE            subscription_periodic_filters.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A periodic subscription (timeInterval) honours its whole query - and sends all it matches.
+#
+# The periodic query applied only the FIRST entity selector's type (and id): other selectors
+# and idPattern were ignored, scopeQ and geoQ were never parsed - so they were ignored too -
+# and the query was capped at 20 entities, so a notification silently left out the rest.
+#
+# The fixture: Vehicles V1..V25 with speed = N, scope /a (odd) or /b (even), location [1,1]
+# (V1..V12) or [50,50] (V13..V25); and two Cars. Each section creates one subscription with
+# timeInterval 3600 - its first notification comes at once, the next in an hour, so exactly one
+# arrives - and counts the entities in it.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Periodic subscription: every selector, q, scopeQ, geoQ, idPattern, and more than 20 entities
+
+--TAGS--
+pernot subscription query
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. The fixture: 25 Vehicles, 2 Cars
+# 02. All Vehicles                  - 25 (not 20)
+# 03. q=speed>20                    - 5
+# 04. scopeQ=/a                     - 13
+# 05. geoQ within a box around [1,1] - 12
+# 06. Two selectors: Vehicle and Car - 27
+# 07. idPattern urn:V1.*            - 11 (V1, V10..V19)
+#
+
+echo "01. The fixture: 25 Vehicles, 2 Cars"
+echo "===================================="
+body="["
+for n in $(seq 1 25); do
+  scope="/b"; [ $((n % 2)) -eq 1 ] && scope="/a"
+  loc="[1,1]"; [ $n -gt 12 ] && loc="[50,50]"
+  body="$body{\"id\":\"urn:V$n\",\"type\":\"Vehicle\",\"scope\":\"$scope\",\"speed\":{\"type\":\"Property\",\"value\":$n},\"location\":{\"type\":\"GeoProperty\",\"value\":{\"type\":\"Point\",\"coordinates\":$loc}}},"
+done
+body="$body{\"id\":\"urn:C1\",\"type\":\"Car\"},{\"id\":\"urn:C2\",\"type\":\"Car\"}]"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$body" | head -1
+echo
+echo
+
+
+#
+# periodicCount <sub-id> <extra members> - create the subscription, wait for its first
+# notification, count the entities in it, delete it
+#
+periodicCount() {
+  local id=$1 extra=$2
+  corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+    "id": "urn:ngsi-ld:Subscription:'$id'",
+    "type": "Subscription",
+    '"$extra"',
+    "timeInterval": 3600,
+    "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+  }' | head -1
+  ftClientWait 1 || echo "NO notification"
+  ftClientSettle
+  echo "entities: $(ftClientDump | grep -c '"id": "urn:[VC][0-9]*"')"
+  corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:$id -X DELETE | head -1
+  ftClientSettle
+  ftClientDump > /dev/null
+}
+
+
+echo "02. All Vehicles - 25 (not 20)"
+echo "=============================="
+periodicCount PF2 '"entities": [{"type": "Vehicle"}]'
+echo
+echo
+
+
+echo "03. q=speed>20 - 5"
+echo "=================="
+periodicCount PF3 '"entities": [{"type": "Vehicle"}], "q": "speed>20"'
+echo
+echo
+
+
+echo "04. scopeQ=/a - 13"
+echo "=================="
+periodicCount PF4 '"entities": [{"type": "Vehicle"}], "scopeQ": "/a"'
+echo
+echo
+
+
+echo "05. geoQ within a box around [1,1] - 12"
+echo "======================================="
+periodicCount PF5 '"entities": [{"type": "Vehicle"}], "geoQ": {"georel": "within", "geometry": "Polygon", "coordinates": [[[0,0],[5,0],[5,5],[0,5],[0,0]]]}'
+echo
+echo
+
+
+echo "06. Two selectors: Vehicle and Car - 27"
+echo "======================================="
+periodicCount PF6 '"entities": [{"type": "Vehicle"}, {"type": "Car"}]'
+echo
+echo
+
+
+echo "07. idPattern urn:V1.* - 11"
+echo "==========================="
+periodicCount PF7 '"entities": [{"type": "Vehicle", "idPattern": "urn:V1.*"}]'
+echo
+echo
+
+
+--EXPECT--
+01. The fixture: 25 Vehicles, 2 Cars
+====================================
+HTTP/1.1 201 Created
+
+
+02. All Vehicles - 25 (not 20)
+==============================
+HTTP/1.1 201 Created
+entities: 25
+HTTP/1.1 204 No Content
+
+
+03. q=speed>20 - 5
+==================
+HTTP/1.1 201 Created
+entities: 5
+HTTP/1.1 204 No Content
+
+
+04. scopeQ=/a - 13
+==================
+HTTP/1.1 201 Created
+entities: 13
+HTTP/1.1 204 No Content
+
+
+05. geoQ within a box around [1,1] - 12
+=======================================
+HTTP/1.1 201 Created
+entities: 12
+HTTP/1.1 204 No Content
+
+
+06. Two selectors: Vehicle and Car - 27
+=======================================
+HTTP/1.1 201 Created
+entities: 27
+HTTP/1.1 204 No Content
+
+
+07. idPattern urn:V1.* - 11
+===========================
+HTTP/1.1 201 Created
+entities: 11
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

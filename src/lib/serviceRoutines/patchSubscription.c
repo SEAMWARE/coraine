@@ -20,7 +20,7 @@
 #include "corNgsild/LdOp.h"                           // LdOpUpdateSubscription
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdPernotCache.h"                  // LdPernotCache
-#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemLookup, ldPernotCacheItemReplace
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem, LdSubSubordinate
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemRemove, ldSubCacheItemAdd
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
@@ -34,6 +34,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
 #include "serviceRoutines/patchSubscription.h"       // Own interface
 
 
@@ -136,8 +137,14 @@ bool patchSubscription(void)
   //
   // Block patching of CSR-subs via this endpoint.
   //
-  if (tenantP->regSubCacheP != NULL
-      && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, subId) != NULL)
+  // Under the CSR-sub cache's rdlock (as postCsourceSubscriptions does) - it had none
+  LdSubCache* regSubCacheP = (LdSubCache*) tenantP->regSubCacheP;
+
+  ldSubCacheRdLock(regSubCacheP);
+  bool isCsrSub = (regSubCacheP != NULL) && (ldSubCacheItemLookup(regSubCacheP, subId) != NULL);
+  ldSubCacheUnlock(regSubCacheP);
+
+  if (isCsrSub)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
     return true;
@@ -150,8 +157,11 @@ bool patchSubscription(void)
   CorNode* waInFragment = corTreeLookup(fragment, LD_VOCAB_WATCHED_ATTRS);
   CorNode* thInFragment = corTreeLookup(fragment, LD_VOCAB_THROTTLING);
 
-  bool existingIsPernot = (tenantP->pernotCacheP != NULL &&
-                           ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) != NULL);
+  LdPernotCache* pernotCacheP = (LdPernotCache*) tenantP->pernotCacheP;
+
+  ldPernotCacheRdLock(pernotCacheP);   // the loop thread and other requests change it
+  bool existingIsPernot = (pernotCacheP != NULL) && (ldPernotCacheItemLookup(pernotCacheP, subId) != NULL);
+  ldPernotCacheUnlock(pernotCacheP);
 
   if (tiInFragment != NULL && !existingIsPernot)
   {
@@ -270,6 +280,10 @@ bool patchSubscription(void)
       corTreeChildAdd(mergedSubP, corTreeString(corRest.kallocP, LD_VOCAB_STATUS, newStatus));
   }
 
+  // A new q is stored with its attribute names EXPANDED, with this request's @context - as on create
+  if (corTreeLookup(fragment, "q") != NULL)
+    subscriptionQExpand(mergedSubP);
+
   // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays
   ldSysTimestampModify(mergedSubP);
 
@@ -279,6 +293,19 @@ bool patchSubscription(void)
   {
     ldSubCacheUnlock(subCacheP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating subscription '%s'", subId);
+    return true;
+  }
+
+  //
+  // A periodic subscription lives in the periodic cache, and is replaced THERE. This went on to
+  // rebuild it into the change-driven cache, as any other subscription - leaving the periodic one
+  // untouched (old interval, endpoint, filters) and adding a copy that fired on entity changes.
+  //
+  if (existingIsPernot)
+  {
+    ldSubCacheUnlock(subCacheP);
+    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP, tenantP->name);
+    corRest.out.httpStatusCode = 204;
     return true;
   }
 

@@ -48,7 +48,7 @@ bool deleteSnapshot(void)
   }
 
   LdSnapshotCache*     cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
-  LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookup(cacheP, id);
+  LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookupPinned(cacheP, id);
   if (itemP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
@@ -56,28 +56,23 @@ bool deleteSnapshot(void)
     return true;
   }
 
-  // Capture the snap-tenant pointer before the cache item is reclaimed —
-  // ldSnapshotCacheItemDelete frees the item (and its tree) below, so itemP
-  // must not be dereferenced afterwards.
-  Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
-
   // § 5.16.6 — fire deletion notification (expiresAt forced to past)
-  // BEFORE the cache item is unlinked.
+  // BEFORE the cache item is unlinked (it is pinned).
   ldSnapshotNotify(itemP, true);
 
+  //
+  // Unlink it (the cache's reference goes) and drop the persisted metadata. The snapshot's own
+  // stores - entities, temporal - and its tenant struct go with the LAST reference, in the
+  // cache's destroy hook (snapshotItemDestroy): now, at our unpin below, unless the capture
+  // worker or a read routed to this snapshot still has it. They were destroyed right here,
+  // under such a worker or read - and twice by two DELETEs of the same snapshot.
+  //
   ldSnapshotCacheItemDelete(cacheP, id);
 
-  // Drop the persisted metadata + the entity store + the temporal
-  // store + free the in-memory tenant struct. troe.tenantDrop runs
-  // before db.tenantDrop so a TRoE plugin that needs a still-live
-  // current-state tenant for its cleanup (rare) can rely on it.
   if (db.snapshotDelete != NULL)
     db.snapshotDelete(tenantP, id);
-  if (troe.tenantDrop != NULL && snapTenantP != NULL)
-    troe.tenantDrop(snapTenantP);
-  if (db.tenantDrop != NULL && snapTenantP != NULL)
-    db.tenantDrop(snapTenantP);
-  snapshotTenantDestroy(snapTenantP);
+
+  ldSnapshotCacheItemUnpin(itemP);
 
   corRest.out.httpStatusCode = 204;
   return true;

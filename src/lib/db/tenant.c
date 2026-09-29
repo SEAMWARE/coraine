@@ -108,7 +108,7 @@ Tenant* tenantLookup(const char* name)
   if (name == NULL || name[0] == 0)
     return &tenant0;
 
-  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
   {
     if (strcasecmp(tP->name, name) == 0)
       return tP;
@@ -194,9 +194,24 @@ Tenant* tenantGetOrCreate(const char* name)
   tP->entityMapStoreP = ldEntityMapStoreCreate();
   tP->snapshotCacheP  = ldSnapshotCacheCreate();
 
-  // Prepend to linked list
-  tP->next   = tenantList;
-  tenantList = tP;
+  //
+  // Set up BEFORE it is published. This used to happen in tenantGet, after the tenant was
+  // already in the list, as `if (!initialized) { setup; initialized = true; }` outside any lock:
+  // two first writers both ran the setup, a reader could use the tenant before it had run,
+  // and tenants created by the HA thread or at mongoc startup never got it at all. Under
+  // tenantMutex, and before anyone can see the tenant, it runs exactly once, for every tenant.
+  // (corDB's setup creates the tenant's store; mongoc's creates indexes, idempotently.)
+  //
+  if (db.tenantSetup != NULL)
+    db.tenantSetup(tP);
+  tP->initialized = true;
+
+  //
+  // Prepend to linked list - published with a RELEASE store: tenantLookup walks the list
+  // without the mutex, and must see the tenant complete, not just its pointer.
+  //
+  tP->next = tenantList;
+  __atomic_store_n(&tenantList, tP, __ATOMIC_RELEASE);
 
   COR_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
 
@@ -268,11 +283,7 @@ Tenant* tenantFromRequest(bool autoCreate)
     return NULL;
   }
 
-  if (!tP->initialized && db.tenantSetup != NULL)
-  {
-    db.tenantSetup(tP);
-    tP->initialized = true;
-  }
+  // (Set up inside tenantGetOrCreate, before it was published - see there)
 
   // Echo tenant header in response
   CorRestKeyValue* hV = corRest.out.headerV;
@@ -312,7 +323,8 @@ bool tenantPreServiceHook(void)
   if (tP == NULL)
     return false;
 
-  corNgsild.tenantP = tP;
+  corNgsild.tenantP    = tP;
+  corNgsild.tenantName = tP->name;
 
   // Expand vocab-bearing URL params (type, pick, omit, etc.) now that
   // @context is resolved and all params are parsed.
@@ -425,7 +437,7 @@ int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace)
     if (replace && (subId != NULL))
       ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
 
-    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, NULL, tP);
+    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP, tP->name);
     return TENANT_SUB_KIND_PERNOT;
   }
 
@@ -584,7 +596,7 @@ void tenantSubCacheReload(void)
   tenantSubCacheLoad(&tenant0);
 
   // All other tenants
-  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
     tenantSubCacheLoad(tP);
 }
 
@@ -629,7 +641,7 @@ void tenantRegCacheReload(void)
 {
   tenantRegCacheLoad(&tenant0);
 
-  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
     tenantRegCacheLoad(tP);
 }
 
@@ -782,8 +794,11 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
       COR_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
             tP->name[0] ? tP->name : "(default)", itemP->id);
       ldSnapshotCacheItemDelete(cacheP, itemP->id);
+      ldSnapshotCacheItemUnpin(itemP);          // Add returned it pinned
       continue;
     }
+
+    ldSnapshotCacheItemUnpin(itemP);            // Add returned it pinned; the cache keeps its own reference
 
     if (snapSeq > maxSeq)
       maxSeq = snapSeq;
@@ -808,6 +823,6 @@ void tenantSnapshotCacheReload(void)
 {
   tenantSnapshotCacheLoad(&tenant0);
 
-  for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
     tenantSnapshotCacheLoad(tP);
 }

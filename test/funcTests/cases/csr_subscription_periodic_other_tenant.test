@@ -1,0 +1,102 @@
+#
+# FILE            csr_subscription_periodic_other_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A periodic CSR-subscription (timeInterval) notifies on EVERY tenant, not only the default one.
+#
+# The periodic CSR-subscription tick was registered with tenant0's caches alone: on any other
+# tenant only the initial notification (sent by the create request itself) ever came.
+#
+# In ~3.2 s with timeInterval 1: the initial notification plus two or three periodic ones. The
+# default tenant is the control. Every notification names the subscription's tenant
+# (NGSILD-Tenant, § 6.4.8) - none on the default tenant.
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+Periodic CSR-subscription on a non-default tenant notifies
+
+--TAGS--
+csrsub subscription tenant
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart -dist
+
+--RUN--
+
+#
+# csrPeriodicRound <tenant header or ""> - a CSR and a CSR-subscription with timeInterval 1;
+# ~3.2 s later, at least three notifications (the initial one and two periodic ones)
+#
+csrPeriodicRound() {
+  local h=("$@")
+  corCurl --url /ngsi-ld/v1/csourceRegistrations "${h[@]}" --payload '{
+    "id":"urn:ngsi-ld:CSR:R1",
+    "type":"ContextSourceRegistration",
+    "endpoint":"http://example.org/csource",
+    "information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]
+  }' | head -1
+  corCurl --url /ngsi-ld/v1/csourceSubscriptions "${h[@]}" --payload '{
+    "id":"urn:ngsi-ld:Subscription:CSRP1",
+    "type":"Subscription",
+    "timeInterval": 1,
+    "entities":[{"type":"Vehicle"}],
+    "notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/csrPeriodic"}}
+  }' | head -1
+  sleep 3.2
+  corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSRP1 "${h[@]}" -X DELETE | head -1
+  ftClientSettle
+  ftClientDump > /tmp/csrp.$$
+  n=$(grep -c '"subscriptionId"' /tmp/csrp.$$)
+  t=$(grep -c '"NGSILD-Tenant"' /tmp/csrp.$$)
+  echo "at least three notifications: $([ "$n" -ge 3 ] && echo yes || echo "no ($n)")"
+  echo "naming a tenant: $([ "$t" = "$n" ] && echo all || { [ "$t" = 0 ] && echo none || echo "$t of $n"; })"
+  echo "the tenant named: $(grep -o '"NGSILD-Tenant": "[^"]*"' /tmp/csrp.$$ | cut -d'"' -f4 | sort -u)"
+  rm -f /tmp/csrp.$$
+}
+
+
+echo "01. The default tenant (the control)"
+echo "===================================="
+csrPeriodicRound
+echo
+echo
+
+
+echo "02. Tenant t1"
+echo "============="
+csrPeriodicRound -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+--EXPECT--
+01. The default tenant (the control)
+====================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+at least three notifications: yes
+naming a tenant: none
+the tenant named: 
+
+
+02. Tenant t1
+=============
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+at least three notifications: yes
+naming a tenant: all
+the tenant named: t1
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

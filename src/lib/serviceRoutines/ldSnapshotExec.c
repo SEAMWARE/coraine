@@ -864,10 +864,17 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
                            LdSnapshotCacheItem* itemP,
                            Tenant*              tenantP)
 {
-  (void) cacheP;
   if (itemP == NULL || itemP->tree == NULL) return false;
 
+  //
+  // The item is pinned by the caller. Its tree's member list is changed by PATCH (under the
+  // cache's wrlock) while this runs, so: the lookup under the rdlock - snapshotQueries itself is
+  // immutable (PATCH refuses it), so iterating it below needs no lock - and the grafting of the
+  // details and the status update at the end under the wrlock.
+  //
+  ldSnapshotCacheRdLock(cacheP);
   CorNode* qListP  = corTreeLookup(itemP->tree, "snapshotQueries");
+  ldSnapshotCacheUnlock(cacheP);
   // Build the details array directly in the cache's persistent allocator
   // (NULL = malloc) so the data outlives the request / worker thread.
   CorNode* detailsP = corTreeArray(NULL, "snapshotQueriesDetails");
@@ -889,6 +896,8 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
       corTreeChildAdd(detailsP, detail);
     }
   }
+
+  ldSnapshotCacheWrLock(cacheP);
 
   // Append snapshotQueriesDetails to itemP->tree if any queries ran.
   if (detailsP->value.head != NULL)
@@ -914,6 +923,8 @@ bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
     sCachedP->value.s = (char*) status;
 
   itemP->status = statusFromString(status);
+
+  ldSnapshotCacheUnlock(cacheP);
 
   return true;
 }

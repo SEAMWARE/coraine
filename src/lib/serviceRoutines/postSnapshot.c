@@ -49,6 +49,7 @@
 #include "serviceRoutines/ldSnapshotExec.h"              // ldSnapshotExecQueries
 #include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotExecTemporalQueries
 #include "serviceRoutines/ldSnapshotCaptureAsync.h"      // ldSnapshotCaptureAsync
+#include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
 #include "serviceRoutines/postSnapshot.h"                // Own interface
 
 
@@ -61,11 +62,7 @@ extern bool asyncSnapshot;  // coraine.c CLI flag
 //
 static char* snapshotIdGenerate(void)
 {
-  static int counter = 0;
-  char* buf = (char*) corAlloc(&corRest.kalloc, 64);
-  snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
-           (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
-  return buf;
+  return ldIdGenerate(&corRest.kalloc, "Snapshot");   // shared, atomic counter - see corNgsild ldIdGenerate.c
 }
 
 
@@ -216,7 +213,11 @@ bool postSnapshot(void)
 
   LdSnapshotCache* cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
 
-  if (ldSnapshotCacheItemLookup(cacheP, idP->value.s) != NULL)
+  ldSnapshotCacheRdLock(cacheP);      // a walk of the list - others add and unlink
+  bool exists = (ldSnapshotCacheItemLookup(cacheP, idP->value.s) != NULL);
+  ldSnapshotCacheUnlock(cacheP);
+
+  if (exists)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
             "Snapshot '%s' already exists", idP->value.s);
@@ -248,11 +249,25 @@ bool postSnapshot(void)
   if (corTreeLookup(snapP, "snapshotPriority") == NULL)
     corTreeChildAdd(snapP, corTreeInteger(corRest.kallocP, "snapshotPriority", 5));
 
+  //
+  // Returned PINNED (unpinned at the end of this function). The id check above answers the
+  // ordinary 409; Add repeats it under the wrlock, so a POST racing this one with the same id
+  // gets NULL here - still a 409, not a 500.
+  //
   LdSnapshotCacheItem* itemP = ldSnapshotCacheItemAdd(cacheP, snapP);
   if (itemP == NULL)
   {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
-            "snapshot cache add failed");
+    LdSnapshotCacheItem* otherP = ldSnapshotCacheItemLookupPinned(cacheP, idP->value.s);
+
+    if (otherP != NULL)
+    {
+      ldSnapshotCacheItemUnpin(otherP);
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "Snapshot '%s' already exists", idP->value.s);
+    }
+    else
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+              "snapshot cache add failed");
     return true;
   }
 
@@ -263,6 +278,7 @@ bool postSnapshot(void)
   if (itemP->snapTenantP == NULL)
   {
     ldSnapshotCacheItemDelete(cacheP, idP->value.s);
+    ldSnapshotCacheItemUnpin(itemP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "snapshot tenant setup failed");
     return true;
@@ -283,9 +299,19 @@ bool postSnapshot(void)
   // crash-recovery contract identical for sync and async paths).
   if (db.snapshotCreate != NULL)
   {
+    ldSnapshotCacheWrLock(cacheP);      // the item is visible - GET may be cloning its tree
     if (corTreeLookup(itemP->tree, "_snapSeq") == NULL)
       corTreeChildAdd(itemP->tree, corTreeInteger(NULL, "_snapSeq", itemP->snapSeq));
-    db.snapshotCreate(tenantP, itemP->id, itemP->tree);
+    ldSnapshotCacheUnlock(cacheP);
+
+    // A clone, taken under the rdlock: the DB write runs unlocked, and a plugin that converts
+    // the tree in place (mongoc renames id to _id) must not do it to the cached one
+    ldSnapshotCacheRdLock(cacheP);
+    CorNode* persistP = corTreeClone(corRest.kallocP, itemP->tree);
+    ldSnapshotCacheUnlock(cacheP);
+
+    if (persistP != NULL)
+      db.snapshotCreate(tenantP, itemP->id, persistP);
   }
 
   if (asyncSnapshot)
@@ -307,6 +333,7 @@ bool postSnapshot(void)
     // Re-persist with the final status + both detail arrays.
     if (db.snapshotUpdate != NULL && itemP->tree != NULL)
     {
+      ldSnapshotCacheRdLock(cacheP);    // the fragment is cloned from the tree
       CorNode* fragment = corTreeObject(corRest.kallocP, NULL);
       CorNode* sP      = corTreeLookup(itemP->tree, "snapshotStatus");
       if (sP != NULL && sP->type == CorString)
@@ -317,6 +344,7 @@ bool postSnapshot(void)
       CorNode* tdP = corTreeLookup(itemP->tree, "snapshotTemporalQueriesDetails");
       if (tdP != NULL)
         corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, tdP));
+      ldSnapshotCacheUnlock(cacheP);
       if (fragment->value.head != NULL)
         db.snapshotUpdate(tenantP, itemP->id, fragment);
     }
@@ -334,5 +362,6 @@ bool postSnapshot(void)
   strcat(locBuf, idP->value.s);
   corRestOutHeaderAdd("Location", locBuf);
 
+  ldSnapshotCacheItemUnpin(itemP);     // Add's pin - the async worker holds its own
   return true;
 }

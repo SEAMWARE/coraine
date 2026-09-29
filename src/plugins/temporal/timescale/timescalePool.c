@@ -189,7 +189,12 @@ int timescalePoolEnsure(Tenant* tenantP)
   if (tenantP == NULL)
     tenantP = &tenant0;
 
-  if (tenantP->troePoolP != NULL)   // fast path — already built
+  //
+  // Double-checked: the fast path reads the pointer without the mutex, so it is published with
+  // a RELEASE store below and read with an ACQUIRE load here - a thread that sees the pointer
+  // sees the pool it points to, built.
+  //
+  if (__atomic_load_n(&tenantP->troePoolP, __ATOMIC_ACQUIRE) != NULL)   // fast path — already built
     return TROE_OK;
 
   pthread_mutex_lock(&poolCreateMutex);
@@ -262,7 +267,7 @@ int timescalePoolEnsure(Tenant* tenantP)
   connV[0].conn = migConn;          // seed slot 0 with the migration connection
   connV[0].busy = false;
 
-  tenantP->troePoolP = poolP;
+  __atomic_store_n(&tenantP->troePoolP, poolP, __ATOMIC_RELEASE);
 
   pthread_mutex_unlock(&poolCreateMutex);
 

@@ -227,9 +227,11 @@ bool purgeSnapshots(void)
   // avoid mutating the list mid-iteration. Cap at the current count —
   // the cache is bounded.
   //
-  int cap = cacheP->count;
   const char** victims = NULL;
   int          n       = 0;
+
+  ldSnapshotCacheRdLock(cacheP);   // count and list under ONE lock - requests add and remove
+  int cap = cacheP->count;
   if (cap > 0)
     victims = (const char**) corAlloc(&corRest.kalloc, cap * sizeof(char*));
 
@@ -242,24 +244,29 @@ bool purgeSnapshots(void)
     if (match && n < cap)
       victims[n++] = corAllocStrdup(&corRest.kalloc, p->id);
   }
+  ldSnapshotCacheUnlock(cacheP);
 
+  //
+  // Each as DELETE /snapshots/{id} does it: pinned for the notification, unlinked, metadata
+  // dropped; its stores and tenant go with the last reference (snapshotItemDestroy). A victim
+  // somebody else deleted in the meantime is simply gone.
+  //
   for (int i = 0; i < n; i++)
   {
-    LdSnapshotCacheItem* victimP = ldSnapshotCacheItemLookup(cacheP, victims[i]);
-    Tenant*              snapP   = (victimP != NULL) ? (Tenant*) victimP->snapTenantP : NULL;
+    LdSnapshotCacheItem* victimP = ldSnapshotCacheItemLookupPinned(cacheP, victims[i]);
+
+    if (victimP == NULL)
+      continue;
 
     // § 5.16.6 — deletion notification BEFORE the item is unlinked.
-    if (victimP != NULL) ldSnapshotNotify(victimP, true);
+    ldSnapshotNotify(victimP, true);
 
     ldSnapshotCacheItemDelete(cacheP, victims[i]);
 
     if (db.snapshotDelete != NULL)
       db.snapshotDelete(tenantP, victims[i]);
-    if (troe.tenantDrop != NULL && snapP != NULL)
-      troe.tenantDrop(snapP);
-    if (db.tenantDrop != NULL && snapP != NULL)
-      db.tenantDrop(snapP);
-    snapshotTenantDestroy(snapP);
+
+    ldSnapshotCacheItemUnpin(victimP);
   }
 
   corRest.out.httpStatusCode = 204;

@@ -1,0 +1,256 @@
+#
+# FILE            subscription_q_value_path.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription whose q reaches INTO a value (m[c.d]>5) matches, and GET shows that q as sent.
+# Likewise a q of sub-attribute paths, OR'ed (a.b.c|d.e.f) - and GET with a user @context that
+# names the same six IRIs g..l renders that q as g.h.i|j.k.l: every segment compacted with the
+# requester's context, not echoed as sent. And an update written with THOSE names (g.h.i) is the
+# same attribute path as a.b.c - it matches, and the notification says a/b/c: the subscription's
+# names, not the updater's. A short name is an alias; the IRI is the attribute.
+#
+# A value's member names are JSON-LD, so the value path is stored expanded, like the attribute
+# name - with an IRI's dots written as '^' in the stored form. The attribute path turned them back
+# into dots when the stored q was parsed; the value path did not: the subscription cache, which
+# parses the stored q, looked for a member 'https://uri^etsi^org/...' that no entity has, and
+# never matched - and GET compacted nothing, showing the stored form.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription q with a value path, or with sub-attribute paths, matches and is rendered as sent
+
+--TAGS--
+subscription q
+
+--INIT--
+corDbDrop
+ftClientStart
+contextServerStart
+coraineStart
+
+--RUN--
+
+echo "01. Entity E1, m = {c: {d: 1}}"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "m": {"type": "Property", "value": {"c": {"d": 1}}}}' | head -1
+echo
+echo
+
+
+echo "02. Subscription on T with q=m[c.d]>5"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "q": "m[c.d]>5",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+echo
+echo
+
+
+echo "03. GET the subscription - q as sent"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:VP1 | grep '"q"'
+echo
+echo
+
+
+echo "04. m.c.d = 7 - matches: one notification, with d 7"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"m": {"type": "Property", "value": {"c": {"d": 7}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId"' /tmp/vp.$$), d: $(grep -o '"d": [0-9]*' /tmp/vp.$$ | cut -d' ' -f2)"
+echo
+echo
+
+
+echo "05. m.c.d = 2 - does not match: no notification"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"m": {"type": "Property", "value": {"c": {"d": 2}}}}' | head -1
+sleep 1
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId"' /tmp/vp.$$)"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+echo "06. Subscription on T2 with q=a.b.c|d.e.f"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:VP2",
+  "type": "Subscription",
+  "entities": [{"type": "T2"}],
+  "q": "a.b.c|d.e.f",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+echo
+echo
+
+
+echo "07. GET the subscription - q as sent"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:VP2 | grep '"q"'
+echo
+echo
+
+
+echo "08. Entity E2 with d.e.f only - the second half matches: one notification"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T2",
+  "d": {"type": "Property", "value": 1, "e": {"type": "Property", "value": 2, "f": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP2"' /tmp/vp.$$)"
+echo
+echo
+
+
+echo "09. Entity E3 with d.e (no f) and a.b (no c) - neither matches: no notification"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E3", "type": "T2",
+  "d": {"type": "Property", "value": 1, "e": {"type": "Property", "value": 2}},
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2}}}' | head -1
+sleep 1
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId"' /tmp/vp.$$)"
+echo
+echo
+
+
+echo "10. E3 gets a.b.c - the first half matches: one notification, for E3"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E3/attrs -X PATCH --payload '{"a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2, "c": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP2"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+echo "11. GET the q=a.b.c|d.e.f subscription with a context naming the six IRIs g..l"
+echo "================================================================================"
+contextServerPush /jsonldContexts/ghijkl '{
+  "@context": {
+    "g": "https://uri.etsi.org/ngsi-ld/default-context/a",
+    "h": "https://uri.etsi.org/ngsi-ld/default-context/b",
+    "i": "https://uri.etsi.org/ngsi-ld/default-context/c",
+    "j": "https://uri.etsi.org/ngsi-ld/default-context/d",
+    "k": "https://uri.etsi.org/ngsi-ld/default-context/e",
+    "l": "https://uri.etsi.org/ngsi-ld/default-context/f"
+  }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:VP2 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ghijkl>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
+echo
+echo
+
+
+echo "12. E4 with a.b only (no match), then PATCHed with the g..l context: g.h.i IS a.b.c"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E4", "type": "T2",
+  "a": {"type": "Property", "value": 1, "b": {"type": "Property", "value": 2}}}' | head -1
+sleep 1
+ftClientSettle
+echo "after the create - notifications: $(ftClientDump | grep -c '"subscriptionId"')"
+corCurl --url /ngsi-ld/v1/entities/urn:E4/attrs -X PATCH \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ghijkl>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --payload '{"g": {"type": "Property", "value": 1, "h": {"type": "Property", "value": 2, "i": {"type": "Property", "value": 3}}}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/vp.$$
+echo "after the PATCH - notifications: $(grep -c '"subscriptionId": "urn:ngsi-ld:Subscription:VP2"' /tmp/vp.$$), entity: $(grep -o '"id": "urn:E[0-9]"' /tmp/vp.$$ | cut -d'"' -f4)"
+echo "names in it - a/b/c: $(grep -c '"[abc]": {' /tmp/vp.$$), g/h/i: $(grep -c '"[ghi]": {' /tmp/vp.$$)"
+rm -f /tmp/vp.$$
+echo
+echo
+
+
+--EXPECT--
+01. Entity E1, m = {c: {d: 1}}
+==============================
+HTTP/1.1 201 Created
+
+
+02. Subscription on T with q=m[c.d]>5
+=====================================
+HTTP/1.1 201 Created
+
+
+03. GET the subscription - q as sent
+====================================
+  "q": "m[c.d]>5",
+
+
+04. m.c.d = 7 - matches: one notification, with d 7
+===================================================
+HTTP/1.1 204 No Content
+notifications: 1, d: 7
+
+
+05. m.c.d = 2 - does not match: no notification
+===============================================
+HTTP/1.1 204 No Content
+notifications: 0
+
+
+06. Subscription on T2 with q=a.b.c|d.e.f
+==========================================
+HTTP/1.1 201 Created
+
+
+07. GET the subscription - q as sent
+====================================
+  "q": "a.b.c|d.e.f",
+
+
+08. Entity E2 with d.e.f only - the second half matches: one notification
+========================================================================
+HTTP/1.1 201 Created
+notifications: 1
+
+
+09. Entity E3 with d.e (no f) and a.b (no c) - neither matches: no notification
+================================================================================
+HTTP/1.1 201 Created
+notifications: 0
+
+
+10. E3 gets a.b.c - the first half matches: one notification, for E3
+====================================================================
+HTTP/1.1 204 No Content
+notifications: 1, entity: urn:E3
+
+
+11. GET the q=a.b.c|d.e.f subscription with a context naming the six IRIs g..l
+================================================================================
+  "q": "g.h.i|j.k.l",
+
+
+12. E4 with a.b only (no match), then PATCHed with the g..l context: g.h.i IS a.b.c
+====================================================================================
+HTTP/1.1 201 Created
+after the create - notifications: 0
+HTTP/1.1 204 No Content
+after the PATCH - notifications: 1, entity: urn:E4
+names in it - a/b/c: 3, g/h/i: 0
+
+
+--TEARDOWN--
+coraineStop
+contextServerStop
+ftClientStop
+corDbDrop

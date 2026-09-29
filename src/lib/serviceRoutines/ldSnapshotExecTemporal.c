@@ -236,10 +236,13 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
                                    LdSnapshotCacheItem* itemP,
                                    Tenant*              tenantP)
 {
-  (void) cacheP;
   if (itemP == NULL || itemP->tree == NULL) return false;
 
+  // As ldSnapshotExecQueries: lookup under the rdlock (the list itself is immutable), the
+  // grafting and the status update under the wrlock
+  ldSnapshotCacheRdLock(cacheP);
   CorNode* qListP = corTreeLookup(itemP->tree, "snapshotTemporalQueries");
+  ldSnapshotCacheUnlock(cacheP);
   if (qListP == NULL || qListP->type != CorArray || qListP->value.head == NULL)
     return true;  // nothing to do — current-state status (if any) stands
 
@@ -269,6 +272,8 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
     corTreeChildAdd(detailsP, detail);
   }
 
+  ldSnapshotCacheWrLock(cacheP);
+
   // Append snapshotTemporalQueriesDetails to itemP->tree.
   CorNode* existing = corTreeLookup(itemP->tree, "snapshotTemporalQueriesDetails");
   if (existing != NULL)
@@ -289,6 +294,8 @@ bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
   if (sCachedP != NULL && sCachedP->type == CorString)
     sCachedP->value.s = (char*) status;
   itemP->status = statusFromString(status);
+
+  ldSnapshotCacheUnlock(cacheP);
 
   return true;
 }

@@ -52,4 +52,13 @@ extern Tenant* snapshotTenantCreate(Tenant* origP, int snapSeq);
 //
 extern void snapshotTenantDestroy(Tenant* snapTenantP);
 
+// -----------------------------------------------------------------------------
+//
+// snapshotItemDestroy - the snapshot cache's destroy hook (see snapshotTenant.c)
+//
+struct LdSnapshotCacheItem;
+extern void snapshotItemDestroy(struct LdSnapshotCacheItem* itemP);
+
+
+
 #endif  // DB_SNAPSHOTTENANT_H_

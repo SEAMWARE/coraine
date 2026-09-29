@@ -46,18 +46,14 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
+#include "corNgsild/ldIdGenerate.h"                    // ldIdGenerate
 #include "serviceRoutines/postCsourceSubscriptions.h"  // Own interface
 
 
 
 static char* csrSubIdGenerate(CorAlloc* allocP)
 {
-  static int counter = 0;
-  char*      buf     = corAlloc(allocP, 128);
-
-  snprintf(buf, 128, "urn:ngsi-ld:Subscription:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
-
-  return buf;
+  return ldIdGenerate(allocP, "Subscription");   // the SAME counter as /subscriptions: one id space
 }
 
 

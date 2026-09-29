@@ -1,0 +1,118 @@
+#
+# FILE            subscription_periodic_other_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A periodic subscription (timeInterval) notifies on EVERY tenant, not only the default one.
+#
+# The pernot loop was started with tenant0's cache alone, so a periodic subscription created
+# with an NGSILD-Tenant header was accepted, stored and listed - and never fired.
+#
+# Its notification names the tenant: NGSILD-Tenant (§ 6.4.8) - the subscription's own, as there
+# is no request to take it from.
+#
+# timeInterval 3600: the first notification is due at once, the next in an hour, so exactly one
+# arrives inside the test.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Periodic subscription on a non-default tenant notifies
+
+--TAGS--
+pernot subscription tenant
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. Create entity T1 on tenant t1
+# 02. Create a periodic subscription on tenant t1
+# 03. The first periodic notification arrives
+# 04. It carries the tenant's entity
+#
+
+echo "01. Create entity T1 on tenant t1"
+echo "================================="
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t1' --payload '{
+  "id": "urn:T1",
+  "type": "Vehicle",
+  "speed": {"type": "Property", "value": 80}
+}' | head -1
+echo
+echo
+
+
+echo "02. Create a periodic subscription on tenant t1"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' --payload '{
+  "id": "urn:ngsi-ld:Subscription:PT1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "timeInterval": 3600,
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+echo
+echo
+
+
+echo "03. The first periodic notification arrives"
+echo "==========================================="
+if ftClientWait 1; then echo "notification arrived"; else echo "NO notification"; fi
+echo
+echo
+
+
+echo "04. It carries the tenant's entity"
+echo "=================================="
+ftClientSettle
+ftClientDump > /tmp/pot.$$
+grep -c '"id": "urn:T1"' /tmp/pot.$$
+echo
+echo
+
+
+echo "05. It names the tenant"
+echo "======================="
+grep -o '"NGSILD-Tenant": "[^"]*"' /tmp/pot.$$
+rm -f /tmp/pot.$$
+echo
+echo
+
+
+--EXPECT--
+01. Create entity T1 on tenant t1
+=================================
+HTTP/1.1 201 Created
+
+
+02. Create a periodic subscription on tenant t1
+===============================================
+HTTP/1.1 201 Created
+
+
+03. The first periodic notification arrives
+===========================================
+notification arrived
+
+
+04. It carries the tenant's entity
+==================================
+1
+
+
+05. It names the tenant
+=======================
+"NGSILD-Tenant": "t1"
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

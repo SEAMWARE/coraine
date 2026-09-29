@@ -20,6 +20,8 @@
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheRdLock, ldSubCacheUnlock
+#include "corNgsild/ldPernotCache.h"                  // ldPernotCacheRdLock, ldPernotCacheUnlock
 #include "corNgsild/LdPernotCache.h"                  // LdPernotCache, LdPernotItem
 #include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "corNgsild/ldPagination.h"                   // ldPaginationLinkHeader
@@ -94,15 +96,19 @@ bool getSubscriptions(void)
   // whether a `rel="next"` is needed. § 6.3.10: GET on a collection
   // is paginated; clients need prev/next/first to walk the set.
   int total = 0;
-  if (scP != NULL)
-    for (LdSubCacheItem* it = scP->itemList; it != NULL; it = it->next)
-      if (it->subTree != NULL) total++;
-  if (pcP != NULL)
-    for (LdPernotItem* it = pcP->head; it != NULL; it = it->next)
-      if (it->subTree != NULL) total++;
 
+  //
+  // Both passes over the sub cache under its rdlock - they walked it with no lock, while
+  // POST/PATCH/DELETE /subscriptions changed it (a DELETE frees items). All in memory, and
+  // everything taken from an item is cloned into the request arena.
+  //
   if (scP != NULL)
   {
+    ldSubCacheRdLock(scP);
+
+    for (LdSubCacheItem* it = scP->itemList; it != NULL; it = it->next)
+      if (it->subTree != NULL) total++;
+
     for (LdSubCacheItem* it = scP->itemList; it != NULL && (limit < 0 || taken < limit); it = it->next)
     {
       if (it->subTree == NULL) continue;
@@ -115,10 +121,18 @@ bool getSubscriptions(void)
       corTreeChildAdd(arrayP, subP);
       taken++;
     }
+
+    ldSubCacheUnlock(scP);
   }
 
+  // The pernot cache the same way, under its own rdlock (never both locks at once)
   if (pcP != NULL)
   {
+    ldPernotCacheRdLock(pcP);
+
+    for (LdPernotItem* it = pcP->head; it != NULL; it = it->next)
+      if (it->subTree != NULL) total++;
+
     for (LdPernotItem* it = pcP->head; it != NULL && (limit < 0 || taken < limit); it = it->next)
     {
       if (it->subTree == NULL) continue;
@@ -131,6 +145,8 @@ bool getSubscriptions(void)
       corTreeChildAdd(arrayP, subP);
       taken++;
     }
+
+    ldPernotCacheUnlock(pcP);
   }
 
   // § 7.4.2.2: prev/next pointers describe iterating the pages of a result set;

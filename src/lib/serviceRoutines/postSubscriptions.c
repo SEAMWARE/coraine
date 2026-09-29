@@ -39,8 +39,6 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "corNgsild/ldPernotCache.h"                  // ldPernotCacheItemAdd
-#include "corNgsild/ldQParse.h"                       // ldQParse
-#include "corNgsild/ldQRender.h"                      // ldQRender
 #include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "corNgsild/ldDistSub.h"                      // ldDistSubFanout
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
@@ -51,6 +49,8 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
+#include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
+#include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 
 
@@ -84,12 +84,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 static char* subIdGenerate(CorAlloc* allocP)
 {
-  static int counter = 0;
-  char*      buf     = corAlloc(allocP, 128);
-
-  snprintf(buf, 128, "urn:ngsi-ld:Subscription:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
-
-  return buf;
+  return ldIdGenerate(allocP, "Subscription");   // shared, atomic counter - see corNgsild ldIdGenerate.c
 }
 
 
@@ -136,9 +131,15 @@ bool postSubscriptions(void)
   // collection is shared across /subscriptions and /csourceSubscriptions.
   //
   {
-    Tenant* _t = (Tenant*) corNgsild.tenantP;
-    if (_t != NULL && _t->regSubCacheP != NULL
-        && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, idP->value.s) != NULL)
+    Tenant*     _t           = (Tenant*) corNgsild.tenantP;
+    LdSubCache* regSubCacheP = (_t != NULL) ? (LdSubCache*) _t->regSubCacheP : NULL;
+
+    // Under the CSR-sub cache's rdlock (as postCsourceSubscriptions does) - it had none
+    ldSubCacheRdLock(regSubCacheP);
+    bool exists = (regSubCacheP != NULL) && (ldSubCacheItemLookup(regSubCacheP, idP->value.s) != NULL);
+    ldSubCacheUnlock(regSubCacheP);
+
+    if (exists)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
               "subscription '%s' already exists", idP->value.s);
@@ -147,32 +148,13 @@ bool postSubscriptions(void)
   }
 
   //
-  // Expand q-filter attribute names using the request's @context.
-  // The q string is opaque to JSON-LD expansion, so we parse it (which expands
-  // attr names via corNgsild.contextP), then render back to a string with the
-  // expanded IRIs and replace the value in the subscription tree.
+  // q is stored with its attribute names EXPANDED (subscriptionQExpand), and each cache parses the
+  // stored q itself, into memory it owns. This used to parse it into the subscription cache's
+  // shared arena - outside its lock, so two POSTs at once raced on it - meaning to store it
+  // expanded too; but it looked q up by an IRI the tree does not carry, so that never ran, and
+  // the expanded form it would have stored was one ldQParse could not read back.
   //
-  //
-  // Expand q-filter and store expanded version + pre-parsed tree for the cache.
-  // Parse once with the cache's allocator so the tree persists across requests.
-  //
-  LdQNode* qExprForCache = NULL;
-  CorNode* qP            = corTreeLookup(subP, "https://uri.etsi.org/ngsi-ld/q");
-  if (qP != NULL && qP->type == CorString)
-  {
-    Tenant* tP = (Tenant*) corNgsild.tenantP;
-    CorAlloc* cacheAllocP = (tP->subCacheP != NULL) ? &((LdSubCache*) tP->subCacheP)->alloc : &corRest.kalloc;
-
-    // Single parse — expands attr names via corNgsild.contextP, allocates with cache allocator
-    qExprForCache = ldQParse(qP->value.s, cacheAllocP);
-    if (qExprForCache != NULL)
-    {
-      // Render back to expanded q-string for DB storage
-      char* expandedQ = ldQRender(qExprForCache, NULL, &corRest.kalloc, false);
-      if (expandedQ != NULL)
-        qP->value.s = expandedQ;
-    }
-  }
+  subscriptionQExpand(subP);
 
   //
   // Add "status" = "active"|"paused"|"expired" (read-only field, computed from isActive + expiresAt)
@@ -384,7 +366,7 @@ bool postSubscriptions(void)
   if (isPernot)
   {
     if (tenantP->pernotCacheP != NULL)
-      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, qExprForCache, tenantP);
+      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP, tenantP->name);
   }
   else
   {
@@ -396,7 +378,7 @@ bool postSubscriptions(void)
     ldSubCacheWrLock(subCacheP);
     if (subCacheP != NULL)
     {
-      cachedP = ldSubCacheItemAdd(subCacheP, subP, qExprForCache, notifFormat);
+      cachedP = ldSubCacheItemAdd(subCacheP, subP, NULL, notifFormat);   // parses the stored q
       if (cachedP != NULL)
         ldSubCacheItemPin(cachedP);
     }

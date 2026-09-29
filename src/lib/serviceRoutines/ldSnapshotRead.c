@@ -69,13 +69,22 @@ LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP)
     return NULL;
   }
 
-  LdSnapshotCacheItem* itemP = ldSnapshotCacheItemLookup(cacheP, id);
+  //
+  // PINNED for the rest of the request: the caller queries the snapshot's tenant, and the id
+  // goes out in a response header. It was a plain lookup, and a DELETE of the snapshot meanwhile
+  // destroyed that tenant under the query. Unpinned by the post-response hook
+  // (ldSnapshotRequestRelease).
+  //
+  LdSnapshotCacheItem* itemP = ldSnapshotCacheItemLookupPinned(cacheP, id);
   if (itemP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "Snapshot '%s' not found", id);
     return NULL;
   }
+
+  ldSnapshotRequestRelease();          // one routed snapshot per request
+  corNgsild.snapshotPinned = itemP;
 
   itemP->lastUsedAt = corRest.requestStartTime;
   corRestOutHeaderAdd("NGSILD-Snapshot", itemP->id);
