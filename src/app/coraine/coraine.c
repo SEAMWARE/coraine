@@ -1405,6 +1405,15 @@ int main(int argC, char* argV[])
   if (r != 0)
     COR_X(1, "corLogInit failed");
 
+#ifndef COR_T_ON
+  //
+  // A release build: its traces are compiled away (corLog.h), so a trace level turns on nothing -
+  // said once, rather than leaving an operator to wonder why the log stays quiet.
+  //
+  if ((traceLevels != NULL) && (traceLevels[0] != 0))
+    COR_W("--traceLevels %s: this broker is a release build, its traces are compiled out - nothing to turn on", traceLevels);
+#endif
+
   //
   // The libraries log through corBase's callback (COR_LIB_*), and until it is set
   // they have no log to write to - their errors go to stderr, the rest nowhere.
