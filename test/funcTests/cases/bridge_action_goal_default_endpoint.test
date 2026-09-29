@@ -37,8 +37,6 @@ bridge channel action goal notification
 corDbDrop
 ftClientStart
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \

@@ -28,11 +28,11 @@ bridge dds action discovery
 
 --INIT--
 corDbDrop
+corTroeInit
 docker rm -f cor_ros2_action_server >/dev/null 2>&1
-export COR_TRACE_LEVELS=0,402
 BRIDGE_CONFIG=$(bridgeConfig -b dds \
   --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }")
-coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+coraineStart --troe timescale --troeSync --bridges dds --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
@@ -52,9 +52,8 @@ echo
 echo "02. A goal of order 3 to it - 202, and it SUCCEEDED (4), with a result"
 echo "======================================================================"
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:dds:default/attrs/fibonacci -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }' | head -1
-for i in $(seq 1 200); do grep -q "goal 1 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
-grep -oE "goal 1 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
-echo "result written: $(grep -c "'ddsActionResult' on 'fibonacci'" /tmp/coraine.CB.log)"
+GOAL=$(attrDatasetIds urn:ngsi-ld:dds:default fibonacci)   # urn:goal:<the UUID the plugin gave it> - written with the request
+bridgeGoalHistoryAwait urn:ngsi-ld:dds:default fibonacci "$GOAL" ddsAction | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/' | sed -E 's/: ([a-z]+) -> ([a-z]+ -> )*([a-z]+),/: \1 -> .. -> \3,/'
 echo
 echo
 
@@ -80,11 +79,11 @@ Content-Length: REGEX(\d+)
 02. A goal of order 3 to it - 202, and it SUCCEEDED (4), with a result
 ======================================================================
 HTTP/1.1 202 Accepted
-goal 1 on 'fibonacci' (urn:goal:<uuid>) ended, state 4
-result written: 1
+urn:goal:<uuid>: accepted -> .. -> succeeded, feedback 2, result written, instance removed
 
 
 --TEARDOWN--
 docker rm -f cor_ros2_action_server >/dev/null 2>&1
 coraineStop
+corTroeDrop
 corDbDrop

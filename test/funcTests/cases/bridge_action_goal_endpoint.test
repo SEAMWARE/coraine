@@ -32,8 +32,6 @@ bridge channel plugins action goal subscription
 corDbDrop
 ftClientStart
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
@@ -95,10 +93,8 @@ echo
 
 echo "06. Each endpoint heard its own goal accepted - /a goal 3, /b goal 4"
 echo "===================================================================="
-for i in $(seq 1 50); do
-  [ $(grep -c "'status' on 'A2'" /tmp/coraine.CB.log 2>/dev/null) -ge 2 ] && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:2 navigate status urn:goal:3
+attrMemberAwait urn:R:2 navigate status urn:goal:4
 ftClientSettle
 ftClientDump
 echo

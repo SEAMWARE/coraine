@@ -1465,6 +1465,62 @@ for c in channels:
 }
 
 
+# bridgeGet <bridge> <member> - one member of a ContextBridge, from GET /bridges/{id}; nothing when absent
+#
+bridgeGet() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:$1" 2>/dev/null | python3 -c '
+import json, sys
+try:
+  b = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+if sys.argv[1] in b:
+  print(b[sys.argv[1]])
+' "$2"
+}
+
+
+# bridgeAtLeast <bridge> <member> <n> [seconds] - wait until that counter of the ContextBridge is at least n
+#
+# samplesDropped: samples no Channel claims that would write what a Channel already writes (a catch-all's
+# collision) - NOT the samples nothing claims at all.
+#
+bridgeAtLeast() {
+  local bridge="$1" member="$2" n="$3" secs="${4:-10}"
+  local i v
+
+  for ((i = 0; i < secs * 10; i++)); do
+    v=$(bridgeGet "$bridge" "$member")
+    [ -n "$v" ] && [ "$v" -ge "$n" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeAtLeast: bridge '$bridge': $member is '$v', not >= $n, after ${secs}s" >&2
+  return 1
+}
+
+
+# bridgeChannelsCount <bridge> <member> -"<endpoint>: <n>" for every Channel of <bridge> whose counter is not 0
+#
+# Ordered by endpoint (P2 before P10). samplesOut: the values each endpoint published - a write that
+# published twice, or an echo that came back out, shows as a 2.
+#
+bridgeChannelsCount() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/channels" 2>/dev/null | python3 -c '
+import json, re, sys
+bridge, member = sys.argv[1:3]
+try:
+  channels = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+rows = [(c["channelTarget"], c[member]) for c in channels
+        if c.get("bridgeId") == "urn:ngsi-ld:ContextBridge:" + bridge and c.get(member, 0) != 0]
+for endpoint, n in sorted(rows, key=lambda r: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", r[0])]):
+  print("%s: %s" % (endpoint, n))
+' "$1" "$2"
+}
+
+
 # bridgeChannelAwait <bridge> <endpoint> <member> <value> [seconds] - wait until that member of the Channel has that value
 #
 bridgeChannelAwait() {
@@ -1563,36 +1619,83 @@ sys.exit(1)
 }
 
 
-# bridgeGoalHistory <entityId> <attr> <goalAlias> - how a goal went, from the attribute's temporal history
+# bridgeGoalHistory <entityId> <attr> <goalAlias> [prefix] - how a goal went, from the attribute's temporal history
 #
 # A goal's instance (datasetId = its alias, urn:goal:N) is removed after its final event, so how it
 # ended is read where it stays: GET /temporal/entities (needs --troe timescale; --troeSync for it to be
-# there at once). Prints the status codes in order (each once), whether a result was written, and whether
-# the instance was then removed - or that the goal left no history (refused before anything was written).
+# there at once). Prints the status codes in order (each once), how many feedbacks (when any), whether
+# a result was written, and whether the instance was then removed - or that the goal left no history
+# (refused before anything was written). In order of modifiedAt: the temporal representation does not
+# promise the instances in time order.
+#
+# [prefix]: what the bridge names its members with - dds: ddsAction (ddsActionStatus, ddsActionFeedback,
+# ddsActionResult); none: status, feedback, result.
 #
 bridgeGoalHistory() {
-  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2" 2>/dev/null | python3 -c '
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2&options=sysAttrs" 2>/dev/null | python3 -c '
 import json, sys
-attr, alias = sys.argv[1:3]
+attr, alias, prefix = sys.argv[1:4]
+name = lambda m: prefix + m.capitalize() if prefix else m
 try:
   e = json.load(sys.stdin)
 except Exception:
   print("no temporal entity"); sys.exit(0)
 inst = e.get(attr, [])
 inst = inst if isinstance(inst, list) else [inst]
-mine = [i for i in inst if i.get("datasetId") == alias]
+mine = sorted([i for i in inst if i.get("datasetId") == alias], key=lambda i: i.get("modifiedAt", ""))
 if not mine:
   print("%s: no history" % alias); sys.exit(0)
-codes = []
+codes    = []
+feedback = []
 for i in mine:
-  st = i.get("status", {}).get("value")
+  st = i.get(name("status"), {}).get("value")
   code = st.get("code") if isinstance(st, dict) else st
   if code is not None and (not codes or codes[-1] != code):
     codes.append(code)
-result  = any("result" in i for i in mine)
+  fb = i.get(name("feedback"), {}).get("value")
+  if fb is not None and (not feedback or feedback[-1] != fb):
+    feedback.append(fb)
+result  = any(name("result") in i for i in mine)
 removed = "deletedAt" in mine[-1]
-print("%s: %s, result %s, instance %s" % (alias, " -> ".join(codes) if codes else "no status", "written" if result else "none", "removed" if removed else "still there"))
-' "$2" "$3"
+print("%s: %s%s, result %s, instance %s" % (alias, " -> ".join(codes) if codes else "no status",
+      ", feedback %d" % len(feedback) if feedback else "", "written" if result else "none", "removed" if removed else "still there"))
+' "$2" "$3" "$4"
+}
+
+
+# bridgeGoalHistoryAwait <entityId> <attr> <goalAlias> [prefix] [seconds] - bridgeGoalHistory, once the goal has ended
+#
+# Ended = its instance removed, in the history. For a goal on an endpoint with no Channel to ask
+# (bridgeGoalEndedAwait) - one the catch-all carries.
+#
+bridgeGoalHistoryAwait() {
+  local secs="${5:-20}"
+  local i h
+
+  for ((i = 0; i < secs * 10; i++)); do
+    h=$(bridgeGoalHistory "$1" "$2" "$3" "$4")
+    [[ "$h" == *"instance removed" ]] && { echo "$h"; return 0; }
+    sleep 0.1
+  done
+
+  echo "bridgeGoalHistoryAwait: goal $3 on $1/$2 has not ended after ${secs}s: $h" >&2
+  return 1
+}
+
+
+# attrDatasetIds <entityId> <attr> - the datasetIds of the attribute's instances, one per line (a goal's: urn:goal:<id>)
+#
+attrDatasetIds() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/$1" 2>/dev/null | python3 -c '
+import json, sys
+try:
+  a = json.load(sys.stdin).get(sys.argv[1])
+except Exception:
+  sys.exit(0)
+for i in (a if isinstance(a, list) else [a] if isinstance(a, dict) else []):
+  if "datasetId" in i:
+    print(i["datasetId"])
+' "$2"
 }
 
 

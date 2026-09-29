@@ -41,11 +41,6 @@ bridge channel plugins
 corDbDrop
 
 #
-# Only the bridge traces, so the grep in step 04 cannot match anything else.
-#
-export COR_TRACE_LEVELS=402
-
-#
 # One claimed endpoint and two nobody claims. All three are emitted at start.
 #
 BRIDGE_CONFIG=$(bridgeConfig \
@@ -58,15 +53,6 @@ BRIDGE_CONFIG=$(bridgeConfig \
 coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
-
-#
-# ⚠ Again, and not by oversight: --INIT-- and --RUN-- are separate PROCESSES,
-# so the export in --INIT-- reached the broker started there and nothing else.
-# The restarts below are started from here, and without this their logs come
-# out at the default trace levels - which is how step 06 first "passed" with
-# no evidence in the log at all.
-#
-export COR_TRACE_LEVELS=402
 
 echo "01. The claimed endpoint went where it always did"
 echo "================================================="
@@ -123,7 +109,7 @@ echo
 
 echo "04. One publish, and it is the claimed endpoint's - not the catch-all's"
 echo "========================================================================"
-grep -oE "\-> '[^']+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+bridgeChannelsCount loopback samplesOut
 echo
 echo
 
@@ -191,14 +177,16 @@ BRIDGE_CONFIG3=$(bridgeConfig -o /tmp/coraine_bridges3.json \
   --emit "temperature=1234")
 
 coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG3
-sleep 1
+bridgeAtLeast loopback samplesDropped 1
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1
 echo
 #
-# The value being untouched is the outcome; this is the REASON. Without it the
-# step passes just as well when the sample was never delivered at all.
+# The value being untouched is the outcome; this is the evidence the sample
+# ARRIVED - without it the step passes just as well when it was never
+# delivered at all. The catch-all takes whatever nothing claims, so the one
+# thing that drops a sample here is the Channel that already writes it.
 #
-grep -oE "which channel '[^']+' already writes - dropped" /tmp/coraine.CB.log
+echo "samples dropped: $(bridgeGet loopback samplesDropped)"
 echo
 echo
 
@@ -289,7 +277,7 @@ Content-Length: 225
 
 04. One publish, and it is the claimed endpoint's - not the catch-all's
 ========================================================================
-1 -> 'P1' on bridge 'loopback'
+P1: 1
 
 
 05. Restart with no defaultEntity in the file - the default, ON: it is stored
@@ -344,6 +332,6 @@ Content-Length: 121
 }
 
 
-which channel 'P1' already writes - dropped
+samples dropped: 1
 
 

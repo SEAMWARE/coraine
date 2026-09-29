@@ -37,8 +37,6 @@ bridge channel plugins
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
   --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
@@ -183,12 +181,7 @@ echo "============================================="
 # never enters a service routine, so it cannot come back out - a 2 on any
 # line would be the echo loop.
 #
-for i in $(seq 1 50); do
-  n=$(grep -c "on bridge 'loopback'" /tmp/coraine.CB.log 2>/dev/null)
-  [ "${n:-0}" -ge 9 ] && break
-  sleep 0.2
-done
-grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+bridgeChannelsCount loopback samplesOut
 echo
 echo
 
@@ -299,14 +292,14 @@ Date: REGEX(.*)
 
 12. One publish per endpoint, and exactly one
 =============================================
-1 -> 'P1' on bridge 'loopback'
-1 -> 'P2' on bridge 'loopback'
-1 -> 'P3' on bridge 'loopback'
-1 -> 'P4' on bridge 'loopback'
-1 -> 'P5' on bridge 'loopback'
-1 -> 'P6' on bridge 'loopback'
-1 -> 'P7' on bridge 'loopback'
-1 -> 'P8' on bridge 'loopback'
-1 -> 'P9' on bridge 'loopback'
+P1: 1
+P2: 1
+P3: 1
+P4: 1
+P5: 1
+P6: 1
+P7: 1
+P8: 1
+P9: 1
 
 

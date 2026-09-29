@@ -28,8 +28,6 @@ bridge channel plugins action goal
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --goalMode "A1=hold")
@@ -41,10 +39,7 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 echo "01. Send goal 1 to A1 - it is accepted and held"
 echo "==============================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }'
-for i in $(seq 1 50); do
-  grep -q "'status' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:1 navigate status urn:goal:1
 echo
 echo
 
@@ -87,7 +82,7 @@ echo
 echo "07. Goal 1 is still in flight - none of the refused requests touched it"
 echo "======================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1
-echo "goal 1 ended: $(grep -c "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log)"
+echo "goal 1 in progress: $(bridgeGoalInProgress loopback A1 1)"
 echo
 echo
 
@@ -275,7 +270,7 @@ Content-Length: 365
   "type": "Robot"
 }
 
-goal 1 ended: 0
+goal 1 in progress: yes
 
 
 08. Cancel goal 1 by its id - ?goal=1: 202, the cancel is on its way

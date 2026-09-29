@@ -20,11 +20,11 @@
 #   04b    while it runs: ddsActionStatus.code as orion-ld spells it, and publishedAt
 #   07-08  a goal to an action nobody serves: 503, and nothing is written
 #
-# ⭐ The oracle is the entity afterwards and the broker's trace (0 for the
-# plugin, 402 CtBridge) - not the goal's instance mid-flight, which holds
-# whatever the server has said so far and so depends on ROS's timing. How many
-# status updates a goal gets depends on it too; its end, its feedback count and
-# its one result do not. 04b looks mid-flight for two things only, and neither
+# ⭐ The oracle is the entity afterwards and the goal's temporal history (--troe,
+# bridgeGoalHistory) - not the goal's instance mid-flight, which holds whatever
+# the server has said so far and so depends on ROS's timing. Which status
+# updates a goal gets depends on it too; its first and last state, its feedback
+# count and its one result do not. 04b looks mid-flight for two things only, and neither
 # depends on it: after its first feedback the status IS executing (its next is
 # the end, seconds away), and publishedAt is there - orion-ld's contract.
 #
@@ -38,16 +38,15 @@ bridge dds action goal
 
 --INIT--
 corDbDrop
+corTroeInit
 docker rm -f cor_ros2_action_server >/dev/null 2>&1
-
-export COR_TRACE_LEVELS=0,402
 
 BRIDGE_CONFIG=$(bridgeConfig -b dds \
   --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
   --action "fibonacci,Robot,urn:R:1,compute,example_interfaces::action::dds_::Fibonacci" \
   --action "nobody,Robot,urn:R:2,compute,example_interfaces::action::dds_::Fibonacci")
 
-coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+coraineStart --troe timescale --troeSync --bridges dds --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
@@ -55,18 +54,20 @@ echo "01. A goal of order 3 to the Fibonacci server - DDS first, so 202"
 echo "================================================================="
 docker run --rm -d --name cor_ros2_action_server --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
   bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/examples_rclpy_minimal_action_server/server' > /dev/null
-for i in $(seq 1 300); do grep -q "action 'fibonacci' discovered" /tmp/coraine.CB.log && break; sleep 0.1; done
+bridgeChannelAwait dds fibonacci endpointDiscovered true 30
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }'
+GOAL1=$(attrDatasetIds urn:R:1 compute)                  # urn:goal:<the UUID the plugin gave it> - written with the request
 echo
 echo
 
 
 echo "02. It ended - how, and what it wrote on the way"
 echo "================================================"
-for i in $(seq 1 200); do grep -q "goal 1 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
-grep -oE "goal 1 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
-echo "feedback written: $(grep -c "'ddsActionFeedback' on 'fibonacci'" /tmp/coraine.CB.log)"
-echo "result written:   $(grep -c "'ddsActionResult' on 'fibonacci'" /tmp/coraine.CB.log)"
+bridgeGoalEndedAwait dds fibonacci "${GOAL1#urn:goal:}" 20
+#
+# Its first state and its last: what ROS says in between, and how often, is ROS's timing (see the top).
+#
+bridgeGoalHistory urn:R:1 compute "$GOAL1" ddsAction | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/' | sed -E 's/: ([a-z]+) -> ([a-z]+ -> )*([a-z]+),/: \1 -> .. -> \3,/'
 echo
 echo
 
@@ -81,7 +82,8 @@ echo
 echo "04. A goal of order 10 - it runs for some ten seconds"
 echo "====================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 10 } }'
-for i in $(seq 1 100); do [ $(grep -c "'ddsActionFeedback' on 'fibonacci'" /tmp/coraine.CB.log) -ge 3 ] && break; sleep 0.1; done
+GOAL2=$(attrDatasetIds urn:R:1 compute)
+attrMemberAwait urn:R:1 compute ddsActionFeedback "$GOAL2"
 echo
 echo
 
@@ -95,16 +97,16 @@ echo
 
 echo "05. Cancel it - by deleting its instance: 202, the cancel is on its way"
 echo "======================================================================="
-GOAL=$(grep -oE "goal [0-9a-f-]{36} sent to action 'fibonacci' \(token 2\)" /tmp/coraine.CB.log | cut -d' ' -f2)   # the UUID the plugin gave goal 2
-corCurl --url "/ngsi-ld/v1/entities/urn:R:1/attrs/compute?datasetId=urn:goal:$GOAL" -X DELETE
+corCurl --url "/ngsi-ld/v1/entities/urn:R:1/attrs/compute?datasetId=$GOAL2" -X DELETE
 echo
 echo
 
 
 echo "06. It ended CANCELED, and its instance went with it"
 echo "===================================================="
-for i in $(seq 1 200); do grep -q "goal 2 on 'fibonacci' .* ended" /tmp/coraine.CB.log && break; sleep 0.1; done
-grep -oE "goal 2 on 'fibonacci' \(urn:goal:[0-9a-f-]+\) ended, state [0-9]+" /tmp/coraine.CB.log | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/'
+bridgeGoalEndedAwait dds fibonacci "${GOAL2#urn:goal:}" 20
+bridgeGoalHistory urn:R:1 compute "$GOAL2" ddsAction | sed 's/urn:goal:[0-9a-f-]*/urn:goal:<uuid>/' | sed -E 's/: ([a-z]+) -> ([a-z]+ -> )*([a-z]+),/: \1 -> .. -> \3,/' | sed -E 's/, feedback [0-9]+//'   # 1, or 2 if the cancel is slow
+echo "cancels sent: $(bridgeChannelGet dds fibonacci goalCancelsSent)"
 corCurl --url /ngsi-ld/v1/entities/urn:R:1
 echo
 echo
@@ -127,6 +129,7 @@ echo
 --TEARDOWN--
 docker rm -f cor_ros2_action_server >/dev/null 2>&1
 coraineStop
+corTroeDrop
 
 
 --EXPECT--
@@ -141,9 +144,7 @@ Content-Length: 0
 
 02. It ended - how, and what it wrote on the way
 ================================================
-goal 1 on 'fibonacci' (urn:goal:<uuid>) ended, state 4
-feedback written: 2
-result written:   1
+urn:goal:<uuid>: accepted -> .. -> succeeded, feedback 2, result written, instance removed
 
 
 03. Robot 1 holds the value that was asked - the goal's instance went with the goal
@@ -193,7 +194,8 @@ Content-Length: 0
 
 06. It ended CANCELED, and its instance went with it
 ====================================================
-goal 2 on 'fibonacci' (urn:goal:<uuid>) ended, state 5
+urn:goal:<uuid>: accepted -> .. -> canceled, result written, instance removed
+cancels sent: 1
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json

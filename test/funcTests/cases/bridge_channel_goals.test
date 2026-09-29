@@ -36,8 +36,6 @@ bridge channel plugins action goal
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic  "P1,Machine,urn:M:1,temperature" \
   --action "A1,Robot,urn:R:1,navigate" \
@@ -53,10 +51,7 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 echo "01. POST a goal to A1 - accepted: 201, Location .../goals/<the transport's goal id>"
 echo "=================================================================================="
 corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals --payload '{ "goalRequest": { "x": 1, "frame-id": "map" } }'
-for i in $(seq 1 50); do
-  grep -q "'feedback' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:1 navigate feedback urn:goal:1
 echo
 echo
 

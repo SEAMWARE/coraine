@@ -33,10 +33,7 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 echo "01. Send goal 1 to A1 - accepted and held, in its instance urn:goal:1"
 echo "===================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }' | head -1
-for i in $(seq 1 50); do
-  grep -q "'status' on 'A1'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:1 navigate status urn:goal:1
 echo
 echo
 

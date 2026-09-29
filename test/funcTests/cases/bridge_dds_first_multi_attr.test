@@ -32,8 +32,6 @@ bridge channel plugins action service ddsSync
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --service "fast,Robot,urn:R:1,job" \
@@ -98,10 +96,7 @@ echo
 
 echo "08. The reply landed a moment later"
 echo "==================================="
-for i in $(seq 1 50); do
-  grep -q "'reply' on 'fast'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:1 job reply
 corCurl --url /ngsi-ld/v1/entities/urn:R:1
 echo
 echo

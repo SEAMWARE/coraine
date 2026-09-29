@@ -684,7 +684,7 @@ Content-Length: 397
 
 16. How each goal went - from the history: its instance is gone once it has ended
 ======================================================================================
-urn:goal:1: ACCEPTED -> SUCCEEDED, result written, instance removed
+urn:goal:1: ACCEPTED -> SUCCEEDED, feedback 1, result written, instance removed
 urn:goal:2: ACCEPTED -> CANCELED, result written, instance removed
 urn:goal:3: no history
 urn:goal:4: ACCEPTED, result none, instance still there
