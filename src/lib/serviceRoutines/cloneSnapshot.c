@@ -77,6 +77,8 @@ static void replaceString(CorNode* parent, const char* name, const char* value)
 
 
 
+static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshotCacheItem* sourceP);
+
 bool cloneSnapshot(void)
 {
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
@@ -98,14 +100,34 @@ bool cloneSnapshot(void)
     return true;
   }
 
+  //
+  // The source is PINNED for the whole clone - its tree is copied, and its tenant's entities
+  // and temporal rows are read across many DB calls; a DELETE of the source meanwhile destroyed
+  // that tenant under the copy. The clone itself is in cloneFromSource.
+  //
   LdSnapshotCache*     cacheP   = (LdSnapshotCache*) tenantP->snapshotCacheP;
-  LdSnapshotCacheItem* sourceP  = ldSnapshotCacheItemLookup(cacheP, sourceId);
+  LdSnapshotCacheItem* sourceP  = ldSnapshotCacheItemLookupPinned(cacheP, sourceId);
   if (sourceP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "Snapshot '%s' not found", sourceId);
     return true;
   }
+
+  bool r = cloneFromSource(tenantP, cacheP, sourceP);
+
+  ldSnapshotCacheItemUnpin(sourceP);
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// cloneFromSource - the clone, from a PINNED source
+//
+static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshotCacheItem* sourceP)
+{
 
   CorNode* bodyP = corRest.in.requestTree;
   if (bodyP != NULL && bodyP->type != CorObject)
@@ -138,7 +160,11 @@ bool cloneSnapshot(void)
   if (newId == NULL)
     newId = ldIdGenerate(&corRest.kalloc, "Snapshot");
 
-  if (ldSnapshotCacheItemLookup(cacheP, newId) != NULL)
+  ldSnapshotCacheRdLock(cacheP);      // a walk of the list - others add and unlink
+  bool exists = (ldSnapshotCacheItemLookup(cacheP, newId) != NULL);
+  ldSnapshotCacheUnlock(cacheP);
+
+  if (exists)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
             "Snapshot '%s' already exists", newId);
@@ -152,7 +178,9 @@ bool cloneSnapshot(void)
   // it makes the clone self-describing without introducing a "blank"
   // tree we'd then have to re-fetch from somewhere.
   //
+  ldSnapshotCacheRdLock(cacheP);      // PATCH / the capture worker change the source's tree
   CorNode* newTree = corTreeClone(corRest.kallocP, sourceP->tree);
+  ldSnapshotCacheUnlock(cacheP);
 
   // Body overrides for mutable fields.
   if (bodyP != NULL)
@@ -205,11 +233,22 @@ bool cloneSnapshot(void)
   CorNode* d2 = corTreeLookup(newTree, "snapshotTemporalQueriesDetails");
   if (d2 != NULL) corTreeChildRemove(newTree, d2);
 
+  // Returned PINNED (unpinned on every return below); NULL also when a concurrent request took
+  // the id after the check above - still a 409
   LdSnapshotCacheItem* newItemP = ldSnapshotCacheItemAdd(cacheP, newTree);
   if (newItemP == NULL)
   {
-    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
-            "snapshot cache add failed");
+    LdSnapshotCacheItem* otherP = ldSnapshotCacheItemLookupPinned(cacheP, newId);
+
+    if (otherP != NULL)
+    {
+      ldSnapshotCacheItemUnpin(otherP);
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
+              "Snapshot '%s' already exists", newId);
+    }
+    else
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+              "snapshot cache add failed");
     return true;
   }
 
@@ -217,6 +256,7 @@ bool cloneSnapshot(void)
   if (newItemP->snapTenantP == NULL)
   {
     ldSnapshotCacheItemDelete(cacheP, newId);
+    ldSnapshotCacheItemUnpin(newItemP);
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "snapshot tenant setup failed");
     return true;
@@ -282,18 +322,21 @@ bool cloneSnapshot(void)
       (copied > 0)                            ? "success" :
       "empty";
 
+  // The clone is visible in the cache already - its tree changes under the wrlock
+  ldSnapshotCacheWrLock(cacheP);
   CorNode* sP = corTreeLookup(newItemP->tree, "snapshotStatus");
   if (sP != NULL && sP->type == CorString)
     sP->value.s = (char*) finalStatus;
+  if ((db.snapshotCreate != NULL) && (corTreeLookup(newItemP->tree, "_snapSeq") == NULL))
+    corTreeChildAdd(newItemP->tree, corTreeInteger(NULL, "_snapSeq", newItemP->snapSeq));
+  CorNode* persistP = (db.snapshotCreate != NULL) ? corTreeClone(corRest.kallocP, newItemP->tree) : NULL;
+  ldSnapshotCacheUnlock(cacheP);
 
   // Persist the clone's metadata so it survives restart. _snapSeq lets
-  // the boot reload reconstruct the snap-tenant DB name.
-  if (db.snapshotCreate != NULL)
-  {
-    if (corTreeLookup(newItemP->tree, "_snapSeq") == NULL)
-      corTreeChildAdd(newItemP->tree, corTreeInteger(NULL, "_snapSeq", newItemP->snapSeq));
-    db.snapshotCreate(tenantP, newItemP->id, newItemP->tree);
-  }
+  // the boot reload reconstruct the snap-tenant DB name. A clone of the tree, written unlocked
+  // (and a plugin converting in place does not touch the cached one).
+  if (persistP != NULL)
+    db.snapshotCreate(tenantP, newItemP->id, persistP);
 
   ldSnapshotNotify(newItemP, false);
 
@@ -306,5 +349,6 @@ bool cloneSnapshot(void)
   strcat(locBuf, newId);
   corRestOutHeaderAdd("Location", locBuf);
 
+  ldSnapshotCacheItemUnpin(newItemP);
   return true;
 }

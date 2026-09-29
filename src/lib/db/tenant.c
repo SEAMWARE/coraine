@@ -793,8 +793,11 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
       COR_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
             tP->name[0] ? tP->name : "(default)", itemP->id);
       ldSnapshotCacheItemDelete(cacheP, itemP->id);
+      ldSnapshotCacheItemUnpin(itemP);          // Add returned it pinned
       continue;
     }
+
+    ldSnapshotCacheItemUnpin(itemP);            // Add returned it pinned; the cache keeps its own reference
 
     if (snapSeq > maxSeq)
       maxSeq = snapSeq;

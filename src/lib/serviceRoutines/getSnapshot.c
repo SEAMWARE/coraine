@@ -48,9 +48,15 @@ bool getSnapshot(void)
   }
 
   LdSnapshotCache*     cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
+  //
+  // Lookup and clone under the rdlock - the capture worker and PATCH change the tree (under the
+  // wrlock), and a DELETE frees it. Nothing of the item is used after the clone.
+  //
+  ldSnapshotCacheRdLock(cacheP);
   LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookup(cacheP, id);
   if (itemP == NULL)
   {
+    ldSnapshotCacheUnlock(cacheP);
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "Snapshot '%s' not found", id);
     return true;
@@ -62,6 +68,7 @@ bool getSnapshot(void)
   // the hidden "_snapSeq" field used for boot reload — it's an
   // implementation detail not part of the public Snapshot data type.
   CorNode* clone = corTreeClone(corRest.kallocP, itemP->tree);
+  ldSnapshotCacheUnlock(cacheP);
   CorNode* seqP = (clone != NULL) ? corTreeLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
     corTreeChildRemove(clone, seqP);

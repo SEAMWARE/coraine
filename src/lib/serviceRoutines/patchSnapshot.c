@@ -109,7 +109,7 @@ bool patchSnapshot(void)
   }
 
   LdSnapshotCache*     cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
-  LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookup(cacheP, id);
+  LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookupPinned(cacheP, id);   // unpinned on every return below
   if (itemP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
@@ -124,6 +124,7 @@ bool patchSnapshot(void)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
               "field '%s' cannot be modified via PATCH", IMMUTABLE_FIELDS[i]);
+      ldSnapshotCacheItemUnpin(itemP);
       return true;
     }
   }
@@ -139,6 +140,7 @@ bool patchSnapshot(void)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotPriority' must be an integer between 1 and 10");
+      ldSnapshotCacheItemUnpin(itemP);
       return true;
     }
   }
@@ -152,9 +154,16 @@ bool patchSnapshot(void)
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
               "'snapshotLifetime' must be a positive ISO 8601 duration (e.g. \"PT1H\", \"P1D\")");
+      ldSnapshotCacheItemUnpin(itemP);
       return true;
     }
   }
+
+  //
+  // The item is pinned; its tree is shared with GET (clones, under the rdlock) and the capture
+  // worker (grafts, under the wrlock), so the whole mutation is under the wrlock.
+  //
+  ldSnapshotCacheWrLock(cacheP);
 
   // Apply each fragment field to the cached tree (cache allocator is
   // long-lived; we re-stamp by replacing the node when present, adding
@@ -205,6 +214,8 @@ bool patchSnapshot(void)
     corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "expiresAt", expIso));
   }
 
+  ldSnapshotCacheUnlock(cacheP);
+
   // Persist the patch so it survives a restart. The DB plugin applies
   // JSON Merge Patch (null → unset; otherwise set/replace).
   if (db.snapshotUpdate != NULL)
@@ -222,10 +233,14 @@ bool patchSnapshot(void)
   // Rendered exactly as Retrieve Snapshot Status renders it: a clone into the
   // per-request kalloc, with the hidden "_snapSeq" boot-reload field stripped.
   //
+  ldSnapshotCacheRdLock(cacheP);
   CorNode* clone = corTreeClone(corRest.kallocP, itemP->tree);
+  ldSnapshotCacheUnlock(cacheP);
   CorNode* seqP = (clone != NULL) ? corTreeLookup(clone, "_snapSeq") : NULL;
   if (seqP != NULL)
     corTreeChildRemove(clone, seqP);
+
+  ldSnapshotCacheItemUnpin(itemP);
 
   corRest.out.responseTree   = clone;
   corRest.out.httpStatusCode = 200;

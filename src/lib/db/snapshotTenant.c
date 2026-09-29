@@ -15,7 +15,9 @@
 
 #include "corLog/corLog.h"                               // COR_I
 
+#include "corNgsild/LdSnapshotCache.h"                  // LdSnapshotCacheItem
 #include "db/DbDriver.h"                                 // db, DB_OK
+#include "troe/TroeDriver.h"                             // troe
 #include "db/Tenant.h"                                   // Tenant, tenant0
 
 #include "db/snapshotTenant.h"                           // Own interface
@@ -101,4 +103,33 @@ void snapshotTenantDestroy(Tenant* snapTenantP)
   if (snapTenantP == NULL)
     return;
   free(snapTenantP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// snapshotItemDestroy - the snapshot cache's destroy hook: the item's last reference is gone
+//
+// The snapshot's own stores - TRoE first, so a TRoE plugin that needs the current-state tenant
+// for its cleanup still has it - and the tenant struct. It used to run in DELETE / purge, right
+// after the cache item was freed, while the capture worker or a read routed to the snapshot
+// could still be using that tenant - and twice for two DELETEs of the same snapshot. Now it
+// runs exactly once, by whoever releases the last reference: the DELETE if nobody else holds
+// the snapshot, else the worker or read that finishes last.
+//
+void snapshotItemDestroy(LdSnapshotCacheItem* itemP)
+{
+  Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
+
+  if (snapTenantP == NULL)
+    return;
+
+  if (troe.tenantDrop != NULL)
+    troe.tenantDrop(snapTenantP);
+  if (db.tenantDrop != NULL)
+    db.tenantDrop(snapTenantP);
+
+  snapshotTenantDestroy(snapTenantP);
+  itemP->snapTenantP = NULL;
 }

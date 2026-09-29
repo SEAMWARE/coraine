@@ -46,6 +46,7 @@
 #include "corTree/corTreeClone.h"                 // corTreeClone
 #include "corAlloc/corAlloc.h"                    // corAlloc
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
+#include "corNgsild/LdSnapshotCache.h"                // ldSnapshotCacheDestroyHookSet, ldSnapshotRequestRelease
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "corNgsild/ldCoreTermIds.h"               // ldCoreTermIdsInit
@@ -68,6 +69,7 @@
 #include "corNgsild/ldError.h"                     // ldError
 #include "corNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
+#include "db/snapshotTenant.h"                     // snapshotItemDestroy
 #include "db/DbDriver.h"                          // db, DB_OK
 #include "db/DbQueryFilter.h"                     // DbQueryFilter
 #include "db/dbInit.h"                            // dbStart
@@ -951,6 +953,7 @@ static void brokerPostResponseHook(void)
   dbExpiredEntityDispatchPending();   // transient Entities a read found expired
   ldRegCacheProbePending();
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
+  ldSnapshotRequestRelease();      // the Snapshot a read was routed to (NGSILD-Snapshot), pinned till now
 }
 
 
@@ -1425,6 +1428,12 @@ int main(int argC, char* argV[])
     COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
 
   apiPluginsInit();
+  //
+  // Before any snapshot is loaded: a snapshot's stores and tenant are destroyed by whoever
+  // releases its last reference (see snapshotItemDestroy), which is not always the DELETE.
+  //
+  ldSnapshotCacheDestroyHookSet(snapshotItemDestroy);
+
   tenantInit("cor");
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);

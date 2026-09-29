@@ -91,6 +91,7 @@ static void* snapshotWorkerThread(void* arg)
   // via JSON Merge Patch.
   if (db.snapshotUpdate != NULL && ctx->itemP->tree != NULL)
   {
+    ldSnapshotCacheRdLock(ctx->cacheP);   // the fragment is cloned from the tree PATCH may change
     CorNode* fragment = corTreeObject(corRest.kallocP, NULL);
     CorNode* sP      = corTreeLookup(ctx->itemP->tree, "snapshotStatus");
     if (sP != NULL && sP->type == CorString)
@@ -101,12 +102,17 @@ static void* snapshotWorkerThread(void* arg)
     CorNode* tdP = corTreeLookup(ctx->itemP->tree, "snapshotTemporalQueriesDetails");
     if (tdP != NULL)
       corTreeChildAdd(fragment, corTreeClone(corRest.kallocP, tdP));
+    ldSnapshotCacheUnlock(ctx->cacheP);
     if (fragment->value.head != NULL)
       db.snapshotUpdate(ctx->tenantP, ctx->itemP->id, fragment);
   }
 
   // § 5.16.6 — fire SnapshotNotification on capture completion.
   ldSnapshotNotify(ctx->itemP, false);
+
+  // The worker's pin (taken by ldSnapshotCaptureAsync before the spawn). If the snapshot was
+  // DELETEd during the capture, this is the last reference: its stores go now.
+  ldSnapshotCacheItemUnpin(ctx->itemP);
 
   // Free per-thread resources. kalloc inline buffer is on the thread's
   // stack — wait, no, it's __thread, so it persists with the thread.
@@ -142,10 +148,18 @@ void ldSnapshotCaptureAsync(LdSnapshotCache*     cacheP,
   ctx->splitEntitiesSet  = splitEntitiesSet;
   ctx->splitEntitiesVal  = splitEntitiesVal;
 
+  //
+  // The worker's own pin, taken HERE, while the request still holds its pin from Add: the worker
+  // outlives the request, and a DELETE during the capture freed the item and destroyed the
+  // snapshot's tenant under it. Released at the end of the worker.
+  //
+  ldSnapshotCacheItemPin(itemP);
+
   pthread_t tid;
   if (pthread_create(&tid, NULL, snapshotWorkerThread, ctx) != 0)
   {
     COR_E("snapshotCaptureAsync: pthread_create failed; falling back to inline exec");
+    ldSnapshotCacheItemUnpin(itemP);   // no worker - the request's pin covers the inline run
     free(ctx);
     ldSnapshotExecQueries(cacheP, itemP, tenantP);
     ldSnapshotNotify(itemP, false);
