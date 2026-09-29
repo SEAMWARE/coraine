@@ -1,0 +1,92 @@
+#
+# FILE            csr_subscription_periodic_other_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A periodic CSR-subscription (timeInterval) notifies on EVERY tenant, not only the default one.
+#
+# The periodic CSR-subscription tick was registered with tenant0's caches alone: on any other
+# tenant only the initial notification (sent by the create request itself) ever came.
+#
+# In ~3.2 s with timeInterval 1: the initial notification plus two or three periodic ones. The
+# default tenant is the control.
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+Periodic CSR-subscription on a non-default tenant notifies
+
+--TAGS--
+csrsub subscription tenant
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart -dist
+
+--RUN--
+
+#
+# csrPeriodicRound <tenant header or ""> - a CSR and a CSR-subscription with timeInterval 1;
+# ~3.2 s later, at least three notifications (the initial one and two periodic ones)
+#
+csrPeriodicRound() {
+  local h=("$@")
+  corCurl --url /ngsi-ld/v1/csourceRegistrations "${h[@]}" --payload '{
+    "id":"urn:ngsi-ld:CSR:R1",
+    "type":"ContextSourceRegistration",
+    "endpoint":"http://example.org/csource",
+    "information":[{"entities":[{"type":"Vehicle"}],"propertyNames":["speed"]}]
+  }' | head -1
+  corCurl --url /ngsi-ld/v1/csourceSubscriptions "${h[@]}" --payload '{
+    "id":"urn:ngsi-ld:Subscription:CSRP1",
+    "type":"Subscription",
+    "timeInterval": 1,
+    "entities":[{"type":"Vehicle"}],
+    "notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/csrPeriodic"}}
+  }' | head -1
+  sleep 3.2
+  corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSRP1 "${h[@]}" -X DELETE | head -1
+  ftClientSettle
+  n=$(ftClientDump | grep -c '"subscriptionId"')
+  echo "at least three notifications: $([ "$n" -ge 3 ] && echo yes || echo "no ($n)")"
+}
+
+
+echo "01. The default tenant (the control)"
+echo "===================================="
+csrPeriodicRound
+echo
+echo
+
+
+echo "02. Tenant t1"
+echo "============="
+csrPeriodicRound -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+--EXPECT--
+01. The default tenant (the control)
+====================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+at least three notifications: yes
+
+
+02. Tenant t1
+=============
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+at least three notifications: yes
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

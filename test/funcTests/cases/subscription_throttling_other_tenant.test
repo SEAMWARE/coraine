@@ -1,0 +1,92 @@
+#
+# FILE            subscription_throttling_other_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A throttled subscription's coalesced notification is sent on EVERY tenant, not only the default one.
+#
+# Throttling: the first change notifies at once; the changes inside the window are coalesced
+# into ONE notification with the entity's latest state, sent when the window has passed. That
+# flush was registered with tenant0's subscription cache alone (and fetched the latest state
+# from tenant0): on any other tenant the coalesced notification never came - the changes after
+# the first were silently dropped.
+#
+# The same sequence on both tenants: the default one is the control.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Throttled subscription on a non-default tenant sends its coalesced notification
+
+--TAGS--
+subscription throttling tenant
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# throttleRound <tenant header or ""> - entity V1, a subscription with throttling 1, three
+# changes of speed at once: the first notifies, the other two are coalesced and flushed with
+# the latest value (3). Waits up to 6 s for the second notification.
+#
+throttleRound() {
+  local h=("$@")
+  corCurl --url /ngsi-ld/v1/entities "${h[@]}" --payload '{"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 0}}' | head -1
+  corCurl --url /ngsi-ld/v1/subscriptions "${h[@]}" --payload '{
+    "id": "urn:ngsi-ld:Subscription:TH1",
+    "type": "Subscription",
+    "entities": [{"type": "Vehicle"}],
+    "watchedAttributes": ["speed"],
+    "throttling": 1,
+    "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+  }' | head -1
+  for v in 1 2 3; do
+    corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": '$v'}}' > /dev/null
+  done
+  for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
+  ftClientSettle
+  ftClientDump > /tmp/th.$$
+  echo "notifications: $(grep -c '"subscriptionId"' /tmp/th.$$), the last one has speed 3: $(tac /tmp/th.$$ | grep -m1 '"value": [0-9]' | grep -c '"value": 3')"
+  rm -f /tmp/th.$$
+}
+
+
+echo "01. The default tenant (the control)"
+echo "===================================="
+throttleRound
+echo
+echo
+
+
+echo "02. Tenant t1"
+echo "============="
+throttleRound -H 'NGSILD-Tenant: t1'
+echo
+echo
+
+
+--EXPECT--
+01. The default tenant (the control)
+====================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 2, the last one has speed 3: 1
+
+
+02. Tenant t1
+=============
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 2, the last one has speed 3: 1
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

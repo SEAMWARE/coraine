@@ -65,6 +65,7 @@
 #include "corNgsild/ldPeriodicLoop.h"              // ldPeriodicLoopStart, ldPeriodicLoopStop
 #include "corNgsild/ldContextHost.h"               // ldContextHostReaperStart
 #include "corNgsild/ldCsrSubNotify.h"              // ldCsrSubPeriodicLoopRegister, ldCsrSubDispatchPending
+#include "corNgsild/ldTenantCaches.h"              // LdTenantCaches, LdTenantCachesFn
 #include "corNgsild/ldCheckSubscription.h"         // ldSubEntityTypeExprsRelease
 #include "corNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
 #include "corNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
@@ -906,19 +907,43 @@ static void brokerPernotCaches(LdPernotCacheVisitFn visit, void* arg)
 // entity is the open spec-doubt #105 — until that resolves, the flush sends the
 // triggering broker's local view (a distributed assemble per notification would
 // be unaffordable on the write path; here it would be once-per-window, but the
-// requirement itself is unsettled). Single-tenant (tenant0) for now, like pernot.
+// requirement itself is unsettled). From the SUBSCRIPTION's tenant - it was tenant0's,
+// whatever the subscription's.
 //
-static CorNode* throttleRetrieveCallback(const char* entityId, void* allocP)
+static CorNode* throttleRetrieveCallback(void* tenantP, const char* entityId, void* allocP)
 {
   (void) allocP;
   if (db.entityRetrieve == NULL)
     return NULL;
 
   CorNode* entityP = NULL;
-  if (db.entityRetrieve(&tenant0, entityId, &entityP) != DB_OK)
+  if (db.entityRetrieve((tenantP != NULL) ? (Tenant*) tenantP : &tenant0, entityId, &entityP) != DB_OK)
     return NULL;
 
   return entityP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// brokerTenantCaches - every tenant's caches, for the periodic ticks (throttle flush, CSR-subs)
+//
+// tenant0, then the list - published with a release store and never freed, so it is walked
+// without the tenant mutex, tenants created after startup included.
+//
+static void tenantCachesVisit(Tenant* tP, LdTenantCachesVisitFn visit, void* arg)
+{
+  LdTenantCaches tc = { tP, (LdSubCache*) tP->subCacheP, (LdSubCache*) tP->regSubCacheP, (LdRegCache*) tP->regCacheP };
+  visit(&tc, arg);
+}
+
+static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)
+{
+  tenantCachesVisit(&tenant0, visit, arg);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
+    tenantCachesVisit(tP, visit, arg);
 }
 
 
@@ -1595,14 +1620,11 @@ int main(int argC, char* argV[])
 
   // § 5.2.x throttling — register the coalesce-to-latest flush (sole sender for
   // throttled subs; the synchronous path only buffers into the dirty set).
-  if (tenant0.subCacheP != NULL)
-    ldThrottleFlushStart((LdSubCache*) tenant0.subCacheP, throttleRetrieveCallback);
+  ldThrottleFlushStart(brokerTenantCaches, throttleRetrieveCallback);   // every tenant, not only tenant0
 
   // § 5.11.7 — register the CSR-Sub periodic ticker. Skips items with
   // timeInterval == 0 (change-driven) by design.
-  if (tenant0.regSubCacheP != NULL && tenant0.regCacheP != NULL)
-    ldCsrSubPeriodicLoopRegister((LdSubCache*) tenant0.regSubCacheP,
-                                  (LdRegCache*) tenant0.regCacheP);
+  ldCsrSubPeriodicLoopRegister(brokerTenantCaches);   // every tenant, not only tenant0
 
   // Register the volatile-context reaper — drops never-fetched one-shot
   // hosted contexts (response / forward Link targets) past their TTL.
