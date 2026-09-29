@@ -98,6 +98,8 @@ typedef struct Channel
   bool               endpointDiscovered;              // the transport reported finding the endpoint (endpointDiscoveredIn, ABI 8)
   uint64_t           samplesIn;                       // samples written to the entity
   uint64_t           samplesOut;                      // values published
+  uint64_t           goalsSent;                       // goals the transport took (actionGoalSend returned OK)
+  uint64_t           goalCancelsSent;                 // cancels sent: asked for (DELETE), or of a goal whose request wrote nothing
   uint64_t           requestsNotWaited;               // requests sent without waiting for the reply - every wait slot taken
   int                requestsWaiting;                 // requests waiting for their reply right now
 

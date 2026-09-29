@@ -166,7 +166,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 946
+Content-Length: 992
 
 [
   {
@@ -179,6 +179,8 @@ Content-Length: 946
       "type": "Robot"
     },
     "entityAttribute": "navigate",
+    "goalCancelsSent": 0,
+    "goalsSent": 0,
     "id": "urn:ngsi-ld:Channel:loopback:A1",
     "requestsNotWaited": 0,
     "requestsWaiting": 0,
@@ -217,7 +219,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 430
+Content-Length: 472
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -229,6 +231,8 @@ Content-Length: 430
     "type": "Robot"
   },
   "entityAttribute": "navigate",
+  "goalCancelsSent": 0,
+  "goalsSent": 0,
   "id": "urn:ngsi-ld:Channel:loopback:A1",
   "requestsNotWaited": 0,
   "requestsWaiting": 0,

@@ -178,6 +178,13 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "samplesIn",         (long long) __atomic_load_n(&channelP->samplesIn,         __ATOMIC_RELAXED)));
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "samplesOut",        (long long) __atomic_load_n(&channelP->samplesOut,        __ATOMIC_RELAXED)));
+
+  if (channelP->kind == BridgeChannelAction)   // only an action carries goals
+  {
+    corTreeChildAdd(bodyP, corTreeInteger(allocP, "goalsSent",       (long long) __atomic_load_n(&channelP->goalsSent,       __ATOMIC_RELAXED)));
+    corTreeChildAdd(bodyP, corTreeInteger(allocP, "goalCancelsSent", (long long) __atomic_load_n(&channelP->goalCancelsSent, __ATOMIC_RELAXED)));
+  }
+
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsWaiting",   (long long) __atomic_load_n(&channelP->requestsWaiting,   __ATOMIC_RELAXED)));
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsNotWaited", (long long) __atomic_load_n(&channelP->requestsNotWaited, __ATOMIC_RELAXED)));
 

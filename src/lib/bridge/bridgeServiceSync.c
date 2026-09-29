@@ -659,7 +659,7 @@ static bool requestsFailed(BridgeSyncDone* doneP)
   {
     if (doneP->goalV[ix] != 0)
     {
-      bridgeGoalAbandon(doneP->goalV[ix]);
+      bridgeGoalAbandon(doneP->channelV[ix], doneP->goalV[ix]);
       doneP->goalV[ix] = 0;
     }
   }
@@ -915,7 +915,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
       if (doneAdd(doneP, channelP, 0, goalToken, attrP, buf) == false)
       {
-        bridgeGoalAbandon(goalToken);
+        bridgeGoalAbandon(channelP, goalToken);
         return requestsFailed(doneP);
       }
 
@@ -1101,7 +1101,7 @@ bool bridgeRequestsAwait(CorNode* fragmentP, BridgeSyncDone* doneP, int64_t dueM
     BridgeGoalAnswer answer;
     char             reason[512];
 
-    if (bridgeGoalAwait(doneP->goalV[ix], dueMs, &answer) == false)
+    if (bridgeGoalAwait(channelP, doneP->goalV[ix], dueMs, &answer) == false)
     {
       snprintf(reason, sizeof(reason), "the goal was sent to '%s' on bridge '%s', and not answered within %d ms - it was cancelled",
                channelP->endpoint, channelP->bridgeName, bridgeSyncTimeoutMs);
