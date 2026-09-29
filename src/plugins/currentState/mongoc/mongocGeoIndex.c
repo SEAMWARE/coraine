@@ -16,7 +16,8 @@
 // are driven entirely by the data.
 //
 #include <stdio.h>                                   // snprintf
-#include <stdlib.h>                                  // malloc
+#include <stdlib.h>                                  // calloc, free
+#include <pthread.h>                                 // pthread_mutex_t
 #include <string.h>                                  // strcmp, strdup
 
 #include <mongoc/mongoc.h>                           // mongoc_collection_t, ...
@@ -45,42 +46,86 @@
 
 typedef struct MongocGeoCache
 {
-  char*  fieldPaths[GEO_INDEX_CACHE_MAX];
-  int    count;
+  pthread_mutex_t  mutex;                          // every request thread reads and adds
+  char*            fieldPaths[GEO_INDEX_CACHE_MAX];
+  int              count;
 } MongocGeoCache;
 
 
+//
+// The cache is read by every geoquery and added to by every write that brings a new GeoProperty,
+// concurrently. It had no lock: two adds could lose an entry - and a lost entry reads as "no
+// entity has this GeoProperty", so the geoquery answers EMPTY - and a reader could see count
+// moved before the pointer was stored, and strcmp a NULL. Its lazy creation had the same race
+// as corDbStoreOf: two first requests each made one, and one was lost. Nothing is ever freed
+// before shutdown, so a mutex is all it needs.
+//
 static MongocGeoCache* geoCacheGet(Tenant* tenantP)
 {
-  if (tenantP->pluginData == NULL)
+  MongocGeoCache* cacheP = (MongocGeoCache*) __atomic_load_n(&tenantP->pluginData, __ATOMIC_ACQUIRE);
+
+  if (cacheP != NULL)
+    return cacheP;
+
+  cacheP = (MongocGeoCache*) calloc(1, sizeof(MongocGeoCache));
+  if (cacheP == NULL)
+    return NULL;
+
+  pthread_mutex_init(&cacheP->mutex, NULL);
+
+  void* expected = NULL;
+
+  if (__atomic_compare_exchange_n(&tenantP->pluginData, &expected, cacheP, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE) == false)
   {
-    tenantP->pluginData = malloc(sizeof(MongocGeoCache));
-    memset(tenantP->pluginData, 0, sizeof(MongocGeoCache));
+    pthread_mutex_destroy(&cacheP->mutex);
+    free(cacheP);
+    return (MongocGeoCache*) expected;        // somebody else's got there first
   }
 
-  return (MongocGeoCache*) tenantP->pluginData;
+  return cacheP;
 }
 
 
 static bool geoIndexCacheLookup(Tenant* tenantP, const char* fieldPath)
 {
   MongocGeoCache* cacheP = geoCacheGet(tenantP);
+  bool            found  = false;
 
+  if (cacheP == NULL)
+    return false;
+
+  pthread_mutex_lock(&cacheP->mutex);
   for (int i = 0; i < cacheP->count; i++)
+  {
     if (strcmp(cacheP->fieldPaths[i], fieldPath) == 0)
-      return true;
+    {
+      found = true;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&cacheP->mutex);
 
-  return false;
+  return found;
 }
 
 static void geoIndexCacheAdd(Tenant* tenantP, const char* fieldPath)
 {
   MongocGeoCache* cacheP = geoCacheGet(tenantP);
 
+  if (cacheP == NULL)
+    return;
+
+  pthread_mutex_lock(&cacheP->mutex);
   if (cacheP->count < GEO_INDEX_CACHE_MAX)
-    cacheP->fieldPaths[cacheP->count++] = strdup(fieldPath);
+  {
+    char* copyP = strdup(fieldPath);
+
+    if (copyP != NULL)
+      cacheP->fieldPaths[cacheP->count++] = copyP;
+  }
   else
     COR_E("mongoc: geo index cache full (%d entries) for db '%s', cannot track '%s'", GEO_INDEX_CACHE_MAX, tenantP->dbName, fieldPath);
+  pthread_mutex_unlock(&cacheP->mutex);
 }
 
 

@@ -8,10 +8,11 @@
 //
 #include <pthread.h>                                 // pthread_rwlock_init
 #include <stddef.h>                                  // NULL
-#include <stdlib.h>                                  // malloc
+#include <stdlib.h>                                  // malloc, free
 
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeArray, corTreeChildAdd
+#include "corTree/corTreeFree.h"                     // corTreeFree
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "db/Tenant.h"                               // Tenant
@@ -29,8 +30,10 @@
 //
 CorDbStore* corDbStoreOf(Tenant* tenantP)
 {
-  if (tenantP->pluginData != NULL)
-    return (CorDbStore*) tenantP->pluginData;
+  CorDbStore* existingP = (CorDbStore*) __atomic_load_n(&tenantP->pluginData, __ATOMIC_ACQUIRE);
+
+  if (existingP != NULL)
+    return existingP;
 
   //
   // First access for this tenant - build the store using malloc (NULL
@@ -57,7 +60,22 @@ CorDbStore* corDbStoreOf(Tenant* tenantP)
   storeP->idxCount = 0;
   pthread_rwlock_init(&storeP->lock, NULL);
 
-  tenantP->pluginData = storeP;
+  //
+  // Published with a compare-and-swap. Two requests arriving together for a tenant with no
+  // store yet - the first requests after startup, on ANY tenant, the default one included -
+  // each built one, and the second assignment replaced the first: the entities already put in
+  // it were gone, while their requests had answered 201. Now the first store in wins; a thread
+  // that loses the race frees its own and uses the winner's.
+  //
+  void* expected = NULL;
+
+  if (__atomic_compare_exchange_n(&tenantP->pluginData, &expected, storeP, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE) == false)
+  {
+    pthread_rwlock_destroy(&storeP->lock);
+    corTreeFree(storeP->tree);
+    free(storeP);
+    return (CorDbStore*) expected;
+  }
 
   return storeP;
 }

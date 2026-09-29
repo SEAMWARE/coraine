@@ -49,6 +49,7 @@
 #include "serviceRoutines/ldSnapshotExec.h"              // ldSnapshotExecQueries
 #include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotExecTemporalQueries
 #include "serviceRoutines/ldSnapshotCaptureAsync.h"      // ldSnapshotCaptureAsync
+#include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
 #include "serviceRoutines/postSnapshot.h"                // Own interface
 
 
@@ -61,11 +62,7 @@ extern bool asyncSnapshot;  // coraine.c CLI flag
 //
 static char* snapshotIdGenerate(void)
 {
-  static int counter = 0;
-  char* buf = (char*) corAlloc(&corRest.kalloc, 64);
-  snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
-           (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
-  return buf;
+  return ldIdGenerate(&corRest.kalloc, "Snapshot");   // shared, atomic counter - see corNgsild ldIdGenerate.c
 }
 
 

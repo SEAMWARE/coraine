@@ -36,6 +36,7 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/regConflictCheck.h"        // regConflictCheck, regModeOf
+#include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
 #include "serviceRoutines/postCsourceRegistration.h" // Own interface
 
 
@@ -64,12 +65,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 static char* regIdGenerate(CorAlloc* allocP)
 {
-  static int counter = 0;
-  char*      buf     = corAlloc(allocP, 128);
-
-  snprintf(buf, 128, "urn:ngsi-ld:ContextSourceRegistration:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
-
-  return buf;
+  return ldIdGenerate(allocP, "ContextSourceRegistration");   // shared, atomic counter - see corNgsild ldIdGenerate.c
 }
 
 

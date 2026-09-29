@@ -42,6 +42,7 @@
 #include "db/snapshotTenant.h"                           // snapshotTenantCreate, snapshotTenantDestroy
 #include "troe/TroeDriver.h"                             // troe
 
+#include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
 #include "serviceRoutines/cloneSnapshot.h"               // Own interface
 
 
@@ -60,17 +61,6 @@ static char* nsToIso(uint64_t ns)
   snprintf(buf, 80, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
-  return buf;
-}
-
-
-
-static char* generateSnapshotId(void)
-{
-  static int counter = 0;
-  char* buf = (char*) corAlloc(&corRest.kalloc, 64);
-  snprintf(buf, 64, "urn:ngsi-ld:Snapshot:%lx:%04x",
-           (long) (corRest.requestStartTime / 1000000000ULL), ++counter & 0xFFFF);
   return buf;
 }
 
@@ -146,7 +136,7 @@ bool cloneSnapshot(void)
       newId = idP->value.s;
   }
   if (newId == NULL)
-    newId = generateSnapshotId();
+    newId = ldIdGenerate(&corRest.kalloc, "Snapshot");
 
   if (ldSnapshotCacheItemLookup(cacheP, newId) != NULL)
   {

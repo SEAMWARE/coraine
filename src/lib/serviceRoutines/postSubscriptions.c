@@ -51,6 +51,7 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
 
+#include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 
 
@@ -84,12 +85,7 @@ static void distSubPersist(LdSubCacheItem* itemP, void* userData)
 //
 static char* subIdGenerate(CorAlloc* allocP)
 {
-  static int counter = 0;
-  char*      buf     = corAlloc(allocP, 128);
-
-  snprintf(buf, 128, "urn:ngsi-ld:Subscription:%lx:%04x", (long) time(NULL), ++counter & 0xFFFF);
-
-  return buf;
+  return ldIdGenerate(allocP, "Subscription");   // shared, atomic counter - see corNgsild ldIdGenerate.c
 }
 
 

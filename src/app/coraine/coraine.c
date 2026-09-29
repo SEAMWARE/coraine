@@ -22,7 +22,7 @@
 #include <netinet/in.h>                           // struct sockaddr_in
 #include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
 
-#include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit
+#include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit, corAllocThreadSafe
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "corBase/corCpuCount.h"                   // corCpuCount
@@ -1369,6 +1369,13 @@ int main(int argC, char* argV[])
   // NULL/empty, leading to a SEGV on the next memset. 256 KiB matches the
   // pernot/corRest convention for "ample headroom for normal growth".
   corAllocBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
+
+  //
+  // The context store is SHARED: every thread that downloads or parses an @context allocates
+  // into it, outside the context cache's own mutex. Two different uncached @contexts arriving
+  // at once raced on its allocation pointer - overlapping allocations, a corrupted block list.
+  //
+  corAllocThreadSafe(&contextAlloc);
 
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     COR_X(1, "corLdInit failed");
