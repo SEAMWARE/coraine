@@ -11,7 +11,8 @@
 #   - Content-Length / Date / Transfer-Encoding / Host  -> 400 (always)
 #   - Content-Type: not a notif media type, or != endpoint.accept, or the
 #     urn:ngsi-ld:request sentinel  -> 400; otherwise it ACTS AS endpoint.accept
-#   - @context Link: with the sentinel -> 400; otherwise it SUPPLIES the notification
+#   - @context Link: with the sentinel -> 400; one that cannot be fetched -> 504
+#     LdContextNotAvailable (as a jsonldContext); otherwise it SUPPLIES the notification
 #     @context (unless jsonldContext is set, which takes precedence), whatever the media
 #     type: the Link header of a json notification, the in-body @context of ld+json
 #   - absorbed Content-Type / Link are emitted ONCE (no duplicate headers)
@@ -69,7 +70,7 @@ echo
 
 echo "06. receiverInfo @context Link with accept=ld+json -> accepted (it becomes the in-body @context)"
 echo "================================================================================================"
-sub urn:S_LINKLD '"accept": "application/ld+json", "receiverInfo": [ { "key": "Link", "value": "<http://ex.org/c.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"" } ]' | head -1
+sub urn:S_LINKLD '"accept": "application/ld+json", "receiverInfo": [ { "key": "Link", "value": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"" } ]' | head -1
 corCurl --url /ngsi-ld/v1/subscriptions/urn:S_LINKLD -X DELETE | head -1
 echo
 echo
@@ -97,6 +98,15 @@ echo
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Car1", "type": "Car", "speed": { "type": "Property", "value": 9 } }' >/dev/null
 sleep 0.4
 ftClientDump
+echo
+echo
+
+
+echo "10. receiverInfo @context Link that cannot be fetched -> 504 LdContextNotAvailable"
+echo "=================================================================================="
+sub urn:S_LINKBAD '"receiverInfo": [ { "key": "Link", "value": "<http://localhost:1/nothing.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"" } ]' | grep 'HTTP/1.1\|"type"\|"detail"'
+echo
+echo
 
 
 #
@@ -278,6 +288,15 @@ Content-Length: 0
     "verb": "POST"
   }
 ]
+
+
+10. receiverInfo @context Link that cannot be fetched -> 504 LdContextNotAvailable
+==================================================================================
+HTTP/1.1 504 Gateway Timeout
+  "detail": "subscription receiverInfo @context Link 'http://localhost:1/nothing.jsonld' could not be fetched",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+
+
 []
 --TEARDOWN--
 coraineStop

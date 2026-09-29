@@ -283,6 +283,15 @@ bool postSubscriptions(void)
       // request's instead made the Link a dead letter: the subscription cache takes a jsonldContext
       // over a receiverInfo Link, and there always was one.
       //
+      // Checked like a jsonldContext the user gives: fetched now, or the notifications fail later
+      // with nobody to tell.
+      //
+      if (corLdContextFromUrl(jcUrl, &corRest.kalloc) == NULL)
+      {
+        ldError(504, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, "Context Not Available",
+                "subscription receiverInfo @context Link '%s' could not be fetched", jcUrl);
+        return true;
+      }
     }
     else if (reqCtxP != NULL && reqCtxP->url != NULL && !reqCtxP->isArray)
     {
