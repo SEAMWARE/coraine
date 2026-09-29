@@ -980,7 +980,7 @@ bool postEntityBatchCreate(void)
   //   AlreadyExists), otherwise 207 with the multi-status envelope.
   if (errorCount == 0)
   {
-    successP->name = NULL;                    // unwrap into a top-level array
+    ldNodeRename(successP, NULL);                    // unwrap into a top-level array
     corRest.out.responseTree   = successP;
     corRest.out.httpStatusCode = 201;
     corNgsild.rawResponse      = true;

@@ -53,6 +53,7 @@
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -420,7 +421,7 @@ bool deleteEntityAttr(void)
               corTreeChildAdd(entry, dsKeys);
               if (preSnapshot != NULL)
               {
-                preSnapshot->name = (char*) "preValue";
+                ldNodeRename(preSnapshot, (char*) "preValue");
                 corTreeChildAdd(entry, preSnapshot);
               }
               corTreeChildAdd(report.changes, entry);

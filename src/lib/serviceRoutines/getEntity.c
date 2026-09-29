@@ -211,7 +211,7 @@ static void apiAttrToStorageWrap(CorNode* entityP, CorAlloc* allocP)
 
     CorNode* wrapperP = corTreeObject(allocP, curP->name);
     corTreeChildReplace(entityP, curP, wrapperP);
-    curP->name = (char*) dsKey;
+    ldNodeRename(curP, (char*) dsKey);
     curP->next = NULL;
     corTreeChildAdd(wrapperP, curP);
 
@@ -1023,7 +1023,7 @@ bool getEntity(void)
         CorNode* first = flatP->value.head;
         if (first != NULL && first->next == NULL)
         {
-          first->name = NULL;
+          ldNodeRename(first, NULL);
           flatP = first;
         }
       }

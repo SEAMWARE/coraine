@@ -717,7 +717,7 @@ bool postEntities(void)
 
       // mongocTreeToBson renames "id" to "_id" in-place — restore it.
       if (idP->name[0] == '_')
-        idP->name = "id";
+        ldNodeRename(idP, "id");
 
       if (tenantP->subCacheP != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, entityP, LdNotifyEntityCreate, NULL);

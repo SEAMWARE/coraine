@@ -56,6 +56,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -171,7 +172,7 @@ bool patchEntityAttr(void)
   //
   CorNode* entityFrag = corTreeObject(corRest.kallocP, NULL);
   CorNode* attrCopy  = bodyP;
-  attrCopy->name     = (char*) attrIri;
+  ldNodeRename(attrCopy, (char*) attrIri);
   corTreeChildAdd(entityFrag, attrCopy);
 
   //

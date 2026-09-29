@@ -56,6 +56,7 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldDistOp.h"                       // ldDistOp*
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -163,7 +164,7 @@ bool putEntityAttr(void)
   // Wrap the attribute fragment into a fake entity fragment.
   //
   CorNode* entityFrag = corTreeObject(corRest.kallocP, NULL);
-  bodyP->name = (char*) attrIri;
+  ldNodeRename(bodyP, (char*) attrIri);
   corTreeChildAdd(entityFrag, bodyP);
 
   //

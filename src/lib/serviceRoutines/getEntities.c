@@ -503,7 +503,7 @@ static void apiAttrToStorageWrap(CorNode* entityP)
 
     CorNode* wrapperP = corTreeObject(corRest.kallocP, curP->name);
     corTreeChildReplace(entityP, curP, wrapperP);
-    curP->name = (char*) "@none";
+    ldNodeRename(curP, (char*) "@none");
     curP->next = NULL;
     corTreeChildAdd(wrapperP, curP);
 

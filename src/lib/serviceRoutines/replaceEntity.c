@@ -466,7 +466,7 @@ bool replaceEntity(void)
 
       // mongoc's entityReplace renames "id" to "_id" in-place. Restore.
       if (bodyIdP != NULL && bodyIdP->name[0] == '_')
-        bodyIdP->name = "id";
+        ldNodeRename(bodyIdP, "id");
 
       if (tenantP->subCacheP != NULL)
       {

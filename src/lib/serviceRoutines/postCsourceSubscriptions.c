@@ -41,6 +41,7 @@
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
 #include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -213,7 +214,7 @@ bool postCsourceSubscriptions(void)
 
     // mongocTreeToBson renames "id" to "_id" in-place — restore it.
     if (idP->name[0] == '_')
-      idP->name = "id";
+      ldNodeRename(idP, "id");
   }
 
   //

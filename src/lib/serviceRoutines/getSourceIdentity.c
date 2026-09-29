@@ -29,6 +29,7 @@
 
 #include "corNgsild/corNgsild.h"                       // corNgsild, ldCsourceAliasBase, ldBrokerStartTimeSec
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "coraineVersion.h"                         // CORAINE_VERSION (-Isrc/app/coraine)
 #include "serviceRoutines/getSourceIdentity.h"       // Own interface
@@ -132,7 +133,7 @@ bool getSourceIdentity(void)
     CorNode* extras = corTreeClone(corRest.kallocP, ldContextSourceExtras);
     if (extras != NULL)
     {
-      extras->name = (char*) "contextSourceExtras";
+      ldNodeRename(extras, (char*) "contextSourceExtras");
       corTreeChildAdd(body, extras);
     }
   }

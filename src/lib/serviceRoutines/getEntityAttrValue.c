@@ -37,6 +37,7 @@
 #include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldRender.h"                       // ldAttrValueNode
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -153,7 +154,7 @@ bool getEntityAttrValue(void)
   // the value-only body. Detach from its siblings so corJsonFastRender emits just
   // the value with no trailing separator.
   //
-  valueP->name = NULL;
+  ldNodeRename(valueP, NULL);
   valueP->next = NULL;
   int   len = corJsonFastRenderSize(valueP) + 1;
   char* buf = (char*) corAlloc(&corRest.kalloc, len);

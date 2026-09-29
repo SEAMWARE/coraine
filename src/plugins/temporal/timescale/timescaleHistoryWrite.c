@@ -311,7 +311,7 @@ static CorNode* instanceWrap(CorNode* instanceP)
   CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
   // Detach the instance from its array parent and rename for the wrapper.
   instanceP->next = NULL;
-  instanceP->name = (char*) dsKey;
+  ldNodeRename(instanceP, (char*) dsKey);
   corTreeChildAdd(wrap, instanceP);
   return wrap;
 }

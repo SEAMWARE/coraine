@@ -122,7 +122,7 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
     CorNode* parsed = corJsonParse(corJsonP, dup);
     if (parsed != NULL)
     {
-      parsed->name = (char*) vfn;
+      ldNodeRename(parsed, (char*) vfn);
       return parsed;
     }
   }
@@ -333,7 +333,7 @@ static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, CorAlloc* 
     return corTreeString(corJsonP->kallocP, "type", firstP->value.s);
   }
 
-  arrayP->name = (char*) "type";
+  ldNodeRename(arrayP, (char*) "type");
   return arrayP;
 }
 

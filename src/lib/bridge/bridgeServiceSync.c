@@ -30,6 +30,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_ENDPOINT
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "corNgsild/ldEntityMerge.h"                  // ldEntityMerge, LdMergeReport
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/corBridge.h"                      // corBridgeKindName
 #include "db/DbDriver.h"                              // db, DB_OK
@@ -731,12 +732,12 @@ static CorNode* wireValue(CorNode* valueP)
   if ((wrapperP == NULL) || (cloneP == NULL))
     return valueP;
 
-  cloneP->name = (char*) "value";
+  ldNodeRename(cloneP, (char*) "value");
   corTreeChildAdd(wrapperP, cloneP);
   corLdCompactTreeWith(wrapperP, (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext());
 
   cloneP       = wrapperP->value.head;
-  cloneP->name = NULL;
+  ldNodeRename(cloneP, NULL);
   cloneP->next = NULL;
 
   return cloneP;

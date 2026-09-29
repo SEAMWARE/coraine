@@ -639,7 +639,7 @@ static void inlineWalk(CorNode*      entityP,
         CorNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
         if (targetP != NULL)
         {
-          targetP->name = "entity";
+          ldNodeRename(targetP, "entity");
           corTreeChildAdd(instP, targetP);
         }
       }
@@ -654,7 +654,7 @@ static void inlineWalk(CorNode*      entityP,
           CorNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
           if (targetP != NULL)
           {
-            targetP->name = NULL;
+            ldNodeRename(targetP, NULL);
             corTreeChildAdd(entityArr, targetP);
           }
         }
@@ -923,7 +923,7 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
         CorNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
         if (targetEntityP != NULL)
         {
-          targetEntityP->name = (char*) "entity";
+          ldNodeRename(targetEntityP, (char*) "entity");
           corTreeChildAdd(instances[i], targetEntityP);
         }
       }
@@ -937,7 +937,7 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
           CorNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
           if (targetEntityP != NULL)
           {
-            targetEntityP->name = NULL;
+            ldNodeRename(targetEntityP, NULL);
             corTreeChildAdd(entityArr, targetEntityP);
           }
         }

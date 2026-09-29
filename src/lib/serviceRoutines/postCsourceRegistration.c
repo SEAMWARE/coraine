@@ -30,6 +30,7 @@
 #include "corNgsild/ldDistSub.h"                      // ldDistSubOnRegCreate
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
 #include "db/Tenant.h"                               // Tenant
@@ -143,7 +144,7 @@ bool postCsourceRegistration(void)
 
   // Restore "id" key if mongocTreeToBson renamed it to "_id" in-place
   if (idP->name[0] == '_')
-    idP->name = "id";
+    ldNodeRename(idP, "id");
 
   // Add to per-tenant registration cache. The wrlock serializes against
   // concurrent CSR CRUD + match-path readers, and is held across the fanout so

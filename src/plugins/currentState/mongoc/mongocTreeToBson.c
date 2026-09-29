@@ -108,12 +108,12 @@ void mongocTreeToBson(CorNode* treeP, bson_t* bsonP)
     bool idRewritten = false;
     if (childP->name != NULL && ldTermId(childP) == CorTermId)
     {
-      childP->name = "_id";
+      ldNodeRename(childP, "_id");
       idRewritten  = true;
     }
     nodeToBson(childP, bsonP, false, 0);
     if (idRewritten)
-      childP->name = "id";
+      ldNodeRename(childP, "id");
   }
 }
 
@@ -130,7 +130,7 @@ void mongocTreeToBson(CorNode* treeP, bson_t* bsonP)
 void mongocNodeAppend(bson_t* parentP, const char* key, CorNode* nodeP)
 {
   char* origName = nodeP->name;
-  nodeP->name = (char*) key;
+  ldNodeRename(nodeP, (char*) key);
   nodeToBson(nodeP, parentP, false, 0);
-  nodeP->name = origName;
+  ldNodeRename(nodeP, origName);
 }

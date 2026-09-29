@@ -32,6 +32,7 @@
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_*
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemAdd, ldSubCacheItemRemove, ldSubCacheWrLock
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 #include "bridge/bridgeSampleIn.h"                    // bridgeGoalWrite, bridgeGoalInstanceRemove
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutMs
 #include "bridge/bridgeGoal.h"                        // Own interface
@@ -1190,7 +1191,7 @@ static CorNode* jsonNode(const char* name, const char* json)
   if (nodeP == NULL)
     return corTreeString(corRest.kallocP, name, corAllocStrdup(&corRest.kalloc, json));
 
-  nodeP->name = (char*) name;
+  ldNodeRename(nodeP, (char*) name);
   return nodeP;
 }
 

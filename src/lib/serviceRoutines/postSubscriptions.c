@@ -44,6 +44,7 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "corNgsild/ldDistSub.h"                      // ldDistSubFanout
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
+#include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 
@@ -375,7 +376,7 @@ bool postSubscriptions(void)
   // mongocTreeToBson renames "id" to "_id" in-place — restore it.
   //
   if (idP->name[0] == '_')
-    idP->name = "id";
+    ldNodeRename(idP, "id");
 
   CorNode* timeIntervalP = corTreeLookup(subP, "timeInterval");
   bool isPernot = (timeIntervalP != NULL && (timeIntervalP->type == CorInt || timeIntervalP->type == CorFloat));

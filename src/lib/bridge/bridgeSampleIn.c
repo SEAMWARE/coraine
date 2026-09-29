@@ -153,7 +153,7 @@ static CorNode* subAttrFrom(const char* name, CorNode* payloadP, int64_t publish
   CorNode* subP = corTreeObject(corRest.kallocP, name);
 
   corTreeChildAdd(subP, corTreeString(corRest.kallocP, "type", "Property"));
-  payloadP->name = (char*) "value";
+  ldNodeRename(payloadP, (char*) "value");
   corTreeChildAdd(subP, payloadP);
 
   if (publishTime > 0)
@@ -206,7 +206,7 @@ static CorNode* attributeFromSample(const char* attrName,
 
   if (subAttrName == NULL)
   {
-    payloadP->name = (char*) "value";
+    ldNodeRename(payloadP, (char*) "value");
     corTreeChildAdd(attrP, payloadP);
 
     if (publishTime > 0)
@@ -221,7 +221,7 @@ static CorNode* attributeFromSample(const char* attrName,
     if (valueP == NULL)
       return NULL;
 
-    valueP->name = (char*) "value";
+    ldNodeRename(valueP, (char*) "value");
     corTreeChildAdd(attrP, valueP);
 
     corTreeChildAdd(attrP, subAttrFrom(subAttrName, payloadP, publishTime, meta));
@@ -298,7 +298,7 @@ static void metaAdd(CorNode* targetP, const char* meta)
 
       corTreeChildRemove(metaP, nodeP);              // unlinked first - corTreeChildAdd truncates the list it came from
       nodeP->next = NULL;
-      nodeP->name = (char*) "value";
+      ldNodeRename(nodeP, (char*) "value");
       corTreeChildAdd(propP, nodeP);
 
       corTreeChildAdd(targetP, propP);
@@ -1056,7 +1056,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
     {
       CorNode* preValueP = corTreeClone(corRest.kallocP, preSnapshotP);
 
-      preValueP->name = (char*) "preValue";
+      ldNodeRename(preValueP, (char*) "preValue");
       corTreeChildAdd(entryP, preValueP);
     }
 
