@@ -78,7 +78,12 @@ add_compile_definitions(CORAINE_BUILD_COMPILER="${CMAKE_C_COMPILER_ID} ${CMAKE_C
 #
 set(CMAKE_C_FLAGS         "-Wall -Werror -Wundef -fPIC -DLOG_ON")
 set(CMAKE_C_FLAGS_RELEASE  "-O2 -g")
-set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG")
+set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG -DCOR_T_ON")
+#
+# COR_T_ON: traces (COR_T, and the libraries' COR_LIB_T) are compiled in - Debug and
+# Coverage. A Release build has none: they are compiled away (corLog.h), and a trace
+# level asked for there has nothing to turn on (coraine.c says so at start).
+#
 #
 # -fprofile-update=atomic, because this broker is thread-per-connection.
 #
@@ -97,7 +102,7 @@ set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG")
 # build type. Release and Debug never see it, and the nightly's performance job
 # measures a release build, so no recorded figure can move.
 #
-set(CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage -fprofile-update=atomic")
+set(CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage -fprofile-update=atomic -DCOR_T_ON")
 
 #
 # Cor-Libs / k-libs live in sibling repos (one .a per repo), linked statically.
