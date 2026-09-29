@@ -2,6 +2,11 @@
 #
 # corTestFunctions.sh - repo-specific test functions for coraine
 #
+# ⭐ A test waits on, and asserts on, what the API says - NEVER on the broker's log. A trace line is
+# there only when the trace levels include it AND the code was built with its traces; no test sets
+# COR_TRACE_LEVELS, and the suite passes with -traceLevels "". The bridge* helpers below are what
+# to wait on instead (doc/testing.md, "Functional tests never read the log").
+#
 export COR_BROKER="${COR_BROKER:-coraine}"        # broker from PATH (installed via make di)
 export COR_DB_NAME="${COR_DB_NAME:-corTest}"
 #
@@ -1419,7 +1424,7 @@ ros2NodeStart() {
 # What a test actually depends on is something else anyway - that the BROKER has
 # DISCOVERED the service. An invocation sent before that has no server to reach
 # and is refused outright, which is not a race worth having in a test. So this
-# waits for the broker's own trace saying it found it.
+# waits for the service's Channel to say it was discovered (ddsServiceAwait).
 #
 ros2ServiceStart() {
   local node="$1"
@@ -1438,25 +1443,275 @@ ros2ServiceStart() {
 }
 
 
-# ddsServiceAwait <service> [seconds] - wait until the BROKER has discovered a service
+# bridgeChannelGet <bridge> <endpoint> <member> - one member of the Channel that carries <endpoint> on <bridge>
 #
-# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - what a test
-# depends on is the broker's own trace saying it found the service: a request
-# sent before that has no server to reach and is refused outright. The trace is
-# the plugin's, at level 0, so COR_TRACE_LEVELS must include 0.
+# From GET /channels (the default tenant), found by bridge and endpoint - a Channel's id may be the one
+# its configuration gave it. Prints the value (true/false for a boolean), nothing when there is no such
+# Channel or it has no such member.
 #
-ddsServiceAwait() {
-  local service="$1"
-  local secs="${2:-30}"
-  local i
+# ⭐ A TEST WAITS ON WHAT THE API SAYS, NEVER ON THE LOG. A trace line is there only when the trace
+# levels include it AND the plugin was built with its traces - a dds.so with them compiled out timed
+# out every bridge_dds_* test while the broker was working fine (2026-09-29).
+#
+bridgeChannelGet() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/channels" 2>/dev/null | python3 -c '
+import json, sys
+bridge, endpoint, member = sys.argv[1:4]
+try:
+  channels = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+for c in channels:
+  if c.get("bridgeId") == "urn:ngsi-ld:ContextBridge:" + bridge and c.get("channelTarget") == endpoint and member in c:
+    v = c[member]
+    print(("true" if v else "false") if isinstance(v, bool) else v)
+    break
+' "$1" "$2" "$3"
+}
+
+
+# bridgeGet <bridge> <member> - one member of a ContextBridge, from GET /bridges/{id}; nothing when absent
+#
+bridgeGet() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:$1" 2>/dev/null | python3 -c '
+import json, sys
+try:
+  b = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+if sys.argv[1] in b:
+  print(b[sys.argv[1]])
+' "$2"
+}
+
+
+# bridgeAtLeast <bridge> <member> <n> [seconds] - wait until that counter of the ContextBridge is at least n
+#
+# samplesDropped: samples no Channel claims that would write what a Channel already writes (a catch-all's
+# collision) - NOT the samples nothing claims at all.
+#
+bridgeAtLeast() {
+  local bridge="$1" member="$2" n="$3" secs="${4:-10}"
+  local i v
 
   for ((i = 0; i < secs * 10; i++)); do
-    grep -q "service '$service' discovered" /tmp/coraine.CB.log 2>/dev/null && return 0
+    v=$(bridgeGet "$bridge" "$member")
+    [ -n "$v" ] && [ "$v" -ge "$n" ] && return 0
     sleep 0.1
   done
 
-  echo "ddsServiceAwait: the broker did not discover service '$service' in ${secs}s" >&2
+  echo "bridgeAtLeast: bridge '$bridge': $member is '$v', not >= $n, after ${secs}s" >&2
   return 1
+}
+
+
+# bridgeChannelsCount <bridge> <member> -"<endpoint>: <n>" for every Channel of <bridge> whose counter is not 0
+#
+# Ordered by endpoint (P2 before P10). samplesOut: the values each endpoint published - a write that
+# published twice, or an echo that came back out, shows as a 2.
+#
+bridgeChannelsCount() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/channels" 2>/dev/null | python3 -c '
+import json, re, sys
+bridge, member = sys.argv[1:3]
+try:
+  channels = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+rows = [(c["channelTarget"], c[member]) for c in channels
+        if c.get("bridgeId") == "urn:ngsi-ld:ContextBridge:" + bridge and c.get(member, 0) != 0]
+for endpoint, n in sorted(rows, key=lambda r: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", r[0])]):
+  print("%s: %s" % (endpoint, n))
+' "$1" "$2"
+}
+
+
+# bridgeChannelAwait <bridge> <endpoint> <member> <value> [seconds] - wait until that member of the Channel has that value
+#
+bridgeChannelAwait() {
+  local bridge="$1" endpoint="$2" member="$3" value="$4" secs="${5:-30}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    [ "$(bridgeChannelGet "$bridge" "$endpoint" "$member")" == "$value" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeChannelAwait: channel '$endpoint' on '$bridge': $member is '$(bridgeChannelGet "$bridge" "$endpoint" "$member")', not '$value', after ${secs}s" >&2
+  return 1
+}
+
+
+# bridgeChannelAtLeast <bridge> <endpoint> <member> <n> [seconds] - wait until that counter of the Channel is at least n
+#
+bridgeChannelAtLeast() {
+  local bridge="$1" endpoint="$2" member="$3" n="$4" secs="${5:-30}"
+  local i v
+
+  for ((i = 0; i < secs * 10; i++)); do
+    v=$(bridgeChannelGet "$bridge" "$endpoint" "$member")
+    [ -n "$v" ] && [ "$v" -ge "$n" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeChannelAtLeast: channel '$endpoint' on '$bridge': $member is '$v', not >= $n, after ${secs}s" >&2
+  return 1
+}
+
+
+# bridgeGoalInProgress <bridge> <endpoint> <goalId> - "yes" while the goal is in progress on its Channel, else "no"
+#
+# GET /channels/{id}/goals/{goalId}: 200 from the moment the goal is sent until its final event, 404
+# after (and for a goal never sent).
+#
+bridgeGoalInProgress() {
+  local channelId
+  channelId=$(bridgeChannelGet "$1" "$2" id)
+  [ -z "$channelId" ] && { echo "no"; return; }
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$CB_PORT/ngsi-ld/v1/channels/$channelId/goals/$3")" == "200" ]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+
+# bridgeGoalEndedAwait <bridge> <endpoint> <goalId> [seconds] - wait until a goal sent has ended (its final event arrived)
+#
+bridgeGoalEndedAwait() {
+  local secs="${4:-10}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    [ "$(bridgeGoalInProgress "$1" "$2" "$3")" == "no" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeGoalEndedAwait: goal '$3' on '$2' (bridge '$1') still in progress after ${secs}s" >&2
+  return 1
+}
+
+
+# attrMemberAwait <entityId> <attr> <member> [datasetId] [seconds] - wait until the attribute (the instance of that
+# datasetId, if given) has that member - a sub-attribute a bridge wrote ('status', 'feedback', 'reply', ...)
+#
+# From GET /entities/{id} in the default tenant, normalized; <attr> and <member> as the core @context names them.
+#
+attrMemberAwait() {
+  local entityId="$1" attr="$2" member="$3" datasetId="$4" secs="${5:-10}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/$entityId" 2>/dev/null | python3 -c '
+import json, sys
+attr, member, datasetId = sys.argv[1:4]
+try:
+  e = json.load(sys.stdin)
+except Exception:
+  sys.exit(1)
+a = e.get(attr)
+instances = a if isinstance(a, list) else ([a] if isinstance(a, dict) else [])
+for i in instances:
+  if (datasetId == "" or i.get("datasetId") == datasetId) and member in i:
+    sys.exit(0)
+sys.exit(1)
+' "$attr" "$member" "$datasetId" && return 0
+    sleep 0.1
+  done
+
+  echo "attrMemberAwait: $entityId/$attr${datasetId:+ (datasetId $datasetId)} has no '$member' after ${secs}s" >&2
+  return 1
+}
+
+
+# bridgeGoalHistory <entityId> <attr> <goalAlias> [prefix] - how a goal went, from the attribute's temporal history
+#
+# A goal's instance (datasetId = its alias, urn:goal:N) is removed after its final event, so how it
+# ended is read where it stays: GET /temporal/entities (needs --troe timescale; --troeSync for it to be
+# there at once). Prints the status codes in order (each once), how many feedbacks (when any), whether
+# a result was written, and whether the instance was then removed - or that the goal left no history
+# (refused before anything was written). Asked for in modifiedAt order (timerel + timeproperty): a goal's
+# instances have no observedAt, and without a time property the order is not one.
+#
+# [prefix]: what the bridge names its members with - dds: ddsAction (ddsActionStatus, ddsActionFeedback,
+# ddsActionResult); none: status, feedback, result.
+#
+bridgeGoalHistory() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=modifiedAt" 2>/dev/null | python3 -c '
+import json, sys
+attr, alias, prefix = sys.argv[1:4]
+name = lambda m: prefix + m.capitalize() if prefix else m
+try:
+  e = json.load(sys.stdin)
+except Exception:
+  print("no temporal entity"); sys.exit(0)
+inst = e.get(attr, [])
+inst = inst if isinstance(inst, list) else [inst]
+mine = [i for i in inst if i.get("datasetId") == alias]
+if not mine:
+  print("%s: no history" % alias); sys.exit(0)
+codes    = []
+feedback = []
+for i in mine:
+  st = i.get(name("status"), {}).get("value")
+  code = st.get("code") if isinstance(st, dict) else st
+  if code is not None and (not codes or codes[-1] != code):
+    codes.append(code)
+  fb = i.get(name("feedback"), {}).get("value")
+  if fb is not None and (not feedback or feedback[-1] != fb):
+    feedback.append(fb)
+result  = any(name("result") in i for i in mine)
+removed = "deletedAt" in mine[-1]
+print("%s: %s%s, result %s, instance %s" % (alias, " -> ".join(codes) if codes else "no status",
+      ", feedback %d" % len(feedback) if feedback else "", "written" if result else "none", "removed" if removed else "still there"))
+' "$2" "$3" "$4"
+}
+
+
+# bridgeGoalHistoryAwait <entityId> <attr> <goalAlias> [prefix] [seconds] - bridgeGoalHistory, once the goal has ended
+#
+# Ended = its instance removed, in the history. For a goal on an endpoint with no Channel to ask
+# (bridgeGoalEndedAwait) - one the catch-all carries.
+#
+bridgeGoalHistoryAwait() {
+  local secs="${5:-20}"
+  local i h
+
+  for ((i = 0; i < secs * 10; i++)); do
+    h=$(bridgeGoalHistory "$1" "$2" "$3" "$4")
+    [[ "$h" == *"instance removed" ]] && { echo "$h"; return 0; }
+    sleep 0.1
+  done
+
+  echo "bridgeGoalHistoryAwait: goal $3 on $1/$2 has not ended after ${secs}s: $h" >&2
+  return 1
+}
+
+
+# attrDatasetIds <entityId> <attr> - the datasetIds of the attribute's instances, one per line (a goal's: urn:goal:<id>)
+#
+attrDatasetIds() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/$1" 2>/dev/null | python3 -c '
+import json, sys
+try:
+  a = json.load(sys.stdin).get(sys.argv[1])
+except Exception:
+  sys.exit(0)
+for i in (a if isinstance(a, list) else [a] if isinstance(a, dict) else []):
+  if "datasetId" in i:
+    print(i["datasetId"])
+' "$2"
+}
+
+
+# ddsServiceAwait <service> [seconds] - wait until the broker's DDS bridge has discovered a service
+#
+# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - a request sent before it is
+# discovered has no server to reach and is refused outright. Discovered = its Channel says so
+# (endpointDiscovered), not a trace line.
+#
+ddsServiceAwait() {
+  bridgeChannelAwait dds "$1" endpointDiscovered true "${2:-30}" || { echo "ddsServiceAwait: the broker did not discover service '$1' in ${2:-30}s" >&2; return 1; }
 }
 
 

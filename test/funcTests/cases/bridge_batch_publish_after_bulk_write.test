@@ -44,8 +44,6 @@ bridge channel plugins batch geo
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
   --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
@@ -100,7 +98,7 @@ echo
 
 echo "05. One publish per fragment sent - the refused entities' included"
 echo "===================================================================="
-grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+bridgeChannelsCount loopback samplesOut
 echo
 echo
 
@@ -225,12 +223,12 @@ Content-Length: 456
 
 05. One publish per fragment sent - the refused entities' included
 ====================================================================
-1 -> 'P1' on bridge 'loopback'
-2 -> 'P2' on bridge 'loopback'
-1 -> 'P3' on bridge 'loopback'
-1 -> 'P4' on bridge 'loopback'
-1 -> 'P5' on bridge 'loopback'
-1 -> 'P6' on bridge 'loopback'
+P1: 1
+P2: 2
+P3: 1
+P4: 1
+P5: 1
+P6: 1
 
 
 06. The loopback handed the refused values back - stored behind the 409; Machine:5 not created

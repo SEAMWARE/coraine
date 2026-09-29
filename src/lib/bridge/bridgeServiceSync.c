@@ -546,12 +546,16 @@ static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channe
   deadline.tv_sec  = dueMs / 1000;
   deadline.tv_nsec = (dueMs % 1000) * 1000000;
 
+  __atomic_add_fetch(&channelP->requestsWaiting, 1, __ATOMIC_RELAXED);
+
   pthread_mutex_lock(&syncMutex);
   while (wP->state == SyncWaiting)
   {
     if (pthread_cond_timedwait(&wP->cond, &syncMutex, &deadline) == ETIMEDOUT)
       break;
   }
+
+  __atomic_sub_fetch(&channelP->requestsWaiting, 1, __ATOMIC_RELAXED);
 
   if (wP->state != SyncAnswered)
   {
@@ -655,7 +659,7 @@ static bool requestsFailed(BridgeSyncDone* doneP)
   {
     if (doneP->goalV[ix] != 0)
     {
-      bridgeGoalAbandon(doneP->goalV[ix]);
+      bridgeGoalAbandon(doneP->channelV[ix], doneP->goalV[ix]);
       doneP->goalV[ix] = 0;
     }
   }
@@ -873,6 +877,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
         return requestsFailed(doneP);
       }
 
+      __atomic_add_fetch(&channelP->samplesOut, 1, __ATOMIC_RELAXED);
       COR_T(CtBridge, "%s/%s -> '%s' on bridge '%s'", entityId, attrP->name, channelP->endpoint, channelP->bridgeName);
       continue;
     }
@@ -910,7 +915,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
       if (doneAdd(doneP, channelP, 0, goalToken, attrP, buf) == false)
       {
-        bridgeGoalAbandon(goalToken);
+        bridgeGoalAbandon(channelP, goalToken);
         return requestsFailed(doneP);
       }
 
@@ -979,8 +984,11 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
       }
 
       if (wait == true)
+      {
+        __atomic_add_fetch(&channelP->requestsNotWaited, 1, __ATOMIC_RELAXED);
         COR_T(CtBridge, "%s/%s asks service '%s' without waiting - %d requests wait already",
               entityId, attrP->name, channelP->endpoint, bridgeSyncWaitMax);
+      }
 
       doneP->accepted = true;
 
@@ -1093,7 +1101,7 @@ bool bridgeRequestsAwait(CorNode* fragmentP, BridgeSyncDone* doneP, int64_t dueM
     BridgeGoalAnswer answer;
     char             reason[512];
 
-    if (bridgeGoalAwait(doneP->goalV[ix], dueMs, &answer) == false)
+    if (bridgeGoalAwait(channelP, doneP->goalV[ix], dueMs, &answer) == false)
     {
       snprintf(reason, sizeof(reason), "the goal was sent to '%s' on bridge '%s', and not answered within %d ms - it was cancelled",
                channelP->endpoint, channelP->bridgeName, bridgeSyncTimeoutMs);

@@ -418,6 +418,44 @@ static char* catchAllAttrName(const char* bridgeName, const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// samplesDroppedV - per bridge (the index of bridges[]): samples no Channel claims that would write
+// an attribute a Channel already writes. Theirs, not a Channel's - no Channel carried them.
+//
+static uint64_t samplesDroppedV[BRIDGES_MAX];
+
+static void samplesDroppedCount(const char* bridgeName)
+{
+  for (int ix = 0; ix < bridgeCount; ix++)
+  {
+    if ((bridges[ix].alias != NULL) && (strcmp(bridges[ix].alias, bridgeName) == 0))
+    {
+      __atomic_add_fetch(&samplesDroppedV[ix], 1, __ATOMIC_RELAXED);
+      return;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSamplesDropped - for GET /bridges
+//
+uint64_t bridgeSamplesDropped(const char* bridgeName)
+{
+  for (int ix = 0; ix < bridgeCount; ix++)
+  {
+    if ((bridges[ix].alias != NULL) && (strcmp(bridges[ix].alias, bridgeName) == 0))
+      return __atomic_load_n(&samplesDroppedV[ix], __ATOMIC_RELAXED);
+  }
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // sampleIn - the one inbound path, qualified or not
 //
 // bridgeSampleIn() and bridgeSampleQualifiedIn() are this function with and
@@ -567,6 +605,7 @@ static int sampleIn(const char* bridgeName,
 
     if (clashP != NULL)
     {
+      samplesDroppedCount(bridgeName);
       COR_T(CtBridge, "sample on '%s' would write %s/%s, which channel '%s' already writes - dropped",
             endpoint, entityId, attrName, clashP->endpoint);
       return BRIDGE_NOT_FOUND;
@@ -784,6 +823,9 @@ static int sampleIn(const char* bridgeName,
   // every valgrind run with a bridge.
   //
   corNgsildFallbackRelease();
+
+  if (channelP != NULL)
+    __atomic_add_fetch(&channelP->samplesIn, 1, __ATOMIC_RELAXED);
 
   if (subAttrName == NULL)
     COR_T(CtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
@@ -1129,8 +1171,11 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
   if ((kind != BridgeChannelService) && (kind != BridgeChannelAction))
     return BRIDGE_BAD_INPUT;
 
-  if (channelLookup(bridgeName, endpoint) != NULL)
+  Channel* carrierP = channelLookup(bridgeName, endpoint);
+
+  if (carrierP != NULL)
   {
+    __atomic_store_n(&carrierP->endpointDiscovered, true, __ATOMIC_RELEASE);
     COR_T(CtBridge, "bridge '%s': '%s' discovered - a Channel carries it already", bridgeName, endpoint);
     return BRIDGE_OK;
   }
@@ -1202,6 +1247,10 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
 
     break;
   }
+
+  Channel* newP = channelLookup(bridgeName, endpoint);
+  if (newP != NULL)
+    __atomic_store_n(&newP->endpointDiscovered, true, __ATOMIC_RELEASE);
 
   COR_I("bridge '%s': %s '%s' discovered - carried on %s, attribute '%s'",
         bridgeName, (kind == BridgeChannelService) ? "service" : "action", endpoint, entityId, shortName);

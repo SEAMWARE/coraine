@@ -38,11 +38,6 @@ bridge dds service ddsSync concurrency
 corDbDrop
 ros2NodeStop add_two_ints_server
 
-#
-# Level 0: the plugin's own traces - ddsServiceAwait reads its "discovered".
-#
-export COR_TRACE_LEVELS=0
-
 BRIDGE_CONFIG=$(bridgeConfig -b dds \
   --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
   --service "add_two_ints,Calculator,urn:ngsi-ld:Calculator:1,sum,example_interfaces::srv::dds_::AddTwoInts_Request_,example_interfaces::srv::dds_::AddTwoInts_Response_")

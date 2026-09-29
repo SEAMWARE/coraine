@@ -38,7 +38,6 @@ bridge channel plugins topic
 
 --INIT--
 corDbDrop
-export COR_TRACE_LEVELS=402
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
   --topic "P2,Machine,urn:ngsi-ld:Machine:2,temperature" \
@@ -98,7 +97,7 @@ echo
 
 echo "06. What was published - never P2, never P3"
 echo "==========================================="
-grep -oE "\-> 'P[0-9]+' on bridge 'loopback'" /tmp/coraine.CB.log | sort | uniq -c | sed 's/^ *//'
+bridgeChannelsCount loopback samplesOut
 echo
 echo
 
@@ -239,8 +238,8 @@ Content-Length: REGEX(\d+)
 
 06. What was published - never P2, never P3
 ===========================================
-1 -> 'P1' on bridge 'loopback'
-2 -> 'P4' on bridge 'loopback'
+P1: 1
+P4: 2
 
 
 --TEARDOWN--

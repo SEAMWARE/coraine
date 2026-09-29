@@ -11,6 +11,32 @@ make test                    # whole suite (mongoc; use corTest -db corDB for in
 
 Tests live under `test/funcTests/`.
 
+## Functional tests never read the log
+
+A test waits on, and asserts on, what the **API** says — never on a trace line in
+the broker's log. A trace is there only when the trace levels include it *and* the
+code that writes it was built with its traces: a `dds.so` with them compiled out (a
+perf build) timed out every DDS test while the broker was working fine. So no test
+sets `COR_TRACE_LEVELS`, and the suite passes with `-traceLevels ""`.
+
+What a test waits on instead — the helpers are in `test/funcTests/corTestFunctions.sh`:
+
+| Waiting for | Read from | Helper |
+|---|---|---|
+| a DDS endpoint to be discovered | the Channel's `endpointDiscovered` | `ddsServiceAwait`, `bridgeChannelAwait` |
+| a counter — publishes, goals, cancels, requests | the Channel's counters ([§3.3b](bridge-channels.md#33b-what-crossed--discovery-and-counters)) | `bridgeChannelGet`, `bridgeChannelAtLeast`, `bridgeChannelsCount` |
+| a sample the Bridge dropped | the Bridge's `samplesDropped` | `bridgeGet`, `bridgeAtLeast` |
+| a goal to end | `GET /channels/{id}/goals/{goalId}`: 200 while in progress, 404 after | `bridgeGoalInProgress`, `bridgeGoalEndedAwait` |
+| a member a bridge writes (`status`, `feedback`, `reply`, …) | the entity | `attrMemberAwait` |
+| how a goal went, once its instance is gone | the attribute's temporal history (`--troe timescale --troeSync`) | `bridgeGoalHistory`, `bridgeGoalHistoryAwait` |
+
+A **warning** (`COR_W`) is different: no trace level and no build switches it off, and
+a test may still check one was given.
+
+To prove a test does not lean on a trace, run it with `-traceLevels ""` against a
+`dds.so` built with `COR_T` compiled out (`nm -D /opt/seamware/plugins/bridge/dds.so |
+grep corLogTraceLevels` then prints nothing).
+
 ## Tests that need something this machine may not have
 
 A few tests cannot run everywhere, and none of them is a choice anyone should

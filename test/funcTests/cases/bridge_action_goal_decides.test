@@ -39,8 +39,6 @@ bridge plugins action goal
 corDbDrop
 ftClientStart
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
@@ -83,7 +81,7 @@ corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs/navigate -X PATCH --payload '{ 
 echo
 corCurl --url /ngsi-ld/v1/entities/urn:R:2
 echo
-echo "cancelled: $(grep -c "on 'A2' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
+echo "A2 cancels sent: $(bridgeChannelGet loopback A2 goalCancelsSent)"
 echo
 echo
 
@@ -119,8 +117,8 @@ corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[ { "id": "urn:R:2"
 T1=${EPOCHREALTIME/./}
 echo
 if [ $(((T1 - T0) / 1000)) -lt 1500 ]; then echo "one deadline: yes"; else echo "one deadline: NO - $(((T1 - T0) / 1000)) ms"; fi
-echo "A2 cancelled, step 03 included: $(grep -c "on 'A2' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
-echo "A5 cancelled: $(grep -c "on 'A5' not answered in time - cancelled (0), nothing written" /tmp/coraine.CB.log)"
+echo "A2 cancels sent, step 03 included: $(bridgeChannelGet loopback A2 goalCancelsSent)"
+echo "A5 cancels sent: $(bridgeChannelGet loopback A5 goalCancelsSent)"
 echo
 corCurl --url /ngsi-ld/v1/entities/urn:R:4
 echo
@@ -137,10 +135,6 @@ payload='{
   }
 }'
 corCurl --url /ngsi-ld/v1/entities/urn:R:5/attrs -X PATCH --payload "$payload"
-for i in $(seq 1 50); do
-  grep -q "on 'A6' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
 echo
 echo
 
@@ -264,7 +258,7 @@ Content-Length: 115
 }
 
 
-cancelled: 1
+A2 cancels sent: 1
 
 
 04. PATCH urn:R:3 navigate (accepted) and dock (rejected) - 207: dock not updated, navigate written
@@ -402,8 +396,8 @@ Content-Length: 696
 
 
 one deadline: yes
-A2 cancelled, step 03 included: 2
-A5 cancelled: 1
+A2 cancels sent, step 03 included: 2
+A5 cancels sent: 1
 
 HTTP/1.1 200 OK
 Date: REGEX(.*)

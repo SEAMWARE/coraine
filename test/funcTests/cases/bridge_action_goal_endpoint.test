@@ -32,8 +32,6 @@ bridge channel plugins action goal subscription
 corDbDrop
 ftClientStart
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
@@ -59,10 +57,7 @@ echo
 
 echo "02. The endpoint heard every event of goal 1, in order, and the instance going away"
 echo "==================================================================================="
-for i in $(seq 1 50); do
-  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 1
 ftClientSettle
 ftClientDump
 echo
@@ -79,10 +74,7 @@ echo
 echo "04. A goal without an endpoint - nothing is notified"
 echo "===================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 2 } } }'
-for i in $(seq 1 50); do
-  grep -q "goal 2 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 2
 ftClientSettle
 ftClientDump
 echo
@@ -101,10 +93,8 @@ echo
 
 echo "06. Each endpoint heard its own goal accepted - /a goal 3, /b goal 4"
 echo "===================================================================="
-for i in $(seq 1 50); do
-  [ $(grep -c "'status' on 'A2'" /tmp/coraine.CB.log 2>/dev/null) -ge 2 ] && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:2 navigate status urn:goal:3
+attrMemberAwait urn:R:2 navigate status urn:goal:4
 ftClientSettle
 ftClientDump
 echo
@@ -114,10 +104,7 @@ echo
 echo "07. Cancel goal 3"
 echo "================="
 corCurl --url '/ngsi-ld/v1/entities/urn:R:2/attrs/navigate?datasetId=urn:goal:3' -X DELETE
-for i in $(seq 1 50); do
-  grep -q "goal 3 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A2 3
 echo
 echo
 
