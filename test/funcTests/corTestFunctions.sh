@@ -1563,6 +1563,39 @@ sys.exit(1)
 }
 
 
+# bridgeGoalHistory <entityId> <attr> <goalAlias> - how a goal went, from the attribute's temporal history
+#
+# A goal's instance (datasetId = its alias, urn:goal:N) is removed after its final event, so how it
+# ended is read where it stays: GET /temporal/entities (needs --troe timescale; --troeSync for it to be
+# there at once). Prints the status codes in order (each once), whether a result was written, and whether
+# the instance was then removed - or that the goal left no history (refused before anything was written).
+#
+bridgeGoalHistory() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=$2" 2>/dev/null | python3 -c '
+import json, sys
+attr, alias = sys.argv[1:3]
+try:
+  e = json.load(sys.stdin)
+except Exception:
+  print("no temporal entity"); sys.exit(0)
+inst = e.get(attr, [])
+inst = inst if isinstance(inst, list) else [inst]
+mine = [i for i in inst if i.get("datasetId") == alias]
+if not mine:
+  print("%s: no history" % alias); sys.exit(0)
+codes = []
+for i in mine:
+  st = i.get("status", {}).get("value")
+  code = st.get("code") if isinstance(st, dict) else st
+  if code is not None and (not codes or codes[-1] != code):
+    codes.append(code)
+result  = any("result" in i for i in mine)
+removed = "deletedAt" in mine[-1]
+print("%s: %s, result %s, instance %s" % (alias, " -> ".join(codes) if codes else "no status", "written" if result else "none", "removed" if removed else "still there"))
+' "$2" "$3"
+}
+
+
 # ddsServiceAwait <service> [seconds] - wait until the broker's DDS bridge has discovered a service
 #
 # Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - a request sent before it is

@@ -43,9 +43,9 @@ bridge channel plugins action goal
 
 --INIT--
 corDbDrop
+corTroeInit
 ftClientStart
 
-export COR_TRACE_LEVELS=402
 
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
@@ -57,7 +57,7 @@ BRIDGE_CONFIG=$(bridgeConfig \
   --goalMode "A3=reject" \
   --goalMode "A4=stubborn")
 
-coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
@@ -105,10 +105,7 @@ echo "05. Send goal 2 to A2 - it is accepted and held"
 echo "==============================================="
 payload='{ "navigate": { "type": "Property", "value": { "x": 5, "y": 6 } } }'
 corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload "$payload"
-for i in $(seq 1 50); do
-  grep -q "'status' on 'A2'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:2 navigate status urn:goal:2
 echo
 echo
 
@@ -130,7 +127,7 @@ echo
 echo "08. At once - DDS first, so the instance stays while the goal has not ended"
 echo "============================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:2
-echo "goal 2 ended: $(grep -c "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log)"
+echo "goal 2 in progress: $(bridgeGoalInProgress loopback A2 2)"
 echo
 echo
 
@@ -169,10 +166,7 @@ echo "13. Send goal 4 to A4 - it is accepted, and cannot be cancelled"
 echo "================================================================="
 payload='{ "navigate": { "type": "Property", "value": { "x": 4, "y": 4 } } }'
 corCurl --url /ngsi-ld/v1/entities/urn:R:4/attrs -X PATCH --payload "$payload"
-for i in $(seq 1 50); do
-  grep -q "'status' on 'A4'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:4 navigate status urn:goal:4
 echo
 echo
 
@@ -191,15 +185,19 @@ echo
 echo
 
 
-echo "16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled; goal 3 refused (7) before anything was written"
-echo "================================================================================================================================="
-grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+|goal [0-9]+ on 'A[0-9]' refused, state [0-9]+" /tmp/coraine.CB.log
+echo "16. How each goal went - from the history: its instance is gone once it has ended"
+echo "======================================================================================"
+bridgeGoalHistory urn:R:1 navigate urn:goal:1
+bridgeGoalHistory urn:R:2 navigate urn:goal:2
+bridgeGoalHistory urn:R:3 navigate urn:goal:3
+bridgeGoalHistory urn:R:4 navigate urn:goal:4
 echo
 
 
 --TEARDOWN--
 coraineStop
 ftClientStop
+corTroeDrop
 rm -f /tmp/coraine_bridges.json
 corDbDrop
 
@@ -544,7 +542,7 @@ Content-Length: 397
   "type": "Robot"
 }
 
-goal 2 ended: 0
+goal 2 in progress: yes
 
 
 09. The goal ends, canceled - and its instance goes with it
@@ -684,13 +682,10 @@ Content-Length: 397
 
 
 
-16. How each goal ended - the state is a BridgeGoalState: 4 succeeded, 5 canceled; goal 3 refused (7) before anything was written
-=================================================================================================================================
-sends goal 1 to action 'A1'
-goal 1 on 'A1' (urn:goal:1) ended, state 4
-sends goal 2 to action 'A2'
-goal 2 on 'A2' (urn:goal:2) ended, state 5
-sends goal 3 to action 'A3'
-goal 3 on 'A3' refused, state 7
-sends goal 4 to action 'A4'
+16. How each goal went - from the history: its instance is gone once it has ended
+======================================================================================
+urn:goal:1: ACCEPTED -> SUCCEEDED, result written, instance removed
+urn:goal:2: ACCEPTED -> CANCELED, result written, instance removed
+urn:goal:3: no history
+urn:goal:4: ACCEPTED, result none, instance still there
 
