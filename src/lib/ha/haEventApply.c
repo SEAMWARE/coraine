@@ -63,7 +63,8 @@ static void stateBind(Tenant* tenantP)
   // The apply runs AS the event's tenant. Not everything downstream takes the
   // tenant as a parameter, and a thread with no request has none.
   //
-  corNgsild.tenantP = tenantP;
+  corNgsild.tenantP    = tenantP;
+  corNgsild.tenantName = (tenantP != NULL) ? tenantP->name : NULL;
 }
 
 

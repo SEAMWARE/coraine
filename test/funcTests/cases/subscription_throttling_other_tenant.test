@@ -31,9 +31,10 @@ coraineStart
 --RUN--
 
 #
-# throttleRound <tenant header or ""> - entity V1, a subscription with throttling 1, three
-# changes of speed at once: the first notifies, the other two are coalesced and flushed with
-# the latest value (3). Waits up to 6 s for the second notification.
+# throttleRound <tenant header or ""> - entity V1, a subscription with throttling 1. speed 1:
+# the first notification (wait for it). Then speed 2 and 3 at once - inside the window after
+# that notification: they are coalesced into ONE notification with the latest state (3), sent
+# when the window has passed. Waits up to 6 s for it.
 #
 throttleRound() {
   local h=("$@")
@@ -46,13 +47,17 @@ throttleRound() {
     "throttling": 1,
     "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
   }' | head -1
-  for v in 1 2 3; do
-    corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": '$v'}}' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": 1}}' | head -1
+  for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+  for v in 2 3; do
+    corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": '$v'}}' | head -1
   done
   for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
   ftClientSettle
   ftClientDump > /tmp/th.$$
-  echo "notifications: $(grep -c '"subscriptionId"' /tmp/th.$$), the last one has speed 3: $(tac /tmp/th.$$ | grep -m1 '"value": [0-9]' | grep -c '"value": 3')"
+  echo "notifications: $(grep -c '"subscriptionId"' /tmp/th.$$)"
+  echo "speed in each, in order: $(grep -o '"value": [0-9]' /tmp/th.$$ | cut -d' ' -f2 | tr '\n' ' ')"
+  echo "NGSILD-Tenant in each: $(grep -o '"NGSILD-Tenant": "[^"]*"' /tmp/th.$$ | cut -d'"' -f4 | tr '\n' ' ')"
   rm -f /tmp/th.$$
 }
 
@@ -76,14 +81,24 @@ echo
 ====================================
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
-notifications: 2, the last one has speed 3: 1
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+notifications: 2
+speed in each, in order: 1 3 
+NGSILD-Tenant in each: 
 
 
 02. Tenant t1
 =============
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
-notifications: 2, the last one has speed 3: 1
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+notifications: 2
+speed in each, in order: 1 3 
+NGSILD-Tenant in each: t1 t1 
 
 
 --TEARDOWN--

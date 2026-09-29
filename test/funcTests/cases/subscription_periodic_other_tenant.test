@@ -10,6 +10,9 @@
 # The pernot loop was started with tenant0's cache alone, so a periodic subscription created
 # with an NGSILD-Tenant header was accepted, stored and listed - and never fired.
 #
+# Its notification names the tenant: NGSILD-Tenant (§ 6.4.8) - the subscription's own, as there
+# is no request to take it from.
+#
 # timeInterval 3600: the first notification is due at once, the next in an hour, so exactly one
 # arrives inside the test.
 #
@@ -69,7 +72,16 @@ echo
 echo "04. It carries the tenant's entity"
 echo "=================================="
 ftClientSettle
-ftClientDump | grep -c '"id": "urn:T1"'
+ftClientDump > /tmp/pot.$$
+grep -c '"id": "urn:T1"' /tmp/pot.$$
+echo
+echo
+
+
+echo "05. It names the tenant"
+echo "======================="
+grep -o '"NGSILD-Tenant": "[^"]*"' /tmp/pot.$$
+rm -f /tmp/pot.$$
 echo
 echo
 
@@ -93,6 +105,11 @@ notification arrived
 04. It carries the tenant's entity
 ==================================
 1
+
+
+05. It names the tenant
+=======================
+"NGSILD-Tenant": "t1"
 
 
 --TEARDOWN--

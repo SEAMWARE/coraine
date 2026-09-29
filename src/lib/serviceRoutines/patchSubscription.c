@@ -304,7 +304,7 @@ bool patchSubscription(void)
   if (existingIsPernot)
   {
     ldSubCacheUnlock(subCacheP);
-    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP);
+    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP, tenantP->name);
     corRest.out.httpStatusCode = 204;
     return true;
   }

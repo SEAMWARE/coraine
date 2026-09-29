@@ -323,7 +323,8 @@ bool tenantPreServiceHook(void)
   if (tP == NULL)
     return false;
 
-  corNgsild.tenantP = tP;
+  corNgsild.tenantP    = tP;
+  corNgsild.tenantName = tP->name;
 
   // Expand vocab-bearing URL params (type, pick, omit, etc.) now that
   // @context is resolved and all params are parsed.
@@ -436,7 +437,7 @@ int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace)
     if (replace && (subId != NULL))
       ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
 
-    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP);
+    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP, tP->name);
     return TENANT_SUB_KIND_PERNOT;
   }
 

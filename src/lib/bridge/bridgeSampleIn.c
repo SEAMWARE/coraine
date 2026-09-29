@@ -99,7 +99,8 @@ static void threadBind(Tenant* tenantP)
   // The write runs AS the target's tenant. Not everything downstream takes a
   // tenant as a parameter, and a thread with no request has none.
   //
-  corNgsild.tenantP = tenantP;
+  corNgsild.tenantP    = tenantP;
+  corNgsild.tenantName = (tenantP != NULL) ? tenantP->name : NULL;
 
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);

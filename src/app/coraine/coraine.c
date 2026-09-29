@@ -935,7 +935,18 @@ static CorNode* throttleRetrieveCallback(void* tenantP, const char* entityId, vo
 static void tenantCachesVisit(Tenant* tP, LdTenantCachesVisitFn visit, void* arg)
 {
   LdTenantCaches tc = { tP, (LdSubCache*) tP->subCacheP, (LdSubCache*) tP->regSubCacheP, (LdRegCache*) tP->regCacheP };
+
+  //
+  // The tick runs AS the visited tenant, as a request runs as its own: what it sends goes out
+  // tagged with it (NGSILD-Tenant), and it has no request to take the tenant from.
+  //
+  corNgsild.tenantP    = tP;
+  corNgsild.tenantName = tP->name;
+
   visit(&tc, arg);
+
+  corNgsild.tenantP    = NULL;
+  corNgsild.tenantName = NULL;
 }
 
 static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)

@@ -366,7 +366,7 @@ bool postSubscriptions(void)
   if (isPernot)
   {
     if (tenantP->pernotCacheP != NULL)
-      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP);
+      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP, tenantP->name);
   }
   else
   {

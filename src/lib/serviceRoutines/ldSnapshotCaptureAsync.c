@@ -81,6 +81,7 @@ static void* snapshotWorkerThread(void* arg)
   // splitEntities* fields (via ldSnapshotExec's runOneQuery).
   memset(&corNgsild, 0, sizeof(corNgsild));
   corNgsild.tenantP          = ctx->tenantP;
+  corNgsild.tenantName       = (ctx->tenantP != NULL) ? ((Tenant*) ctx->tenantP)->name : NULL;
   corNgsild.splitEntitiesSet = ctx->splitEntitiesSet;
   corNgsild.splitEntitiesVal = ctx->splitEntitiesVal;
 

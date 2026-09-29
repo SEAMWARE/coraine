@@ -11,7 +11,8 @@
 # tenant only the initial notification (sent by the create request itself) ever came.
 #
 # In ~3.2 s with timeInterval 1: the initial notification plus two or three periodic ones. The
-# default tenant is the control.
+# default tenant is the control. Every notification names the subscription's tenant
+# (NGSILD-Tenant, § 6.4.8) - none on the default tenant.
 #
 # REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 #
@@ -50,8 +51,13 @@ csrPeriodicRound() {
   sleep 3.2
   corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:CSRP1 "${h[@]}" -X DELETE | head -1
   ftClientSettle
-  n=$(ftClientDump | grep -c '"subscriptionId"')
+  ftClientDump > /tmp/csrp.$$
+  n=$(grep -c '"subscriptionId"' /tmp/csrp.$$)
+  t=$(grep -c '"NGSILD-Tenant"' /tmp/csrp.$$)
   echo "at least three notifications: $([ "$n" -ge 3 ] && echo yes || echo "no ($n)")"
+  echo "naming a tenant: $([ "$t" = "$n" ] && echo all || { [ "$t" = 0 ] && echo none || echo "$t of $n"; })"
+  echo "the tenant named: $(grep -o '"NGSILD-Tenant": "[^"]*"' /tmp/csrp.$$ | cut -d'"' -f4 | sort -u)"
+  rm -f /tmp/csrp.$$
 }
 
 
@@ -76,6 +82,8 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 HTTP/1.1 204 No Content
 at least three notifications: yes
+naming a tenant: none
+the tenant named: 
 
 
 02. Tenant t1
@@ -84,6 +92,8 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 HTTP/1.1 204 No Content
 at least three notifications: yes
+naming a tenant: all
+the tenant named: t1
 
 
 --TEARDOWN--
