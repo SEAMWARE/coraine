@@ -2,6 +2,11 @@
 #
 # corTestFunctions.sh - repo-specific test functions for coraine
 #
+# ⭐ A test waits on, and asserts on, what the API says - NEVER on the broker's log. A trace line is
+# there only when the trace levels include it AND the code was built with its traces; no test sets
+# COR_TRACE_LEVELS, and the suite passes with -traceLevels "". The bridge* helpers below are what
+# to wait on instead (doc/testing.md, "Functional tests never read the log").
+#
 export COR_BROKER="${COR_BROKER:-coraine}"        # broker from PATH (installed via make di)
 export COR_DB_NAME="${COR_DB_NAME:-corTest}"
 #
