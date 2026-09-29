@@ -26,7 +26,7 @@
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "corBase/corCpuCount.h"                   // corCpuCount
-#include "corBase/corBaseInit.h"                   // corBaseInit
+#include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
@@ -1303,6 +1303,12 @@ int main(int argC, char* argV[])
   // with their own file, line and function, gated by the same -v/-t switches.
   //
   corBaseInit(corLogOut);
+
+  //
+  // ... and a library trace that is off is decided inline, on our own bitmask, instead of
+  // costing a call into corLogOut per trace line - most of them in per-node code.
+  //
+  corBaseTraceLevelsSet(corLogTraceLevels, sizeof(corLogTraceLevels) / sizeof(corLogTraceLevels[0]));
 
   //
   // Each switch steers its OWN class of output: -v drives COR_V, -d drives COR_D,
