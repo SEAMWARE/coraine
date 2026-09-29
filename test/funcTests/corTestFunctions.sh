@@ -1498,6 +1498,71 @@ bridgeChannelAtLeast() {
 }
 
 
+# bridgeGoalInProgress <bridge> <endpoint> <goalId> - "yes" while the goal is in progress on its Channel, else "no"
+#
+# GET /channels/{id}/goals/{goalId}: 200 from the moment the goal is sent until its final event, 404
+# after (and for a goal never sent).
+#
+bridgeGoalInProgress() {
+  local channelId
+  channelId=$(bridgeChannelGet "$1" "$2" id)
+  [ -z "$channelId" ] && { echo "no"; return; }
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$CB_PORT/ngsi-ld/v1/channels/$channelId/goals/$3")" == "200" ]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+
+# bridgeGoalEndedAwait <bridge> <endpoint> <goalId> [seconds] - wait until a goal sent has ended (its final event arrived)
+#
+bridgeGoalEndedAwait() {
+  local secs="${4:-10}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    [ "$(bridgeGoalInProgress "$1" "$2" "$3")" == "no" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeGoalEndedAwait: goal '$3' on '$2' (bridge '$1') still in progress after ${secs}s" >&2
+  return 1
+}
+
+
+# attrMemberAwait <entityId> <attr> <member> [datasetId] [seconds] - wait until the attribute (the instance of that
+# datasetId, if given) has that member - a sub-attribute a bridge wrote ('status', 'feedback', 'reply', ...)
+#
+# From GET /entities/{id} in the default tenant, normalized; <attr> and <member> as the core @context names them.
+#
+attrMemberAwait() {
+  local entityId="$1" attr="$2" member="$3" datasetId="$4" secs="${5:-10}"
+  local i
+
+  for ((i = 0; i < secs * 10; i++)); do
+    curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/$entityId" 2>/dev/null | python3 -c '
+import json, sys
+attr, member, datasetId = sys.argv[1:4]
+try:
+  e = json.load(sys.stdin)
+except Exception:
+  sys.exit(1)
+a = e.get(attr)
+instances = a if isinstance(a, list) else ([a] if isinstance(a, dict) else [])
+for i in instances:
+  if (datasetId == "" or i.get("datasetId") == datasetId) and member in i:
+    sys.exit(0)
+sys.exit(1)
+' "$attr" "$member" "$datasetId" && return 0
+    sleep 0.1
+  done
+
+  echo "attrMemberAwait: $entityId/$attr${datasetId:+ (datasetId $datasetId)} has no '$member' after ${secs}s" >&2
+  return 1
+}
+
+
 # ddsServiceAwait <service> [seconds] - wait until the broker's DDS bridge has discovered a service
 #
 # Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - a request sent before it is

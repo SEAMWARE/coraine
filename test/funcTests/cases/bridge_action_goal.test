@@ -87,10 +87,7 @@ echo
 
 echo "03. Every event of goal 1 reached its watcher, and then its instance went"
 echo "========================================================================"
-for i in $(seq 1 50); do
-  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 1
 ftClientSettle
 ftClientDump
 echo
@@ -140,10 +137,7 @@ echo
 
 echo "09. The goal ends, canceled - and its instance goes with it"
 echo "============================================================"
-for i in $(seq 1 50); do
-  grep -q "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A2 2
 corCurl --url /ngsi-ld/v1/entities/urn:R:2
 echo
 echo

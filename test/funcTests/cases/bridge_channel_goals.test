@@ -85,10 +85,7 @@ echo
 echo "05. DELETE goal 1 - the cancel is on its way: 202"
 echo "================================================="
 corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A1/goals/1 -X DELETE
-for i in $(seq 1 50); do
-  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 1
 echo
 echo
 
@@ -112,10 +109,7 @@ echo
 echo "08. POST a goal to A3 - it succeeds at once: 201; it is over before a poll, so GET is 404"
 echo "========================================================================================="
 corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals --payload '{ "goalRequest": { "x": 3 } }'
-for i in $(seq 1 50); do
-  grep -q "goal 3 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A3 3
 echo
 corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:A3/goals/3
 echo

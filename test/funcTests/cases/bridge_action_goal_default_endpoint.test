@@ -62,10 +62,7 @@ echo
 echo "02. A goal on A1, naming no endpoint - its Channel's default hears it"
 echo "====================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 1 } } }' | head -1
-for i in $(seq 1 50); do
-  grep -q "goal 1 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 1
 ftClientSettle
 ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
 echo
@@ -75,10 +72,7 @@ echo
 echo "03. A goal on A2, naming no endpoint - no Channel default, so the Bridge's"
 echo "=========================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:2/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 2 } } }' | head -1
-for i in $(seq 1 50); do
-  grep -q "goal 2 on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A2 2
 ftClientSettle
 ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
 echo
@@ -89,10 +83,7 @@ echo "04. A goal on A1 with its own endpoint - only that endpoint hears it"
 echo "===================================================================="
 payload='{ "navigate": { "type": "Property", "value": { "x": 3 }, "endpoint": { "type": "Property", "value": "http://localhost:'$FT_CLIENT_PORT'/own" } } }'
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs -X PATCH --payload "$payload" | head -1
-for i in $(seq 1 50); do
-  grep -q "goal 3 on 'A1' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A1 3
 ftClientSettle
 ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
 echo
@@ -102,10 +93,7 @@ echo
 echo "05. A goal on A3, naming no endpoint - its unusable default was ignored: the Bridge's"
 echo "===================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:R:3/attrs -X PATCH --payload '{ "navigate": { "type": "Property", "value": { "x": 4 } } }' | head -1
-for i in $(seq 1 50); do
-  grep -q "goal 4 on 'A3' .* ended" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A3 4
 ftClientSettle
 ftClientDump | grep -oE '"url": "[^"]*"' | sort -u
 grep -c "endpoint 'A3' - notification.endpoint.uri must be an http(s) URL - ignored" /tmp/coraine.CB.log
