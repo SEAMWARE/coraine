@@ -43,10 +43,13 @@ static char** crashArgV  = NULL;
 
 // -----------------------------------------------------------------------------
 //
-// out - gathered into an iovec, written with ONE writev per line (flush), to both stderr and the
-// log (corLogFd: a file, or stdout - which is where the broker logs, and what a container runtime
-// or the test harness captures) - the way corLog writes a trace line: a line of the report is not
-// interleaved with the trace lines other threads are writing meanwhile.
+// out - gathered into an iovec, written with ONE writev per line (flush) - the way corLog writes a
+// trace line: a line of the report is not interleaved with the trace lines other threads are
+// writing meanwhile.
+//
+// Where: the log, and stderr. But a broker logging to stdout (--foreground) writes the report to
+// stdout ONLY - a container runtime, journald and the test harness all merge stdout and stderr,
+// and two copies, woven together line by line, are what that capture then held.
 //
 // The pieces must live until the flush: strings do (argv, the request state, literals); numbers
 // are formatted into numberV, one slot per number, reused after each flush.
@@ -59,9 +62,14 @@ static int          iovN = 0;
 static char         numberV[NUMBERS_MAX][24];
 static int          numberN = 0;
 
-static bool logFdSeparate(void)
+static bool logToFile(void)
 {
-  return (corLogFd >= 0) && (corLogFd != 2);   // stderr is written anyway - not twice
+  return corLogFd > 2;                         // a log file: that, and stderr too
+}
+
+static int reportFd(void)
+{
+  return ((corLogFd == 1) || (corLogFd == 2)) ? corLogFd : 2;   // logging to stdout/stderr: there only
 }
 
 static void flush(void)
@@ -69,8 +77,8 @@ static void flush(void)
   if (iovN == 0)
     return;
 
-  ssize_t ignored = writev(2, iov, iovN);
-  if (logFdSeparate())
+  ssize_t ignored = writev(reportFd(), iov, iovN);
+  if (logToFile())
     ignored = writev(corLogFd, iov, iovN);
   (void) ignored;
 
@@ -360,8 +368,8 @@ static void onCrash(int sigNo)
 
   out("stack:\n");
   flush();
-  backtrace_symbols_fd(frames, frameN, 2);
-  if (logFdSeparate())
+  backtrace_symbols_fd(frames, frameN, reportFd());
+  if (logToFile())
     backtrace_symbols_fd(frames, frameN, corLogFd);
 
   out("=== end of crash report ===\n");
