@@ -34,6 +34,7 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
 #include "serviceRoutines/patchSubscription.h"       // Own interface
 
 
@@ -278,6 +279,10 @@ bool patchSubscription(void)
     else
       corTreeChildAdd(mergedSubP, corTreeString(corRest.kallocP, LD_VOCAB_STATUS, newStatus));
   }
+
+  // A new q is stored with its attribute names EXPANDED, with this request's @context - as on create
+  if (corTreeLookup(fragment, "q") != NULL)
+    subscriptionQExpand(mergedSubP);
 
   // § 6.4.5 — bump modifiedAt to now; createdAt (from the retrieved tree) stays
   ldSysTimestampModify(mergedSubP);

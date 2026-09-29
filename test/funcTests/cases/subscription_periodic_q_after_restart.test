@@ -5,11 +5,17 @@
 #
 # Copyright 2026 Seamware
 #
-# A periodic subscription (timeInterval) keeps its q across a broker restart.
+# A periodic subscription (timeInterval) keeps its q across a broker restart - also a q naming
+# a term of the CLIENT's @context.
 #
 # The periodic cache took the parsed q from its caller and never parsed it itself: a
 # subscription loaded from the database at startup (or by the HA watch) got NONE, and after a
 # restart it notified every entity of its type.
+#
+# And q was stored as sent. An attribute's name is its long name - the short one is an alias,
+# meaningful only in the @context it came with - so after a restart "spd>50" was re-parsed with
+# the core context alone, named an attribute nobody has, and matched nothing. It is stored with
+# its names expanded now (an IRI's dots written '^'). spd is a DOTTED IRI on purpose.
 #
 # REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
@@ -23,15 +29,24 @@ pernot subscription restart
 --INIT--
 corDbDrop
 ftClientStart
+contextServerStart
 coraineStart
+
+contextServerPush /jsonldContexts/qCtx '{
+  "@context": {
+    "spd": "https://example.org/q/speed"
+  }
+}'
 
 --RUN--
 
 #
-# 01. Vehicles V1 (speed 10) and V2 (speed 80)
-# 02. A periodic subscription (timeInterval 1) with q=speed>50 - V2 notified, V1 not
+# 01. Vehicles V1 (speed 10) and V2 (speed 80); W1 (spd 10) and W2 (spd 80), spd from qCtx
+# 02. PQ1: q=speed>50 - V2 notified, V1 not; PQ2 (with qCtx): q=spd>50 - W2 notified, W1 not
 # 03. Restart the broker
-# 04. After the restart: still V2 notified, V1 not
+# 04. After the restart: the same
+# 05. GET PQ2 with qCtx - q compacted with the context in use: spd>50
+# 06. GET PQ2 without it - spd is no term of the core context: the full IRI
 #
 
 echo "01. Vehicles V1 (speed 10) and V2 (speed 80)"
@@ -39,6 +54,10 @@ echo "============================================"
 corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id": "urn:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 10}},
   {"id": "urn:V2", "type": "Vehicle", "speed": {"type": "Property", "value": 80}}
+]' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/create -H 'Link: <http://localhost:7080/jsonldContexts/qCtx>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' --payload '[
+  {"id": "urn:W1", "type": "Vehicle", "spd": {"type": "Property", "value": 10}},
+  {"id": "urn:W2", "type": "Vehicle", "spd": {"type": "Property", "value": 80}}
 ]' | head -1
 echo
 echo
@@ -54,11 +73,21 @@ corCurl --url /ngsi-ld/v1/subscriptions --payload '{
   "timeInterval": 1,
   "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
 }' | head -1
-ftClientWait 1 || echo "NO notification"
+corCurl --url /ngsi-ld/v1/subscriptions -H 'Link: <http://localhost:7080/jsonldContexts/qCtx>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' --payload '{
+  "id": "urn:ngsi-ld:Subscription:PQ2",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "q": "spd>50",
+  "timeInterval": 1,
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+ftClientWait 2 || echo "NO notification"
 ftClientSettle
 ftClientDump > /tmp/pq1.$$
 v1=$(grep -c '"id": "urn:V1"' /tmp/pq1.$$); v2=$(grep -c '"id": "urn:V2"' /tmp/pq1.$$)
+w1=$(grep -c '"id": "urn:W1"' /tmp/pq1.$$); w2=$(grep -c '"id": "urn:W2"' /tmp/pq1.$$)
 echo "V1 notified: $([ $v1 -gt 0 ] && echo yes || echo no), V2 notified: $([ $v2 -gt 0 ] && echo yes || echo no)"
+echo "W1 notified: $([ $w1 -gt 0 ] && echo yes || echo no), W2 notified: $([ $w2 -gt 0 ] && echo yes || echo no)"
 rm -f /tmp/pq1.$$
 echo
 echo
@@ -77,12 +106,28 @@ echo
 
 echo "04. The first notification after the restart - still V2 only"
 echo "============================================================="
-ftClientWait 1 || echo "NO notification"
+ftClientWait 2 || echo "NO notification"
 ftClientSettle
 ftClientDump > /tmp/pq1.$$
 v1=$(grep -c '"id": "urn:V1"' /tmp/pq1.$$); v2=$(grep -c '"id": "urn:V2"' /tmp/pq1.$$)
+w1=$(grep -c '"id": "urn:W1"' /tmp/pq1.$$); w2=$(grep -c '"id": "urn:W2"' /tmp/pq1.$$)
 echo "V1 notified: $([ $v1 -gt 0 ] && echo yes || echo no), V2 notified: $([ $v2 -gt 0 ] && echo yes || echo no)"
+echo "W1 notified: $([ $w1 -gt 0 ] && echo yes || echo no), W2 notified: $([ $w2 -gt 0 ] && echo yes || echo no)"
 rm -f /tmp/pq1.$$
+echo
+echo
+
+
+echo "05. GET PQ2 with qCtx - q compacted with the context in use"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:PQ2 -H 'Link: <http://localhost:7080/jsonldContexts/qCtx>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | grep '"q"'
+echo
+echo
+
+
+echo "06. GET PQ2 without it - the full IRI"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:PQ2 | grep '"q"'
 echo
 echo
 
@@ -91,12 +136,15 @@ echo
 01. Vehicles V1 (speed 10) and V2 (speed 80)
 ============================================
 HTTP/1.1 201 Created
+HTTP/1.1 201 Created
 
 
 02. A periodic subscription with q=speed>50 - V2 only
 =====================================================
 HTTP/1.1 201 Created
+HTTP/1.1 201 Created
 V1 notified: no, V2 notified: yes
+W1 notified: no, W2 notified: yes
 
 
 03. Restart the broker
@@ -107,9 +155,21 @@ restarted
 04. The first notification after the restart - still V2 only
 =============================================================
 V1 notified: no, V2 notified: yes
+W1 notified: no, W2 notified: yes
+
+
+05. GET PQ2 with qCtx - q compacted with the context in use
+===============================================================
+  "q": "spd>50",
+
+
+06. GET PQ2 without it - the full IRI
+=====================================
+  "q": "https://example%2Eorg/q/speed>50",
 
 
 --TEARDOWN--
 coraineStop
+contextServerStop
 ftClientStop
 corDbDrop

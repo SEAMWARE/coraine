@@ -50,6 +50,7 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "db/Tenant.h"                               // Tenant
 
 #include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
+#include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 
 
@@ -147,13 +148,13 @@ bool postSubscriptions(void)
   }
 
   //
-  // q is stored as the client sent it, and each cache parses it itself (with this request's
-  // @context), into memory it owns. This used to parse it into the subscription cache's shared
-  // arena - outside its lock, so two POSTs at once raced on it - meaning to store it EXPANDED;
-  // but it looked q up by an IRI the tree does not carry, so that never ran. It could not have
-  // worked anyway: ldQParse cannot read an expanded q back (an IRI's dots read as path
-  // separators).
+  // q is stored with its attribute names EXPANDED (subscriptionQExpand), and each cache parses the
+  // stored q itself, into memory it owns. This used to parse it into the subscription cache's
+  // shared arena - outside its lock, so two POSTs at once raced on it - meaning to store it
+  // expanded too; but it looked q up by an IRI the tree does not carry, so that never ran, and
+  // the expanded form it would have stored was one ldQParse could not read back.
   //
+  subscriptionQExpand(subP);
 
   //
   // Add "status" = "active"|"paused"|"expired" (read-only field, computed from isActive + expiresAt)
