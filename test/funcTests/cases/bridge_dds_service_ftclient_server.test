@@ -47,11 +47,6 @@ bridge dds service
 corDbDrop
 
 #
-# The plugin's discovery trace is level 0, and ddsServiceAwait reads it.
-#
-export COR_TRACE_LEVELS=0
-
-#
 # A copy, not the fixtures directory itself: the plugin WRITES every type it
 # learns into its typesDirectory, and the repository is not the place for that.
 #

@@ -19,9 +19,6 @@
 #   02  PATCH it, waiting for the reply (?ddsSync=true): 204, and the attribute
 #       holds the request and the server's answer, 3 + 4 = 7
 #
-# ⚠ COR_TRACE_LEVELS=0: ddsServiceAwait waits for the plugin's own trace saying
-# it discovered the service, and the plugin writes at level 0.
-#
 # REQUIRE_DDS: yes
 #
 --NAME--
@@ -33,7 +30,6 @@ bridge dds service discovery
 --INIT--
 corDbDrop
 ros2NodeStop add_two_ints_server
-export COR_TRACE_LEVELS=0
 BRIDGE_CONFIG=$(bridgeConfig -b dds \
   --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }")
 coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG

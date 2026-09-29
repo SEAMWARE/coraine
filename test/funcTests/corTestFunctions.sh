@@ -1419,7 +1419,7 @@ ros2NodeStart() {
 # What a test actually depends on is something else anyway - that the BROKER has
 # DISCOVERED the service. An invocation sent before that has no server to reach
 # and is refused outright, which is not a race worth having in a test. So this
-# waits for the broker's own trace saying it found it.
+# waits for the service's Channel to say it was discovered (ddsServiceAwait).
 #
 ros2ServiceStart() {
   local node="$1"
@@ -1438,25 +1438,74 @@ ros2ServiceStart() {
 }
 
 
-# ddsServiceAwait <service> [seconds] - wait until the BROKER has discovered a service
+# bridgeChannelGet <bridge> <endpoint> <member> - one member of the Channel that carries <endpoint> on <bridge>
 #
-# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - what a test
-# depends on is the broker's own trace saying it found the service: a request
-# sent before that has no server to reach and is refused outright. The trace is
-# the plugin's, at level 0, so COR_TRACE_LEVELS must include 0.
+# From GET /channels (the default tenant), found by bridge and endpoint - a Channel's id may be the one
+# its configuration gave it. Prints the value (true/false for a boolean), nothing when there is no such
+# Channel or it has no such member.
 #
-ddsServiceAwait() {
-  local service="$1"
-  local secs="${2:-30}"
+# ⭐ A TEST WAITS ON WHAT THE API SAYS, NEVER ON THE LOG. A trace line is there only when the trace
+# levels include it AND the plugin was built with its traces - a dds.so with them compiled out timed
+# out every bridge_dds_* test while the broker was working fine (2026-09-29).
+#
+bridgeChannelGet() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/channels" 2>/dev/null | python3 -c '
+import json, sys
+bridge, endpoint, member = sys.argv[1:4]
+try:
+  channels = json.load(sys.stdin)
+except Exception:
+  sys.exit(0)
+for c in channels:
+  if c.get("bridgeId") == "urn:ngsi-ld:ContextBridge:" + bridge and c.get("channelTarget") == endpoint and member in c:
+    v = c[member]
+    print(("true" if v else "false") if isinstance(v, bool) else v)
+    break
+' "$1" "$2" "$3"
+}
+
+
+# bridgeChannelAwait <bridge> <endpoint> <member> <value> [seconds] - wait until that member of the Channel has that value
+#
+bridgeChannelAwait() {
+  local bridge="$1" endpoint="$2" member="$3" value="$4" secs="${5:-30}"
   local i
 
   for ((i = 0; i < secs * 10; i++)); do
-    grep -q "service '$service' discovered" /tmp/coraine.CB.log 2>/dev/null && return 0
+    [ "$(bridgeChannelGet "$bridge" "$endpoint" "$member")" == "$value" ] && return 0
     sleep 0.1
   done
 
-  echo "ddsServiceAwait: the broker did not discover service '$service' in ${secs}s" >&2
+  echo "bridgeChannelAwait: channel '$endpoint' on '$bridge': $member is '$(bridgeChannelGet "$bridge" "$endpoint" "$member")', not '$value', after ${secs}s" >&2
   return 1
+}
+
+
+# bridgeChannelAtLeast <bridge> <endpoint> <member> <n> [seconds] - wait until that counter of the Channel is at least n
+#
+bridgeChannelAtLeast() {
+  local bridge="$1" endpoint="$2" member="$3" n="$4" secs="${5:-30}"
+  local i v
+
+  for ((i = 0; i < secs * 10; i++)); do
+    v=$(bridgeChannelGet "$bridge" "$endpoint" "$member")
+    [ -n "$v" ] && [ "$v" -ge "$n" ] && return 0
+    sleep 0.1
+  done
+
+  echo "bridgeChannelAtLeast: channel '$endpoint' on '$bridge': $member is '$v', not >= $n, after ${secs}s" >&2
+  return 1
+}
+
+
+# ddsServiceAwait <service> [seconds] - wait until the broker's DDS bridge has discovered a service
+#
+# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - a request sent before it is
+# discovered has no server to reach and is refused outright. Discovered = its Channel says so
+# (endpointDiscovered), not a trace line.
+#
+ddsServiceAwait() {
+  bridgeChannelAwait dds "$1" endpointDiscovered true "${2:-30}" || { echo "ddsServiceAwait: the broker did not discover service '$1' in ${2:-30}s" >&2; return 1; }
 }
 
 
