@@ -1,0 +1,79 @@
+#
+# FILE            crash_report_idle.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# On a fatal signal the broker writes a report - to stderr and to its log - of
+# what it takes to REPRODUCE the crash: the signal, the version, the command
+# line, the request the crashing thread was handling (none here: the broker is
+# idle) and the stack. Then it dies of the signal itself, not an exit(139).
+#
+# The report is read from the log on purpose: it is not a trace - no trace
+# level turns it on or off, and it is written the same by every build.
+#
+# The command line and the version depend on how the suite was started (-db,
+# the build), and the stack on the build: patterns, not literals. The stack is
+# only counted.
+#
+--NAME--
+Crash report: a fatal signal on an idle broker - signal, version, command line, no request, a stack
+
+--TAGS--
+robustness lifecycle
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. SIGSEGV to the idle broker - it dies"
+echo "========================================"
+PID=$(cat /tmp/coraine_CB.pid)
+#
+# Only the broker: a stale pid file must not send a SIGSEGV to whatever has that pid now.
+#
+[ "$(cat /proc/$PID/comm 2>/dev/null)" == "coraine" ] || { echo "no broker at pid '$PID'" >&2; exit 1; }
+kill -SEGV $PID
+for i in $(seq 1 50); do
+  [ -d /proc/$PID ] && [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ] || break
+  sleep 0.1
+done
+if [ -d /proc/$PID ] && [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ]; then echo "broker: still running"; else echo "broker: gone"; fi
+echo
+echo
+
+
+echo "02. The report, as the log holds it - the stack only counted"
+echo "============================================================"
+LOG=/tmp/coraine.CB.log
+echo "reports: $(grep -c '^=== coraine crashed' $LOG)"
+sed -n '/^=== coraine crashed/,/^stack:$/p' $LOG | head -6
+echo "stack frames: $(sed -n '/^stack:$/,/^=== end of crash report ===$/p' $LOG | sed '1d;$d' | wc -l | awk '{ print ($1 > 0) ? "some" : "none" }')"
+grep -m1 '^=== end of crash report ===$' $LOG
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. SIGSEGV to the idle broker - it dies
+========================================
+broker: gone
+
+
+02. The report, as the log holds it - the stack only counted
+============================================================
+reports: 1
+=== coraine crashed: SIGSEGV (11) ===
+version:      REGEX(\d+\.\d+\.\d+\S*)
+command line: coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026REGEX(( --[a-zA-Z]+ \S+)+)
+request:      (none - the crash was not in a request)
+stack:
+stack frames: some
+=== end of crash report ===
+
