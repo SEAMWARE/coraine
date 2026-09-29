@@ -1,0 +1,148 @@
+#
+# FILE            crash_report_request.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A fatal signal on the thread that is handling a request: the report holds that
+# request - verb, path, query, headers and payload - which is what makes the
+# crash reproducible. A credential header is named, its value left out.
+#
+# Holding a request still long enough to signal its thread: a PATCH with
+# ?ddsSync=true to a loopback service that answers after 3 s waits on a pool
+# worker. That worker is found in /proc, with no other request made meanwhile:
+# the one broker thread that has woken since the snapshot taken before the
+# request, and now waits on a futex. It alone gets the SIGSEGV (tgkill) - a
+# kill(1) would let the kernel pick any thread.
+#
+# The path is the one SENT: the service lookup writes NULs over the '/' after
+# each wildcard (the report once showed .../entities/urn:C:S for
+# .../entities/urn:C:S/attrs/job).
+#
+# REQUIRE: Linux (/proc, tgkill)
+#
+--NAME--
+Crash report: a fatal signal on a request's thread reports that request - path as sent, headers, payload, credentials left out
+
+--TAGS--
+robustness lifecycle bridge ddsSync
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --replyDelay "slow=3000" \
+  --service "slow,Calculator,urn:C:S,job")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 2500
+
+--RUN--
+
+PID=$(cat /tmp/coraine_CB.pid)
+[ "$(cat /proc/$PID/comm 2>/dev/null)" == "coraine" ] || { echo "no broker at pid '$PID'" >&2; exit 1; }
+
+#
+# Every broker thread: tid, name, wait channel, voluntary context switches
+#
+threads() {
+  local t
+  for t in /proc/$PID/task/*; do
+    echo "$(basename $t) $(cat $t/comm 2>/dev/null) $(cat $t/wchan 2>/dev/null) $(awk '/^voluntary_ctxt_switches/ { print $2 }' $t/status 2>/dev/null)"
+  done | sort
+}
+
+
+#
+# The futex waiters only - the pool workers, and what else sleeps on a lock. The timer threads
+# (hrtimer_nanosleep) and the MHD workers (ep_poll) wake all the time and are never the one.
+#
+futexWaiters() {
+  threads | awk '$2 == "coraine" && $3 ~ /^futex/'
+}
+
+
+echo "01. A request that waits 3 s for its reply - its thread found, and only one"
+echo "==========================================================================="
+#
+# A baseline taken while the broker is still settling would see a pool worker reach its first wait
+# AFTER it - and that worker would look like the one the request woke. So: until the futex waiters
+# stay as they are for half a second.
+#
+BEFORE=$(futexWaiters)
+for i in $(seq 1 20); do
+  sleep 0.5
+  NOW=$(futexWaiters)
+  [ "$NOW" == "$BEFORE" ] && break
+  BEFORE="$NOW"
+done
+BEFORE=$(threads)
+curl -s -o /dev/null -X PATCH "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:C:S/attrs/job?ddsSync=true" \
+     -H 'Content-Type: application/json' -H 'Authorization: Bearer do-not-print-me' -H 'X-Custom: printed' \
+     -d '{ "type": "Property", "value": { "a": 1, "text": "x" } }' > /dev/null 2>&1 &
+CURL_PID=$!
+TID=""
+for i in $(seq 1 20); do
+  sleep 0.1
+  TID=$(join <(echo "$BEFORE") <(threads) | awk '$2 == "coraine" && $6 ~ /^futex/ && $7 > $4 { print $1 }')
+  [ $(echo "$TID" | wc -w) == 1 ] && break
+done
+echo "threads found: $(echo "$TID" | wc -w)"
+if kill -0 $CURL_PID 2>/dev/null; then echo "request still waiting: yes"; else echo "request still waiting: NO - it was answered"; fi
+echo
+echo
+
+
+echo "02. SIGSEGV to that thread alone - the broker dies"
+echo "=================================================="
+python3 -c "import ctypes, sys; sys.exit(ctypes.CDLL(None).tgkill($PID, $TID, 11))"
+wait $CURL_PID
+for i in $(seq 1 50); do
+  [ -d /proc/$PID ] && [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ] || break
+  sleep 0.1
+done
+if [ -d /proc/$PID ] && [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ]; then echo "broker: still running"; else echo "broker: gone"; fi
+echo
+echo
+
+
+echo "03. The report - the request as it was sent"
+echo "==========================================="
+LOG=/tmp/coraine.CB.log
+echo "reports: $(grep -c '^=== coraine crashed' $LOG)"
+sed -n '/^=== coraine crashed/,/^stack:$/p' $LOG | sed -n '/^request:/,/^stack:$/p'
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+corDbDrop
+
+--EXPECT--
+01. A request that waits 3 s for its reply - its thread found, and only one
+===========================================================================
+threads found: 1
+request still waiting: yes
+
+
+02. SIGSEGV to that thread alone - the broker dies
+==================================================
+broker: gone
+
+
+03. The report - the request as it was sent
+===========================================
+reports: 1
+request:      PATCH /ngsi-ld/v1/entities/urn:C:S/attrs/job?ddsSync=true
+  header:     Host: localhost:1026
+  header:     User-Agent: curl/REGEX(\d+\.\d+\.\d+\S*)
+  header:     Accept: */*
+  header:     Content-Type: application/json
+  header:     Authorization: (left out)
+  header:     X-Custom: printed
+  header:     Content-Length: 56
+payload:      56 bytes:
+{ "type": "Property", "value": { "a": 1, "text": "x" } }
+stack:
+
