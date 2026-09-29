@@ -41,17 +41,32 @@ bool getCsourceRegistration(void)
   Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdRegCache* cacheP  = (LdRegCache*) tenantP->regCacheP;
 
-  LdRegCacheItem* itemP = (cacheP != NULL) ? ldRegCacheItemLookup(cacheP, regId) : NULL;
+  //
+  // Lookup and clone under the rdlock: the item is not pinned, and a DELETE of the registration
+  // frees it. Nothing of the item is used after the clone. (The lookup had no lock, and the
+  // clone came after ldContextResolve - which may download a context.)
+  //
+  CorNode* regP = NULL;
 
-  if (itemP == NULL || itemP->regTree == NULL)
+  if (cacheP != NULL)
+  {
+    ldRegCacheRdLock(cacheP);
+
+    LdRegCacheItem* itemP = ldRegCacheItemLookup(cacheP, regId);
+
+    if ((itemP != NULL) && (itemP->regTree != NULL))
+      regP = corTreeClone(corRest.kallocP, itemP->regTree);
+
+    ldRegCacheUnlock(cacheP);
+  }
+
+  if (regP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
     return true;
   }
 
   ldContextResolve();
-
-  CorNode* regP = corTreeClone(corRest.kallocP, itemP->regTree);
 
   // § 6.4.5 — createdAt/modifiedAt (nanosecond integers) → ISO 8601 under sysAttrs; stripped otherwise.
   if (corNgsild.sysAttrs == false)

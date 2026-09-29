@@ -21,6 +21,8 @@
 #include "corNgsild/LdOp.h"                         // LdOp*
 #include "corNgsild/LdSubCache.h"                   // LdSubCache, LdSubCacheItem
 #include "corNgsild/LdRegCache.h"                   // LdRegCache, LdRegCacheItem
+#include "corNgsild/ldSubCache.h"                   // ldSubCacheRdLock, ldSubCacheUnlock
+#include "corNgsild/ldRegCache.h"                   // ldRegCacheRdLock, ldRegCacheUnlock
 #include "corNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
 #include "corNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
 
@@ -258,9 +260,13 @@ static void tenantCounts(void)
     LdPernotCache*    pc   = (LdPernotCache*)    tP->pernotCacheP;
     LdEntityMapStore* ems  = (LdEntityMapStore*) tP->entityMapStoreP;
 
-    if (sc != NULL)  for (LdSubCacheItem* i = sc->itemList;  i != NULL; i = i->next) subs++;
-    if (rsc != NULL) for (LdSubCacheItem* i = rsc->itemList; i != NULL; i = i->next) regSubs++;
-    if (rc != NULL)  for (LdRegCacheItem* i = rc->itemList;  i != NULL; i = i->next) regs++;
+    //
+    // Each count under its cache's rdlock - they followed `next` with no lock, while requests
+    // added and freed items. One lock at a time, so no lock order to keep.
+    //
+    if (sc != NULL)  { ldSubCacheRdLock(sc);  for (LdSubCacheItem* i = sc->itemList;  i != NULL; i = i->next) subs++;    ldSubCacheUnlock(sc);  }
+    if (rsc != NULL) { ldSubCacheRdLock(rsc); for (LdSubCacheItem* i = rsc->itemList; i != NULL; i = i->next) regSubs++; ldSubCacheUnlock(rsc); }
+    if (rc != NULL)  { ldRegCacheRdLock(rc);  for (LdRegCacheItem* i = rc->itemList;  i != NULL; i = i->next) regs++;    ldRegCacheUnlock(rc);  }
     if (pc != NULL)  for (LdPernotItem*   i = pc->head;      i != NULL; i = i->next) pernots++;
     if (ems != NULL) for (LdEntityMap*    i = ems->head;     i != NULL; i = i->next) maps++;
   }

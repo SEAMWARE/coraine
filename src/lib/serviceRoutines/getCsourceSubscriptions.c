@@ -25,6 +25,7 @@
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampsToIso
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheRdLock, ldSubCacheUnlock
 #include "corNgsild/ldSubscriptionCompactQ.h"         // ldSubscriptionCompactQ
 #include "corNgsild/ldSubscriptionCounters.h"         // ldSubscriptionCountersInject
 #include "corNgsild/ldPagination.h"                   // ldPaginationLinkHeader
@@ -48,6 +49,15 @@ bool getCsourceSubscriptions(void)
   // Total across the CSR-subscription cache — for the count header and to
   // decide whether a further page is pending.
   int total = 0;
+
+  //
+  // The count and the page under the rdlock - both walked the cache with no lock, while
+  // POST/PATCH/DELETE /csourceSubscriptions changed it (a DELETE frees items). All in memory;
+  // everything taken from an item is cloned into the request arena.
+  //
+  if (cacheP != NULL)
+    ldSubCacheRdLock(cacheP);
+
   if (cacheP != NULL)
     for (LdSubCacheItem* it = cacheP->itemList; it != NULL; it = it->next)
       if (it->subTree != NULL) total++;
@@ -99,6 +109,9 @@ bool getCsourceSubscriptions(void)
       corTreeChildAdd(arrayP, subP);
     }
   }
+
+  if (cacheP != NULL)
+    ldSubCacheUnlock(cacheP);
 
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).

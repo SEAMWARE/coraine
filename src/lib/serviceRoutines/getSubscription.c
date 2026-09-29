@@ -39,12 +39,46 @@
 // plus live counters. Cloning into the request arena so the response path
 // can compact IRIs and add stats without mutating cache.
 //
+static bool subscriptionRender(Tenant* tenantP, const char* subId, LdSubCacheItem* cacheItem);
+
 bool getSubscription(void)
 {
   const char* subId = corRest.in.wildcard[0];
 
   Tenant*         tenantP    = (Tenant*) corNgsild.tenantP;
-  LdSubCacheItem* cacheItem  = (tenantP->subCacheP != NULL)    ? ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, subId)       : NULL;
+  LdSubCache*     subCacheP  = (LdSubCache*) tenantP->subCacheP;
+  LdSubCacheItem* cacheItem  = NULL;
+
+  //
+  // Looked up under the rdlock and PINNED: the item is read to the end of this function (its
+  // tree, qExpr and counters), across ldContextResolve - which may download a context - and a
+  // DELETE of the subscription meanwhile freed it. The lookup had no lock at all.
+  //
+  if (subCacheP != NULL)
+  {
+    ldSubCacheRdLock(subCacheP);
+    cacheItem = ldSubCacheItemLookup(subCacheP, subId);
+    if (cacheItem != NULL)
+      ldSubCacheItemPin(cacheItem);
+    ldSubCacheUnlock(subCacheP);
+  }
+
+  bool r = subscriptionRender(tenantP, subId, cacheItem);
+
+  if (cacheItem != NULL)
+    ldSubCacheItemUnpin(cacheItem);
+
+  return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// subscriptionRender - the response, from a PINNED cache item (or the pernot cache)
+//
+static bool subscriptionRender(Tenant* tenantP, const char* subId, LdSubCacheItem* cacheItem)
+{
   LdPernotItem*   pernotItem = (tenantP->pernotCacheP != NULL) ? ldPernotCacheItemLookup((LdPernotCache*) tenantP->pernotCacheP, subId) : NULL;
   CorNode*        srcTree    = (cacheItem != NULL) ? cacheItem->subTree : (pernotItem != NULL) ? pernotItem->subTree : NULL;
 

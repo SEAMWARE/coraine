@@ -114,8 +114,25 @@ bool postCsourceRegistration(void)
   // overlapping reg in the cache, or a local entity holding the to-be-claimed
   // attrs. inclusive / auxiliary skip these checks per spec. The new reg isn't
   // cached yet, so passing its own id as the self-skip is harmless here.
+  //
+  // The WRITE lock from here until the registration is in the cache - as
+  // patchCsourceRegistration does. The check walked the cache with no lock at
+  // all (while a DELETE could free items), and check-then-add with the lock
+  // taken only for the add let two conflicting exclusive registrations, POSTed
+  // at the same moment, both pass the check. Registration writes are rare;
+  // holding the lock across the insert is the price of the § 5.9.2 check
+  // meaning anything.
+  //
+  Tenant*     tenantP   = (Tenant*) corNgsild.tenantP;
+  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
+
+  ldRegCacheWrLock(regCacheP);
+
   if (regConflictCheck(regP, regModeOf(regP), idP->value.s, &corRest.kalloc))
+  {
+    ldRegCacheUnlock(regCacheP);
     return true;
+  }
 
   // § 6.4.5 — system-generated createdAt/modifiedAt (nanosecond integers in
   // the persisted tree; rendered to ISO only when the client asks for sysAttrs)
@@ -125,6 +142,7 @@ bool postCsourceRegistration(void)
   if (db.registrationCreate == NULL)
   {
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "registration CRUD not supported by this DB plugin");
+    ldRegCacheUnlock(regCacheP);
     return true;
   }
 
@@ -133,12 +151,14 @@ bool postCsourceRegistration(void)
   if (r == DB_ALREADY_EXISTS)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists", "registration '%s' already exists", idP->value.s);
+    ldRegCacheUnlock(regCacheP);
     return true;
   }
 
   if (r != DB_OK)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error creating registration '%s'", idP->value.s);
+    ldRegCacheUnlock(regCacheP);
     return true;
   }
 
@@ -146,14 +166,11 @@ bool postCsourceRegistration(void)
   if (idP->name[0] == '_')
     ldNodeRename(idP, "id");
 
-  // Add to per-tenant registration cache. The wrlock serializes against
-  // concurrent CSR CRUD + match-path readers, and is held across the fanout so
-  // the just-added regItemP can't be freed by a concurrent CSR DELETE.
-  Tenant*     tenantP   = (Tenant*) corNgsild.tenantP;
-  LdRegCache* regCacheP = (LdRegCache*) tenantP->regCacheP;
+  // Add to per-tenant registration cache. The wrlock (taken before the conflict
+  // check) serializes against concurrent CSR CRUD + match-path readers, and is
+  // held across the fanout so the just-added regItemP can't be freed by a
+  // concurrent CSR DELETE.
   LdRegCacheItem* regItemP = NULL;
-
-  ldRegCacheWrLock(regCacheP);
 
   if (regCacheP != NULL)
     regItemP = ldRegCacheItemAdd(regCacheP, regP, &corRest.kalloc);

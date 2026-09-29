@@ -136,8 +136,14 @@ bool patchSubscription(void)
   //
   // Block patching of CSR-subs via this endpoint.
   //
-  if (tenantP->regSubCacheP != NULL
-      && ldSubCacheItemLookup((LdSubCache*) tenantP->regSubCacheP, subId) != NULL)
+  // Under the CSR-sub cache's rdlock (as postCsourceSubscriptions does) - it had none
+  LdSubCache* regSubCacheP = (LdSubCache*) tenantP->regSubCacheP;
+
+  ldSubCacheRdLock(regSubCacheP);
+  bool isCsrSub = (regSubCacheP != NULL) && (ldSubCacheItemLookup(regSubCacheP, subId) != NULL);
+  ldSubCacheUnlock(regSubCacheP);
+
+  if (isCsrSub)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
     return true;

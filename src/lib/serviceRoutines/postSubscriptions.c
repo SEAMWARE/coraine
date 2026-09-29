@@ -136,9 +136,15 @@ bool postSubscriptions(void)
   // collection is shared across /subscriptions and /csourceSubscriptions.
   //
   {
-    Tenant* _t = (Tenant*) corNgsild.tenantP;
-    if (_t != NULL && _t->regSubCacheP != NULL
-        && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, idP->value.s) != NULL)
+    Tenant*     _t           = (Tenant*) corNgsild.tenantP;
+    LdSubCache* regSubCacheP = (_t != NULL) ? (LdSubCache*) _t->regSubCacheP : NULL;
+
+    // Under the CSR-sub cache's rdlock (as postCsourceSubscriptions does) - it had none
+    ldSubCacheRdLock(regSubCacheP);
+    bool exists = (regSubCacheP != NULL) && (ldSubCacheItemLookup(regSubCacheP, idP->value.s) != NULL);
+    ldSubCacheUnlock(regSubCacheP);
+
+    if (exists)
     {
       ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists",
               "subscription '%s' already exists", idP->value.s);

@@ -49,9 +49,15 @@ bool deleteSubscription(void)
   // round-trip.
   //
   {
-    Tenant* _t = (Tenant*) corNgsild.tenantP;
-    if (_t != NULL && _t->regSubCacheP != NULL
-        && ldSubCacheItemLookup((LdSubCache*) _t->regSubCacheP, subId) != NULL)
+    Tenant*     _t           = (Tenant*) corNgsild.tenantP;
+    LdSubCache* regSubCacheP = (_t != NULL) ? (LdSubCache*) _t->regSubCacheP : NULL;
+
+    // Under the CSR-sub cache's rdlock (as postCsourceSubscriptions does) - it had none
+    ldSubCacheRdLock(regSubCacheP);
+    bool isCsrSub = (regSubCacheP != NULL) && (ldSubCacheItemLookup(regSubCacheP, subId) != NULL);
+    ldSubCacheUnlock(regSubCacheP);
+
+    if (isCsrSub)
     {
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
       return true;

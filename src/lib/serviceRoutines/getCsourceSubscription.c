@@ -40,9 +40,25 @@ bool getCsourceSubscription(void)
   Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
-  LdSubCacheItem* itemP = (cacheP != NULL) ? ldSubCacheItemLookup(cacheP, subId) : NULL;
+  //
+  // Looked up under the rdlock and PINNED to the end of this function: the item is read across
+  // ldContextResolve (which may download a context), and a DELETE of the CSR-subscription
+  // meanwhile freed it. The lookup had no lock at all.
+  //
+  LdSubCacheItem* itemP = NULL;
 
-  if (itemP == NULL || itemP->subTree == NULL)
+  if (cacheP != NULL)
+  {
+    ldSubCacheRdLock(cacheP);
+    itemP = ldSubCacheItemLookup(cacheP, subId);
+    if ((itemP != NULL) && (itemP->subTree == NULL))
+      itemP = NULL;
+    if (itemP != NULL)
+      ldSubCacheItemPin(itemP);
+    ldSubCacheUnlock(cacheP);
+  }
+
+  if (itemP == NULL)
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
             "CSR subscription '%s' not found", subId);
@@ -109,6 +125,8 @@ bool getCsourceSubscription(void)
     ldStripSysAttrs(subP);
   else
     ldSysTimestampsToIso(subP, &corRest.kalloc);
+
+  ldSubCacheItemUnpin(itemP);
 
   corNgsild.rawResponse    = true;
   corRest.out.responseTree = subP;

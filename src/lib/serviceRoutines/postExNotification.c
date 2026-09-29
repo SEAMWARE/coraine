@@ -38,7 +38,7 @@
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
-#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup
+#include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheRdLock, ldSubCacheItemPin
 #include "corNgsild/ldNotifyStatsHook.h"              // ldNotifyStatsHookInvoke
 
 #include "db/Tenant.h"                               // Tenant
@@ -49,33 +49,13 @@
 
 // -----------------------------------------------------------------------------
 //
-// postExNotification -
+// exNotificationForward - re-dispatch the notification to the parent subscription's subscriber
 //
-bool postExNotification(void)
+// itemP is pinned by the caller for the whole call - this POSTs to the subscriber and writes the
+// item's counters, all with no cache lock held.
+//
+static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId)
 {
-  const char* parentSubId = corRest.in.wildcard[0];
-
-  if (parentSubId == NULL || parentSubId[0] == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing parent subscription id in URL");
-    return true;
-  }
-
-  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
-  if (tenantP->subCacheP == NULL)
-  {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no subscription cache for this tenant");
-    return true;
-  }
-
-  LdSubCacheItem* itemP = ldSubCacheItemLookup((LdSubCache*) tenantP->subCacheP, parentSubId);
-  if (itemP == NULL)
-  {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-            "parent subscription '%s' not found", parentSubId);
-    return true;
-  }
-
   //
   // Body is parsed by the framework. parseHook left it in the same
   // expanded shape as any other application/json payload — the keys
@@ -172,4 +152,54 @@ bool postExNotification(void)
 
   corRest.out.httpStatusCode = 204;
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// postExNotification -
+//
+bool postExNotification(void)
+{
+  const char* parentSubId = corRest.in.wildcard[0];
+
+  if (parentSubId == NULL || parentSubId[0] == 0)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Missing URL Component", "missing parent subscription id in URL");
+    return true;
+  }
+
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+  if (tenantP->subCacheP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no subscription cache for this tenant");
+    return true;
+  }
+
+  //
+  // Looked up under the rdlock and PINNED: what follows POSTs to the subscriber and writes the
+  // item's counters, with no lock held - and a DELETE of the subscription meanwhile freed the
+  // item under it. The pin keeps it alive until exNotificationForward returns.
+  //
+  LdSubCache*     subCacheP = (LdSubCache*) tenantP->subCacheP;
+  LdSubCacheItem* itemP;
+
+  ldSubCacheRdLock(subCacheP);
+  itemP = ldSubCacheItemLookup(subCacheP, parentSubId);
+  if (itemP != NULL)
+    ldSubCacheItemPin(itemP);
+  ldSubCacheUnlock(subCacheP);
+
+  if (itemP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            "parent subscription '%s' not found", parentSubId);
+    return true;
+  }
+
+  bool r = exNotificationForward(itemP, parentSubId);
+
+  ldSubCacheItemUnpin(itemP);
+  return r;
 }
