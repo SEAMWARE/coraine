@@ -184,4 +184,13 @@ extern CorNode* bridgeGoalInstance(const char* attrName,
 //
 extern int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int kind);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeSamplesDropped - how many samples no Channel claims were dropped, because a Channel writes
+// the attribute they would have written (GET /bridges)
+//
+extern uint64_t bridgeSamplesDropped(const char* bridgeName);
+
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

@@ -32,8 +32,6 @@ bridge troe timescale postgres plugins
 corDbDrop
 corTroeInit
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic "P1,Machine,urn:ngsi-ld:Machine:1,temperature" \
   --emit "P1=41")

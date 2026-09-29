@@ -32,8 +32,7 @@ bridge channel plugins action service
 
 --INIT--
 corDbDrop
-
-export COR_TRACE_LEVELS=402
+corTroeInit
 
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
@@ -41,7 +40,7 @@ BRIDGE_CONFIG=$(bridgeConfig \
   --service "fast,Robot,urn:R:1,job" \
   --goalMode "A1=unreachable")
 
-coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
@@ -76,10 +75,7 @@ echo
 
 echo "04. navigate kept the value it had - not written means unchanged; the service's reply landed"
 echo "============================================================================================"
-for i in $(seq 1 50); do
-  grep -q "'reply' on 'fast'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.1
-done
+attrMemberAwait urn:R:1 job reply
 corCurl --url /ngsi-ld/v1/entities/urn:R:1
 echo
 echo
@@ -105,22 +101,22 @@ echo "======================================================================"
 corCurl --url /ngsi-ld/v1/entities/urn:R:2 -X DELETE
 payload='{ "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } }'
 corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
-for i in $(seq 1 50); do
-  [ $(grep -c "on 'A2' .* ended" /tmp/coraine.CB.log 2>/dev/null) -ge 2 ] && break
-  sleep 0.1
-done
+bridgeGoalEndedAwait loopback A2 5
 echo
 echo
 
 
 echo "08. The goals that went out, and how they ended - two, both to A2, none for the refused create"
 echo "=============================================================================================="
-grep -oE "sends goal [0-9]+ to action 'A[0-9]'|goal [0-9]+ on 'A[0-9]' \(urn:goal:[0-9]+\) ended, state [0-9]+" /tmp/coraine.CB.log
+bridgeChannelsCount loopback goalsSent
+bridgeGoalHistory urn:R:2 navigate urn:goal:4
+bridgeGoalHistory urn:R:2 navigate urn:goal:5
 echo
 
 
 --TEARDOWN--
 coraineStop
+corTroeDrop
 rm -f /tmp/coraine_bridges.json
 
 
@@ -265,8 +261,7 @@ Content-Length: 0
 
 08. The goals that went out, and how they ended - two, both to A2, none for the refused create
 ==============================================================================================
-sends goal 4 to action 'A2'
-goal 4 on 'A2' (urn:goal:4) ended, state 4
-sends goal 5 to action 'A2'
-goal 5 on 'A2' (urn:goal:5) ended, state 4
+A2: 2
+urn:goal:4: ACCEPTED -> SUCCEEDED, feedback 1, result written, instance removed
+urn:goal:5: ACCEPTED -> SUCCEEDED, feedback 1, result written, instance removed
 

@@ -583,6 +583,36 @@ configuration is valid and the infrastructure has not caught up with it, which
 is a routine ordering fact (§3.5b) and is fixed by a restart with the plugin
 named, not by editing the object.
 
+### 3.3b What crossed — discovery and counters
+
+`status` says whether a Channel *can* carry; these say whether it *did*. Read-only,
+kept in memory from the broker's start, and rendered by `GET /channels`:
+
+| Member | On | Meaning |
+|---|---|---|
+| `endpointDiscovered` | every Channel | `true` once the transport reported finding the endpoint (`endpointDiscoveredIn`, ABI 8). **Absent** until then, and on a transport that does not discover — never `false`, which would read as "looked, and it is not there" |
+| `samplesIn` | every Channel | samples written to the entity |
+| `samplesOut` | every Channel | values published |
+| `goalsSent` | action Channels | goals the transport took |
+| `goalCancelsSent` | action Channels | cancels sent: asked for (`DELETE` of a goal's instance, or of `…/goals/{goalId}`), or of a goal whose request wrote nothing — not answered within `--ddsSyncTimeout`, or refused with the rest of its request |
+| `requestsWaiting` | every Channel | requests waiting for their reply right now (`?ddsSync`) |
+| `requestsNotWaited` | every Channel | requests sent without waiting — every wait slot (`--ddsSyncWaitMax`) was taken |
+
+And on the Bridge, **`samplesDropped`**: samples no Channel claims that would write
+an attribute a Channel already writes — a catch-all (§3.6a) pointed at an entity
+Channels also write. Not the samples nothing claims at all: a transport that hands
+over everything it hears would make that number meaningless.
+
+The dds plugin reports every endpoint it carries: those it discovered and those the
+configuration named. A configured service whose server is not up yet has no
+`endpointDiscovered`; the moment the server appears, it does.
+
+These exist so that *"did the robot answer?"* is a `GET`, not a log-hunt — and so
+that a test can wait on them. A trace line is there only when the trace levels
+include it **and** the plugin was built with its traces; a `dds.so` with them
+compiled out made every DDS test time out while the broker worked
+([Testing](testing.md#functional-tests-never-read-the-log)).
+
 ### 3.4 Overlap with registrations
 
 A Channel and a registration can both claim the same

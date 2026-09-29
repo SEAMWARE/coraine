@@ -212,7 +212,7 @@ typedef struct BridgeGoalAnswer
 //         registry and CANCELLED - the broker never leaves behind a goal it
 //         did not record.
 //
-extern bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP);
+extern bool bridgeGoalAwait(Channel* channelP, uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP);
 
 
 
@@ -231,7 +231,7 @@ extern bool bridgeGoalRefused(int state);
 // Nothing about it is written - it is out of the registry before the cancel
 // goes. A goal no longer in the registry is left alone.
 //
-extern void bridgeGoalAbandon(uint64_t token);
+extern void bridgeGoalAbandon(Channel* channelP, uint64_t token);
 
 
 

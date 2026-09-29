@@ -31,8 +31,6 @@ bridge channel meta
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --topic "P1,Camera,urn:ngsi-ld:Camera:1,shutterSpeed" \
   --topic "P2,Camera,urn:ngsi-ld:Camera:2,shutterSpeed" \

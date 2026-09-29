@@ -587,6 +587,7 @@ int bridgeGoalSend(Channel* channelP, const char* json, const char* endpoint, ui
     return r;
   }
 
+  __atomic_add_fetch(&channelP->goalsSent, 1, __ATOMIC_RELAXED);
   COR_T(CtBridge, "%s/%s sends goal %" PRIu64 " to action '%s' on bridge '%s'",
         channelP->entityId, channelP->attrName, token, channelP->endpoint, channelP->bridgeName);
 
@@ -1008,9 +1009,10 @@ static Goal* goalByToken(uint64_t token)
 // and is dropped: nothing about it is ever written. Then cancelled, outside
 // the lock, as the plugin may report from inside actionGoalCancel().
 //
-// Called with goalMutex held; returns with it released.
+// Called with goalMutex held; returns with it released. channelP: where the
+// cancel is counted (goalCancelsSent).
 //
-static void goalDrop(Goal* goalP, const char* why)
+static void goalDrop(Goal* goalP, const char* why, Channel* channelP)
 {
   char* bridgeName = goalP->bridgeName;
   char* endpoint   = goalP->endpoint;
@@ -1028,6 +1030,9 @@ static void goalDrop(Goal* goalP, const char* why)
   int           r       = ((driverP == NULL) || (driverP->actionGoalCancel == NULL))
                           ? BRIDGE_UNSUPPORTED
                           : driverP->actionGoalCancel(endpoint, token);
+
+  if (channelP != NULL)
+    __atomic_add_fetch(&channelP->goalCancelsSent, 1, __ATOMIC_RELAXED);
 
   COR_T(CtBridge, "goal %" PRIu64 " on '%s' %s - cancelled (%d), nothing written", token, endpoint, why, r);
 
@@ -1052,7 +1057,7 @@ bool bridgeGoalRefused(int state)
 //
 // bridgeGoalAwait -
 //
-bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
+bool bridgeGoalAwait(Channel* channelP, uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
 {
   struct timespec deadline;
 
@@ -1083,7 +1088,7 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
 
   if (goalP->answered == false)
   {
-    goalDrop(goalP, "not answered in time");   // unlocks
+    goalDrop(goalP, "not answered in time", channelP);   // unlocks
     return false;
   }
 
@@ -1137,7 +1142,7 @@ bool bridgeGoalAwait(uint64_t token, int64_t dueMs, BridgeGoalAnswer* answerP)
 //
 // bridgeGoalAbandon -
 //
-void bridgeGoalAbandon(uint64_t token)
+void bridgeGoalAbandon(Channel* channelP, uint64_t token)
 {
   pthread_mutex_lock(&goalMutex);
 
@@ -1149,7 +1154,7 @@ void bridgeGoalAbandon(uint64_t token)
     return;
   }
 
-  goalDrop(goalP, "sent by a request that wrote nothing");   // unlocks
+  goalDrop(goalP, "sent by a request that wrote nothing", channelP);   // unlocks
 }
 
 
@@ -1341,6 +1346,7 @@ bool bridgeGoalCancel(Tenant* tenantP, const char* entityId, const char* attrNam
          ? BRIDGE_UNSUPPORTED
          : driverP->actionGoalCancel(channelP->endpoint, token);
 
+  __atomic_add_fetch(&channelP->goalCancelsSent, 1, __ATOMIC_RELAXED);
   COR_T(CtBridge, "%s/%s asks to cancel goal %" PRIu64 " (%s) on bridge '%s' (%d)",
         entityId, attrName, token, datasetId, channelP->bridgeName, *rcP);
 

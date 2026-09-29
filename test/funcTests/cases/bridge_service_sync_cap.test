@@ -28,8 +28,6 @@ bridge channel plugins service ddsSync
 --INIT--
 corDbDrop
 
-export COR_TRACE_LEVELS=402
-
 BRIDGE_CONFIG=$(bridgeConfig \
   --replyDelay "slow=1500" \
   --service "fast,Calculator,urn:ngsi-ld:Calculator:F,job" \
@@ -45,10 +43,7 @@ REQUEST_A_OUT=/tmp/claude-cap-requestA.out
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:S/attrs/job?ddsSync=true" -X PATCH \
         --payload '{ "type": "Property", "value": { "a": 1 } }' > $REQUEST_A_OUT 2>&1 &
 REQUEST_A_PID=$!
-for i in $(seq 1 50); do
-  grep -q "asks service 'slow'" /tmp/coraine.CB.log 2>/dev/null && break
-  sleep 0.05
-done
+bridgeChannelAtLeast loopback slow requestsWaiting 1 5
 corCurl --url "/ngsi-ld/v1/entities/urn:ngsi-ld:Calculator:F/attrs/job?ddsSync=true" -X PATCH \
         --payload '{ "type": "Property", "value": { "b": 2 } }'
 echo
@@ -72,9 +67,11 @@ echo
 echo
 
 
-echo "04. The broker said why B did not wait"
-echo "======================================"
-grep -oE "asks service '[a-z]+' without waiting - [0-9]+ requests wait already" /tmp/coraine.CB.log
+echo "04. The Channels say why B did not wait - one request was waiting (on 'slow') when it came"
+echo "==========================================================================================="
+echo "fast requestsNotWaited: $(bridgeChannelGet loopback fast requestsNotWaited)"
+echo "slow requestsNotWaited: $(bridgeChannelGet loopback slow requestsNotWaited)"
+echo "requestsWaiting now:    $(bridgeChannelGet loopback fast requestsWaiting) + $(bridgeChannelGet loopback slow requestsWaiting)"
 echo
 
 
@@ -109,7 +106,9 @@ Date: REGEX(.*)
 
 
 
-04. The broker said why B did not wait
-======================================
-asks service 'fast' without waiting - 1 requests wait already
+04. The Channels say why B did not wait - one request was waiting (on 'slow') when it came
+===========================================================================================
+fast requestsNotWaited: 1
+slow requestsNotWaited: 0
+requestsWaiting now:    0 + 0
 
