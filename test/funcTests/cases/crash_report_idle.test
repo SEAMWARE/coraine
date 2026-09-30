@@ -37,7 +37,12 @@ PID=$(cat /tmp/coraine_CB.pid)
 #
 [ "$(cat /proc/$PID/comm 2>/dev/null)" == "coraine" ] || { echo "no broker at pid '$PID'" >&2; exit 1; }
 kill -SEGV $PID
-for i in $(seq 1 50); do
+#
+# Up to 30 s. The report is written in milliseconds, but the broker's last act is to re-raise the
+# signal, and its core dump goes to the system's handler - a PIPE (apport, systemd-coredump) runs
+# whatever RLIMIT_CORE says, and a loaded CI runner took more than 5 s (the #181 deploy, 2026-09-30).
+#
+for i in $(seq 1 300); do
   [ -d /proc/$PID ] && [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ] || break
   sleep 0.1
 done
