@@ -340,8 +340,14 @@ wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s>
   # wrk prints the 99th percentile in whatever unit suits it (us, ms, s), so it
   # is normalised to microseconds here rather than wherever it is read.
   #
+  #
+  # Consumed/sec, when a script prints it, IS the rate: a consuming scenario (deleteEntity.lua,
+  # batchDelete.lua) stops its threads when its pool is gone, and wrk's Requests/sec divides by the
+  # -d ceiling regardless.
+  #
   printf '%s' "$out" | awk '
-    /Requests\/sec/ { rps = $2 }
+    /Requests\/sec/ { if (cons == "") rps = $2 }
+    /^Consumed\/sec/ { cons = $2; rps = $2 }
     /^ *99%/ {
       v = $2
       if      (v ~ /us$/) { sub(/us$/, "", v); p99 = v }
