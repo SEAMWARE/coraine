@@ -1,0 +1,149 @@
+#
+# FILE            query_q_value_percent.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A q value is %-decoded ONCE, and only where it travelled in a URL:
+#
+#   URL             the HTTP layer decodes the query string - %22 is a quote, %25 a '%'
+#   JSON body       q is a JSON string (POST Query, Subscription): a quote is \", and a '%' is a '%'
+#
+# The q parser used to decode every quoted value AGAIN, wherever the q came from. A stored value with
+# a '%' and two hex digits after it ("50%25 off") could then not be found by either form, and a
+# Subscription's stored q changed each time it was read back - step 07 restarts the broker to show it
+# no longer does, which is why this runs on mongoc only.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+q values - %-decoded once in a URL, never in a JSON body; a stored q reads back unchanged
+
+--TAGS--
+q query subscription notification
+
+--INIT--
+corDbDrop
+coraineStart
+ftClientStart
+
+--RUN--
+
+echo "01. P1: name '50% off', P2: name '50%25 off' (literally), P3: name 'a b'"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:P1","type":"T","name":{"type":"Property","value":"50% off"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:P2","type":"T","name":{"type":"Property","value":"50%25 off"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:P3","type":"T","name":{"type":"Property","value":"a b"}}' | head -1
+echo
+echo
+
+
+echo "02. URL: q=name==%2250%25%20off%22 - decoded once: \"50% off\": P1"
+echo "=================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=name==%2250%25%20off%22' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "03. URL: q=name==%2250%2525%20off%22 - decoded once: \"50%25 off\": P2"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=name==%2250%2525%20off%22' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "04. POST Query body: name==\"50% off\": P1; name==\"50%25 off\": P2 - nothing decoded"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"name==\"50% off\""}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"name==\"50%25 off\""}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "05. POST Query body: name==\"a b\": P3; name==%22a%20b%22 - URL-encoding in a body: 400"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"name==\"a b\""}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"name==%22a%20b%22"}' | grep -E '^HTTP|"detail"'
+echo
+echo
+
+
+echo "06. Subscription S on type W, q=name==\"50%25 off\" - GET gives the q back as sent"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:PC:S","type":"Subscription","entities":[{"type":"W"}],"q":"name==\"50%25 off\"","notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/s"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:PC:S | grep '"q"'
+echo
+echo
+
+
+echo "07. Restart - S comes back from the database unchanged: W1 ('50% off') no notification, W2 ('50%25 off') one"
+echo "============================================================================================================"
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/subscriptions/urn:PC:S | grep '"q"'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:W1","type":"W","name":{"type":"Property","value":"50% off"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:W2","type":"W","name":{"type":"Property","value":"50%25 off"}}' | head -1
+ftClientWait 1
+ftClientDump | python3 -c 'import sys, json
+for n in json.load(sys.stdin):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. P1: name '50% off', P2: name '50%25 off' (literally), P3: name 'a b'
+========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. URL: q=name==%2250%25%20off%22 - decoded once: "50% off": P1
+==================================================================
+HTTP/1.1 200 OK
+    "id": "urn:PC:P1",
+
+
+03. URL: q=name==%2250%2525%20off%22 - decoded once: "50%25 off": P2
+======================================================================
+HTTP/1.1 200 OK
+    "id": "urn:PC:P2",
+
+
+04. POST Query body: name=="50% off": P1; name=="50%25 off": P2 - nothing decoded
+====================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:PC:P1",
+HTTP/1.1 200 OK
+    "id": "urn:PC:P2",
+
+
+05. POST Query body: name=="a b": P3; name==%22a%20b%22 - URL-encoding in a body: 400
+======================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:PC:P3",
+HTTP/1.1 400 Bad Request
+  "detail": "'%22a%20b%22' is not a valid value - a q in a JSON body is not URL-encoded: a quote is \\\"",
+
+
+06. Subscription S on type W, q=name=="50%25 off" - GET gives the q back as sent
+=================================================================================
+HTTP/1.1 201 Created
+  "q": "name==\"50%25 off\"",
+
+
+07. Restart - S comes back from the database unchanged: W1 ('50% off') no notification, W2 ('50%25 off') one
+============================================================================================================
+  "q": "name==\"50%25 off\"",
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+/s urn:PC:S ['urn:PC:W2']
+
+

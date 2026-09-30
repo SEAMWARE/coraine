@@ -130,10 +130,10 @@ n==3,%5B7                  "status":400
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 232
+Content-Length: 161
 
 {
-  "detail": "'12B' is not a valid value: a string must be quoted, and a number must not carry anything after it",
+  "detail": "'12B' is not a valid number",
   "status": 400,
   "title": "Invalid q parameter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

@@ -11,6 +11,11 @@
 # chosen language's string (or any element of its array). Combined with a ?lang
 # filter, the matched entities are reduced to the requested language.
 #
+#
+# langProperties=L (not NGSI-LD, spec-doubts #134, KZ 2026-09-30): L is a LanguageProperty, so the
+# [es] after it is a language tag, compared as sent against the stored tags - without it, [es] is a
+# term (a member of a compound value) and is expanded.
+#
 --NAME--
 q over a LanguageProperty (L[lang]==value), string and array values, with ?lang
 
@@ -35,28 +40,28 @@ echo
 
 echo "02. q=L[es]==uno — string E1 + array A1 (es array contains uno)"
 echo "=============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22uno%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22uno%22&langProperties=L'
 echo
 echo
 
 
 echo "03. q=L[es]==dos — string E2 + array A2"
 echo "======================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&langProperties=L'
 echo
 echo
 
 
 echo "04. q=L[es]==nope — no match"
 echo "==========================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22nope%22'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22nope%22&langProperties=L'
 echo
 echo
 
 
 echo "05. q=L[es]==dos with lang=en — match E2/A2, rendered in English"
 echo "==============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&lang=en'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=L%5Bes%5D==%22dos%22&lang=en&langProperties=L'
 echo
 echo
 

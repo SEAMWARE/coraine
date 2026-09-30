@@ -12,10 +12,12 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
+#include "corNgsild/CorNgsild.h"                     // corNgsild
 #include "corNgsild/LdQ.h"                           // LdQNode
 #include "corNgsild/ldQParse.h"                      // ldQParse
 #include "corNgsild/ldQRender.h"                     // ldQRenderStored
 
+#include "corNgsild/ldQExpandValues.h"                   // ldQExpandValues, ldQRawValuePaths, ldAttrListExpand
 #include "serviceRoutines/subscriptionQExpand.h"     // Own interface
 
 
@@ -43,6 +45,25 @@ void subscriptionQExpand(CorNode* subP)
 
   if (qExprP == NULL)
     return;
+
+  //
+  // And what goes WITH q is applied before it is stored, with the context it traveled with - the
+  // only one that gives its terms their meaning: the values expandValues names are stored expanded,
+  // and a [..] under an attribute jsonKeys or langProperties (not NGSI-LD, spec-doubts #134) names is
+  // stored as sent - a json member, a language tag. The stored q is then fully resolved, and
+  // ldQParseStored reads it back with no context at all.
+  //
+  CorNode* evP = corTreeLookup(subP, "expandValues");
+  CorNode* jkP = corTreeLookup(subP, "jsonKeys");
+  CorNode* lpP = corTreeLookup(subP, "langProperties");
+  char**   evV = ((evP != NULL) && (evP->type == CorString)) ? ldAttrListExpand(evP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
+  char**   jkV = ((jkP != NULL) && (jkP->type == CorString)) ? ldAttrListExpand(jkP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
+  char**   lpV = ((lpP != NULL) && (lpP->type == CorString)) ? ldAttrListExpand(lpP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
+
+  ldQExpandValues(qExprP, evV, corNgsild.contextP, &corRest.kalloc);
+
+  ldQRawValuePaths(qExprP, jkV);
+  ldQRawValuePaths(qExprP, lpV);
 
   char* storedQ = ldQRenderStored(qExprP, &corRest.kalloc);
 

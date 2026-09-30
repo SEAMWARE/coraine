@@ -64,7 +64,7 @@ echo
 
 echo "05. q=description[en]==\"pain\" — specific language (control): L1 + L4 (en array element)"
 echo "========================================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&langProperties=description&attrs=description&options=keyValues&orderBy=id'
 echo
 echo
 

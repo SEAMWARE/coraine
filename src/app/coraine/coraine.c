@@ -93,6 +93,7 @@
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
 
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
+#include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
@@ -1503,6 +1504,13 @@ int main(int argC, char* argV[])
   //
   if (bridgeCoreTermsAdd(&contextAlloc) != 0)
     COR_X(1, "the ContextBridge/Channel terms could not be added to the core context");
+
+  //
+  // ... and so are the terms of coraine's NGSI-LD extensions (langProperties - spec-doubts #134):
+  // short names in a Query body, and in a Subscription that is stored.
+  //
+  if (ldExtensionTermsAdd(&contextAlloc) != 0)
+    COR_X(1, "the NGSI-LD extension terms could not be added to the core context");
 
   //
   // Every core term gets its CorTerm id - after the Bridge/Channel terms, which are core terms too.
