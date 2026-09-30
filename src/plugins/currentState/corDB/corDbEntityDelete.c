@@ -10,12 +10,11 @@
 #include <string.h>                                   // strcmp
 
 #include "corTree/CorNode.h"                          // CorNode
-#include "corTree/corTreeBuilder.h"                   // corTreeChildRemove
 #include "corTree/corTreeFree.h"                      // corTreeFree
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, Tenant
-#include "currentState/corDB/corDbIndex.h"        // corDbIndexRemove
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexLookup, corDbIndexUnlink
 #include "currentState/corDB/corDbStore.h"          // corDbEntities
 #include "currentState/corDB/corDbEntityDelete.h"   // Own interface
 
@@ -27,6 +26,13 @@
 //
 int corDbEntityDelete(Tenant* tenantP, const char* entityId)
 {
+  //
+  // Unlinked under the write lock - O(1) through the index - and freed AFTER it: the free is a
+  // whole entity's worth of free()s, and every other writer of the tenant waited them out.
+  //
+  CorNode* goneP = NULL;
+
+  {
   COR_DB_WRITE(tenantP);
 
   CorNode* entities = corDbEntities(tenantP);
@@ -39,7 +45,7 @@ int corDbEntityDelete(Tenant* tenantP, const char* entityId)
   //
   CorDbStore* idxStoreP = corDbStoreOf(tenantP);
   CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
-  bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+  bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idToPrevEntity != NULL);
 
   for (CorNode* eP = indexed ? idxHitP : entities->value.head;
        eP != NULL;
@@ -49,12 +55,16 @@ int corDbEntityDelete(Tenant* tenantP, const char* entityId)
 
     if (idP != NULL && idP->type == CorString && strcmp(idP->value.s, entityId) == 0)
     {
-      corDbIndexRemove(corDbStoreOf(tenantP), eP);
-      corTreeChildRemove(entities, eP);
-      corTreeFree(eP); // malloc store node — free it, no caller takes ownership
-      return DB_OK;
+      corDbIndexUnlink(idxStoreP, eP);
+      goneP = eP;
+      break;
     }
   }
+  }
 
-  return DB_NOT_FOUND;
+  if (goneP == NULL)
+    return DB_NOT_FOUND;
+
+  corTreeFree(goneP);                                // malloc store node - no caller takes ownership
+  return DB_OK;
 }

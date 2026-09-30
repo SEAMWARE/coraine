@@ -18,7 +18,7 @@
 
 #include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY, Tenant
 #include "shared/geoMatch.h"                          // geoEntityValidate
-#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexLink, corDbIndexLookup
 #include "currentState/corDB/corDbStore.h"          // corDbEntities
 #include "currentState/corDB/corDbEntityCreate.h"   // Own interface
 
@@ -57,7 +57,7 @@ int corDbEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
     //
     CorDbStore* idxStoreP = corDbStoreOf(tenantP);
     CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
-    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idToPrevEntity != NULL);
 
     for (CorNode* eP = indexed ? idxHitP : entities->value.head;
          eP != NULL;
@@ -89,8 +89,7 @@ int corDbEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
       }
       else
       {
-        corTreeChildAdd(entities, cloneP);
-        corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
+        corDbIndexLink(corDbStoreOf(tenantP), cloneP);
         return DB_OK;
       }
     }

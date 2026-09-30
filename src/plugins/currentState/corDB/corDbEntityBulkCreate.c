@@ -24,7 +24,7 @@
 #include "corTree/corTreeLookup.h"                     // corTreeLookup
 
 #include "db/DbDriver.h"                               // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
-#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexLookup
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexLink, corDbIndexLookup
 #include "currentState/corDB/corDbStore.h"           // corDbEntities
 #include "currentState/corDB/corDbEntityBulkCreate.h"// Own interface
 
@@ -105,7 +105,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 
     if (corDbIndexLookup(corDbStoreOf(tenantP), idP->value.s) != NULL)
       exists = true;
-    else if (corDbStoreOf(tenantP)->idIndex == NULL)
+    else if (corDbStoreOf(tenantP)->idToPrevEntity == NULL)
     {
       for (CorNode* eP = entities->value.head; eP != NULL; eP = eP->next)
       {
@@ -137,8 +137,7 @@ int corDbEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
       continue;
     }
 
-    corTreeChildAdd(entities, cloneP);
-    corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
+    corDbIndexLink(corDbStoreOf(tenantP), cloneP);
     resultsV[ix] = DB_OK;
     anyOk        = true;
   }

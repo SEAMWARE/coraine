@@ -54,8 +54,9 @@ CorDbStore* corDbStoreOf(Tenant* tenantP)
   corTreeChildAdd(store, subscriptions);
   corTreeChildAdd(store, registrations);
 
-  storeP->tree     = store;
-  storeP->idIndex  = NULL;                           // built on the first entity
+  storeP->tree           = store;
+  storeP->entities       = entities;
+  storeP->idToPrevEntity = NULL;                     // built on the first entity
   storeP->idxSlots = 0;
   storeP->idxCount = 0;
   pthread_rwlock_init(&storeP->lock, NULL);

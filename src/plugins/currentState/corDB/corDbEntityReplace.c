@@ -18,7 +18,7 @@
 #include "corRest/CorRestState.h"                        // corRest
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
-#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexRemove
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexLookup, corDbIndexReplace
 #include "currentState/corDB/corDbStore.h"           // corDbEntities
 #include "currentState/corDB/corDbEntityReplace.h"   // Own interface
 
@@ -58,7 +58,7 @@ int corDbEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntity
     //
     CorDbStore* idxStoreP = corDbStoreOf(tenantP);
     CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
-    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idToPrevEntity != NULL);
 
     for (CorNode* eP = indexed ? idxHitP : entities->value.head;
          eP != NULL;
@@ -72,13 +72,10 @@ int corDbEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntity
         // position — a GET without orderBy stays stable and matches mongoc,
         // which preserves createdAt on Replace.
         //
-        // The index points at the OLD node, which is about to be freed. Drop it
-        // before the swap and add the new one after - an index entry surviving a
-        // replace is a pointer to freed memory that every later lookup returns.
+        // Through the index, which swaps in O(1) and re-points the successor's entry, which
+        // named the OLD node as its predecessor - see corDbIndex.c.
         //
-        corDbIndexRemove(corDbStoreOf(tenantP), eP);
-        corTreeChildReplace(entities, eP, cloneP);
-        corDbIndexAdd(corDbStoreOf(tenantP), cloneP);
+        corDbIndexReplace(corDbStoreOf(tenantP), eP, cloneP);
         oldP = eP;
         break;
       }

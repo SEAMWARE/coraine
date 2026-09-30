@@ -44,7 +44,7 @@ int corDbEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entityP
       return DB_OK;
     }
 
-    if (corDbStoreOf(tenantP)->idIndex != NULL)
+    if (corDbStoreOf(tenantP)->idToPrevEntity != NULL)
       return DB_NOT_FOUND;                           // indexed, and it is not there
   }
 

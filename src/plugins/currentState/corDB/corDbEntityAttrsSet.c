@@ -44,7 +44,7 @@ int corDbEntityAttrsSet(Tenant* tenantP, const char* entityId,
   //
   CorDbStore* idxStoreP = corDbStoreOf(tenantP);
   CorNode*    idxHitP   = corDbIndexLookup(idxStoreP, entityId);
-  bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+  bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idToPrevEntity != NULL);
 
   for (CorNode* eP = indexed ? idxHitP : entities->value.head;
        eP != NULL;
