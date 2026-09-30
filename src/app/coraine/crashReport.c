@@ -16,7 +16,10 @@
 // crashing thread may hold it). writev(2), strlen,
 // backtrace_symbols_fd (it writes, it does not allocate), and integers formatted by hand.
 //
+#define _GNU_SOURCE                                  // dl_iterate_phdr
+#include <elf.h>                                     // NT_GNU_BUILD_ID, ElfW
 #include <execinfo.h>                                // backtrace, backtrace_symbols_fd
+#include <link.h>                                    // dl_iterate_phdr, struct dl_phdr_info
 #include <signal.h>                                  // sigaction, raise, SIG*
 #include <stdbool.h>                                 // bool
 #include <string.h>                                  // strlen, memset
@@ -38,6 +41,60 @@ static int    crashArgC  = 0;
 static char** crashArgV  = NULL;
 
 #define PAYLOAD_MAX  (64 * 1024)                     // more is truncated, and says so
+
+
+
+// -----------------------------------------------------------------------------
+//
+// buildId - the executable's GNU build id, in hex - read at install, printed at a crash
+//
+// A stack names only the exported functions; the rest are offsets (coraine(+0x76199)), which
+// addr2line resolves against THE binary that crashed - and only its build id says which one that
+// is: the version is the same for every build of a commit, debug and release alike. Read from
+// the ELF note once, at start (dl_iterate_phdr is no business for a signal handler).
+//
+static char buildId[2 * 64 + 1] = "(unknown)";
+
+static int buildIdFind(struct dl_phdr_info* infoP, size_t size, void* data)
+{
+  (void) size;
+  (void) data;
+
+  for (int i = 0; i < infoP->dlpi_phnum; i++)
+  {
+    const ElfW(Phdr)* phP = &infoP->dlpi_phdr[i];
+
+    if (phP->p_type != PT_NOTE)
+      continue;
+
+    const char* noteP = (const char*) (infoP->dlpi_addr + phP->p_vaddr);
+    const char* endP  = noteP + phP->p_memsz;
+
+    while (noteP + sizeof(ElfW(Nhdr)) <= endP)
+    {
+      const ElfW(Nhdr)* nP    = (const ElfW(Nhdr)*) noteP;
+      const char*       nameP = noteP + sizeof(ElfW(Nhdr));
+      const unsigned char* descP = (const unsigned char*) (nameP + ((nP->n_namesz + 3) & ~3));
+
+      if ((nP->n_type == NT_GNU_BUILD_ID) && (nP->n_namesz == 4) && (memcmp(nameP, "GNU", 4) == 0) && (nP->n_descsz <= 64))
+      {
+        static const char hex[] = "0123456789abcdef";
+
+        for (unsigned int b = 0; b < nP->n_descsz; b++)
+        {
+          buildId[2 * b]     = hex[descP[b] >> 4];
+          buildId[2 * b + 1] = hex[descP[b] & 0xf];
+        }
+        buildId[2 * nP->n_descsz] = 0;
+        return 1;
+      }
+
+      noteP = (const char*) descP + ((nP->n_descsz + 3) & ~3);
+    }
+  }
+
+  return 1;   // the first object is the executable itself - nothing further to look at
+}
 
 
 
@@ -383,7 +440,10 @@ static void onCrash(int sigNo)
   out(") ===\n");
   flush();
 
-  out("version:      " CORAINE_VERSION "\n");
+  out("version:      " CORAINE_VERSION " (" CORAINE_BUILD_TYPE ")\n");
+  out("build id:     ");
+  out(buildId);
+  out("\n");
   flush();
 
   out("command line:");
@@ -426,6 +486,8 @@ void crashReportInstall(int argC, char** argV)
 {
   crashArgC = argC;
   crashArgV = argV;
+
+  dl_iterate_phdr(buildIdFind, NULL);
 
   //
   // backtrace() loads libgcc the first time it runs - which allocates. Not in a crash: now.

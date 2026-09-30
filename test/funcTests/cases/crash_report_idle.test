@@ -15,7 +15,7 @@
 #
 # The command line and the version depend on how the suite was started (-db,
 # the build), and the stack on the build: patterns, not literals. The stack is
-# only counted.
+# only counted. The build id is compared with the running binary's own (readelf).
 #
 --NAME--
 Crash report: a fatal signal on an idle broker - signal, version, command line, no request, a stack
@@ -50,7 +50,13 @@ echo "02. The report, as the log holds it - the stack only counted"
 echo "============================================================"
 LOG=/tmp/coraine.CB.log
 echo "reports: $(grep -c '^=== coraine crashed' $LOG)"
-sed -n '/^=== coraine crashed/,/^stack:$/p' $LOG | head -6
+sed -n '/^=== coraine crashed/,/^stack:$/p' $LOG | grep -v '^build id:' | head -6
+#
+# The build id says which binary the stack's offsets belong to - so it has to be THIS one's
+#
+REPORTED=$(grep -m1 '^build id:' $LOG | awk '{ print $3 }')
+ACTUAL=$(readelf -n "$(command -v $COR_BROKER)" 2>/dev/null | awk '/Build ID:/ { print $3; exit }')
+if [ -n "$REPORTED" ] && [ "$REPORTED" == "$ACTUAL" ]; then echo "build id: the binary's own"; else echo "build id: '$REPORTED', the binary's is '$ACTUAL'"; fi
 echo "stack frames: $(sed -n '/^stack:$/,/^=== end of crash report ===$/p' $LOG | sed '1d;$d' | wc -l | awk '{ print ($1 > 0) ? "some" : "none" }')"
 grep -m1 '^=== end of crash report ===$' $LOG
 echo
@@ -70,10 +76,11 @@ broker: gone
 ============================================================
 reports: 1
 === coraine crashed: SIGSEGV (11) ===
-version:      REGEX(\d+\.\d+\.\d+\S*)
+version:      REGEX(\d+\.\d+\.\d+\S* \((Debug|Release|Coverage)\))
 command line: coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026REGEX(( --[a-zA-Z]+ \S+)+)
 request:      (none - the crash was not in a request)
 stack:
+build id: the binary's own
 stack frames: some
 === end of crash report ===
 
