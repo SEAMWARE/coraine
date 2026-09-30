@@ -7,7 +7,19 @@ or against MongoDB (`--database mongoc`, the default).
 
 ```sh
 make docker                    # or: make docker DOCKER_TAG=coraine:mytag
+make docker DOCKER_BUILD=debug # the debug flavour - see below
 ```
+
+Two flavours of the same stack, chosen with `--build-arg BUILD=`:
+
+| `BUILD` | Traces | For |
+|---|---|---|
+| `release` (default) | compiled out - `--traceLevels` turns on nothing, and says so | deploying |
+| `debug` | compiled in | reproducing a crash report from a release image; running with `--traceLevels` |
+
+A release broker that crashes writes a report of what it takes to reproduce it -
+the request and its payload, the command line, the build id and the stack - to its
+log. The debug image of the same tag is where that report is replayed.
 
 That runs the two steps below. Doing them by hand works too, but the build
 aborts with `run ./docker/vendor-libs.sh first` if the staging step is skipped —
@@ -60,7 +72,8 @@ The port is not fixed in the image: pass `--port` and publish what you chose.
 ## Tags
 
 Published images are `quay.io/seamware/coraine:<version>-<date>-<sha>` - one
-immutable tag per merge to main, never `latest`. The `coraine` namespace is
+immutable tag per merge to main, never `latest` - and the same with `-debug`, the
+debug flavour of that build. The `coraine` namespace is
 temporary: the image moves to `seamware` once the org grants create rights.
 Versioned with SemVer.
 

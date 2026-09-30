@@ -155,6 +155,7 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BUILD=release
             GIT_SHA=${{ steps.v.outputs.sha }}
             BUILD_AT=${{ steps.v.outputs.buildAt }}
           tags: |
@@ -162,6 +163,26 @@ jobs:
             quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      #
+      # The same release as a DEBUG build (traces compiled in), both tags with -debug:
+      # what a crash report from the release image is reproduced with.
+      #
+      - name: Build and push the debug image
+        uses: docker/build-push-action@v5
+        with:
+          context: stack/coraine
+          file: stack/coraine/docker/Dockerfile
+          push: true
+          build-args: |
+            BUILD=debug
+            GIT_SHA=${{ steps.v.outputs.sha }}
+            BUILD_AT=${{ steps.v.outputs.buildAt }}
+          tags: |
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-debug
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}-debug
+          cache-from: type=gha,scope=debug
+          cache-to: type=gha,mode=max,scope=debug
 
       #
       # A token from the seamware-ci GitHub App rather than a personal access

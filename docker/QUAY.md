@@ -143,6 +143,14 @@ Two kinds, and which you want depends on why you are pinning.
 |---|---|---|
 | **Release** — the bare version | `0.4.0` | cutting a release, once per version |
 | **Per-merge** — `<version>-<date>-<commit>` | `0.4.0-2026-08-28-f81859a` | every merge to `main` |
+| **Debug** — either of the above + `-debug` | `0.4.0-debug`, `0.4.0-2026-08-28-f81859a-debug` | beside every release and per-merge image |
+
+The plain tags are **release** builds: traces are compiled out, and
+`--traceLevels` turns on nothing (the broker says so at start). A crash writes a
+report to the log - the request and its payload, the command line, the build id
+and the stack. The **`-debug`** image of the same tag is the same build with
+traces compiled in: the one to reproduce that crash with, or to run with
+`--traceLevels`.
 
 **Use the release tag** unless you have a reason not to: it is the version the
 [release notes](https://github.com/SEAMWARE/coraine/releases) describe, and it is

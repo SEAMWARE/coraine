@@ -130,11 +130,32 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BUILD=release
             GIT_SHA=${{ steps.tag.outputs.sha }}
             BUILD_AT=${{ github.event.head_commit.timestamp }}
           tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      #
+      # The same commit as a DEBUG build: traces compiled in (a release image has
+      # none - corLog.h). The image a crash report from a release one is reproduced
+      # with, or that is run with --traceLevels. Its own cache scope: the two
+      # flavours share the first stages and nothing after the libs.
+      #
+      - name: Build and push the debug image
+        uses: docker/build-push-action@v5
+        with:
+          context: stack/coraine
+          file: stack/coraine/docker/Dockerfile
+          push: true
+          build-args: |
+            BUILD=debug
+            GIT_SHA=${{ steps.tag.outputs.sha }}
+            BUILD_AT=${{ github.event.head_commit.timestamp }}
+          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug
+          cache-from: type=gha,scope=debug
+          cache-to: type=gha,mode=max,scope=debug
 
       #
       # The image has to actually run. A push that succeeds and an image that cannot
@@ -143,7 +164,8 @@ jobs:
       #
       - name: The published image must start and answer
         run: |
-          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
+          for img in quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }} \
+                     quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug; do
           #
           # --apiPlugins admin, because these arguments REPLACE the image's CMD,
           # and the CMD is where the admin plugin was selected. Without it the
@@ -160,10 +182,12 @@ jobs:
           done
           curl -sf http://localhost:1026/admin/version
           docker rm -f coraine-smoke
+          done
 
       - name: Say what was published
         run: |
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
