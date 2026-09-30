@@ -8,9 +8,11 @@
 # What goes WITH q - in a query (URL params, POST Query body) and in a Subscription, where it is
 # stored and must survive a restart:
 #
-#   expandValues (§ 5.2.6.5.1 Query, § 5.2.6.5.2 Subscription) - the values of the attributes it
-#   names are expanded with the @context. A BARE word is then a term too (§ 7.2.3.2 Example 13:
-#   gender==Male&expandValues=gender); anywhere else a bare word is not a Value - 400. Only == and !=.
+#   expandValues (§ 5.2.6.5.1 Query, § 5.2.6.5.2 Subscription) - the (quoted) values of the
+#   attributes it names are expanded with the @context. It was never applied to a POST Query body
+#   nor to a Subscription before. A string must be QUOTED: the § 7.2.3.2 ABNF has no unquoted words
+#   (Example 13's gender==Male contradicts it - KZ takes that to ETSI), and the 400 says what the
+#   token most likely tried to be (steps 05-06).
 #
 #   langProperties (NOT NGSI-LD - KZ's proposal, spec-doubts #134) - the attributes that are
 #   LanguageProperties. Their language tags are stored as sent, never expanded, so q=L[fr] can only
@@ -25,7 +27,7 @@
 # REQUIRE_DB: mongoc
 #
 --NAME--
-q with expandValues (bare words) and langProperties - in queries, Query bodies and stored Subscriptions
+q with expandValues and langProperties - in queries, Query bodies and stored Subscriptions; unquoted values say why
 
 --TAGS--
 q query expandValues langProp subscription notification
@@ -45,59 +47,61 @@ echo
 echo
 
 
-echo "02. q=category==monument&expandValues=category - a bare word, expanded: E1"
-echo "=========================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument&expandValues=category' | grep -E '^HTTP|"id"'
+echo "02. q=category==\"monument\"&expandValues=category - the value expanded: E1"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22monument%22&expandValues=category' | grep -E '^HTTP|"id"'
 echo
 echo
 
 
 echo "03. The same with expandValues BEFORE q - the params come in any order: E1"
 echo "==========================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=category&q=category%3D%3Dmonument' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=category&q=category==%22monument%22' | grep -E '^HTTP|"id"'
 echo
 echo
 
 
-echo "04. q=category==monument,museum&expandValues=category - a list of bare words: E1 and E2"
+echo "04. q=category==\"monument\",\"museum\"&expandValues=category - a value list: E1 and E2"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22monument%22,%22museum%22&expandValues=category&orderBy=id' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "05. q=category==monument&expandValues=category - unquoted: 400, a string must be quoted"
 echo "======================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument,museum&expandValues=category&orderBy=id' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==monument&expandValues=category'
 echo
 echo
 
 
-echo "05. q=category==monument with no expandValues - a bare word is no Value: 400"
-echo "============================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument'
+echo "06. What an unquoted value most likely tried to be - a number, a date-time, a time, a URI; and in a list"
+echo "======================================================================================================="
+for q in 'x==12B' 'x==2021-13-45' 'x==25:61:00' 'x==urn:bad%20id' 'x==%22a%22,monument'; do
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$q" | grep -E '^HTTP|"detail"'
+done
 echo
 echo
 
 
-echo "06. q=category>monument&expandValues=category - an ordering operator takes no term: 400"
-echo "======================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3Emonument&expandValues=category'
-echo
-echo
-
-
-echo "07. POST Query body - a bare word, and a quoted value, with expandValues: E1 twice"
-echo "=================================================================================="
-corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==monument","expandValues":"category"}' | grep -E '^HTTP|"id"'
+echo "07. POST Query body - the quoted value with expandValues: E1; unquoted: 400"
+echo "==========================================================================="
 corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==\"monument\"","expandValues":"category"}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==monument","expandValues":"category"}' | grep -E '^HTTP|"detail"'
 echo
 echo
 
 
 echo "08. q=street[fr]==\"Grand Place\"&langProperties=street - [fr] is a language tag: E1"
 echo "===================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D%3D%3D%22Grand%20Place%22&langProperties=street' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D==%22Grand%20Place%22&langProperties=street' | grep -E '^HTTP|"id"'
 echo
 echo
 
 
 echo "09. The same without langProperties - [fr] is a term, the member of E2's compound value: E2"
 echo "==========================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D%3D%3D%22Grand%20Place%22' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D==%22Grand%20Place%22' | grep -E '^HTTP|"id"'
 echo
 echo
 
@@ -116,16 +120,16 @@ echo
 echo
 
 
-echo "12. Subscription: q=category==monument, a bare word, with NO expandValues - 400 at create"
-echo "========================================================================================="
-corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sbad","type":"Subscription","entities":[{"type":"W"}],"q":"category==monument","notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/bad"}}}'
+echo "12. Subscription: q=category==monument, unquoted, even WITH expandValues - 400 at create"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sbad","type":"Subscription","entities":[{"type":"W"}],"q":"category==monument","expandValues":"category","notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/bad"}}}'
 echo
 echo
 
 
-echo "13. Subscriptions on type W: Sev (bare word + expandValues), Slp (street[fr] + langProperties)"
+echo "13. Subscriptions on type W: Sev (category==\"monument\" + expandValues), Slp (street[fr] + langProperties)"
 echo "============================================================================================="
-corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sev","type":"Subscription","entities":[{"type":"W"}],"q":"category==monument","expandValues":"category","notification":{"attributes":["category"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/ev"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sev","type":"Subscription","entities":[{"type":"W"}],"q":"category==\"monument\"","expandValues":"category","notification":{"attributes":["category"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/ev"}}}' | head -1
 corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Slp","type":"Subscription","entities":[{"type":"W"}],"q":"street[fr]==\"Grand Place\"","langProperties":"street","notification":{"attributes":["street"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/lp"}}}' | head -1
 echo
 echo
@@ -175,8 +179,8 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-02. q=category==monument&expandValues=category - a bare word, expanded: E1
-==========================================================================
+02. q=category=="monument"&expandValues=category - the value expanded: E1
+==================================================================================
 HTTP/1.1 200 OK
     "id": "urn:QE:E1",
 
@@ -187,38 +191,22 @@ HTTP/1.1 200 OK
     "id": "urn:QE:E1",
 
 
-04. q=category==monument,museum&expandValues=category - a list of bare words: E1 and E2
-=======================================================================================
+04. q=category=="monument","museum"&expandValues=category - a value list: E1 and E2
+===========================================================================================
 HTTP/1.1 200 OK
     "id": "urn:QE:E1",
     "id": "urn:QE:E2",
 
 
-05. q=category==monument with no expandValues - a bare word is no Value: 400
-============================================================================
-HTTP/1.1 400 Bad Request
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 279
-
-{
-  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it - unless expandValues names its attribute",
-  "status": 400,
-  "title": "Invalid q parameter",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
-
-
-
-06. q=category>monument&expandValues=category - an ordering operator takes no term: 400
+05. q=category==monument&expandValues=category - unquoted: 400, a string must be quoted
 =======================================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 237
+Content-Length: 205
 
 {
-  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it",
+  "detail": "'monument' is not a valid value - a string must be quoted: \"monument\"",
   "status": 400,
   "title": "Invalid q parameter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -226,12 +214,26 @@ Content-Length: 237
 
 
 
-07. POST Query body - a bare word, and a quoted value, with expandValues: E1 twice
-==================================================================================
+06. What an unquoted value most likely tried to be - a number, a date-time, a time, a URI; and in a list
+=======================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'12B' is not a valid number",
+HTTP/1.1 400 Bad Request
+  "detail": "'2021-13-45' is not a valid date-time",
+HTTP/1.1 400 Bad Request
+  "detail": "'25:61:00' is not a valid time",
+HTTP/1.1 400 Bad Request
+  "detail": "'urn:bad id' is not a valid URI",
+HTTP/1.1 400 Bad Request
+  "detail": "value list item 'monument' is not a valid value - a string must be quoted: \"monument\"",
+
+
+07. POST Query body - the quoted value with expandValues: E1; unquoted: 400
+===========================================================================
 HTTP/1.1 200 OK
     "id": "urn:QE:E1",
-HTTP/1.1 200 OK
-    "id": "urn:QE:E1",
+HTTP/1.1 400 Bad Request
+  "detail": "'monument' is not a valid value - a string must be quoted: \"monument\"",
 
 
 08. q=street[fr]=="Grand Place"&langProperties=street - [fr] is a language tag: E1
@@ -274,15 +276,15 @@ Content-Length: 169
 
 
 
-12. Subscription: q=category==monument, a bare word, with NO expandValues - 400 at create
-=========================================================================================
+12. Subscription: q=category==monument, unquoted, even WITH expandValues - 400 at create
+========================================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 279
+Content-Length: 205
 
 {
-  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it - unless expandValues names its attribute",
+  "detail": "'monument' is not a valid value - a string must be quoted: \"monument\"",
   "status": 400,
   "title": "Invalid q parameter",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -290,7 +292,7 @@ Content-Length: 279
 
 
 
-13. Subscriptions on type W: Sev (bare word + expandValues), Slp (street[fr] + langProperties)
+13. Subscriptions on type W: Sev (category=="monument" + expandValues), Slp (street[fr] + langProperties)
 =============================================================================================
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created

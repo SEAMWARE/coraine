@@ -41,7 +41,7 @@ void subscriptionQExpand(CorNode* subP)
   if ((qP == NULL) || (qP->type != CorString))
     return;
 
-  LdQNode* qExprP = ldQParseBareWords(qP->value.s, &corRest.kalloc);   // expands the names via corNgsild.contextP
+  LdQNode* qExprP = ldQParse(qP->value.s, &corRest.kalloc);   // expands the names via corNgsild.contextP
 
   if (qExprP == NULL)
     return;
@@ -51,15 +51,14 @@ void subscriptionQExpand(CorNode* subP)
   // only one that gives its terms their meaning: the values expandValues names are stored expanded,
   // and a [..] under an attribute langProperties names is stored as the language tag it is (not
   // NGSI-LD, spec-doubts #134). The stored q is then fully resolved, and ldQParseStored reads it back
-  // with no context at all. ldCheckSubscription has already rejected a bare word nothing claims.
+  // with no context at all.
   //
   CorNode* evP = corTreeLookup(subP, "expandValues");
   CorNode* lpP = corTreeLookup(subP, "langProperties");
   char**   evV = ((evP != NULL) && (evP->type == CorString)) ? ldAttrListExpand(evP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
   char**   lpV = ((lpP != NULL) && (lpP->type == CorString)) ? ldAttrListExpand(lpP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
 
-  if (ldQExpandValues(qExprP, evV, corNgsild.contextP, &corRest.kalloc) == false)
-    return;
+  ldQExpandValues(qExprP, evV, corNgsild.contextP, &corRest.kalloc);
 
   ldQLangProperties(qExprP, lpV);
 
