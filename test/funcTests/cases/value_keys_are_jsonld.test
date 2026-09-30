@@ -21,8 +21,11 @@
 #     used to differ: short keys vs expanded keys), so one q finds both
 #   - a q/orderBy trailing path is expanded with the request @context, exactly as
 #     the value's keys were
-#   - a LanguageProperty's tags are expanded too, so q=L[es] is ONE path for a
-#     LanguageProperty and a Property alike (KZ 2026-09-28)
+#   - a LanguageProperty's language tags are NOT - they are stored as sent (KZ 2026-09-30,
+#     reversing 2026-09-28: an expanded tag in the database outlives the broker). So q=L[es]
+#     means the member `es` of a compound value (a term, expanded) unless the query says L is
+#     a LanguageProperty - langProperties=L (not NGSI-LD, spec-doubts #134) - and then `es` is
+#     the language tag
 #   - member names inside a value are NOT held to the NGSI-LD name grammar
 #     (clause 5.2.2.3 restricts Entity Type, Property and Relationship names):
 #     "my key" and "es-419" are fine, and come back as sent
@@ -32,7 +35,7 @@
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
 --NAME--
-Compound value keys and language tags are JSON-LD terms - stored expanded, returned as sent
+Compound value keys are JSON-LD terms - stored expanded, returned as sent; language tags are not
 
 --TAGS--
 context q orderBy langprop value
@@ -149,16 +152,17 @@ echo
 echo
 
 
-echo "09. q=L[es]==\"uno\" - both E4 and E5: one path"
-echo "=============================================="
+echo "09. q=L[es]==\"uno\" - E5 only: [es] is a term, the member of E5's compound value"
+echo "================================================================================"
 corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes%5D%3D%3D%22uno%22' | grep '"id"'
 echo
 echo
 
 
-echo "10. q=L[es-419]==\"una\" - E4"
-echo "==========================="
-corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes-419%5D%3D%3D%22una%22' | grep '"id"'
+echo "10. With langProperties=L - [es] and [es-419] are language tags: E4, both times"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes%5D%3D%3D%22uno%22&langProperties=L' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=L&q=L%5Bes-419%5D%3D%3D%22una%22&langProperties=L' | grep '"id"'
 echo
 echo
 
@@ -255,14 +259,14 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-09. q=L[es]=="uno" - both E4 and E5: one path
-==============================================
-    "id": "urn:VK:E4",
+09. q=L[es]=="uno" - E5 only: [es] is a term, the member of E5's compound value
+================================================================================
     "id": "urn:VK:E5",
 
 
-10. q=L[es-419]=="una" - E4
-===========================
+10. With langProperties=L - [es] and [es-419] are language tags: E4, both times
+==============================================================================
+    "id": "urn:VK:E4",
     "id": "urn:VK:E4",
 
 

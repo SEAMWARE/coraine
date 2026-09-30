@@ -1,0 +1,320 @@
+#
+# FILE            q_expandvalues_langproperties.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# What goes WITH q - in a query (URL params, POST Query body) and in a Subscription, where it is
+# stored and must survive a restart:
+#
+#   expandValues (§ 5.2.6.5.1 Query, § 5.2.6.5.2 Subscription) - the values of the attributes it
+#   names are expanded with the @context. A BARE word is then a term too (§ 7.2.3.2 Example 13:
+#   gender==Male&expandValues=gender); anywhere else a bare word is not a Value - 400. Only == and !=.
+#
+#   langProperties (NOT NGSI-LD - KZ's proposal, spec-doubts #134) - the attributes that are
+#   LanguageProperties. Their language tags are stored as sent, never expanded, so q=L[fr] can only
+#   find one if the query says L is a LanguageProperty: then [fr] is compared raw; without it [fr] is
+#   a term - the member of a compound value - and is expanded.
+#
+# A Subscription stores its q RESOLVED (values expanded, [..] a raw tag where langProperties said so)
+# and reads it back with nothing expanded again - steps 15-16 restart the broker to prove it, which
+# is why this runs on mongoc only (corDB keeps its subscriptions in RAM; the query steps are store-
+# independent and covered on both by the suites).
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+q with expandValues (bare words) and langProperties - in queries, Query bodies and stored Subscriptions
+
+--TAGS--
+q query expandValues langProp subscription notification
+
+--INIT--
+corDbDrop
+coraineStart
+ftClientStart
+
+--RUN--
+
+echo "01. E1: LanguageProperty street (fr, es), VocabProperty category; E2: Property street, a compound value with a member 'fr'"
+echo "======================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QE:E1","type":"T","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place","es":"Gran Plaza"}},"category":{"type":"VocabProperty","vocab":"monument"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QE:E2","type":"T","street":{"type":"Property","value":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"museum"}}' | head -1
+echo
+echo
+
+
+echo "02. q=category==monument&expandValues=category - a bare word, expanded: E1"
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument&expandValues=category' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "03. The same with expandValues BEFORE q - the params come in any order: E1"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&expandValues=category&q=category%3D%3Dmonument' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "04. q=category==monument,museum&expandValues=category - a list of bare words: E1 and E2"
+echo "======================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument,museum&expandValues=category&orderBy=id' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "05. q=category==monument with no expandValues - a bare word is no Value: 400"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3D%3Dmonument'
+echo
+echo
+
+
+echo "06. q=category>monument&expandValues=category - an ordering operator takes no term: 400"
+echo "======================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=category%3Emonument&expandValues=category'
+echo
+echo
+
+
+echo "07. POST Query body - a bare word, and a quoted value, with expandValues: E1 twice"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==monument","expandValues":"category"}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==\"monument\"","expandValues":"category"}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "08. q=street[fr]==\"Grand Place\"&langProperties=street - [fr] is a language tag: E1"
+echo "===================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D%3D%3D%22Grand%20Place%22&langProperties=street' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "09. The same without langProperties - [fr] is a term, the member of E2's compound value: E2"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D%3D%3D%22Grand%20Place%22' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "10. POST Query body with langProperties: E1"
+echo "==========================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\"","langProperties":"street"}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "11. E1 as stored - the language tags are the tags that were sent"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:QE:E1 --urlParams 'attrs=street'
+echo
+echo
+
+
+echo "12. Subscription: q=category==monument, a bare word, with NO expandValues - 400 at create"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sbad","type":"Subscription","entities":[{"type":"W"}],"q":"category==monument","notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/bad"}}}'
+echo
+echo
+
+
+echo "13. Subscriptions on type W: Sev (bare word + expandValues), Slp (street[fr] + langProperties)"
+echo "============================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Sev","type":"Subscription","entities":[{"type":"W"}],"q":"category==monument","expandValues":"category","notification":{"attributes":["category"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/ev"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QE:Slp","type":"Subscription","entities":[{"type":"W"}],"q":"street[fr]==\"Grand Place\"","langProperties":"street","notification":{"attributes":["street"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/lp"}}}' | head -1
+echo
+echo
+
+
+echo "14. GET both - q as the client sent it: the value compact, the tag raw; the members kept"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:QE:Sev | grep -E '"q"|"expandValues"'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:QE:Slp | grep -E '"q"|"langProperties"'
+echo
+echo
+
+
+echo "15. W1 matches both - two notifications"
+echo "======================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QE:W1","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"monument"}}' | head -1
+ftClientWait 2
+ftClientDump | python3 -c 'import sys, json
+for n in sorted(json.load(sys.stdin), key=lambda n: n["url"]):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+echo "16. Restart - the subscriptions come back from the database; W2 matches both again"
+echo "=================================================================================="
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QE:W2","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"monument"}}' | head -1
+ftClientWait 2
+ftClientDump | python3 -c 'import sys, json
+for n in sorted(json.load(sys.stdin), key=lambda n: n["url"]):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. E1: LanguageProperty street (fr, es), VocabProperty category; E2: Property street, a compound value with a member 'fr'
+======================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=category==monument&expandValues=category - a bare word, expanded: E1
+==========================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+
+
+03. The same with expandValues BEFORE q - the params come in any order: E1
+===========================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+
+
+04. q=category==monument,museum&expandValues=category - a list of bare words: E1 and E2
+=======================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+    "id": "urn:QE:E2",
+
+
+05. q=category==monument with no expandValues - a bare word is no Value: 400
+============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 279
+
+{
+  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it - unless expandValues names its attribute",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. q=category>monument&expandValues=category - an ordering operator takes no term: 400
+=======================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 237
+
+{
+  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST Query body - a bare word, and a quoted value, with expandValues: E1 twice
+==================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+
+
+08. q=street[fr]=="Grand Place"&langProperties=street - [fr] is a language tag: E1
+====================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+
+
+09. The same without langProperties - [fr] is a term, the member of E2's compound value: E2
+===========================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E2",
+
+
+10. POST Query body with langProperties: E1
+===========================================
+HTTP/1.1 200 OK
+    "id": "urn:QE:E1",
+
+
+11. E1 as stored - the language tags are the tags that were sent
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 169
+
+{
+  "id": "urn:QE:E1",
+  "street": {
+    "languageMap": {
+      "es": "Gran Plaza",
+      "fr": "Grand Place"
+    },
+    "type": "LanguageProperty"
+  },
+  "type": "T"
+}
+
+
+
+12. Subscription: q=category==monument, a bare word, with NO expandValues - 400 at create
+=========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 279
+
+{
+  "detail": "'monument' is not a valid value: a string must be quoted, and a number must not carry anything after it - unless expandValues names its attribute",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. Subscriptions on type W: Sev (bare word + expandValues), Slp (street[fr] + langProperties)
+=============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+14. GET both - q as the client sent it: the value compact, the tag raw; the members kept
+========================================================================================
+  "expandValues": "category",
+  "q": "category==\"monument\"",
+  "langProperties": "street",
+  "q": "street[fr]==\"Grand Place\"",
+
+
+15. W1 matches both - two notifications
+=======================================
+HTTP/1.1 201 Created
+/ev urn:QE:Sev ['urn:QE:W1']
+/lp urn:QE:Slp ['urn:QE:W1']
+
+
+16. Restart - the subscriptions come back from the database; W2 matches both again
+==================================================================================
+HTTP/1.1 201 Created
+/ev urn:QE:Sev ['urn:QE:W2']
+/lp urn:QE:Slp ['urn:QE:W2']
+
+
