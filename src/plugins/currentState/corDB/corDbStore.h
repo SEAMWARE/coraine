@@ -46,12 +46,15 @@ typedef struct CorDbStore
   CorNode*            tree;
   pthread_rwlock_t    lock;
 
+  CorNode*            entities;                     // the "entities" array in 'tree' - and the first entity's predecessor
+
   //
-  // id -> CorNode*, so finding one entity is a hash rather than a walk of the
-  // whole store doing a corTreeLookup per entity. Guarded by the same lock as the
-  // tree, because it changes exactly when the tree does - see corDbIndex.h.
+  // ⭐ entity id -> the entity's PREDECESSOR in 'entities' (the array itself for the first), NOT the
+  // entity: unlinking needs the node before, and this makes it O(1) at no extra byte. Only
+  // corDbIndex.c touches it, and nobody outside sees a predecessor - see corDbIndex.c and .h.
+  // Guarded by the same lock as the tree, because it changes exactly when the tree does.
   //
-  struct CorHashTable*  idIndex;
+  struct CorHashTable*  idToPrevEntity;
   int                 idxSlots;
   int                 idxCount;
 } CorDbStore;

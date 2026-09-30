@@ -36,8 +36,8 @@ static void corDbFreeTenantStore(Tenant* tenantP)
     // else is running by now - corDbClose is called once, at shutdown, after
     // the HTTP server has stopped - so there is no last writer to wait for.
     //
-    if (storeP->idIndex != NULL)
-      corHashRelease(storeP->idIndex);
+    if (storeP->idToPrevEntity != NULL)
+      corHashRelease(storeP->idToPrevEntity);
 
     corTreeFree(storeP->tree);
     pthread_rwlock_destroy(&storeP->lock);

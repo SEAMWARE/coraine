@@ -34,23 +34,20 @@ extern const char* corDbEntityId(CorNode* entityP);
 
 // -----------------------------------------------------------------------------
 //
-// corDbIndexAdd - index an entity, and put its id first
+// ⭐ The index maps an entity's id to its PREDECESSOR in the store's list, which makes unlinking
+// O(1) - see corDbIndex.c. So these three are the ONLY ways an entity enters, leaves or is swapped
+// in the store's list: anything else would leave a neighbour's entry naming the wrong node.
+// All three: the store's WRITE lock held.
 //
-// Call with the store's WRITE lock held. Establishes the id-first invariant
-// that corDbEntityId depends on.
+// corDbIndexLink    - append the entity to the store and index it; puts its id first
+// corDbIndexUnlink  - take it out of the store and the index, O(1). Not freed: the caller's, after
+//                     the lock
+// corDbIndexReplace - put newP where oldP is (same id, same position - creation order); oldP out,
+//                     not freed
 //
-extern void corDbIndexAdd(CorDbStore* storeP, CorNode* entityP);
-
-
-
-// -----------------------------------------------------------------------------
-//
-// corDbIndexRemove - drop an entity from the index
-//
-// Call with the store's WRITE lock held, BEFORE the entity is freed - the
-// index's compare function reads the entity to get its id.
-//
-extern void corDbIndexRemove(CorDbStore* storeP, CorNode* entityP);
+extern void corDbIndexLink(CorDbStore* storeP, CorNode* entityP);
+extern void corDbIndexUnlink(CorDbStore* storeP, CorNode* entityP);
+extern void corDbIndexReplace(CorDbStore* storeP, CorNode* oldP, CorNode* newP);
 
 
 

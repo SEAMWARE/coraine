@@ -125,16 +125,17 @@ physical core and the load generator kept off it.
 |-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
 | `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 5 901 | 118 020 |
 | `corHttp` + `mongoc` | 11.1 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
-| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **6 588** | **131 760** |
-| libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 4 904 | 98 080 |
+| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **7 975** | **159 500** |
+| libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 5 858 | 117 160 |
 
 <sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
 `COR_FEATURE_ICU_COLLATION=OFF`. `GET /entities?type=Vehicle&limit=20`, 20
 entities per response. **Disk added** counts only what a bare `ubuntu:26.04`
 does not already carry. `mongod` adds 1.02–1.15 GiB resident and cores of its
-own; `corDB` adds nothing.</sub>
+own; `corDB` adds nothing. Rates: libmicrohttpd rows 2026-09-30, `corHttp` rows and
+the other columns 2026-09-16. Measured **natively** - in a container see below.</sub>
 
-Five things worth taking from that table:
+Six things worth taking from that table:
 
 - **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of files a
   machine did not already have — and three libraries, two of which are GEOS.**
@@ -145,13 +146,17 @@ Five things worth taking from that table:
   temporal history in the same process is **free**: 40 257 req/s against
   40 073 with history off, 123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of
   its PATCH rate instead.
-- **The page size is the claim.** 6 588 requests/s per core at `limit=20` is
-  **131 760 entities/s per core**; at `limit=1` it is 37 743 of each; at
-  `limit=100` it is **158 300 entities/s**. A requests/s figure without the
+- **The page size is the claim.** 7 975 requests/s per core at `limit=20` is
+  **159 500 entities/s per core**; at `limit=1` it is 40 068 of each; at
+  `limit=100` it is **191 300 entities/s**. A requests/s figure without the
   response size beside it means nothing.
-- **Batching is worth three to four times per entity.** A `PATCH` one at a time
-  is 42 234 entities/s per core; twenty per request is 131 260. Creates:
-  31 362 against 113 640.
+- **Batching is worth four to eight times per entity.** A `PATCH` one at a time
+  is 48 548 entities/s per core; twenty per request is 173 180. Creates:
+  35 877 against 164 180. Deletes: 54 023 against **419 840**.
+- **In a container it depends on the network setup.** With `--net=host` there
+  is no measurable difference. With a port mapping (`docker run -p`, the usual
+  way) expect **5-15% less**, and up to **30% less for a single client** waiting
+  on each answer - the mapped port is one more hop per request.
 - **The database is the bill.** One broker core doing batch updates through
   MongoDB needs **four mongod cores behind it** before MongoDB stops being the
   limit — five cores of machine to do what `corDB` does on one. On eight cores

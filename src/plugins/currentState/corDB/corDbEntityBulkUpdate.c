@@ -23,7 +23,7 @@
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
-#include "currentState/corDB/corDbIndex.h"        // corDbIndexAdd, corDbIndexRemove
+#include "currentState/corDB/corDbIndex.h"        // corDbIndexLookup, corDbIndexReplace
 #include "currentState/corDB/corDbStore.h"             // corDbEntities
 #include "currentState/corDB/corDbEntityBulkUpdate.h"  // Own interface
 
@@ -70,7 +70,7 @@ int corDbEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
 
     CorNode*    entities  = corDbEntities(tenantP);
     CorDbStore* idxStoreP = corDbStoreOf(tenantP);
-    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idIndex != NULL);
+    bool        indexed   = (idxStoreP != NULL) && (idxStoreP->idToPrevEntity != NULL);
 
     ix = 0;
     for (CorNode* inP = entitiesArr->value.head; inP != NULL; inP = inP->next, ix++)
@@ -122,13 +122,10 @@ int corDbEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
       // — a GET without orderBy stays stable and matches mongoc, which preserves
       // createdAt on update. corTreeChildReplace does not free the old node.
       //
-      // The index points at `existing`, which corTreeFree is about to destroy. Drop it
-      // before the swap and add the replacement after, or every later lookup of
-      // this id returns a pointer into freed memory.
+      // Through the index, which swaps in O(1) and re-points the successor's entry, which
+      // named `existing` as its predecessor - see corDbIndex.c.
       //
-      corDbIndexRemove(idxStoreP, existing);
-      corTreeChildReplace(entities, existing, cloneP);
-      corDbIndexAdd(idxStoreP, cloneP);
+      corDbIndexReplace(idxStoreP, existing, cloneP);
       cloneV[ix]   = existing;   // stored clone out, replaced entity in - freed below, unlocked
       resultsV[ix] = DB_OK;
       anyOk        = true;
