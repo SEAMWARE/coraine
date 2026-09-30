@@ -34,7 +34,8 @@ corTroeInit
 BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
-  --goalMode "A1=unreachable")
+  --goalMode "A1=unreachable" \
+  --replyDelay "A2=300")
 
 coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
@@ -88,6 +89,13 @@ echo
 
 echo "06. Batch create - Robot 2 anew with a goal; Robot 1, which exists: 409, and no goal for it"
 echo "==========================================================================================="
+#
+# Goals 2 and 5 end BEFORE their entity goes: A2 ends a goal 300 ms after accepting it (replyDelay),
+# and an end that arrives after the DELETE has no entity to land on - the history then stops at
+# ACCEPTED. bridge_dds_first_all_routes lost exactly that race on a busy runner (the #180 deploy).
+#
+bridgeGoalEndedAwait loopback A2 2
+bridgeGoalEndedAwait loopback A2 5
 corCurl --url /ngsi-ld/v1/entities/urn:R:2 -X DELETE
 payload='[
   { "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 8 } } },

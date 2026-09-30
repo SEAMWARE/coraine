@@ -222,7 +222,8 @@ static int64_t loopbackNowMs(void)
 //
 // Reply delays - "replyDelayMs": { "<endpoint>": <ms> } in the bridge config
 //
-// How late the loopback answers a service, per endpoint, and -1 for never.
+// How late the loopback answers a service, per endpoint, and -1 for never - and, on an action, how
+// late a goal's events after its first (a cancel's, and a succeeding goal's end).
 //
 // ⭐ A TRANSPORT THAT ALWAYS ANSWERS AT ONCE CANNOT TEST A REQUEST THAT WAITS.
 // A request that waits for its reply (ddsSync) has two outcomes a test must be
@@ -1220,9 +1221,19 @@ static int loopbackActionGoalSend(const char* endpoint, const char* json, uint64
     return BRIDGE_OK;
   }
 
-  loopbackGoalEvent(endpoint, token, BridgeGoalExecuting, false, LOOPBACK_GOAL_FEEDBACK, "{\"progress\":50}", 0);
-  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, false, LOOPBACK_GOAL_STATUS,   "{\"code\":\"SUCCEEDED\"}", 0);
-  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, true,  LOOPBACK_GOAL_RESULT,   json, 0);
+  //
+  // After it was accepted, as late as the endpoint's replyDelayMs says - as a cancel is. A goal that
+  // ends while the test goes on is what a real server does, and the only way a test can show what
+  // it relies on having ENDED first (bridge_dds_first_all_routes: the entity deleted under it).
+  //
+  int delayMs = loopbackReplyDelay(endpoint);
+
+  if (delayMs < 0)
+    delayMs = 0;
+
+  loopbackGoalEvent(endpoint, token, BridgeGoalExecuting, false, LOOPBACK_GOAL_FEEDBACK, "{\"progress\":50}", delayMs);
+  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, false, LOOPBACK_GOAL_STATUS,   "{\"code\":\"SUCCEEDED\"}", delayMs);
+  loopbackGoalEvent(endpoint, token, BridgeGoalSucceeded, true,  LOOPBACK_GOAL_RESULT,   json, delayMs);
 
   return BRIDGE_OK;
 }

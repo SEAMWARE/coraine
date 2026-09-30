@@ -38,7 +38,8 @@ BRIDGE_CONFIG=$(bridgeConfig \
   --action "A1,Robot,urn:R:1,navigate" \
   --action "A2,Robot,urn:R:2,navigate" \
   --service "fast,Robot,urn:R:1,job" \
-  --goalMode "A1=unreachable")
+  --goalMode "A1=unreachable" \
+  --replyDelay "A2=300")
 
 coraineStart --troe timescale --troeSync --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
@@ -98,6 +99,12 @@ echo
 
 echo "07. Delete Robot 2, then create it with a goal - the goal is sent, 201"
 echo "======================================================================"
+#
+# Goal 4 ends BEFORE its entity goes: A2 ends a goal 300 ms after accepting it (replyDelay), and an
+# end that arrives after the DELETE has no entity to land on - the history then stops at ACCEPTED.
+# Without this wait the test raced the loopback, and lost on a busy runner (the #180 deploy).
+#
+bridgeGoalEndedAwait loopback A2 4
 corCurl --url /ngsi-ld/v1/entities/urn:R:2 -X DELETE
 payload='{ "id": "urn:R:2", "type": "Robot", "navigate": { "type": "Property", "value": { "x": 7 } } }'
 corCurl --url /ngsi-ld/v1/entities -X POST --payload "$payload"
