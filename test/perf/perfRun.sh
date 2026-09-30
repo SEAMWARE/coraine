@@ -94,6 +94,21 @@ esac
 #
 BROKER_CMD=${PERF_BROKER_CMD:-coraine --port $PORT $dbArgs --troe none $BROKER_ARGS}
 
+#
+# {CPUS} in PERF_BROKER_CMD - the command pins the broker ITSELF, to the CPUs PERF_BROKER_CORES chose.
+#
+# For a broker in a container: `taskset -c ... docker run ...` pins the docker CLIENT, and the
+# container runs wherever the daemon puts it - so the "pinned" run was not, and the load generator
+# fought the broker for the same CPUs. It cost the container ~40% on large query responses on a
+# 32-thread laptop (2026-09-30) - against ~11% with both pinned. So a container gets
+# `--cpuset-cpus {CPUS}`, and perfRun's own taskset steps aside.
+#
+if [[ "$BROKER_CMD" == *"{CPUS}"* ]]; then
+  [ -n "$BROKER_CORES" ] || { echo "perfRun.sh: PERF_BROKER_CMD has {CPUS} but PERF_BROKER_CORES is not set" >&2; exit 1; }
+  BROKER_CMD=${BROKER_CMD//\{CPUS\}/${brokerPin[2]}}
+  brokerPin=()
+fi
+
 command -v wrk >/dev/null || { echo "perfRun.sh: wrk is not installed" >&2; exit 1; }
 
 #
