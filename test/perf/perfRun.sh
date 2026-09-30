@@ -94,6 +94,21 @@ esac
 #
 BROKER_CMD=${PERF_BROKER_CMD:-coraine --port $PORT $dbArgs --troe none $BROKER_ARGS}
 
+#
+# {CPUS} in PERF_BROKER_CMD - the command pins the broker ITSELF, to the CPUs PERF_BROKER_CORES chose.
+#
+# For a broker in a container: `taskset -c ... docker run ...` pins the docker CLIENT, and the
+# container runs wherever the daemon puts it - so the "pinned" run was not, and the load generator
+# fought the broker for the same CPUs. It cost the container ~40% on large query responses on a
+# 32-thread laptop (2026-09-30) - against ~11% with both pinned. So a container gets
+# `--cpuset-cpus {CPUS}`, and perfRun's own taskset steps aside.
+#
+if [[ "$BROKER_CMD" == *"{CPUS}"* ]]; then
+  [ -n "$BROKER_CORES" ] || { echo "perfRun.sh: PERF_BROKER_CMD has {CPUS} but PERF_BROKER_CORES is not set" >&2; exit 1; }
+  BROKER_CMD=${BROKER_CMD//\{CPUS\}/${brokerPin[2]}}
+  brokerPin=()
+fi
+
 command -v wrk >/dev/null || { echo "perfRun.sh: wrk is not installed" >&2; exit 1; }
 
 #
@@ -340,8 +355,14 @@ wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s>
   # wrk prints the 99th percentile in whatever unit suits it (us, ms, s), so it
   # is normalised to microseconds here rather than wherever it is read.
   #
+  #
+  # Consumed/sec, when a script prints it, IS the rate: a consuming scenario (deleteEntity.lua,
+  # batchDelete.lua) stops its threads when its pool is gone, and wrk's Requests/sec divides by the
+  # -d ceiling regardless.
+  #
   printf '%s' "$out" | awk '
-    /Requests\/sec/ { rps = $2 }
+    /Requests\/sec/ { if (cons == "") rps = $2 }
+    /^Consumed\/sec/ { cons = $2; rps = $2 }
     /^ *99%/ {
       v = $2
       if      (v ~ /us$/) { sub(/us$/, "", v); p99 = v }
@@ -491,6 +512,65 @@ measureGrowing "$SCRIPTDIR/createEntity.lua" 1  ; read -r createC1  createC1P99 
 PERF_BATCH=20 measureGrowing "$SCRIPTDIR/batchCreate.lua" 50 ; read -r batch20CreateC50 batch20CreateC50P99 <<< "$MEASURED"
 
 #
+# MERGE. PATCH /entities/{id} - the other way a device's new value reaches an entity: the stored
+# entity is read, the fragment merged into it and the result written back. Added 2026-09-30 with
+# the deletes below; patch_c50 (PATCH .../attrs) is a different write path in both stores.
+#
+scen measureScript "$SCRIPTDIR/mergeEntity.lua" 50 ; read -r mergeC50 mergeC50P99 <<< "$SCEN"
+
+#
+# DELETES. A delete CONSUMES what it measures - the second DELETE of an id is a 404, and wrkRun
+# stops the run on the first one. So every repeat starts from the fixture plus a POOL of entities
+# that exist only to be deleted (urn:ngsi-ld:Vehicle:del-<n>), each wrk thread deletes its own
+# slice and stops when it is gone, and wrk divides by the time that actually took. -d is only a
+# ceiling. 40 000 lasts a second or more on both stores (2026-09-30: corDB ~35k deletes/s, mongoc
+# ~28k); PERF_POOL overrides. The pool IS part of the store being measured - a delete that costs
+# more in a bigger store says so only against the same pool size.
+#
+POOL=${PERF_POOL:-40000}
+
+#
+# One awk pass prints the pool as batches, one JSON array per line - a subshell per entity, as the
+# fixture can afford for its hundred, would take minutes for a pool this size. The same
+# five-attribute ~550-byte entity as the fixture, id urn:ngsi-ld:Vehicle:del-<n>.
+#
+poolFill() {
+  local code line from=1
+  while IFS= read -r line; do
+    code=$(printf '%s' "$line" | curl -s -o /dev/null -w '%{http_code}' -X POST \
+                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                -H 'Content-Type: application/json' --data-binary @-)
+    [ "$code" = 201 ] || { echo "perfRun.sh: the delete pool got HTTP $code creating a batch from del-$from" >&2; exit 1; }
+    from=$(( from + FIXTURE_CHUNK ))
+  done < <(awk -v n="$POOL" -v chunk="$FIXTURE_CHUNK" 'BEGIN {
+    for (from = 1; from <= n; from += chunk) {
+      to = from + chunk - 1; if (to > n) to = n
+      line = "["
+      for (i = from; i <= to; i++) {
+        if (i > from) line = line ","
+        line = line sprintf("{\"id\":\"urn:ngsi-ld:Vehicle:del-%d\",\"type\":\"Vehicle\",\"brand\":{\"type\":\"Property\",\"value\":\"Mercedes\"},\"speed\":{\"type\":\"Property\",\"value\":%d,\"observedAt\":\"2026-08-20T10:00:00Z\"},\"location\":{\"type\":\"GeoProperty\",\"value\":{\"type\":\"Point\",\"coordinates\":[13.4,52.5]}},\"isParked\":{\"type\":\"Relationship\",\"object\":\"urn:ngsi-ld:OffStreetParking:%d\"},\"description\":{\"type\":\"Property\",\"value\":\"a five-attribute vehicle used for throughput measurement, padded to roughly five hundred bytes so the numbers mean something ------------------------------------------------\"}}", i, i % 120, i)
+      }
+      print line "]"
+    }
+  }')
+}
+
+measureConsuming() {
+  local script="$1" conns="$2" rpsList=() t
+  t=$(wrkThreads "$conns")
+  for _ in $(seq 1 "$REPEATS"); do
+    resetStore
+    poolFill
+    rpsList+=( "$(PERF_POOL="$POOL" PERF_THREADS="$t" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script") (pool $POOL)" "${loadPin[@]}" wrk --latency -t"$t" -c"$conns" -d60s -s "$script" "http://localhost:$PORT")" )
+  done
+  resetStore
+  MEASURED=$(median "-t$t -c$conns -s $(basename "$script") (pool $POOL, refilled per repeat)" "${rpsList[@]}")
+}
+
+measureConsuming "$SCRIPTDIR/deleteEntity.lua" 50 ; read -r deleteC50 deleteC50P99 <<< "$MEASURED"
+PERF_BATCH=20 measureConsuming "$SCRIPTDIR/batchDelete.lua" 50 ; read -r batch20DeleteC50 batch20DeleteC50P99 <<< "$MEASURED"
+
+#
 # Every rate carries the tail it was measured with. A throughput number on its
 # own says nothing about whether the requests behind it were answered promptly
 # or queued: libmicrohttpd reaches a higher peak than corHttp and pays for it in
@@ -507,4 +587,7 @@ printf ',"patch_c1":%s,"patch_c1_p99us":%s'                "$patchC1"          "
 printf ',"batch20_c50":%s,"batch20_c50_p99us":%s'          "$batch20C50"       "$batch20C50P99"
 printf ',"create_c50":%s,"create_c50_p99us":%s'            "$createC50"        "$createC50P99"
 printf ',"create_c1":%s,"create_c1_p99us":%s'              "$createC1"         "$createC1P99"
-printf ',"batch20create_c50":%s,"batch20create_c50_p99us":%s}\n' "$batch20CreateC50" "$batch20CreateC50P99"
+printf ',"batch20create_c50":%s,"batch20create_c50_p99us":%s' "$batch20CreateC50" "$batch20CreateC50P99"
+printf ',"merge_c50":%s,"merge_c50_p99us":%s'              "$mergeC50"         "$mergeC50P99"
+printf ',"delete_c50":%s,"delete_c50_p99us":%s'            "$deleteC50"        "$deleteC50P99"
+printf ',"batch20delete_c50":%s,"batch20delete_c50_p99us":%s}\n' "$batch20DeleteC50" "$batch20DeleteC50P99"
