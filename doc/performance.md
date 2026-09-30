@@ -1,7 +1,10 @@
 # Performance and footprint
 
-Every number on this page was measured on one machine on 2026-09-16, from
-release builds of the commit it ships with, and each section says how. Nothing
+Every number on this page was measured on one machine, from release builds, and
+each section says how. The per-core throughput of the libmicrohttpd builds - the
+throughput tables, the writes table and the container section - was re-measured on
+2026-09-30; everything else (size, RAM, start-up, the `corHttp` rows, the client
+curve, the database and eight-core sections) is from 2026-09-16 and says so. Nothing
 here is a vendor estimate or a figure carried over from an earlier version. The
 summary table is in the [README](https://github.com/SEAMWARE/coraine#footprint-and-speed);
 this is the working underneath it.
@@ -194,9 +197,9 @@ same number only at `limit=1`:
 
 | Response | req/s per core | **entities/s per core** |
 |---|---:|---:|
-| 1 entity | **37 743** | 37 743 |
-| 20 entities | 6 588 | **131 760** |
-| 100 entities | 1 583 | **158 300** |
+| 1 entity | **40 068** | 40 068 |
+| 20 entities | 7 975 | **159 500** |
+| 100 entities | 1 913 | **191 300** |
 
 *(libmicrohttpd + `corDB`. The per-request cost is fixed, so the bigger the
 page the more of it is amortised — and the entities/s column is still climbing
@@ -206,12 +209,15 @@ at 100.)*
 
 | Configuration | req/s per core | entities/s per core |
 |---------------|---------------:|--------------------:|
-| libmicrohttpd + `corDB` | **6 588** | **131 760** |
+| libmicrohttpd + `corDB` | **7 975** | **159 500** |
 | `corHttp` + `corDB` | 5 901 | 118 020 |
-| libmicrohttpd + `mongoc` | 4 904 | 98 080 |
+| libmicrohttpd + `mongoc` | 5 858 | 117 160 |
 | `corHttp` + `mongoc` | 4 634 | 92 680 |
 
-One core of a laptop CPU, going through MongoDB, still serves ~4 900 NGSI-LD
+*(libmicrohttpd rows 2026-09-30, `corHttp` rows 2026-09-16 - not re-measured, so
+the two are not a like-for-like comparison of the servers today.)*
+
+One core of a laptop CPU, going through MongoDB, still serves ~5 900 NGSI-LD
 queries a second.
 
 ### Writes, and what batching is worth
@@ -225,13 +231,19 @@ broker every time. A read-only benchmark could never have noticed.
 
 | Operation | req/s | **entities/s** | vs one at a time |
 |---|---:|---:|---:|
-| `PATCH` one attribute, 50 clients | 42 234 | 42 234 | — |
-| `PATCH`, 1 client | 28 009 | 28 009 | — |
-| batch update, 20 per request | 6 563 | **131 260** | **3.1×** |
-| create one entity | 31 362 | 31 362 | — |
-| batch create, 20 per request | 5 682 | **113 640** | **3.6×** |
+| `PATCH` one attribute, 50 clients | 48 548 | 48 548 | — |
+| `PATCH`, 1 client | 33 130 | 33 130 | — |
+| batch update, 20 per request | 8 659 | **173 180** | **3.6×** |
+| merge (`PATCH /entities/{id}`), 50 clients | 41 811 | 41 811 | — |
+| create one entity | 35 877 | 35 877 | — |
+| batch create, 20 per request | 8 209 | **164 180** | **4.6×** |
+| delete one entity | 54 023 | 54 023 | — |
+| batch delete, 20 per request | 20 992 | **419 840** | **7.8×** |
 
-Batching is worth three to four times per entity, which is what batching is
+*(2026-09-30. Deletes are measured against a store of 40 000 entities, refilled
+before every repeat - a delete consumes what it measures.)*
+
+Batching is worth four to eight times per entity, which is what batching is
 supposed to be for: one HTTP request, one URL-parameter parse, one `@context`
 resolution and one lock acquisition amortised over twenty instead of paid
 twenty times.
@@ -242,6 +254,13 @@ index sitting right there, maintained by the bottom of the same loop — and was
 **6× slower per entity than creating them one at a time**. A batch create is
 the one operation that grows the store it is scanning, so it got worse as it
 ran. Nothing measured it, so nothing caught it.
+
+Deletes had the same history. Until 2026-09-30 there was no delete scenario, and
+`corDB` found an entity through its id index and then walked the store from the
+first entity to find the one *before* it, to unlink it - under the write lock.
+Deletes slowed down as the store grew, and a batch of twenty against 40 000
+entities took up to 0.9 s at p99. The index now maps each id to the entity's
+predecessor, so an unlink is O(1): single deletes 4.2× faster, batch deletes 60×.
 
 ### Clients piling onto one core
 
@@ -261,6 +280,35 @@ a different claim from a peak.
 
 corHttp holds p99 two to three times lower up to 200 clients. Past that both
 servers are queueing and the tail is the queue, not the server.
+
+## In a container
+
+Every rate above is the broker running **natively**. In a container, the same
+build on the same core loses nothing - or up to a third - depending on how the
+container is networked:
+
+| One core, 50 clients unless noted | `--net=host` | `-p 1026:1026` (port mapping) |
+|---|---:|---:|
+| `corDB`, queries and single-entity writes | -0.1% to +11% (no loss) | **+3% to -14%** |
+| `corDB`, batch requests | ±2% | -2% to -4% |
+| `corDB`, **one client** (create, `PATCH`) | +4% | **-30%** |
+| `mongoc`, queries and writes | ±5% | -5% to -17% |
+| `mongoc`, batch requests | ±4% | 0% to -5% |
+
+A port mapping puts Docker's address translation (and, depending on the daemon's
+configuration, its userland proxy) between the client and the broker: one more
+hop per request. Fifty concurrent clients overlap it; a single client waits it out
+on every request, which is where the -30% comes from. With `--net=host` there is
+no such hop, and nothing else about the container costs measurable throughput.
+
+*(2026-09-30, the same release build as a native binary and as an image, broker on
+one physical core via `taskset` / `--cpuset-cpus`, load generator on the others.)*
+
+> ⚠️ Pin both sides when measuring this. Unpinned, the load generator and a
+> containerized broker compete for the same CPUs, and the container - in a
+> different cgroup - loses that contest: large query responses looked 40% slower in
+> a container than natively. With both pinned the difference is gone. `perfRun.sh`
+> pins a containerized broker with `--cpuset-cpus {CPUS}` in `PERF_BROKER_CMD`.
 
 ## What the database costs
 
