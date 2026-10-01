@@ -127,11 +127,6 @@ Content-Length: REGEX(\d+)
     {
       "instanceId": "REGEX(.*)",
       "type": "Property",
-      "value": "uninitialized"
-    },
-    {
-      "instanceId": "REGEX(.*)",
-      "type": "Property",
       "value": {
         "x": 1
       }
@@ -267,11 +262,6 @@ Content-Length: REGEX(\d+)
 {
   "id": "urn:R:2",
   "navigate": [
-    {
-      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
-      "type": "Property",
-      "value": "uninitialized"
-    },
     {
       "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
       "type": "Property",
