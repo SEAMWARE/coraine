@@ -1,0 +1,86 @@
+#
+# FILE            entitymap_q_stored.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An entity map binds the q of the query that created it, and a later page that omits q re-applies it
+# (an entity that drifted out of the q since drops). It used to re-apply the RAW q string - parsed again
+# with that page's @context, and without the langProperties / expandValues / jsonKeys of the creating
+# query - so the very entities the map was made of no longer matched and the page came back empty. Now
+# the map keeps q as a subscription stores it (resolved) and re-applies that.
+#
+--NAME--
+Entity map - a page that omits q re-applies the q as resolved at creation (langProperties, expandValues)
+
+--TAGS--
+entityMap q langProp expandValues
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. E1: street (LanguageProperty) fr 'Grand Place', category (VocabProperty) 'monument'; E2: neither"
+echo "===================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:EMQ:E1","type":"T","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"monument"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:EMQ:E2","type":"T","street":{"type":"LanguageProperty","languageMap":{"fr":"Rue X"}},"category":{"type":"VocabProperty","vocab":"museum"}}' | head -1
+echo
+echo
+
+
+echo "02. A map from q=street[fr]==\"Grand Place\" with langProperties=street - E1"
+echo "=========================================================================="
+MAP1=$(corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D==%22Grand%20Place%22&langProperties=street&entityMap=true' | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+[ -n "$MAP1" ] && echo "map created"
+echo
+echo
+
+
+echo "03. A page of that map, q and langProperties omitted - E1, the q re-applied as it was resolved"
+echo "=============================================================================================="
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP1" | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "04. A map from q=category==\"monument\" with expandValues=category - E1; a page without either: E1"
+echo "================================================================================================"
+MAP2=$(corCurl --url '/ngsi-ld/v1/entities?type=T&q=category==%22monument%22&expandValues=category&entityMap=true' | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+[ -n "$MAP2" ] && echo "map created"
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP2" | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. E1: street (LanguageProperty) fr 'Grand Place', category (VocabProperty) 'monument'; E2: neither
+====================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. A map from q=street[fr]=="Grand Place" with langProperties=street - E1
+==========================================================================
+map created
+
+
+03. A page of that map, q and langProperties omitted - E1, the q re-applied as it was resolved
+==============================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:EMQ:E1",
+
+
+04. A map from q=category=="monument" with expandValues=category - E1; a page without either: E1
+================================================================================================
+map created
+HTTP/1.1 200 OK
+    "id": "urn:EMQ:E1",
+
+
