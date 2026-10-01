@@ -58,6 +58,8 @@ incorporated in the next release of the product, in roughly this order:
     produces two formats that diverge, and the second one arrives as "the other
     serializer".
 
+    The design draft: [The cor format and cor://](cor-protocol.md).
+
 -   **corDB: persistence, and temporal history for free.** corDB is already the
     current-state store — entities in the process's own RAM, no database server,
     and [measurably faster](performance.md) than going through MongoDB. Two

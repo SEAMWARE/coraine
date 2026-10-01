@@ -31,6 +31,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
 | send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
 | see how authorization will work inside the broker | [Authorization in the broker](authorization.md) |
+| see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |
 
 ## Support
 
