@@ -1,0 +1,98 @@
+#
+# FILE            context_import_501.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# JSON-LD 1.1 @import (§ 4.1.10) in an @context: not implemented - 501, NotImplemented.
+#
+# It used to be neither processed nor rejected: the member became a term named "@import", and the
+# terms the client meant to import simply never applied - a different expansion, and no error to say
+# so. NGSI-LD does not mention @import (spec-doubts-2 #137), and TS 104-176 has no error type for a
+# feature not implemented, so the type is coraine's own, like NotAvailableInThisDeployment.
+#
+--NAME--
+@import in an @context - 501 NotImplemented, never silently ignored
+
+--TAGS--
+context jsonld error
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create an entity whose body @context object imports another context - 501"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id":"urn:IM:E1","type":"T","@context":{"@import":"https://example.org/other-context.jsonld","b":"urn:ex:b"}}'
+echo
+echo
+
+
+echo "02. The same @import inside an array @context, after the core context - 501"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id":"urn:IM:E2","type":"T","@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",{"@import":"https://example.org/other-context.jsonld"}]}' | grep -E '^HTTP|"type"|"detail"'
+echo
+echo
+
+
+echo "03. Neither entity was created"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/entities/urn:IM:E1 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:IM:E2 | head -1
+echo
+echo
+
+
+echo "04. Host a context that imports another one - 501, nothing hosted"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context":{"@import":"https://example.org/other-context.jsonld","c":"urn:ex:c"}}' | grep -E '^HTTP|"type"|"detail"'
+corCurl --url /ngsi-ld/v1/jsonldContexts | grep -c '"url"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create an entity whose body @context object imports another context - 501
+===============================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "@import in an @context is not supported",
+  "status": 501,
+  "title": "Not Implemented",
+  "type": "https://coraine.readthedocs.io/errors/NotImplemented"
+}
+
+
+
+02. The same @import inside an array @context, after the core context - 501
+=============================================================================
+HTTP/1.1 501 Not Implemented
+  "detail": "@import in an @context is not supported",
+  "type": "https://coraine.readthedocs.io/errors/NotImplemented"
+
+
+03. Neither entity was created
+==============================
+HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+
+
+04. Host a context that imports another one - 501, nothing hosted
+==================================================================
+HTTP/1.1 501 Not Implemented
+  "detail": "@import in an @context is not supported",
+  "type": "https://coraine.readthedocs.io/errors/NotImplemented"
+0
+
+

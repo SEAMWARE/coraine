@@ -168,7 +168,14 @@ static char* contextDownload(const char* url, int* statusCodeP)
 //
 static void contextError(int status, const char* title, const char* detail)
 {
-  const char* type = (status == 400)? LD_ERROR_BAD_REQUEST_DATA : LD_ERROR_LD_CONTEXT_NOT_AVAILABLE;
+  //
+  // 501: a JSON-LD feature this broker does not implement (@import). TS 104-176 registers no error type
+  // for that - only NoMultiTenantSupport says "not implemented", for one feature (spec-doubts-2 #137) -
+  // so the type is ours, as for NotAvailableInThisDeployment.
+  //
+  const char* type = (status == 400) ? LD_ERROR_BAD_REQUEST_DATA
+                   : (status == 501) ? "https://coraine.readthedocs.io/errors/NotImplemented"
+                   :                   LD_ERROR_LD_CONTEXT_NOT_AVAILABLE;
 
   ldError(status, type, title, "%s", detail);
   corNgsild.contextError = true;
