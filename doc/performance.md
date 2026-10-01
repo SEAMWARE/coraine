@@ -112,7 +112,7 @@ What the three columns are made of:
   broker.
 - **The three added libraries in the first row** are GEOS (`libgeos` +
   `libgeos_c`, 3.17 MiB — geo-queries) and `libmosquitto` (106 KiB — MQTT
-  notifications). GEOS is now the largest single thing coraine puts on a machine,
+  notifications; since then moved out of the broker into the `mqtt.so` bridge plugin). GEOS is now the largest single thing coraine puts on a machine,
   and it is larger than coraine.
 - **libmicrohttpd costs nine libraries, 7.29 MiB** — not its own 608 KiB, because
   it pulls GnuTLS behind it, and p11-kit, nettle, hogweed, tasn1, idn2,

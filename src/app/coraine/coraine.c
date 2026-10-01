@@ -67,7 +67,6 @@
 #include "corNgsild/ldTenantCaches.h"              // LdTenantCaches, LdTenantCachesFn
 #include "corNgsild/ldCheckSubscription.h"         // ldSubEntityTypeExprsRelease
 #include "corNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
-#include "corNgsild/ldMqttNotify.h"                // ldMqttTlsInsecureSet
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "corNgsild/CorNgsild.h"                  // corNgsild, ldCsourceAliasBase
 #include "corNgsild/ldError.h"                     // ldError
@@ -90,6 +89,7 @@
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
+#include "bridge/bridgeNotify.h"                  // bridgeNotifyInit
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
 
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
@@ -1514,10 +1514,13 @@ int main(int argC, char* argV[])
   // --insecureNotif → notifications/forwards to TLS endpoints accept self-signed
   // certificates (set before the first TLS handshake, i.e. before corRestClientTlsInit)
   if (insecureNotif)
-  {
     corRestClientTlsInsecureSet(true);
-    ldMqttTlsInsecureSet(true);   // same for mqtts:// notification endpoints
-  }
+
+  //
+  // Notifications to anything but HTTP - mqtt://, mqtts:// - go through the bridge plugin claiming the
+  // scheme (--bridges mqtt), and --insecureNotif goes with them for mqtts://
+  //
+  bridgeNotifyInit(insecureNotif);
 
   static CorAlloc  contextAlloc;
   static char      contextBuffer[64 * 1024];

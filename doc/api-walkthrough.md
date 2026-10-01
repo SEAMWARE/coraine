@@ -98,7 +98,8 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 ```
 
 Anything with an HTTP endpoint can receive them; MQTT endpoints
-(`mqtt://host:port/topic`) work the same way. The subscription is retrievable,
+(`mqtt://host:port/topic`, `mqtts://...`) work the same way once the broker is started
+with the MQTT bridge, `--bridges mqtt` - without it such a subscription is refused. The subscription is retrievable,
 patchable and deletable at `/ngsi-ld/v1/subscriptions/{id}`.
 
 ## 6. Delete

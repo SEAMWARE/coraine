@@ -45,8 +45,9 @@ There are **five** kinds of plugin:
   register symbol `bridgeRegister`; fills a `BridgeDriver`. **Any number** active
   (comma-separated, up to `BRIDGES_MAX = 8`). Bundled: `loopback`. External, each
   in its own repo and built by the corLibs umbrella:
-  [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and
-  [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge).
+  [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge),
+  [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge) and
+  [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge).
 
   ⭐ This is a *different axis* from the communication protocols above, and the
   two are easy to confuse. A communication protocol is how a **client reaches
@@ -108,7 +109,8 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 └── bridge/
     ├── loopback.so        # a transport that goes nowhere - test instrument
     ├── dds.so             # DDS, from corDdsBridge (not built by default)
-    └── modbus.so          # Modbus TCP, from corModbusBridge
+    ├── modbus.so          # Modbus TCP, from corModbusBridge
+    └── mqtt.so            # MQTT, from corMqttBridge
 ```
 
 A plugin can also be given as a **full path** (any argument containing a `/`),
@@ -195,6 +197,7 @@ the headers — read these before writing a plugin:
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
 | **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
+| **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Lives in [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself no longer links libmosquitto. |
 | **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three — which is why it was a separate image for a while, and why it is not one any more: an image that carries it and never loads it costs that and nothing else. |
 
 ## Writing a new plugin (sketch)

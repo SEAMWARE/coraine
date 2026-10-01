@@ -187,7 +187,7 @@ message(STATUS "HTTP server: ${COR_HTTP_SERVER}")
 # Reported by GET /build, so a running broker can say which one it is.
 add_compile_definitions(CORAINE_HTTP_SERVER="${COR_HTTP_SERVER}")
 
-set(COR_DYNAMIC_LIBS ssl crypto pthread dl m mosquitto)
+set(COR_DYNAMIC_LIBS ssl crypto pthread dl m)
 
 # The one library the builtin server exists to remove. Linked only when it is
 # the implementation in use - which is what makes `ldd coraine` the check that

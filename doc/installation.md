@@ -13,7 +13,7 @@ TimescaleDB extension.
 |------|---------|
 | HTTP server | `libmicrohttpd-dev` |
 | TLS | `libssl-dev` |
-| MQTT notifications | `libmosquitto-dev` |
+| MQTT bridge plugin (`mqtt.so`, notifications to `mqtt://`) | `libmosquitto-dev` |
 | Geo queries | `libgeos-dev` |
 | `orderBy` collation | `libicu-dev` |
 | MongoDB driver (`mongoc` plugin) | mongo-c **v2** (`mongoc2.pc` via pkg-config) |

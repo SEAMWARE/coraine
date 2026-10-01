@@ -65,7 +65,7 @@ Sent to FF Staff with the [application form](https://www.fiware.org/catalogue/su
 
 | Item | State | Value |
 |------|-------|-------|
-| URLs of all GitHub repositories holding the code base | ✅ | `SEAMWARE/coraine` plus the libraries it builds on: `corBase`, `corLog`, `corAlloc`, `corArgs`, `corHash`, `corTree`, `corJson`, `corProm`, `corRest`, `corHttp`, `corBridge`, `corNgsild`, `corJsonld`, `corPlugin`, `corDdsBridge`, `corModbusBridge`, `corLibs`, `corTest` |
+| URLs of all GitHub repositories holding the code base | ✅ | `SEAMWARE/coraine` plus the libraries it builds on: `corBase`, `corLog`, `corAlloc`, `corArgs`, `corHash`, `corTree`, `corJson`, `corProm`, `corRest`, `corHttp`, `corBridge`, `corNgsild`, `corJsonld`, `corPlugin`, `corDdsBridge`, `corModbusBridge`, `corMqttBridge`, `corLibs`, `corTest` |
 | Version number of the initial catalogue release, matching a real tag | ✅ | **0.4.0** — tag `v0.4.0`, GitHub release published 2026-08-28 |
 | Location of the official `Dockerfile` | ✅ | `docker/Dockerfile` |
 | URL of the official documentation, ideally Read the Docs | ✅ | `https://coraine.readthedocs.io` |

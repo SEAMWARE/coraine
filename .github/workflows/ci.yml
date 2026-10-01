@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
 
     #
-    # Four jobs, named for what they run - `functest mongoc 1-324` and so on, the
+    # Named for what they run - `functest mongoc 1-183` and so on, the
     # same convention as the nightly's valgrind shards and as Orion-LD's
     # functional_0_501. A red square says which half of which backend went red
     # without opening it.
@@ -144,9 +144,19 @@ jobs:
     # alphabetically as often as anywhere, but the last shard has no upper bound,
     # so it absorbs every one of them. Now 11.3 / 11.3 / 11.3.
     #
-    # mongoc gets three shards and corDB two: corDB runs the same suite in about
-    # half the time (862 test-seconds against 1783 - Mongo round-trips, plainly
-    # visible), so a third shard there would only add a job that finishes early.
+    # Re-cut 2026-10-01: 719 tests, 2158 test-seconds, averaged over runs 36866726680 and
+    # 36861662879, each test costed from one log timestamp to the next (so the harness' own time
+    # between tests counts, which a test's printed duration leaves out). Jobs had drifted to
+    # 12.9 / 14.2 / 15.0 minutes wall clock - the last two minutes behind the first. And mongoc
+    # went from three shards to FOUR: about 11.0 / 11.0 / 11.1 / 11.0, each including the ~2
+    # minutes every job spends before its first test, so every test job - corDB's two included,
+    # 10.6 / 11.4 -> 11.0 / 11.0 (663 tests, 1090 test-seconds) - now ends at about 11 minutes,
+    # and the stage three minutes sooner. A fourth shard costs one more job's ~2 minutes of
+    # setup - free on a public repo - and one more of the organisation's 20 concurrent jobs.
+    #
+    # mongoc gets more shards than corDB (four against two since 2026-10-01): corDB runs the
+    # same suite in about half the time (Mongo round-trips, plainly visible), so a third
+    # shard there would only add a job that finishes early.
     # Splitting further is cheap in minutes and not free in noise: every shard
     # pays its own container start, bootstrap and build, about 90 seconds.
     #
@@ -169,11 +179,12 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          - { db: mongoc, name: '1-216',   from: 1,   to: 216 }
-          - { db: mongoc, name: '217-461', from: 217, to: 461 }
-          - { db: mongoc, name: '462-end', from: 462, to: 0 }
-          - { db: corDB,  name: '1-314',   from: 1,   to: 314 }
-          - { db: corDB,  name: '315-end', from: 315, to: 0 }
+          - { db: mongoc, name: '1-183',   from: 1,   to: 183 }
+          - { db: mongoc, name: '184-360', from: 184, to: 360 }
+          - { db: mongoc, name: '361-545', from: 361, to: 545 }
+          - { db: mongoc, name: '546-end', from: 546, to: 0 }
+          - { db: corDB,  name: '1-336',   from: 1,   to: 336 }
+          - { db: corDB,  name: '337-end', from: 337, to: 0 }
           #
           # The reduced builds. Its own shard rather than a share of one,
           # because it is the only case that COMPILES rather than requesting -

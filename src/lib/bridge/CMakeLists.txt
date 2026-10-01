@@ -9,6 +9,7 @@ SET(SOURCES
   bridgeDefaultEntity.c
   bridgeCoreTerms.c
   bridgeRender.c
+  bridgeNotify.c
 )
 
 ADD_LIBRARY(bridge STATIC ${SOURCES})
