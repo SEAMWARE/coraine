@@ -184,6 +184,14 @@ normalised in transit.
 A flag bit in the frame header for zstd. Pointless on a LAN after § 4.1-4.10; possibly worth it over
 a WAN link to an edge node. It costs zero-copy for that frame.
 
+### 4.12 An estimate - to be measured, not quoted
+
+One entity with one attribute, as the broker holds it (expanded names, system timestamps), is about
+230 bytes of JSON. With § 4.1-4.10 it is roughly 60-70 bytes. A 100-entity query result gains
+further from § 4.5, because after the first entity every repeated name and type is one or two
+bytes. **The first implementation measures this on the functests' real entities**, and this
+section is then rewritten with those numbers.
+
 ### 4.13 Tables that outlive a message - cor:// - v1
 
 The namespace table (§ 4.4) and the string table (§ 4.5) are **per connection**: what one message
@@ -200,14 +208,6 @@ defined, every later one on the same connection may reference. The rules that ma
 - **A cap.** A busy connection lives for days. When a table reaches its limit the sender adds
   nothing more and writes new strings inline, or sends a RESET that empties both copies. Either way
   the reader always knows the table's exact state.
-
-### 4.12 An estimate - to be measured, not quoted
-
-One entity with one attribute, as the broker holds it (expanded names, system timestamps), is about
-230 bytes of JSON. With § 4.1-4.10 it is roughly 60-70 bytes. A 100-entity query result gains
-further from § 4.5, because after the first entity every repeated name and type is one or two
-bytes. **The first implementation measures this on the functests' real entities**, and this
-section is then rewritten with those numbers.
 
 ## 5. Layer 2 - cor:// framing
 
