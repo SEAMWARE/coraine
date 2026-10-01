@@ -74,8 +74,8 @@ echo
 echo
 
 
-echo "06. application/ld+json that could download: a URL not cached, an @import - worker"
-echo "=================================================================================="
+echo "06. application/ld+json that could download: a URL not cached, an @import (501) - worker"
+echo "========================================================================================"
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E5","type":"T","@context":"http://localhost:9/no-such-context.jsonld"}' -H 'Content-Type: application/ld+json' | head -1
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E6","type":"T","@context":{"@import":"http://localhost:9/no-such-context.jsonld"}}' -H 'Content-Type: application/ld+json' | head -1
 counters
@@ -172,10 +172,10 @@ ngsild_requests_inline_total 8
 ngsild_requests_worker_total 7
 
 
-06. application/ld+json that could download: a URL not cached, an @import - worker
-==================================================================================
+06. application/ld+json that could download: a URL not cached, an @import (501) - worker
+========================================================================================
 HTTP/1.1 504 Gateway Timeout
-HTTP/1.1 201 Created
+HTTP/1.1 501 Not Implemented
 ngsild_requests_inline_total 8
 ngsild_requests_worker_total 10
 
