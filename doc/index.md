@@ -28,6 +28,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | know what is not built yet | [Roadmap](roadmap.md) |
 | connect it to DDS or ROS 2 | [DDS and ROS 2](dds.md) |
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
+| read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
 
 ## Support
 

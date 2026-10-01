@@ -248,6 +248,7 @@ define install_from
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
 	cp -p $(1)/src/plugins/bridge/loopback/loopback.so          $(PLUGIN_DIR)/bridge/
+	cp -p $(1)/src/plugins/bridge/modbus/modbus.so              $(PLUGIN_DIR)/bridge/
 	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/
 endef
 

@@ -17,6 +17,8 @@
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corAlloc/corAllocBufferInit.h"              // corAllocBufferInit
 #include "corAlloc/corAllocBufferReset.h"             // corAllocBufferReset
+#include "corJson/corJsonRenderSize.h"                  // corJsonFastRenderSize
+#include "corJson/corJsonRender.h"                      // corJsonFastRender
 #include "corJson/CorJson.h"                          // CorJson
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonParse.h"                     // corJsonParse
@@ -61,6 +63,67 @@ static const char* stringMember(CorNode* objectP, const char* name)
     return NULL;
 
   return nodeP->value.s;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelInfoText - an entry's "channelInfo", checked, as the JSON text the plugin is given
+//
+// What the transport needs to know ABOUT the endpoint - how to read it, how to carry it - as NGSI-LD's
+// receiverInfo is for a notification endpoint: an array of {"key": "...", "value": "..."}, both strings.
+// The broker checks the shape and never a key; which keys mean something is the plugin's business.
+//
+// Returns the malloc'd text, or NULL with *okP false (and the reason logged) when the shape is wrong.
+// No "channelInfo" at all: NULL, *okP true.
+//
+static char* channelInfoText(const char* alias, const char* endpoint, CorNode* infoP, bool* okP)
+{
+  *okP = true;
+
+  if (infoP == NULL)
+    return NULL;
+
+  if (infoP->type != CorArray)
+  {
+    COR_W("bridge '%s': endpoint '%s' - 'channelInfo' must be an array of {\"key\", \"value\"} - skipped", alias, endpoint);
+    *okP = false;
+    return NULL;
+  }
+
+  for (CorNode* pairP = infoP->value.head; pairP != NULL; pairP = pairP->next)
+  {
+    CorNode* keyP   = (pairP->type == CorObject) ? corTreeLookup(pairP, "key")   : NULL;
+    CorNode* valueP = (pairP->type == CorObject) ? corTreeLookup(pairP, "value") : NULL;
+
+    if ((keyP == NULL) || (keyP->type != CorString) || (valueP == NULL) || (valueP->type != CorString))
+    {
+      COR_W("bridge '%s': endpoint '%s' - every 'channelInfo' item is {\"key\": string, \"value\": string} - skipped", alias, endpoint);
+      *okP = false;
+      return NULL;
+    }
+  }
+
+  //
+  // Rendered detached - corJsonFastRender follows the sibling chain and renders a name
+  //
+  char*    name = infoP->name;
+  CorNode* next = infoP->next;
+
+  infoP->name = NULL;
+  infoP->next = NULL;
+
+  int   size = corJsonFastRenderSize(infoP);
+  char* text = (char*) malloc(size + 1);
+
+  if (text != NULL)
+    corJsonFastRender(infoP, text);
+
+  infoP->name = name;
+  infoP->next = next;
+
+  return text;
 }
 
 
@@ -189,6 +252,12 @@ static int channelsLoad(const char*        alias,
       continue;
     }
 
+    bool  infoOk;
+    char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
+
+    if (infoOk == false)
+      continue;
+
     Channel* clashP = NULL;
 
     //
@@ -233,6 +302,16 @@ static int channelsLoad(const char*        alias,
 
     if (r != CHANNEL_OK)
       COR_X(1, "bridge '%s': endpoint '%s' could not be added (%d)", alias, endpoint, r);
+
+    if (info != NULL)
+    {
+      Channel* chP = channelLookup(alias, endpoint);
+
+      if (chP != NULL)
+        chP->info = info;
+      else
+        free(info);
+    }
 
     //
     // An action's default goal endpoint - where a goal that names none of its

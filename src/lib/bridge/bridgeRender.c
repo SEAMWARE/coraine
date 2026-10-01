@@ -10,6 +10,7 @@
 #include <stdio.h>                                    // snprintf
 #include <string.h>                                   // strlen, strcmp
 
+#include "corJson/corJsonParse.h"                       // corJsonParse
 #include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corTree/CorNode.h"                          // CorNode
@@ -154,6 +155,28 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
   corTreeChildAdd(bodyP, corTreeString(allocP, "type",   "Channel"));
   corTreeChildAdd(bodyP, corTreeString(allocP, "bridgeId", (char*) bridgeIdOf(channelP->bridgeName)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "channelTarget", channelP->endpoint));
+
+  //
+  // What the Channel was configured with for its transport - the text the plugin was given, parsed back
+  // (a copy: the parser writes into its buffer). Absent when it has none.
+  //
+  if ((channelP->info != NULL) && (corRest.corJsonP != NULL))
+  {
+    int   len  = strlen(channelP->info);
+    char* copy = corAlloc(allocP, len + 1);
+
+    if (copy != NULL)
+    {
+      memcpy(copy, channelP->info, len + 1);
+
+      CorNode* infoP = corJsonParse(corRest.corJsonP, copy);
+      if (infoP != NULL)
+      {
+        infoP->name = (char*) "channelInfo";
+        corTreeChildAdd(bodyP, infoP);
+      }
+    }
+  }
   corTreeChildAdd(bodyP, corTreeString(allocP, "channelKind", (char*) kindName(channelP->kind)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "channelDirection", (char*) directionName(channelP->direction)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "retention", (char*) retentionName(channelP->retention)));

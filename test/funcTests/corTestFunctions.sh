@@ -1035,6 +1035,60 @@ contextServerReplace() {
 
 # -----------------------------------------------------------------------------
 #
+# ftModbus - a Modbus TCP device for the modbus bridge tests (tools/ftModbus.py)
+#
+# Modbus on FT_MODBUS_PORT, its control API on FT_MODBUS_PORT+1:
+#
+#   ftModbusStart                         start it (stops a previous one on the same port)
+#   ftModbusStop
+#   ftModbusSet <table> <addr> <v>...     set registers/bits: coil, discrete, holding, input
+#   ftModbusGet <table> <addr> [count]    the values, as a JSON array
+#   ftModbusMode normal|silent|exception [code]
+#   ftModbusWrites                        how many write requests it has received
+#
+FT_MODBUS_PORT=7720
+
+ftModbusStart() {
+  ftModbusStop
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftModbus.py" --port $FT_MODBUS_PORT > /tmp/ftModbus.$FT_MODBUS_PORT.log 2>&1 &
+  echo $! > /tmp/ftModbus.$FT_MODBUS_PORT.pid
+  corAwaitPort $((FT_MODBUS_PORT + 1)) 10 > /dev/null
+}
+
+ftModbusStop() {
+  local pidFile=/tmp/ftModbus.$FT_MODBUS_PORT.pid
+  if [ -f $pidFile ]; then
+    kill "$(cat $pidFile)" 2>/dev/null
+    rm -f $pidFile
+  fi
+}
+
+ftModbusSet() {
+  local table=$1 addr=$2
+  shift 2
+  local values=$(IFS=,; echo "$*")
+  curl -s -o /dev/null -X POST "http://localhost:$((FT_MODBUS_PORT + 1))/set" \
+       -d "{\"table\":\"$table\",\"addr\":$addr,\"values\":[$values]}"
+}
+
+ftModbusGet() {
+  curl -s "http://localhost:$((FT_MODBUS_PORT + 1))/get?table=$1&addr=$2&count=${3:-1}"
+  echo
+}
+
+ftModbusMode() {
+  curl -s -o /dev/null -X POST "http://localhost:$((FT_MODBUS_PORT + 1))/mode" -d "{\"mode\":\"$1\",\"code\":${2:-2}}"
+}
+
+ftModbusWrites() {
+  curl -s "http://localhost:$((FT_MODBUS_PORT + 1))/writes"
+  echo
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
 # bridgeConfig - write a bridge configuration file
 #
 # Usage:  bridgeConfig [-o <file>] [-b <bridge alias>]

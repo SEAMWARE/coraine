@@ -324,6 +324,7 @@ static int createLocked
     free(channelP->statusReason);
     free(channelP->notifyUri);
     free(channelP->notifyAccept);
+  free(channelP->info);
     free(channelP);
     return CHANNEL_ERR;
   }
