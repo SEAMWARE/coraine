@@ -215,7 +215,7 @@ Every message: a fixed 16-byte header, then one encoded tree (§ 3).
 
 | Field | Bytes | |
 |---|---|---|
-| magic | 4 | `BC 4F 52 01`: `~'C'` (0xBC), `O`, `R`, format version 1 (§ 5.1) |
+| magic | 4 | `C0 4F 52 01`: 0xC0, `O`, `R`, format version 1 (§ 5.1) |
 | message type | 1 | HELLO, HELLO_ACK, REQUEST, RESPONSE, PUSH, CLOSE, ERROR, PING, PONG |
 | flags | 1 | bit 0: compressed (§ 4.11); bit 1: a fragment, more follows |
 | reserved | 2 | zero |
@@ -224,14 +224,15 @@ Every message: a fixed 16-byte header, then one encoded tree (§ 3).
 
 ### 5.1 The magic
 
-The first four bytes of every frame, and of every snapshot and log file: **`BC 4F 52 01`** -
-`~'C'` (the bitwise NOT of `C`, 0x43), then `O`, `R`, and the format version.
+The first four bytes of every frame, and of every snapshot and log file: **`C0 4F 52 01`** -
+0xC0 (which a hex dump shows as `C0`: almost "CO"), then `O`, `R`, and the format version.
 
 - **Wrong peer, said at once.** An HTTP client on the cor:// port, or the reverse, shows in the first
-  bytes - `GET ` is not `BC 4F 52` - and the connection is refused with a clear error, not a
+  bytes - `GET ` is not `C0 4F 52` - and the connection is refused with a clear error, not a
   confusing length.
-- **Never text.** 0xBC is a UTF-8 continuation byte, which can never begin valid UTF-8, so no text
-  and no HTTP request can start with the magic. (PNG's `0x89` is the same idea.)
+- **Never text.** 0xC0 can never appear in valid UTF-8 at all (it could only begin an overlong
+  encoding, which UTF-8 forbids), so no text and no HTTP request can start with the magic. (PNG's
+  `0x89` is the same idea.)
 - **Resynchronisation.** After a framing error the reader can scan for the next magic.
 - **Recognisable.** In a hex dump or a capture, and to `file` for a snapshot - and it carries the
   format version before HELLO has been read.
@@ -299,5 +300,5 @@ All taken - 2026-10-01:
 2. **First consumer** - forwarded requests, on the three-broker chain (§ 6); the snapshot after.
 3. **Testing** - through the broker, plus `corJson -bin` (§ 7); no library-level suite.
 4. **The string table** - names in v1 (§ 4.5).
-5. **The magic** - `BC 4F 52 01`, `~'C'` `O` `R` + version (§ 5.1).
+5. **The magic** - `C0 4F 52 01`: 0xC0 ("almost C"), `O`, `R` + version (§ 5.1).
 6. **The tables' lifetime on cor://** - per connection, sent once and reused (§ 4.13).
