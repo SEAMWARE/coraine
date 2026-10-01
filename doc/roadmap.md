@@ -123,6 +123,11 @@ typically within the subsequent release(s) generated in the next **9 months**:
     See [Speaking to devices directly](device-protocols.md) for the deployment
     shapes and the transport × payload split that keeps the plugin count down.
 
+    The first of them is built: a **Modbus TCP** bridge (v1) - polled registers into attributes,
+    attribute writes out to the device. See [The Modbus bridge](modbus-bridge.md) for what it does,
+    what it does not do yet (reading contiguous registers together, RTU, read on demand), and what it
+    taught the bridge contract.
+
 -   **CorSec — a security Generic Enabler.** Authorisation in front of the
     broker, as a plugin for [APISIX](https://apisix.apache.org/), so that a
     FIWARE deployment gets policy enforcement without the broker pretending to
