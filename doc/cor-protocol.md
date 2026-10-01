@@ -179,6 +179,22 @@ back exactly as it was given, so the encoder converts only when the canonical re
 integer reproduces the string byte for byte. Otherwise it stays a string. Nothing is ever
 normalised in transit.
 
+### 4.10a System timestamps belong to corDB - v1
+
+`createdAt` and `modifiedAt` are not the user's. **corDB sets them itself**, at write time, under
+the write lock it already holds, and keeps them as integers (microseconds) beside the entity and
+each attribute - not as members of the tree. The broker does not compute them; it reads them when
+a request asks for them (`options=sysAttrs`, a temporal `timeproperty=modifiedAt`) and renders
+them then.
+
+For the format that means:
+
+- **snapshot and log** - each entity and attribute record carries its two timestamps as fixed
+  integers in the record's header: a few bytes, never two string members per node
+- **cor://** - they travel only when the request asked for them, as integers
+- **no guard needed** - § 4.10's "convert only if it re-renders exactly" is for the user's
+  `observedAt`; the system timestamps are integers from the start
+
 ### 4.11 Compression of a whole frame - later, off by default
 
 A flag bit in the frame header for zstd. Pointless on a LAN after § 4.1-4.10; possibly worth it over
