@@ -1775,7 +1775,7 @@ int main(int argC, char* argV[])
   //
   // cor:// last, like HTTP: every service is registered and every cache loaded by now
   //
-  if ((corPort != 0) && (corRestCorListen(corPort) == false))
+  if ((corPort != 0) && (corRestCorListen(corPort, httpLoops) == false))
     COR_X(1, "cannot listen for cor:// on port %u", corPort);
 
   // Until SIGINT / SIGTERM (onSignal) - sem_wait returns early on EINTR, so wait again
