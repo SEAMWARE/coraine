@@ -88,6 +88,8 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--apiPlugins` / `-api` | — | comma-separated API plugins (e.g. `admin`) |
 | `--pretty-print` / `-pp` | 0 | JSON indentation (0 = compact) |
 | `--connectionPoolSize` / `-cps` | 32 | HTTP server thread-pool size |
+| `--noInline` | off | hand every request to a worker thread. By default, with `corDB`, a request that waits on nothing runs on the thread that read it - about twice the throughput for retrieves and small queries. Metrics: `ngsild_requests_inline_total`, `ngsild_requests_worker_total` |
+| `--memoryLimit` | 85% of the container's limit | memory budget in MiB - see [Memory budget](#memory-budget) |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
@@ -148,6 +150,30 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 
 Log and trace levels are changeable on a running broker through `/admin/log`, which
 is the intended way to debug a live instance rather than restarting it with `-t`.
+
+## Memory budget
+
+In a container with a memory limit (Kubernetes `resources.limits.memory`, `docker run --memory`), a
+process that goes over the limit is killed by the kernel - SIGKILL, exit code 137, no warning - and
+with the `corDB` store everything it held goes with it. coraine keeps a budget below the limit and
+turns requests away before it gets there:
+
+| Resident memory | What happens |
+|---|---|
+| below 90% of the budget | everything is served |
+| 90% - 100% | writes that grow memory (POST, PUT, PATCH) are refused |
+| over the budget | everything is refused except what frees memory or reports on the broker: DELETE, batch delete, `/version`, `/metrics`, `/admin/*` |
+
+A refused request gets **503**, a `Retry-After: 5` header and the error type
+`https://coraine.readthedocs.io/errors/MemoryBudgetExceeded`.
+
+The budget is `--memoryLimit` (MiB), or - without it - 85% of the smallest cgroup memory limit the
+process lives under (the container's, or a Kubernetes pod's above it). Outside a container, with no
+limit, there is no budget and nothing is checked. The memory measured is the process's resident set,
+every 100 ms, so it includes every library the broker links; a request pays one comparison for it.
+
+Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_resident_bytes`,
+`ngsild_requests_refused_memory_total`.
 
 ## Sanity check procedures
 

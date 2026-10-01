@@ -20,6 +20,7 @@
 //   - metricsNotificationSent() / ...CsrSent() from notifier code.
 //   - metricsRender()         GET /admin/metrics handler.
 //
+#include <stdint.h>                                // uint64_t
 #include <stdbool.h>                               // bool
 
 
@@ -96,5 +97,17 @@ extern void metricsDistopForward(double latencySec, bool success);
 // to "text/plain; version=0.0.4" per Prometheus exposition spec.
 //
 extern bool metricsRender(void);
+
+// -----------------------------------------------------------------------------
+//
+// metricsMemoryValuesSet - the function the memory metrics are read from at every scrape
+//
+// budget (0 = none), the resident set and the number of requests refused for memory. The budget is
+// the app's (memoryBudget), so the app hands this in.
+//
+typedef void (*MetricsMemoryValuesFunc)(uint64_t* budgetP, uint64_t* residentP, uint64_t* refusedP);
+extern void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn);
+
+
 
 #endif  // METRICS_METRICS_H_

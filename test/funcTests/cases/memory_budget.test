@@ -1,0 +1,105 @@
+#
+# FILE            memory_budget.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Over its memory budget the broker refuses requests (503 + Retry-After) instead of growing until the
+# kernel kills it - in a container that is SIGKILL, and with corDB the whole store. Over the budget
+# itself everything is refused except what frees memory or reports on the broker: DELETE, batch
+# delete, /version, /metrics, /admin/*.
+#
+# A budget of 1 MiB is always exceeded - the deterministic way to be over it. (Between 90% and 100%,
+# where only writes are refused, the resident set moves too much to be hit from outside.)
+#
+--NAME--
+Memory budget - over it, requests are refused with 503 + Retry-After; deletes and monitoring still answer
+
+--TAGS--
+memory robustness metrics
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --memoryLimit 1
+
+--RUN--
+
+echo "01. Create an entity - 503, Retry-After, the detail says how far over"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:MB:E1","type":"T"}' | grep -v '^Content-Length' | sed -E 's/uses [0-9]+ MiB/uses N MiB/'
+echo
+echo
+
+
+echo "02. Retrieve it - refused too: over the budget itself, reads are refused as well"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:MB:E1 | grep -E '^HTTP|^Retry-After'
+echo
+echo
+
+
+echo "03. What frees memory or reports goes through: DELETE (404 - it was never created), batch delete, /version, /metrics"
+echo "===================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:MB:E1 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/delete --payload '["urn:MB:E1"]' | head -1
+corCurl --url /version | head -1
+corCurl --url /metrics --out raw | grep -E '^HTTP|^ngsild_memory_budget_bytes|^ngsild_requests_refused_memory_total'
+echo
+echo
+
+
+echo "04. A budget the broker is far below - nothing refused"
+echo "======================================================"
+coraineStop
+coraineStart --apiPlugins admin --memoryLimit 100000
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:MB:E1","type":"T"}' | head -1
+corCurl --url /metrics --out raw | grep -E '^ngsild_memory_budget_bytes|^ngsild_requests_refused_memory_total'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create an entity - 503, Retry-After, the detail says how far over
+=====================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Retry-After: 5
+
+{
+  "detail": "the broker uses N MiB of its 1 MiB memory budget - requests are refused until it is back below 90% of it",
+  "status": 503,
+  "title": "Memory Budget Exceeded",
+  "type": "https://coraine.readthedocs.io/errors/MemoryBudgetExceeded"
+}
+
+
+
+02. Retrieve it - refused too: over the budget itself, reads are refused as well
+================================================================================
+HTTP/1.1 503 Service Unavailable
+Retry-After: 5
+
+
+03. What frees memory or reports goes through: DELETE (404 - it was never created), batch delete, /version, /metrics
+====================================================================================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+ngsild_memory_budget_bytes 1048576
+ngsild_requests_refused_memory_total 2
+
+
+04. A budget the broker is far below - nothing refused
+======================================================
+HTTP/1.1 201 Created
+ngsild_memory_budget_bytes 104857600000
+ngsild_requests_refused_memory_total 0
+
+

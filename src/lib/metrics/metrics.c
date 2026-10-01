@@ -80,6 +80,16 @@ static CorPromMetric*  dispatchInline;
 static CorPromMetric*  dispatchWorker;
 
 //
+// The memory budget (src/app/coraine/memoryBudget.h): what it is, where the broker stands, and how many
+// requests it turned away. Read at every scrape through memoryValuesFunc, which the broker sets - the
+// budget lives in the app, not in this lib.
+//
+static CorPromMetric*  memBudget;
+static CorPromMetric*  memResident;
+static CorPromMetric*  memRefused;
+static MetricsMemoryValuesFunc memoryValuesFunc = NULL;
+
+//
 // Distop forwarding — counters + latency histogram.
 //
 static CorPromMetric* distopForwarded;
@@ -222,6 +232,13 @@ bool metricsInit(void)
                                            "Requests processed on the I/O thread that read them (see --noInline)");
   dispatchWorker      = corPromCounterCreate("ngsild_requests_worker_total",
                                            "Requests handed from their I/O thread to a worker thread");
+
+  memBudget           = corPromGaugeCreate("ngsild_memory_budget_bytes",
+                                         "Memory budget (--memoryLimit, else 85% of the container's limit); 0 = none");
+  memResident         = corPromGaugeCreate("ngsild_memory_resident_bytes",
+                                         "The broker's resident set");
+  memRefused          = corPromCounterCreate("ngsild_requests_refused_memory_total",
+                                           "Requests refused (503) for being over the memory budget");
 
   distopForwarded     = corPromCounterCreate("ngsild_distop_forwarded_total",
                                            "Distributed-op forward attempts (every outbound request)");
@@ -429,12 +446,51 @@ static void dispatchCounts(void)
 
 // -----------------------------------------------------------------------------
 //
+// metricsMemoryValuesSet - where the memory figures come from
+//
+void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn)
+{
+  memoryValuesFunc = fn;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// memoryCounts - the memory gauges, and the refused counter brought up to date (as dispatchCounts)
+//
+static void memoryCounts(void)
+{
+  static pthread_mutex_t mtx         = PTHREAD_MUTEX_INITIALIZER;
+  static uint64_t        refusedSeen = 0;
+  uint64_t               budget;
+  uint64_t               resident;
+  uint64_t               refused;
+
+  if (memoryValuesFunc == NULL)
+    return;
+
+  memoryValuesFunc(&budget, &resident, &refused);
+  corPromGaugeSet(memBudget,   (double) budget);
+  corPromGaugeSet(memResident, (double) resident);
+
+  pthread_mutex_lock(&mtx);
+  corPromCounterAdd(memRefused, (int64_t) (refused - refusedSeen));
+  refusedSeen = refused;
+  pthread_mutex_unlock(&mtx);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // metricsRender -
 //
 bool metricsRender(void)
 {
   tenantCounts();
   dispatchCounts();
+  memoryCounts();
 
   //
   // +1 for the terminating NUL. corPromRenderSize() reports the payload EXCLUDING
