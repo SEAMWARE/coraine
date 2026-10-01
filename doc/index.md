@@ -29,6 +29,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | connect it to DDS or ROS 2 | [DDS and ROS 2](dds.md) |
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
 | read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
+| send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
 | see how authorization will work inside the broker | [Authorization in the broker](authorization.md) |
 
 ## Support
