@@ -1196,8 +1196,12 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
   }
   if (corNgsild.q == NULL && mapP->boundQ != NULL)
   {
+    //
+    // The resolved form: the raw string, re-parsed here, would be expanded with THIS page's @context,
+    // without the expandValues / jsonKeys / langProperties of the query that created the map.
+    //
     corNgsild.q     = mapP->boundQ;
-    corNgsild.qExpr = ldQParse(mapP->boundQ, kaP);
+    corNgsild.qExpr = (mapP->boundQStored != NULL) ? ldQParseStored(mapP->boundQStored, kaP) : ldQParse(mapP->boundQ, kaP);
   }
   if (corNgsild.scopeQ == NULL && mapP->boundScopeQ != NULL)
   {
@@ -2280,6 +2284,13 @@ bool getEntities(void)
       ldEntityMapSetFilters(mapP, corNgsild.type, corNgsild.q, corNgsild.scopeQ,
                             corNgsild.georel, corNgsild.geometry, corNgsild.coordinates,
                             corNgsild.geoproperty);
+
+      //
+      // And q as a subscription stores it - resolved, with this request's @context, expandValues,
+      // jsonKeys and langProperties applied - for a later page that omits q (LdEntityMap.boundQStored).
+      //
+      if (corNgsild.qExpr != NULL)
+        ldEntityMapSetStoredQ(mapP, ldQRenderStored(corNgsild.qExpr, &corRest.kalloc));
 
       //
       // Walk the sorted array, add each entity ID to the map along with
