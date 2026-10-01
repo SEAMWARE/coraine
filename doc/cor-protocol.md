@@ -127,8 +127,11 @@ local name  inline: speed
 - **It does not start empty.** The NGSI-LD namespaces are its first, fixed entries:
   `https://uri.etsi.org/ngsi-ld/default-context/`, `https://uri.etsi.org/ngsi-ld/`, `urn:ngsi-ld:`.
   The fixed part is append-only and its length is exchanged in HELLO (§ 5).
-- **A snapshot or a log block keeps its own table**, so a block can still be read on its own; a
-  cor:// connection may keep one for its lifetime (§ 8, question 6).
+- **On cor:// the table lives as long as the connection** - which is the point of a persistent
+  connection. A namespace is sent once and then reused by every request and response after it, so
+  after the first few messages a whole context's prefixes cost a byte each. See § 4.13 for the rules
+  that makes safe.
+- **A snapshot or a log block keeps its own table**, so a block can still be read on its own.
 
 A user attribute name under the default context - 45 bytes of namespace plus `speed` - becomes
 7 bytes; under a user context, the same after its first occurrence.
@@ -140,8 +143,8 @@ The same strings repeat within a message: a query result of 100 vehicles has 100
 numbered; every later one is name mode 3, a varint index. This costs nothing when there are no
 repeats, so a single-entity message is no larger.
 
-The same applies to a log segment and a snapshot: there the table is per block, so a block is still
-readable on its own.
+On a cor:// connection the table lives as long as the connection, like the namespace table (§ 4.13);
+in a log segment or a snapshot it is per block, so a block is still readable on its own.
 
 ### 4.6 Front coding of ids - later
 
@@ -180,6 +183,23 @@ normalised in transit.
 
 A flag bit in the frame header for zstd. Pointless on a LAN after § 4.1-4.10; possibly worth it over
 a WAN link to an edge node. It costs zero-copy for that frame.
+
+### 4.13 Tables that outlive a message - cor:// - v1
+
+The namespace table (§ 4.4) and the string table (§ 4.5) are **per connection**: what one message
+defined, every later one on the same connection may reference. The rules that make it safe:
+
+- **One table set per direction.** Each side writes to its own outgoing tables, and keeps a mirror
+  of what the peer has defined. Neither side ever writes to the other's.
+- **Decoding in stream order.** A message may reference an entry an earlier message defined, so the
+  connection's reader applies each message's table additions in arrival order before handing the
+  request to a worker. Responses may still complete out of order - only the table bookkeeping is
+  sequential, and TCP already delivers in order.
+- **A connection starts empty**, apart from the fixed entries, and a reconnect starts empty again,
+  on both sides.
+- **A cap.** A busy connection lives for days. When a table reaches its limit the sender adds
+  nothing more and writes new strings inline, or sends a RESET that empties both copies. Either way
+  the reader always knows the table's exact state.
 
 ### 4.12 An estimate - to be measured, not quoted
 
@@ -264,6 +284,5 @@ example would guess.
 4. **The string table** - for names only in v1 (proposed), or for values too?
 5. **Name of the magic** - `COR` + version, or something that does not read as an English word in
    a hex dump?
-6. **The namespace table's lifetime on cor://** - per message (simple, every message readable on its
-   own), or per connection (smaller, but a lost message makes later ones unreadable - so it would
-   need the connection to carry it reliably, which TCP does)?
+6. ~~The tables' lifetime on cor://~~ **Decided:** per connection, sent once and reused across
+   requests - the reason connections persist (§ 4.13).
