@@ -50,6 +50,7 @@ nav:
   - DDS and ROS 2: dds.md
   - Speaking to devices directly: device-protocols.md
   - The Modbus bridge: modbus-bridge.md
+  - Authorization in the broker: authorization.md
   - FIWARE IoT Agents: iot-agents.md
   - Test coverage: coverage.md
   - Functest coverage of the spec: spec-coverage-gaps.md

@@ -128,12 +128,17 @@ typically within the subsequent release(s) generated in the next **9 months**:
     what it does not do yet (reading contiguous registers together, RTU, read on demand), and what it
     taught the bridge contract.
 
--   **CorSec — a security Generic Enabler.** Authorisation in front of the
-    broker, as a plugin for [APISIX](https://apisix.apache.org/), so that a
-    FIWARE deployment gets policy enforcement without the broker pretending to
-    be an identity manager. NGSI-LD defines no authentication or authorisation,
-    and coraine implements the specification; this is the piece that belongs
-    beside it rather than inside it.
+-   **Authorisation — inside the broker, and as an APISIX plugin.** NGSI-LD
+    defines no authentication or authorisation. An **optional** layer inside
+    coraine decides on the request it has already parsed: per entity in a batch,
+    for the entity types after `@context` expansion, by tenant - and turns "may
+    only read type X" into a condition on the query rather than a filter on the
+    response. Policies are ODRL, as in the FIWARE Data Space Connector, and the
+    identity is the verifier's token for a verifiable credential: the broker
+    checks it, it does not issue it. The same decision engine is then meant to
+    run inside a plugin for [APISIX](https://apisix.apache.org/), in front of any
+    NGSI-LD broker, for the deployments that want enforcement in a proxy they
+    already trust. Design notes: [Authorization in the broker](authorization.md).
 
 -   **More cor-agent plugins**, driven by what deployments actually ask for
     rather than by completing a matrix.
@@ -163,14 +168,6 @@ The following are proposals regarding the longer-term evolution of the product.
 Take into account that there is no commitment to deliver them in a specific
 timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
-
--   **Authorisation inside the broker.** If CorSec in front of the broker proves
-    to be the bottleneck rather than the policy, attribute-based access control
-    evaluated in the broker is the most performant place to put it — the broker
-    already holds the entity and the request, so it is the only component that
-    can decide without a second round trip. This is listed as a possibility, not
-    a plan: putting policy inside a specification-complete broker is a decision
-    to take slowly.
 
 -   **An NGSI-LD-aware JSON parser.** The core terms are a closed set, so
     `type`, `value`, `observedAt`, `Property`, `Relationship` and the rest can be
