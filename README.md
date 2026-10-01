@@ -109,11 +109,12 @@ list, or pin the one you tested.
 
 ## Footprint and speed
 
-A broker is not an executable. It is everything that has to be on the machine
-before it can answer: the binary, the plugins it loads, the libraries that were
-not there before it arrived, and any other server it needs running. That is what
-is counted here. A small `main` on top of large libraries is not a small broker,
-and quoting the `main` would be the wrong number.
+A broker is an executable, but running one takes more than the executable. What
+counts is everything that has to be on the machine before it can answer: the
+binary, the plugins it loads, the libraries that were not there before it
+arrived, and any other server it needs running. That is what is counted here. A
+small `main` on top of large libraries is not a small broker, and quoting the
+`main` would be the wrong number.
 
 Four builds, the two axes that change what a coraine process is made of — the
 HTTP server (`corHttp`, built in, or the external libmicrohttpd) and the
@@ -123,9 +124,9 @@ physical core and the load generator kept off it.
 
 | Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | entities/s per core |
 |-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
-| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 5 901 | 118 020 |
+| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 8 543 | 170 860 |
 | `corHttp` + `mongoc` | 11.1 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
-| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **7 975** | **159 500** |
+| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **9 822** | **196 440** |
 | libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 5 858 | 117 160 |
 
 <sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
@@ -139,20 +140,20 @@ Six things worth taking from that table:
 
 - **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of files a
   machine did not already have — and three libraries, two of which are GEOS.**
-  1.00 MiB of it is coraine, and the cor and k libraries are whole-archived into
+  1.00 MiB of it is coraine, and the cor libraries are whole-archived into
   that binary, so it is not a `main` calling out to something else: `corNgsild`,
   `corRest`, `corJsonld`, `corTree`, `corAlloc` and the rest are *in* the megabyte.
 - **`--database corDB --troe corDB` needs no other service at all** — and
   temporal history in the same process is **free**: 40 257 req/s against
   40 073 with history off, 123 307 PATCH/s against 125 187. History in PostgreSQL costs `corDB` 91% of
   its PATCH rate instead.
-- **The page size is the claim.** 7 975 requests/s per core at `limit=20` is
-  **159 500 entities/s per core**; at `limit=1` it is 40 068 of each; at
-  `limit=100` it is **191 300 entities/s**. A requests/s figure without the
+- **The page size is the claim.** 9 822 requests/s per core at `limit=20` is
+  **196 440 entities/s per core**; at `limit=1` it is 74 915 of each; at
+  `limit=100` it is **208 200 entities/s**. A requests/s figure without the
   response size beside it means nothing.
-- **Batching is worth four to eight times per entity.** A `PATCH` one at a time
-  is 48 548 entities/s per core; twenty per request is 173 180. Creates:
-  35 877 against 164 180. Deletes: 54 023 against **419 840**.
+- **Batching is worth two to four times per entity.** A `PATCH` one at a time
+  is 96 965 entities/s per core; twenty per request is 161 120. Creates:
+  62 500 against 168 840. Deletes: 117 398 against **411 120**.
 - **In a container it depends on the network setup.** With `--net=host` there
   is no measurable difference. With a port mapping (`docker run -p`, the usual
   way) expect **5-15% less**, and up to **30% less for a single client** waiting
