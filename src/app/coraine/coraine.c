@@ -105,10 +105,11 @@
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
 #include "forwarding/forwardingCor.h"             // forwardingCorRegister
-#include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen
+#endif
+
+#include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen - cor:// serves with or without registrations
 #include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                    // CorTermLast
-#endif
 
 #include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
 
