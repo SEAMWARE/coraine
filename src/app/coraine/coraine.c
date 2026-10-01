@@ -111,6 +111,7 @@
 #include "coraineFeatures.h"                      // coraineFeatures
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
 #include "crashReport.h"                          // crashReportInstall
+#include "inlineDispatch.h"                                  // inlineDispatchInit
 
 
 
@@ -207,6 +208,7 @@ bool           distributed     = false;     // --distributed: opt-in distributed
 bool           highPrecision   = false;     // --high-precision/-hp: 9-digit (ns) timestamps vs default 6 (µs, §5.2.2.4)
 bool           asyncSnapshot   = false;
 bool           insecureNotif   = false;     // accept self-signed certs on TLS notifications/forwards
+bool           noInline        = false;     // hand every request to a worker (see inlineDispatch.h)
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
@@ -245,6 +247,7 @@ static CorArg kargV[] =
   { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
   { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgOpt, _vp false,    _vp false, _vp true, "run in foreground (don't daemonize)" },
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
+  { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
   { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
   CORARGS_END
 };
@@ -1563,6 +1566,7 @@ int main(int argC, char* argV[])
   corRestSetServiceInitHook(ldUrlWildcardOptionsInit);
   corRestSetPreServiceHook(brokerPreServiceHook);
   corRestSetPostResponseHook(brokerPostResponseHook);
+  inlineDispatchInit(dbName, troeName, noInline);
 
   if (dbStart() != 0)
     COR_X(1, "dbStart failed");
