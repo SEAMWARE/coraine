@@ -32,7 +32,7 @@ require_certificate false" > /tmp/mqtts-test.conf
 mosquitto -d -c /tmp/mqtts-test.conf
 mosquittoWait 11887
 ftClientStart --mqttPort 11887 --mqttTopic ngsild/notif --mqttTls
-coraineStart --insecureNotif
+coraineStart --insecureNotif --bridges mqtt
 
 --RUN--
 

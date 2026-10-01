@@ -7,7 +7,12 @@ SET_TARGET_PROPERTIES(ftClient PROPERTIES
   ENABLE_EXPORTS TRUE
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/funcTests/ftClient"
 )
+#
+# mosquitto is ftClient's own: it subscribes to the MQTT broker the mqtt:// notification tests
+# publish to. The broker itself no longer links it - MQTT is the mqtt.so bridge (corMqttBridge).
+#
 TARGET_LINK_LIBRARIES(ftClient
   -Wl,--whole-archive ${COR_STATIC_LIBS} -Wl,--no-whole-archive
   ${COR_DYNAMIC_LIBS}
+  mosquitto
 )

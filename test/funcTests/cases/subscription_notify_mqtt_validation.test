@@ -21,7 +21,7 @@ subscription mqtt error
 
 --INIT--
 corDbDrop
-coraineStart
+coraineStart --bridges mqtt
 
 --RUN--
 

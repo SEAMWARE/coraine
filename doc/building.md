@@ -70,7 +70,7 @@ that).
 |------|---------|
 | HTTP server | `libmicrohttpd-dev` |
 | TLS | `libssl-dev` |
-| MQTT (notifications) | `libmosquitto-dev` |
+| MQTT bridge plugin, `mqtt.so` ([corMqttBridge](https://github.com/SEAMWARE/corMqttBridge)) | `libmosquitto-dev` |
 | Geo queries | `libgeos-dev` |
 | MongoDB driver (mongoc plugin) | mongo-c **v2** (`mongoc2.pc` via pkg-config) |
 | TimescaleDB plugin | `libpq-dev` |
@@ -338,10 +338,11 @@ ftp.gnu.org and built from source in the Dockerfile.
 
 ### The optional runtime dependencies
 
-The same holds for the optional runtime deps — MQTT notifications, for
-instance, are ~2 KB of broker code against a `libmosquitto` that every build
-links and every process maps, whether or not a single MQTT notification is ever
-sent.
+The same held for the optional runtime deps. MQTT notifications were ~2 KB of
+broker code against a `libmosquitto` that every build linked and every process
+mapped, whether or not a single MQTT notification was ever sent. They are now
+the `mqtt.so` bridge plugin: a broker started without `--bridges mqtt` never
+maps libmosquitto.
 
 ## Next
 

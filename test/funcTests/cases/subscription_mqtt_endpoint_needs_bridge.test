@@ -1,0 +1,143 @@
+#
+# FILE            subscription_mqtt_endpoint_needs_bridge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# MQTT notifications are delivered by the mqtt bridge plugin (corMqttBridge), loaded with
+# --bridges mqtt. Without it the broker has nothing that speaks MQTT, and a Subscription with an
+# mqtt:// or mqtts:// endpoint is refused when it is created or updated - not accepted and then
+# failed, quietly, on every notification. HTTP endpoints are built in and unaffected.
+#
+--NAME--
+Subscriptions - an mqtt(s):// endpoint is refused unless the broker runs with --bridges mqtt
+
+--TAGS--
+subscription mqtt bridge
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. POST a Subscription with an mqtt:// endpoint, no mqtt bridge loaded - 400"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:mqtt1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "mqtt://localhost:11883/ngsild/notif" } }
+}'
+echo
+echo
+
+
+echo "02. The same with mqtts:// - 400"
+echo "================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:mqtt2",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "mqtts://localhost:18883/ngsild/notif" } }
+}'
+echo
+echo
+
+
+echo "03. An http:// endpoint is built in - 201"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:http1",
+  "type": "Subscription",
+  "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } }
+}'
+echo
+echo
+
+
+echo "04. PATCH that Subscription's endpoint to mqtt:// - 400 on update too"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:http1 -X PATCH --payload '{
+  "notification": { "endpoint": { "uri": "mqtt://localhost:11883/ngsild/notif" } }
+}'
+echo
+echo
+
+
+echo "05. GET it - the endpoint is still the http:// one"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:http1 | grep '"uri"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. POST a Subscription with an mqtt:// endpoint, no mqtt bridge loaded - 400
+=============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "'notification.endpoint.uri': no notification transport for this scheme is loaded",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. The same with mqtts:// - 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "'notification.endpoint.uri': no notification transport for this scheme is loaded",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. An http:// endpoint is built in - 201
+=========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:http1
+Content-Length: 0
+
+
+
+
+04. PATCH that Subscription's endpoint to mqtt:// - 400 on update too
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "'notification.endpoint.uri': no notification transport for this scheme is loaded",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. GET it - the endpoint is still the http:// one
+==================================================
+      "uri": "http://localhost:9997/notify"
+
+

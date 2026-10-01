@@ -28,7 +28,7 @@ allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
 mosquittoWait 11883
 ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
-coraineStart
+coraineStart --bridges mqtt
 
 --RUN--
 
