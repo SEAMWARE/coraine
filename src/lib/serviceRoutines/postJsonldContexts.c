@@ -107,8 +107,13 @@ bool postJsonldContexts(void)
 
     if (contextP == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Context",
-              "unable to parse JSON-LD context");
+      //
+      // The JSON-LD layer may already have said WHY (corLdInit's error callback - a cyclic @context, an
+      // @import): that error stands. Only a failure it did not name gets the generic 400.
+      //
+      if (corNgsild.contextError == false)
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Context",
+                "unable to parse JSON-LD context");
       return true;
     }
 
