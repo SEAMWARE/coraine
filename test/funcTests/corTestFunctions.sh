@@ -140,6 +140,16 @@ coraineStart() {
     cmd="$cmd ${extraParams[*]}"
   fi
 
+  #
+  # COR_TRANSPORT=cor: every broker also serves cor://, on its HTTP port + 1000 - where corCurl looks
+  # for it. A test that opens the port itself (-corPort) is left alone.
+  #
+  local corPort=""
+  if [ "$COR_TRANSPORT" == "cor" ] && ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-corPort'; then
+    corPort=$((COR_ROLE_PORT + 1000))
+    cmd="$cmd --corPort $corPort"
+  fi
+
   # Valgrind (--vt): only the main broker (CB) runs under valgrind — wrapping
   # every broker in a multi-broker test would interleave their reports and
   # destroy the CB result (and triple the wall-clock). Scope errors to
@@ -175,6 +185,12 @@ coraineStart() {
   $cmd > "/tmp/coraine.${role}.log" 2>&1 &
   echo $! > "$COR_ROLE_PID_FILE"
   corAwaitPort $COR_ROLE_PORT $awaitSecs
+
+  # cor:// opens just after HTTP: HTTP-ready is not cor-ready.
+  # An if, not '[ ] &&': as the function's last command, a false test would be its return code
+  if [ -n "$corPort" ]; then
+    corAwaitPort $corPort $awaitSecs
+  fi
 }
 
 

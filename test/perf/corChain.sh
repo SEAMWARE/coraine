@@ -16,6 +16,7 @@
 # (doc/cor-protocol.md § 6.1 has the numbers of the first run.)
 #
 MODE=$1
+echo "== corChain $MODE - $($(dirname $0)/cpuIdle.sh show)"
 B=${CORAINE_BIN:-/opt/seamware/bin/coraine}
 start() { taskset -c $3 $B --port $1 --corPort $2 --database corDB --troe none -dist --foreground > /dev/null 2>&1 & echo $!; }
 PA=$(start 9201 9301 0-1); PB=$(start 9202 9302 2-3); PC=$(start 9203 9303 4-5)
