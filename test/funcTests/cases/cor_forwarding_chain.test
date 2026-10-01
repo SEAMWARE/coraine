@@ -1,0 +1,170 @@
+#
+# FILE            cor_forwarding_chain.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# cor:// - the binary API (doc/cor-protocol.md) - on a chain of three brokers:
+#
+#   A (CB)  --registration-->  B (CP1)  --registration-->  C (CP2), which holds the entity
+#
+# A GET on A is forwarded to B, which forwards it to C, and the entity comes back all the way. The
+# chain is run twice: with cor:// registrations, then with http:// ones - and the two answers must be
+# the same, byte for byte. Over cor:// no broker in the chain renders or parses JSON for the forward:
+# the trees travel as they are.
+#
+--NAME--
+cor:// - a three-broker forwarding chain answers exactly as the same chain over http://
+
+--TAGS--
+cor distop registration
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist -corPort $((CB_PORT + 1000))
+coraineStart -role CP1 -dist -corPort $((CP1_PORT + 1000))
+coraineStart -role CP2 -dist -corPort $((CP2_PORT + 1000))
+
+--RUN--
+
+#
+# register <on-port> <reg-id> <endpoint> - an inclusive registration for urn:E1
+#
+register() {
+  corCurl --port $1 --url /ngsi-ld/v1/csourceRegistrations --payload '{
+    "id": "'$2'",
+    "type": "ContextSourceRegistration",
+    "endpoint": "'$3'",
+    "mode": "inclusive",
+    "information": [ { "entities": [ { "id": "urn:E1", "type": "Vehicle" } ] } ]
+  }' | head -1
+}
+
+echo "01. C (CP2) holds urn:E1"
+echo "========================"
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42, "observedAt": "2026-10-01T12:00:00.000Z" },
+  "owner": { "type": "Relationship", "object": "urn:Person:P1" },
+  "name": { "type": "LanguageProperty", "languageMap": { "en": "truck", "es": "camion" } },
+  "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ -3.7, 40.4 ] } }
+}' | head -1
+echo
+echo
+
+
+echo "02. The chain over cor:// - A registers B, B registers C"
+echo "========================================================"
+register $CB_PORT  urn:Reg:AB-cor cor://localhost:$((CP1_PORT + 1000))
+register $CP1_PORT urn:Reg:BC-cor cor://localhost:$((CP2_PORT + 1000))
+echo
+echo
+
+
+echo "03. GET urn:E1 on A - forwarded A -> B -> C over cor://, and back"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 > /tmp/cor_chain_cor.out
+cat /tmp/cor_chain_cor.out
+echo
+echo
+
+
+echo "04. The same chain over http://"
+echo "==============================="
+corCurl --port $CB_PORT  --url /ngsi-ld/v1/csourceRegistrations/urn:Reg:AB-cor -X DELETE | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/csourceRegistrations/urn:Reg:BC-cor -X DELETE | head -1
+register $CB_PORT  urn:Reg:AB-http http://localhost:$CP1_PORT
+register $CP1_PORT urn:Reg:BC-http http://localhost:$CP2_PORT
+echo
+echo
+
+
+echo "05. GET urn:E1 on A over http:// - the body identical to step 03's"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 > /tmp/cor_chain_http.out
+sed -n '/^{/,$p' /tmp/cor_chain_cor.out  > /tmp/cor_chain_cor.body
+sed -n '/^{/,$p' /tmp/cor_chain_http.out > /tmp/cor_chain_http.body
+if cmp -s /tmp/cor_chain_cor.body /tmp/cor_chain_http.body; then echo "identical"; else echo "DIFFERENT:"; diff /tmp/cor_chain_cor.body /tmp/cor_chain_http.body; fi
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+rm -f /tmp/cor_chain_*.out /tmp/cor_chain_*.body
+
+--EXPECT--
+01. C (CP2) holds urn:E1
+========================
+HTTP/1.1 201 Created
+
+
+02. The chain over cor:// - A registers B, B registers C
+========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. GET urn:E1 on A - forwarded A -> B -> C over cor://, and back
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 486
+
+{
+  "id": "urn:E1",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        -3.7,
+        40.4
+      ],
+      "type": "Point"
+    }
+  },
+  "name": {
+    "languageMap": {
+      "en": "truck",
+      "es": "camion"
+    },
+    "type": "LanguageProperty"
+  },
+  "owner": {
+    "object": "urn:Person:P1",
+    "type": "Relationship"
+  },
+  "speed": {
+    "observedAt": "2026-10-01T12:00:00Z",
+    "type": "Property",
+    "value": 42
+  },
+  "type": "Vehicle"
+}
+
+
+
+04. The same chain over http://
+===============================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+05. GET urn:E1 on A over http:// - the body identical to step 03's
+===================================================================
+identical
+
+

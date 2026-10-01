@@ -1,6 +1,6 @@
 # The cor format and the cor:// protocol
 
-> **Design notes (2026-10-01) - decided, not yet implemented.**
+> **Design notes (2026-10-01) - decided; v1 implemented and measured (§ 6.1).**
 > It supersedes the earlier TLV drafts, whose type codes carried NGSI-LD meaning. Here the format
 > carries *trees*, and the meaning comes from the core-term ids NGSI-LD already has.
 
@@ -299,6 +299,33 @@ example would guess.
      on the same traffic
 3. **The corDB snapshot** - the same codec to a file, and back on start.
 4. **The corDB log** - the same records appended, replayed on start; history by retention.
+
+### 6.1 v1, measured (2026-10-01)
+
+Steps 1 and 2 are built: the codec (corTree), its NGSI-LD callbacks (corNgsild), cor:// in corRest -
+a listener (`--corPort`) and a client - and forwarding over it. `cor_forwarding_chain` is the
+functest; `test/perf/corChain.sh` the benchmark: three corDB brokers chained A -> B -> C, a GET on A,
+so every request crosses both hops twice. Release build, two runs each:
+
+| Entity | Transport | 1 connection req/s | p50 | 16 connections req/s | p50 | p99 |
+|---|---|---|---|---|---|---|
+| 4 attributes | http:// | 6,281-6,535 | 147 us | 23,054-23,104 | 636-640 us | 1.76-1.77 ms |
+| 4 attributes | cor:// | 8,333-8,423 | 109 us | 31,951-33,082 | 456-475 us | 1.02-1.05 ms |
+| 20 attributes | http:// | 3,802-3,840 | 251 us | 17,094-17,391 | 0.86-0.87 ms | 2.06-2.21 ms |
+| 20 attributes | cor:// | 4,422-5,031 | 210-220 us | 23,990-24,039 | 639-649 us | 1.21-1.26 ms |
+
+About +30 % with one connection, +40 % with sixteen, and p99 under load 40 % lower. The client's own
+leg (wrk to A) is still HTTP and JSON, so A still parses and renders for it: only the two internal
+hops are cor://. The single-connection p99 is too noisy to quote (0.2-2.5 ms between identical runs).
+
+Sizes on the wire: the generic codec gives 84 % of minimised JSON, with the NGSI-LD callbacks 71 %,
+over 660 JSON documents of the ETSI suite and coraine's tests - payloads with compact names and
+inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
+names, is to be measured on the chain.
+
+Not yet: a fan-out to several cor:// sources is sent one at a time (multiplexing over one
+connection is the next step - the frames carry correlation ids already); packed numeric arrays and
+timestamps as integers (§ 4.9, § 4.10).
 
 ## 7. Testing
 
