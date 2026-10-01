@@ -16,3 +16,16 @@ TARGET_LINK_LIBRARIES(ftClient
   ${COR_DYNAMIC_LIBS}
   mosquitto
 )
+
+#
+# corRequest - a cor:// client for tests and benchmarks: one request (like curl -i), or load (like wrk)
+#
+ADD_EXECUTABLE(corRequest funcTests/corRequest/corRequest.c)
+SET_TARGET_PROPERTIES(corRequest PROPERTIES
+  ENABLE_EXPORTS TRUE
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/funcTests/corRequest"
+)
+TARGET_LINK_LIBRARIES(corRequest
+  -Wl,--whole-archive ${COR_STATIC_LIBS} -Wl,--no-whole-archive
+  ${COR_DYNAMIC_LIBS}
+)

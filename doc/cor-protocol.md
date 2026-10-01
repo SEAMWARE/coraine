@@ -1,6 +1,6 @@
 # The cor format and the cor:// protocol
 
-> **Design notes (2026-10-01) - decided, not yet implemented.**
+> **Design notes (2026-10-01) - decided; v1 implemented and measured (§ 6.1).**
 > It supersedes the earlier TLV drafts, whose type codes carried NGSI-LD meaning. Here the format
 > carries *trees*, and the meaning comes from the core-term ids NGSI-LD already has.
 
@@ -299,6 +299,52 @@ example would guess.
      on the same traffic
 3. **The corDB snapshot** - the same codec to a file, and back on start.
 4. **The corDB log** - the same records appended, replayed on start; history by retention.
+
+### 6.1 v1, measured (2026-10-01)
+
+Steps 1 and 2 are built: the codec (corTree), its NGSI-LD callbacks (corNgsild), cor:// in corRest -
+a listener (`--corPort`) and a client - and forwarding over it. `cor_forwarding_chain` and
+`cor_api_direct` are the functests; `test/perf/corChain.sh` the benchmark: three corDB brokers chained
+A -> B -> C, a GET on A, so every request crosses both hops twice. Release build, each broker on two
+cores, two runs each (ranges):
+
+| Entity | Mode | 1 conn req/s | p50 | p99 | 16 conns req/s | p50 | p99 |
+|---|---|---|---|---|---|---|---|
+| 4 attributes | http | 6,519-7,039 | 146 us | 1.1-1.2 ms | 23,515-23,595 | 624 us | 1.74 ms |
+| 4 attributes | cor (hops) | 8,428-8,585 | 111 us | 0.2-0.7 ms | 40,912-44,887 | 337-362 us | 0.84-1.03 ms |
+| 4 attributes | **cor-all** | **14,293-14,793** | **66 us** | **78-94 us** | **64,056-65,012** | **240-245 us** | **399-401 us** |
+| 20 attributes | http | 3,848-4,030 | 250 us | 0.3-1.6 ms | 17,261-17,556 | 0.86 ms | 1.98-2.11 ms |
+| 20 attributes | cor (hops) | 4,915-4,944 | 192 us | 1.4-2.3 ms | 28,233-28,310 | 537 us | 1.18-1.19 ms |
+| 20 attributes | **cor-all** | **6,347-6,669** | **162 us** | **183-190 us** | **39,697-40,138** | **391-395 us** | **642-647 us** |
+
+- **http** - every hop HTTP and JSON; the client is wrk
+- **cor (hops)** - the two forwarding hops cor://, the client still wrk over HTTP
+- **cor-all** - nothing but cor://: the client is `corRequest` in its load mode
+
+All cor:// against all HTTP: **2.1-2.2x with one connection, 2.3-2.8x with sixteen**, p99 under load
+4x lower for the small entity and 3x for the large; the single-connection p99 stops being noise
+(78-190 us, where every run with an HTTP client leg swings between 0.2 and 2.3 ms).
+
+**One broker, no forwarding** - what the transport itself costs, a GET on corDB:
+
+| | 1 conn req/s | p99 | 16 conns req/s | p99 |
+|---|---|---|---|---|
+| HTTP (wrk) | ~41,000 | ~33 us | ~142,000 | 4-9 ms |
+| cor:// (corRequest) | 43,400 | 31 us | 145,300 | 209 us |
+
+At parity on throughput, with a tail an order of magnitude tighter under load. (The first cut was
+well behind - 29,000 / 82,000 req/s: it polled before every read and write and read and sent the
+header and the tree separately. Buffered reads and one send per frame took it from ~8 system calls a
+request to ~2.)
+
+Sizes on the wire: the generic codec gives 84 % of minimised JSON, with the NGSI-LD callbacks 71 %,
+over 660 JSON documents of the ETSI suite and coraine's tests - payloads with compact names and
+inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
+names, is to be measured on the chain.
+
+Not yet: a fan-out to several cor:// sources is sent one at a time (multiplexing over one
+connection is the next step - the frames carry correlation ids already); packed numeric arrays and
+timestamps as integers (§ 4.9, § 4.10).
 
 ## 7. Testing
 

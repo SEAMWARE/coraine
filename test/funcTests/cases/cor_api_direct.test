@@ -1,0 +1,159 @@
+#
+# FILE            cor_api_direct.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# cor:// as a client's API, with no HTTP in the path: corRequest talks to the broker's --corPort
+# directly. A request's body travels as a tree and becomes the tree the service routine works on;
+# the response comes back as the tree it built. Same broker, same service routines - HTTP sees what
+# cor:// wrote (step 05).
+#
+--NAME--
+cor:// - create, read, update and a 404, over the binary API alone
+
+--TAGS--
+cor
+
+--INIT--
+corDbDrop
+coraineStart -corPort $((CB_PORT + 1000))
+corPortWait $((CB_PORT + 1000))
+
+--RUN--
+COR=cor://localhost:$((CB_PORT + 1000))
+
+echo "01. POST an entity over cor:// - 201 and its Location"
+echo "======================================================"
+corRequest --url $COR -X POST --path /ngsi-ld/v1/entities --header 'Content-Type: application/json' --payload '{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 42, "observedAt": "2026-10-01T12:00:00.000Z" },
+  "owner": { "type": "Relationship", "object": "urn:Person:P1" }
+}'
+echo
+echo
+
+
+echo "02. GET it over cor:// - normalized"
+echo "==================================="
+corRequest --url $COR --path /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. GET it over cor:// - keyValues"
+echo "=================================="
+corRequest --url $COR --path '/ngsi-ld/v1/entities/urn:E1?options=keyValues'
+echo
+echo
+
+
+echo "04. PATCH speed over cor:// - 204"
+echo "================================="
+corRequest --url $COR -X PATCH --path /ngsi-ld/v1/entities/urn:E1/attrs/speed --header 'Content-Type: application/json' --payload '{ "value": 50, "observedAt": "2026-10-01T12:05:00.000Z" }'
+echo
+echo
+
+
+echo "05. GET it over HTTP - what cor:// wrote"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'options=keyValues'
+echo
+echo
+
+
+echo "06. GET an entity that does not exist, over cor:// - 404, problem details"
+echo "========================================================================="
+corRequest --url $COR --path /ngsi-ld/v1/entities/urn:NOPE
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. POST an entity over cor:// - 201 and its Location
+======================================================
+STATUS 201
+Location: /ngsi-ld/v1/entities/urn:E1
+
+
+
+02. GET it over cor:// - normalized
+===================================
+STATUS 200
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": 42,
+    "observedAt": "2026-10-01T12:00:00Z"
+  },
+  "owner": {
+    "type": "Relationship",
+    "object": "urn:Person:P1"
+  }
+}
+
+
+
+03. GET it over cor:// - keyValues
+==================================
+STATUS 200
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": 42,
+  "owner": "urn:Person:P1"
+}
+
+
+
+04. PATCH speed over cor:// - 204
+=================================
+STATUS 204
+
+
+
+05. GET it over HTTP - what cor:// wrote
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 85
+
+{
+  "id": "urn:E1",
+  "owner": "urn:Person:P1",
+  "speed": 50,
+  "type": "Vehicle"
+}
+
+
+
+06. GET an entity that does not exist, over cor:// - 404, problem details
+=========================================================================
+STATUS 404
+Content-Type: application/json
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "entity 'urn:NOPE' not found"
+}
+
+
+

@@ -104,7 +104,12 @@
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
+#include "forwarding/forwardingCor.h"             // forwardingCorRegister
 #endif
+
+#include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen - cor:// serves with or without registrations
+#include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
+#include "corNgsild/CorTerm.h"                    // CorTermLast
 
 #include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
 
@@ -193,6 +198,7 @@ static void contextError(int status, const char* title, const char* detail)
 // Command line arguments
 //
 unsigned short port         = 1026;
+unsigned short corPort      = 0;           // cor:// - the binary API (0: off)
 char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
@@ -226,6 +232,7 @@ static CorArg kargV[] =
 {
   { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels" },
   { "--port",               "-p",           CorArgUShort, _vp &port,     CorArgOpt, _vp 1026, _vp 1, _vp 65535, "TCP port to listen on" },
+  { "--corPort",            "-corPort",     CorArgUShort, _vp &corPort,  CorArgOpt, _vp 0,    _vp 0, _vp 65535, "TCP port for cor:// - the binary API (0: off)" },
   { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
@@ -1568,7 +1575,13 @@ int main(int argC, char* argV[])
 
 #if COR_FEATURE_REGISTRATIONS
   forwardingHttpRegister();
+  forwardingCorRegister();
 #endif
+
+  //
+  // cor:// - the codec both directions use, as a client (forwarding) and as a server (--corPort)
+  //
+  corRestCorInit(&ldBinCodec, ldBinNamespaceV, ldBinNamespaces, CorTermLast);
 
   if (prettySpaces > 0)
     corRestSetPrettySpaces(prettySpaces);
@@ -1759,6 +1772,12 @@ int main(int argC, char* argV[])
     COR_X(1, "corRestInit failed on port %u", port);
 
   COR_I("coraine running on port %u", port);
+
+  //
+  // cor:// last, like HTTP: every service is registered and every cache loaded by now
+  //
+  if ((corPort != 0) && (corRestCorListen(corPort, httpLoops) == false))
+    COR_X(1, "cannot listen for cor:// on port %u", corPort);
 
   // Until SIGINT / SIGTERM (onSignal) - sem_wait returns early on EINTR, so wait again
   while (sem_wait(&shutdownSem) != 0)

@@ -468,6 +468,35 @@ FT_CLIENT=$COR_REPO_DIR/test/funcTests/ftClient/ftClient
 FT_CLIENT_PORT=7701                          # default port when none given
 
 
+
+# -----------------------------------------------------------------------------
+#
+# corRequest <options> - one cor:// request, printed like curl -i (STATUS, headers, empty line, body)
+#
+# The test tool of the same name; stdin closed, so it never waits on the test's own input.
+#   corRequest --url cor://localhost:$((CB_PORT + 1000)) --path /ngsi-ld/v1/entities/urn:E1
+#
+COR_REQUEST=$COR_REPO_DIR/test/funcTests/corRequest/corRequest
+
+corRequest() {
+  $COR_REQUEST "$@" < /dev/null
+}
+
+
+# -----------------------------------------------------------------------------
+#
+# corPortWait <port> - until a cor:// listener accepts on <port> (5 s at most)
+#
+# The broker opens it just AFTER its HTTP port - it needs the services HTTP registers - so a broker
+# that answers HTTP may not be listening for cor:// yet.
+#
+corPortWait() {
+  for i in $(seq 1 50); do corPortOpen "$1" && return 0; sleep 0.1; done
+  echo "corPortWait: nothing listening on $1" >&2
+  return 1
+}
+
+
 # ftClientStart [--port P] [--status S] [...extra]
 #
 # Starts an ftClient on the given port (default 7701). --status sets the
