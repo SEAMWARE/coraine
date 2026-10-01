@@ -227,7 +227,7 @@ climbing at 100.)*
 | Configuration | req/s per core | entities/s per core |
 |---------------|---------------:|--------------------:|
 | libmicrohttpd + `corDB` | **9 822** | **196 440** |
-| `corHttp` + `corDB` | 8 543 | 170 860 |
+| `corHttp` + `corDB` | 9 508 | 190 160 |
 | libmicrohttpd + `mongoc` | 5 858 | 117 160 |
 | `corHttp` + `mongoc` | 4 634 | 92 680 |
 
@@ -272,9 +272,24 @@ than the hop, and the hop is what keeps it from blocking the I/O thread.
 `ngsild_requests_inline_total` / `ngsild_requests_worker_total` show the split;
 `--noInline` turns it off.
 
-The built-in server (`corHttp`) gains less - 34 064 to 45 338 retrieves a second
-on one core - because it still hands each request's post-response phase to a
-worker; that is the next thing to look at there.
+The built-in server (`corHttp`) had a second hop of the same kind: its event loop
+is one thread, so it handed every request's post-response phase - the deferred
+notifications above all - to a worker as well. Now a request that left nothing
+for that phase finishes on the loop too (every read, and every write in a tenant
+with no subscription), and `corHttp` catches up:
+
+| One core, `corHttp` + `corDB` | with both hops | **without** | |
+|---|---:|---:|---:|
+| retrieve | 34 064 | **79 343** | x2.33 |
+| query, 1 entity | 32 622 | **72 608** | x2.23 |
+| PATCH an attribute | 35 962 | **95 924** | x2.67 |
+| create | 29 903 | **59 901** | x2.00 |
+| merge | 33 707 | **78 732** | x2.34 |
+| delete | 35 948 | **108 607** | x3.02 |
+
+*(`--httpLoops 1`, 2026-10-01.)* A write that a subscription might match still
+finishes on a worker: whether it notifies is only known once it has been matched,
+and a notification may need an `@context` the broker hosts itself.
 
 ### Writes, and what batching is worth
 

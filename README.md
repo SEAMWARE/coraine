@@ -124,7 +124,7 @@ physical core and the load generator kept off it.
 
 | Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | entities/s per core |
 |-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
-| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 8 543 | 170 860 |
+| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 9 508 | 190 160 |
 | `corHttp` + `mongoc` | 11.1 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
 | libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **9 822** | **196 440** |
 | libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 5 858 | 117 160 |
