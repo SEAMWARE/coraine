@@ -2,7 +2,7 @@
 
 > **v1 built** (2026-10-01): Modbus TCP, the address in the endpoint and how to read it in `channelInfo` (§ 2.1), change-only reporting
 > with a deadband (§ 2.3), queued writes (§ 2.4), `modbusStatus` on a device that stops answering
-> (§ 2.5) - `src/plugins/bridge/modbus`, tested against a Modbus device in the functests
+> (§ 2.5) - the plugin is its own repo, [corModbusBridge](https://github.com/SEAMWARE/corModbusBridge), tested against a Modbus device in the functests
 > (`test/funcTests/tools/ftModbus.py`, `bridge_modbus.test`). **Not yet:** contiguous registers read
 > together (§ 2.2), RTU, read-on-demand through a registration (§ 3.5), a way back for a write's
 > outcome (§ 3.4 - logged only). The questions in § 5 are still open; v1 takes the proposed answer
