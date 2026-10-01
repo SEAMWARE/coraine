@@ -20,7 +20,7 @@ One machine, and a laptop one:
 | RAM | 60 GiB |
 | OS | Ubuntu 26.04, gcc 15.2.0, x86-64 |
 | Build | `CMAKE_BUILD_TYPE=Release` (`-O2`), stripped, `COR_FEATURE_ICU_COLLATION=OFF` |
-| Beside it | MongoDB 4.4 (container, replica set) · PostgreSQL 18 + TimescaleDB 2.25 (host) |
+| Beside it | MongoDB (container, replica set) - 4.4 for the `mongoc` figures on this page, 8.2 since 2026-10-01 · PostgreSQL 18 + TimescaleDB 2.25 (host) |
 
 Four builds are measured throughout — the two axes that change what a coraine
 process is made of:
@@ -98,13 +98,16 @@ and 20.7 MiB against 4.3.
 
 What the three columns are made of:
 
-- **coraine's own code is all of it.** The cor and k libraries are static
-  archives, whole-archived into the binary, so that 963 KiB is not a `main`
-  calling out to something else — it *is* `corNgsild` (341 KiB of NGSI-LD rules),
-  the broker's own service routines (361 KiB), `corRest` (50 KiB), `kargs`
-  (45 KiB), `corJsonld` (31 KiB), `kjson` (31 KiB), `corHttp` (12 KiB), and
-  `kprom`/`kalloc`/`ktrace`/`kbase`/`corPlugin`/`khash` under 6 KiB each. Every
-  line of it is in this project's repositories. Add the DB plugin (`corDB.so`
+- **coraine's own code is all of it.** The cor libraries are static archives,
+  whole-archived into the binary, so that ~1 MiB is not a `main` calling out to
+  something else — it *is* (libmicrohttpd + `corDB`, 2026-10-01, from the linker
+  map) the broker's own service routines (319 KiB), `corNgsild` (303 KiB of
+  NGSI-LD rules), the broker's main program (107 KiB), the exported-symbol tables
+  that let plugins link against the broker (96 KiB), the bridge layer (49 KiB),
+  `corRest` (46 KiB), `corJsonld` (35 KiB), `corArgs` (25 KiB), `corJson`
+  (21 KiB), and `corTree`, `corBase`, `corLog`, `corAlloc`, `corProm`,
+  `corPlugin`, `corHash` under 9 KiB each - `corHttp` (12 KiB) in its place in the
+  builds that use it. Every line of it is in this project's repositories. Add the DB plugin (`corDB.so`
   39 KiB or `mongoc.so` 116 KiB) and `none.so` (14 KiB) and that is the whole
   broker.
 - **The three added libraries in the first row** are GEOS (`libgeos` +
@@ -140,14 +143,28 @@ shares: what a second broker on the same machine actually costs.
 The built-in server starts ~4 MiB heavier, and deliberately: it allocates its
 connection pool at start-up, so no request ever calls `malloc` for its own
 machinery. libmicrohttpd reserves far more than that, but virtually —
-thread-per-connection stacks put its `VmSize` in the gigabytes, almost none of
-it touched.
+the stacks of its thread pool and of the worker threads put its `VmSize` in the
+gigabytes, almost none of it touched.
 
 With **`corDB` an entity is RAM**, and that is the number to size a box with:
 **~3.5 KiB resident per five-attribute entity**, so 100 000 entities is ~355 MiB
 and a million is ~3.5 GiB. With `mongoc` the entities are MongoDB's problem and
 the broker stays nearly flat — but then MongoDB is on the machine, which is the
 next two sections.
+
+**glibc's allocator arenas cost 10-25% on top.** With many threads, glibc gives
+them separate arenas, and memory freed in one is not handed back to the
+operating system. `MALLOC_ARENA_MAX=2` (libmicrohttpd + `corDB`, 2026-10-01):
+
+| Entities | default | `MALLOC_ARENA_MAX=2` |
+|---:|---:|---:|
+| 10 000 | 89 MiB | 67 MiB |
+| 100 000 | 376 MiB | 335 MiB |
+
+Whether the fewer arenas cost throughput with 32 threads has not been measured
+yet, so it is not the default; in a container with a tight memory limit it is the
+first thing to set. The broker's [memory budget](installation.md#memory-budget)
+counts the resident set, arenas included.
 
 > The `mongoc` figures here are lower than this page carried before (68 MiB
 > against 202) and the difference is the **measurement**, not the broker. The
@@ -197,28 +214,67 @@ same number only at `limit=1`:
 
 | Response | req/s per core | **entities/s per core** |
 |---|---:|---:|
-| 1 entity | **40 068** | 40 068 |
-| 20 entities | 7 975 | **159 500** |
-| 100 entities | 1 913 | **191 300** |
+| 1 entity | **74 915** | 74 915 |
+| 20 entities | 9 822 | **196 440** |
+| 100 entities | 2 082 | **208 200** |
 
-*(libmicrohttpd + `corDB`. The per-request cost is fixed, so the bigger the
-page the more of it is amortised — and the entities/s column is still climbing
-at 100.)*
+*(libmicrohttpd + `corDB`, 2026-10-01. The per-request cost is fixed, so the
+bigger the page the more of it is amortised — and the entities/s column is still
+climbing at 100.)*
 
 **All four builds, `limit=20`:**
 
 | Configuration | req/s per core | entities/s per core |
 |---------------|---------------:|--------------------:|
-| libmicrohttpd + `corDB` | **7 975** | **159 500** |
-| `corHttp` + `corDB` | 5 901 | 118 020 |
+| libmicrohttpd + `corDB` | **9 822** | **196 440** |
+| `corHttp` + `corDB` | 8 543 | 170 860 |
 | libmicrohttpd + `mongoc` | 5 858 | 117 160 |
 | `corHttp` + `mongoc` | 4 634 | 92 680 |
 
-*(libmicrohttpd rows 2026-09-30, `corHttp` rows 2026-09-16 - not re-measured, so
-the two are not a like-for-like comparison of the servers today.)*
+*(`corDB` rows 2026-10-01; libmicrohttpd + `mongoc` 2026-09-30, `corHttp` +
+`mongoc` 2026-09-16, both against MongoDB 4.4 and not re-measured since.)*
 
 One core of a laptop CPU, going through MongoDB, still serves ~5 900 NGSI-LD
-queries a second.
+queries a second, delivering 117 000 entities each second.
+
+### The thread hop — and why it is gone where nothing waits
+
+Every request used to make the same detour: read on an HTTP I/O thread, handed to
+a worker thread, processed there, handed back to the I/O thread to be sent. The
+detour exists so that a request that **waits** - a MongoDB round trip, a
+distributed operation, an `@context` download - does not hold up the other
+connections of its I/O thread.
+
+For a request that waits on nothing it costs more than the request does. `perf
+stat` on one core, a `corDB` retrieve: ~93 000 CPU cycles per request with the
+hop, two thread switches each, three quarters of the time in the kernel; ~50 000
+without it. So with `corDB` (and TRoE `none` or `corDB`), a request of the
+`/ngsi-ld/v1/entities` family that cannot wait runs on the thread that read it -
+the rest take the detour as before:
+
+| One core, libmicrohttpd + `corDB` | with the hop | **inline** | |
+|---|---:|---:|---:|
+| retrieve | 43 568 | **83 785** | x1.92 |
+| query, 1 entity | 39 564 | **74 915** | x1.89 |
+| query, 20 entities | 7 904 | **9 822** | x1.24 |
+| PATCH an attribute | 48 562 | **96 965** | x2.00 |
+| create | 36 490 | **62 500** | x1.71 |
+| merge | 42 445 | **76 783** | x1.81 |
+| delete | 52 546 | **117 398** | x2.23 |
+| batches (create, update, delete) | | | unchanged - they take the hop |
+
+On four cores a retrieve goes from 123 281 to 271 497 a second. A request still
+takes the hop when it **could** wait: `--distributed` with a registration
+anywhere, `?ddsSync` (a bridge service's reply), or an `@context` that is not
+cached yet - the Link header's, the default one, or an `application/ld+json`
+body's. With `mongoc` nothing runs inline: a MongoDB round trip costs far more
+than the hop, and the hop is what keeps it from blocking the I/O thread.
+`ngsild_requests_inline_total` / `ngsild_requests_worker_total` show the split;
+`--noInline` turns it off.
+
+The built-in server (`corHttp`) gains less - 34 064 to 45 338 retrieves a second
+on one core - because it still hands each request's post-response phase to a
+worker; that is the next thing to look at there.
 
 ### Writes, and what batching is worth
 
@@ -231,22 +287,23 @@ broker every time. A read-only benchmark could never have noticed.
 
 | Operation | req/s | **entities/s** | vs one at a time |
 |---|---:|---:|---:|
-| `PATCH` one attribute, 50 clients | 48 548 | 48 548 | — |
-| `PATCH`, 1 client | 33 130 | 33 130 | — |
-| batch update, 20 per request | 8 659 | **173 180** | **3.6×** |
-| merge (`PATCH /entities/{id}`), 50 clients | 41 811 | 41 811 | — |
-| create one entity | 35 877 | 35 877 | — |
-| batch create, 20 per request | 8 209 | **164 180** | **4.6×** |
-| delete one entity | 54 023 | 54 023 | — |
-| batch delete, 20 per request | 20 992 | **419 840** | **7.8×** |
+| `PATCH` one attribute, 50 clients | 96 965 | 96 965 | — |
+| `PATCH`, 1 client | 47 003 | 47 003 | — |
+| batch update, 20 per request | 8 056 | **161 120** | **1.7×** |
+| merge (`PATCH /entities/{id}`), 50 clients | 76 783 | 76 783 | — |
+| create one entity | 62 500 | 62 500 | — |
+| batch create, 20 per request | 8 442 | **168 840** | **2.7×** |
+| delete one entity | 117 398 | 117 398 | — |
+| batch delete, 20 per request | 20 556 | **411 120** | **3.5×** |
 
-*(2026-09-30. Deletes are measured against a store of 40 000 entities, refilled
-before every repeat - a delete consumes what it measures.)*
+*(2026-10-01, libmicrohttpd. Deletes are measured against a store of 40 000
+entities, refilled before every repeat - a delete consumes what it measures.)*
 
-Batching is worth four to eight times per entity, which is what batching is
-supposed to be for: one HTTP request, one URL-parameter parse, one `@context`
-resolution and one lock acquisition amortised over twenty instead of paid
-twenty times.
+Batching is worth two to four times per entity: one HTTP request, one
+URL-parameter parse, one `@context` resolution and one lock acquisition amortised
+over twenty instead of paid twenty times. It was four to eight times until
+single requests stopped making the thread hop (above) - a single write got twice
+as fast, a batch did not, because a batch still takes the hop.
 
 It was not always. Until the commit that added the create benchmark, batch
 create walked the entire entity list for every incoming entity — with the id
