@@ -1,0 +1,89 @@
+#
+# FILE            bridge_mqtt_v311_echo.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# MQTT 3.1.1 has no no-local subscription option: a client subscribed to a topic it publishes on
+# gets its own message back. The bridge remembers the last payload it published on a Channel's
+# topic and drops it ONCE when it comes back - so a write is published, not taken in again; and the
+# same value published by a device afterwards still is a sample.
+#
+--NAME--
+MQTT bridge (MQTT 3.1.1) - its own publication does not come back as a sample, a device's does
+
+--TAGS--
+bridge mqtt
+
+--INIT--
+corDbDrop
+echo "listener 11883
+allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
+mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
+mosquittoWait 11883
+ftClientStart --mqttPort 11883
+
+cat > /tmp/coraine_bridges_mqtt_v311.json <<J
+{ "mqtt": { "server": { "uri": "mqtt://localhost:11883", "MQTT-Version": "mqtt3.1.1", "clientId": "coraine-bridge-mqtt-v311" },
+            "ngsild": { "topics": {
+              "plant/tank1/setpoint": { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "setpoint" } } } } }
+J
+coraineStart --bridges mqtt --bridgeConfig /tmp/coraine_bridges_mqtt_v311.json
+
+--RUN--
+
+mqttPublish() {
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST "$(ftClientUrl $FT_CLIENT_PORT /mqtt/publish)" -H 'Content-Type: application/json' -d "$1"
+}
+
+setpoint() {
+  curl -s http://localhost:$CB_PORT/ngsi-ld/v1/channels | python3 -c 'import sys, json
+for c in json.load(sys.stdin):
+  if c["channelTarget"] == "plant/tank1/setpoint": print(c["channelTarget"], "samplesIn=%s samplesOut=%s" % (c.get("samplesIn"), c.get("samplesOut")))'
+}
+
+
+echo "01. PATCH setpoint 70 - published, and its echo dropped: samplesIn 0, samplesOut 1"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1/attrs/setpoint -X PATCH --payload '{"value": 70, "observedAt": "2026-10-01T12:00:00.000Z"}' | head -1
+for i in $(seq 1 50); do d=$(ftClientDump); echo "$d" | grep -q '"plant/tank1/setpoint"' && break; sleep 0.1; done
+echo "$d" | python3 -c 'import sys, json
+for m in json.load(sys.stdin):
+  if m.get("verb") == "MQTT" and m.get("url") == "plant/tank1/setpoint": print(m["url"], m.get("body"))'
+sleep 1
+setpoint
+echo
+echo
+
+
+echo "02. A device then publishes the same 70 - that one IS a sample: samplesIn 1"
+echo "==========================================================================="
+mqttPublish '{"topic": "plant/tank1/setpoint", "payload": 70}'
+for i in $(seq 1 50); do setpoint | grep -q 'samplesIn=1' && break; sleep 0.1; done
+setpoint
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
+\rm -f /tmp/mqtt-test-mosquitto.conf /tmp/coraine_bridges_mqtt_v311.json
+
+--EXPECT--
+01. PATCH setpoint 70 - published, and its echo dropped: samplesIn 0, samplesOut 1
+==================================================================================
+HTTP/1.1 204 No Content
+plant/tank1/setpoint 70
+plant/tank1/setpoint samplesIn=0 samplesOut=1
+
+
+02. A device then publishes the same 70 - that one IS a sample: samplesIn 1
+===========================================================================
+204
+plant/tank1/setpoint samplesIn=1 samplesOut=1
+
+

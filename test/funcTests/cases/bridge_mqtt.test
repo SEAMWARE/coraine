@@ -1,0 +1,172 @@
+#
+# FILE            bridge_mqtt.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The MQTT bridge's Channels: a topic <-> an entity attribute, both ways, over the Bridge's own
+# connection (mqtt.server in the bridge configuration, MQTT 5).
+#
+#   in   a message on a Channel's topic becomes the attribute's value - JSON as it is, anything else
+#        as a JSON string
+#   out  a write to the attribute is published on the topic
+#   echo the bridge's own publication does not come back as a sample (MQTT 5 no-local) -
+#        samplesIn of the Channel it published on stays where it was
+#
+# A wildcard topic is refused - a message finds its Channel by its topic - and the Channel stays,
+# dormant, with the reason. ftClient plays the device: it publishes (POST /mqtt/publish) and
+# records whatever it is subscribed to ('#').
+#
+--NAME--
+MQTT bridge - topics in and out of entity attributes, no echo of its own publications
+
+--TAGS--
+bridge mqtt
+
+--INIT--
+corDbDrop
+echo "listener 11883
+allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
+mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
+mosquittoWait 11883
+ftClientStart --mqttPort 11883
+
+cat > /tmp/coraine_bridges_mqtt.json <<J
+{ "mqtt": { "server": { "uri": "mqtt://localhost:11883", "MQTT-Version": "mqtt5.0", "clientId": "coraine-bridge-mqtt-test" },
+            "ngsild": { "topics": {
+              "plant/tank1/level":    { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "level",
+                                        "channelInfo": [ { "key": "MQTT-QoS", "value": "1" } ] },
+              "plant/tank1/state":    { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "state" },
+              "plant/tank1/setpoint": { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "setpoint" },
+              "plant/+/level":        { "entityId": "urn:ngsi-ld:Tank:T2", "entityType": "Tank", "attribute": "level" } } } } }
+J
+coraineStart --bridges mqtt --bridgeConfig /tmp/coraine_bridges_mqtt.json
+
+--RUN--
+
+#
+# mqttPublish <topic> <body> - ftClient publishes, as a device on the bus would
+#
+mqttPublish() {
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST "$(ftClientUrl $FT_CLIENT_PORT /mqtt/publish)" -H 'Content-Type: application/json' -d "$2"
+}
+
+#
+# channels - each Channel's topic, status, samplesIn and channelInfo (or the reason it is dormant)
+#
+channels() {
+  curl -s http://localhost:$CB_PORT/ngsi-ld/v1/channels | python3 -c 'import sys, json
+for c in sorted(json.load(sys.stdin), key=lambda c: c["channelTarget"]):
+  print(c["channelTarget"], c["status"], "samplesIn=%s samplesOut=%s" % (c.get("samplesIn"), c.get("samplesOut")), json.dumps(c.get("channelInfo")) if c["status"] == "available" else "- %s" % c.get("statusReason"))'
+}
+
+
+echo "01. A device publishes 42.5 on plant/tank1/level - the attribute follows"
+echo "========================================================================="
+mqttPublish plant/tank1/level '{"topic": "plant/tank1/level", "payload": 42.5}'
+corAwaitBody 10 '/ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1?options=keyValues&attrs=level' '"level": 42.5'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1 --urlParams 'options=keyValues&attrs=level'
+echo
+echo
+
+
+echo "02. A payload that is not JSON - 'running' - arrives as a JSON string"
+echo "====================================================================="
+mqttPublish plant/tank1/state '{"topic": "plant/tank1/state", "text": "running"}'
+corAwaitBody 10 '/ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1?options=keyValues&attrs=state' '"state": "running"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1 --urlParams 'options=keyValues&attrs=state'
+echo
+echo
+
+
+echo "03. GET /channels - the wildcard topic refused, dormant, and why; the others carrying their channelInfo"
+echo "======================================================================================================="
+channels
+echo
+echo
+
+
+echo "04. PATCH setpoint 70 - published on plant/tank1/setpoint"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:T1/attrs/setpoint -X PATCH --payload '{"value": 70, "observedAt": "2026-10-01T12:00:00.000Z"}' | head -1
+#
+# GET /dump drains it: the read that finds the message is the one to print
+#
+for i in $(seq 1 50); do d=$(ftClientDump); echo "$d" | grep -q '"plant/tank1/setpoint"' && break; sleep 0.1; done
+echo "$d" | python3 -c 'import sys, json
+for m in json.load(sys.stdin):
+  if m.get("verb") == "MQTT" and m.get("url") == "plant/tank1/setpoint": print(m["url"], m.get("body"))'
+echo
+echo
+
+
+echo "05. ... and NOT taken back in as a sample: setpoint's samplesIn is still 0"
+echo "=========================================================================="
+sleep 1
+channels | grep setpoint
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
+\rm -f /tmp/mqtt-test-mosquitto.conf /tmp/coraine_bridges_mqtt.json
+
+--EXPECT--
+01. A device publishes 42.5 on plant/tank1/level - the attribute follows
+=========================================================================
+204
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 69
+
+{
+  "id": "urn:ngsi-ld:Tank:T1",
+  "level": 42.5,
+  "type": "Tank"
+}
+
+
+
+02. A payload that is not JSON - 'running' - arrives as a JSON string
+=====================================================================
+204
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 74
+
+{
+  "id": "urn:ngsi-ld:Tank:T1",
+  "state": "running",
+  "type": "Tank"
+}
+
+
+
+03. GET /channels - the wildcard topic refused, dormant, and why; the others carrying their channelInfo
+=======================================================================================================
+plant/+/level dormant samplesIn=0 samplesOut=0 - the bridge would not carry it: its address or channelInfo does not fit the transport
+plant/tank1/level available samplesIn=1 samplesOut=0 [{"key": "MQTT-QoS", "value": "1"}]
+plant/tank1/setpoint available samplesIn=0 samplesOut=0 null
+plant/tank1/state available samplesIn=1 samplesOut=0 null
+
+
+04. PATCH setpoint 70 - published on plant/tank1/setpoint
+=========================================================
+HTTP/1.1 204 No Content
+plant/tank1/setpoint 70
+
+
+05. ... and NOT taken back in as a sample: setpoint's samplesIn is still 0
+==========================================================================
+plant/tank1/setpoint available samplesIn=0 samplesOut=1 null
+
+

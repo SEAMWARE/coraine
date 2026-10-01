@@ -129,6 +129,11 @@ static volatile bool ftMqttSubscribed = false;
 //
 static volatile bool ftMqttFailed = false;
 
+//
+// ftMqttConn - the subscriber's connection, published on by POST /mqtt/publish once it is up
+//
+static struct mosquitto* volatile ftMqttConn = NULL;
+
 unsigned short ftMqttPort   = 0;       // 0 = no MQTT subscription
 char*          ftMqttTopic  = (char*) "#"; // default: catch every topic
 char*          ftMqttUser   = NULL;    // MQTT username (for an auth-required broker)
@@ -1227,7 +1232,9 @@ static void* mqttListenerThread(void* arg)
     return NULL;
   }
 
+  ftMqttConn = mosq;
   mosquitto_loop_forever(mosq, -1, 1);
+  ftMqttConn = NULL;
 
   mosquitto_destroy(mosq);
   mosquitto_lib_cleanup();
@@ -1322,6 +1329,60 @@ static bool postBridgeServiceReply(void)
 
 // -----------------------------------------------------------------------------
 //
+// postMqttPublish - POST /mqtt/publish: put a message on the test MQTT broker
+//
+//   { "topic": "plant/tank1/level", "payload": 42.5 }       - any JSON, published as its text
+//   { "topic": "plant/tank1/state", "text": "running" }     - published exactly as given (not JSON)
+//
+// What a device on the bus would do, for the bridge tests: the broker's mqtt.so is subscribed to the
+// topic and turns the message into an attribute write.
+//
+static bool postMqttPublish(void)
+{
+  CorNode* bodyP = corRest.in.requestTree;
+  CorNode* topicP   = (bodyP != NULL) ? corTreeLookup(bodyP, "topic")   : NULL;
+  CorNode* payloadP = (bodyP != NULL) ? corTreeLookup(bodyP, "payload") : NULL;
+  CorNode* textP    = (bodyP != NULL) ? corTreeLookup(bodyP, "text")    : NULL;
+
+  if ((topicP == NULL) || (topicP->type != CorString) || ((payloadP == NULL) && ((textP == NULL) || (textP->type != CorString))))
+  {
+    corRest.out.httpStatusCode = 400;
+    return true;
+  }
+
+  if (ftMqttConn == NULL)
+  {
+    corRest.out.httpStatusCode = 503;            // no --mqttPort, or not connected (yet)
+    return true;
+  }
+
+  static char rendered[16384];
+  const char* message = rendered;
+
+  if (payloadP != NULL)
+  {
+    char*    savedName = payloadP->name;
+    CorNode* savedNext = payloadP->next;
+
+    payloadP->name = NULL;
+    payloadP->next = NULL;
+    corJsonFastRender(payloadP, rendered);
+    payloadP->name = savedName;
+    payloadP->next = savedNext;
+  }
+  else
+    message = textP->value.s;
+
+  int rc = mosquitto_publish(ftMqttConn, NULL, topicP->value.s, strlen(message), message, 1, false);
+
+  corRest.out.httpStatusCode = (rc == MOSQ_ERR_SUCCESS) ? 204 : 500;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Service table
 //
 static CorRestServiceSimplified ftServices[] =
@@ -1334,6 +1395,7 @@ static CorRestServiceSimplified ftServices[] =
   // Programmable response stubs (mock-reply API).
   { CorVerbPost,   "/mock/reply", postMockReply,   ~(uint64_t)0,       0 },
   { CorVerbPost,   "/bridge/publish", postBridgePublish, ~(uint64_t)0,  0 },
+  { CorVerbPost,   "/mqtt/publish", postMqttPublish, ~(uint64_t)0,      0 },
   { CorVerbPost,   "/bridge/serviceReply", postBridgeServiceReply, ~(uint64_t)0, 0 },
   { CorVerbDelete, "/mock/reply", deleteMockReply, 0,                  0 },
   // Catch-all accumulators — every verb lands here and honors --status.
