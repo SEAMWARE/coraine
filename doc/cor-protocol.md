@@ -179,21 +179,23 @@ back exactly as it was given, so the encoder converts only when the canonical re
 integer reproduces the string byte for byte. Otherwise it stays a string. Nothing is ever
 normalised in transit.
 
-### 4.10a System timestamps belong to corDB - v1
+### 4.10a System timestamps - corDB keeps them beside the node - v1
 
-`createdAt` and `modifiedAt` are not the user's. **corDB sets them itself**, at write time, under
-the write lock it already holds, and keeps them as integers (microseconds) beside the entity and
-each attribute - not as members of the tree. The broker does not compute them; it reads them when
-a request asks for them (`options=sysAttrs`, a temporal `timeproperty=modifiedAt`) and renders
-them then.
+`createdAt` and `modifiedAt` are not the user's, and they are already integers: corNgsild attaches
+them on write (`ldApiEntityToDbModel`, from the request's one time) and renders them on read
+(`ldEntityToApi`, only when a request asks - `options=sysAttrs`, a temporal
+`timeproperty=modifiedAt`). What changes is where corDB keeps them:
 
-For the format that means:
-
-- **snapshot and log** - each entity and attribute record carries its two timestamps as fixed
-  integers in the record's header: a few bytes, never two string members per node
-- **cor://** - they travel only when the request asked for them, as integers
-- **no guard needed** - § 4.10's "convert only if it re-renders exactly" is for the user's
-  `observedAt`; the system timestamps are integers from the start
+- **the broker owns the clock** - one time per request, passed into the DB call as today, so the
+  current state, TRoE and the notifications agree to the microsecond
+- **the plugin owns the representation** - a DB driver that keeps them itself says so (a capability
+  of the driver, not a check on its name), and corNgsild then does not build the two members into
+  the tree. corDB keeps them as two integers beside the entity and each attribute: two nodes, 80
+  bytes, fewer per object - about 80 MB for 100k entities of ten attributes. A plugin without the
+  capability (mongoc) gets the members as today
+- **snapshot and log** carry them as fixed integers in each record's header
+- **cor://** carries them only when the request asked for them, as integers - no guard needed,
+  § 4.10's "convert only if it re-renders exactly" is for the user's `observedAt`
 
 ### 4.11 Compression of a whole frame - later, off by default
 
