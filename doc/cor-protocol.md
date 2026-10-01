@@ -1,6 +1,6 @@
 # The cor format and the cor:// protocol
 
-> **Design notes - working draft (2026-10-01), not implemented.** For discussion before any code.
+> **Design notes (2026-10-01) - decided, not yet implemented.**
 > It supersedes the earlier TLV drafts, whose type codes carried NGSI-LD meaning. Here the format
 > carries *trees*, and the meaning comes from the core-term ids NGSI-LD already has.
 
@@ -66,7 +66,7 @@ derivable while reading; the length is not.
 read buffer: zero-copy, and no allocation per string. The cost is one byte per string.
 
 **Little-endian.** Both ends are ours, and x86 and ARM are both little-endian: no byte swapping,
-anywhere. (Proposed - § 8.)
+anywhere.
 
 ## 4. Making it small
 
@@ -215,12 +215,28 @@ Every message: a fixed 16-byte header, then one encoded tree (§ 3).
 
 | Field | Bytes | |
 |---|---|---|
-| magic | 4 | `COR` + format version - resynchronisation after a framing error |
+| magic | 4 | `BC 4F 52 01`: `~'C'` (0xBC), `O`, `R`, format version 1 (§ 5.1) |
 | message type | 1 | HELLO, HELLO_ACK, REQUEST, RESPONSE, PUSH, CLOSE, ERROR, PING, PONG |
 | flags | 1 | bit 0: compressed (§ 4.11); bit 1: a fragment, more follows |
 | reserved | 2 | zero |
 | correlation id | 4 | a REQUEST's, copied into its RESPONSE; 0 for PUSH |
 | length | 4 | the body's |
+
+### 5.1 The magic
+
+The first four bytes of every frame, and of every snapshot and log file: **`BC 4F 52 01`** -
+`~'C'` (the bitwise NOT of `C`, 0x43), then `O`, `R`, and the format version.
+
+- **Wrong peer, said at once.** An HTTP client on the cor:// port, or the reverse, shows in the first
+  bytes - `GET ` is not `BC 4F 52` - and the connection is refused with a clear error, not a
+  confusing length.
+- **Never text.** 0xBC is a UTF-8 continuation byte, which can never begin valid UTF-8, so no text
+  and no HTTP request can start with the magic. (PNG's `0x89` is the same idea.)
+- **Resynchronisation.** After a framing error the reader can scan for the next magic.
+- **Recognisable.** In a hex dump or a capture, and to `file` for a snapshot - and it carries the
+  format version before HELLO has been read.
+
+### 5.2 The bodies
 
 **The bodies are trees, not codes.** A request is `{ op, tenant, path, params, body }`; a response
 is `{ status, headers, body }`, the body being an entity, a list or a problem details. A new
@@ -275,14 +291,13 @@ example would guess.
 - a malformed-input pass: a truncated buffer, a length that lies, an unknown tag. The decoder
   must reject each of them without reading past the end
 
-## 8. Open questions
+## 8. Decisions
 
-1. **Byte order** - little-endian (proposed, § 3) or network order?
-2. ~~First consumer~~ **Decided:** forwarded requests, on the three-broker chain (§ 6); the
-   snapshot comes after.
-3. **Testing** - through the broker plus `corJson -bin` (§ 7), rather than a library-level suite?
-4. **The string table** - for names only in v1 (proposed), or for values too?
-5. **Name of the magic** - `COR` + version, or something that does not read as an English word in
-   a hex dump?
-6. ~~The tables' lifetime on cor://~~ **Decided:** per connection, sent once and reused across
-   requests - the reason connections persist (§ 4.13).
+All taken - 2026-10-01:
+
+1. **Byte order** - little-endian (§ 3).
+2. **First consumer** - forwarded requests, on the three-broker chain (§ 6); the snapshot after.
+3. **Testing** - through the broker, plus `corJson -bin` (§ 7); no library-level suite.
+4. **The string table** - names in v1 (§ 4.5).
+5. **The magic** - `BC 4F 52 01`, `~'C'` `O` `R` + version (§ 5.1).
+6. **The tables' lifetime on cor://** - per connection, sent once and reused (§ 4.13).
