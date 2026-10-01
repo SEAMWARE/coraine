@@ -31,6 +31,10 @@
 // 100 ms - so it counts every library (mongoc, MHD, OpenSSL ...) and costs a request one load and a
 // compare. Not a check in each malloc: a library handed NULL from malloc does not fail gracefully.
 //
+// Over the soft limit the same thread calls malloc_trim(0), at most every 2 s: glibc keeps freed memory
+// resident on its free lists, so without it the resident set stays at its high-water mark after the
+// requests that pushed it there are long gone.
+//
 extern void memoryBudgetInit(int limitMiB);
 
 

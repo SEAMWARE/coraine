@@ -11,7 +11,8 @@
 #include <stdio.h>                                     // snprintf, sscanf
 #include <string.h>                                    // strcmp, strncmp
 #include <unistd.h>                                    // sysconf
-#include <time.h>                                      // nanosleep
+#include <time.h>                                      // nanosleep, clock_gettime
+#include <malloc.h>                                    // malloc_trim
 #include <pthread.h>                                   // pthread_create, pthread_detach
 #include <stdatomic.h>                                 // _Atomic, atomic_*
 
@@ -58,7 +59,20 @@ static uint64_t residentRead(void)
 
 // -----------------------------------------------------------------------------
 //
-// sampler - keep 'resident' current, every 100 ms
+// monotonicMs -
+//
+static int64_t monotonicMs(void)
+{
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// sampler - keep 'resident' current, every 100 ms - and trim the heap when over the soft limit
 //
 static void* sampler(void* arg)
 {
@@ -66,9 +80,27 @@ static void* sampler(void* arg)
 
   (void) arg;
 
+  int64_t lastTrimMs = 0;
+
   while (true)
   {
-    atomic_store_explicit(&resident, residentRead(), memory_order_relaxed);
+    uint64_t rss = residentRead();
+
+    //
+    // Over the soft limit: give back what is freed but still held. glibc keeps freed memory on its free
+    // lists - reused, but resident - and the requests that pushed the broker over the limit have long
+    // freed their arenas by the time it is measured; without this the resident set would stay at its
+    // high-water mark and the broker refuse requests with little actually in use. At most every 2 s,
+    // and never below the soft limit, where it would only cost time.
+    //
+    if ((rss >= soft) && (monotonicMs() - lastTrimMs >= 2000))
+    {
+      malloc_trim(0);
+      lastTrimMs = monotonicMs();
+      rss        = residentRead();
+    }
+
+    atomic_store_explicit(&resident, rss, memory_order_relaxed);
     nanosleep(&period, NULL);
   }
 
