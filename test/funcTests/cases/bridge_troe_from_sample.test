@@ -48,8 +48,14 @@ echo
 echo
 
 
-echo "02. troe_attrs - the sample's own row"
-echo "====================================="
+#
+# channelPrePopulate puts "uninitialized" into current state so the attribute can be PATCHed
+# before the first sample - and NOT into history: nobody supplied it, it has no observedAt, and
+# as a row it sorted into a lastN page ahead of the real values. Its entity-created event
+# carries the entity alone (step 03); the attribute's history starts with the sample.
+#
+echo "02. troe_attrs - the sample's own row, and ONLY that: the placeholder is not history"
+echo "===================================================================================="
 sleep 0.5
 psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), op, v_number FROM troe_attrs ORDER BY modified_at"
@@ -93,7 +99,7 @@ echo "======================================================================="
 #
 # THE POINT OF THE WHOLE CASE. A value that entered the broker from a
 # transport, with no HTTP request anywhere behind it, comes back out of a
-# temporal query - placeholder first, then the sample.
+# temporal query - the sample alone, no placeholder before it.
 #
 corCurl --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Machine:1 --urlParams 'timerel=after&timeAt=2020-01-01T00:00:00Z&timeproperty=modifiedAt'
 echo
@@ -124,9 +130,8 @@ Content-Length: 121
 
 
 
-02. troe_attrs - the sample's own row
-=====================================
-temperature|created|
+02. troe_attrs - the sample's own row, and ONLY that: the placeholder is not history
+====================================================================================
 temperature|replaced|41
 
 
@@ -161,11 +166,6 @@ Content-Length: REGEX(\d+)
 {
   "id": "urn:ngsi-ld:Machine:1",
   "temperature": [
-    {
-      "instanceId": "REGEX(.*)",
-      "type": "Property",
-      "value": "uninitialized"
-    },
     {
       "instanceId": "REGEX(.*)",
       "type": "Property",

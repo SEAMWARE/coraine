@@ -32,6 +32,12 @@
 //
 // CHANNEL_PLACEHOLDER_VALUE - what an attribute holds before anything publishes
 //
+// Why anything at all: a PATCH needs the attribute to exist, and a client must
+// be able to PATCH a Channel's attribute before the first sample arrives - the
+// requirement this pre-population was built for (DDS). So every configured
+// Channel's entity and attribute is created at startup, in the current state.
+// Not in the history: see the TRoE note in channelPrePopulate.
+//
 // A string, and a self-describing one. Something has to be stored so the
 // attribute exists and can be queried, subscribed to and shown, and every
 // choice is wrong in some reading: 0 is a plausible measurement, null asks
@@ -207,6 +213,16 @@ int channelPrePopulate(Tenant* tenantP)
       // troe_entities, so every temporal query against it answers 404 while
       // the samples pile up in troe_attrs unread.
       //
+      // ⭐ But the ENTITY goes in, not its placeholders. A created event's
+      // snapshot is fanned out into one attribute instance per attribute, and
+      // "uninitialized" is not a value anybody supplied - it has no observedAt,
+      // so it even sorted into a lastN page, ahead of the real values. The
+      // placeholders exist for the CURRENT STATE only: an attribute must exist
+      // to be PATCHed, and a client must be able to PATCH one before the first
+      // sample arrives (the DDS requirement this pre-population is for). The
+      // history of an attribute starts with its first real value - a sample,
+      // or a PATCH that came before one.
+      //
       if (troe.entityEvent != NULL || troe.eventList != NULL)
       {
         TroeEvent* tevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
@@ -217,7 +233,9 @@ int channelPrePopulate(Tenant* tenantP)
         tevP->entityId       = entityId;
         tevP->entityType     = channelP->entityType;
         tevP->modifiedAtNs   = corRest.requestStartTime;
-        tevP->entitySnapshot = entityP;
+        tevP->entitySnapshot = corTreeObject(corRest.kallocP, NULL);
+        corTreeChildAdd(tevP->entitySnapshot, corTreeString(corRest.kallocP, "id", entityId));
+        corTreeChildAdd(tevP->entitySnapshot, corTreeString(corRest.kallocP, "type", channelP->entityType));
         troeDeferEntityEvent(tevP);
       }
 
