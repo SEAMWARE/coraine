@@ -1,0 +1,106 @@
+#
+# FILE            troe_timescale_lastn_no_time_last.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An instance without the time property sorts AFTER every instance that has one - for lastN as
+# for firstN. observedAt is the user's to give, so an attribute created without one has a first
+# instance with no time at all. PostgreSQL puts a NULL first in a descending sort, and lastN
+# sorts descending: the page of "the latest two" began with that timeless instance and dropped
+# the latest real one.
+#
+# Retrieve without timerel, so nothing filters the timeless instance out - the ordering alone
+# decides where it goes.
+#
+--NAME--
+TRoE timescale - lastN and firstN put an instance with no observedAt last
+
+--TAGS--
+troe timescale postgres temporal lastN
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# values - the instances as returned, in order: value and observedAt
+#
+values() {
+  python3 -c '
+import sys, json
+hdr = ""; body = ""
+for line in sys.stdin:
+    if hdr == "" and line.strip() == "": hdr = "done"; continue
+    if hdr == "done": body += line
+for inst in json.loads(body)["speed"]:
+    print("  %s %s" % (inst.get("value"), inst.get("observedAt", "-")))'
+}
+
+echo "01. speed created WITHOUT observedAt (10), then three PATCHes that carry one (20, 30, 40)"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' | head -1
+echo
+echo
+
+
+echo "02. lastN=2 - the two latest: 40 and 30, not the timeless 10"
+echo "============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed&lastN=2' | values
+echo
+echo
+
+
+echo "03. firstN=2 - the two earliest: 20 and 30, the timeless 10 not among them either"
+echo "================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed&firstN=2' | values
+echo
+echo
+
+
+echo "04. All four - the timeless instance is there, after every instance with a time"
+echo "================================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | values
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. speed created WITHOUT observedAt (10), then three PATCHes that carry one (20, 30, 40)
+=========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. lastN=2 - the two latest: 40 and 30, not the timeless 10
+=============================================================
+  40 2026-04-28T12:00:00Z
+  30 2026-04-28T11:00:00Z
+
+
+03. firstN=2 - the two earliest: 20 and 30, the timeless 10 not among them either
+=================================================================================
+  20 2026-04-28T10:00:00Z
+  30 2026-04-28T11:00:00Z
+
+
+04. All four - the timeless instance is there, after every instance with a time
+================================================================================
+  20 2026-04-28T10:00:00Z
+  30 2026-04-28T11:00:00Z
+  40 2026-04-28T12:00:00Z
+  10 -
+
+
