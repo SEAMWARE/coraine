@@ -112,6 +112,7 @@
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
 #include "crashReport.h"                          // crashReportInstall
 #include "inlineDispatch.h"                                  // inlineDispatchInit
+#include "memoryBudget.h"                                    // memoryBudgetInit, memoryBudgetAdmit
 
 
 
@@ -216,6 +217,7 @@ bool           highPrecision   = false;     // --high-precision/-hp: 9-digit (ns
 bool           asyncSnapshot   = false;
 bool           insecureNotif   = false;     // accept self-signed certs on TLS notifications/forwards
 bool           noInline        = false;     // hand every request to a worker (see inlineDispatch.h)
+int            memoryLimit     = 0;         // MiB; 0: 85% of the cgroup limit, if there is one (see memoryBudget.h)
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
@@ -255,6 +257,7 @@ static CorArg kargV[] =
   { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgOpt, _vp false,    _vp false, _vp true, "run in foreground (don't daemonize)" },
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
+  { "--memoryLimit",        "-memoryLimit", CorArgInt,   _vp &memoryLimit, CorArgOpt, _vp 0,     _vp 0,     _vp 1048576, "memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)" },
   { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
   CORARGS_END
 };
@@ -960,6 +963,10 @@ static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)
 //
 static bool brokerPreServiceHook(void)
 {
+  // Over the memory budget: refused before anything is resolved or downloaded for it (memoryBudget.h)
+  if (memoryBudgetAdmit() == false)
+    return false;
+
   // § 6.2.2 Accept-header precondition FIRST — a Not Acceptable media type is a
   // 406 that must trump any other 4xx (e.g. an unacceptable Accept on a retrieve
   // of a missing entity is 406, not 404) and, being a precondition, must reject
@@ -1574,6 +1581,8 @@ int main(int argC, char* argV[])
   corRestSetPreServiceHook(brokerPreServiceHook);
   corRestSetPostResponseHook(brokerPostResponseHook);
   inlineDispatchInit(dbName, troeName, noInline);
+  memoryBudgetInit(memoryLimit);
+  metricsMemoryValuesSet(memoryBudgetValues);
 
   if (dbStart() != 0)
     COR_X(1, "dbStart failed");
