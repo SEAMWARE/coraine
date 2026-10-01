@@ -1,6 +1,6 @@
 # A Modbus bridge — design proposal
 
-> **v1 built** (2026-10-01): Modbus TCP, the mapping in the endpoint (§ 2.1), change-only reporting
+> **v1 built** (2026-10-01): Modbus TCP, the address in the endpoint and how to read it in `channelInfo` (§ 2.1), change-only reporting
 > with a deadband (§ 2.3), queued writes (§ 2.4), `modbusStatus` on a device that stops answering
 > (§ 2.5) - `src/plugins/bridge/modbus`, tested against a Modbus device in the functests
 > (`test/funcTests/tools/ftModbus.py`, `bridge_modbus.test`). **Not yet:** contiguous registers read
@@ -45,34 +45,36 @@ and HVAC controllers.
 | `sampleIn(endpoint, json, time)` | a poll result - the decoded value, at the time it was read |
 | `publish(endpoint, json)` | a write to a coil or holding register(s) |
 
-### 2.1 The endpoint IS the mapping
+### 2.1 The endpoint is the address; channelInfo says how to read it
 
-DDS endpoints are names (`rt/pose`), and the type comes with the data. A Modbus
-endpoint has to carry everything the manual says, because nothing else will:
+DDS endpoints are names (`rt/pose`), and the type comes with the data. A Modbus device says nothing
+about what its registers mean, so a Channel needs more than an address - but the endpoint is the
+Channel's **identity** (an arriving sample finds its Channel by it), so it carries *where* the value is
+and nothing else:
 
 ```
-holding/40001?type=float32&order=CDAB&scale=0.01&unit=3&poll=1000
-coil/12
-input/30010?type=uint16&poll=5000&deadband=0.5
+[unit/<n>/]coil|discrete|holding|input/<address>
+
+holding/40001        unit/3/holding/40001        coil/12        input/30010
 ```
 
-| Part | Meaning | Default |
+The address is 0-based, or the 1-based `1xxxx`/`3xxxx`/`4xxxx` form of the device manuals, recognised
+by its range. *How* to read the value, and how to carry it, is the Channel's **`channelInfo`** - an
+array of key-value pairs, as NGSI-LD's `receiverInfo` / `notifierInfo` / `contextSourceInfo` are for an
+endpoint of theirs. Changing a scale factor is then not a different Channel:
+
+| key | Meaning | Default |
 |---|---|---|
-| table | `coil`, `discrete`, `holding`, `input` | - |
-| address | register or bit number (0-based, or the 1-based 4xxxx form, recognised) | - |
-| `type` | `bool`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64`, `string:N` | `bool` for bits, `uint16` for registers |
+| `type` | `bool`, `int16`, `uint16`, `int32`, `uint32`, `float32`, `float64` | `bool` for bits, `uint16` for registers |
 | `order` | word/byte order for multi-register values: `ABCD`, `CDAB`, `BADC`, `DCBA` | `ABCD` |
 | `scale`, `offset` | value = raw x scale + offset (inverted on write) | 1, 0 |
-| `unit` | unit id, for gateways | the Bridge's |
 | `poll` | poll period, ms (inbound) | the Bridge's |
 | `deadband` | only report a change larger than this | 0 = any change |
 
-Self-describing endpoints keep the mapping next to the Channel that uses it -
-a Channel created at runtime needs nothing else - and the endpoint stays a
-plain string, so the seam does not change. The alternative, a mapping table in
-the Bridge's configuration referenced by name, is better for a fleet of
-identical devices (one table, a hundred units) and can come later as an alias
-mechanism on top.
+Both key and value are strings. An unknown key, or a value that does not fit (a `float32` coil), is
+not a default: the plugin refuses the Channel, which then shows as `dormant` in `GET /channels` with the
+reason. The broker never interprets a key - it hands `channelInfo` to the plugin as it is
+(`channelAddInfo`, bridge ABI 9), and `GET /channels` shows it.
 
 ### 2.2 Inbound: polling is the plugin's job
 
@@ -119,10 +121,11 @@ the last KNOWN value) and gets `sampleMetaIn` meta once, when the state changes:
 This is the part worth the work. Expected findings, each a decision to make
 rather than a fix to slip in:
 
-1. **Channel parameters.** A Channel has an endpoint, a kind and a direction.
-   Modbus needs typing and scaling; the proposal puts them in the endpoint
-   string. Fine for Modbus, but if OPC-UA and MQTT codecs need the same,
-   a `params` object on the Channel may be the honest shape.
+1. **Channel parameters - done: `channelInfo`.** A Channel had an endpoint, a kind and a direction.
+   Modbus needs typing and scaling; the first version put them in the endpoint string, which made a
+   scale factor part of the Channel's identity, and left every future transport (OPC-UA sampling, MQTT
+   QoS and codec) to invent its own URL syntax. Now the endpoint is the address and `channelInfo` - key-value
+   pairs, as `receiverInfo` - is the rest, handed to the plugin by `channelAddInfo` (bridge ABI 9).
 2. **Who owns time.** DDS carries source timestamps; Modbus none; the seam's
    `publishTime = 0` already means "broker, use your clock". OK as is.
 3. **Change detection.** Push transports do not need it, poll transports all do
@@ -151,7 +154,10 @@ an attribute, exactly as for every other bridge:
 ```json
 { "modbus": { "server": { "host": "10.0.0.5", "port": 502, "unit": 1, "pollMs": 1000, "timeoutMs": 500 },
               "ngsild": { "topics": {
-                "holding/0?type=float32&order=CDAB&scale=0.1": { "entityId": "urn:Meter:1", "entityType": "Meter", "attribute": "power" },
+                "holding/0": { "entityId": "urn:Meter:1", "entityType": "Meter", "attribute": "power",
+                               "channelInfo": [ { "key": "type",  "value": "float32" },
+                                                { "key": "order", "value": "CDAB" },
+                                                { "key": "scale", "value": "0.1" } ] },
                 "coil/3": { "entityId": "urn:Meter:1", "entityType": "Meter", "attribute": "relay" } } } } }
 ```
 
@@ -171,8 +177,8 @@ Run with `--bridges modbus --bridgeConfig <file>`.
 
 ## 5. Questions
 
-1. Mapping in the endpoint (proposed), or a named mapping table in the Bridge
-   configuration from the start?
+1. ~~Mapping in the endpoint, or ...~~ **Decided: `channelInfo`** (§ 2.1). Still open: a named mapping
+   (one `channelInfo` for a fleet of identical devices), referenced by the Channels that use it.
 2. Change-only in the plugin (proposed), or a broker-side service for all poll
    transports?
 3. Write outcomes: `publishResultIn` upcall now, or log-only in v1?

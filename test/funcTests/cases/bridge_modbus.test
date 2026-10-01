@@ -9,8 +9,9 @@
 # values, an attribute written becomes a register written, and a device that stops answering is
 # said once - as modbusStatus on the last known value.
 #
-# The endpoint is the mapping: holding/0?type=float32 is a 32-bit float in holding registers 0-1,
-# coil/3 one bit. Every wait is for a state (corAwaitBody), never a fixed sleep.
+# The endpoint is the address (holding/0, coil/3); how to read it is the Channel's channelInfo - here
+# a 32-bit float in holding registers 0-1. GET /channels shows it. Every wait is for a state
+# (corAwaitBody), never a fixed sleep.
 #
 --NAME--
 Modbus bridge - polled registers in, attribute writes out, a silent device reported as modbusStatus
@@ -27,22 +28,44 @@ BRIDGE_CONFIG=/tmp/coraine_bridges_modbus.json
 cat > $BRIDGE_CONFIG <<J
 { "modbus": { "server": { "host": "127.0.0.1", "port": $FT_MODBUS_PORT, "unit": 1, "pollMs": 100, "timeoutMs": 300 },
               "ngsild": { "topics": {
-                "holding/0?type=float32": { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "temperature" },
-                "coil/3":                 { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "relay" } } } } }
+                "holding/0": { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "temperature",
+                               "channelInfo": [ { "key": "type", "value": "float32" } ] },
+                "coil/3":                 { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "relay" },
+                "holding/5?type=float32": { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "oldSyntax" },
+                "holding/7":              { "entityId": "urn:MB:M1", "entityType": "Meter", "attribute": "unknownKey",
+                                            "channelInfo": [ { "key": "scaling", "value": "2" } ] } } } } }
 J
 coraineStart --bridges modbus --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
-echo "01. The first poll: temperature 21.5 (two registers, float32), relay false (a coil)"
-echo "==================================================================================="
+echo "01. The first poll: temperature 21.5 (two registers, float32 by its channelInfo), relay false (a coil)"
+echo "======================================================================================================"
 corAwaitBody 10 '/ngsi-ld/v1/entities/urn:MB:M1?options=keyValues' '"temperature": 21.5'
 corCurl --url /ngsi-ld/v1/entities/urn:MB:M1 --urlParams 'options=keyValues'
 echo
 echo
 
 
-echo "02. The device's register changes to 22.0 - the attribute follows"
+echo "02. GET /channels - the temperature Channel's address and its channelInfo"
+echo "========================================================================="
+curl -s http://localhost:$CB_PORT/ngsi-ld/v1/channels | python3 -c 'import sys, json
+for c in json.load(sys.stdin):
+  if c.get("channelTarget") == "holding/0": print(c["channelTarget"], json.dumps(c.get("channelInfo")))'
+echo
+echo
+
+
+echo "03. Channels the bridge refused - the old ?type= syntax, an unknown channelInfo key: dormant, and why"
+echo "====================================================================================================="
+curl -s http://localhost:$CB_PORT/ngsi-ld/v1/channels | python3 -c 'import sys, json
+for c in sorted(json.load(sys.stdin), key=lambda c: c["channelTarget"]):
+  if c["channelTarget"] in ("holding/5?type=float32", "holding/7"): print(c["channelTarget"], c["status"], "-", c.get("statusReason"))'
+echo
+echo
+
+
+echo "04. The device's register changes to 22.0 - the attribute follows"
 echo "================================================================="
 ftModbusSet holding 0 16816 0
 corAwaitBody 10 '/ngsi-ld/v1/entities/urn:MB:M1?options=keyValues' '"temperature": 22'
@@ -51,7 +74,7 @@ echo
 echo
 
 
-echo "03. PATCH relay true - the coil is written, once"
+echo "05. PATCH relay true - the coil is written, once"
 echo "================================================"
 corCurl --url /ngsi-ld/v1/entities/urn:MB:M1/attrs/relay -X PATCH --payload '{"value":true}' | head -1
 for i in $(seq 1 50); do [ "$(ftModbusGet coil 3)" == "[1]" ] && break; sleep 0.1; done
@@ -61,7 +84,7 @@ echo
 echo
 
 
-echo "04. The device stops answering - modbusStatus 'timeout', the last known value kept"
+echo "06. The device stops answering - modbusStatus 'timeout', the last known value kept"
 echo "=================================================================================="
 ftModbusMode silent
 corAwaitBody 10 '/ngsi-ld/v1/entities/urn:MB:M1?attrs=temperature' '"timeout"'
@@ -70,7 +93,7 @@ echo
 echo
 
 
-echo "05. It answers again - modbusStatus 'ok'"
+echo "07. It answers again - modbusStatus 'ok'"
 echo "========================================"
 ftModbusMode normal
 corAwaitBody 10 '/ngsi-ld/v1/entities/urn:MB:M1?attrs=temperature' '"ok"'
@@ -85,43 +108,56 @@ ftModbusStop
 corDbDrop
 
 --EXPECT--
-01. The first poll: temperature 21.5 (two registers, float32), relay false (a coil)
-===================================================================================
+01. The first poll: temperature 21.5 (two registers, float32 by its channelInfo), relay false (a coil)
+======================================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 84
+Content-Length: 149
 
 {
   "id": "urn:MB:M1",
+  "oldSyntax": "uninitialized",
   "relay": false,
   "temperature": 21.5,
-  "type": "Meter"
+  "type": "Meter",
+  "unknownKey": "uninitialized"
 }
 
 
 
-02. The device's register changes to 22.0 - the attribute follows
+02. GET /channels - the temperature Channel's address and its channelInfo
+=========================================================================
+holding/0 [{"key": "type", "value": "float32"}]
+
+
+03. Channels the bridge refused - the old ?type= syntax, an unknown channelInfo key: dormant, and why
+=====================================================================================================
+holding/5?type=float32 dormant - the bridge would not carry it: its address or channelInfo does not fit the transport
+holding/7 dormant - the bridge would not carry it: its address or channelInfo does not fit the transport
+
+
+04. The device's register changes to 22.0 - the attribute follows
 =================================================================
   "temperature": 22,
 
 
-03. PATCH relay true - the coil is written, once
+05. PATCH relay true - the coil is written, once
 ================================================
 HTTP/1.1 204 No Content
 coil 3: [1]
 writes: 1
 
 
-04. The device stops answering - modbusStatus 'timeout', the last known value kept
+06. The device stops answering - modbusStatus 'timeout', the last known value kept
 ==================================================================================
     "modbusStatus": {
       "value": "timeout"
     "value": 22
 
 
-05. It answers again - modbusStatus 'ok'
+07. It answers again - modbusStatus 'ok'
 ========================================
       "value": "ok"
     "value": 22

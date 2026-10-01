@@ -8,11 +8,12 @@
 //
 // The Modbus TCP bridge - see doc/modbus-bridge.md.
 //
-// One Bridge is one Modbus server (host:port); one Channel is one value in it, and the endpoint IS
-// the mapping, because a device says nothing about what its registers mean:
+// One Bridge is one Modbus server (host:port); one Channel is one value in it. The endpoint is the
+// ADDRESS - [unit/<n>/]coil|discrete|holding|input/<address> - and how to read it (type, word order,
+// scale, poll, deadband) is the Channel's channelInfo, key-value pairs as NGSI-LD's receiverInfo
+// (channelAddInfo, bridge ABI 9):
 //
-//   holding/40001?type=float32&order=CDAB&scale=0.01&unit=3&poll=1000&deadband=0.5
-//   coil/12
+//   "holding/40001": { ..., "channelInfo": [ {"key": "type", "value": "float32"}, {"key": "order", "value": "CDAB"} ] }
 //
 // Modbus pushes nothing, so the plugin polls - one thread per Bridge, one request at a time - and
 // reports a value only when it changed (beyond its deadband): a register read every second for an
@@ -26,7 +27,7 @@
 // The configuration (the Bridge's member of the --bridgeConfig file):
 //
 //   "modbus": { "server": { "host": "10.0.0.5", "port": 502, "unit": 1, "pollMs": 1000, "timeoutMs": 500 },
-//               "ngsild": { "topics": { "<endpoint>": { "entityId": ..., "entityType": ..., "attribute": ... } } } }
+//               "ngsild": { "topics": { "<address>": { "entityId": ..., "entityType": ..., "attribute": ..., "channelInfo": [...] } } } }
 //
 #include <pthread.h>                                  // pthread_*
 #include <stdio.h>                                    // snprintf, fopen, fread
@@ -219,10 +220,11 @@ static bool typeFromName(const char* name, int nameLen, ModbusType* typeP, int* 
 
 // -----------------------------------------------------------------------------
 //
-// pointParse - an endpoint into a ModbusPoint; false (and logged) if it is not one
+// pointParse - an endpoint into a ModbusPoint's ADDRESS; false if it is not one
 //
-// table/address[?key=value&...] - the address is 0-based, or the 1-based 0xxxx/1xxxx/3xxxx/4xxxx form
-// of the device manuals, recognised by its size (an address >= 10001 in its table's range).
+// [unit/<n>/]<table>/<address> - where the value is, and nothing else: the endpoint is the Channel's
+// identity. How to read it comes in channelInfo (pointInfo). The address is 0-based, or the 1-based
+// 1xxxx/3xxxx/4xxxx form of the device manuals, recognised by its range.
 //
 static bool pointParse(const char* endpoint, ModbusPoint* pP)
 {
@@ -232,27 +234,37 @@ static bool pointParse(const char* endpoint, ModbusPoint* pP)
   pP->pollMs   = defaultPoll;
   strcpy(pP->order, "ABCD");
 
-  const char* slash = strchr(endpoint, '/');
+  const char* p = endpoint;
+
+  if (strncmp(p, "unit/", 5) == 0)
+  {
+    char* end;
+    long  unit = strtol(p + 5, &end, 10);
+
+    if ((end == p + 5) || (*end != '/') || (unit < 0) || (unit > 255))
+      return false;
+
+    pP->unit = (int) unit;
+    p        = end + 1;
+  }
+
+  const char* slash = strchr(p, '/');
   if (slash == NULL)
     return false;
 
-  int tableLen = slash - endpoint;
-  if      ((tableLen == 4) && (strncmp(endpoint, "coil", 4) == 0))      pP->table = MbCoil;
-  else if ((tableLen == 8) && (strncmp(endpoint, "discrete", 8) == 0))  pP->table = MbDiscrete;
-  else if ((tableLen == 7) && (strncmp(endpoint, "holding", 7) == 0))   pP->table = MbHolding;
-  else if ((tableLen == 5) && (strncmp(endpoint, "input", 5) == 0))     pP->table = MbInput;
+  int tableLen = slash - p;
+  if      ((tableLen == 4) && (strncmp(p, "coil", 4) == 0))      pP->table = MbCoil;
+  else if ((tableLen == 8) && (strncmp(p, "discrete", 8) == 0))  pP->table = MbDiscrete;
+  else if ((tableLen == 7) && (strncmp(p, "holding", 7) == 0))   pP->table = MbHolding;
+  else if ((tableLen == 5) && (strncmp(p, "input", 5) == 0))     pP->table = MbInput;
   else
     return false;
 
   char* end;
   long  address = strtol(slash + 1, &end, 10);
-  if ((end == slash + 1) || (address < 0) || ((*end != 0) && (*end != '?')))
-    return false;
+  if ((end == slash + 1) || (address < 0) || (*end != 0))
+    return false;                                      // nothing after the address - see channelInfo
 
-  //
-  // The manuals' 1-based form: 00001-09999 coils, 10001-19999 discrete inputs, 30001-39999 input
-  // registers, 40001-49999 holding registers (and the 6-digit 400001 form)
-  //
   if      ((pP->table == MbHolding)  && (address >= 400001) && (address <= 465536)) address -= 400001;
   else if ((pP->table == MbHolding)  && (address >= 40001)  && (address <= 49999))  address -= 40001;
   else if ((pP->table == MbInput)    && (address >= 300001) && (address <= 365536)) address -= 300001;
@@ -263,62 +275,83 @@ static bool pointParse(const char* endpoint, ModbusPoint* pP)
     return false;
 
   pP->address = (int) address;
+  pP->type    = ((pP->table == MbCoil) || (pP->table == MbDiscrete)) ? MbBool : MbUint16;
+  pP->regs    = 1;
 
-  if ((pP->table == MbCoil) || (pP->table == MbDiscrete))
-  {
-    pP->type = MbBool;
-    pP->regs = 1;
-  }
-  else
-  {
-    pP->type = MbUint16;
-    pP->regs = 1;
-  }
+  return true;
+}
 
-  for (const char* p = (*end == '?') ? end + 1 : end; *p != 0; )
-  {
-    const char* eq  = strchr(p, '=');
-    const char* amp = strchr(p, '&');
-    if (amp == NULL)
-      amp = p + strlen(p);
-    if ((eq == NULL) || (eq > amp))
-      return false;
 
-    int         keyLen = eq - p;
-    const char* val    = eq + 1;
-    int         valLen = amp - val;
 
-    if ((keyLen == 4) && (strncmp(p, "type", 4) == 0))
-    {
-      if ((typeFromName(val, valLen, &pP->type, &pP->regs) == false) ||
-          (((pP->table == MbCoil) || (pP->table == MbDiscrete)) != (pP->type == MbBool)))
-        return false;                                  // a bit is a bool, a register is not
-    }
-    else if ((keyLen == 5) && (strncmp(p, "order", 5) == 0))
-    {
-      if ((valLen != 4) || ((strncmp(val, "ABCD", 4) != 0) && (strncmp(val, "CDAB", 4) != 0) &&
-                            (strncmp(val, "BADC", 4) != 0) && (strncmp(val, "DCBA", 4) != 0)))
-        return false;
-      memcpy(pP->order, val, 4);
-      pP->order[4] = 0;
-    }
-    else if ((keyLen == 5) && (strncmp(p, "scale", 5) == 0))     pP->scale    = strtod(val, NULL);
-    else if ((keyLen == 6) && (strncmp(p, "offset", 6) == 0))    pP->offset   = strtod(val, NULL);
-    else if ((keyLen == 4) && (strncmp(p, "unit", 4) == 0))      pP->unit     = (int) strtol(val, NULL, 10);
-    else if ((keyLen == 4) && (strncmp(p, "poll", 4) == 0))      pP->pollMs   = (int) strtol(val, NULL, 10);
-    else if ((keyLen == 8) && (strncmp(p, "deadband", 8) == 0))  pP->deadband = strtod(val, NULL);
-    else
-      return false;                                    // an unknown key is a mistake, not a default
+// -----------------------------------------------------------------------------
+//
+// pointInfo - the Channel's channelInfo into a ModbusPoint: how to read and carry the value
+//
+// [{"key": "type", "value": "float32"}, {"key": "order", "value": "CDAB"}, {"key": "scale", "value": "0.01"},
+//  {"key": "offset", ...}, {"key": "poll", "value": "1000"}, {"key": "deadband", "value": "0.5"}]
+//
+// An unknown key, or a value that does not fit, is false - and the Channel is refused: a register read
+// with the wrong type is a wrong value, not a default.
+//
+static bool pointInfo(const char* info, ModbusPoint* pP, const char** whyP)
+{
+  if (info == NULL)
+    return true;
 
-    p = (*amp == '&') ? amp + 1 : amp;
-  }
+  CorAlloc ka;
+  CorJson  cj;
+  char     buf[4096];
+  char*    text = strdup(info);
 
-  if ((pP->scale == 0) || (pP->unit < 0) || (pP->unit > 255) || (pP->pollMs < 0) || (pP->address + pP->regs > 65536))
+  if (text == NULL)
     return false;
 
-  pP->endpoint = strdup(endpoint);
-  pP->status   = NULL;
-  return true;
+  corAllocBufferInit(&ka, buf, sizeof(buf), 4096, NULL, "modbus channelInfo");
+  corJsonCreate(&cj, &ka);
+
+  CorNode* arrayP = corJsonParse(&cj, text);
+  bool     ok     = (arrayP != NULL) && (arrayP->type == CorArray);
+
+  for (CorNode* pairP = (ok == true) ? arrayP->value.head : NULL; (pairP != NULL) && (ok == true); pairP = pairP->next)
+  {
+    CorNode*    keyP  = corTreeLookup(pairP, "key");
+    CorNode*    valP  = corTreeLookup(pairP, "value");
+    const char* key   = ((keyP != NULL) && (keyP->type == CorString)) ? keyP->value.s : "";
+    const char* val   = ((valP != NULL) && (valP->type == CorString)) ? valP->value.s : "";
+    int         valLen = strlen(val);
+
+    if (strcmp(key, "type") == 0)
+    {
+      ok = (typeFromName(val, valLen, &pP->type, &pP->regs) == true) &&
+           (((pP->table == MbCoil) || (pP->table == MbDiscrete)) == (pP->type == MbBool));   // a bit is a bool, a register is not
+      if (ok == false) *whyP = "type";
+    }
+    else if (strcmp(key, "order") == 0)
+    {
+      ok = (valLen == 4) && ((strcmp(val, "ABCD") == 0) || (strcmp(val, "CDAB") == 0) || (strcmp(val, "BADC") == 0) || (strcmp(val, "DCBA") == 0));
+      if (ok == true) strcpy(pP->order, val); else *whyP = "order";
+    }
+    else if (strcmp(key, "scale") == 0)     { pP->scale    = strtod(val, NULL); ok = (pP->scale != 0); if (ok == false) *whyP = "scale"; }
+    else if (strcmp(key, "offset") == 0)    pP->offset   = strtod(val, NULL);
+    else if (strcmp(key, "poll") == 0)      { pP->pollMs   = (int) strtol(val, NULL, 10); ok = (pP->pollMs >= 0); if (ok == false) *whyP = "poll"; }
+    else if (strcmp(key, "deadband") == 0)  pP->deadband = strtod(val, NULL);
+    else
+    {
+      ok    = false;
+      *whyP = "an unknown key";
+    }
+  }
+
+  if ((ok == true) && (pP->address + pP->regs > 65536))
+  {
+    ok    = false;
+    *whyP = "the address range";
+  }
+
+  corAllocBufferReset(&ka, false);
+  free(text);
+
+  return ok;
 }
 
 
@@ -998,9 +1031,9 @@ static void modbusClose(void)
 
 // -----------------------------------------------------------------------------
 //
-// modbusChannelAdd -
+// modbusChannelAddInfo - a Channel: its endpoint (the address) and its channelInfo (how to read it)
 //
-static int modbusChannelAdd(const char* endpoint, BridgeChannelKind kind, BridgeDirection direction)
+static int modbusChannelAddInfo(const char* endpoint, BridgeChannelKind kind, BridgeDirection direction, const char* info)
 {
   if (kind != BridgeChannelTopic)
     return BRIDGE_UNSUPPORTED;                          // a read-on-demand Service is v2 (doc § 3.5)
@@ -1008,9 +1041,18 @@ static int modbusChannelAdd(const char* endpoint, BridgeChannelKind kind, Bridge
   ModbusPoint point;
   if (pointParse(endpoint, &point) == false)
   {
-    COR_E("modbus: '%s' is not a Modbus endpoint (table/address?type=...&order=...&scale=...)", endpoint);
+    COR_E("modbus: '%s' is not a Modbus address ([unit/<n>/]coil|discrete|holding|input/<address>) - how to read it goes in channelInfo", endpoint);
     return BRIDGE_BAD_INPUT;
   }
+
+  const char* why = "the channelInfo";
+  if (pointInfo(info, &point, &why) == false)
+  {
+    COR_E("modbus: '%s': %s in its channelInfo does not fit (keys: type, order, scale, offset, poll, deadband)", endpoint, why);
+    return BRIDGE_BAD_INPUT;
+  }
+
+  point.endpoint = strdup(endpoint);
 
   if (direction == BridgeDirectionOut)
     point.pollMs = 0;
@@ -1044,6 +1086,17 @@ static int modbusChannelAdd(const char* endpoint, BridgeChannelKind kind, Bridge
   pthread_mutex_unlock(&mtx);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// modbusChannelAdd - a Channel with no channelInfo (a host from before ABI 9)
+//
+static int modbusChannelAdd(const char* endpoint, BridgeChannelKind kind, BridgeDirection direction)
+{
+  return modbusChannelAddInfo(endpoint, kind, direction, NULL);
 }
 
 
@@ -1194,12 +1247,21 @@ static const char* modbusVersionInfo(void)
 //
 void bridgeRegister(BridgeDriver* driverP)
 {
+  if (driverP->abiVersion < 1)
+    driverP->abiVersion = 1;                         // a host from before the handshake
+
   driverP->alias       = "modbus";
   driverP->version     = "0.1.0";
   driverP->args        = NULL;
   driverP->init        = modbusInit;
   driverP->close       = modbusClose;
   driverP->channelAdd  = modbusChannelAdd;
+
+  //
+  // ABI 9 - only where the HOST has the slot: it allocated this struct at its own size
+  //
+  if (driverP->abiVersion >= 9)
+    driverP->channelAddInfo = modbusChannelAddInfo;
   driverP->channelDel  = modbusChannelDel;
   driverP->publish     = modbusPublish;
   driverP->versionInfo = modbusVersionInfo;

@@ -700,12 +700,35 @@ static void bridgesInit(void)
       if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, channelP->bridgeName) != 0))
         continue;
 
-      if (bridges[i].channelAdd == NULL)
+      //
+      // channelAddInfo (ABI 9) when the plugin has it - the Channel's channelInfo comes with it - else
+      // channelAdd, and a channelInfo the plugin cannot be given is said, not silently dropped.
+      //
+      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
+
+      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
         break;
 
-      int r = bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
+      if ((withInfo == false) && (channelP->info != NULL))
+        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for '%s'", channelP->bridgeName, bridges[i].abiVersion, channelP->endpoint);
+
+      int r = (withInfo == true) ? bridges[i].channelAddInfo(channelP->endpoint, channelP->kind, channelP->direction, channelP->info)
+                                 : bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
+      //
+      // Refused - an address or a channelInfo the transport cannot use. The Channel stays, DORMANT, with the
+      // reason: GET /channels is where an operator (and a test) looks, not the log.
+      //
       if (r != BRIDGE_OK)
+      {
         COR_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
+
+        char reason[128];
+        snprintf(reason, sizeof(reason), "the bridge would not carry it: %s",
+                 (r == BRIDGE_BAD_INPUT)   ? "its address or channelInfo does not fit the transport" :
+                 (r == BRIDGE_UNSUPPORTED) ? "the transport does not support this kind of channel"   : "refused");
+        channelP->status       = ChannelStatusDormant;
+        channelP->statusReason = strdup(reason);
+      }
 
       break;
     }
