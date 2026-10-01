@@ -303,32 +303,39 @@ example would guess.
 ### 6.1 v1, measured (2026-10-01)
 
 Steps 1 and 2 are built: the codec (corTree), its NGSI-LD callbacks (corNgsild), cor:// in corRest -
-a listener (`--corPort`) and a client - and forwarding over it. `cor_forwarding_chain` is the
-functest; `test/perf/corChain.sh` the benchmark: three corDB brokers chained A -> B -> C, a GET on A,
-so every request crosses both hops twice. Release build, two runs each:
+a listener (`--corPort`) and a client - and forwarding over it. `cor_forwarding_chain` and
+`cor_api_direct` are the functests; `test/perf/corChain.sh` the benchmark: three corDB brokers chained
+A -> B -> C, a GET on A, so every request crosses both hops twice. Release build, each broker on two
+cores, two runs each (ranges):
 
-| Entity | Transport | 1 connection req/s | p50 | 16 connections req/s | p50 | p99 |
-|---|---|---|---|---|---|---|
-| 4 attributes | http:// | 6,281-6,535 | 147 us | 23,054-23,104 | 636-640 us | 1.76-1.77 ms |
-| 4 attributes | cor:// | 8,333-8,423 | 109 us | 31,951-33,082 | 456-475 us | 1.02-1.05 ms |
-| 20 attributes | http:// | 3,802-3,840 | 251 us | 17,094-17,391 | 0.86-0.87 ms | 2.06-2.21 ms |
-| 20 attributes | cor:// | 4,422-5,031 | 210-220 us | 23,990-24,039 | 639-649 us | 1.21-1.26 ms |
+| Entity | Mode | 1 conn req/s | p50 | p99 | 16 conns req/s | p50 | p99 |
+|---|---|---|---|---|---|---|---|
+| 4 attributes | http | 6,519-7,039 | 146 us | 1.1-1.2 ms | 23,515-23,595 | 624 us | 1.74 ms |
+| 4 attributes | cor (hops) | 8,428-8,585 | 111 us | 0.2-0.7 ms | 40,912-44,887 | 337-362 us | 0.84-1.03 ms |
+| 4 attributes | **cor-all** | **14,293-14,793** | **66 us** | **78-94 us** | **64,056-65,012** | **240-245 us** | **399-401 us** |
+| 20 attributes | http | 3,848-4,030 | 250 us | 0.3-1.6 ms | 17,261-17,556 | 0.86 ms | 1.98-2.11 ms |
+| 20 attributes | cor (hops) | 4,915-4,944 | 192 us | 1.4-2.3 ms | 28,233-28,310 | 537 us | 1.18-1.19 ms |
+| 20 attributes | **cor-all** | **6,347-6,669** | **162 us** | **183-190 us** | **39,697-40,138** | **391-395 us** | **642-647 us** |
 
-About +30 % with one connection, +40 % with sixteen, and p99 under load 40 % lower. The client's own
-leg (wrk to A) is still HTTP and JSON, so A still parses and renders for it: only the two internal
-hops are cor://. The single-connection p99 is too noisy to quote (0.2-2.5 ms between identical runs).
+- **http** - every hop HTTP and JSON; the client is wrk
+- **cor (hops)** - the two forwarding hops cor://, the client still wrk over HTTP
+- **cor-all** - nothing but cor://: the client is `corRequest` in its load mode
 
-**Nothing but cor://** (`corChain.sh cor-all`): the client too speaks cor:// - `corRequest`, the
-test tool, in its load mode - so no HTTP is left anywhere. Same chain, same release brokers:
+All cor:// against all HTTP: **2.1-2.2x with one connection, 2.3-2.8x with sixteen**, p99 under load
+4x lower for the small entity and 3x for the large; the single-connection p99 stops being noise
+(78-190 us, where every run with an HTTP client leg swings between 0.2 and 2.3 ms).
 
-| Entity | 1 connection req/s | p50 | p99 | 16 connections req/s | p50 | p99 |
-|---|---|---|---|---|---|---|
-| 4 attributes | 9,441-9,852 | 99-104 us | 121-131 us | 37,876-39,152 | 400-413 us | 659-694 us |
-| 20 attributes | 5,543-6,438 | 153-169 us | 195-231 us | 27,497-28,968 | 545-572 us | 831-894 us |
+**One broker, no forwarding** - what the transport itself costs, a GET on corDB:
 
-Against all-HTTP: +50 to 58 % with one connection, +65 % with sixteen, p99 under load about 60 %
-lower - and the single-connection p99 stops being noise (121-231 us, where HTTP swings 0.5-2.1 ms).
-The load generators differ (wrk; corRequest, a debug build), which if anything favours HTTP.
+| | 1 conn req/s | p99 | 16 conns req/s | p99 |
+|---|---|---|---|---|
+| HTTP (wrk) | ~41,000 | ~33 us | ~142,000 | 4-9 ms |
+| cor:// (corRequest) | 43,400 | 31 us | 145,300 | 209 us |
+
+At parity on throughput, with a tail an order of magnitude tighter under load. (The first cut was
+well behind - 29,000 / 82,000 req/s: it polled before every read and write and read and sent the
+header and the tree separately. Buffered reads and one send per frame took it from ~8 system calls a
+request to ~2.)
 
 Sizes on the wire: the generic codec gives 84 % of minimised JSON, with the NGSI-LD callbacks 71 %,
 over 660 JSON documents of the ETSI suite and coraine's tests - payloads with compact names and
