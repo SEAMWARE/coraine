@@ -1,0 +1,92 @@
+#
+# FILE            context_scoped_400.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 8.2: a user @context shall not contain JSON-LD scoped contexts (a term definition with an
+# @context of its own) - they "could be used to modify terms defined in the core @context" - and such a
+# context is answered with BadRequestData. The core context itself has one (the ngsildproof term), and is
+# exempt: it is the context the rule protects. An @context embedded inside an attribute was already a 400.
+#
+--NAME--
+Scoped contexts in a user @context - 400 BadRequestData (§ 8.2); the core context is exempt
+
+--TAGS--
+context jsonld error
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create an entity whose @context defines a scoped context for its type - 400"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id":"urn:SC:E1","type":"T","@context":[{"T":{"@id":"urn:ex:T","@context":{"a":"urn:ex:a"}}},"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]}'
+echo
+echo
+
+
+echo "02. The same term without the scoped context - 201"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id":"urn:SC:E2","type":"T","@context":{"T":{"@id":"urn:ex:T"}}}' | head -1
+echo
+echo
+
+
+echo "03. The core context by URL - it has a scoped term of its own, and is exempt: 201"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id":"urn:SC:E3","type":"T","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}' | head -1
+echo
+echo
+
+
+echo "04. Host a context with a scoped term - 400, nothing hosted"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context":{"T":{"@id":"urn:ex:T","@context":{"a":"urn:ex:a"}}}}' | grep -E '^HTTP|"title"|"detail"'
+corCurl --url /ngsi-ld/v1/jsonldContexts | grep -c '"url"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create an entity whose @context defines a scoped context for its type - 400
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 228
+
+{
+  "detail": "term 'T' defines a scoped @context - not allowed in a user @context (TS 104-175 § 8.2)",
+  "status": 400,
+  "title": "Scoped Context Not Allowed",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. The same term without the scoped context - 201
+==================================================
+HTTP/1.1 201 Created
+
+
+03. The core context by URL - it has a scoped term of its own, and is exempt: 201
+=================================================================================
+HTTP/1.1 201 Created
+
+
+04. Host a context with a scoped term - 400, nothing hosted
+===========================================================
+HTTP/1.1 400 Bad Request
+  "detail": "term 'T' defines a scoped @context - not allowed in a user @context (TS 104-175 § 8.2)",
+  "title": "Scoped Context Not Allowed",
+0
+
+
