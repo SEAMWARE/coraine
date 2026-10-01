@@ -106,19 +106,32 @@ well-known objects (an entity; an entity's `@context`) without a format change.
 A string *value* that is a core term travels as its id too: an attribute's `type` where it is not
 folded (§ 4.2), `@type: DateTime`, the vocab values that are core terms. Flag bit in the tag.
 
-### 4.4 Well-known prefixes - v1
+### 4.4 Namespaces - v1
 
-Nearly every long string in NGSI-LD begins with one of a handful of prefixes:
+Nearly every long string in NGSI-LD is an IRI, and IRIs share long beginnings: every user term of a
+context expands under that context's own namespace (`https://smartdatamodels.org/dataModel.Transportation/`
++ `speed`), every term without one under the default context, and most entity ids under
+`urn:ngsi-ld:` + the type.
 
-| Code | Prefix |
-|---|---|
-| 1 | `https://uri.etsi.org/ngsi-ld/default-context/` - every user term without a context |
-| 2 | `https://uri.etsi.org/ngsi-ld/` |
-| 3 | `urn:ngsi-ld:` - most entity ids |
-| ... | a short, fixed, append-only table |
+So an IRI is written **split at its last `/`, `#` or `:`** into a *namespace* and a *local name*:
 
-A string is `prefix code (1 byte, 0 = none) + the rest`. A user attribute name expanded with the
-default context - 45 bytes of prefix plus `speed` - becomes 7 bytes.
+```
+namespace   an index into the message's namespace table (1 byte, varint beyond 127)
+local name  inline: speed
+```
+
+- **The table is built as the message is written.** A namespace's first occurrence is written in
+  full and numbered; every later one is its index. Any context's prefix is compressed, with nothing
+  to know or configure about the context - a user context with 40 terms under one namespace pays
+  for that namespace once.
+- **It does not start empty.** The NGSI-LD namespaces are its first, fixed entries:
+  `https://uri.etsi.org/ngsi-ld/default-context/`, `https://uri.etsi.org/ngsi-ld/`, `urn:ngsi-ld:`.
+  The fixed part is append-only and its length is exchanged in HELLO (§ 5).
+- **A snapshot or a log block keeps its own table**, so a block can still be read on its own; a
+  cor:// connection may keep one for its lifetime (§ 8, question 6).
+
+A user attribute name under the default context - 45 bytes of namespace plus `speed` - becomes
+7 bytes; under a user context, the same after its first occurrence.
 
 ### 4.5 A string table per message - v1 for names, later for values
 
@@ -194,8 +207,8 @@ is `{ status, headers, body }`, the body being an entity, a list or a problem de
 operation is a new value of `op`, not a new type code, and an old peer answers it with "not
 implemented" instead of failing to parse it.
 
-**HELLO** carries the format version, the prefix table's (§ 4.4) and the term table's (§ 4.1)
-lengths. Both tables are append-only, so two peers simply use the shorter of each, and a newer peer
+**HELLO** carries the format version, and the lengths of the fixed namespace entries (§ 4.4) and
+of the term table (§ 4.1). Both tables are append-only, so two peers simply use the shorter of each, and a newer peer
 writes a term the older one lacks as a string.
 
 **One long-lived TCP connection per peer**, both sides able to send REQUESTs, responses out of
@@ -231,3 +244,6 @@ speaks it to the brokers it serves.
 4. **The string table** - for names only in v1 (proposed), or for values too?
 5. **Name of the magic** - `COR` + version, or something that does not read as an English word in
    a hex dump?
+6. **The namespace table's lifetime on cor://** - per message (simple, every message readable on its
+   own), or per connection (smaller, but a lost message makes later ones unreadable - so it would
+   need the connection to carry it reliably, which TCP does)?
