@@ -77,6 +77,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
+                [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -122,6 +123,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
+                [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -178,6 +180,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
+                [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -223,6 +226,7 @@ Usage: coraine  [--usage/-u (usage)]
   --debug                 (-d)               CORAINE_DEBUG                 Optional   Bool     Default Value  
   --traceLevels           (-t)               CORAINE_TRACELEVELS           Optional   String   Default Value  
   --port                  (-p)               CORAINE_PORT                  Optional   UShort   Default Value  
+  --corPort               (-corPort)         CORAINE_CORPORT               Optional   UShort   Default Value  
   --database              (-db)              CORAINE_DATABASE              Optional   String   Short Option   
   --troe                  (-troe)            CORAINE_TROE                  Optional   String   Default Value  
   --troeSync              (-troeSync)        CORAINE_TROESYNC              Optional   Bool     Default Value  
