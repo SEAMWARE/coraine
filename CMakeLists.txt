@@ -250,8 +250,5 @@ endif()
 #
 ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
 
-# The Modbus TCP bridge - polled registers <-> attributes, no library (doc/modbus-bridge.md).
-ADD_SUBDIRECTORY(src/plugins/bridge/modbus)
-
 ADD_SUBDIRECTORY(src/app/coraine)
 ADD_SUBDIRECTORY(test)

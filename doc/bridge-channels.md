@@ -1283,7 +1283,7 @@ corDB today). One library each:
 | `mqtt` | mosquitto (already a broker dep for notifications) | `~/git/corMqttBridge/` |
 | `dds` | Fast-DDS + FIWARE-DDS-Enabler (heavy) | `~/git/corDdsBridge/` |
 | `opcua` | open62541 or similar (heavy) | `~/git/corOpcuaBridge/` |
-| `modbus` | libmodbus or custom | `~/git/corModbusBridge/` |
+| `modbus` | custom, libc only (v1 built) | `~/git/corModbusBridge/` |
 
 External-dependency weight no longer decides *where* a plugin lives, only what
 it drags in. Somebody building the stack should not need Fast-DDS installed
