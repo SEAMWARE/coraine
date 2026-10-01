@@ -13,9 +13,9 @@
 
 #include "corLog/corLog.h"                             // COR_V
 #include "corRest/CorRestState.h"                      // corRest
-#include "corRest/corRestHooks.h"                      // corRestSetInlineHook
+#include "corRest/corRestHooks.h"                      // corRestSetInlineHook, corRestSetFinishInlineHook
 #include "corJsonld/corLdCache.h"                      // corLdCacheLookup
-#include "corNgsild/CorNgsild.h"                       // ldDefaultContextUrl, ldDistributed
+#include "corNgsild/CorNgsild.h"                       // ldDefaultContextUrl, ldDistributed, corNgsild
 #include "corNgsild/ldRegCache.h"                      // ldRegCacheItemsTotal
 
 #include "bridge/bridgeServiceSync.h"                  // bridgeSyncDefault
@@ -291,6 +291,27 @@ static bool inlineDispatchCheck(void)
 
 // -----------------------------------------------------------------------------
 //
+// finishInlineCheck - may this request's post-response phase run on the I/O thread? (CorRestFinishInlineHook)
+//
+// The phase is the deferred work of the request (brokerPostResponseHook). Only some of it can wait
+// on something - a notification (an @context the broker may host itself), a CSR notification, a
+// bridge goal released, an expired entity deleted, a registration probed - and it is all recorded,
+// per request, in corNgsild. Nothing recorded: nothing to wait for, so no worker. TRoE events stay
+// in-process (the hook is only installed with TRoE none or corDB).
+//
+static bool finishInlineCheck(void)
+{
+  return (corNgsild.pendingN       == 0)    &&
+         (corNgsild.csrPendingN    == 0)    &&
+         (corNgsild.bridgeReleaseQ == NULL) &&
+         (corNgsild.expiredN       == 0)    &&
+         (corNgsild.probePendingN  == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // isPlugin - is this plugin argument (a short name, or a path to the .so) the plugin 'name'?
 //
 static bool isPlugin(const char* arg, const char* name)
@@ -323,5 +344,6 @@ void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
   }
 
   corRestSetInlineHook(inlineDispatchCheck);
+  corRestSetFinishInlineHook(finishInlineCheck);         // asked by the built-in server only
   COR_V("inline dispatch: on");
 }

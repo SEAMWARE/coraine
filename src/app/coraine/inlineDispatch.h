@@ -37,6 +37,11 @@
 // Cautious on purpose: a request wrongly kept here stalls its thread's other connections, one
 // wrongly handed off only costs what every request cost before.
 //
+// The built-in server (corHttp) is also asked, once the response is sent, whether the request's
+// post-response phase may run on its loop thread: yes when the request left nothing in it that could
+// wait (no notification, CSR notification, bridge release, expired entity or registration probe) -
+// which is every read and most writes. That second hop cost corHttp two thirds of its throughput.
+//
 // disabled: --noInline - every request handed off (measurements, and a way out).
 //
 extern void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled);
