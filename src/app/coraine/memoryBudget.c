@@ -9,14 +9,14 @@
 #include <stdbool.h>                                   // bool
 #include <stdint.h>                                    // uint64_t
 #include <stdio.h>                                     // snprintf, sscanf
-#include <stdlib.h>                                    // strtoull
-#include <string.h>                                    // strcmp, strncmp, strchr, strrchr, strlen
-#include <fcntl.h>                                     // open, O_RDONLY
-#include <unistd.h>                                    // read, close, sysconf
+#include <string.h>                                    // strcmp, strncmp
+#include <unistd.h>                                    // sysconf
 #include <time.h>                                      // nanosleep
 #include <pthread.h>                                   // pthread_create, pthread_detach
 #include <stdatomic.h>                                 // _Atomic, atomic_*
 
+#include "corBase/corFileReadInto.h"                   // corFileReadInto
+#include "corBase/corMemoryLimit.h"                    // corMemoryLimit
 #include "corLog/corLog.h"                             // COR_V, COR_W
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
@@ -40,93 +40,6 @@ static long              pageSize  = 4096;
 
 // -----------------------------------------------------------------------------
 //
-// fileRead - the first bytes of a small file (procfs, cgroupfs), NUL-terminated; false if unreadable
-//
-static bool fileRead(const char* path, char* buf, int bufSize)
-{
-  int fd = open(path, O_RDONLY);
-
-  if (fd < 0)
-    return false;
-
-  int n = read(fd, buf, bufSize - 1);
-  close(fd);
-
-  if (n <= 0)
-    return false;
-
-  buf[n] = 0;
-  return true;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// cgroupLimit - the memory limit this process lives under, in bytes; 0 if there is none
-//
-// cgroup v2: the process's own cgroup is named in /proc/self/cgroup ("0::/kubepods/.../<container>"),
-// and the limit that kills it may sit on it OR on any cgroup above it - a Kubernetes pod limit is the
-// parent's. So the walk goes from the process's cgroup up to the root, and the smallest memory.max on
-// the way is the one ("max" = none at that level). Inside a container with its own cgroup namespace
-// the path is "/", and the walk is the single file /sys/fs/cgroup/memory.max.
-//
-// cgroup v1 (memory.limit_in_bytes, "unlimited" = a huge page-rounded number) only at the mount root.
-//
-static uint64_t cgroupLimit(void)
-{
-  char     buf[512];
-  char     path[1024];
-  uint64_t limit = 0;
-
-  if ((fileRead("/proc/self/cgroup", buf, sizeof(buf)) == true) && (strncmp(buf, "0::", 3) == 0))
-  {
-    char* nl = strchr(buf, '\n');
-    if (nl != NULL)
-      *nl = 0;
-
-    char* cg = &buf[3];                                   // "/user.slice/..." or "/"
-
-    while (true)
-    {
-      char val[64];
-
-      snprintf(path, sizeof(path), "/sys/fs/cgroup%s%smemory.max", cg, (cg[strlen(cg) - 1] == '/') ? "" : "/");
-
-      if ((fileRead(path, val, sizeof(val)) == true) && (strncmp(val, "max", 3) != 0))
-      {
-        uint64_t v = strtoull(val, NULL, 10);
-        if ((v > 0) && ((limit == 0) || (v < limit)))
-          limit = v;
-      }
-
-      char* slash = strrchr(cg, '/');
-      if ((slash == NULL) || (slash == cg))
-      {
-        if (cg[1] == 0)
-          break;                                          // "/" was the last one
-        cg[1] = 0;                                        // up to the root
-        continue;
-      }
-      *slash = 0;
-    }
-
-    return limit;
-  }
-
-  if (fileRead("/sys/fs/cgroup/memory/memory.limit_in_bytes", buf, sizeof(buf)) == true)
-  {
-    uint64_t v = strtoull(buf, NULL, 10);
-    return (v >= (1ULL << 60)) ? 0 : v;
-  }
-
-  return 0;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // residentRead - the process's resident set, in bytes (/proc/self/statm, second field, in pages)
 //
 static uint64_t residentRead(void)
@@ -135,7 +48,7 @@ static uint64_t residentRead(void)
   unsigned long long size;
   unsigned long long pages;
 
-  if ((fileRead("/proc/self/statm", buf, sizeof(buf)) == false) || (sscanf(buf, "%llu %llu", &size, &pages) != 2))
+  if ((corFileReadInto("/proc/self/statm", buf, sizeof(buf)) <= 0) || (sscanf(buf, "%llu %llu", &size, &pages) != 2))
     return 0;
 
   return (uint64_t) pages * (uint64_t) pageSize;
@@ -172,7 +85,7 @@ void memoryBudgetInit(int limitMiB)
 {
   pageSize = sysconf(_SC_PAGESIZE);
 
-  uint64_t cgroup = cgroupLimit();
+  uint64_t cgroup = corMemoryLimit();
 
   if (limitMiB > 0)
     budget = (uint64_t) limitMiB * 1024 * 1024;
