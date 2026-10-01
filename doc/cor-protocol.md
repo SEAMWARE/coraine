@@ -136,7 +136,7 @@ local name  inline: speed
 A user attribute name under the default context - 45 bytes of namespace plus `speed` - becomes
 7 bytes; under a user context, the same after its first occurrence.
 
-### 4.5 A string table per message - v1 for names, later for values
+### 4.5 A string table - v1 for names, later for values
 
 The same strings repeat within a message: a query result of 100 vehicles has 100 times `speed`,
 `location` and the `Vehicle` type IRI. The first occurrence is written in full and implicitly
