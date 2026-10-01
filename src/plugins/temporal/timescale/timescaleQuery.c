@@ -509,17 +509,24 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   // Per-partition page clip. The window function ORDER BY follows the
   // pagination direction so rn=1 is the first instance of the page
   // sequence (earliest for ascending, latest for descending).
+  //
+  // NULLS LAST in BOTH directions. An instance need not carry the time
+  // property - observedAt is the user's to give - and PostgreSQL sorts a NULL
+  // as larger than any value: last ascending, but FIRST descending. So a lastN
+  // page began with the instances that have no time at all, ahead of the
+  // latest ones that do. An instance with no time is never the latest nor the
+  // earliest of anything; it goes after every instance that has one.
   char rnClip[96];
   snprintf(rnClip, sizeof(rnClip), "rn > %d AND rn <= %d", offsetN, offsetN + pageLimit);
 
   snprintf(sql, sqlSize,
     "SELECT * FROM ("
     "SELECT %s, "
-    "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s) AS rn "
+    "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s NULLS LAST) AS rn "
     "FROM troe_attrs "
     "WHERE entity_id = $1%s%s%s%s) sub "
     "WHERE %s "
-    "ORDER BY attr_name, dataset_id, %s %s",
+    "ORDER BY attr_name, dataset_id, %s %s NULLS LAST",
     selectCols, tCol, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir);
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
