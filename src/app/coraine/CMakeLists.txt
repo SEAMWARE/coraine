@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-ADD_EXECUTABLE(coraine coraine.c ngsildServices.c coraineFeatures.c crashReport.c)
+ADD_EXECUTABLE(coraine coraine.c ngsildServices.c coraineFeatures.c crashReport.c inlineDispatch.c)
 
 SET_TARGET_PROPERTIES(coraine PROPERTIES ENABLE_EXPORTS TRUE)
 

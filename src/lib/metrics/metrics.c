@@ -12,12 +12,15 @@
 #include <stddef.h>                                // NULL
 #include <string.h>                                // strlen
 #include <time.h>                                  // clock_gettime
+#include <stdint.h>                                // uint64_t
+#include <pthread.h>                               // pthread_mutex_t
 
 #include "corAlloc/corAlloc.h"                     // corAlloc
 #include "corTree/CorNode.h"                       // CorNode, CorArray
 #include "corProm/corProm.h"                       // corProm*
 
 #include "corRest/CorRestState.h"                    // corRest
+#include "corRest/corRestInit.h"                     // corRestDispatchCounts
 #include "corNgsild/LdOp.h"                         // LdOp*
 #include "corNgsild/LdSubCache.h"                   // LdSubCache, LdSubCacheItem
 #include "corNgsild/LdRegCache.h"                   // LdRegCache, LdRegCacheItem
@@ -68,6 +71,13 @@ static CorPromMetric* gRegSubCacheSize;
 static CorPromMetric* gRegCacheSize;
 static CorPromMetric* gPernotCacheSize;
 static CorPromMetric* gEntityMapStoreSize;
+
+//
+// Where requests were processed - on the I/O thread that read them (inline) or handed to a worker.
+// corRest counts; these follow it at every scrape (dispatchCounts).
+//
+static CorPromMetric*  dispatchInline;
+static CorPromMetric*  dispatchWorker;
 
 //
 // Distop forwarding — counters + latency histogram.
@@ -207,6 +217,11 @@ bool metricsInit(void)
                                          "Periodic-notification subscriptions cached (sum across tenants)");
   gEntityMapStoreSize = corPromGaugeCreate("ngsild_entity_map_store_size",
                                          "EntityMap store entries (sum across tenants)");
+
+  dispatchInline      = corPromCounterCreate("ngsild_requests_inline_total",
+                                           "Requests processed on the I/O thread that read them (see --noInline)");
+  dispatchWorker      = corPromCounterCreate("ngsild_requests_worker_total",
+                                           "Requests handed from their I/O thread to a worker thread");
 
   distopForwarded     = corPromCounterCreate("ngsild_distop_forwarded_total",
                                            "Distributed-op forward attempts (every outbound request)");
@@ -388,11 +403,38 @@ void metricsDistopForward(double latencySec, bool success)
 
 // -----------------------------------------------------------------------------
 //
+// dispatchCounts - bring the dispatch counters up to corRest's
+//
+// A counter only goes up, so what is added is what happened since the last scrape; the mutex keeps
+// two scrapes at once from adding the same requests twice.
+//
+static void dispatchCounts(void)
+{
+  static pthread_mutex_t mtx          = PTHREAD_MUTEX_INITIALIZER;
+  static uint64_t        inlineSeen   = 0;
+  static uint64_t        workerSeen   = 0;
+  uint64_t               inlineN;
+  uint64_t               workerN;
+
+  pthread_mutex_lock(&mtx);
+  corRestDispatchCounts(&inlineN, &workerN);
+  corPromCounterAdd(dispatchInline, (int64_t) (inlineN - inlineSeen));
+  corPromCounterAdd(dispatchWorker, (int64_t) (workerN - workerSeen));
+  inlineSeen = inlineN;
+  workerSeen = workerN;
+  pthread_mutex_unlock(&mtx);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // metricsRender -
 //
 bool metricsRender(void)
 {
   tenantCounts();
+  dispatchCounts();
 
   //
   // +1 for the terminating NUL. corPromRenderSize() reports the payload EXCLUDING

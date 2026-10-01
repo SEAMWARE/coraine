@@ -1,0 +1,215 @@
+#
+# FILE            inline_dispatch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Which requests run on the I/O thread that read them (inline), and which are handed to a worker -
+# seen from outside, in the metrics ngsild_requests_inline_total / ngsild_requests_worker_total.
+#
+# Inline only with corDB (and TRoE none/corDB), for the /ngsi-ld/v1/entities family, when nothing
+# can make the request wait: no registration while --distributed is on, no body @context, and an
+# @context that is already cached (Link header, default context, or - application/ld+json - the
+# body's), and not waiting for a bridge service's reply (?ddsSync). Everything else is handed off -
+# as every request was before.
+#
+# Every scrape of /metrics is itself a request, not of the entities family: +1 worker each time.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+Inline dispatch - entity requests that wait on nothing run on their I/O thread; the rest go to a worker
+
+--TAGS--
+inline dispatch metrics corDB
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+counters() { corCurl --url /metrics --out raw | grep -E '^ngsild_requests_(inline|worker)_total'; }
+
+echo "01. Create E1 and retrieve it three times - four requests inline (the scrape: 1 worker)"
+echo "======================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+for i in 1 2 3; do corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 | head -1; done
+counters
+echo
+echo
+
+
+echo "02. GET /ngsi-ld/v1/types - not the entities family: worker (+1, and +1 for the scrape)"
+echo "======================================================================================="
+corCurl --url /ngsi-ld/v1/types | head -1
+counters
+echo
+echo
+
+
+echo "03. Retrieve E1 with a Link to the core context - cached from the start: inline"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+counters
+echo
+echo
+
+
+echo "04. Retrieve E1 with a Link to a context that is not cached (and cannot be downloaded): worker"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 -H 'Link: <http://localhost:9/no-such-context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+counters
+echo
+echo
+
+
+echo "05. application/ld+json - the body's @context decides: a cached URL, an array of them, an inline object: inline"
+echo "==============================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E2","type":"T","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}' -H 'Content-Type: application/ld+json' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E3","type":"T","@context":["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]}' -H 'Content-Type: application/ld+json' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E4","type":"T","b":{"type":"Property","value":1},"@context":{"b":"urn:ex:b"}}' -H 'Content-Type: application/ld+json' | head -1
+counters
+echo
+echo
+
+
+echo "06. application/ld+json that could download: a URL not cached, an @import (501) - worker"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E5","type":"T","@context":"http://localhost:9/no-such-context.jsonld"}' -H 'Content-Type: application/ld+json' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E6","type":"T","@context":{"@import":"http://localhost:9/no-such-context.jsonld"}}' -H 'Content-Type: application/ld+json' | head -1
+counters
+echo
+echo
+
+
+echo "07. A registration WITHOUT --distributed - nothing is ever forwarded: E1 still inline"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ID:R1","type":"ContextSourceRegistration","information":[{"entities":[{"type":"Other"}]}],"endpoint":"http://localhost:9"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 | head -1
+counters
+echo
+echo
+
+
+echo "08. Restart WITH --distributed: the registration's absence and presence decide"
+echo "=============================================================================="
+coraineStop
+coraineStart --apiPlugins admin --distributed
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ID:R1","type":"ContextSourceRegistration","information":[{"entities":[{"type":"Other"}]}],"endpoint":"http://localhost:9"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 | head -1
+counters
+echo
+echo
+
+
+echo "09. Restart with --noInline: every request is handed to a worker"
+echo "================================================================"
+coraineStop
+coraineStart --apiPlugins admin --noInline
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 | head -1
+counters
+echo
+echo
+
+
+echo "10. A bridge service with a slow reply: a PATCH with ?ddsSync=true waits for it - worker; without it - inline"
+echo "============================================================================================================="
+coraineStop
+BRIDGE_CONFIG=$(bridgeConfig --replyDelay "slow=300" --service "slow,Calculator,urn:ID:S,job")
+coraineStart --apiPlugins admin --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 1000
+corCurl --url '/ngsi-ld/v1/entities/urn:ID:S/attrs/job?ddsSync=true' -X PATCH --payload '{"value":{"a":1}}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:ID:S/attrs/job' -X PATCH --payload '{"value":{"a":2}}' | head -1
+counters
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create E1 and retrieve it three times - four requests inline (the scrape: 1 worker)
+=======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 4
+ngsild_requests_worker_total 1
+
+
+02. GET /ngsi-ld/v1/types - not the entities family: worker (+1, and +1 for the scrape)
+=======================================================================================
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 4
+ngsild_requests_worker_total 3
+
+
+03. Retrieve E1 with a Link to the core context - cached from the start: inline
+===============================================================================
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 5
+ngsild_requests_worker_total 4
+
+
+04. Retrieve E1 with a Link to a context that is not cached (and cannot be downloaded): worker
+==============================================================================================
+HTTP/1.1 504 Gateway Timeout
+ngsild_requests_inline_total 5
+ngsild_requests_worker_total 6
+
+
+05. application/ld+json - the body's @context decides: a cached URL, an array of them, an inline object: inline
+===============================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+ngsild_requests_inline_total 8
+ngsild_requests_worker_total 7
+
+
+06. application/ld+json that could download: a URL not cached, an @import (501) - worker
+========================================================================================
+HTTP/1.1 504 Gateway Timeout
+HTTP/1.1 501 Not Implemented
+ngsild_requests_inline_total 8
+ngsild_requests_worker_total 10
+
+
+07. A registration WITHOUT --distributed - nothing is ever forwarded: E1 still inline
+=====================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 9
+ngsild_requests_worker_total 12
+
+
+08. Restart WITH --distributed: the registration's absence and presence decide
+==============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 1
+ngsild_requests_worker_total 3
+
+
+09. Restart with --noInline: every request is handed to a worker
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+ngsild_requests_inline_total 0
+ngsild_requests_worker_total 3
+
+
+10. A bridge service with a slow reply: a PATCH with ?ddsSync=true waits for it - worker; without it - inline
+=============================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
+ngsild_requests_inline_total 1
+ngsild_requests_worker_total 2
+
+
