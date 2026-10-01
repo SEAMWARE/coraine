@@ -318,6 +318,18 @@ About +30 % with one connection, +40 % with sixteen, and p99 under load 40 % low
 leg (wrk to A) is still HTTP and JSON, so A still parses and renders for it: only the two internal
 hops are cor://. The single-connection p99 is too noisy to quote (0.2-2.5 ms between identical runs).
 
+**Nothing but cor://** (`corChain.sh cor-all`): the client too speaks cor:// - `corRequest`, the
+test tool, in its load mode - so no HTTP is left anywhere. Same chain, same release brokers:
+
+| Entity | 1 connection req/s | p50 | p99 | 16 connections req/s | p50 | p99 |
+|---|---|---|---|---|---|---|
+| 4 attributes | 9,441-9,852 | 99-104 us | 121-131 us | 37,876-39,152 | 400-413 us | 659-694 us |
+| 20 attributes | 5,543-6,438 | 153-169 us | 195-231 us | 27,497-28,968 | 545-572 us | 831-894 us |
+
+Against all-HTTP: +50 to 58 % with one connection, +65 % with sixteen, p99 under load about 60 %
+lower - and the single-connection p99 stops being noise (121-231 us, where HTTP swings 0.5-2.1 ms).
+The load generators differ (wrk; corRequest, a debug build), which if anything favours HTTP.
+
 Sizes on the wire: the generic codec gives 84 % of minimised JSON, with the NGSI-LD callbacks 71 %,
 over 660 JSON documents of the ETSI suite and coraine's tests - payloads with compact names and
 inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
