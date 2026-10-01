@@ -12,7 +12,7 @@ One binary serialisation of a `CorNode` tree, used in three places:
 |---|---|
 | corDB **snapshot** | every entity of a tenant, to a file, and back on start |
 | corDB **log** | each write as a record, appended - durability, and history (TRoE) by retention |
-| **cor://** | the same records, framed for a socket: forwarding between brokers, the edge, and a standalone corDB |
+| **cor://** | the same trees, framed for a socket: requests forwarded between brokers, the edge, and later a standalone corDB |
 
 Designing it once for all three is the point. Two serialisers - one for the disk, one for the wire -
 would diverge, and the second always arrives as "the other format".
@@ -215,21 +215,40 @@ writes a term the older one lacks as a string.
 order by correlation id, PUSH for notifications, PING/PONG when idle, reconnection with back-off.
 TLS underneath when the link leaves the host.
 
-**cor:// is a bridge** - a plugin of the Bridge/Channel family, like `dds.so`, `modbus.so` and
-`mqtt.so`. A registration whose endpoint is `cor://edge-7` forwards over it, and a standalone corDB
-speaks it to the brokers it serves.
+**cor:// is a communication protocol, not a bridge.** The plugin architecture keeps the two apart:
+a communication protocol is how a client - or another broker - reaches the broker's API; a bridge
+is how the broker reaches a foreign wire, and a bridge never answers requests. cor:// has to do
+both halves of the API:
+
+- **the client side** - a registration whose endpoint is `cor://host:port` makes forwarding encode
+  the request as a tree, send it and decode the response tree, where `http://` goes through the
+  HTTP client as today
+- **the server side** - a cor:// listener next to the HTTP one: a request frame is already a tree,
+  so it goes into the same service routines an HTTP request does, without a JSON parse, and the
+  response goes back as a tree
+
+**v1 lives in corRest**, beside the HTTP server and client it mirrors, which already own request
+dispatch and forwarding I/O. The communication-protocol plugin axis (a `.so`, `--protocols`) can
+be cut out of it once a second protocol shows what that seam has to be - designing it from one
+example would guess.
 
 ## 6. Order of work
 
 1. **The codec** in corTree, with the corNgsild callbacks (§ 4.1-4.3), round-trip exact.
-2. **The corDB snapshot**: save a tenant, restart, reload - the first real data through the format,
-   and the § 4.12 measurements.
-3. **The corDB log**: the same records appended, replayed on start.
-4. **The cor:// bridge**: the records framed for a socket.
+2. **cor:// forwarding**, client and server in corRest, proven on a **chain of three brokers**:
+   A and B each hold a registration pointing at the next, C holds the entity. A query to A is
+   forwarded to B, then to C, and the entity comes back all the way. The same chain is run twice,
+   once with `http://` registrations and once with `cor://`:
+   - the answers must be identical, byte for byte - the functest
+   - the difference in latency and throughput is the benchmark, and the § 4.12 sizes are measured
+     on the same traffic
+3. **The corDB snapshot** - the same codec to a file, and back on start.
+4. **The corDB log** - the same records appended, replayed on start; history by retention.
 
 ## 7. Testing
 
-- through the broker, as everything else: a corDB snapshot written, the broker restarted, the same
+- through the broker, as everything else: the three-broker chain of § 6, over `http://` and over
+  `cor://`, answering identically; later, a corDB snapshot written, the broker restarted, the same
   entities answered - byte for byte, observedAt included
 - `corJson -bin`: JSON → cor → JSON, which must be identical, on every expect body the functests
   have - a large corpus for free
@@ -239,7 +258,8 @@ speaks it to the brokers it serves.
 ## 8. Open questions
 
 1. **Byte order** - little-endian (proposed, § 3) or network order?
-2. **First consumer** - the snapshot (proposed, § 6), or straight to the cor:// bridge?
+2. ~~First consumer~~ **Decided:** forwarded requests, on the three-broker chain (§ 6); the
+   snapshot comes after.
 3. **Testing** - through the broker plus `corJson -bin` (§ 7), rather than a library-level suite?
 4. **The string table** - for names only in v1 (proposed), or for values too?
 5. **Name of the magic** - `COR` + version, or something that does not read as an English word in
