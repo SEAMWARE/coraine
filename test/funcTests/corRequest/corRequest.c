@@ -21,6 +21,16 @@
 //
 // Headers: --header 'Name: value', several separated by '|'.
 //
+//   as the functests' corCurl, over cor:// instead of curl:
+//     corRequest --url ... --path ... --curl --bodyFile /tmp/x.body --pretty 2
+//     the header block exactly as curl -D shows the HTTP server's - the status line with its reason
+//     phrase, Date, the broker's headers, Content-Length - and the body, as the broker sends it, in
+//     bodyFile. corCurl then treats that file as it treats curl's. Content-Length is the size the
+//     broker WOULD have rendered: its JSON at --pretty spaces per indent (test brokers run with
+//     --pretty-print 2).
+//
+//   exit: 0 a response; 1 no response; 3 the payload is not JSON - a request only HTTP can carry
+//
 #include <stdbool.h>                                  // bool
 #include <stdio.h>                                    // printf, fprintf
 #include <stdlib.h>                                   // malloc, free, qsort
@@ -39,7 +49,7 @@
 #include "corJson/CorJson.h"                          // CorJson
 #include "corJson/corJsonCreate.h"                    // corJsonCreate
 #include "corJson/corJsonRender.h"                    // corJsonRender
-#include "corJson/corJsonRenderSize.h"                // corJsonRenderSize
+#include "corJson/corJsonRenderSize.h"                // corJsonRenderSize, corJsonFastRenderSize
 #include "corRest/CorRestVerb.h"                      // CorRestVerb, corRestVerbFromString
 #include "corRest/CorRestKeyValue.h"                  // CorRestKeyValue
 #include "corRest/corRestCor.h"                       // corRestCorInit, corRestCorSend
@@ -60,6 +70,9 @@ static char*         headers      = NULL;
 static unsigned int  connections  = 0;
 static unsigned int  seconds      = 8;
 static unsigned int  timeoutMs    = 30000;
+static bool          curlMode     = false;
+static char*         bodyFile     = NULL;
+static int           pretty       = 0;
 
 static CorArg argV[] =
 {
@@ -71,6 +84,9 @@ static CorArg argV[] =
   { "--conns",   "-c", CorArgUInt,   _vp &connections, CorArgOpt, _vp 0,             _vp 0,  _vp 1024,      "load mode: connections (0: one request)" },
   { "--duration",NULL, CorArgUInt,   _vp &seconds,     CorArgOpt, _vp 8,             _vp 1,  _vp 3600,      "load mode: seconds" },
   { "--timeout", NULL, CorArgUInt,   _vp &timeoutMs,   CorArgOpt, _vp 30000,         _vp 1,  _vp 600000,    "milliseconds" },
+  { "--curl",    NULL, CorArgBool,   _vp &curlMode,    CorArgOpt, _vp false,         _vp false, _vp true,   "print as the functests' corCurl does (with --bodyFile)" },
+  { "--bodyFile",NULL, CorArgString, _vp &bodyFile,    CorArgOpt, NULL,              NULL,   NULL,          "--curl: where the body goes" },
+  { "--pretty",  NULL, CorArgInt,    _vp &pretty,      CorArgOpt, _vp 0,             _vp 0,  _vp 16,        "--curl: the broker's --pretty-print, for Content-Length" },
   CORARGS_END
 };
 
@@ -150,6 +166,134 @@ static int once(CorRestVerb v)
   return 0;
 }
 
+
+
+// -----------------------------------------------------------------------------
+//
+// reasonPhrase - the HTTP server's own (libmicrohttpd's) - the functests compare it
+//
+static const char* reasonPhrase(int status)
+{
+  switch (status)
+  {
+  case 100: return "Continue";
+  case 200: return "OK";
+  case 201: return "Created";
+  case 202: return "Accepted";
+  case 204: return "No Content";
+  case 207: return "Multi-Status";
+  case 301: return "Moved Permanently";
+  case 302: return "Found";
+  case 304: return "Not Modified";
+  case 400: return "Bad Request";
+  case 401: return "Unauthorized";
+  case 403: return "Forbidden";
+  case 404: return "Not Found";
+  case 405: return "Method Not Allowed";
+  case 406: return "Not Acceptable";
+  case 409: return "Conflict";
+  case 411: return "Length Required";
+  case 412: return "Precondition Failed";
+  case 413: return "Content Too Large";
+  case 415: return "Unsupported Media Type";
+  case 422: return "Unprocessable Content";
+  case 429: return "Too Many Requests";
+  case 500: return "Internal Server Error";
+  case 501: return "Not Implemented";
+  case 502: return "Bad Gateway";
+  case 503: return "Service Unavailable";
+  case 504: return "Gateway Timeout";
+  case 508: return "Loop Detected";
+  default:  return "Unknown";
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// curlOnce - one request, shown as corCurl shows an HTTP one
+//
+// The HTTP server writes Date first and Content-Length last, around the broker's own headers - which
+// cor:// carries in the same order. A 204 has no Content-Length.
+//
+static int curlOnce(CorRestVerb v)
+{
+  CorAlloc           ka;
+  static char        kaBuf[64 * 1024];
+  CorRestCorResponse resp;
+  const char*        error = NULL;
+
+  corAllocBufferInit(&ka, kaBuf, sizeof(kaBuf), 256 * 1024, NULL, "corRequest");
+
+  if (corRestCorSend(url, v, path, headerV, headerCount, NULL, payload, timeoutMs, &ka, &resp, &error) == false)
+  {
+    if ((error != NULL) && (strcmp(error, "the request body is not JSON") == 0))
+      return 3;
+
+    fprintf(stderr, "corRequest: %s\n", (error != NULL) ? error : "failed");
+    return 1;
+  }
+
+  //
+  // The body, as the broker would have rendered it for HTTP
+  //
+  char* body    = NULL;
+  int   bodyLen = 0;
+
+  if (resp.bodyTree != NULL)
+  {
+    CorJson cj;
+
+    corJsonCreate(&cj, &ka);
+    if (pretty > 0)
+    {
+      cj.spacesPerIndent = pretty;
+      body = corAlloc(&ka, corJsonRenderSize(&cj, resp.bodyTree) + 1);
+      corJsonRender(&cj, resp.bodyTree, body);
+    }
+    else
+    {
+      body = corAlloc(&ka, corJsonFastRenderSize(resp.bodyTree) + 1);
+      corJsonFastRender(resp.bodyTree, body);
+    }
+    bodyLen = strlen(body);
+  }
+  else if (resp.bodyText != NULL)
+  {
+    body    = resp.bodyText;
+    bodyLen = strlen(body);
+  }
+
+  char      date[64];
+  time_t    now = time(NULL);
+  struct tm tm;
+
+  gmtime_r(&now, &tm);
+  strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+
+  printf("HTTP/1.1 %d %s\n", resp.status, reasonPhrase(resp.status));
+  printf("Date: %s\n", date);
+  for (int i = 0; i < resp.headerCount; i++)
+    printf("%s: %s\n", resp.headerV[i].key, resp.headerV[i].value);
+  if (resp.status != 204)
+    printf("Content-Length: %d\n", bodyLen);
+
+  if (bodyFile != NULL)
+  {
+    FILE* fP = fopen(bodyFile, "w");
+
+    if (fP != NULL)
+    {
+      if (bodyLen > 0)
+        fwrite(body, 1, bodyLen, fP);
+      fclose(fP);
+    }
+  }
+
+  corAllocBufferReset(&ka, false);
+  return 0;
+}
 
 
 // -----------------------------------------------------------------------------
@@ -282,5 +426,8 @@ int main(int argC, char* argV_[])
 
   CorRestVerb v = corRestVerbFromString(verb);
 
-  return (connections == 0) ? once(v) : load(v);
+  if (connections > 0)
+    return load(v);
+
+  return (curlMode == true) ? curlOnce(v) : once(v);
 }
