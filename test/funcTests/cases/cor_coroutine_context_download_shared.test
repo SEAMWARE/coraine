@@ -1,0 +1,66 @@
+#
+# FILE            cor_coroutine_context_download_shared.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Coroutines (doc/coroutines.md): two cor:// requests on ONE event loop (--httpLoops 1), each on its own
+# connection, both needing the same @context, which is not cached and takes a second to download. Both
+# run as coroutines of the same thread. The second finds the first's download in progress and must
+# wait for it - not take it for its own (a cyclic @context: the download's owner was the thread), and
+# not stop the thread the download runs on (a usleep). Both answer 200.
+#
+--NAME--
+cor:// coroutines - two requests on one loop share one slow @context download
+
+--TAGS--
+cor
+context
+
+--INIT--
+corDbDrop
+ftClientStart --port 7711
+coraineStart --httpLoops 1 -corPort $((CB_PORT + 1000))
+corPortWait $((CB_PORT + 1000))
+
+--RUN--
+echo "01. An @context at the test client, answered after one second"
+echo "==============================================================="
+corCurl --port 7711 --url /mock/reply --payload '{
+  "verb": "GET",
+  "path": "/ctx.jsonld",
+  "status": 200,
+  "delayMs": 1000,
+  "body": { "@context": { "Vehicle": "https://example.org/Vehicle", "speed": "https://example.org/speed" } }
+}' | head -1
+echo
+echo
+
+
+echo "02. Two queries naming it, 100 ms apart, on two connections of the same loop - both 200"
+echo "======================================================================================"
+corRequest --url cor://localhost:$((CB_PORT + 1000)) \
+  --header 'Link: <http://localhost:7711/ctx.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
+  --paths '/ngsi-ld/v1/entities?type=Vehicle|/ngsi-ld/v1/entities?type=Vehicle'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop --port 7711
+corDbDrop
+
+--EXPECT--
+01. An @context at the test client, answered after one second
+===============================================================
+HTTP/1.1 201 Created
+
+
+02. Two queries naming it, 100 ms apart, on two connections of the same loop - both 200
+======================================================================================
+200 /ngsi-ld/v1/entities?type=Vehicle
+200 /ngsi-ld/v1/entities?type=Vehicle
+
+

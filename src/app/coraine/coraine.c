@@ -107,6 +107,8 @@
 #include "forwarding/forwardingCor.h"             // forwardingCorRegister
 #endif
 
+#include "corBase/corCo.h"                      // corCoCurrent
+#include "corRest/corRestWait.h"                // corRestWaitFd
 #include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen - cor:// serves with or without registrations
 #include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                    // CorTermLast
@@ -118,6 +120,28 @@
 #include "crashReport.h"                          // crashReportInstall
 #include "inlineDispatch.h"                                  // inlineDispatchInit
 #include "memoryBudget.h"                                    // memoryBudgetInit, memoryBudgetAdmit
+
+
+
+// -----------------------------------------------------------------------------
+//
+// contextOwner / contextSleep - corLdConcurrencySet: who asks for an @context, and how to wait for it
+//
+// On a coroutine the asker is the request, not the thread - other requests run on the same thread
+// (doc/coroutines.md) - and a wait for another's download must yield, not stop the thread the download
+// runs on: corRestWaitFd with no fd is a timer, a yield inside a coroutine and a poll() elsewhere.
+//
+static uintptr_t contextOwner(void)
+{
+  CorCo* coP = corCoCurrent();
+
+  return (coP != NULL) ? (uintptr_t) coP : (uintptr_t) pthread_self();
+}
+
+static void contextSleep(int ms)
+{
+  corRestWaitFd(-1, 0, ms, NULL);
+}
 
 
 
@@ -1544,6 +1568,8 @@ int main(int argC, char* argV[])
   // at once raced on its allocation pointer - overlapping allocations, a corrupted block list.
   //
   corAllocThreadSafe(&contextAlloc);
+
+  corLdConcurrencySet(contextOwner, contextSleep);
 
   if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
     COR_X(1, "corLdInit failed");
