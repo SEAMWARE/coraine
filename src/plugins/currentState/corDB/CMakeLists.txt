@@ -3,6 +3,7 @@ SET(SOURCES
   corDbGlobals.c
   corDbIndex.c
   corDbStore.c
+  corDbLog.c
   corDbRegister.c
   corDbInit.c
   corDbClose.c
