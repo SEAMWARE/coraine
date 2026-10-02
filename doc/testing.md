@@ -11,6 +11,46 @@ make test                    # whole suite (mongoc; use corTest -db corDB for in
 
 Tests live under `test/funcTests/`.
 
+## How long the suite takes - and where that time went
+
+The whole suite - some 730 tests, a broker (or several) started and stopped for
+each - took about **35 minutes** on the machine of `doc/performance.md`. Since
+2026-10-02 it takes **20**. A test of ~2.4 s spent its time like this:
+
+| | before | after |
+|---|---:|---:|
+| stopping the broker | ~1.2 s | ~0.15 s with `mongoc` (its own close), ~0.01 s with `corDB` |
+| waiting for its port at start-up | up to 0.2 s | up to 0.02 s |
+| dropping the database (`mongosh`) | ~0.27 s | ~0.27 s |
+
+- **The broker took a second to exit.** On SIGTERM it joins its periodic-work
+  thread, which slept for a second at a time; the stop now wakes it (corNgsild
+  #56). And the helper polled for the exit with a `pgrep` (~30 ms) every 0.1 s -
+  it now watches the pid it started, 10 ms at a time, without forking (#208).
+- **The port was polled every 0.2 s** - 20 ms now (corTest#10).
+
+What is left is mostly `mongosh`: a JavaScript runtime started to drop a
+database, ~0.27 s a test. Sending a cor:// request instead of an HTTP one saves
+nothing measurable - a request is a process start either way
+(`COR_TRANSPORT=cor`, next).
+
+## The functests over cor://
+
+```sh
+COR_TRANSPORT=cor ~/git/corLibs/bin/corTest -db mongoc
+```
+
+runs every test it can on the broker's binary API instead of HTTP: each broker
+also listens on cor:// (its HTTP port + 1000), and `corCurl` sends the request
+with `corRequest --curl` (corTools), which prints exactly what `corCurl` prints
+for an HTTP request - so every expectation holds unchanged. What only HTTP can
+carry stays on curl: a body that is not JSON, a text answer, HEAD, a POST without
+a body (411), a method the broker does not have, a body over 1 MiB (413).
+`COR_TRANSPORT_TRACE=<file>` logs which transport each request took. It is how
+four cor:// server bugs were found (corRest#22), and the whole suite passes
+that way.
+
+
 ## Functional tests never read the log
 
 A test waits on, and asserts on, what the **API** says — never on a trace line in
