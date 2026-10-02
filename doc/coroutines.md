@@ -179,12 +179,49 @@ connection waited in a blocking `read` on its own thread; now it waits in the lo
 re-armed (`epoll_ctl`) after every request. Multiplexing (step 5) keeps a connection armed for good -
 the loop reads it while its requests run - which takes that call away.
 
-**Not yet on the coroutine path:** TLS on a blocking socket waits inside OpenSSL; a write on a full
-send buffer blocks; a new cor:// connection's `connect` and `getaddrinfo` block (once per connection).
-None of them shows on the chain; each is to be moved onto the loop before the builtin HTTP server
-(step 4) gets coroutines too.
+**Not yet on the coroutine path** at step 3: TLS on a blocking socket waits inside OpenSSL; a write on
+a full send buffer blocks; a new cor:// connection's `connect` and `getaddrinfo` block (once per
+connection). None of them shows on the chain; all of them moved onto the loop in step 4.
 
-## 9. Open questions
+## 9. Step 4: the builtin HTTP server (2026-10-02)
+
+**One scheduler for both servers.** The cor:// server's scheduler moved to corBase as `corCoLoop`: a
+wait hands its socket (or, with no socket, a deadline) to the thread's epoll set and yields; the loop
+resumes the coroutine when the socket is ready or the deadline passes. A loop - corHttp's or the
+cor:// server's - calls `corCoLoopEvent` for each event (a waiting coroutine's are tagged, the loop's
+own are not), takes its `epoll_wait` timeout from `corCoLoopTimeoutMs` and expires the deadlines with
+`corCoLoopExpire`. corRest binds it to the request (`corRestCoLoopInit`): `corRestP` is kept across a
+yield and unbound when the loop resumes something else.
+
+**The builtin server** suspends a request that can wait (the same `corRestAsyncDispatch` decision as
+before), runs it as a coroutine of its loop, and resumes the connection on the loop thread when the
+coroutine is done (`corHttpResumeHere` - no eventfd round trip; the worker hop keeps its own path).
+Past the cap (1024 a loop), or with no stack to be had, the request takes the worker hop as before.
+
+**The clients never block a loop:** sockets stay non-blocking; a write on a full send buffer waits
+for POLLOUT; TLS loops on `SSL_ERROR_WANT_READ/WRITE` through `corRestWaitFd` (and a read checks
+`SSL_pending` before it waits); a cor:// connect is non-blocking; a name that needs a lookup (not
+numeric, not localhost) is resolved on a resolver thread while the coroutine waits on an eventfd
+(`corRestResolve`).
+
+**Which requests may be coroutines is the application's call** (`CorRestCoroutineHook`; with no hook,
+none are). coraine says yes only with corDB, with TRoE none or corDB, and not for a PATCH that waits
+for a bridge service (`?ddsSync`): mongoc, TimescaleDB and the bridge wait all block in a library
+that knows nothing of the loop, and a blocked loop stops every connection on it. The suite found that
+one: `bridge_service_sync_cap` with the ddsSync wait on a coroutine.
+
+**Found on the way:**
+
+- the builtin server took ~1 s to stop - its loop only saw the stop flag at its 1 s epoll timeout;
+  `corHttpStop` now wakes it (7 ms with corDB)
+- inline dispatch over cor:// never saw an `application/ld+json` body's `@context`: the body arrives
+  parsed (`requestTree`) and there was no text to scan, so a body whose `@context` had to be
+  downloaded ran inline. Old as cor:// itself; found by the first suite run in cor mode with corDB
+  (`inline_dispatch`)
+
+**The suites** (corDB and mongoc; HTTP and cor mode; libmicrohttpd and builtin): see the PR.
+
+## 10. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
 - libmicrohttpd: worth its `MHD_suspend/resume_connection` later, or does the builtin server become
