@@ -61,7 +61,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential cmake git pkg-config ca-certificates curl \
+      build-essential cmake git pkg-config ca-certificates curl wrk \
       libssl-dev libgeos-dev libmosquitto-dev libpq-dev \
       libsasl2-dev libzstd-dev zlib1g-dev \
       nlohmann-json3-dev libyaml-cpp-dev \
@@ -151,10 +151,13 @@ COPY . /root/git/coraine
 WORKDIR /root/git/coraine
 
 #
-# `make i` rebuilds the broker's own siblings as release too (makefile: libs-release);
-# `make di` is the Debug broker (-DCOR_T_ON) over the debug libs built above.
+# release: `make pgo` - a profile-guided build (doc/performance.md, "Profile-guided"): every
+# library and the broker built instrumented, trained on test/perf/pgoTrain.sh (brokers started
+# right here, on local ports - wrk is in the builder for it), rebuilt with the profile. +1-10 %
+# per core against the same build without it. `make di` is the Debug broker (-DCOR_T_ON) over
+# the debug libs built above.
 #
-RUN if [ "$BUILD" = debug ]; then make di; else make i; fi
+RUN if [ "$BUILD" = debug ]; then make di; else make pgo PGO_RESTORE_DEBUG=0 && make install_pgo; fi
 
 # Stamp real provenance. The makefile regenerates etc/contextSourceExtras.json on every
 # build, but .git is out of the build context, so its `git rev-parse` yields "unknown"

@@ -666,11 +666,16 @@ jobs:
         working-directory: stack/corLibs
         run: ./bootstrap.sh
 
-      - name: Build and install coraine - RELEASE
+      #
+      # PROFILE-GUIDED, as the image is (make pgo - doc/performance.md "Profile-guided"): what is
+      # measured here is what is shipped. The history steps up on the night this started (2026-10-03).
+      #
+      - name: Build and install coraine - RELEASE, profile-guided
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make i
+          make pgo PGO_RESTORE_DEBUG=0
+          make install_pgo
 
       #
       # The branch does not exist on the first run, so the clone fails and an empty

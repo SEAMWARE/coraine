@@ -226,6 +226,8 @@ PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm 
 PGO_PROFILE   = $(CURDIR)/BUILD_PGO_PROFILE
 PGO_GEN       = -fprofile-generate=$(PGO_PROFILE) -fprofile-update=atomic
 PGO_USE       = -fprofile-use=$(PGO_PROFILE) -fprofile-partial-training -fprofile-correction -Wno-missing-profile
+# PGO_RESTORE_DEBUG=0 where nothing builds debug after it (the Docker image, CI) - saves the rebuild
+PGO_RESTORE_DEBUG ?= 1
 
 pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	rm -rf $(PGO_PROFILE) BUILD_PGO
@@ -242,10 +244,10 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
 	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
-	@for lib in $(PGO_LIBS); do \
+	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di > /dev/null || exit 1; \
-	done
-	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided; the libraries are debug builds again"
+	done; fi
+	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
@@ -292,6 +294,9 @@ install: etc/contextSourceExtras.json
 
 install_debug: etc/contextSourceExtras.json
 	$(call install_from,$(BUILD_DEBUG))
+
+install_pgo: etc/contextSourceExtras.json
+	$(call install_from,BUILD_PGO)
 
 test:
 	$(CORTEST)
@@ -546,4 +551,4 @@ docker:
 	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
 	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
 
-.PHONY: pgo all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker
+.PHONY: pgo install_pgo all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker
