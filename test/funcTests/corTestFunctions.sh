@@ -292,10 +292,27 @@ coraineStop() {
     return
   fi
 
+  # The broker this helper started: by its pid file - SIGTERM, then watched
+  # 10 ms at a time with corPidAlive (no fork). A stop used to cost ~1.2 s here:
+  # the broker took ~1 s to exit (the periodic loop's one-second sleep), and
+  # each check of the wait loop below was a pgrep -f (~30 ms) plus a 0.1 s sleep.
+  local pat="coraine.*--port $COR_ROLE_PORT( |\$)"
+  local pid=""
+  [ -f "$COR_ROLE_PID_FILE" ] && pid=$(< "$COR_ROLE_PID_FILE")
+
+  if [ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] && command grep -q coraine "/proc/$pid/cmdline" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null                # SIGTERM → onSignal()->dbClose()->exit(0)
+    local w=0
+    while corPidAlive "$pid" && [ $w -lt 500 ]; do sleep 0.01; w=$((w + 1)); done
+    if ! corPidAlive "$pid"; then
+      \rm -f "$COR_ROLE_PID_FILE"
+      return
+    fi
+  fi
+
   # Port-based kill so orphans from aborted prior runs (with no live pid
   # file) are still caught. Matches any coraine whose cmdline carries
   # "--port <port>".
-  local pat="coraine.*--port $COR_ROLE_PORT( |\$)"
   pkill -f "$pat" 2>/dev/null                    # SIGTERM → onSignal()->dbClose()->exit(0)
 
   # Wait (bounded) for graceful exit before the SIGKILL backstop. The SIGTERM
@@ -746,8 +763,8 @@ corPidAlive() {
   local pid=$1
   [ -n "$pid" ] || return 1
   [ -r "/proc/$pid/stat" ] || return 1
-  local state
-  state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)
+  local _p _c state
+  read -r _p _c state _ < "/proc/$pid/stat" 2>/dev/null || return 1   # a builtin - no fork in a polling loop
   [ "$state" != "Z" ]
 }
 
