@@ -287,35 +287,47 @@ dispatch and forwarding I/O. The communication-protocol plugin axis (a `.so`, `-
 be cut out of it once a second protocol shows what that seam has to be - designing it from one
 example would guess.
 
-### 5.3 Multiplexing - measured on threads, deferred to the coroutines
+### 5.3 Multiplexing - on the coroutines (2026-10-02)
 
 Many requests in flight on one connection, answered in the order they finish: no byte of the format
-has to change - the frames carry correlation ids from the start. It was built on threads (2026-10-02)
-and measured, and the cost decided it.
+changed - the frames carry correlation ids from the start.
 
 **The one rule** any design has to keep: the tables follow the stream (§ 4.13) - frames are encoded
 in the order they are sent and decoded in the order they arrive.
 
-What was tried, on the three-broker chain (§ 6.1), cor:// end to end, 16 callers, small entity - each
-a 6-second probe under `perf stat`, release builds, deep idle states:
+**Built on threads first, and dropped.** Every threaded design put a thread hand-off on a request's
+path, and on two cores per broker CPU per request is the throughput: the best of them cost 5-11 % of
+the three-broker chain (16 callers, `perf stat`, release builds):
 
 | server | client | req/s | thread switches per request (broker A) |
 |---|---|---:|---:|
-| a thread per connection, one request in flight (today) | a connection per calling thread | 74 000 | 1.6 |
+| a thread per connection, one request in flight | a connection per calling thread | 74 000 | 1.6 |
 | requests that wait handed to the worker pool | 2 shared connections per peer | 48 000 | 3.2 |
 | same | an idle connection first, up to 16 | 57 000 | 2.7 |
 | a thread owns the connection, the event loop takes what arrives meanwhile | same | 66 000 | 2.0 |
 
-The best of them still cost **5-11 %** of the chain's throughput (`corChain.sh`, two rounds, against
-the code of today), for what it bought: a fast request no longer waits behind a slow one on the same
-connection, and a fan-out to two cor:// sources of one second each answers in one second, not two.
-Every design paid a thread wake-up on a request's path; on two cores per broker, CPU per request is
-the throughput.
+**Built on the coroutines** (`doc/coroutines.md` § 11), where many requests in flight on one thread is
+simply what the event loop does:
 
-**Deferred to the coroutines** (`doc/coroutines.md`), where many requests in flight on one thread is
-simply what the event loop does - no hand-off at all. The threaded version is kept as a reference
-(drafts coraine#207, corRest#23, corNgsild#55, corAlloc#5): its client API (`corRestCorStart` /
-`corRestCorWait`), the concurrent fan-out, and two functests that fail without multiplexing.
+- **server**: a connection is armed once, for good; the loop reads every frame that comes, decodes
+  each request as it arrives (wire order), runs it - inline, or as a coroutine - and queues each
+  response, encoded as it is queued (wire order again), flushed on `EPOLLOUT` when the socket is full.
+  A request in flight holds a reference to the connection - one may finish on a worker.
+- **client**: one connection a peer, per thread, shared by every request of the thread. A frame goes
+  out under the connection's *write turn* (a coroutine that finds it taken parks); the first request
+  that waits and finds no reader takes the *read turn*, decodes every frame as it comes into the memory
+  of the call it belongs to, wakes that call's coroutine (corBase `corCoLoopPark/Wake`), and hands the
+  turn on when its own response is in. A response nobody waits for any more is decoded all the same -
+  the tables need it - and dropped.
+- `corRestCorStart` / `corRestCorWait`: a request sent now, its response collected later. A
+  distributed query fanned out to several cor:// sources starts every request before it waits for any.
+- With `mongoc` a request that waits cannot be a coroutine (the driver blocks): its connection moves
+  to a thread of its own, one request at a time, as before.
+
+Two functests fail without it: `cor_multiplex_out_of_order` (a fast request answered before a slow one
+sent earlier on the same connection) and `cor_fanout_concurrent` (two sources of one second each: two
+seconds before, one now). Measured in `doc/performance.md` - no loss anywhere, the instructions per
+request unchanged.
 
 ## 6. Order of work
 
