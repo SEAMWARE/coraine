@@ -28,7 +28,7 @@ curl -s -o /dev/null -X POST localhost:9203/ngsi-ld/v1/entities -H "$J" -d "$big
 if [ "$MODE" != http ]; then EPB=cor://localhost:9302; EPC=cor://localhost:9303; else EPB=http://localhost:9202; EPC=http://localhost:9203; fi
 reg() { curl -s -o /dev/null -X POST localhost:$1/ngsi-ld/v1/csourceRegistrations -H "$J" -d '{"id":"urn:Reg:'$1'","type":"ContextSourceRegistration","endpoint":"'$2'","mode":"inclusive","information":[{"entities":[{"type":"Vehicle"}]}]}'; }
 reg 9201 $EPB; reg 9202 $EPC
-CR=${CORREQUEST:-$(dirname $0)/../funcTests/corRequest/corRequest}
+CR=${CORREQUEST:-$(dirname $0)/../../../corLibs/bin/corRequest}
 for e in E1 E20; do
   U=http://localhost:9201/ngsi-ld/v1/entities/urn:$e
   if [ "$MODE" = cor-all ]; then

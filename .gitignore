@@ -24,8 +24,6 @@ coverage-*/
 # so the set of build directories is open-ended.
 BUILD_*/
 /coraine
-test/funcTests/ftClient/ftClient
-test/funcTests/corRequest/corRequest
 
 # Editor lock / autosave files
 \#*\#

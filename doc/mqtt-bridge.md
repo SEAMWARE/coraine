@@ -56,5 +56,5 @@ Without a `server`, the Bridge delivers notifications only, and a configured Cha
 ## Tests
 
 `subscription_*mqtt*` (notifications), `subscription_mqtt_endpoint_needs_bridge`, `bridge_mqtt`
-and `bridge_mqtt_v311_echo` (Channels). They run a private mosquitto; `ftClient` plays the device,
+and `bridge_mqtt_v311_echo` (Channels). They run a private mosquitto; `corTestClient` plays the device,
 subscribing to every topic and publishing with `POST /mqtt/publish`.

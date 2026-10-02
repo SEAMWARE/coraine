@@ -5,7 +5,7 @@ coraine-specific --EXPECT-- regenerator for corTest.
 corTest's `--regen` mode delegates to a repo-provided regen tool at
 test/funcTests/tools/corRegenExpect if present (this file); otherwise it falls
 back to corTest's generic verbatim fill. This tool understands coraine's
-output (HTTP responses, NGSI-LD bodies, ftClient dumps) and rewrites the
+output (HTTP responses, NGSI-LD bodies, corTestClient dumps) and rewrites the
 captured .out into an --EXPECT-- block with REGEX() wrappers around the
 process-/run-volatile tokens, so regenerated expectations stay stable.
 
@@ -17,7 +17,7 @@ Volatility rules:
   User-Agent (in body):       carries broker version string           → REGEX("Coraine/.*")
   Notification id (body):     fixed length, value varies per process  → REGEX inside quotes
   ISO timestamp fields (body):variable length (zero-stripping)        → REGEX inside quotes
-  Embedded "Content-Length"   inside ftClient body dumps tracks
+  Embedded "Content-Length"   inside corTestClient body dumps tracks
   in JSON body:               notification body length                 → REGEX(\\d+) iff body volatile
 
 REGEX style: "REGEX(pattern)" — inside the quoted string — to match the
@@ -55,13 +55,13 @@ EM_RE = re.compile(r'urn:ngsi-ld:EntityMap:[0-9a-fA-F]+')
 # Appears as a JSON value ("id":"...") and in the Location header.
 CSR_RE = re.compile(r'urn:ngsi-ld:ContextSourceRegistration:[0-9a-fA-F]+:\d+')
 
-# User-Agent in ftClient body dumps carries the broker version
+# User-Agent in corTestClient body dumps carries the broker version
 UA_RE = re.compile(r'("User-Agent"\s*:\s*)"Coraine[^"]*"')
 
 # Next File Descriptor in /admin/version — host- and run-volatile
 FD_RE = re.compile(r'("Next File Descriptor"\s*:\s*)\d+')
 
-# Embedded Content-Length inside ftClient body dumps
+# Embedded Content-Length inside corTestClient body dumps
 ECL_RE = re.compile(r'("Content-Length"\s*:\s*)"\d+"')
 
 # Escaped-JSON forms — appear when a notification body is itself a
@@ -186,12 +186,12 @@ def normalize(out_text):
             result.append(sep)
             result.extend(new_body)
         else:
-            # Outside an HTTP response: ftClient JSON dumps live here too.
+            # Outside an HTTP response: corTestClient JSON dumps live here too.
             new_line, sv = line_normalize(line, False)
-            # If this section is part of an ftClient dump with timestamps,
+            # If this section is part of an corTestClient dump with timestamps,
             # the embedded Content-Length will be REGEX'd via ECL_RE on the
             # SAME pass. Apply ECL_RE unconditionally outside HTTP responses
-            # — embedded Content-Length only appears in ftClient bodies, and
+            # — embedded Content-Length only appears in corTestClient bodies, and
             # those bodies always carry notification timestamps.
             new_line = ECL_RE.sub(r'\1"REGEX(\\d+)"', new_line)
             result.append(new_line)

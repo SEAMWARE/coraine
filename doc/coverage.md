@@ -220,7 +220,7 @@ untested-behaviour group. That group is down to **three**, and only ONE of them 
 gap in the suite:
 
 - **`corRestClientResponseHeader`** (8) is the redirect `Location` lookup. Reaching it
-  needs a Context Source that answers 3xx **with a `Location` header**, and ftClient's
+  needs a Context Source that answers 3xx **with a `Location` header**, and corTestClient's
   `/mock/reply` can set a status but not headers. A real gap, and the only one here.
 
 - **`geoEntityValidate`** (23) and **`attrInstanceOf`** (10) are **not gaps at all** —

@@ -251,4 +251,8 @@ endif()
 ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
 
 ADD_SUBDIRECTORY(src/app/coraine)
-ADD_SUBDIRECTORY(test)
+
+#
+# The test tools - corTestClient (was ftClient) and corRequest - are corTools' (a sibling repo), built
+# by corLibs and installed into corLibs/bin, beside corTest.
+#

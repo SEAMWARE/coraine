@@ -172,7 +172,7 @@ Run with `--bridges modbus --bridgeConfig <file>`.
   allows pipelining with transaction ids, but many devices answer one at a
   time - v1 sends one request at a time).
 - **Test device:** a small Modbus TCP server in the test tools (`ftModbus`) with
-  its registers set and read over HTTP, like ftClient. That makes functests of
+  its registers set and read over HTTP, like corTestClient. That makes functests of
   polling, change-only reporting, writes, exceptions and timeouts deterministic.
 
 ## 5. Questions
