@@ -1,0 +1,150 @@
+#
+# FILE            notify_entity_delete_languagemap_tombstone.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An entity deleted under an entityDeleted subscription with showChanges (ETSI 046_37's case): the
+# notification carries each of its attributes as deleted, with its previous value. TS 104-175 clause 10.5.7: the value or
+# object is "urn:ngsi-ld:null" - and a LanguageProperty's languageMap is {"@none": "urn:ngsi-ld:null"},
+# not the bare string. The entity-delete path sent the bare string (to fit ETSI 046_37's fixture, which
+# contradicts the clause); the attribute-delete path already sent the map.
+#
+--NAME--
+Entity deleted, showChanges: a LanguageProperty's tombstone is languageMap {"@none": "urn:ngsi-ld:null"}
+
+--TAGS--
+subscription
+notification
+showChanges
+languageproperty
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+echo "01. An entity with a LanguageProperty and a Property"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:ngsi-ld:Street:S1",
+  "type": "Street",
+  "name": { "type": "LanguageProperty", "languageMap": { "en": "Main street", "es": "Calle mayor" } },
+  "length": { "type": "Property", "value": 120 }
+}'
+echo
+echo
+
+
+echo "02. A subscription: entityDeleted, showChanges"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "Street" } ],
+  "notificationTrigger": [ "entityDeleted" ],
+  "notification": {
+    "showChanges": true,
+    "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" }
+  }
+}'
+echo
+echo
+
+
+echo "03. DELETE the entity"
+echo "====================="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Street:S1
+echo
+echo
+
+
+echo "04. The notification: name's languageMap is {\"@none\": \"urn:ngsi-ld:null\"}, length's value is the bare marker"
+echo "=============================================================================================================="
+ftClientWait 1
+ftClientDump
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. An entity with a LanguageProperty and a Property
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Street:S1
+Content-Length: 0
+
+
+
+
+02. A subscription: entityDeleted, showChanges
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Length: 0
+
+
+
+
+03. DELETE the entity
+=====================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. The notification: name's languageMap is {"@none": "urn:ngsi-ld:null"}, length's value is the bare marker
+==============================================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "deletedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+          "id": "urn:ngsi-ld:Street:S1",
+          "length": {
+            "previousValue": 120,
+            "type": "Property",
+            "value": "urn:ngsi-ld:null"
+          },
+          "name": {
+            "languageMap": {
+              "@none": "urn:ngsi-ld:null"
+            },
+            "previousLanguageMap": {
+              "en": "Main street",
+              "es": "Calle mayor"
+            },
+            "type": "LanguageProperty"
+          },
+          "type": "Street"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
