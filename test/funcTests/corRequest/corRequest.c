@@ -52,6 +52,7 @@
 #include "corJson/corJsonRenderSize.h"                // corJsonRenderSize, corJsonFastRenderSize
 #include "corRest/CorRestVerb.h"                      // CorRestVerb, corRestVerbFromString
 #include "corRest/CorRestKeyValue.h"                  // CorRestKeyValue
+#include "corBase/corFileRead.h"                       // corFileRead
 #include "corRest/corRestCor.h"                       // corRestCorInit, corRestCorSend
 #include "corNgsild/ldBinCodec.h"                     // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                        // CorTermLast
@@ -66,6 +67,7 @@ static char*         url          = NULL;
 static char*         path         = (char*) "/ngsi-ld/v1/entities";
 static char*         verb         = (char*) "GET";
 static char*         payload      = NULL;
+static char*         payloadFile  = NULL;
 static char*         headers      = NULL;
 static unsigned int  connections  = 0;
 static unsigned int  seconds      = 8;
@@ -80,6 +82,7 @@ static CorArg argV[] =
   { "--path",    NULL, CorArgString, _vp &path,        CorArgOpt, _vp "/ngsi-ld/v1/entities", NULL, NULL, "path and query" },
   { "--verb",    "-X", CorArgString, _vp &verb,        CorArgOpt, _vp "GET",         NULL,   NULL,          "GET, POST, PATCH, PUT, DELETE" },
   { "--payload", NULL, CorArgString, _vp &payload,     CorArgOpt, NULL,              NULL,   NULL,          "request body (JSON)" },
+  { "--payloadFile", NULL, CorArgString, _vp &payloadFile, CorArgOpt, NULL,          NULL,   NULL,          "request body (JSON), from a file - for a body too large for the command line" },
   { "--header",  "-H", CorArgString, _vp &headers,     CorArgOpt, NULL,              NULL,   NULL,          "'Name: value', several separated by '|'" },
   { "--conns",   "-c", CorArgUInt,   _vp &connections, CorArgOpt, _vp 0,             _vp 0,  _vp 1024,      "load mode: connections (0: one request)" },
   { "--duration",NULL, CorArgUInt,   _vp &seconds,     CorArgOpt, _vp 8,             _vp 1,  _vp 3600,      "load mode: seconds" },
@@ -422,6 +425,17 @@ int main(int argC, char* argV_[])
     return 2;
 
   headersSplit();
+
+  if (payloadFile != NULL)
+  {
+    int len;
+
+    if (corFileRead((char*) "", payloadFile, &payload, &len) != 0)
+    {
+      fprintf(stderr, "corRequest: cannot read %s\n", payloadFile);
+      return 2;
+    }
+  }
   corRestCorInit(&ldBinCodec, ldBinNamespaceV, ldBinNamespaces, CorTermLast);
 
   CorRestVerb v = corRestVerbFromString(verb);
