@@ -1,0 +1,85 @@
+#
+# FILE            cor_multiplex_out_of_order.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# cor:// multiplexing (doc/cor-protocol.md § 5.3): requests in flight on ONE connection are answered in
+# the order they finish, not the order they were sent. A slow request - a forward to a context source
+# that takes 1.5 s - goes out first; a fast one - an entity the broker holds, local=true so it is not
+# forwarded too - 100 ms later, on the same connection. The fast one is answered first, while the slow
+# one is still waiting on its source.
+#
+--NAME--
+cor:// multiplexing - one connection, a fast request answered before a slow one sent earlier
+
+--TAGS--
+cor
+
+--INIT--
+corDbDrop
+ftClientStart --delay 1500
+coraineStart -dist --distOpTimeout 5000 -corPort $((CB_PORT + 1000))
+corPortWait $((CB_PORT + 1000))
+
+--RUN--
+COR=cor://localhost:$((CB_PORT + 1000))
+
+echo "01. An entity the broker holds: urn:Fast"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:Fast", "type": "Fast", "speed": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "02. A registration for type Slow, at a source that answers after 1.5 s"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:ContextSourceRegistration:Slow",
+  "type": "ContextSourceRegistration",
+  "information": [ { "entities": [ { "type": "Slow" } ] } ],
+  "endpoint": "http://localhost:'$FT_CLIENT_PORT'"
+}'
+echo
+echo
+
+
+echo "03. Slow, then Fast 100 ms later, on one cor:// connection - Fast is answered first"
+echo "=================================================================================="
+corRequest --url $COR --sockets 1 --paths '/ngsi-ld/v1/entities?type=Slow|/ngsi-ld/v1/entities/urn:Fast?local=true'
+echo
+echo
+
+
+--EXPECT--
+01. An entity the broker holds: urn:Fast
+========================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:Fast
+Content-Length: 0
+
+
+
+
+02. A registration for type Slow, at a source that answers after 1.5 s
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:Slow
+Content-Length: 0
+
+
+
+
+03. Slow, then Fast 100 ms later, on one cor:// connection - Fast is answered first
+==================================================================================
+200 /ngsi-ld/v1/entities/urn:Fast?local=true
+200 /ngsi-ld/v1/entities?type=Slow
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

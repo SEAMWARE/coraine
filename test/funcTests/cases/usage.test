@@ -78,6 +78,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
+                [--corClientConns/-ccc <cor:// forwards: connections to each peer at most - multiplexed beyond it (0: 16)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -124,6 +125,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
+                [--corClientConns/-ccc <cor:// forwards: connections to each peer at most - multiplexed beyond it (0: 16)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -181,6 +183,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--traceLevels/-t <trace levels>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
+                [--corClientConns/-ccc <cor:// forwards: connections to each peer at most - multiplexed beyond it (0: 16)>]
                 [--database/-db <corDB|mongoc>]
                 [--troe/-troe <corDB|none|timescale>]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
@@ -227,6 +230,7 @@ Usage: coraine  [--usage/-u (usage)]
   --traceLevels           (-t)               CORAINE_TRACELEVELS           Optional   String   Default Value  
   --port                  (-p)               CORAINE_PORT                  Optional   UShort   Default Value  
   --corPort               (-corPort)         CORAINE_CORPORT               Optional   UShort   Default Value  
+  --corClientConns        (-ccc)             CORAINE_CORCLIENTCONNS        Optional   Int      Default Value  
   --database              (-db)              CORAINE_DATABASE              Optional   String   Short Option   
   --troe                  (-troe)            CORAINE_TROE                  Optional   String   Default Value  
   --troeSync              (-troeSync)        CORAINE_TROESYNC              Optional   Bool     Default Value  

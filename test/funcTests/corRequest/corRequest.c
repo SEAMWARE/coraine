@@ -36,6 +36,7 @@
 #include <stdlib.h>                                   // malloc, free, qsort
 #include <string.h>                                   // strchr, strlen, strtok_r
 #include <time.h>                                     // clock_gettime
+#include <unistd.h>                                   // usleep
 #include <pthread.h>                                  // pthread_create, pthread_join
 
 #include "corArgs/corArgs.h"                          // corArgsInit, corArgsParse
@@ -52,7 +53,8 @@
 #include "corJson/corJsonRenderSize.h"                // corJsonRenderSize, corJsonFastRenderSize
 #include "corRest/CorRestVerb.h"                      // CorRestVerb, corRestVerbFromString
 #include "corRest/CorRestKeyValue.h"                  // CorRestKeyValue
-#include "corRest/corRestCor.h"                       // corRestCorInit, corRestCorSend
+#include "corBase/corFileRead.h"                       // corFileRead
+#include "corRest/corRestCor.h"                       // corRestCorInit, corRestCorSend, corRestCorClientConns
 #include "corNgsild/ldBinCodec.h"                     // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                        // CorTermLast
 
@@ -66,8 +68,11 @@ static char*         url          = NULL;
 static char*         path         = (char*) "/ngsi-ld/v1/entities";
 static char*         verb         = (char*) "GET";
 static char*         payload      = NULL;
+static char*         payloadFile  = NULL;
 static char*         headers      = NULL;
 static unsigned int  connections  = 0;
+static unsigned int  sockets      = 0;
+static char*         paths        = NULL;
 static unsigned int  seconds      = 8;
 static unsigned int  timeoutMs    = 30000;
 static bool          curlMode     = false;
@@ -80,8 +85,11 @@ static CorArg argV[] =
   { "--path",    NULL, CorArgString, _vp &path,        CorArgOpt, _vp "/ngsi-ld/v1/entities", NULL, NULL, "path and query" },
   { "--verb",    "-X", CorArgString, _vp &verb,        CorArgOpt, _vp "GET",         NULL,   NULL,          "GET, POST, PATCH, PUT, DELETE" },
   { "--payload", NULL, CorArgString, _vp &payload,     CorArgOpt, NULL,              NULL,   NULL,          "request body (JSON)" },
+  { "--payloadFile", NULL, CorArgString, _vp &payloadFile, CorArgOpt, NULL,          NULL,   NULL,          "request body (JSON), from a file - for a body too large for the command line" },
   { "--header",  "-H", CorArgString, _vp &headers,     CorArgOpt, NULL,              NULL,   NULL,          "'Name: value', several separated by '|'" },
-  { "--conns",   "-c", CorArgUInt,   _vp &connections, CorArgOpt, _vp 0,             _vp 0,  _vp 1024,      "load mode: connections (0: one request)" },
+  { "--conns",   "-c", CorArgUInt,   _vp &connections, CorArgOpt, _vp 0,             _vp 0,  _vp 1024,      "load mode: concurrent callers (0: one request)" },
+  { "--sockets", NULL, CorArgUInt,   _vp &sockets,     CorArgOpt, _vp 0,             _vp 0,  _vp 16,        "load mode: connections the --conns callers share (0: one each, max 16)" },
+  { "--paths",   NULL, CorArgString, _vp &paths,       CorArgOpt, NULL,              NULL,   NULL,          "parallel mode: 'path|path|...', each sent at once, answers printed as they come" },
   { "--duration",NULL, CorArgUInt,   _vp &seconds,     CorArgOpt, _vp 8,             _vp 1,  _vp 3600,      "load mode: seconds" },
   { "--timeout", NULL, CorArgUInt,   _vp &timeoutMs,   CorArgOpt, _vp 30000,         _vp 1,  _vp 600000,    "milliseconds" },
   { "--curl",    NULL, CorArgBool,   _vp &curlMode,    CorArgOpt, _vp false,         _vp false, _vp true,   "print as the functests' corCurl does (with --bodyFile)" },
@@ -298,6 +306,76 @@ static int curlOnce(CorRestVerb v)
 
 // -----------------------------------------------------------------------------
 //
+// Parallel mode - every --paths entry sent at the same time, over --sockets connections (default 1)
+//
+// One thread per path, the i-th sent i x 100 ms after the first - the order they go out in is the
+// order given. Each answer is printed when it arrives - "<status> <path>" - so the order of the lines
+// is the order the responses came back in: over one multiplexed connection, a fast request sent
+// after a slow one is answered first.
+//
+typedef struct Parallel
+{
+  pthread_t        tid;
+  CorRestVerb      verb;
+  const char*      path;
+  int              index;
+} Parallel;
+
+static pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void* parallelOne(void* arg)
+{
+  Parallel*          pP = (Parallel*) arg;
+  CorAlloc           ka;
+  char               kaBuf[16 * 1024];
+  CorRestCorResponse resp;
+  const char*        error;
+
+  corAllocBufferInit(&ka, kaBuf, sizeof(kaBuf), 64 * 1024, NULL, "corRequest parallel");
+  usleep(pP->index * 100000);
+
+  bool ok = corRestCorSend(url, pP->verb, pP->path, headerV, headerCount, NULL, payload, timeoutMs, &ka, &resp, &error);
+
+  pthread_mutex_lock(&printMutex);
+  if (ok == true)
+    printf("%d %s\n", resp.status, pP->path);
+  else
+    printf("ERROR %s: %s\n", pP->path, error);
+  fflush(stdout);
+  pthread_mutex_unlock(&printMutex);
+
+  corAllocBufferReset(&ka, false);
+  return NULL;
+}
+
+static int parallel(CorRestVerb v)
+{
+  Parallel  pV[32];
+  int       n    = 0;
+  char*     save = NULL;
+
+  for (char* p = strtok_r(paths, "|", &save); (p != NULL) && (n < 32); p = strtok_r(NULL, "|", &save))
+  {
+    pV[n].verb  = v;
+    pV[n].path  = p;
+    pV[n].index = n;
+    n += 1;
+  }
+
+  corRestCorClientConns((sockets != 0) ? (int) sockets : 1);
+
+  for (int i = 0; i < n; i++)
+    pthread_create(&pV[i].tid, NULL, parallelOne, &pV[i]);
+  for (int i = 0; i < n; i++)
+    pthread_join(pV[i].tid, NULL);
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Load mode
 //
 typedef struct Worker
@@ -399,8 +477,10 @@ static int load(CorRestVerb v)
   qsort(allV, n, sizeof(double), doubleCompare);
 
   #define PCT(p) ((n > 0) ? allV[(long) ((n - 1) * (p))] : 0.0)
-  printf("%u connections, %u s: %ld requests, %ld errors, %.2f req/s  |  p50 %.0f us  p90 %.0f us  p99 %.0f us  max %.0f us\n",
-         connections, seconds, done, errors, done / elapsed, PCT(0.50), PCT(0.90), PCT(0.99), (n > 0) ? allV[n - 1] : 0.0);
+  unsigned int socketsUsed = (sockets != 0) ? sockets : ((connections < 16) ? connections : 16);
+
+  printf("%u callers on %u connection%s, %u s: %ld requests, %ld errors, %.2f req/s  |  p50 %.0f us  p90 %.0f us  p99 %.0f us  max %.0f us\n",
+         connections, socketsUsed, (socketsUsed == 1) ? "" : "s", seconds, done, errors, done / elapsed, PCT(0.50), PCT(0.90), PCT(0.99), (n > 0) ? allV[n - 1] : 0.0);
 
   free(allV);
   free(wV);
@@ -422,12 +502,29 @@ int main(int argC, char* argV_[])
     return 2;
 
   headersSplit();
+
+  if (payloadFile != NULL)
+  {
+    int len;
+
+    if (corFileRead((char*) "", payloadFile, &payload, &len) != 0)
+    {
+      fprintf(stderr, "corRequest: cannot read %s\n", payloadFile);
+      return 2;
+    }
+  }
   corRestCorInit(&ldBinCodec, ldBinNamespaceV, ldBinNamespaces, CorTermLast);
 
   CorRestVerb v = corRestVerbFromString(verb);
 
+  if (paths != NULL)
+    return parallel(v);
+
   if (connections > 0)
+  {
+    corRestCorClientConns((sockets != 0) ? (int) sockets : (int) connections);
     return load(v);
+  }
 
   return (curlMode == true) ? curlOnce(v) : once(v);
 }

@@ -287,6 +287,78 @@ dispatch and forwarding I/O. The communication-protocol plugin axis (a `.so`, `-
 be cut out of it once a second protocol shows what that seam has to be - designing it from one
 example would guess.
 
+### 5.3 Multiplexing
+
+Any number of requests are in flight on a connection at once. A response carries its request's
+correlation id and comes back as soon as it is ready, in whatever order that is. No byte of the
+format changed for it: the ids were there from the start.
+
+**The one rule: the tables follow the stream.** Each direction's tables change as a tree is
+encoded and decoded (§ 4.4), so the writer must encode frames in the order it sends them, and the
+reader must decode them in the order they arrive. Everything below follows from that.
+
+**Server.** A connection starts on an event loop, which reads its frames and decodes each one as
+it arrives - the incoming tables are the reader's alone. A request that cannot block runs right
+there. When a connection brings one that can (a forward, waiting on its peer), a thread takes the
+connection over: it runs that request, and from then on reads the connection itself, so a request
+runs on the thread that read it - no hand-off, as in a thread-per-connection server, which is what
+the connections between brokers are: few, long-lived, one request in flight most of the time.
+
+Multiplexing is what the loop is still there for. Before it runs a request that can block, the
+thread gives the connection back to the loop, armed, so a frame arriving meanwhile is read and
+started at once instead of waiting behind it; done, the thread takes the connection back unless the
+loop has it by then. Who reads a connection is one atomic word, taken with a compare-and-swap, so an
+epoll event already on its way when the thread took the connection back finds it taken and is
+dropped. With one request in flight, multiplexing costs two `epoll_ctl` calls per request and no
+thread wake-up.
+
+Whoever answers encodes and sends the response under the connection's write lock, in one piece.
+Each request owns its frame and its decoded tree; the connection is reference-counted and lives
+until its last request is answered.
+
+**What was measured on the way** (the chain of § 6.1, cor:// end to end, 16 callers, small entity;
+release build, deep C-states; requests per second):
+
+| server | client | req/s | context switches per request, broker A |
+|---|---|---|---|
+| thread per connection, one request in flight (before multiplexing) | thread-local connections | 74,000 | 1.6 |
+| blocking requests to the worker pool | 2 shared connections per peer | 48,000 | 3.2 |
+| same | idle connection first, up to 16 | 57,000 | 2.7 |
+| a thread owns the connection, the loop takes what arrives meanwhile | idle connection first, up to 16 | 66,000 | 2.0 |
+
+Every thread wake-up on a request's path costs; on two cores per broker, CPU per request is the
+throughput. Coroutines (the next step) take the threads off the path altogether.
+
+The cost that remains, `corChain.sh` before and after, two rounds each (16 callers unless said):
+
+| | before | after | |
+|---|---|---|---|
+| cor:// end to end, small entity | 67,700 | 60,400 | -11 % |
+| cor:// end to end, 20 attributes | 41,000 | 38,800 | -5 % |
+| cor:// end to end, small entity, 1 caller | 11,600 | 10,400 | -10 % |
+| HTTP client, cor:// between brokers, small entity | 42,300 | 40,200 | -5 % |
+| HTTP all the way | 23,900 | 23,800 | none |
+
+What it buys: requests on one connection no longer wait for each other (a fast one sent after a
+slow one is answered first), and a distributed operation fanned out to several cor:// sources has
+them all in flight at once - two sources of one second each answer in one second, not two.
+
+**Client.** A peer's connections belong to the whole process, not to a thread. A request is
+encoded and sent under the write lock. There is no reader thread: a caller waiting for its
+response that finds nobody reading the connection becomes its reader (leader/follower). It
+decodes each frame as it arrives - into the allocator of the call it answers - and wakes that
+call's caller. Once its own response is in, it hands the reading to a caller still waiting. With
+one request in flight the caller reads its own response, so there is no thread hop at all.
+
+A response nobody waits for any more (its caller timed out) is decoded all the same and dropped:
+skipping it would leave the tables out of step.
+
+**How many connections.** One is enough for correctness. A caller alone on a connection reads its
+own response, though, with nothing handed between threads, so a call takes an idle connection
+first, opens a new one while under the cap (`corRestCorClientConns`; a broker's
+`--corClientConns`, 16 by default), and shares the least busy one only beyond it: requests are
+multiplexed when more are in flight than connections are allowed.
+
 ## 6. Order of work
 
 1. **The codec** in corTree, with the corNgsild callbacks (§ 4.1-4.3), round-trip exact.
@@ -342,9 +414,9 @@ over 660 JSON documents of the ETSI suite and coraine's tests - payloads with co
 inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
 names, is to be measured on the chain.
 
-Not yet: a fan-out to several cor:// sources is sent one at a time (multiplexing over one
-connection is the next step - the frames carry correlation ids already); packed numeric arrays and
-timestamps as integers (§ 4.9, § 4.10).
+Not yet: a fan-out to several cor:// sources is sent one at a time - the requests are multiplexed
+(§ 5.3), but the distributed-operation fan-out does not yet start them all before waiting; packed
+numeric arrays and timestamps as integers (§ 4.9, § 4.10).
 
 ## 7. Testing
 

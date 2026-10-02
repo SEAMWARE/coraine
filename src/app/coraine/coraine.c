@@ -107,7 +107,7 @@
 #include "forwarding/forwardingCor.h"             // forwardingCorRegister
 #endif
 
-#include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen - cor:// serves with or without registrations
+#include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen, corRestCorClientConns - cor:// serves with or without registrations
 #include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                    // CorTermLast
 
@@ -199,6 +199,7 @@ static void contextError(int status, const char* title, const char* detail)
 //
 unsigned short port         = 1026;
 unsigned short corPort      = 0;           // cor:// - the binary API (0: off)
+int            corClientConns = 0;         // cor:// forwards: connections per peer at most (0: 16)
 char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
@@ -233,6 +234,7 @@ static CorArg kargV[] =
   { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels" },
   { "--port",               "-p",           CorArgUShort, _vp &port,     CorArgOpt, _vp 1026, _vp 1, _vp 65535, "TCP port to listen on" },
   { "--corPort",            "-corPort",     CorArgUShort, _vp &corPort,  CorArgOpt, _vp 0,    _vp 0, _vp 65535, "TCP port for cor:// - the binary API (0: off)" },
+  { "--corClientConns",     "-ccc",         CorArgInt,    _vp &corClientConns, CorArgOpt, _vp 0, _vp 0, _vp 16, "cor:// forwards: connections to each peer at most - multiplexed beyond it (0: 16)" },
   { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
@@ -1767,6 +1769,12 @@ int main(int argC, char* argV[])
   }
 
   corRestHttpLoopsSet(httpLoops);
+
+  //
+  // cor:// forwards: up to 16 connections to a peer by default. A forward takes an idle connection and
+  // reads its own response; requests share a connection (multiplexed) only beyond the cap.
+  //
+  corRestCorClientConns((corClientConns != 0) ? corClientConns : 16);
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestInit failed on port %u", port);

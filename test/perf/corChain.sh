@@ -18,7 +18,7 @@
 MODE=$1
 echo "== corChain $MODE - $($(dirname $0)/cpuIdle.sh show)"
 B=${CORAINE_BIN:-/opt/seamware/bin/coraine}
-start() { taskset -c $3 $B --port $1 --corPort $2 --database corDB --troe none -dist --foreground > /dev/null 2>&1 & echo $!; }
+start() { taskset -c $3 $B --port $1 --corPort $2 --database corDB --troe none -dist --foreground $CORAINE_ARGS > /dev/null 2>&1 & echo $!; }
 PA=$(start 9201 9301 0-1); PB=$(start 9202 9302 2-3); PC=$(start 9203 9303 4-5)
 for p in 9201 9202 9203; do for i in $(seq 1 50); do curl -s -o /dev/null http://localhost:$p/version && break; sleep 0.1; done; done
 J='Content-Type: application/json'

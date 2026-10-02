@@ -1,0 +1,86 @@
+#
+# FILE            cor_fanout_concurrent.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A distributed query fanned out to two cor:// sources sends both requests before it waits for either
+# (doc/cor-protocol.md § 5.3): they are in flight at the same time. Each source takes ~1 s to answer -
+# CP1 and CP2 forward in turn, over HTTP, each to a context source that answers after 1 s - so the query
+# takes ~1 s with the two in flight together, ~2 s one after the other.
+#
+--NAME--
+cor:// fan-out - two cor:// sources queried at the same time, not one after the other
+
+--TAGS--
+cor
+distop
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+ftClientStart --delay 1000
+ftClientStart --port 7711 --delay 1000
+coraineStart -dist --distOpTimeout 5000
+coraineStart -role CP1 -dist --distOpTimeout 5000 -corPort $((CP1_PORT + 1000))
+coraineStart -role CP2 -dist --distOpTimeout 5000 -corPort $((CP2_PORT + 1000))
+
+--RUN--
+register()
+{
+  corCurl --port $1 --url /ngsi-ld/v1/csourceRegistrations --payload '{
+    "id": "'$2'",
+    "type": "ContextSourceRegistration",
+    "information": [ { "entities": [ { "type": "T" } ] } ],
+    "endpoint": "'$3'"
+  }' | head -1
+}
+
+echo "01. CB registers CP1 and CP2 over cor://; each of them a source that answers after 1 s, over HTTP"
+echo "================================================================================================"
+register $CB_PORT  urn:Reg:CB-CP1 cor://localhost:$((CP1_PORT + 1000))
+register $CB_PORT  urn:Reg:CB-CP2 cor://localhost:$((CP2_PORT + 1000))
+register $CP1_PORT urn:Reg:CP1-ft http://localhost:$FT_CLIENT_PORT
+register $CP2_PORT urn:Reg:CP2-ft http://localhost:7711
+echo
+echo
+
+
+echo "02. GET /entities?type=T on CB - both cor:// sources in flight together: under 1.6 s"
+echo "===================================================================================="
+t0=$(date +%s%N)
+corCurl --url '/ngsi-ld/v1/entities?type=T' | head -1
+t1=$(date +%s%N)
+ms=$(( (t1 - t0) / 1000000 ))
+if [ $ms -lt 1600 ]; then echo "concurrent: yes"; else echo "concurrent: NO ($ms ms)"; fi
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+ftClientStop
+ftClientStop --port 7711
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+
+--EXPECT--
+01. CB registers CP1 and CP2 over cor://; each of them a source that answers after 1 s, over HTTP
+================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET /entities?type=T on CB - both cor:// sources in flight together: under 1.6 s
+====================================================================================
+HTTP/1.1 200 OK
+concurrent: yes
+
+
