@@ -398,10 +398,10 @@ jobs:
         if: failure()
         run: |
           cp /tmp/corValgrind.*.vg stack/coraine/test/funcTests/cases/ 2>/dev/null || true
-          # ftClient's stderr - the only record of why it could not do its job.
+          # corTestClient's stderr - the only record of why it could not do its job.
           # A test asserting on its dump reports "0" for every such reason, so
           # without this a harness failure looks exactly like a broker bug.
-          cp /tmp/ftClient.*.log stack/coraine/test/funcTests/cases/ 2>/dev/null || true
+          cp /tmp/corTestClient.*.log stack/coraine/test/funcTests/cases/ 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         if: failure()

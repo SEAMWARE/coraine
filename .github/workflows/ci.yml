@@ -389,10 +389,10 @@ jobs:
               --fromIx ${{ matrix.shard.from }} $to ${{ matrix.shard.only }}
 
       #
-      # ftClient's own stderr goes to /tmp/ftClient.<port>.log and is the only
+      # corTestClient's own stderr goes to /tmp/corTestClient.<port>.log and is the only
       # record of why it could not do its job - no TLS in the HTTP library, a
       # port already taken, an MQTT subscription that never came up. A test that
-      # asserts on ftClient's dump reports "0" for all of those, identically, so
+      # asserts on corTestClient's dump reports "0" for all of those, identically, so
       # without this log a failure is indistinguishable from a broker bug.
       #
       - name: Keep the output of anything that failed
@@ -406,5 +406,5 @@ jobs:
             stack/coraine/test/funcTests/cases/*.log
             /tmp/coraine*.log
             /tmp/smoke.log
-            /tmp/ftClient.*.log
+            /tmp/corTestClient.*.log
           retention-days: 7

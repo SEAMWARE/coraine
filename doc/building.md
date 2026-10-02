@@ -316,7 +316,7 @@ Two things it does not do, and both are deliberate rather than pending:
 
 - **No TLS server.** The broker never serves HTTPS (it is put behind a proxy
   that does), so this costs exactly one thing: the test notification receiver
-  `ftClient` cannot serve HTTPS either, and the one functional test that needs
+  `corTestClient` cannot serve HTTPS either, and the one functional test that needs
   that carries `REQUIRE_HTTPSERVER: mhd`.
 - **No HTTP pipelining.** A second request arriving in the same packet as the
   first is dropped rather than answered. No client in use here pipelines — curl

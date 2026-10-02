@@ -21,7 +21,8 @@ COR_TROE_HOST=${COR_TROE_HOST:-localhost}          # timescale/postgres host - s
 COR_TROE_PORT=${COR_TROE_PORT:-5432}               # timescale/postgres port
 COR_TROE_USER=${COR_TROE_USER:-postgres}           # timescale/postgres user
 
-# Plugins from their install site; ftClient from the repo (cmake builds it there).
+# Plugins from their install site; the tools - corTestClient, corRequest - from corLibs/bin, beside
+# corTest (corTools builds them, corLibs installs them): SCRIPT_HOME is where corTest runs from.
 COR_PLUGIN_DIR="${COR_PLUGIN_DIR:-/opt/seamware/plugins}"
 COR_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -492,12 +493,12 @@ corSnapDrop() {
 
 # -----------------------------------------------------------------------------
 #
-# ftClient - generic mock endpoint for forward-target / notification-receiver tests
+# corTestClient - generic mock endpoint for forward-target / notification-receiver tests
 #
 # Each instance has its own PID file keyed by port, so multiple ftClients
 # can run concurrently (one per CSR target) and be stopped individually.
 #
-FT_CLIENT=$COR_REPO_DIR/test/funcTests/ftClient/ftClient
+COR_TEST_CLIENT=${SCRIPT_HOME:-$COR_REPO_DIR/../corLibs/bin}/corTestClient
 FT_CLIENT_PORT=7701                          # default port when none given
 
 
@@ -509,7 +510,7 @@ FT_CLIENT_PORT=7701                          # default port when none given
 # The test tool of the same name; stdin closed, so it never waits on the test's own input.
 #   corRequest --url cor://localhost:$((CB_PORT + 1000)) --path /ngsi-ld/v1/entities/urn:E1
 #
-COR_REQUEST=$COR_REPO_DIR/test/funcTests/corRequest/corRequest
+COR_REQUEST=${SCRIPT_HOME:-$COR_REPO_DIR/../corLibs/bin}/corRequest
 
 corRequest() {
   $COR_REQUEST "$@" < /dev/null
@@ -532,7 +533,7 @@ corPortWait() {
 
 # ftClientStart [--port P] [--status S] [...extra]
 #
-# Starts an ftClient on the given port (default 7701). --status sets the
+# Starts a corTestClient on the given port (default 7701). --status sets the
 # HTTP status returned for incoming POSTs (default 201). Pass "misbehave"
 # statuses (503, 500, 403, ...) to simulate forwarding-target failures.
 #
@@ -551,29 +552,29 @@ ftClientStart() {
     shift
   done
 
-  local pidFile=/tmp/ftClient.$port.pid
+  local pidFile=/tmp/corTestClient.$port.pid
   ftClientStop --port $port 2>/dev/null
 
   # Record the scheme so ftClientDump/ftClientCount reach the right URL: a
-  # --httpsKey/--httpsCertificate ftClient serves HTTPS, plain HTTP otherwise.
+  # --httpsKey/--httpsCertificate corTestClient serves HTTPS, plain HTTP otherwise.
   local scheme=http
   case " ${extraParams[*]} " in
     *" --httpsKey "*|*" -k "*) scheme=https ;;
   esac
-  echo "$scheme" > /tmp/ftClient.$port.scheme
+  echo "$scheme" > /tmp/corTestClient.$port.scheme
 
   #
-  # Keep what it says. When an ftClient cannot start - no TLS in the HTTP library,
+  # Keep what it says. When a corTestClient cannot start - no TLS in the HTTP library,
   # a port already taken, a missing certificate - the only symptom used to be
   # "corAwaitPort: port N not ready", because its stderr went to /dev/null. The
   # reason was always one line long and always discarded.
   #
-  $FT_CLIENT --port $port ${extraParams[*]} > /tmp/ftClient.$port.log 2>&1 &
+  $COR_TEST_CLIENT --port $port ${extraParams[*]} > /tmp/corTestClient.$port.log 2>&1 &
   echo $! > "$pidFile"
 
   if ! corAwaitPort $port 5; then
-    echo "ftClientStart: nothing listening on $port; ftClient said:" >&2
-    head -5 /tmp/ftClient.$port.log >&2
+    echo "ftClientStart: nothing listening on $port; corTestClient said:" >&2
+    head -5 /tmp/corTestClient.$port.log >&2
     return 1
   fi
 
@@ -589,7 +590,7 @@ ftClientStart() {
   # 2026-08-26), and no amount of sleeping at the ASSERT end can recover it,
   # because the loss already happened at the start.
   #
-  # So: wait for the SUBACK. ftClient answers 1 on /mqttReady when it has one,
+  # So: wait for the SUBACK. corTestClient answers 1 on /mqttReady when it has one,
   # and 1 immediately when no --mqttPort was given, so this costs a single poll
   # in the common case.
   #
@@ -598,8 +599,8 @@ ftClientStart() {
       #
       # 8s, which is longer than it looks: the common case returns on the FIRST
       # poll, and this bound only applies when something is wrong. It has to
-      # exceed ftClient's own 5s connect deadline, or the barrier would give up
-      # first and report a timeout over the top of the specific reason ftClient
+      # exceed corTestClient's own 5s connect deadline, or the barrier would give up
+      # first and report a timeout over the top of the specific reason corTestClient
       # was about to publish.
       #
       local deadline=400                             # 400 x 0.02s = 8s
@@ -614,8 +615,8 @@ ftClientStart() {
       if [ "$ready" != "1" ]; then
         #
         # Say WHICH port and WHAT was answered. The first version of this message
-        # named $port - the ftClient's HTTP port - while the thing that had failed
-        # was the MQTT broker on a different one, and then printed an ftClient log
+        # named $port - the corTestClient's HTTP port - while the thing that had failed
+        # was the MQTT broker on a different one, and then printed a corTestClient log
         # that was empty, so the report carried no information at all.
         #
         local mqttPort=""
@@ -625,22 +626,22 @@ ftClientStart() {
         done
 
         if [ "$ready" == "-1" ]; then
-          echo "ftClientStart: ftClient gave up on the MQTT broker" >&2
+          echo "ftClientStart: corTestClient gave up on the MQTT broker" >&2
         else
           echo "ftClientStart: no MQTT SUBACK within $((deadline / 50))s" >&2
         fi
-        echo "  ftClient HTTP port : $port" >&2
+        echo "  corTestClient HTTP port : $port" >&2
         echo "  MQTT broker port   : ${mqttPort:-unknown}" >&2
         echo "  /mqttReady said    : '${ready}'" >&2
         if [ -n "$mqttPort" ] && ! corPortOpen "$mqttPort"; then
           echo "  -> NOTHING is listening on $mqttPort - the MQTT broker never came up," >&2
           echo "     so no deadline here could have helped. Check for a port collision." >&2
         fi
-        if [ -s /tmp/ftClient.$port.log ]; then
-          echo "  ftClient log:" >&2
-          head -5 /tmp/ftClient.$port.log >&2
+        if [ -s /tmp/corTestClient.$port.log ]; then
+          echo "  corTestClient log:" >&2
+          head -5 /tmp/corTestClient.$port.log >&2
         else
-          echo "  ftClient log /tmp/ftClient.$port.log is empty or absent" >&2
+          echo "  corTestClient log /tmp/corTestClient.$port.log is empty or absent" >&2
         fi
         return 1
       fi
@@ -673,7 +674,7 @@ corPortOpen() {
 # the failure surfaced much later as an ftClientStart barrier timeout with an empty
 # diagnostic (subscription_notify_mqtt_qos_version, Deploy, 2026-08-28).
 #
-# This is also why ftClient's own connect loop cannot cover it: it retries forever,
+# This is also why corTestClient's own connect loop cannot cover it: it retries forever,
 # which is right when the broker is merely slow and useless when it is never coming.
 #
 # It proves SOMETHING accepts TCP on that port, not that it is this test's own
@@ -696,23 +697,23 @@ mosquittoWait() {
 }
 
 
-# ftClientUrl <port> <path> - scheme-correct URL for the ftClient on <port>
+# ftClientUrl <port> <path> - scheme-correct URL for the corTestClient on <port>
 #
 ftClientUrl() {
   local scheme=http
-  [ -f "/tmp/ftClient.$1.scheme" ] && scheme=$(cat "/tmp/ftClient.$1.scheme")
+  [ -f "/tmp/corTestClient.$1.scheme" ] && scheme=$(cat "/tmp/corTestClient.$1.scheme")
   echo "$scheme://localhost:$1$2"
 }
 
 
 # ftClientStop [--port P]
 #
-# Stops the ftClient on --port (default 7701). Safe to call when not running.
+# Stops the corTestClient on --port (default 7701). Safe to call when not running.
 # Kills by port (pkill -f), not by pid file — a prior aborted test run may
-# have left an orphan ftClient whose pid file was since cleaned up;
+# have left an orphan corTestClient whose pid file was since cleaned up;
 # relying on the pid file would miss it and the new ftClientStart would
 # silently fail to bind the port, letting the orphan handle requests
-# with the wrong --status. See the distops tests (ftClient status=503
+# with the wrong --status. See the distops tests (corTestClient status=503
 # ended up served by a stale --status=201 instance).
 #
 ftClientStop() {
@@ -725,13 +726,13 @@ ftClientStop() {
     shift
   done
 
-  # Port-based kill — matches any ftClient whose cmdline carries
+  # Port-based kill — matches any corTestClient whose cmdline carries
   # "--port <port>". Harmless when no match.
-  pkill -f "ftClient.*--port $port( |\$)" 2>/dev/null
+  pkill -f "corTestClient.*--port $port( |\$)" 2>/dev/null
   sleep 0.1
-  pkill -9 -f "ftClient.*--port $port( |\$)" 2>/dev/null
+  pkill -9 -f "corTestClient.*--port $port( |\$)" 2>/dev/null
 
-  \rm -f /tmp/ftClient.$port.pid
+  \rm -f /tmp/corTestClient.$port.pid
 }
 
 
@@ -772,7 +773,7 @@ corPidAlive() {
 # corValgrindSleep <seconds> - sleep ONLY when running under valgrind (--vt)
 #
 # Under valgrind the broker runs ~4-5x slower, so an async result (notably a
-# notification delivered to ftClient) may not have arrived by the time a test
+# notification delivered to corTestClient) may not have arrived by the time a test
 # reads for it. This adds a settle delay on the valgrind path only; a normal run
 # is unaffected and stays fast. Always returns 0.
 #
@@ -800,7 +801,7 @@ ftClientDump() {
   local raw
   raw=$(curl -sk "$(ftClientUrl $port /dump)")
 
-  # A transient empty read (ftClient momentarily unreachable under parallel
+  # A transient empty read (corTestClient momentarily unreachable under parallel
   # load) must still be valid JSON — emit "[]" so a downstream `json.load`/`jq`
   # never throws to stderr and flakes the test. For a real count, prefer
   # ftClientCount (reads /count, parser-free).
@@ -816,7 +817,7 @@ ftClientDump() {
 
 # ftClientCount [--port P] - number of requests the mock receiver captured.
 #
-# Reads ftClient's /count endpoint, which returns a bare integer (never JSON),
+# Reads corTestClient's /count endpoint, which returns a bare integer (never JSON),
 # so a caller never has to pipe a possibly-empty/invalid dump through a JSON
 # parser — on an empty dump that parser throws to stderr and flakes the test
 # under parallel load. Empty/failed read → 0.
@@ -840,7 +841,7 @@ ftClientCount() {
 }
 
 
-# ftClientWait <n> [--port P] - block until ftClient has captured at least <n>
+# ftClientWait <n> [--port P] - block until corTestClient has captured at least <n>
 # requests, or until the (generous) deadline passes.
 #
 # Notifications are asynchronous, so the ORDER in which two of them land in the
@@ -897,7 +898,7 @@ ftClientWait() {
 #
 # Probes (GET .../info/sourceIdentity, § 5.15 alias discovery) are infrastructure
 # and are kept OUT of the request dump, so ftClientCount never counts them. This
-# reads ftClient's /probeCount (bare integer) so a test can assert the probe fired
+# reads corTestClient's /probeCount (bare integer) so a test can assert the probe fired
 # (no contextSourceAlias supplied in the registration) or was skipped (alias given).
 #
 ftClientProbeCount() {
@@ -925,7 +926,7 @@ ftClientProbeCount() {
 # accumulator is empty - in the test's own --EXPECT--, where it can be read.
 #
 # Why 50 ms. Measured, not chosen: from "triggering response in hand" to
-# "notification landed at ftClient", over 1300 samples on an idle machine, on 32
+# "notification landed at corTestClient", over 1300 samples on an idle machine, on 32
 # cores under 64 busy loops, and pinned to 2 contended CPUs, the worst observed
 # was 5.9 ms and p99 was 4 ms. It stays small by construction - the deferred
 # notification queue is per-connection and thread-local (ldNotifyDefer.c), so it
@@ -952,7 +953,7 @@ ftClientSettle() {
 
 # corHttpsCertGen [keyFile] [certFile] - generate a self-signed key + certificate
 #
-# For HTTPS-notification tests: ftClient serves TLS with this pair and the broker
+# For HTTPS-notification tests: corTestClient serves TLS with this pair and the broker
 # (started with --insecureNotif) accepts the self-signed cert. Defaults to
 # /tmp/corFtClient.key + /tmp/corFtClient.pem, CN=localhost. All openssl chatter
 # goes to /dev/null so INIT stays stderr-clean.
@@ -1822,7 +1823,7 @@ for i in (a if isinstance(a, list) else [a] if isinstance(a, dict) else []):
 
 # ddsServiceAwait <service> [seconds] - wait until the broker's DDS bridge has discovered a service
 #
-# Whatever serves it - a ROS 2 node (ros2ServiceStart) or ftClient - a request sent before it is
+# Whatever serves it - a ROS 2 node (ros2ServiceStart) or corTestClient - a request sent before it is
 # discovered has no server to reach and is refused outright. Discovered = its Channel says so
 # (endpointDiscovered), not a trace line.
 #
