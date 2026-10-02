@@ -277,7 +277,7 @@ the rest take the detour as before:
 | create | 36 490 | **62 500** | x1.71 |
 | merge | 42 445 | **76 783** | x1.81 |
 | delete | 52 546 | **117 398** | x2.23 |
-| batches (create, update, delete) | | | unchanged - they take the hop |
+| batches (create, update, delete) | | | take the hop (libmicrohttpd) - a coroutine on the built-in server, below |
 
 On four cores a retrieve goes from 123 281 to 271 497 a second. A request still
 takes the hop when it **could** wait: `--distributed` with a registration
@@ -306,6 +306,62 @@ with no subscription), and `corHttp` catches up:
 *(`--httpLoops 1`, 2026-10-01.)* A write that a subscription might match still
 finishes on a worker: whether it notifies is only known once it has been matched,
 and a notification may need an `@context` the broker hosts itself.
+
+### A request that waits: a coroutine, not a hop
+
+What still took the hop - a forward to another broker, an `@context` download -
+did so only because it **waits**. With the coroutines (`doc/coroutines.md`) the
+built-in server runs such a request as a coroutine of the loop that read it: it
+yields where it waits, the loop serves the other connections meanwhile, and it
+resumes on the same thread. The cor:// server has done that since step 3; the
+built-in HTTP server since step 4. libmicrohttpd and `mongoc` keep the hop (a
+MongoDB call blocks inside its driver, which knows nothing of the loop).
+
+Three brokers chained, a GET on A forwarded to C through B (`test/perf/corChain.sh`),
+each broker on two cores, `corDB`, release builds, deep idle states, two rounds,
+the built-in server before (step 3) and after (step 4):
+
+| A -> B -> C, built-in server | before | **after** | |
+|---|---:|---:|---:|
+| HTTP all the way, small entity, 1 caller | 6 643 / 6 572 | **8 628 / 7 753** | +24 % |
+| HTTP all the way, small entity, 16 callers | 32 650 / 32 996 | **35 569 / 40 668** | +16 % |
+| HTTP all the way, 20 attributes, 16 callers | 21 486 / 21 651 | **23 213 / 24 185** | +10 % |
+| cor:// between the brokers, small entity, 1 caller | 8 794 / 8 884 | **12 945 / 9 927** | +28 % |
+| cor:// between the brokers, small entity, 16 callers | 47 907 / 50 140 | **64 899 / 65 611** | +33 % |
+| cor:// between the brokers, 20 attributes, 16 callers | 31 906 / 33 010 | **37 427 / 36 570** | +14 % |
+| cor:// end to end | 84 267 / 85 233 | 83 313 / 84 275 | unchanged (step 3 already) |
+
+*(req/s, 2026-10-02.)* **The sixteen-caller p99 went up** in this closed-loop
+measurement - 0.95-1.4 ms before, 1.4-3.5 ms after - because each loop now does
+the work the worker pool did, and the faster build is measured at a higher load:
+at 40 000 req/s a loop runs at ~90 % of its core, where a burst queues. At **the
+same rate** for both (corTools `corRequest --rate`, latency counted from when a
+request was due) the after build has the lower p50 everywhere and the equal or
+lower p99 - the table is in `doc/coroutines.md` § 9.1.
+
+The loops share one accepting loop now (corHttp `corHttpAcceptShare`): left to
+the kernel's `SO_REUSEPORT` hash, 16 connections split as unevenly as 11 and 5
+between two loops, and the busier one queued.
+
+**One broker, one core** (`perfRun.sh`, built-in server, `--httpLoops 1`): a
+batch could always wait, so it took the hop; now it is a coroutine that does not
+(with `corDB` it never yields), and the batches gain the most:
+
+| One core, `corHttp` + `corDB` | before (two runs) | **after** | |
+|---|---:|---:|---:|
+| batch update, 20 entities | 8 467 / 8 313 | **11 418** | +36 % |
+| batch create, 20 entities | 7 522 / 7 501 | **8 039** | +7 % |
+| batch delete, 20 entities | 21 336 / 21 610 | **28 989** | +35 % |
+| batch update, p99 | 108 ms | **4.5 ms** | |
+
+*(requests/s, 2026-10-02.)* Everything that already ran inline came out 1-3 %
+lower in that one run - and the same in instructions and cycles: `perf stat` on
+a retrieve, 29 001 user-space and 21 890 kernel instructions a request after,
+29 003 and 21 857 before, cycles within 0.2 %. Run-to-run noise, not a cost.
+
+**Nothing else moved.** libmicrohttpd before and after - every request shape on
+one core, `corDB` and `mongoc`, and the chain - within ±5 % run to run (the clients
+under it changed: non-blocking sockets, TLS on the loop, a resolver thread).
 
 ### Writes, and what batching is worth
 
@@ -588,6 +644,11 @@ thing. Linux only: the broker runs with `--network host`.
   `PERF_BROKER_CMD` say what to start, so a documented number names its flags.
 - **Core scaling** — [`test/perf/coreScale.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/coreScale.sh)
   reads the CPU topology rather than assuming it.
+- **Forwarding** — [`test/perf/corChain.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/corChain.sh)
+  `http|cor|cor-all`: three brokers, a GET on the first forwarded to the third.
+- **Latency at a fixed rate** — corTools `corRequest --url http://host:port --path ... -c 16 --rate 20000`:
+  each connection on a schedule, latency counted from when a request was due (as
+  wrk2 does). Two builds compared at one rate, not each at the rate it reaches.
 - **Size** — a stripped release build, plus the transitive `ldd` closure of the
   binary and the loaded plugins, minus everything a bare `ubuntu:26.04` already
   carries.

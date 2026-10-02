@@ -218,8 +218,57 @@ one: `bridge_service_sync_cap` with the ddsSync wait on a coroutine.
   parsed (`requestTree`) and there was no text to scan, so a body whose `@context` had to be
   downloaded ran inline. Old as cor:// itself; found by the first suite run in cor mode with corDB
   (`inline_dispatch`)
+- a coroutine that never waits (a batch update with corDB) finishes before the server's callback
+  returns, and its answer went out twice - the second an empty one, which a keep-alive client took
+  for the answer to its next request: half of `perfRun.sh`'s batch updates came back as errors. Not a
+  functest had seen it - curl reads one answer and hangs up - and not the chain, where every
+  coroutine waits for its forward. `http_keepalive_coroutine_no_wait` sends three on one connection
 
-**The suites** (corDB and mongoc; HTTP and cor mode; libmicrohttpd and builtin): see the PR.
+**The suites** (local, 2026-10-02): builtin + corDB 676/676, builtin + mongoc 731/731, libmicrohttpd
++ mongoc 733/733, cor mode + libmicrohttpd + corDB 678/678 (with the inline-dispatch fix).
+
+**Measured** (`doc/performance.md`, "A request that waits"): the three-broker chain on the built-in
+server, HTTP all the way +16-24 %, cor:// between the brokers +14-33 %; one broker on one core, the
+batches +7-36 % (a coroutine instead of the hop); libmicrohttpd and `mongoc`, which keep the hop,
+unchanged; a request that never waited costs the same instructions it did.
+
+### 9.1 Sixteen callers: the p99 that doubled, and what it was
+
+The first measurement of the chain (HTTP all the way, builtin server) had the one-caller numbers up
+by half and the sixteen-caller p99 **doubled** - 1.0-1.5 ms before, 2.3-2.9 ms after - in a closed
+loop (wrk: each connection sends its next request when the answer is in).
+
+**The loops were unevenly loaded.** A broker on two cores runs two loops, each with its own listen
+socket on the port (`SO_REUSEPORT`), and the kernel hashes each new connection to one of them. With
+a request now running on the loop that read it, the split is the work split - and 16 connections came
+out as uneven as 361 / 751 CPU ticks over 8 s (800 = a whole core). Before, 32 workers time-sliced by
+the kernel evened it out whatever the split.
+
+**One accepting loop** (corHttp `corHttpAcceptShare`): loop 0 accepts every connection and deals them
+out in turn, through each loop's own queue and eventfd; the others close their listeners. The split
+became even (678 / 679), and the chain's throughput rose again, to ~+25 % over step 3 - but the
+closed-loop p99 stayed where it was. The imbalance was real; it was not the tail.
+
+**The tail was the load.** A closed loop runs each build at the rate it reaches: the faster build was
+measured at 39 000 req/s with its loops at 85-92 % of a core, the old one at 31 800 with room to spare.
+At one and the same rate (corTools `corRequest --rate`, latency counted from when a request was due),
+16 connections, two rounds:
+
+| chain, HTTP, builtin | step 3 p50 | **step 4 p50** | step 3 p99 | **step 4 p99** |
+|---|---:|---:|---:|---:|
+| small entity @ 15 000 req/s | 185-198 µs | **178-206 µs** | 0.35-1.07 ms | 0.35-3.98 ms |
+| small entity @ 20 000 req/s | 187-202 µs | **174-176 µs** | 0.32-2.17 ms | **0.23-1.85 ms** |
+| small entity @ 25 000 req/s | 198-202 µs | **174-175 µs** | 0.80-19.4 ms | **0.27-0.81 ms** |
+| 20 attributes @ 10 000 req/s | 433-454 µs | **317-355 µs** | 0.78-1.08 ms | **0.60-0.63 ms** |
+| 20 attributes @ 15 000 req/s | 454-475 µs | **310-377 µs** | 1.14-2.38 ms | **0.55-0.65 ms** |
+
+At the same load the p50 is lower everywhere and the p99 lower or equal; a p99 above a millisecond
+is a coin toss between rounds for both builds (one round, one rate: 0.8 ms and 19 ms). Both fall off
+the same cliff (small entity @ 30 000, 20 attributes @ 20 000 - p99s of 12-24 ms either way).
+
+**So no yield budget** (a coroutine handing the loop back after so much work): nothing measured at
+an equal load asks for one. The closed-loop p99 is still the number to watch - a loop at 90 % of a
+core is one burst from queueing, where the old worker pool spread a burst over 32 threads.
 
 ## 10. Open questions
 
