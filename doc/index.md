@@ -33,6 +33,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | see how authorization will work inside the broker | [Authorization in the broker](authorization.md) |
 | see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |
 | see how requests that wait will run without the thread hop (design draft) | [Coroutines](coroutines.md) |
+| see how corDB will survive a restart: one log, snapshots, recovery (design draft) | [corDB persistence](cordb-persistence.md) |
 
 ## Support
 
