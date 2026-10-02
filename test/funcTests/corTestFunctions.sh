@@ -339,6 +339,14 @@ coraineStop() {
 #         corDbDrop -role CP1          # drop collections in CP1's db
 #         corDbDrop -db coraine       # drop the entire "coraine" database
 #
+# -----------------------------------------------------------------------------
+#
+# COR_MONGO_DROP - corTools' corMongoDrop, beside corTest in corLibs/bin: one libmongoc connection,
+# ~8 ms a drop. mongosh - a JavaScript runtime, ~0.3 s a drop, before almost every test - only where
+# corMongoDrop was not built (no libmongoc there).
+#
+COR_MONGO_DROP=${SCRIPT_HOME:-$COR_REPO_DIR/../corLibs/bin}/corMongoDrop
+
 corDbDrop() {
   local role="CB"
   local tenant=""
@@ -354,7 +362,18 @@ corDbDrop() {
 
   case "$COR_DB_TYPE" in
     mongoc)
-      if [ -n "$explicitDb" ]; then
+      if [ -x "$COR_MONGO_DROP" ]; then
+        if [ -n "$explicitDb" ]; then
+          "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --db "$explicitDb" > /dev/null 2>&1
+        else
+          corRoleLookup "$role" || return 1
+          if [ -n "$tenant" ]; then
+            "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --db "${COR_ROLE_DB_PREFIX}-${tenant}" --collections entities,subscriptions,registrations,snapshots > /dev/null 2>&1
+          else
+            "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --prefix "$COR_ROLE_DB_PREFIX" > /dev/null 2>&1
+          fi
+        fi
+      elif [ -n "$explicitDb" ]; then
         mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.dropDatabase()' "$explicitDb" > /dev/null 2>&1
       else
         corRoleLookup "$role" || return 1
@@ -479,6 +498,10 @@ corSnapDrop() {
     mongoc)
       corRoleLookup "$role" || return 1
       local rolePrefix="${COR_ROLE_DB_PREFIX}-"
+      if [ -x "$COR_MONGO_DROP" ]; then
+        "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --prefix "$COR_ROLE_DB_PREFIX" --contains -_snap_ > /dev/null 2>&1
+        return
+      fi
       mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval \
         "db.adminCommand('listDatabases').databases \
           .map(d=>d.name) \
