@@ -454,6 +454,16 @@ machine, release builds, and left out:
   gone - a trace level is checked before any of its arguments are evaluated - so
   removing them was a decision about what a release ships (no trace code, and a
   crash report instead), not a speed-up.
+- **Every library of a release broker as release** (2026-10-02): `make release`
+  builds only corRest, corJsonld and corNgsild as release (`libs-release`); the
+  libraries under them - corBase, corAlloc, corJson, corTree, corHttp and the
+  rest - come in as whatever was built last, the debug build with its traces
+  compiled in. All of them release: 0.2-0.8 % fewer instructions and cycles a
+  request (`perf stat`: retrieve, PATCH, a 20-entity query). Not worth a number;
+  worth fixing, because a release broker should be one. It needs a change in
+  each of those libraries first - they keep ONE archive, and a `make di` after a
+  release build leaves the release one in place (objects older than it) - one
+  archive per flavour, as corRest, corJsonld and corNgsild have.
 - **Multiplexing cor:// on threads** (2026-10-02): 5-11 % *less* cor://
   throughput, because every design put a thread hand-off on each request's path.
   It is deferred to the coroutines, where it costs nothing - the measurements are
