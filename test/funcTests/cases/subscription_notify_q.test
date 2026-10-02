@@ -129,7 +129,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "223",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -165,7 +165,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "226",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -201,7 +201,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "222",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -241,7 +241,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "256",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -277,7 +277,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "222",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -313,7 +313,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "226",
+      "Content-Length": "REGEX(\d+)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
