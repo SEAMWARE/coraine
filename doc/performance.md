@@ -359,6 +359,19 @@ lower in that one run - and the same in instructions and cycles: `perf stat` on
 a retrieve, 29 001 user-space and 21 890 kernel instructions a request after,
 29 003 and 21 857 before, cycles within 0.2 %. Run-to-run noise, not a cost.
 
+**A write that notifies** - its post-response phase, the notification above all, a coroutine of the
+loop too (`doc/coroutines.md` § 10). One broker on one core, a subscription matching every PATCH,
+the receiver (corTestClient, release, `--traceLevels ""`) on other cores:
+
+| One core, `corHttp` + `corDB`, every write notifies | phase on a worker | **a coroutine** | |
+|---|---:|---:|---:|
+| PATCH, 50 connections | 28 909 / 28 071 | **45 074 / 44 958** | +58 % |
+| p99 | 3.65 / 3.94 ms | **1.12 / 1.11 ms** | |
+| PATCH, 1 connection | 29 266 / 28 925 | **38 712 / 38 826** | +33 % |
+| p99 | 43 / 46 µs | **29 / 29 µs** | |
+
+*(req/s, 2026-10-02; one notification per write reached the receiver in both.)*
+
 **Nothing else moved.** libmicrohttpd before and after - every request shape on
 one core, `corDB` and `mongoc`, and the chain - within ±5 % run to run (the clients
 under it changed: non-blocking sockets, TLS on the loop, a resolver thread).

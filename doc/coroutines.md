@@ -299,6 +299,16 @@ it later.
 writes - on the worker, one notification had reached the receiver a second later; as coroutines,
 all three.
 
+**Measured** (one broker on one core, builtin server, corDB, a subscription matching every write,
+the receiver on other cores; `doc/performance.md`): PATCH with 50 connections 28 900 -> **45 000**
+req/s (+58 %), p99 3.7 -> **1.1 ms**; with one connection 29 100 -> **38 800** (+33 %), p99 45 ->
+**29 µs**. On the worker the phase cost two thread switches per write and queued behind the pool;
+on the loop it is one coroutine and one send.
+
+On the way: the benchmark's first receiver - a debug corTestClient - wrote a full trace of every
+request, 25 GB of `/tmp` in minutes, and could not keep up: it made the coroutines look 30 % *slower*
+at one connection. corTestClient `--traceLevels ""` for a receiver that measures nothing of its own.
+
 ## 11. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
