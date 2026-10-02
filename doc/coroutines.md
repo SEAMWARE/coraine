@@ -345,7 +345,20 @@ connections: eight per thread, and a request finding them all busy opened one of
 included. A fan-out to two cor:// sources of one second each: two seconds before, one now
 (`cor_fanout_concurrent`).
 
-## 12. Open questions
+## 12. Step 6: PGO (2026-10-02)
+
+`make pgo` (`doc/building.md`, numbers in `doc/performance.md` "Profile-guided"): every library and the
+broker built instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt with the profile. Against the
+same source without it: +1-10 % per core, +4-15 % on the three-broker chain, nothing slower - unlike
+LTO (2026-09-30), which was noise. Two details it needed: `-fprofile-update=atomic`, the broker being
+multi-threaded; and the libraries under corRest keep one archive whatever the flavour, so the target
+rebuilds them as debug at its end - a `make di` after it would otherwise link profile-guided release
+archives (`doc/performance.md`, "Every library of a release broker as release").
+
+Whether the Docker image and the nightly build with it is the next decision; the build takes ~6
+minutes instead of ~2, and needs `wrk` where it runs.
+
+## 13. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
 - libmicrohttpd: worth its `MHD_suspend/resume_connection` later, or does the builtin server become

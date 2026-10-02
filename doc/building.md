@@ -85,6 +85,7 @@ that).
 |--------|--------|
 | `make` / `make release` | Release build (`BUILD_RELEASE/`) |
 | `make debug` | Debug build (`BUILD_DEBUG/`) |
+| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `wrk`; +1-10 % per core ([performance](performance.md)) |
 | `make i` / `make di` | release/debug **+ install** |
 | `make ci` / `make cdi` | clean + the above |
 | `make install` | copy broker + plugins → `/usr/local/bin`, `/opt/seamware/plugins`, `/opt/seamware/etc` |
