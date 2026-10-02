@@ -15,24 +15,27 @@ Tests live under `test/funcTests/`.
 
 The whole suite - some 730 tests, a broker (or several) started and stopped for
 each - took about **35 minutes** on the machine of `doc/performance.md`. Since
-2026-10-02 it takes **20**. A test of ~2.4 s spent its time like this:
+2026-10-02 it takes **14.5** (732 tests, `mongoc`, 868 s). A test of ~2.4 s spent its
+time like this:
 
 | | before | after |
 |---|---:|---:|
 | stopping the broker | ~1.2 s | ~0.15 s with `mongoc` (its own close), ~0.01 s with `corDB` |
 | waiting for its port at start-up | up to 0.2 s | up to 0.02 s |
-| dropping the database (`mongosh`) | ~0.27 s | ~0.27 s |
+| dropping the database | ~0.3 s (`mongosh`) | ~0.008 s (`corMongoDrop`) |
 
 - **The broker took a second to exit.** On SIGTERM it joins its periodic-work
   thread, which slept for a second at a time; the stop now wakes it (corNgsild
   #56). And the helper polled for the exit with a `pgrep` (~30 ms) every 0.1 s -
   it now watches the pid it started, 10 ms at a time, without forking (#208).
 - **The port was polled every 0.2 s** - 20 ms now (corTest#10).
+- **Every drop started `mongosh`**, a JavaScript runtime, ~0.3 s - and the suite
+  drops 1 466 times. corTools' `corMongoDrop` is one libmongoc connection and a
+  command or two: ~8 ms (20 -> 14.5 minutes). `mongosh` stays the fallback where
+  `corMongoDrop` was not built (no libmongoc on that machine).
 
-What is left is mostly `mongosh`: a JavaScript runtime started to drop a
-database, ~0.27 s a test. Sending a cor:// request instead of an HTTP one saves
-nothing measurable - a request is a process start either way
-(`COR_TRANSPORT=cor`, next).
+Sending a cor:// request instead of an HTTP one saves nothing measurable - a
+request is a process start either way (`COR_TRANSPORT=cor`, next).
 
 ## The functests over cor://
 
