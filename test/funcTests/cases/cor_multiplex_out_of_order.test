@@ -11,6 +11,12 @@
 # forwarded too - 100 ms later, on the same connection. The fast one is answered first, while the slow
 # one is still waiting on its source.
 #
+# REQUIRE_DB: corDB
+#
+# corDB only: requests in flight together on a connection are coroutines of the server's loop
+# (doc/coroutines.md § 6). With mongoc a request that waits cannot be one - the driver blocks - so the
+# connection moves to a thread of its own and is served one request at a time, as before step 5.
+#
 --NAME--
 cor:// multiplexing - one connection, a fast request answered before a slow one sent earlier
 
