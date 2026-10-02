@@ -355,8 +355,11 @@ multi-threaded; and the libraries under corRest keep one archive whatever the fl
 rebuilds them as debug at its end - a `make di` after it would otherwise link profile-guided release
 archives (`doc/performance.md`, "Every library of a release broker as release").
 
-Whether the Docker image and the nightly build with it is the next decision; the build takes ~6
-minutes instead of ~2, and needs `wrk` where it runs.
+The Docker image (release) and the nightly performance job build with it (KZ, 2026-10-03): what is
+measured is what is shipped. `test/perf/pgoTrain.sh` pins nothing and runs its own three-broker chain,
+so it trains inside a Docker build or on a 4-core runner as well as here; the builder stage has `wrk`.
+`PGO_RESTORE_DEBUG=0` skips the closing debug rebuild where nothing builds debug afterwards. The
+nightly history steps up on the night it started.
 
 ## 13. Open questions
 

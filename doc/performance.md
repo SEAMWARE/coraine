@@ -465,6 +465,8 @@ profile (2026-10-02, one core, `corDB`, built-in server):
 | delete | 115 624 | **117 100** | +1.3 % |
 | batches of 20 (update / create / delete) | | | +3.2 / +5.3 / +1.8 % |
 
+The Docker image and the nightly performance job are built this way (since 2026-10-03).
+
 User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
 three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
 caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
