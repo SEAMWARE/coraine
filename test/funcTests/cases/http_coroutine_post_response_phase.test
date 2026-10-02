@@ -9,7 +9,7 @@
 # REQUIRE_HTTPSERVER: builtin
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
-# Coroutines (doc/coroutines.md § 11): the post-response phase of a write - its notifications - runs as
+# Coroutines (doc/coroutines.md § 10): the post-response phase of a write - its notifications - runs as
 # a coroutine of the HTTP loop, not on a worker. With ONE worker (--connectionPoolSize 1) and a
 # notification receiver that takes 1.5 s to answer, three writes' phases on that worker go one after
 # the other: after a second, one notification has reached the receiver (it records a request when it
