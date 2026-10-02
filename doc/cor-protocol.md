@@ -372,6 +372,10 @@ over 660 JSON documents of the ETSI suite and coraine's tests - payloads with co
 inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
 names, is to be measured on the chain.
 
+Since 2026-10-02 a request that waits runs as a coroutine of the server's event loop (`doc/coroutines.md`
+§ 8): the chain end to end with 16 callers went from ~68 000 to ~80 000 req/s, its p99 from ~380 to
+~225 µs.
+
 Not yet: multiplexing (§ 5.3), and with it a fan-out to several cor:// sources that has them all in
 flight at once; packed numeric arrays and timestamps as integers (§ 4.9, § 4.10).
 

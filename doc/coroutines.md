@@ -1,6 +1,7 @@
 # Coroutines - design
 
-*Status: proposal, for review. Short-term roadmap step 2 ("2x part II").*
+*Status: steps 1-3 built (2026-10-02) - the switch, the one wait, the cor:// server; § 8 has what they
+measured. Short-term roadmap step 2 ("2x part II").*
 
 ## 1. Why
 
@@ -135,7 +136,55 @@ table for a single broker (inline vs hop), where a request that waits should now
 rate plus its own wait, not at the hop rate. **The bar: no measured loss anywhere** - a request that
 does not wait must not notice the coroutines exist.
 
-## 8. Open questions
+## 8. Steps 1-3: built, and measured (2026-10-02)
+
+**Step 1** (corBase `corCo`): the switch as file-level assembly per architecture in `corCo.c`, stacks
+of 256 KiB with a guard page from a pool per thread. A yield + resume is ~23 ns, a coroutine created,
+run and finished ~29 ns. Tested on x86-64 and on aarch64 under QEMU (`make arm64-test` in corBase).
+
+**Step 2** (corRest `corRestWaitFd`): every client wait in one place; the whole suite ran unchanged
+through it.
+
+**Step 3** (the cor:// server): a request that can wait runs as a coroutine of the loop that read it,
+instead of moving its connection to a thread of its own. What else it took, from § 4:
+
+- the cor:// client's per-thread connections are marked **busy** while a request uses one - two
+  coroutines of a thread never share one - and **busy before the connect**: the HELLO exchange
+  yields, and a connection already named for the peer was taken by another coroutine with its tables
+  not yet open. That crashed broker A under 16 clients; the functests, which never run that many at
+  once, did not see it - the benchmark did.
+- the in-process forward's depth guard belongs to the request (`CorRestState`), not the thread
+- the `@context` cache: the owner of a download is the request (the coroutine) and the wait for
+  another's download yields (corJsonld `corLdConcurrencySet`). With the thread as owner, the second of
+  two requests on one loop needing the same uncached `@context` was told it was cyclic - 400
+  (`cor_coroutine_context_download_shared` fails that way without it)
+- one `epoll_ctl` per wait: a socket stays in the loop's set between waits, disarmed
+
+The three-broker chain, cor:// end to end, release builds, deep idle states, back to back with the
+code before (`corChain.sh`, two rounds):
+
+| | before | coroutines | |
+|---|---:|---:|---:|
+| small entity, 16 callers, req/s | 68 500 / 67 800 | **79 700 / 83 500** | +19-23 % |
+| small entity, 16 callers, p99 | 377 µs | **226 µs** | -40 % |
+| 20 attributes, 16 callers, req/s | 41 900 / 41 800 | **47 000 / 47 400** | +13 % |
+| 20 attributes, 16 callers, p99 | 617 µs | **414 µs** | -33 % |
+| small entity, 1 caller, req/s | 10 800 / 11 400 | 10 500 / 10 600 | -4 % (p50 91 -> 94 µs) |
+| 20 attributes, 1 caller, req/s | 6 490 / 6 400 | 6 330 / 6 440 | -1 % (p50 157 -> 160 µs) |
+
+With an HTTP client in front (broker A's front end is HTTP, unchanged) the chain is where it was.
+
+**The one-caller cost** - ~3 µs over four hops, ~1 µs a server - is the connection's wait: before, a
+connection waited in a blocking `read` on its own thread; now it waits in the loop's epoll, and is
+re-armed (`epoll_ctl`) after every request. Multiplexing (step 5) keeps a connection armed for good -
+the loop reads it while its requests run - which takes that call away.
+
+**Not yet on the coroutine path:** TLS on a blocking socket waits inside OpenSSL; a write on a full
+send buffer blocks; a new cor:// connection's `connect` and `getaddrinfo` block (once per connection).
+None of them shows on the chain; each is to be moved onto the loop before the builtin HTTP server
+(step 4) gets coroutines too.
+
+## 9. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
 - libmicrohttpd: worth its `MHD_suspend/resume_connection` later, or does the builtin server become
