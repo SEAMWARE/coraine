@@ -34,6 +34,22 @@ process is made of:
 TRoE is `none` unless a row says otherwise, and the `admin` API plugin (23 KiB)
 is not loaded.
 
+### Latency depends on how deep the CPU sleeps
+
+A core with nothing to do drops into an idle state, and the deeper the state the
+longer it takes to wake. A latency measurement with one client spends most of its
+time waking cores: the three-broker cor:// chain (`doc/cor-protocol.md` § 6.1),
+one client, gave **11 000 req/s with the idle states as the machine ships them,
+and 14 200 with the deep ones disabled** - the same build, minutes apart.
+Throughput with many clients barely moves, since the cores never get to sleep.
+
+So every latency figure states the setting, and two of them are only compared
+under the same one. `test/perf/cpuIdle.sh shallow` disables the states deeper
+than ~10 µs, `deep` restores them, `show` says which is active (it needs one sudo
+rule for `cpupower`, quoted in the script); `corChain.sh` prints the setting on
+its first line. Unless a figure says otherwise it was taken **deep** - the
+machine's own state, and what a deployment gets.
+
 ### Every rate here is per core
 
 A throughput figure with no core count beside it says more about the machine
@@ -352,6 +368,39 @@ a different claim from a peak.
 
 corHttp holds p99 two to three times lower up to 200 clients. Past that both
 servers are queueing and the tail is the queue, not the server.
+
+### Tried, measured, and dropped
+
+Not every idea that should make a broker faster does. Measured on the same
+machine, release builds, and left out:
+
+- **Link-time optimisation** (`-flto` across the libraries, 2026-09-30): noise.
+  About three quarters of a small request's cycles are spent in the kernel - its
+  system calls and thread switches - and LTO can only work on the quarter that is
+  ours. It did find a real bug on the way: a `corAlloc()` result used unchecked
+  in the JSON parser (fixed). Profile-guided optimisation is still to be measured,
+  at the end of the coroutines step (`doc/coroutines.md`).
+- **Compiling the traces out of release builds** (2026-09-30): about +1 % on
+  writes, nothing measurable on queries. The cost of a disabled trace had already
+  gone - a trace level is checked before any of its arguments are evaluated - so
+  removing them was a decision about what a release ships (no trace code, and a
+  crash report instead), not a speed-up.
+- **Multiplexing cor:// on threads** (2026-10-02): 5-11 % *less* cor://
+  throughput, because every design put a thread hand-off on each request's path.
+  It is deferred to the coroutines, where it costs nothing - the measurements are
+  in `doc/cor-protocol.md` § 5.3.
+
+### A regression, and how it was found
+
+On 2026-09-26/27 the nightly performance run went red: creates had fallen 35 % with
+`mongoc`. A merge of 09-25 had put a full retrieve of the entity before
+**every** `POST /entities` - needed only when a bridge Channel sends the entity
+on, done always. The gate only tripped on the second bad night (a single slow
+run is noise to it), which is also how close a regression comes to being absorbed
+into the median. It was bisected with the images every merge publishes - a broker
+per merge, measured in quarters - and fixed by doing the retrieve only when a
+Channel is there (coraine#171): `mongoc` creates back to ~9 400/s with 50
+clients, confirmed by the next nightly.
 
 ## In a container
 

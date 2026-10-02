@@ -287,6 +287,36 @@ dispatch and forwarding I/O. The communication-protocol plugin axis (a `.so`, `-
 be cut out of it once a second protocol shows what that seam has to be - designing it from one
 example would guess.
 
+### 5.3 Multiplexing - measured on threads, deferred to the coroutines
+
+Many requests in flight on one connection, answered in the order they finish: no byte of the format
+has to change - the frames carry correlation ids from the start. It was built on threads (2026-10-02)
+and measured, and the cost decided it.
+
+**The one rule** any design has to keep: the tables follow the stream (§ 4.13) - frames are encoded
+in the order they are sent and decoded in the order they arrive.
+
+What was tried, on the three-broker chain (§ 6.1), cor:// end to end, 16 callers, small entity - each
+a 6-second probe under `perf stat`, release builds, deep idle states:
+
+| server | client | req/s | thread switches per request (broker A) |
+|---|---|---:|---:|
+| a thread per connection, one request in flight (today) | a connection per calling thread | 74 000 | 1.6 |
+| requests that wait handed to the worker pool | 2 shared connections per peer | 48 000 | 3.2 |
+| same | an idle connection first, up to 16 | 57 000 | 2.7 |
+| a thread owns the connection, the event loop takes what arrives meanwhile | same | 66 000 | 2.0 |
+
+The best of them still cost **5-11 %** of the chain's throughput (`corChain.sh`, two rounds, against
+the code of today), for what it bought: a fast request no longer waits behind a slow one on the same
+connection, and a fan-out to two cor:// sources of one second each answers in one second, not two.
+Every design paid a thread wake-up on a request's path; on two cores per broker, CPU per request is
+the throughput.
+
+**Deferred to the coroutines** (`doc/coroutines.md`), where many requests in flight on one thread is
+simply what the event loop does - no hand-off at all. The threaded version is kept as a reference
+(drafts coraine#207, corRest#23, corNgsild#55, corAlloc#5): its client API (`corRestCorStart` /
+`corRestCorWait`), the concurrent fan-out, and two functests that fail without multiplexing.
+
 ## 6. Order of work
 
 1. **The codec** in corTree, with the corNgsild callbacks (§ 4.1-4.3), round-trip exact.
@@ -342,9 +372,8 @@ over 660 JSON documents of the ETSI suite and coraine's tests - payloads with co
 inline `@context` text, so the least favourable case; broker-to-broker traffic, with its expanded
 names, is to be measured on the chain.
 
-Not yet: a fan-out to several cor:// sources is sent one at a time (multiplexing over one
-connection is the next step - the frames carry correlation ids already); packed numeric arrays and
-timestamps as integers (§ 4.9, § 4.10).
+Not yet: multiplexing (§ 5.3), and with it a fan-out to several cor:// sources that has them all in
+flight at once; packed numeric arrays and timestamps as integers (§ 4.9, § 4.10).
 
 ## 7. Testing
 
