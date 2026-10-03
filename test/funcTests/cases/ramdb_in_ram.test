@@ -1,0 +1,122 @@
+#
+# FILE            ramdb_in_ram.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --database ramDB: corDB in RAM only - the fastest store, for pub/sub where a restart may start empty.
+# It serves the API as corDB does; a restart starts empty; it has no disk options (--dbDir is an
+# unknown option, not one ignored); and no history (--troe corDB is refused - history lives inside
+# corDB, on disk).
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+ramDB - corDB in RAM only: a restart starts empty, --dbDir and --troe corDB are refused
+
+--TAGS--
+ramDB corDB
+
+--INIT--
+COR_DB_TYPE=ramDB coraineStart
+
+--RUN--
+
+#
+# 01. Create urn:R1
+# 02. GET urn:R1
+# 03. Restart the broker
+# 04. GET urn:R1 - 404: a restart starts empty
+# 05. ramDB with --dbDir - an unknown option
+# 06. ramDB with --troe corDB - refused
+#
+
+echo "01. Create urn:R1"
+echo "================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"T","a":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. GET urn:R1"
+echo "=============="
+corCurl --url '/ngsi-ld/v1/entities/urn:R1?options=keyValues'
+echo
+echo
+
+
+echo "03. Restart the broker"
+echo "======================"
+coraineStop
+COR_DB_TYPE=ramDB coraineStart
+echo "restarted"
+echo
+echo
+
+
+echo "04. GET urn:R1 - 404: a restart starts empty"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R1 | head -1
+echo
+echo
+
+
+echo "05. ramDB with --dbDir - an unknown option"
+echo "=========================================="
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database ramDB --dbDir /tmp/corTest-ramdb 2>&1 | head -1
+echo
+echo
+
+
+echo "06. ramDB with --troe corDB - refused"
+echo "====================================="
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database ramDB --troe corDB 2>&1 | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:R1
+=================
+HTTP/1.1 201 Created
+
+
+02. GET urn:R1
+==============
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 46
+
+{
+  "a": 1,
+  "id": "urn:R1",
+  "type": "T"
+}
+
+
+
+03. Restart the broker
+======================
+restarted
+
+
+04. GET urn:R1 - 404: a restart starts empty
+============================================
+HTTP/1.1 404 Not Found
+
+
+05. ramDB with --dbDir - an unknown option
+==========================================
+coraine: unrecognized option: --dbDir
+
+
+06. ramDB with --troe corDB - refused
+=====================================
+TRoE 'corDB' keeps the history inside the corDB store - it needs --database corDB (not 'ramDB')
+
+
+--TEARDOWN--
+coraineStop

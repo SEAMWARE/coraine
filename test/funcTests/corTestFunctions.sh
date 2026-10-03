@@ -128,6 +128,7 @@ coraineStart() {
               cmd="$cmd --dbDir $dbDir"
             fi
             ;;
+    ramDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/ramDB.so" ;;   # corDB in RAM only: no --dbDir, no history
     NONE)   ;;  # compiled-in default
     *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
   esac

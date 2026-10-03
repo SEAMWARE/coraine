@@ -198,7 +198,7 @@ full list and the honest state of each.
 
 | Category | Selected with | Active at a time | Bundled |
 |----------|---------------|------------------|---------|
-| **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` |
+| **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` (in RAM, or on disk with `--dbDir`), `ramDB` (corDB in RAM only - the fastest; a restart starts empty) |
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `corDB`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |

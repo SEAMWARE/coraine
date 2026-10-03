@@ -126,6 +126,20 @@ every 100 ms, with a snapshot as the log grows. A clean stop (SIGTERM) loses not
 What it costs: [Performance](performance.md), "corDB on disk". How it works:
 [corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md).
 
+### ramDB - corDB in RAM only
+
+**`--database ramDB`** is corDB built without the disk: the same store and the same API, nothing
+written anywhere. It is for a deployment that wants the fastest store and can afford to lose it -
+pub/sub, where a broker passes notifications on and what it holds is only ever the latest value, or
+a cache in front of another system. **A restart starts empty**, by design, and nothing warns about it
+at runtime: choose it knowing that.
+
+- No disk options: `--dbDir` is an unknown option with ramDB, not one quietly ignored.
+- No history: `--troe corDB` is refused (corDB keeps history inside its own store, on disk). The
+  other TRoE choices work: `--troe none` (the default), or `--troe timescale` for history in
+  PostgreSQL.
+- Everything else - queries, subscriptions, registrations, tenants, geo-queries - is corDB's.
+
 ### Environment variables
 
 **Every** command-line option can also be given as an environment variable, named
