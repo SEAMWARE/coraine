@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# Coroutines (doc/coroutines.md § 9): a request that could wait runs as a coroutine of the HTTP loop
+# Coroutines (doc/coroutines.md § 4): a request that could wait runs as a coroutine of the HTTP loop
 # that read it. A batch update with corDB never waits - its coroutine finishes before the server's
 # callback returns - and its answer must go out ONCE. Sent twice (the second an empty response), a
 # keep-alive client takes the extra one for the answer to its next request. Three batch updates on

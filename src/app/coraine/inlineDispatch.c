@@ -376,7 +376,7 @@ static bool finishInlineCheck(void)
 // Only where every wait it can meet yields - corRest's clients and the @context download do. Not with
 // a database (or TRoE) plugin that blocks inside its driver (mongoc, timescale), nor for a PATCH that
 // waits for a bridge service's reply (?ddsSync - a condition variable): either would stop the whole
-// loop for its wait. Those keep the worker (doc/coroutines.md § 2).
+// loop for its wait. Those keep the worker (doc/coroutines.md § 1).
 //
 static bool coroutineDbOk = false;                       // corDB, with TRoE none or corDB - set at start-up
 

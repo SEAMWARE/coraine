@@ -38,7 +38,7 @@ is not loaded.
 
 A core with nothing to do drops into an idle state, and the deeper the state the
 longer it takes to wake. A latency measurement with one client spends most of its
-time waking cores: the three-broker cor:// chain (`doc/cor-protocol.md` § 6.1),
+time waking cores: the three-broker cor:// chain (`doc/cor-protocol.md` § 6),
 one client, gave **11 000 req/s with the idle states as the machine ships them,
 and 14 200 with the deep ones disabled** - the same build, minutes apart.
 Throughput with many clients barely moves, since the cores never get to sleep.
@@ -74,10 +74,7 @@ The fixture is 100 five-attribute entities of ~550 bytes each, so a `limit=20`
 query returns about 11 KB — a realistic page rather than a toy.
 
 A rate measured over error responses is not a rate, so every `wrk` run is
-checked for non-2xx answers and the run stops if it finds any. That guard exists
-because a create scenario once reported 166 036 creates/s — faster than a
-PATCH, impossible — which turned out to be the speed of answering 409 to
-duplicate ids.
+checked for non-2xx answers and the run stops if it finds any.
 
 ## Size on disk — what installing coraine adds
 
@@ -127,8 +124,8 @@ What the three columns are made of:
   39 KiB or `mongoc.so` 116 KiB) and `none.so` (14 KiB) and that is the whole
   broker.
 - **The three added libraries in the first row** are GEOS (`libgeos` +
-  `libgeos_c`, 3.17 MiB — geo-queries) and `libmosquitto` (106 KiB — MQTT
-  notifications; since then moved out of the broker into the `mqtt.so` bridge plugin). GEOS is now the largest single thing coraine puts on a machine,
+  `libgeos_c`, 3.17 MiB — geo-queries) and `libmosquitto` (106 KiB — MQTT,
+  loaded with the `mqtt.so` bridge plugin only). GEOS is now the largest single thing coraine puts on a machine,
   and it is larger than coraine.
 - **libmicrohttpd costs nine libraries, 7.29 MiB** — not its own 608 KiB, because
   it pulls GnuTLS behind it, and p11-kit, nettle, hogweed, tasn1, idn2,
@@ -182,12 +179,10 @@ yet, so it is not the default; in a container with a tight memory limit it is th
 first thing to set. The broker's [memory budget](installation.md#memory-budget)
 counts the resident set, arenas included.
 
-> The `mongoc` figures here are lower than this page carried before (68 MiB
-> against 202) and the difference is the **measurement**, not the broker. The
-> entities used to be loaded one POST at a time; they are now loaded in batches
-> of 200, so the broker handles 500 requests instead of 100 000 and carries far
-> less request-arena footprint afterwards. Both are real numbers about real
-> deployments — the label has to say which.
+> The entities are loaded in batches of 200 - 500 requests rather than 100 000
+> single POSTs. Loaded one at a time, the `mongoc` broker carries far more
+> request-arena footprint afterwards (202 MiB against 68): both are real numbers
+> about real deployments, and the label has to say which.
 
 ## What else has to be running
 
@@ -223,10 +218,8 @@ them stop being awkward at 12 ms and 17 MiB.
 
 **One physical core.** `GET /ngsi-ld/v1/entities?type=Vehicle&limit=N`.
 
-The page size is the whole story, and for months every throughput number
-quoted anywhere was the `limit=20` one — read by everybody as requests per
-second with the "of 20 entities" left off. Requests/s and entities/s are the
-same number only at `limit=1`:
+The page size decides the rate. Requests/s and entities/s are the same number
+only at `limit=1` - a figure quoted without its page size says little:
 
 | Response | req/s per core | **entities/s per core** |
 |---|---:|---:|
@@ -253,22 +246,20 @@ climbing at 100.)*
 One core of a laptop CPU, going through MongoDB, still serves ~5 900 NGSI-LD
 queries a second, delivering 117 000 entities each second.
 
-### The thread hop — and why it is gone where nothing waits
+### Where a request runs
 
-Every request used to make the same detour: read on an HTTP I/O thread, handed to
-a worker thread, processed there, handed back to the I/O thread to be sent. The
-detour exists so that a request that **waits** - a MongoDB round trip, a
-distributed operation, an `@context` download - does not hold up the other
-connections of its I/O thread.
+A request that **cannot wait** - the `/ngsi-ld/v1/entities` family on `corDB` (TRoE `none` or
+`corDB`), with every `@context` it needs cached, no registration that could make it distributed, no
+`?ddsSync` - runs **inline**, on the I/O thread that read it. A request that **can wait** runs as a
+**coroutine** of that thread's event loop on the built-in server and the cor:// server
+(`doc/coroutines.md`), and on a **worker thread** with libmicrohttpd. With `mongoc` every request
+goes to a worker: a MongoDB round trip blocks inside its driver.
 
-For a request that waits on nothing it costs more than the request does. `perf
-stat` on one core, a `corDB` retrieve: ~93 000 CPU cycles per request with the
-hop, two thread switches each, three quarters of the time in the kernel; ~50 000
-without it. So with `corDB` (and TRoE `none` or `corDB`), a request of the
-`/ngsi-ld/v1/entities` family that cannot wait runs on the thread that read it -
-the rest take the detour as before:
+The hand-off to a worker costs two thread switches - on one core, more than a cheap request costs:
+`perf stat`, a `corDB` retrieve, ~93 000 cycles a request handed off, three quarters of them in the
+kernel; ~50 000 inline. `--noInline` hands every request off; one core, libmicrohttpd + `corDB`:
 
-| One core, libmicrohttpd + `corDB` | with the hop | **inline** | |
+| One core, libmicrohttpd + `corDB` | `--noInline` | **inline (default)** | |
 |---|---:|---:|---:|
 | retrieve | 43 568 | **83 785** | x1.92 |
 | query, 1 entity | 39 564 | **74 915** | x1.89 |
@@ -277,24 +268,15 @@ the rest take the detour as before:
 | create | 36 490 | **62 500** | x1.71 |
 | merge | 42 445 | **76 783** | x1.81 |
 | delete | 52 546 | **117 398** | x2.23 |
-| batches (create, update, delete) | | | take the hop (libmicrohttpd) - a coroutine on the built-in server, below |
 
-On four cores a retrieve goes from 123 281 to 271 497 a second. A request still
-takes the hop when it **could** wait: `--distributed` with a registration
-anywhere, `?ddsSync` (a bridge service's reply), or an `@context` that is not
-cached yet - the Link header's, the default one, or an `application/ld+json`
-body's. With `mongoc` nothing runs inline: a MongoDB round trip costs far more
-than the hop, and the hop is what keeps it from blocking the I/O thread.
-`ngsild_requests_inline_total` / `ngsild_requests_worker_total` show the split;
-`--noInline` turns it off.
+*(2026-10-01.)* On four cores a retrieve: 123 281 a second handed off, 271 497 inline.
+`ngsild_requests_inline_total` / `ngsild_requests_worker_total` show the split.
 
-The built-in server (`corHttp`) had a second hop of the same kind: its event loop
-is one thread, so it handed every request's post-response phase - the deferred
-notifications above all - to a worker as well. Now a request that left nothing
-for that phase finishes on the loop too (every read, and every write in a tenant
-with no subscription), and `corHttp` catches up:
+The built-in server also finishes a request's **post-response phase** on its loop: inline when the
+request left nothing that can wait (every read, a write no subscription matches), as a coroutine
+when it did (a notification to send). With `--noInline` both go to a worker:
 
-| One core, `corHttp` + `corDB` | with both hops | **without** | |
+| One core, `corHttp` + `corDB` | `--noInline` | **default** | |
 |---|---:|---:|---:|
 | retrieve | 34 064 | **79 343** | x2.33 |
 | query, 1 entity | 32 622 | **72 608** | x2.23 |
@@ -303,90 +285,41 @@ with no subscription), and `corHttp` catches up:
 | merge | 33 707 | **78 732** | x2.34 |
 | delete | 35 948 | **108 607** | x3.02 |
 
-*(`--httpLoops 1`, 2026-10-01.)* A write that a subscription might match still
-finishes on a worker: whether it notifies is only known once it has been matched,
-and a notification may need an `@context` the broker hosts itself.
+*(`--httpLoops 1`, 2026-10-01.)*
 
-### A request that waits: a coroutine, not a hop
+### Requests that wait
 
-What still took the hop - a forward to another broker, an `@context` download -
-did so only because it **waits**. With the coroutines (`doc/coroutines.md`) the
-built-in server runs such a request as a coroutine of the loop that read it: it
-yields where it waits, the loop serves the other connections meanwhile, and it
-resumes on the same thread. The cor:// server has done that since step 3; the
-built-in HTTP server since step 4. libmicrohttpd and `mongoc` keep the hop (a
-MongoDB call blocks inside its driver, which knows nothing of the loop).
+**A write that notifies** - one broker on one core, `corHttp` + `corDB`, a subscription matching
+every PATCH, the receiver (corTestClient, release, `--traceLevels ""`) on other cores: PATCH with 50
+connections **45 000** req/s, p99 **1.1 ms**; with one connection **38 800**, p99 **29 µs**; one
+notification per write (2026-10-02, release build without PGO).
 
-Three brokers chained, a GET on A forwarded to C through B (`test/perf/corChain.sh`),
-each broker on two cores, `corDB`, release builds, deep idle states, two rounds,
-the built-in server before (step 3) and after (step 4):
+**Batches** - a batch can always wait, so it is a coroutine on the built-in server (with `corDB` it
+never yields): one core, 20 entities a batch - update **11 418** req/s (p99 4.5 ms), create
+**8 039**, delete **28 989** (2026-10-02, release build without PGO).
 
-| A -> B -> C, built-in server | before | **after** | |
-|---|---:|---:|---:|
-| HTTP all the way, small entity, 1 caller | 6 643 / 6 572 | **8 628 / 7 753** | +24 % |
-| HTTP all the way, small entity, 16 callers | 32 650 / 32 996 | **35 569 / 40 668** | +16 % |
-| HTTP all the way, 20 attributes, 16 callers | 21 486 / 21 651 | **23 213 / 24 185** | +10 % |
-| cor:// between the brokers, small entity, 1 caller | 8 794 / 8 884 | **12 945 / 9 927** | +28 % |
-| cor:// between the brokers, small entity, 16 callers | 47 907 / 50 140 | **64 899 / 65 611** | +33 % |
-| cor:// between the brokers, 20 attributes, 16 callers | 31 906 / 33 010 | **37 427 / 36 570** | +14 % |
-| cor:// end to end | 84 267 / 85 233 | 83 313 / 84 275 | unchanged (step 3 already) |
+**Forwarding** - three brokers chained, a GET on A forwarded to C through B (`test/perf/corChain.sh`),
+each broker on two cores, `corDB`, the built-in server, the release build with PGO (as the Docker
+image), deep idle states, two rounds (2026-10-02):
 
-*(req/s, 2026-10-02.)* **The sixteen-caller p99 went up** in this closed-loop
-measurement - 0.95-1.4 ms before, 1.4-3.5 ms after - because each loop now does
-the work the worker pool did, and the faster build is measured at a higher load:
-at 40 000 req/s a loop runs at ~90 % of its core, where a burst queues. At **the
-same rate** for both (corTools `corRequest --rate`, latency counted from when a
-request was due) the after build has the lower p50 everywhere and the equal or
-lower p99 - the table is in `doc/coroutines.md` § 9.1.
+| A -> B -> C | 1 caller req/s | p50 | 16 callers req/s | p50 | p99 |
+|---|---:|---:|---:|---:|---:|
+| HTTP all the way, small entity | 8 003-8 067 | 128 µs | 42 992-44 418 | 342-349 µs | 0.85-2.23 ms |
+| HTTP all the way, 20 attributes | 4 651-5 694 | 156-217 µs | 24 415-25 127 | 631-654 µs | 1.26-1.30 ms |
+| HTTP in front, cor:// between, small entity | 12 829-12 998 | 69 µs | 79 991-80 764 | 202-203 µs | 333-346 µs |
+| HTTP in front, cor:// between, 20 attributes | 6 578-8 653 | 112-157 µs | 39 703-40 871 | 373-383 µs | 784-810 µs |
+| cor:// end to end, small entity | 11 405-11 407 | 91 µs | 91 490-91 945 | 171-172 µs | 235-237 µs |
+| cor:// end to end, 20 attributes | 6 880-6 980 | 145-147 µs | 50 988-53 642 | 292-312 µs | 398-402 µs |
 
-The loops share one accepting loop now (corHttp `corHttpAcceptShare`): left to
-the kernel's `SO_REUSEPORT` hash, 16 connections split as unevenly as 11 and 5
-between two loops, and the busier one queued.
-
-**One broker, one core** (`perfRun.sh`, built-in server, `--httpLoops 1`): a
-batch could always wait, so it took the hop; now it is a coroutine that does not
-(with `corDB` it never yields), and the batches gain the most:
-
-| One core, `corHttp` + `corDB` | before (two runs) | **after** | |
-|---|---:|---:|---:|
-| batch update, 20 entities | 8 467 / 8 313 | **11 418** | +36 % |
-| batch create, 20 entities | 7 522 / 7 501 | **8 039** | +7 % |
-| batch delete, 20 entities | 21 336 / 21 610 | **28 989** | +35 % |
-| batch update, p99 | 108 ms | **4.5 ms** | |
-
-*(requests/s, 2026-10-02.)* Everything that already ran inline came out 1-3 %
-lower in that one run - and the same in instructions and cycles: `perf stat` on
-a retrieve, 29 001 user-space and 21 890 kernel instructions a request after,
-29 003 and 21 857 before, cycles within 0.2 %. Run-to-run noise, not a cost.
-
-**A write that notifies** - its post-response phase, the notification above all, a coroutine of the
-loop too (`doc/coroutines.md` § 10). One broker on one core, a subscription matching every PATCH,
-the receiver (corTestClient, release, `--traceLevels ""`) on other cores:
-
-| One core, `corHttp` + `corDB`, every write notifies | phase on a worker | **a coroutine** | |
-|---|---:|---:|---:|
-| PATCH, 50 connections | 28 909 / 28 071 | **45 074 / 44 958** | +58 % |
-| p99 | 3.65 / 3.94 ms | **1.12 / 1.11 ms** | |
-| PATCH, 1 connection | 29 266 / 28 925 | **38 712 / 38 826** | +33 % |
-| p99 | 43 / 46 µs | **29 / 29 µs** | |
-
-*(req/s, 2026-10-02; one notification per write reached the receiver in both.)*
-
-**cor:// multiplexed** (`doc/cor-protocol.md` § 5.3, `doc/coroutines.md` § 11): many requests in
-flight on one connection. The three-broker chain at 16 callers: cor:// end to end 67 500-79 200 ->
-**83 400-83 800** req/s; HTTP in front and cor:// between 62 300-67 300 -> **73 500-74 200**, its p99
-3.0-3.2 ms -> **0.42-0.44 ms**. One caller: unchanged, and so are the instructions per request.
-
-**Nothing else moved.** libmicrohttpd before and after - every request shape on
-one core, `corDB` and `mongoc`, and the chain - within ±5 % run to run (the clients
-under it changed: non-blocking sockets, TLS on the loop, a resolver thread).
+**The p99 at 16 callers over HTTP** is the loops' load, not their cost. In this closed-loop
+measurement each loop runs at ~90 % of its core, where a burst queues. At a fixed rate (release build
+without PGO, corTools
+`corRequest --rate`, latency counted from when a request was due) and 16 connections, HTTP all the
+way: small entity at 20 000 req/s p50 174-176 µs, p99 0.23-1.85 ms; at 25 000, p99 0.27-0.81 ms;
+20 attributes at 15 000, p50 310-377 µs, p99 0.55-0.65 ms. Past ~30 000 (small) and ~20 000 (20
+attributes) the p99 goes to 12-24 ms.
 
 ### Writes, and what batching is worth
-
-Half of what a context broker does is writes, and until 2026-09-15 this page
-had no write number on it at all. That was also the half that was broken:
-`corDB` had no locking whatsoever, and twenty concurrent PATCHes killed the
-broker every time. A read-only benchmark could never have noticed.
 
 **Per core, `corDB`:**
 
@@ -406,23 +339,8 @@ entities, refilled before every repeat - a delete consumes what it measures.)*
 
 Batching is worth two to four times per entity: one HTTP request, one
 URL-parameter parse, one `@context` resolution and one lock acquisition amortised
-over twenty instead of paid twenty times. It was four to eight times until
-single requests stopped making the thread hop (above) - a single write got twice
-as fast, a batch did not, because a batch still takes the hop.
-
-It was not always. Until the commit that added the create benchmark, batch
-create walked the entire entity list for every incoming entity — with the id
-index sitting right there, maintained by the bottom of the same loop — and was
-**6× slower per entity than creating them one at a time**. A batch create is
-the one operation that grows the store it is scanning, so it got worse as it
-ran. Nothing measured it, so nothing caught it.
-
-Deletes had the same history. Until 2026-09-30 there was no delete scenario, and
-`corDB` found an entity through its id index and then walked the store from the
-first entity to find the one *before* it, to unlink it - under the write lock.
-Deletes slowed down as the store grew, and a batch of twenty against 40 000
-entities took up to 0.9 s at p99. The index now maps each id to the entity's
-predecessor, so an unlink is O(1): single deletes 4.2× faster, batch deletes 60×.
+over twenty instead of paid twenty times. (libmicrohttpd: a batch is handed to a
+worker; on the built-in server it is a coroutine - above.)
 
 ### Clients piling onto one core
 
@@ -465,54 +383,16 @@ profile (2026-10-02, one core, `corDB`, built-in server):
 | delete | 115 624 | **117 100** | +1.3 % |
 | batches of 20 (update / create / delete) | | | +3.2 / +5.3 / +1.8 % |
 
-The Docker image and the nightly performance job are built this way (since 2026-10-03).
+The Docker image and the nightly performance job are built this way.
 
 User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
 three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
 caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
 
-### Tried, measured, and dropped
+### Measured and not used
 
-Not every idea that should make a broker faster does. Measured on the same
-machine, release builds, and left out:
-
-- **Link-time optimisation** (`-flto` across the libraries, 2026-09-30): noise.
-  About three quarters of a small request's cycles are spent in the kernel - its
-  system calls and thread switches - and LTO can only work on the quarter that is
-  ours. It did find a real bug on the way: a `corAlloc()` result used unchecked
-  in the JSON parser (fixed). Profile-guided optimisation, measured after it, is
-  not noise - see "Profile-guided" above.
-- **Compiling the traces out of release builds** (2026-09-30): about +1 % on
-  writes, nothing measurable on queries. The cost of a disabled trace had already
-  gone - a trace level is checked before any of its arguments are evaluated - so
-  removing them was a decision about what a release ships (no trace code, and a
-  crash report instead), not a speed-up.
-- **Every library of a release broker as release** (2026-10-02): `make release`
-  builds only corRest, corJsonld and corNgsild as release (`libs-release`); the
-  libraries under them - corBase, corAlloc, corJson, corTree, corHttp and the
-  rest - come in as whatever was built last, the debug build with its traces
-  compiled in. All of them release: 0.2-0.8 % fewer instructions and cycles a
-  request (`perf stat`: retrieve, PATCH, a 20-entity query). Not worth a number;
-  worth fixing, because a release broker should be one. It needs a change in
-  each of those libraries first - they keep ONE archive, and a `make di` after a
-  release build leaves the release one in place (objects older than it) - one
-  archive per flavour, as corRest, corJsonld and corNgsild have.
-- **Multiplexing cor:// on threads** (2026-10-02): 5-11 % *less* cor://
-  throughput, because every design put a thread hand-off on each request's path.
-  It is deferred to the coroutines, where it costs nothing - the measurements are
-  in `doc/cor-protocol.md` § 5.3.
-
-### A regression, and how it was found
-
-On 2026-09-26/27 the nightly performance run went red: creates had fallen 35 % with
-`mongoc`. A merge of 09-25 had put a full retrieve of the entity before
-**every** `POST /entities` - needed only when a bridge Channel sends the entity
-on, done always. The gate only tripped on the second bad night (a single slow
-run is noise to it), which is also how close a regression comes to being absorbed
-into the median. It was bisected with the images every merge publishes - a broker
-per merge, measured in quarters - and fixed by doing the retrieve only when a
-Channel is there (coraine#171): `mongoc` creates back to ~9 400/s with 50
-clients, confirmed by the next nightly.
+Link-time optimisation (`-flto`) is noise for the broker - three quarters of a small request's cycles
+are in the kernel. What else was tried and left out, and why, is in `doc/history.md`.
 
 ## In a container
 
@@ -622,7 +502,7 @@ and it is measured rather than extrapolated.
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above
-(5 901 against 6 588), and it used to be the other way round. The loop count is
+(5 901 against 6 588). The loop count is
 not the cause — `--httpLoops` resolves to 1 on one core, which is correct, and
 forcing 2 or 4 there makes it worse, as it should.
 
