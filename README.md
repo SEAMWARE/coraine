@@ -200,7 +200,7 @@ full list and the honest state of each.
 | **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` |
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `corDB`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
-| **Bridge** (outbound transport) | endpoint scheme | per scheme | HTTP/HTTPS built in; others *planned* |
+| **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |
 
 **Why that matters, beyond tidiness.** The broker never talks to a database. It talks
 to a *driver interface* — `DbDriver.h` for current state, `TroeDriver.h` for history —
@@ -341,7 +341,7 @@ coraine implements in full. Every command-line option is listed by
 
 - **Conformance:** 100% of the official ETSI NGSI-LD conformance test suite
   (see the note at the top of this file).
-- **Functional tests:** 634 tests against MongoDB, 584 against the in-memory store,
+- **Functional tests:** 736 tests against MongoDB, 681 against `corDB` (2026-10-02),
   run through `corTest`. A change in behaviour is not finished until a test pins it.
 - **Coverage:** measured per DB, run as described in [`doc/testing.md`](doc/testing.md)
   and published in [`doc/coverage.md`](doc/coverage.md),

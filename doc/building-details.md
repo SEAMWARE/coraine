@@ -184,14 +184,14 @@ produces a broker that builds, starts, reports `"TENANTS": false` on `GET /build
 because nothing about it looks like a failure. If you are switching one of these
 off to remove a feature, you have not removed it.
 
-**⚠️ These three do not build:**
+**⚠️ These two do not build:**
 
-`CONTEXT_HOSTING`, `METRICS`, `ICU_COLLATION`
+`CONTEXT_HOSTING`, `METRICS`
 
 Their `CMakeLists.txt` drops the source files, and code that survives still
 references the symbols, so the link fails with `undefined reference to
 'getJsonldContexts'`, `'metricsPreService'` and friends. A failed link is the
-honest outcome of the three — it is the nine above that will mislead you.
+honest outcome of the two — it is the nine above that will mislead you.
 
 **What to check.** After any reduced build, ask the binary what it thinks it is
 rather than assuming the flag took:

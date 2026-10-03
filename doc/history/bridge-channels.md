@@ -8,6 +8,15 @@ Dated entries, newest first. The notes started as a working design document;
 this is what it recorded about itself along the way. A few undated passages
 close the page.
 
+
+## 2026-10-01 - notifications join the bridge family
+
+§ 11 had kept notifications out of the bridges: *"For the first cut the bridge family is CSR-bound
+only; notifications stay in the existing notification path. Re-evaluate after WS / MQTT bridges are
+working - both protocols naturally carry both kinds of traffic on the same connection."* With the
+MQTT bridge (corMqttBridge) a notification to `mqtt://` went through the plugin's `notify` (ABI 10),
+and the broker stopped linking libmosquitto.
+
 ## 2026-09-26 - topics are DDS first (§ 9.1)
 
 A value that did not fit its topic's type was stored and answered 204, and

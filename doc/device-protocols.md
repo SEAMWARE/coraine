@@ -1,7 +1,9 @@
 # Speaking to devices directly
 
-> Planned, not built. This describes where the broker is going and why the shape
-> is what it is; nothing here exists yet. Tracked from the
+> **Built:** the bridge family this rests on - DDS ([DDS and ROS 2](dds.md)), MQTT topics as Channels
+> ([The MQTT bridge](mqtt-bridge.md)), Modbus TCP registers ([The Modbus bridge](modbus-bridge.md)).
+> **Not built:** the *cor-agent* edge build, the other device protocols (LWM2M/CoAP, OPC-UA, LoRaWAN),
+> and a registration whose endpoint names a bridge (a value read on demand). Tracked from the
 > [roadmap](roadmap.md).
 
 A FIWARE deployment normally has two tiers. Devices speak their own protocols —
