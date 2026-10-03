@@ -359,6 +359,19 @@ lower in that one run - and the same in instructions and cycles: `perf stat` on
 a retrieve, 29 001 user-space and 21 890 kernel instructions a request after,
 29 003 and 21 857 before, cycles within 0.2 %. Run-to-run noise, not a cost.
 
+**A write that notifies** - its post-response phase, the notification above all, a coroutine of the
+loop too (`doc/coroutines.md` § 10). One broker on one core, a subscription matching every PATCH,
+the receiver (corTestClient, release, `--traceLevels ""`) on other cores:
+
+| One core, `corHttp` + `corDB`, every write notifies | phase on a worker | **a coroutine** | |
+|---|---:|---:|---:|
+| PATCH, 50 connections | 28 909 / 28 071 | **45 074 / 44 958** | +58 % |
+| p99 | 3.65 / 3.94 ms | **1.12 / 1.11 ms** | |
+| PATCH, 1 connection | 29 266 / 28 925 | **38 712 / 38 826** | +33 % |
+| p99 | 43 / 46 µs | **29 / 29 µs** | |
+
+*(req/s, 2026-10-02; one notification per write reached the receiver in both.)*
+
 **Nothing else moved.** libmicrohttpd before and after - every request shape on
 one core, `corDB` and `mongoc`, and the chain - within ±5 % run to run (the clients
 under it changed: non-blocking sockets, TLS on the loop, a resolver thread).
@@ -441,6 +454,16 @@ machine, release builds, and left out:
   gone - a trace level is checked before any of its arguments are evaluated - so
   removing them was a decision about what a release ships (no trace code, and a
   crash report instead), not a speed-up.
+- **Every library of a release broker as release** (2026-10-02): `make release`
+  builds only corRest, corJsonld and corNgsild as release (`libs-release`); the
+  libraries under them - corBase, corAlloc, corJson, corTree, corHttp and the
+  rest - come in as whatever was built last, the debug build with its traces
+  compiled in. All of them release: 0.2-0.8 % fewer instructions and cycles a
+  request (`perf stat`: retrieve, PATCH, a 20-entity query). Not worth a number;
+  worth fixing, because a release broker should be one. It needs a change in
+  each of those libraries first - they keep ONE archive, and a `make di` after a
+  release build leaves the release one in place (objects older than it) - one
+  archive per flavour, as corRest, corJsonld and corNgsild have.
 - **Multiplexing cor:// on threads** (2026-10-02): 5-11 % *less* cor://
   throughput, because every design put a thread hand-off on each request's path.
   It is deferred to the coroutines, where it costs nothing - the measurements are

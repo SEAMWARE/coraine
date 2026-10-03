@@ -1,0 +1,101 @@
+#
+# FILE            http_coroutine_post_response_phase.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: corDB
+# REQUIRE_HTTPSERVER: builtin
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+# Coroutines (doc/coroutines.md § 10): the post-response phase of a write - its notifications - runs as
+# a coroutine of the HTTP loop, not on a worker. With ONE worker (--connectionPoolSize 1) and a
+# notification receiver that takes 1.5 s to answer, three writes' phases on that worker go one after
+# the other: after a second, one notification has reached the receiver (it records a request when it
+# arrives, before its delay). As coroutines of the loop, all three wait at once - all three are there.
+#
+--NAME--
+Builtin server: three writes' notifications wait at once, as coroutines of the loop - not one after the other on a worker
+
+--TAGS--
+subscription
+notification
+
+--INIT--
+corDbDrop
+ftClientStart --port 7711
+coraineStart --httpLoops 1 --connectionPoolSize 1
+
+--RUN--
+echo "01. The notification receiver answers after 1.5 seconds"
+echo "========================================================"
+corCurl --port 7711 --url /mock/reply --payload '{
+  "verb": "POST",
+  "path": "/notify",
+  "status": 200,
+  "delayMs": 1500
+}' | head -1
+echo
+echo
+
+
+echo "02. A subscription to type T, notifying the slow receiver"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "notification": { "endpoint": { "uri": "http://localhost:7711/notify" } }
+}' | head -1
+echo
+echo
+
+
+echo "03. Create E1, E2 and E3 - each answered at once, each with a notification of 1.5 s on its way"
+echo "==============================================================================================="
+for e in E1 E2 E3; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:'$e'", "type": "T", "a": { "type": "Property", "value": 1 } }' | head -1
+done
+echo
+echo
+
+
+echo "04. One second later all three notifications have reached the receiver - none waited for another"
+echo "================================================================================================="
+sleep 1
+curl -s http://localhost:7711/dump | grep -o '"urn:E[123]"' | sort -u
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop --port 7711
+corDbDrop
+
+--EXPECT--
+01. The notification receiver answers after 1.5 seconds
+========================================================
+HTTP/1.1 201 Created
+
+
+02. A subscription to type T, notifying the slow receiver
+==========================================================
+HTTP/1.1 201 Created
+
+
+03. Create E1, E2 and E3 - each answered at once, each with a notification of 1.5 s on its way
+===============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+04. One second later all three notifications have reached the receiver - none waited for another
+=================================================================================================
+"urn:E1"
+"urn:E2"
+"urn:E3"
+
+

@@ -270,7 +270,46 @@ the same cliff (small entity @ 30 000, 20 attributes @ 20 000 - p99s of 12-24 ms
 an equal load asks for one. The closed-loop p99 is still the number to watch - a loop at 90 % of a
 core is one burst from queueing, where the old worker pool spread a burst over 32 threads.
 
-## 10. Open questions
+## 10. The post-response phase (2026-10-02)
+
+A write's deferred work - its notifications above all - ran after the response, on a worker: the
+builtin server's loop could not run it (a notification may need an `@context` this broker serves, and
+the loop would wait for an answer only it could give). The finish-inline hook already kept the phase
+on the loop when it had nothing that could wait; now **the rest runs as a coroutine of the loop**
+too (corRest `CorRestFinishCoroutineHook`), in both servers: it yields where it waits, and the loop
+goes on - serving that `@context` request itself, if it comes to that.
+
+What the phase can wait for, and how each yields:
+
+| | |
+|---|---|
+| notification, HTTP | corRest's client - `corRestWaitFd` |
+| notification, any other scheme (`mqtt://`) | the bridge plugin's own client blocks (mosquitto): corNgsild runs it through corBase's **`corCoBlocking`** - on a thread of its own, the coroutine waiting on an eventfd |
+| CSR notification, the registration probe | corRest's client |
+| expired entities, TRoE | in-process with corDB - no wait |
+| a bridge goal's release | waits on the bridge - **stays on a worker** (coraine's hook says no) |
+
+No lock is held across any of those sends - each pins what it reads and sends unlocked. coraine says
+yes with corDB and TRoE none/corDB; mongoc keeps the worker. Where the response went out from inside a
+request's coroutine (the builtin server answers in `corHttpResumeHere`), the phase is a coroutine
+started from it - a coroutine that waits yields back to the one that resumed it, and the loop resumes
+it later.
+
+`http_coroutine_post_response_phase`: one worker, a notification receiver that takes 1.5 s, three
+writes - on the worker, one notification had reached the receiver a second later; as coroutines,
+all three.
+
+**Measured** (one broker on one core, builtin server, corDB, a subscription matching every write,
+the receiver on other cores; `doc/performance.md`): PATCH with 50 connections 28 900 -> **45 000**
+req/s (+58 %), p99 3.7 -> **1.1 ms**; with one connection 29 100 -> **38 800** (+33 %), p99 45 ->
+**29 µs**. On the worker the phase cost two thread switches per write and queued behind the pool;
+on the loop it is one coroutine and one send.
+
+On the way: the benchmark's first receiver - a debug corTestClient - wrote a full trace of every
+request, 25 GB of `/tmp` in minutes, and could not keep up: it made the coroutines look 30 % *slower*
+at one connection. corTestClient `--traceLevels ""` for a receiver that measures nothing of its own.
+
+## 11. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
 - libmicrohttpd: worth its `MHD_suspend/resume_connection` later, or does the builtin server become

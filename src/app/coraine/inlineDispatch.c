@@ -14,7 +14,7 @@
 #include "corLog/corLog.h"                             // COR_V
 #include "corTree/CorNode.h"                           // CorNode, CorString, CorObject, CorArray
 #include "corRest/CorRestState.h"                      // corRest
-#include "corRest/corRestHooks.h"                      // corRestSetInlineHook, corRestSetFinishInlineHook
+#include "corRest/corRestHooks.h"                      // corRestSetInlineHook, corRestSetFinishInlineHook, corRestSetFinishCoroutineHook
 #include "corJsonld/corLdCache.h"                      // corLdCacheLookup
 #include "corNgsild/CorNgsild.h"                       // ldDefaultContextUrl, ldDistributed, corNgsild
 #include "corNgsild/ldRegCache.h"                      // ldRegCacheItemsTotal
@@ -389,6 +389,22 @@ static bool coroutineCheck(void)
 
 // -----------------------------------------------------------------------------
 //
+// finishCoroutineCheck - may a post-response phase that can wait run as a coroutine? (CorRestFinishCoroutineHook)
+//
+// What it can wait for: notifications - HTTP through corRest's client, which yields; any other scheme
+// (mqtt://) through a bridge plugin's own client, which corNgsild runs on a thread of its own
+// (corCoBlocking) - CSR notifications, the registration probe (HTTP both), the expired entities and
+// TRoE (in-process with corDB). Not a bridge goal's release, which waits on the bridge: a worker.
+//
+static bool finishCoroutineCheck(void)
+{
+  return (coroutineDbOk == true) && (corNgsild.bridgeReleaseQ == NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // isPlugin - is this plugin argument (a short name, or a path to the .so) the plugin 'name'?
 //
 static bool isPlugin(const char* arg, const char* name)
@@ -413,6 +429,7 @@ void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
   //
   coroutineDbOk = (isPlugin(dbName, "corDB") == true) && ((isPlugin(troeName, "none") == true) || (isPlugin(troeName, "corDB") == true));
   corRestSetCoroutineHook(coroutineCheck);
+  corRestSetFinishCoroutineHook(finishCoroutineCheck);
 
   if (disabled == true)
   {
