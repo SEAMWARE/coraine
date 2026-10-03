@@ -325,7 +325,7 @@ of one second each, answered in one) are the functests.
 Built: the codec (corTree) with its NGSI-LD callbacks (corNgsild); cor:// in corRest - a listener
 (`--corPort`) and a client - with multiplexing (§ 5.3); forwarding over it. Not yet: packed numeric
 arrays and timestamps as integers (§ 4.9, § 4.10); the corDB snapshot and log in the cor format
-(`doc/cordb-persistence.md`). Functests: `cor_forwarding_chain`, `cor_api_direct`, the two of § 5.3;
+([corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)). Functests: `cor_forwarding_chain`, `cor_api_direct`, the two of § 5.3;
 the whole suite runs with every request over cor:// as well (`COR_TRANSPORT=cor`, `doc/testing.md`).
 
 **Three brokers chained** (`test/perf/corChain.sh`): `corDB` brokers A -> B -> C, A and B each
