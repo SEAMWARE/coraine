@@ -487,8 +487,8 @@ coverage-etsi:
 	$(MAKE) install_from_coverage
 	@echo ">>> [4/6] Wiping stale .gcda counters across build + lib trees..."
 	@find $(BUILD_COVERAGE) $(addprefix ../,$(COV_LIBS)) -name '*.gcda' -delete
-	@echo ">>> [5/6] Running the ETSI TP suite (etsiRun sw)..."
-	@etsiRun sw || true
+	@echo ">>> [5/6] Running the ETSI TP suite (etsiRun cor)..."
+	@etsiRun cor || true
 	@echo ">>> Stopping broker so gcov flushes .gcda (onSignal -> exit(0))..."
 	@if [ -f /tmp/etsi-coraine.pid ]; then \
 	   P=$$(cat /tmp/etsi-coraine.pid); \
