@@ -112,6 +112,12 @@ Usage: coraine  [--usage/-u (usage)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
                 [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
 
+                Database (corDB) plugin options:
+                [--dbDir/-dbDir <persistent store directory (none: in RAM only)>]
+                [--dbSync/-dbSync <interval|request|none - when a write reaches the disk>]
+                [--dbSyncInterval/-dbSyncInterval <ms between two syncs of the log>]
+                [--dbSnapshotEvery/-dbSnapshotEvery <MiB of log after which a tenant is snapshotted>]
+
                 Plugins are loaded from /opt/seamware/plugins
 
 
@@ -260,6 +266,10 @@ Usage: coraine  [--usage/-u (usage)]
   --noInline              (-noInline)        CORAINE_NOINLINE              Optional   Bool     Default Value  
   --memoryLimit           (-memoryLimit)     CORAINE_MEMORYLIMIT           Optional   Int      Default Value  
   --high-availability     (-ha)              CORAINE_HIGH_AVAILABILITY     Optional   String   Default Value  
+  --dbDir                 (-dbDir)           CORAINE_DBDIR                 Optional   String   Default Value  
+  --dbSync                (-dbSync)          CORAINE_DBSYNC                Optional   String   Default Value  
+  --dbSyncInterval        (-dbSyncInterval)  CORAINE_DBSYNCINTERVAL        Optional   Int      Default Value  
+  --dbSnapshotEvery       (-dbSnapshotEvery) CORAINE_DBSNAPSHOTEVERY       Optional   Int      Default Value  
 
 
 --TEARDOWN--
