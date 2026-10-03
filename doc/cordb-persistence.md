@@ -181,7 +181,42 @@ No `--dbDir`, no change: a corDB without a directory is the in-RAM store of toda
    per cent), `request` against it, recovery time for 100 000 entities. Documented in
    `doc/performance.md`, the losers too.
 
-## 10. Open
+## 10. Maintenance - corsh
+
+KZ 2026-10-03: deleting, backing up, adding indexes - a tool for it, **corsh** (the corDB shell, in
+corTools). Interactive, and scriptable (`corsh -c 'backup /mnt/b'`).
+
+**Two ways in.** The data of a running broker is in that broker's RAM, under its locks: anything done
+to live data goes **through the broker** - corsh speaks cor:// to it, the requests served by the
+`admin` API plugin (`/admin/db/...`). Nothing reads or writes the files under a running broker. With
+no broker running, corsh works on a tenant directory **directly**: what needs no live data.
+
+| command | | |
+|---|---|---|
+| `stats` | online | per tenant: entities, subscriptions, registrations; RAM, log and snapshot bytes; the last sync |
+| `backup <dir>` | online | a snapshot now, then `snap-N` and every `log-M` after it hard-linked (or copied, across file systems) into `<dir>`. Consistent without stopping anything: a snapshot is never written again once renamed, a log segment never once rolled. Restore = that directory as `--dbDir` |
+| `snapshot` | online | one now (§ 6), and the log rolls |
+| `compact` | online | log segments a snapshot covers removed (with history on: those past the retention) |
+| `purge <tenant> [type / q]` | online | entities matching, deleted as one batch - logged like any write |
+| `drop <tenant>` | online | the tenant emptied; its directory goes |
+| `index add / drop / list` | online | secondary indexes (below) |
+| `verify <dir>` | offline | every record's CRC, every snapshot decodes, sequences contiguous |
+| `dump <dir>` | offline | the records, readable (op, sequence, time, entity id) - for a broken log |
+| `export` / `import` | either | entities as NDJSON - between brokers, and to and from `mongoc` |
+
+**Indexes.** corDB indexes the entity id only (a hash, to the entity's predecessor in the store). A
+query by type walks every entity of the tenant; so does a `q` and a geo-query. Indexes worth having,
+each measured before it stays:
+
+- **type** -> its entities: the most common query shape; probably a default, not an option
+- **an attribute's value** - equality and range, for `q` on a property that is queried often
+- **geo** - an R-tree over a GeoProperty, for `georel`
+
+An index is a **declaration** kept in the tenant's directory (a record in the log, `INDEX_PUT`), built
+when declared - under the write lock, a full pass - and at every load; the 17 write sites keep it
+current. Not in the snapshot: rebuilt from the data, so it can never disagree with it.
+
+## 11. Open
 
 - Snapshot trigger: log bytes only, or also a time?
 - The CRC: CRC-32C (hardware on x86-64 and ARMv8) or xxHash3 (faster in software, no tables)?
