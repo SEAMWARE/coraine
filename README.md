@@ -179,10 +179,10 @@ tenants, no Mongo. The switches are `COR_FEATURE_*` at build time, which means
 ⚠ Be warned before planning around it: **the flags are declared, the work behind
 them is partly done.** `-DCOR_FEATURE_MONGOC=OFF` and
 `-DCOR_FEATURE_ICU_COLLATION=OFF` (the reference build above) genuinely work, and
-the subscription and registration engines now compile out; several of the
+the subscription and registration engines compile out; several of the
 remaining flags are still declarations with no `#ifdef` behind them, and turning
 one of those off changes nothing or fails the link.
-[Building from source](doc/building.md#compiling-out-what-you-dont-need) has the
+[Building from source](doc/building-details.md#compiling-out-what-you-dont-need) has the
 full list and the honest state of each.
 
 ---

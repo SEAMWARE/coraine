@@ -44,9 +44,9 @@ make i          # release build + install
 
 Run with sufficient privileges, or pre-create those directories.
 
-[Building from source](building.md) is the full account — the source layout, every
-system package, all the make targets, and how to compile features out. This page
-covers the common case only.
+[Building from source](building.md) has every system package and all the make
+targets; [its detail page](building-details.md) the source layout and how to
+compile features out. This page covers the common case only.
 
 ## Install with Docker
 

@@ -99,8 +99,8 @@ incorporated in the next release of the product, in roughly this order:
     line.
 
 -   **Finish conditional compilation.** Per-feature `#ifdef`s so a deployment
-    compiles only the NGSI-LD it uses. The mechanism exists and the first slice
-    landed — `REGISTRATIONS` and `SUBSCRIPTIONS` compile out, and the HTTP server
+    compiles only the NGSI-LD it uses. The mechanism exists and works for a first
+    slice — `REGISTRATIONS` and `SUBSCRIPTIONS` compile out, and the HTTP server
     is already a build choice — but most of the declared feature flags do not yet
     reach the code they name. [Building from source](building.md) says exactly
     which, because a flag that reports as off while the feature still works is

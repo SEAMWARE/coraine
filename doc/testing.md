@@ -11,28 +11,28 @@ make test                    # whole suite (mongoc; use corTest -db corDB for in
 
 Tests live under `test/funcTests/`.
 
-## How long the suite takes - and where that time went
+How it came about: [history](history/testing.md).
 
-The whole suite - some 730 tests, a broker (or several) started and stopped for
-each - took about **35 minutes** on the machine of `doc/performance.md`. Since
-2026-10-02 it takes **14.5** (732 tests, `mongoc`, 868 s). A test of ~2.4 s spent its
-time like this:
+## How long the suite takes
 
-| | before | after |
-|---|---:|---:|
-| stopping the broker | ~1.2 s | ~0.15 s with `mongoc` (its own close), ~0.01 s with `corDB` |
-| waiting for its port at start-up | up to 0.2 s | up to 0.02 s |
-| dropping the database | ~0.3 s (`mongosh`) | ~0.008 s (`corMongoDrop`) |
+The whole suite - 732 tests, a broker (or several) started and stopped for each -
+takes **14.5 minutes** with `mongoc` (868 s, 2026-10-02, on the machine of
+`doc/performance.md`). The fixed cost of a test:
 
-- **The broker took a second to exit.** On SIGTERM it joins its periodic-work
-  thread, which slept for a second at a time; the stop now wakes it (corNgsild
-  #56). And the helper polled for the exit with a `pgrep` (~30 ms) every 0.1 s -
-  it now watches the pid it started, 10 ms at a time, without forking (#208).
-- **The port was polled every 0.2 s** - 20 ms now (corTest#10).
-- **Every drop started `mongosh`**, a JavaScript runtime, ~0.3 s - and the suite
-  drops 1 466 times. corTools' `corMongoDrop` is one libmongoc connection and a
-  command or two: ~8 ms (20 -> 14.5 minutes). `mongosh` stays the fallback where
-  `corMongoDrop` was not built (no libmongoc on that machine).
+| | |
+|---|---:|
+| stopping the broker | ~0.15 s with `mongoc` (its own close), ~0.01 s with `corDB` |
+| waiting for its port at start-up | up to 0.02 s |
+| dropping the database | ~0.008 s (`corMongoDrop`) |
+
+- **Stopping.** On SIGTERM the broker wakes its periodic-work thread and joins it
+  (corNgsild #56); the helper watches the pid it started, 10 ms at a time,
+  without forking (#208).
+- **The port** is polled every 20 ms (corTest#10).
+- **The drop** is corTools' `corMongoDrop`: one libmongoc connection and a
+  command or two. `mongosh` is the fallback where `corMongoDrop` is not built (no
+  libmongoc on that machine) - a JavaScript runtime, ~0.3 s a drop, and the suite
+  drops 1 466 times.
 
 Sending a cor:// request instead of an HTTP one saves nothing measurable - a
 request is a process start either way (`COR_TRANSPORT=cor`, next).
@@ -49,17 +49,16 @@ with `corRequest --curl` (corTools), which prints exactly what `corCurl` prints
 for an HTTP request - so every expectation holds unchanged. What only HTTP can
 carry stays on curl: a body that is not JSON, a text answer, HEAD, a POST without
 a body (411), a method the broker does not have, a body over 1 MiB (413).
-`COR_TRANSPORT_TRACE=<file>` logs which transport each request took. It is how
-four cor:// server bugs were found (corRest#22), and the whole suite passes
-that way.
+`COR_TRANSPORT_TRACE=<file>` logs which transport each request took. The whole
+suite passes that way.
 
 
 ## Functional tests never read the log
 
 A test waits on, and asserts on, what the **API** says — never on a trace line in
 the broker's log. A trace is there only when the trace levels include it *and* the
-code that writes it was built with its traces: a `dds.so` with them compiled out (a
-perf build) timed out every DDS test while the broker was working fine. So no test
+code that writes it was built with its traces, so a test waiting on one times out
+against a build without them (a perf build) while the broker works fine. So no test
 sets `COR_TRACE_LEVELS`, and the suite passes with `-traceLevels ""`.
 
 What a test waits on instead — the helpers are in `test/funcTests/corTestFunctions.sh`:
@@ -67,7 +66,7 @@ What a test waits on instead — the helpers are in `test/funcTests/corTestFunct
 | Waiting for | Read from | Helper |
 |---|---|---|
 | a DDS endpoint to be discovered | the Channel's `endpointDiscovered` | `ddsServiceAwait`, `bridgeChannelAwait` |
-| a counter — publishes, goals, cancels, requests | the Channel's counters ([§3.3b](bridge-channels.md#33b-what-crossed--discovery-and-counters)) | `bridgeChannelGet`, `bridgeChannelAtLeast`, `bridgeChannelsCount` |
+| a counter — publishes, goals, cancels, requests | the Channel's counters ([§3.3b](bridge-channels-details.md#33b-what-crossed--discovery-and-counters)) | `bridgeChannelGet`, `bridgeChannelAtLeast`, `bridgeChannelsCount` |
 | a sample the Bridge dropped | the Bridge's `samplesDropped` | `bridgeGet`, `bridgeAtLeast` |
 | a goal to end | `GET /channels/{id}/goals/{goalId}`: 200 while in progress, 404 after | `bridgeGoalInProgress`, `bridgeGoalEndedAwait` |
 | a member a bridge writes (`status`, `feedback`, `reply`, …) | the entity | `attrMemberAwait` |
@@ -108,7 +107,7 @@ broker PUBLISHES is observed. Everything else about the bridge is tested through
 the loopback, which cannot reach this: a DDS participant's topics are compiled
 into it, so nobody subscribes to a topic the broker invents and two instances of
 our own plugin cannot bootstrap each other. A publisher that is not ours is the
-only way — and the first one to run showed that the Enabler hands over an
+only way, and it reaches what the loopback cannot: the Enabler hands over an
 envelope rather than the sample.
 
 ⚠ The containers are started with `--ipc=host` and **not** `--net=host`. Fast DDS
@@ -125,12 +124,8 @@ make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
 make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
 ```
 
-**The figures live in [`coverage.md`](coverage.md) and only there.** They used to be
-repeated here as well, and the two copies drifted across two different measurement
-regimes — this file went on quoting a denominator that covered `coraine/src` alone
-for a fortnight after the measurement widened to include the three libraries, so the
-repository stated two different coverage figures depending on which page you opened.
-One number, one place.
+**The figures live in [`coverage.md`](coverage.md) and only there.** One number,
+one place.
 
 Branch coverage is the honest one of the three, and the one to move: a line is
 covered if it ran once, so `if (a && b)` that only ever runs with both true is a

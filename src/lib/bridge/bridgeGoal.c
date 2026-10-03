@@ -414,7 +414,7 @@ static void releasedCondInit(void)
 //
 // NotifyDefault - a Bridge's default goal endpoint, from its configuration
 //
-// Where a goal is notified, the first that exists (bridge-channels.md 9.1):
+// Where a goal is notified, the first that exists (bridge-channels-details.md 9.1):
 //   1. the goal's own endpoint - the request's "endpoint"
 //   2. its Channel's default   - Channel::notifyUri
 //   3. its Bridge's default    - this table

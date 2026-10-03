@@ -123,7 +123,7 @@ DDS is the bus and HTTP is the foreign body.
   consulting the ARISE project lead (2026-09-22).
 
   ⛔ One exception, and it needs stating because the rule above is absolute:
-  the **catch-all's** attribute names (§ 3.6a of `doc/bridge-channels.md`) are
+  the **catch-all's** attribute names (§ 3.6a of `doc/bridge-channels-details.md`) are
   deliberately NOT expanded at all - an unclaimed endpoint is a foreign
   system's name being quoted, not a term, and expanding it both validates it
   (`rt/chatter` fails the § 4.6.2 name grammar on the slash) and looks it up (a

@@ -7,7 +7,8 @@ throughput tables, the writes table and the container section - was re-measured 
 curve, the database and eight-core sections) is from 2026-09-16 and says so. Nothing
 here is a vendor estimate or a figure carried over from an earlier version. The
 summary table is in the [README](https://github.com/SEAMWARE/coraine#footprint-and-speed);
-this is the working underneath it.
+this is the working underneath it. What was tried and dropped, and the regressions
+and how they were found: [history](history/performance.md).
 
 
 ## Where these numbers come from
@@ -38,7 +39,7 @@ is not loaded.
 
 A core with nothing to do drops into an idle state, and the deeper the state the
 longer it takes to wake. A latency measurement with one client spends most of its
-time waking cores: the three-broker cor:// chain (`doc/cor-protocol.md` § 6),
+time waking cores: the three-broker cor:// chain (`doc/cor-protocol-details.md` § 6),
 one client, gave **11 000 req/s with the idle states as the machine ships them,
 and 14 200 with the deep ones disabled** - the same build, minutes apart.
 Throughput with many clients barely moves, since the cores never get to sleep.
@@ -392,7 +393,7 @@ caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slow
 ### Measured and not used
 
 Link-time optimisation (`-flto`) is noise for the broker - three quarters of a small request's cycles
-are in the kernel. What else was tried and left out, and why, is in `doc/history.md`.
+are in the kernel. What else was tried and left out, and why, is in [the history](history/performance.md).
 
 ## In a container
 
@@ -597,4 +598,4 @@ thing. Linux only: the broker runs with `--network host`.
 The two build axes are `-DCOR_HTTP_SERVER=builtin|mhd` and `--database
 corDB|mongoc`; the reference build is ICU-free
 (`-DCOR_FEATURE_ICU_COLLATION=OFF`, and `COR_WITH_ICU=0` for `corNgsild`).
-[Building from source](building.md) has the rest of the switches.
+[Building from source, in detail](building-details.md) has the rest of the switches.

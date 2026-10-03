@@ -30,7 +30,7 @@
 # Only the configurations that DO something are covered. Nine of the fifteen
 # features are declared and unread, so a case for one would build a
 # byte-identical binary and assert nothing, and three do not link - both states
-# are documented in doc/building.md rather than pinned here, because a test
+# are documented in doc/building-details.md rather than pinned here, because a test
 # that goes red when someone IMPLEMENTS a feature is a trap, not a guard.
 #
 # REQUIRE_BUILDTESTS: yes

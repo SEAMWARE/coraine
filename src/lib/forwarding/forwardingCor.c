@@ -6,7 +6,7 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// The cor:// forwarding plugin - doc/cor-protocol.md § 5.
+// The cor:// forwarding plugin - doc/cor-protocol-details.md § 5.
 //
 // A registration whose endpoint is cor://host:port is forwarded over corRest's cor client: the
 // request goes as a tree, and the answer comes back as one (LdForwardResponse.bodyTree), so neither
