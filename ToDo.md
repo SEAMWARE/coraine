@@ -608,8 +608,10 @@ needs to understand them.
 
 **1. "Give me the Entity exactly as it was at time T."** Not the history list of
 attributes with their timestamps - a *current-state Entity*, at an instant in
-the past. Already decided at ETSI, so it is coming whether or not we plan for
-it.
+the past. Discussed at ETSI - **not in the specification yet** (checked 2026-10-03: no
+branch of TS 104-175 or TS 104-176 has it), so it is **backlog**, implemented once it is
+in the spec ([Ideas](doc/ideas.md#the-entity-as-it-was-at-time-t)). The design below keeps
+it cheap when it comes.
 
 **2. The time axis is a parameter, not a constant.** `observedAt` (default),
 `modifiedAt` and `createdAt` all have to work - they do today, via
@@ -726,10 +728,21 @@ mapped load can be added later as an optimisation rather than a rewrite.
 ## 16. corDB history is intrinsic; timescale stays a plugin
 
 `--troe corDB` selects a TRoE plugin that keeps temporal history in the
-process. Measured on eight shared cores, it costs **nothing**: 40 257 req/s
-against 40 073 for `--troe none`, and 123 307 PATCH/s against 125 187. History
+process - **today a ring buffer of the last 256 events, for the functests that
+assert a write produced its event; it answers no temporal query.** So the "costs
+nothing" measured on 2026-09-16 (40 257 req/s against 40 073 for `--troe none`,
+123 307 PATCH/s against 125 187) is the cost of that ring, not of history. History
 in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
 (11 099) and **94% of its batch rate**.
+
+**Decided 2026-10-03 (KZ): real history behind `--troe corDB`**, in the log
+persistence already writes - phases: (1) attribute instances as log records, a RAM
+index rebuilt at recovery; (2) retrieve + query (selectors, attrs, timerel /
+timeproperty, lastN / firstN, pagination, count, datasetId) - the temporal functests
+on it; (3) q, geo, aggregation, instance modify/delete - all 67 temporal functests
+and the ETSI temporal TPs; (4) the selector (a special subscription consulted to
+keep or drop a write's history) and retention. Measured after each phase, against
+`--troe none` and `timescale`.
 
 So the in-process option is the interesting one, and it should not be reached
 through the plugin mechanism at all. When the current-state store is corDB, its

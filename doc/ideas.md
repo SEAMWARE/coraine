@@ -25,6 +25,14 @@ exclude). In-process history costs nothing measured on eight shared cores; the s
 PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal index
 `(entity, attribute, time)`.
 
+### The Entity as it was at time T
+
+A current-state Entity at an instant in the past - not the temporal representation (every value with
+its timestamps), the Entity as a retrieve would have answered at T. Discussed at ETSI, not in the
+specification yet; implemented when it is. With corDB's log it is nearly free by system time (the
+newest snapshot at or before T plus the log up to T); by `observedAt` it needs the temporal index per
+attribute - and a late sample can change the answer later. ToDo § 15.
+
 ### corsh - the corDB shell
 
 A maintenance tool (a general broker shell is for later), part of corDB's own repository once corDB
