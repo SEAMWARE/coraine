@@ -7,6 +7,28 @@ design* are restated below.
 
 ---
 
+## Short term (KZ, 2026-10-03)
+
+### Migrating from Orion-LD
+
+An executable that converts an Orion-LD database to coraine's format - entities, subscriptions,
+registrations; MongoDB for `mongoc` and the files of a persistent corDB. Needed before coraine can
+be offered to Orion-LD's users as the way forward: they must be able to take their data with them.
+
+**The longer road** (ETSI TC DATA): a broker saves its data to a **neutral format** - possibly a set
+of CSV files, no details discussed yet. KZ pushes it in Athens (20-22 October 2026). Once it exists,
+Orion-LD to coraine is export plus import, and so is any other broker. Design the converter so its
+reading and writing halves can meet in that format. [Ideas](doc/ideas.md#migrating-from-orion-ld).
+
+### Six MRs to the ETSI test suite
+
+Promised by KZ: one merge request per open issue from the 2026-10-02 review of the errors the
+GeonicDB team found in the suite (geolonia/ngsi-ld-test-suite-patches; #1 is closed, done in !331) -
+the mock-server stub matchers (#3, #4, #5, #6), the type-as-array expectations of 036 (#14), the
+languageMap tombstone fixture of 046_37 (#2). Pushing to the forge takes KZ's credentials.
+
+---
+
 ## 0. TRoE timescale: automatic chunking and compression
 
 **Decided 2026-09-26 (KZ): do it, early.** Found by the A10 capacity benchmark:

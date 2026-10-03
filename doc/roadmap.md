@@ -41,6 +41,7 @@ The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
 -   **corDB persistence** - corDB survives a restart: snapshot plus an append log, `fsync` on a timer. ([more](ideas.md#cordb-persistence))
+-   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
 -   **Automatic TRoE in corDB** - temporal history from the same log, by a boolean. ([more](ideas.md#automatic-troe-in-cordb))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Service Execution** - "do this" in the API, not a write to an attribute. ([more](ideas.md#service-execution))

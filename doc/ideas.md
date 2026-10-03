@@ -178,6 +178,15 @@ front of any NGSI-LD broker. [Authorization in the broker](authorization.md).
 
 ## Operations and availability
 
+### Migrating from Orion-LD
+
+A deployment of Orion-LD moves to coraine with its data: entities, subscriptions, registrations.
+First a converter - an executable that reads an Orion-LD database and writes coraine's (MongoDB for
+`mongoc`, the files of a persistent corDB). Then, the general way: ETSI TC DATA has agreed that a
+broker should be able to save its data in a **neutral format** (possibly a set of CSV files; nothing
+about it is decided yet). With that format, any broker's export is coraine's import, and the
+converter becomes "export, import". To be taken further at the Athens face-to-face, October 2026.
+
 ### haaux
 
 High-availability cache synchronisation without a shared database: brokers register with each other
