@@ -119,7 +119,7 @@ which bypasses base-dir resolution — handy for pointing at a freshly-built `.s
 in a build tree without installing:
 
 ```sh
-coraine --database $PWD/BUILD_DEBUG/src/plugins/currentState/corDB/corDB.so
+coraine --database ../corDB/obj/debug/corDB.so
 ```
 
 ## How loading works (the mechanism)
@@ -204,7 +204,8 @@ the headers — read these before writing a plugin:
 ## Writing a new plugin (sketch)
 
 A DB plugin is one `.so` exporting `void dbRegister(DbDriver*)`. Minimal shape,
-mirroring `src/plugins/currentState/corDB/corDbRegister.c`:
+mirroring `corDbRegister.c` in [corDB](https://github.com/SEAMWARE/corDB) - a DB plugin in a
+repository of its own, built against this repo's `src/lib/db/DbDriver.h`:
 
 ```c
 #include "db/DbDriver.h"
