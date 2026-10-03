@@ -11,7 +11,7 @@
 // Every loaded bridge plugin, available - and every Bridge a Channel names
 // whose plugin the broker was not started with, unavailable: a configuration
 // that is valid and cannot be served is something to see with a GET, not to
-// find by noticing that nothing arrives (bridge-channels.md 3.3a).
+// find by noticing that nothing arrives (bridge-channels-details.md 3.3a).
 //
 // Bridges are the broker's, not a tenant's.
 //

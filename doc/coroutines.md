@@ -6,7 +6,7 @@ hands the socket to the loop and yields; the loop serves every other connection 
 resumes the coroutine when the socket is ready. One thread, any number of requests waiting at once,
 no thread switch.
 
-How this came about - the design, the steps, what each one measured - is in `doc/history.md`.
+How it came about - the design, the steps, what each one measured: [history](history/coroutines.md).
 
 ## 1. Where a request runs
 
@@ -88,16 +88,16 @@ server's callback returns.
 
 **cor:// server.** A connection is armed once and multiplexed: the loop reads every frame that comes,
 starts each request (inline or as a coroutine), and queues each response as it finishes -
-`doc/cor-protocol.md` § 5.3.
+`doc/cor-protocol-details.md` § 5.3.
 
 **cor:// client.** One connection a peer per thread, shared by the requests of the thread, any number
 in flight; `corRestCorStart` / `corRestCorWait` send now and collect later, which is how a distributed
-operation has every cor:// forward in flight at once - `doc/cor-protocol.md` § 5.3.
+operation has every cor:// forward in flight at once - `doc/cor-protocol-details.md` § 5.3.
 
 ## 5. Numbers
 
 `doc/performance.md`: "Where a request runs" (one core), the three-broker chain, and the write that
-notifies; `doc/cor-protocol.md` § 6 for cor://.
+notifies; `doc/cor-protocol-details.md` § 6 for cor://.
 
 ## 6. Open questions
 

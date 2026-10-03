@@ -36,7 +36,7 @@ mkdir -p "$WORK"
 # The configurations. Each is a label plus the cmake flags that define it.
 #
 # Only the flags that actually DO something are here. Nine of the fifteen
-# features are declared and unread (see doc/building.md), so a case for one of
+# features are declared and unread (see doc/building-details.md), so a case for one of
 # them would build a byte-identical binary and assert nothing; and three do not
 # link at all, which is a known state rather than something to pin.
 #

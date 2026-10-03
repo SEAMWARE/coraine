@@ -1,6 +1,6 @@
 # A Modbus bridge — design proposal
 
-> **v1 built** (2026-10-01): Modbus TCP, the address in the endpoint and how to read it in `channelInfo` (§ 2.1), change-only reporting
+> **v1 built:** Modbus TCP, the address in the endpoint and how to read it in `channelInfo` (§ 2.1), change-only reporting
 > with a deadband (§ 2.3), queued writes (§ 2.4), `modbusStatus` on a device that stops answering
 > (§ 2.5) - the plugin is its own repo, [corModbusBridge](https://github.com/SEAMWARE/corModbusBridge), tested against a Modbus device in the functests
 > (`test/funcTests/tools/ftModbus.py`, `bridge_modbus.test`). **Not yet:** contiguous registers read
@@ -8,10 +8,11 @@
 > outcome (§ 3.4 - logged only). The questions in § 5 are still open; v1 takes the proposed answer
 > to each, so changing one is a change to v1, not a design restart.
 >
-> Originally written as the proposal below, to decide the shape before any code.
 > The point is less Modbus itself than what it does to the Bridge/Channel seam:
 > it is the opposite of DDS in almost every respect, so wherever the seam only
 > works because DDS is DDS, a Modbus plugin will find it.
+>
+> How it came about: [history](history/modbus-bridge.md).
 
 ## 1. Modbus in one page
 
@@ -121,11 +122,10 @@ the last KNOWN value) and gets `sampleMetaIn` meta once, when the state changes:
 This is the part worth the work. Expected findings, each a decision to make
 rather than a fix to slip in:
 
-1. **Channel parameters - done: `channelInfo`.** A Channel had an endpoint, a kind and a direction.
-   Modbus needs typing and scaling; the first version put them in the endpoint string, which made a
-   scale factor part of the Channel's identity, and left every future transport (OPC-UA sampling, MQTT
-   QoS and codec) to invent its own URL syntax. Now the endpoint is the address and `channelInfo` - key-value
-   pairs, as `receiverInfo` - is the rest, handed to the plugin by `channelAddInfo` (bridge ABI 9).
+1. **Channel parameters - `channelInfo`.** Modbus needs typing and scaling. The endpoint is the
+   address and `channelInfo` - key-value pairs, as `receiverInfo` - is the rest, handed to the plugin
+   by `channelAddInfo` (bridge ABI 9). A scale factor is not part of the Channel's identity, and no
+   transport (OPC-UA sampling, MQTT QoS and codec) needs a URL syntax of its own.
 2. **Who owns time.** DDS carries source timestamps; Modbus none; the seam's
    `publishTime = 0` already means "broker, use your clock". OK as is.
 3. **Change detection.** Push transports do not need it, poll transports all do
@@ -177,8 +177,8 @@ Run with `--bridges modbus --bridgeConfig <file>`.
 
 ## 5. Questions
 
-1. ~~Mapping in the endpoint, or ...~~ **Decided: `channelInfo`** (§ 2.1). Still open: a named mapping
-   (one `channelInfo` for a fleet of identical devices), referenced by the Channels that use it.
+1. A named mapping (one `channelInfo` for a fleet of identical devices), referenced by the Channels
+   that use it? Today `channelInfo` (§ 2.1) is per Channel.
 2. Change-only in the plugin (proposed), or a broker-side service for all poll
    transports?
 3. Write outcomes: `publishResultIn` upcall now, or log-only in v1?

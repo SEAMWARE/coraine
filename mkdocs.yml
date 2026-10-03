@@ -34,8 +34,13 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 #
 exclude_docs: |
   bridge-channels.md
+  bridge-channels-details.md
+  history/bridge-channels.md
   problem-details.md
+  problem-details-details.md
+  history/problem-details.md
   error-reporting.md
+  error-reporting-details.md
   tutorial-doubts.md
 
 nav:
@@ -59,4 +64,12 @@ nav:
   - Functest coverage of the spec: spec-coverage-gaps.md
   - Roadmap: roadmap.md
   - FIWARE GE checklist: fiware-ge-checklist.md
-  - History: history.md
+  - History:
+      - Building: history/building.md
+      - cor://: history/cor-protocol.md
+      - Coroutines: history/coroutines.md
+      - Test coverage: history/coverage.md
+      - The Modbus bridge: history/modbus-bridge.md
+      - Performance: history/performance.md
+      - Plugin architecture: history/plugin-architecture.md
+      - Testing: history/testing.md

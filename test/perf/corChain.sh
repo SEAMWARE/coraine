@@ -13,7 +13,7 @@
 #   CORAINE_BIN=BUILD_RELEASE/src/app/coraine/coraine SEAMWARE_PLUGIN_DIR=<release plugins> ./corChain.sh http
 #   ... ./corChain.sh cor
 #
-# (doc/cor-protocol.md § 6 has its numbers.)
+# (doc/cor-protocol-details.md § 6 has its numbers.)
 #
 MODE=$1
 echo "== corChain $MODE - $($(dirname $0)/cpuIdle.sh show)"

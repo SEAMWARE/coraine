@@ -7,7 +7,7 @@
 #
 # Default goal endpoints, from the bridge configuration: a goal that names no
 # endpoint of its own is notified to its action Channel's default, else to its
-# Bridge's default, else nowhere (bridge-channels.md 9.1). Both are the
+# Bridge's default, else nowhere (bridge-channels-details.md 9.1). Both are the
 # subscription's own shape, "notification": { "endpoint": { "uri" } }. A default
 # makes no subscription of its own - the goal is given it as its endpoint - so a
 # default hears only goals that named none.

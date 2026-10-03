@@ -10,7 +10,7 @@
 //
 // Proposed to ETSI with the ContextBridge and the Channel: the path the
 // proposal gives them. Today every Channel comes from the configuration file
-// (bridge-channels.md 3.6) - they are listed as loaded, read-only.
+// (bridge-channels-details.md 3.6) - they are listed as loaded, read-only.
 //
 #include <stddef.h>                                   // NULL
 

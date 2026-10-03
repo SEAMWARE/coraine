@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 # A distributed query fanned out to two cor:// sources sends both requests before it waits for either
-# (doc/cor-protocol.md § 5.3): they are in flight at the same time. Each source takes ~1 s to answer -
+# (doc/cor-protocol-details.md § 5.3): they are in flight at the same time. Each source takes ~1 s to answer -
 # CP1 and CP2 forward in turn, over HTTP, each to a context source that answers after 1 s - so the query
 # takes ~1 s with the two in flight together, ~2 s one after the other.
 #

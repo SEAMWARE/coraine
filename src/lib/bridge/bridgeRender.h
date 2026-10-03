@@ -64,7 +64,7 @@ extern CorNode* channelRender(Channel* channelP, CorLdContext* contextP);
 //
 // loaded: its plugin is one the broker was started with. A Bridge that only
 // Channels name is unavailable - the configuration is valid, the transport is
-// not here (bridge-channels.md 3.3a).
+// not here (bridge-channels-details.md 3.3a).
 //
 extern CorNode* bridgeRender(const char* bridgeName, bool loaded);
 

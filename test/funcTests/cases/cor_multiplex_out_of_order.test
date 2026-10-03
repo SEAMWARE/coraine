@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# cor:// multiplexing (doc/cor-protocol.md § 5.3): requests in flight on ONE connection are answered in
+# cor:// multiplexing (doc/cor-protocol-details.md § 5.3): requests in flight on ONE connection are answered in
 # the order they finish, not the order they were sent. A slow request - a forward to a context source
 # that takes 1.5 s - goes out first; a fast one - an entity the broker holds, local=true so it is not
 # forwarded too - 100 ms later, on the same connection. The fast one is answered first, while the slow
@@ -14,7 +14,7 @@
 # REQUIRE_DB: corDB
 #
 # corDB only: requests in flight together on a connection are coroutines of the server's loop
-# (doc/cor-protocol.md § 5.3). With mongoc a request that waits cannot be one - the driver blocks - so the
+# (doc/cor-protocol-details.md § 5.3). With mongoc a request that waits cannot be one - the driver blocks - so the
 # connection moves to a thread of its own and is served one request at a time, as before step 5.
 #
 --NAME--
