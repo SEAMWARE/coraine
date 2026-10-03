@@ -179,12 +179,21 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          - { db: mongoc, name: '1-183',   from: 1,   to: 183 }
-          - { db: mongoc, name: '184-360', from: 184, to: 360 }
-          - { db: mongoc, name: '361-545', from: 361, to: 545 }
-          - { db: mongoc, name: '546-end', from: 546, to: 0 }
-          - { db: corDB,  name: '1-336',   from: 1,   to: 336 }
-          - { db: corDB,  name: '337-end', from: 337, to: 0 }
+          #
+          # Split by TIME, not by count (2026-10-03, from the per-test costs of a full run - the gap
+          # between consecutive test lines, broker start and stop included): ~173 s of tests a mongoc
+          # shard, ~168 s a corDB one, and every job pays ~2 min of build first - so each lands near
+          # 4.9 min. The last of each has no upper bound: tests added later go there, and it is the one
+          # to watch when the next rebalance is due.
+          #
+          - { db: mongoc, name: '1-141',   from: 1,   to: 141 }
+          - { db: mongoc, name: '142-293', from: 142, to: 293 }
+          - { db: mongoc, name: '294-473', from: 294, to: 473 }
+          - { db: mongoc, name: '474-616', from: 474, to: 616 }
+          - { db: mongoc, name: '617-end', from: 617, to: 0 }
+          - { db: corDB,  name: '1-226',   from: 1,   to: 226 }
+          - { db: corDB,  name: '227-529', from: 227, to: 529 }
+          - { db: corDB,  name: '530-end', from: 530, to: 0 }
           #
           # The reduced builds. Its own shard rather than a share of one,
           # because it is the only case that COMPILES rather than requesting -
