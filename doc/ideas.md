@@ -8,13 +8,13 @@ Each idea: one line, then what there is to say about it, and where more lives.
 
 ## Storage
 
-### corDB persistence
+### corDB persistence - cheaper writes
 
-corDB survives a restart ([corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)). Today a corDB deployment does not, the one place the "no servers"
-configuration is weaker than the MongoDB one. Snapshot plus an append log of every write's effect,
-group-commit `fsync` on a timer - the durability MongoDB gives by default - keeping the write path as
-fast as it is. The log's records are cor trees (`cor-protocol-details.md` § 4), so one serializer
-serves the wire, the log and the snapshot.
+corDB persists with `--dbDir` (a log and snapshots - [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md));
+what it costs is in [Performance](performance.md), "corDB on disk": nothing on reads, 6-24 % on
+writes that change the store, more while the store grows fast. Two ways to bring it down: a PATCH or
+merge that logs only the attributes it touched (`ATTRS_PUT`, already in the record format) instead
+of the whole entity, and a cheaper encode of a record (the per-request cost is the encode).
 
 ### Automatic TRoE in corDB
 

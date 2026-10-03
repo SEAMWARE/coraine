@@ -266,8 +266,8 @@ does not:
 So the vtable is the same shape in every build, and **a feature that is off is a
 NULL function pointer at run time** - which is already the established
 convention rather than a new idea: `DbDriver.h` carries seven `NULL-allowed`
-members today, `snapshotCreate` among them, NULL for corDB because corDB does
-not persist.
+members today, `snapshotCreate` among them, NULL for corDB, which does not
+implement snapshot queries.
 
 That is the rule to keep, and it is what makes the edge shape cheap: an edge
 broker can load a plugin built against a full broker, because the contract does
