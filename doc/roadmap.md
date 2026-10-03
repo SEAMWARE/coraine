@@ -18,47 +18,26 @@ The detailed, day-to-day backlog — including what is deferred *by design* and 
 is [`ToDo.md`](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md) in the root of this repository. It is kept current as
 work lands rather than at release boundaries.
 
+## Available now
+
+Recently built, and documented where it lives:
+
+-   **DDS** - topics both ways, services, actions, through the DDS bridge ([DDS and ROS 2](dds.md)).
+-   **MQTT** - device topics as Channels, and notifications to `mqtt://` ([The MQTT bridge](mqtt-bridge.md)).
+-   **Modbus TCP** - registers as Channels ([The Modbus bridge](modbus-bridge.md)).
+-   **`cor://`** - the binary protocol for GE-to-GE traffic: forwarding without a JSON parse, many
+    requests in flight on one connection ([The cor format and cor://](cor-protocol.md)).
+-   **Requests that wait run as coroutines** of the event loops, not on worker threads
+    ([Coroutines](coroutines.md)).
+
+Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
+face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
+coraine implements its own objects now and adapts to whatever TC DATA settles on.
+
 ## Short term
 
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
-
--   **DDS.** Speak DDS natively, so a robotics or industrial deployment can put
-    a context broker where it previously needed a gateway. DDS topics become
-    entity attributes in both directions: a sample published on `rt/pose` updates
-    `(urn:ngsi-ld:robot:1, pose)`, and a change to that attribute publishes a
-    sample.
-
-    This is first on the list, and it does not wait for anybody. DDS is the
-    first peer that is *not* an NGSI-LD broker and *not* HTTP, so everything the
-    broker assumes about request/response has to be made explicit to
-    accommodate it — and that mechanism is ours to design and ship now. A
-    **Bridge** is the transport instance (for DDS the participant — domain, QoS
-    defaults, types directory); a **Channel** ties one foreign endpoint to one
-    entity attribute with a direction and a retention. The design notes behind
-    that (`doc/bridge-channels.md`) are not published while the concept is in
-    front of ETSI.
-
-    **Standardisation is a separate, slower track.** The same concept is being
-    taken to ETSI — presented at the TC DATA face-to-face in Athens, 20–22
-    October 2026 — and anything that becomes normative there will realistically
-    land in 2027. Waiting for it would mean no DDS for a year and a half. So
-    coraine implements its own Bridge and Channel objects now and adapts to
-    whatever TC DATA settles on, which is the cheaper direction to be wrong in:
-    an implementation that exists can be aligned, a specification nobody
-    implemented cannot be validated.
-
--   **`cor://` — a binary protocol for GE-to-GE traffic.** TLV-framed, beside
-    REST rather than instead of it, with no JSON parse on the hot path. It covers
-    broker-to-broker forwarding, which is where NGSI-LD currently pays for HTTP
-    and JSON on every hop of a federation.
-
-    Its serialisation is deliberately the same algorithm that persistence will
-    use, so the format is designed once for both. Doing it the other way round
-    produces two formats that diverge, and the second one arrives as "the other
-    serializer".
-
-    The design draft: [The cor format and cor://](cor-protocol.md).
 
 -   **corDB: persistence, and temporal history for free.** corDB is already the
     current-state store — entities in the process's own RAM, no database server,
@@ -77,19 +56,19 @@ incorporated in the next release of the product, in roughly this order:
     costs nothing; the same history in PostgreSQL costs corDB 91% of its write
     rate.
 
--   **Bridges and Channels, generalised.** Once DDS has forced the seam into
-    existence, the same contract carries the rest: `cor://`, MQTT, OPC UA,
-    WebSockets. The protocol names the endpoint and the endpoint decides the
-    transport — a subscription or a registration asks for one by the scheme of
+-   **More bridges.** The Bridge/Channel seam that carries DDS, MQTT and Modbus
+    carries the rest: Kafka, WebSockets, OPC UA. The protocol names the endpoint
+    and the endpoint decides the transport — a subscription or a registration asks for one by the scheme of
     its endpoint, and HTTP stays inline rather than becoming a plugin, because
     HTTP is also the NGSI-LD REST API and the broker can never ship without it.
 
-    This is our mechanism, not a standard. See the note under DDS above.
+    This is our mechanism, not a standard - see "Available now".
 
 -   **Service Execution.** Actuation as a first-class citizen of the API, beyond
-    the suggested workflows of TS 104 175 Annex G. DDS makes this concrete rather
-    than theoretical: DDS services and actions are in scope, so the broker needs
-    a way to express "do this" that is not a write to an attribute.
+    the suggested workflows of TS 104 175 Annex G. DDS services and actions reach
+    the broker today through Channels and a provisional convention (a write to an
+    attribute, goals as its instances); the broker still needs a way to express
+    "do this" that is not a write to an attribute.
 
 -   **Packages, so nobody has to build it.** A Debian repository and
     `apt-get install coraine`, with a `coraine-dev` that pulls the whole
@@ -175,7 +154,7 @@ product is heading and may wish to get involved.
     `type`, `value`, `observedAt`, `Property`, `Relationship` and the rest can be
     an enum rather than a string — smaller on the wire and on disk, and a compare
     rather than a `strcmp` everywhere in the broker. Done once, gained always,
-    and it is the same decision as the `cor://` format above.
+    and it is the same decision as the [`cor://` format](cor-protocol.md).
 
 -   **Our own string collation, replacing ICU.** § 7.6.2.1 makes ICU "root"
     collation the default order for `orderBy` on strings, and honouring it with

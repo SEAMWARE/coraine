@@ -35,11 +35,10 @@ There are **five** kinds of plugin:
   (comma-separated, up to `API_PLUGINS_MAX = 16`). Bundled: `admin`.
 
 - **Communication protocols** — the transport over which the broker speaks to
-  clients and to other brokers. The default is **REST/HTTP**, which is what ships
-  today. A pluggable transport layer that lets an **ad-hoc binary protocol** be
-  swapped in alongside (or instead of) REST is **planned, not yet implemented** —
-  the architecture is designed around it, but there is no `protocol` register
-  symbol or driver struct yet.
+  clients and to other brokers. Two ship, both built into corRest: **REST/HTTP**,
+  and **`cor://`**, the binary protocol (`--corPort`; [The cor format and cor://](cor-protocol.md)).
+  Neither is a plugin: there is no `protocol` register symbol or driver struct, so
+  a third transport is a change to corRest, not a `.so`.
 
 - **Bridges** — the transports over which the broker speaks to something that is
   **not** an NGSI-LD client: a DDS topic, an MQTT broker, an OPC-UA server.

@@ -364,6 +364,15 @@ MQTT case and giving the connection the identity it currently lacks:
 }
 ```
 
+**As built**, Bridges and Channels come from the configuration file and are read
+over `GET /ngsi-ld/v1/bridges` and `/channels` (no CRUD yet), and what is rendered
+differs from the two documents above, which are the design. A Bridge:
+`{"id": "urn:ngsi-ld:ContextBridge:<plugin>", "type": "ContextBridge", "plugin", "status",
+"samplesDropped"}`. A Channel: `{"id": "urn:ngsi-ld:Channel:<bridge>:<target>", "type":
+"Channel", "bridgeId", "channelKind", "channelTarget", "channelDirection", "retention",
+"entity": {"id", "type"}, "entityAttribute", "status"}` and its counters (§ 3.3b) -
+`bridge_channel_read_api.test` pins both.
+
 The **Capability** is the third concept and is deliberately absent from both
 documents: it is `mqtt.so`, named on `--bridges`, with no id and no CRUD.
 `"plugin": "mqtt"` above is a *reference* to one, not an object.
@@ -1999,14 +2008,14 @@ the definition covers rather than a mechanism bent out of shape, the
 alongside, and it buys storage, query and temporal handling for nothing. It
 was chosen deliberately, and as provisional from the start.
 
-⚠ **What it does not buy is notification scoping, and that is the part to
-watch.** A subscription on an action attribute fires on every change, but
-the notification body carries the attribute's default instance rather than
-the changed goal's feedback, result or status — there is no datasetId-scoped
-projection on the notification path. So the one thing a goal most needs,
-*tell me when this goal progresses*, is exactly what the borrowed mechanism
-cannot do; a consumer falls back to `GET …?datasetId=urn:goal:<uuid>` or the
-temporal API. The lifecycle is unusual too: the attribute disappears when
+**Notification scoping takes an extension.** A subscription's own `datasetId`
+(§ 5.8.6) selects which instances a notification *carries*, not whether one is
+sent, so on its own a subscription on an action attribute fires on every goal's
+change. coraine adds a `watchedAttributes` entry that names one instance -
+`"navigate@urn:goal:<uuid>"` - watched only when that instance is written
+(`subscription_watched_attr_dataset.test`); with the `datasetId` projection it
+delivers that goal alone. A goal's own endpoint is served exactly that way
+(§ 9.1). It is not standard NGSI-LD. The lifecycle is unusual too: the attribute disappears when
 the last goal finishes and returns with the next, which no ordinary multi-
 instance attribute does.
 
@@ -2069,15 +2078,11 @@ parallel vtable section for invocation, mirroring the spec API. OPC-UA's
   §10 rests on the answer. If a partner's code reads
   `ddsActionFeedback` directly, it is an interface and the migration to
   Service Execution stops being free.
-- **Notification transport unification**: the broker's current MQTT
-  support is for outbound subscription notifications (separate from
-  the distop / CSR path). Bringing notifications under the bridge
-  family would unify "broker sends a thing to a remote endpoint" but
-  would also expand the bridge scope beyond CSR-bound traffic. For
-  the first cut the bridge family is CSR-bound only; notifications
-  stay in the existing notification path. Re-evaluate after WS / MQTT
-  bridges are working — both protocols naturally carry both kinds of
-  traffic on the same connection.
+- **Notifications over the bridges** - settled: a notification to a scheme other than HTTP
+  (`mqtt://`, `mqtts://`) is delivered by the bridge plugin that claims the scheme (`BridgeDriver`
+  ABI 10, `notifySchemes` / `notify`; `mqtt.so` - [The MQTT bridge](mqtt-bridge.md)). HTTP
+  notifications stay in corRest's client. A Subscription naming a scheme no loaded bridge claims is
+  refused at creation.
 
 ---
 
