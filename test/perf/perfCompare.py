@@ -14,7 +14,7 @@
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
 #
-import json, sys, statistics
+import json, os, sys, statistics
 
 WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 
@@ -38,9 +38,30 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 def lowerIsBetter(metric):
     return metric.endswith("_p99us")
 
+#
+# cpu - the machine this run is on, as perfRecord.py records it
+#
+# ⭐ The history is filtered to it. GitHub's shared runners come in more than one CPU generation, and
+# every metric of both databases moves together by 30-40% from one to the other (2026-10-01 ->
+# 10-02: +100% everywhere; 10-03: -30% everywhere, on a commit that changed no hot path). Compared
+# across machines, the gate measured the draw of the runner. Records from before the field existed
+# have no machine, and are not compared with.
+#
+def cpu():
+    model = "unknown"
+    try:
+        for line in open("/proc/cpuinfo"):
+            if line.startswith("model name"):
+                model = line.split(":", 1)[1].strip()
+                break
+    except OSError:
+        pass
+    return f"{model} x{os.cpu_count()}"
+
 historyFile, todayJson = sys.argv[1], sys.argv[2]
-today = json.loads(todayJson)
-db    = today["db"]
+today   = json.loads(todayJson)
+db      = today["db"]
+machine = cpu()
 
 history = []
 try:
@@ -48,13 +69,14 @@ try:
         line = line.strip()
         if line:
             rec = json.loads(line)
-            if rec.get("db") == db:
+            if (rec.get("db") == db) and (rec.get("cpu") == machine):
                 history.append(rec)
 except FileNotFoundError:
     pass
 
-metrics = [k for k in today if k not in ("db", "date", "sha", "run")]
+metrics = [k for k in today if k not in ("db", "date", "sha", "run", "cpu")]
 print(f"### Performance — `{db}`\n")
+print(f"On `{machine}` - compared with the {min(len(history), WINDOW)} latest runs on the same CPU.\n")
 print("| metric | now | median of last %d | change | | " % WINDOW)
 print("|---|---:|---:|---:|---|")
 
