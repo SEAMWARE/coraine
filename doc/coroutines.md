@@ -309,7 +309,43 @@ On the way: the benchmark's first receiver - a debug corTestClient - wrote a ful
 request, 25 GB of `/tmp` in minutes, and could not keep up: it made the coroutines look 30 % *slower*
 at one connection. corTestClient `--traceLevels ""` for a receiver that measures nothing of its own.
 
-## 11. Open questions
+## 11. Step 5: multiplexing (2026-10-02)
+
+Many cor:// requests in flight on one connection - how it works is in `doc/cor-protocol.md` § 5.3; on
+threads it had cost 5-11 % and was dropped, on the coroutines it costs nothing. What it took here:
+
+- corBase `corCoLoopPark` / `corCoLoopWake`: a coroutine waits until another of its loop wakes it -
+  the reader of a connection waking the coroutine whose response it decoded, a writer the next one
+  queued for the connection's write turn
+- the server armed once per connection instead of once per request (`EPOLLONESHOT`, re-armed after
+  every response - § 8 put step 3's one-caller cost on it). Gone now, and the one-caller chain did not
+  move for it (14 400 req/s either way): the re-arm was not where those microseconds went. It
+  reassembles a next frame only from bytes already read - a `read()` that finds nothing is the epoll's
+  to report
+- the client reads into its buffer as soon as the socket is ready: waiting for readiness and then
+  again inside `connRead` cost an `epoll_ctl` and a round of the loop per response, and the first
+  measurement had one caller 3 % down for it
+- corRequest `--sockets 1`: every path on one connection, printed in the order the answers came
+
+**Measured** - the three-broker chain, release builds, deep idle states, two rounds, back to back with
+the build before (`corChain.sh`):
+
+| | before | **multiplexed** |
+|---|---:|---:|
+| cor:// end to end, small entity, 16 callers | 67 547 / 79 159 | **83 400 / 83 832** (p99 271 / 260 µs) |
+| cor:// end to end, small entity, 1 caller | 14 514 / 14 364 | 14 388 / 14 384 |
+| cor:// end to end, 20 attributes, 16 callers | 45 849 / 42 804 | 44 867 / 44 963 |
+| HTTP client, cor:// between, small entity, 16 callers | 67 310 / 62 292 (p99 3.0 / 3.2 ms) | **73 466 / 74 195 (p99 441 / 416 µs)** |
+| HTTP client, cor:// between, 20 attributes, 16 callers | 35 950 / 36 194 (p99 3.3 ms) | 37 868 / 37 442 (p99 0.94 ms) |
+
+One caller, 20 attributes, cor:// end to end moved ±5 % between runs either way; `perf stat` over the
+three brokers settles it: **1 251 807 / 1 250 186 instructions and 548 840 / 545 107 cycles a
+request**, before / after - the same. The p99 before at 16 callers was the client running out of
+connections: eight per thread, and a request finding them all busy opened one of its own, HELLO
+included. A fan-out to two cor:// sources of one second each: two seconds before, one now
+(`cor_fanout_concurrent`).
+
+## 12. Open questions
 
 - The cap and the stack size as options, or fixed? (`--coroutines`, `--coStack`?)
 - libmicrohttpd: worth its `MHD_suspend/resume_connection` later, or does the builtin server become

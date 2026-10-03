@@ -372,6 +372,11 @@ the receiver (corTestClient, release, `--traceLevels ""`) on other cores:
 
 *(req/s, 2026-10-02; one notification per write reached the receiver in both.)*
 
+**cor:// multiplexed** (`doc/cor-protocol.md` § 5.3, `doc/coroutines.md` § 11): many requests in
+flight on one connection. The three-broker chain at 16 callers: cor:// end to end 67 500-79 200 ->
+**83 400-83 800** req/s; HTTP in front and cor:// between 62 300-67 300 -> **73 500-74 200**, its p99
+3.0-3.2 ms -> **0.42-0.44 ms**. One caller: unchanged, and so are the instructions per request.
+
 **Nothing else moved.** libmicrohttpd before and after - every request shape on
 one core, `corDB` and `mongoc`, and the chain - within ±5 % run to run (the clients
 under it changed: non-blocking sockets, TLS on the loop, a resolver thread).
