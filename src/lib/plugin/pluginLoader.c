@@ -152,7 +152,24 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&troe, 0, sizeof(TroeDriver));
 
-  corPluginResolve(corPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
+  //
+  // --troe corDB is not a plugin of its own: corDB keeps history in its store - the same lock, the same
+  // log - so the TRoE driver is the current-state plugin's own troeRegister. Which needs that plugin to
+  // BE corDB; another store's history goes to an external server (timescale).
+  //
+  if (strcmp(shortName, "corDB") == 0)
+  {
+    if ((db.alias == NULL) || (strcmp(db.alias, "corDB") != 0))
+    {
+      if (errorBuf != NULL)
+        snprintf(errorBuf, errorBufSize, "TRoE 'corDB' keeps the history inside the corDB store - it needs --database corDB (not '%s')", (db.alias != NULL) ? db.alias : "?");
+      return -1;
+    }
+
+    corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));
+  }
+  else
+    corPluginResolve(corPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
 
   char openErr[512];
   TroeRegisterFunc registerFunc = (TroeRegisterFunc) corPluginOpen(path, "troeRegister", openErr, sizeof(openErr));
