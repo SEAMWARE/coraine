@@ -443,6 +443,34 @@ a different claim from a peak.
 corHttp holds p99 two to three times lower up to 200 clients. Past that both
 servers are queueing and the tail is the queue, not the server.
 
+### Profile-guided: `make pgo`
+
+A release build compiled twice: once instrumented (`-fprofile-generate`), run through the work it is
+measured on (`test/perf/pgoTrain.sh`: perfRun's request shapes, a write that notifies, the three-broker
+chain in all three modes), then again with the profile (`-fprofile-use`) - the compiler lays out the
+hot paths together and the cold ones out of the way, and inlines and unrolls where the profile says
+it pays. Every library is in it, not only the broker. Against the same source and flags without the
+profile (2026-10-02, one core, `corDB`, built-in server):
+
+| One core | without | **PGO** | |
+|---|---:|---:|---:|
+| query, 1 entity | 79 657 | **83 452** | +4.8 % |
+| query, 20 entities | 11 574 | **12 702** | +9.7 % |
+| query, 100 entities | 2 566 | **2 780** | +8.3 % |
+| retrieve | 86 546 | **90 200** | +4.2 % |
+| PATCH, 1 connection | 44 349 | **48 101** | +8.5 % |
+| PATCH, 50 connections | 98 453 | **100 851** | +2.4 % |
+| create | 61 965 | **64 417** | +4.0 % |
+| merge | 80 039 | **83 557** | +4.4 % |
+| delete | 115 624 | **117 100** | +1.3 % |
+| batches of 20 (update / create / delete) | | | +3.2 / +5.3 / +1.8 % |
+
+The Docker image and the nightly performance job are built this way (since 2026-10-03).
+
+User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
+three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
+caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
+
 ### Tried, measured, and dropped
 
 Not every idea that should make a broker faster does. Measured on the same
@@ -452,8 +480,8 @@ machine, release builds, and left out:
   About three quarters of a small request's cycles are spent in the kernel - its
   system calls and thread switches - and LTO can only work on the quarter that is
   ours. It did find a real bug on the way: a `corAlloc()` result used unchecked
-  in the JSON parser (fixed). Profile-guided optimisation is still to be measured,
-  at the end of the coroutines step (`doc/coroutines.md`).
+  in the JSON parser (fixed). Profile-guided optimisation, measured after it, is
+  not noise - see "Profile-guided" above.
 - **Compiling the traces out of release builds** (2026-09-30): about +1 % on
   writes, nothing measurable on queries. The cost of a disabled trace had already
   gone - a trace level is checked before any of its arguments are evaluated - so

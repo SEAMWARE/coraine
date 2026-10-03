@@ -211,12 +211,50 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
+#
+# pgo - a profile-guided RELEASE build in BUILD_PGO (doc/coroutines.md § 13)
+#
+# 1. every library and the broker built with -fprofile-generate (atomic counters: the broker is
+#    multi-threaded); 2. test/perf/pgoTrain.sh runs it through the measured work - perfRun's request
+#    shapes, a write that notifies, the three-broker chain in all three modes; 3. all of it rebuilt with
+#    -fprofile-use, in the SAME object paths (the profile files are named after them).
+# The libraries under corRest keep one archive whatever the flavour, so they are rebuilt as debug at
+# the end: a `make di` after this must not link profile-guided release archives.
+# Measured 2026-10-02 against the same source without it: +1-10 % per core, +4-15 % on the chain.
+#
+PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild
+PGO_PROFILE   = $(CURDIR)/BUILD_PGO_PROFILE
+PGO_GEN       = -fprofile-generate=$(PGO_PROFILE) -fprofile-update=atomic
+PGO_USE       = -fprofile-use=$(PGO_PROFILE) -fprofile-partial-training -fprofile-correction -Wno-missing-profile
+# PGO_RESTORE_DEBUG=0 where nothing builds debug after it (the Docker image, CI) - saves the rebuild
+PGO_RESTORE_DEBUG ?= 1
+
+pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
+	rm -rf $(PGO_PROFILE) BUILD_PGO
+	@for lib in $(PGO_LIBS); do \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
+	done
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
+	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
+	cmake --build BUILD_PGO -j$(CPU_COUNT)
+	test/perf/pgoTrain.sh BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
+	@for lib in $(PGO_LIBS); do \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
+	done
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
+	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
+	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
+	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di > /dev/null || exit 1; \
+	done; fi
+	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
+
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
-	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) coverage coverage-* $(COV_ETSI_DIR)
+	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) BUILD_PGO BUILD_PGO_PROFILE coverage coverage-* $(COV_ETSI_DIR)
 
 #
 # The file is DATA, not source - nothing includes it and nothing compiles from
@@ -256,6 +294,9 @@ install: etc/contextSourceExtras.json
 
 install_debug: etc/contextSourceExtras.json
 	$(call install_from,$(BUILD_DEBUG))
+
+install_pgo: etc/contextSourceExtras.json
+	$(call install_from,BUILD_PGO)
 
 test:
 	$(CORTEST)
@@ -510,4 +551,4 @@ docker:
 	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
 	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
 
-.PHONY: all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker
+.PHONY: pgo install_pgo all release debug clean install install_debug install_from_coverage test coverage coverage-etsi i di ci cdi libs libs-rebuild docker
