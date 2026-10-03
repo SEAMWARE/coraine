@@ -215,8 +215,8 @@ questions.
 Two properties make that practical rather than aspirational. A **NULL function
 pointer means "unsupported"**, answered as `501 Not Implemented`, so a new backend can
 ship the day it does entity CRUD and grow snapshots, registrations or context
-persistence later — `corDB` legitimately ships without persistence on exactly that
-basis. And the choice is made **at startup, not at build time**: the same binary runs
+persistence later — `corDB` gained its persistence (`--dbDir`) entirely inside the
+plugin, with no change to the broker. And the choice is made **at startup, not at build time**: the same binary runs
 on MongoDB in production, in RAM for a test, and on your own store in the field,
 because `--database` takes a path as readily as a name.
 
@@ -344,7 +344,7 @@ coraine implements in full. Every command-line option is listed by
 Next, in roughly this order - each in more detail in the [roadmap](doc/roadmap.md), and every idea,
 planned or not, in [Ideas](doc/ideas.md):
 
-- **corDB persistence** - corDB survives a restart: snapshot plus an append log, `fsync` on a timer.
+- **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity.
 - **Automatic TRoE in corDB** - temporal history from the same log, by a boolean.
 - **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam.
 - **Service Execution** - "do this" in the API, not a write to an attribute.

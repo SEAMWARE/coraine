@@ -40,10 +40,10 @@ Last verified against the repository: **2026-09-16**.
 | — Developer documentation: how to call the API programmatically | ✅ | [`doc/api-walkthrough.md`](api-walkthrough.md) |
 | — User documentation: how to use the GUI | n/a | there is no GUI |
 | — Apiary / API specification | ✅ | Referenced rather than restated — README § API specification links ETSI ISG CIM's OpenAPI 3.0.3 on ETSI Forge (publicly readable, no account) and names ETSI GS CIM 047. ⚠️ Stated honestly there: that file was last updated **April 2022** and describes ~v1.7.1–1.8.1, not the v1.9.1 implemented here; an ETSI STF is producing a current one. For the newer clauses the specification document is the authority |
-| **Stateful component: state persistable between instantiations, no manual set-up** | ⚠️ | True with `--database mongoc`. **Not** true with `corDB`, which is in-process and does not persist yet — see the note below. Persistence is [ToDo § 15](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md) |
+| **Stateful component: state persistable between instantiations, no manual set-up** | ✅ | With `--database mongoc`, and with `corDB` plus `--dbDir <directory>` (a log and snapshots, no database server) - see the note below |
 | Commitment to complete the remaining Incubated requirements | ✅ | this file is the tracking |
 
-### Two notes that pull in opposite directions
+### Two notes: no dependencies, and persistence
 
 **The zero-dependency requirement is where coraine is strongest.** Every example
 the Foundation gives for "instantiable without referring to dependent
@@ -52,12 +52,11 @@ Agent behind MongoDB, QuantumLeap behind CrateDB. coraine with `corDB` has no
 dependency to hide: no database server, no runtime, no JVM, three added shared
 libraries of which two are GEOS.
 
-**Persistence is where it is weakest, and it is the same feature.** A `corDB`
-deployment does not survive a restart. The requirement is met by running
-`--database mongoc`, which is a supported, tested configuration — so the honest
-answer is "persistent via MongoDB today, and `corDB` persistence is on the
-roadmap", not "we need no database". Claiming the second while the checklist
-asks the first is how a reviewer loses trust in the rest of the answers.
+**Persistence comes without giving that up.** `corDB` with `--dbDir` keeps the
+store in a directory - an append log synced every 100 ms and snapshots - so a
+deployment survives a restart with still no database server. A clean stop loses
+nothing; a crash, at most the last 100 ms (or nothing, with `--dbSync request`).
+What it costs is measured in [Performance](performance.md), "corDB on disk".
 
 ### Submission checklist
 
