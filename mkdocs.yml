@@ -63,6 +63,7 @@ nav:
   - Test coverage: coverage.md
   - Functest coverage of the spec: spec-coverage-gaps.md
   - Roadmap: roadmap.md
+  - Ideas: ideas.md
   - FIWARE GE checklist: fiware-ge-checklist.md
   - History:
       - Building: history/building.md

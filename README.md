@@ -58,6 +58,7 @@ Overflow.
 - [Running](#running)
 - [API walkthrough](#api-walkthrough)
 - [Documentation](#documentation)
+- [Roadmap](#roadmap)
 - [Quality assurance](#quality-assurance)
 - [Training](#training)
 - [Contributing](#contributing)
@@ -322,18 +323,34 @@ repository, which is where to read them offline or alongside a checkout:
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
 | [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
-| [Building from source](doc/building.md) | the source layout, the dependency stack, system packages, make targets, compiling features out |
+| [Building from source](doc/building.md) | the dependency stack, system packages, make targets; the source layout and compiling features out in its detail page |
 | [Testing](doc/testing.md) | running the suite, and measuring coverage |
 | [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
 | [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
 | [Functest coverage of the spec](doc/spec-coverage-gaps.md) | every spec statement, and whether a test asserts it |
-| [Roadmap](doc/roadmap.md) | where coraine is going |
+| [Roadmap](doc/roadmap.md) | where coraine is going - short, medium and long term |
+| [Ideas](doc/ideas.md) | every idea, planned or only possible, with what there is to say about it |
 
 The full API is the specification itself: **ETSI GS CIM 009 / TS 104 175**, which
 coraine implements in full. Every command-line option is listed by
 `coraine --usage`, including the options contributed by the plugins you selected.
+
+---
+
+## Roadmap
+
+Next, in roughly this order - each in more detail in the [roadmap](doc/roadmap.md), and every idea,
+planned or not, in [Ideas](doc/ideas.md):
+
+- **corDB persistence** - corDB survives a restart: snapshot plus an append log, `fsync` on a timer.
+- **Automatic TRoE in corDB** - temporal history from the same log, by a boolean.
+- **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam.
+- **Service Execution** - "do this" in the API, not a write to an attribute.
+- **Packages** - `apt-get install coraine`.
+- **Finish conditional compilation** - every feature flag reaches the code it names.
+- **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too.
 
 ---
 
