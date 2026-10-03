@@ -52,10 +52,11 @@ nav:
   - The Modbus bridge: modbus-bridge.md
   - The MQTT bridge: mqtt-bridge.md
   - The cor format and cor://: cor-protocol.md
-  - Coroutines (design): coroutines.md
+  - Coroutines: coroutines.md
   - Authorization in the broker: authorization.md
   - FIWARE IoT Agents: iot-agents.md
   - Test coverage: coverage.md
   - Functest coverage of the spec: spec-coverage-gaps.md
   - Roadmap: roadmap.md
   - FIWARE GE checklist: fiware-ge-checklist.md
+  - History: history.md

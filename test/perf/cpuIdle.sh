@@ -8,7 +8,7 @@
 #   show     which are disabled now
 #
 # A quiet machine sleeps deeper between requests: the 1-connection cor:// chain measured 11,000 req/s
-# with deep states and 14,200 without (doc/cor-protocol.md § 6.1). Compare transports only under the
+# with deep states and 14,200 without (doc/cor-protocol.md § 6). Compare transports only under the
 # same setting, and say which.
 #
 # Needs root, through sudo without a password for exactly these two commands - one line, installed

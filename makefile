@@ -212,7 +212,7 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 
 #
-# pgo - a profile-guided RELEASE build in BUILD_PGO (doc/coroutines.md § 13)
+# pgo - a profile-guided RELEASE build in BUILD_PGO (doc/performance.md, "Profile-guided")
 #
 # 1. every library and the broker built with -fprofile-generate (atomic counters: the broker is
 #    multi-threaded); 2. test/perf/pgoTrain.sh runs it through the measured work - perfRun's request
@@ -220,7 +220,7 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 #    -fprofile-use, in the SAME object paths (the profile files are named after them).
 # The libraries under corRest keep one archive whatever the flavour, so they are rebuilt as debug at
 # the end: a `make di` after this must not link profile-guided release archives.
-# Measured 2026-10-02 against the same source without it: +1-10 % per core, +4-15 % on the chain.
+# Against the same source without it: +1-10 % per core, +4-15 % on the chain (doc/performance.md).
 #
 PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild
 PGO_PROFILE   = $(CURDIR)/BUILD_PGO_PROFILE

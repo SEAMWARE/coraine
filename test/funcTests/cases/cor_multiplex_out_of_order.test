@@ -14,7 +14,7 @@
 # REQUIRE_DB: corDB
 #
 # corDB only: requests in flight together on a connection are coroutines of the server's loop
-# (doc/coroutines.md § 6). With mongoc a request that waits cannot be one - the driver blocks - so the
+# (doc/cor-protocol.md § 5.3). With mongoc a request that waits cannot be one - the driver blocks - so the
 # connection moves to a thread of its own and is served one request at a time, as before step 5.
 #
 --NAME--
