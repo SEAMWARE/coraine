@@ -1,0 +1,68 @@
+#
+# FILE            geo_polygon_large.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A GeoProperty whose coordinates are long - a polygon of 300 points, over 4 KB of coordinate text - is
+# matched like a small one. The geometry is handed to GEOS as GeoJSON text; built in a fixed 4 KB
+# buffer, a longer one was cut short, failed to parse, and the entity silently matched nothing.
+#
+--NAME--
+Geo-query on a polygon of over 4 KB of coordinates
+
+--TAGS--
+geo
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+#
+# A circle of 300 points around [0,40], radius 1 degree, closed
+#
+coords=$(awk 'BEGIN { n = 300; s = "["; for (i = 0; i < n; i++) { a = 2 * 3.14159265358979 * i / n; s = s sprintf("[%.6f,%.6f],", cos(a), 40 + sin(a)) } s = s sprintf("[%.6f,%.6f]]", 1, 40); print s }')
+
+echo "01. The polygon's coordinates are over 4 KB"
+echo "==========================================="
+if [ ${#coords} -gt 4096 ]; then echo "over 4 KB"; else echo "${#coords} bytes - not over 4 KB"; fi
+echo
+echo
+
+
+echo "02. Create urn:Big, its location that polygon"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Big","type":"Area","location":{"type":"GeoProperty","value":{"type":"Polygon","coordinates":['"$coords"']}}}' | head -1
+echo
+echo
+
+
+echo "03. GET Areas intersecting the point [0,40], the polygon's centre - urn:Big"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Area&georel=intersects&geometry=Point&coordinates=\[0,40\]' | grep -o '"id": *"urn:[A-Za-z]*"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. The polygon's coordinates are over 4 KB
+===========================================
+over 4 KB
+
+
+02. Create urn:Big, its location that polygon
+==============================================
+HTTP/1.1 201 Created
+
+
+03. GET Areas intersecting the point [0,40], the polygon's centre - urn:Big
+===========================================================================
+"id": "urn:Big"
+
+
