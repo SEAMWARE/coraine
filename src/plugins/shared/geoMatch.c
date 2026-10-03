@@ -8,7 +8,7 @@
 //
 #include <math.h>                                        // sin, cos, asin, sqrt, M_PI
 #include <stdio.h>                                       // snprintf
-#include <stdlib.h>                                      // strtod
+#include <stdlib.h>                                      // strtod, malloc, free
 #include <string.h>                                      // strcmp, strlen
 #include <stdbool.h>                                     // bool
 
@@ -161,17 +161,36 @@ void geoMatchClose(void)
 //
 static GEOSGeometry* geojsonToGeos(GEOSContextHandle_t geosCtx, const char* geometry, const char* coordinates)
 {
-  // Build a GeoJSON string:  {"type":"Point","coordinates":[-3.703,40.417]}
-  char buf[4096];
-  snprintf(buf, sizeof(buf), "{\"type\":\"%s\",\"coordinates\":%s}", geometry, coordinates);
+  //
+  // A GeoJSON string:  {"type":"Point","coordinates":[-3.703,40.417]}  - on the stack when it fits,
+  // else exactly sized on the heap: a long polygon, cut short, would not parse and match nothing
+  //
+  char  stackBuf[4096];
+  char* json = stackBuf;
+  char* heap = NULL;
+  int   n    = snprintf(stackBuf, sizeof(stackBuf), "{\"type\":\"%s\",\"coordinates\":%s}", geometry, coordinates);
 
-  GEOSGeoJSONReader* reader = GEOSGeoJSONReader_create_r(geosCtx);
-  if (reader == NULL)
+  if (n < 0)
     return NULL;
 
-  GEOSGeometry* geom = GEOSGeoJSONReader_readGeometry_r(geosCtx, reader, buf);
-  GEOSGeoJSONReader_destroy_r(geosCtx, reader);
+  if (n >= (int) sizeof(stackBuf))
+  {
+    if ((heap = malloc(n + 1)) == NULL)
+      return NULL;
+    snprintf(heap, n + 1, "{\"type\":\"%s\",\"coordinates\":%s}", geometry, coordinates);
+    json = heap;
+  }
 
+  GEOSGeometry*      geom   = NULL;
+  GEOSGeoJSONReader* reader = GEOSGeoJSONReader_create_r(geosCtx);
+
+  if (reader != NULL)
+  {
+    geom = GEOSGeoJSONReader_readGeometry_r(geosCtx, reader, json);
+    GEOSGeoJSONReader_destroy_r(geosCtx, reader);
+  }
+
+  free(heap);
   return geom;
 }
 
@@ -220,35 +239,44 @@ static CorNode* entityGeoPropGet(CorNode* entityP, const char* geoproperty)
 
 // -----------------------------------------------------------------------------
 //
-// coordsRender - render a CorNode coordinate array to a JSON string
+// coordsRender - render a CorNode coordinate array to JSON text, from buf[pos]
 //
-// Returns number of characters written, or -1 on overflow.
+// Never writes at or past buf[bufSize]; returns the length the WHOLE text needs, as snprintf does - so a
+// caller whose buffer was too small knows how large one to take. (It used to add snprintf's would-be
+// length to its position whatever was written, and a polygon past the buffer then wrote past the stack.)
 //
-static int coordsRender(CorNode* nodeP, char* buf, int bufSize)
+static int coordsPut(char* buf, int bufSize, int pos, const char* text, int len)
 {
-  int pos = 0;
+  for (int i = 0; i < len; i++)
+  {
+    if (pos + i < bufSize)
+      buf[pos + i] = text[i];
+  }
+  return pos + len;
+}
 
+static int coordsRender(CorNode* nodeP, char* buf, int bufSize, int pos)
+{
   if (nodeP->type == CorArray)
   {
-    if (pos < bufSize) buf[pos++] = '[';
     bool first = true;
+
+    pos = coordsPut(buf, bufSize, pos, "[", 1);
     for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
     {
-      if (!first && pos < bufSize) buf[pos++] = ',';
+      if (first == false)
+        pos = coordsPut(buf, bufSize, pos, ",", 1);
       first = false;
-      int written = coordsRender(childP, buf + pos, bufSize - pos);
-      if (written < 0) return -1;
-      pos += written;
+      pos   = coordsRender(childP, buf, bufSize, pos);
     }
-    if (pos < bufSize) buf[pos++] = ']';
+    pos = coordsPut(buf, bufSize, pos, "]", 1);
   }
-  else if (nodeP->type == CorFloat)
+  else if ((nodeP->type == CorFloat) || (nodeP->type == CorInt))
   {
-    pos += snprintf(buf + pos, bufSize - pos, "%.15g", nodeP->value.f);
-  }
-  else if (nodeP->type == CorInt)
-  {
-    pos += snprintf(buf + pos, bufSize - pos, "%lld", (long long) nodeP->value.i);
+    char num[64];
+    int  n = (nodeP->type == CorFloat) ? snprintf(num, sizeof(num), "%.15g", nodeP->value.f) : snprintf(num, sizeof(num), "%lld", (long long) nodeP->value.i);
+
+    pos = coordsPut(buf, bufSize, pos, num, n);
   }
 
   return pos;
@@ -339,13 +367,30 @@ static GEOSGeometry* entityGeoToGeos(GEOSContextHandle_t geosCtx, CorNode* geojs
   if (typeP == NULL || typeP->type != CorString || coordsP == NULL)
     return NULL;
 
-  char coordBuf[4096];
-  int  pos = coordsRender(coordsP, coordBuf, sizeof(coordBuf));
-  if (pos <= 0 || pos >= (int) sizeof(coordBuf))
-    return NULL;
-  coordBuf[pos] = 0;
+  //
+  // On the stack when it fits, else exactly sized on the heap - a polygon has no size limit
+  //
+  char  stackBuf[4096];
+  char* coords = stackBuf;
+  char* heap   = NULL;
+  int   n      = coordsRender(coordsP, stackBuf, sizeof(stackBuf), 0);
 
-  return geojsonToGeos(geosCtx, typeP->value.s, coordBuf);
+  if (n <= 0)
+    return NULL;
+
+  if (n >= (int) sizeof(stackBuf))
+  {
+    if ((heap = malloc(n + 1)) == NULL)
+      return NULL;
+    coordsRender(coordsP, heap, n + 1, 0);
+    coords = heap;
+  }
+  coords[n] = 0;
+
+  GEOSGeometry* geom = geojsonToGeos(geosCtx, typeP->value.s, coords);
+
+  free(heap);
+  return geom;
 }
 
 
