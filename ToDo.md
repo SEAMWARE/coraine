@@ -740,9 +740,10 @@ persistence already writes - phases: (1) attribute instances as log records, a R
 index rebuilt at recovery; (2) retrieve + query (selectors, attrs, timerel /
 timeproperty, lastN / firstN, pagination, count, datasetId) - the temporal functests
 on it; (3) q, geo, aggregation, instance modify/delete - all 67 temporal functests
-and the ETSI temporal TPs; (4) the selector (a special subscription consulted to
-keep or drop a write's history) and retention. Measured after each phase, against
-`--troe none` and `timescale`.
+and the ETSI temporal TPs; (4) retention. Measured after each phase, against
+`--troe none` and `timescale`. **The selector** (what history records - a special
+subscription consulted to keep or drop a write's history) is **not in the spec
+yet: backlog**, like the Entity at time T.
 
 So the in-process option is the interesting one, and it should not be reached
 through the plugin mechanism at all. When the current-state store is corDB, its
