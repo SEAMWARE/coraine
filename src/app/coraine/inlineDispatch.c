@@ -12,6 +12,7 @@
 #include <string.h>                                    // strcmp, strncmp, strcasecmp, strstr, strchr, strrchr, strlen, memcpy, memchr, memmem
 
 #include "corLog/corLog.h"                             // COR_V
+#include "corTree/CorNode.h"                           // CorNode, CorString, CorObject, CorArray
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestHooks.h"                      // corRestSetInlineHook, corRestSetFinishInlineHook
 #include "corJsonld/corLdCache.h"                      // corLdCacheLookup
@@ -159,6 +160,61 @@ static bool contextValueCached(const char* p, const char* end)
 
 // -----------------------------------------------------------------------------
 //
+// Tree-body checks - a cor:// request carries its body already parsed (corRest.in.requestTree), with
+// no text to scan; the same answers as the raw scan, from the tree
+//
+static bool treeImports(CorNode* nodeP)                // any @import or scoped @context, at any depth?
+{
+  for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
+  {
+    if ((nodeP->type == CorObject) && ((strcmp(childP->name, "@import") == 0) || (strcmp(childP->name, "@context") == 0)))
+      return true;
+
+    if (((childP->type == CorObject) || (childP->type == CorArray)) && (treeImports(childP) == true))
+      return true;
+  }
+  return false;
+}
+
+static bool treeContextValueCached(CorNode* nodeP)
+{
+  if (nodeP->type == CorString)
+    return corLdCacheLookup(nodeP->value.s) != NULL;
+
+  if (nodeP->type == CorObject)
+    return treeImports(nodeP) == false;
+
+  if (nodeP->type == CorArray)
+  {
+    for (CorNode* itemP = nodeP->value.head; itemP != NULL; itemP = itemP->next)
+    {
+      if (treeContextValueCached(itemP) == false)
+        return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+static bool treeBodyContextCached(CorNode* bodyP)
+{
+  if (bodyP->type != CorObject)
+    return false;
+
+  for (CorNode* memberP = bodyP->value.head; memberP != NULL; memberP = memberP->next)
+  {
+    if (strcmp(memberP->name, "@context") == 0)
+      return treeContextValueCached(memberP);
+  }
+
+  return true;                                           // no @context: a 400, no download
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bodyContextCached - an application/ld+json body: is the @context it carries cached?
 //
 // Walks the top-level members of the (object) body to "@context". An array body is a batch - not
@@ -168,6 +224,9 @@ static bool contextValueCached(const char* p, const char* end)
 static bool bodyContextCached(void)
 {
   const char* p = corRest.in.payload;
+
+  if ((p == NULL) && (corRest.in.requestTree != NULL))
+    return treeBodyContextCached(corRest.in.requestTree);
 
   if ((p == NULL) || (*(p = ws(p)) != '{'))
     return (p == NULL) || (*p == 0);
@@ -312,6 +371,24 @@ static bool finishInlineCheck(void)
 
 // -----------------------------------------------------------------------------
 //
+// coroutineCheck - may a request that can wait run as a coroutine of its loop? (CorRestCoroutineHook)
+//
+// Only where every wait it can meet yields - corRest's clients and the @context download do. Not with
+// a database (or TRoE) plugin that blocks inside its driver (mongoc, timescale), nor for a PATCH that
+// waits for a bridge service's reply (?ddsSync - a condition variable): either would stop the whole
+// loop for its wait. Those keep the worker (doc/coroutines.md § 2).
+//
+static bool coroutineDbOk = false;                       // corDB, with TRoE none or corDB - set at start-up
+
+static bool coroutineCheck(void)
+{
+  return (coroutineDbOk == true) && (ddsSyncWaits() == false);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // isPlugin - is this plugin argument (a short name, or a path to the .so) the plugin 'name'?
 //
 static bool isPlugin(const char* arg, const char* name)
@@ -331,6 +408,12 @@ static bool isPlugin(const char* arg, const char* name)
 //
 void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
 {
+  //
+  // Coroutines: their own question, and asked whatever the database - a mongoc broker answers 'no'
+  //
+  coroutineDbOk = (isPlugin(dbName, "corDB") == true) && ((isPlugin(troeName, "none") == true) || (isPlugin(troeName, "corDB") == true));
+  corRestSetCoroutineHook(coroutineCheck);
+
   if (disabled == true)
   {
     COR_V("inline dispatch: off (--noInline) - every request is handed to a worker");

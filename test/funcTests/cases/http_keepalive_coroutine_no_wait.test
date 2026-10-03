@@ -1,0 +1,61 @@
+#
+# FILE            http_keepalive_coroutine_no_wait.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Coroutines (doc/coroutines.md § 9): a request that could wait runs as a coroutine of the HTTP loop
+# that read it. A batch update with corDB never waits - its coroutine finishes before the server's
+# callback returns - and its answer must go out ONCE. Sent twice (the second an empty response), a
+# keep-alive client takes the extra one for the answer to its next request. Three batch updates on
+# one connection (curl reuses it for every URL of one command): three 204s, one connection.
+#
+--NAME--
+Keep-alive: three batch updates on one connection, each answered once
+
+--TAGS--
+http
+batch
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+echo "01. Create E1 and E2"
+echo "===================="
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  { "id": "urn:E1", "type": "T", "a": { "type": "Property", "value": 1 } },
+  { "id": "urn:E2", "type": "T", "a": { "type": "Property", "value": 1 } }
+]' | head -1
+echo
+echo
+
+
+echo "02. Three batch updates on one keep-alive connection - three 204s, one connection"
+echo "================================================================================"
+B='[{"id":"urn:E1","type":"T","a":{"type":"Property","value":2}},{"id":"urn:E2","type":"T","a":{"type":"Property","value":2}}]'
+U=http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/update
+curl -s -m 5 -o /dev/null -w '%{http_code} new connections: %{num_connects}\n' -X POST -H 'Content-Type: application/json' -d "$B" $U $U $U
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create E1 and E2
+====================
+HTTP/1.1 201 Created
+
+
+02. Three batch updates on one keep-alive connection - three 204s, one connection
+================================================================================
+204 new connections: 1
+204 new connections: 0
+204 new connections: 0
+
+
