@@ -25,6 +25,19 @@ exclude). In-process history costs nothing measured on eight shared cores; the s
 PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal index
 `(entity, attribute, time)`.
 
+### corsh - the corDB shell
+
+A tool for database maintenance: `stats`, `backup` (consistent while the broker runs - a snapshot,
+then hard links), `compact`, `purge` by type or `q`, `drop` a tenant, `index add/drop/list`, and on a
+stopped broker's files `verify`, `dump`, `export`/`import`. Live data goes through the broker (cor://
+to the `admin` plugin); files only when no broker runs. Design: `cordb-persistence.md` § 10 (#219).
+
+### corDB indexes
+
+corDB indexes the entity id only; a query by type, a `q` and a geo-query walk the tenant. A **type**
+index (likely a default), **attribute-value** indexes for `q`, an **R-tree** for `georel` - each a
+declaration kept with the tenant's data, rebuilt at load, measured before it stays.
+
 ### corDB standalone - and as haaux
 
 corDB as a process of its own, beside the brokers, for high availability: already connected to every
