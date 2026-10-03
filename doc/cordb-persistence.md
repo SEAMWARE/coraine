@@ -183,8 +183,9 @@ No `--dbDir`, no change: a corDB without a directory is the in-RAM store of toda
 
 ## 10. Maintenance - corsh
 
-KZ 2026-10-03: deleting, backing up, adding indexes - a tool for it, **corsh** (the corDB shell, in
-corTools). Interactive, and scriptable (`corsh -c 'backup /mnt/b'`).
+KZ 2026-10-03: deleting, backing up, adding indexes - a tool for it, **corsh** (the corDB shell). A
+**maintenance tool only**, for now; a general broker shell is for later. **corDB becomes its own
+repository, and corsh is part of it.** Interactive, and scriptable (`corsh -c 'backup /mnt/b'`).
 
 **Two ways in.** The data of a running broker is in that broker's RAM, under its locks: anything done
 to live data goes **through the broker** - corsh speaks cor:// to it, the requests served by the
@@ -204,11 +205,20 @@ no broker running, corsh works on a tenant directory **directly**: what needs no
 | `dump <dir>` | offline | the records, readable (op, sequence, time, entity id) - for a broken log |
 | `export` / `import` | either | entities as NDJSON - between brokers, and to and from `mongoc` |
 
-**Indexes.** corDB indexes the entity id only (a hash, to the entity's predecessor in the store). A
-query by type walks every entity of the tenant; so does a `q` and a geo-query. Indexes worth having,
+**Order.** Entities are kept in **creation order**, and that is the default order of a query - as
+`mongoc`'s (`createdAt` ascending, `_id` breaking ties). A replace keeps the entity's place (and its
+`createdAt`); a delete and a create append it. Recovery reproduces it exactly: a snapshot is written
+in store order, and on replay an `ENTITY_PUT` for an entity that exists replaces it **in place** - it
+does not move to the end. Otherwise every restart would reorder query results.
+
+**Indexes.** corDB has two today: the **entity id** (a hash, to the entity's predecessor in the store
+- lookup and unlink O(1)) and, in effect, **`createdAt`**: the store list itself, in creation order.
+A query by type walks every entity of the tenant; so do a `q` and a geo-query. Indexes worth having,
 each measured before it stays:
 
-- **type** -> its entities: the most common query shape; probably a default, not an option
+- **type** -> its entities, **in creation order** (KZ 2026-10-03: yes, with persistence). `?type=X`
+  then pages by `createdAt` without walking the other types; a deep `offset` still walks within the
+  type (an array per type would make it O(1) and a delete O(n) - to be measured)
 - **an attribute's value** - equality and range, for `q` on a property that is queried often
 - **geo** - an R-tree over a GeoProperty, for `georel`
 
