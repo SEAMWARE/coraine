@@ -1,0 +1,221 @@
+# Ideas
+
+Every idea for coraine in one place - what is planned and what is only possible. None of it is a
+commitment; [the roadmap](roadmap.md) says which of these are next. The day-to-day backlog is
+[`ToDo.md`](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
+
+Each idea: one line, then what there is to say about it, and where more lives.
+
+## Storage
+
+### corDB persistence
+
+corDB survives a restart. Today a corDB deployment does not, the one place the "no servers"
+configuration is weaker than the MongoDB one. Snapshot plus an append log of every write's effect,
+group-commit `fsync` on a timer - the durability MongoDB gives by default - keeping the write path as
+fast as it is. The log's records are cor trees (`cor-protocol-details.md` § 4), so one serializer
+serves the wire, the log and the snapshot.
+
+### Automatic TRoE in corDB
+
+Temporal history in the same process and the same tree, reached by a boolean rather than a second
+plugin with its own copy of the store - the persistence log *is* the history, kept by a retention
+policy. What history records is configurable, subscription-shaped (entities, attributes, include or
+exclude). In-process history costs nothing measured on eight shared cores; the same history in
+PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal index
+`(entity, attribute, time)`.
+
+### corDB standalone - and as haaux
+
+corDB as a process of its own, beside the brokers, for high availability: already connected to every
+broker of the group, it is what haaux needs (below). One codebase, built as the in-broker plugin (the
+default) or the server; backups of current state and history. Its own repository, later.
+
+### A smaller CorNode
+
+A prefix layout for the tree node: smaller nodes, less corDB memory, fewer cache misses walking a
+tree. To be measured with `perf stat` cache-misses on the GET scenarios.
+
+## Protocols and transports
+
+### cor:// - what the format does not do yet
+
+Packed numeric arrays and timestamps as integers (`cor-protocol-details.md` § 4.9, § 4.10); the wire
+size of broker-to-broker traffic, with its expanded names, measured; Unix-domain sockets for brokers
+on one host.
+
+### Transports as plugins
+
+HTTP and cor:// as protocol plugins, loaded like the database, TRoE and bridge plugins - and with that
+an NGSIv2 API plugin, and NGSI-LD itself perhaps a plugin. No hurry.
+
+### Coroutines - open questions
+
+The cap (1024 per loop) and the stack size (256 KiB) as options; libmicrohttpd's own
+`MHD_suspend/resume_connection` for coroutines, or the built-in server as the default; a yielding
+mongoc stream (`mongoc_client_set_stream_initiator`) so `mongoc` requests can be coroutines too.
+[Coroutines](coroutines.md) § 6.
+
+## Bridges and devices
+
+### More bridges
+
+Kafka, WebSockets, OPC UA on the Bridge/Channel seam that carries DDS, MQTT and Modbus. The protocol
+names the endpoint and the endpoint decides the transport; HTTP stays inline rather than a plugin,
+because it is also the NGSI-LD API.
+
+- **Kafka** - one standard binding across the brokers that support it.
+- **WebSockets** - notifications to consumers that cannot be HTTP servers: behind NAT, a firewall, a
+  browser.
+- **OPC UA** - variables as attributes, monitored items as subscriptions, methods as Service
+  Execution.
+
+### Bridges and Channels over the API
+
+Today they come from the configuration file and are read over `GET`; create, update and delete over
+the API, persisted - the design is in `bridge-channels-details.md` (not published while the concept
+is in front of ETSI).
+
+### Aligning Bridges and Channels with ETSI
+
+Expected in 2027, on whatever TC DATA standardises after the Athens face-to-face of October 2026.
+Adaptation work rather than new capability: the objects, the endpoint-scheme convention and the codec
+seam are likely to move, the transports carried over them are not. coraine's Bridge and Channel are
+not standard NGSI-LD.
+
+### Service Execution
+
+Actuation as a first-class citizen of the API, beyond the suggested workflows of TS 104 175 Annex G.
+DDS services and actions reach the broker today through Channels and a provisional convention (a
+write to an attribute, goals as its instances); the broker still needs a way to say "do this" that is
+not a write to an attribute.
+
+### The IoT Agents as cor-agent plugins
+
+Parity with the FIWARE IoT Agents - UltraLight, JSON, LWM2M, LoRaWAN, Sigfox, OPC UA, ISOXML - as
+plugins on the bridge contract instead of separate processes. The same source compiles to a reduced
+**cor-agent** configuration, so agent-then-broker becomes a deployment choice: a small edge build
+beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi). More of them as
+deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
+[FIWARE IoT Agents](iot-agents.md).
+
+### Modbus - beyond v1
+
+Contiguous registers read together, RTU, read on demand through a registration, a way back for a
+write's outcome. [The Modbus bridge](modbus-bridge.md).
+
+### A registration that names a bridge
+
+A value the broker does not hold, fetched from a device when read (a battery level that polling would
+drain): a registration whose endpoint is a bridge scheme, served by the bridge.
+
+## The API and the specification
+
+### Subordinate subscriptions on registration change
+
+§ 10.5.2.4 handles creation and deletion of a registration, not `PATCH`.
+
+### Advertising the user @context and the core version
+
+The `;v1.9` parameter on the core context's Link header, and § 13.4's `?core=`.
+
+### Problem Details and error reporting - proposals to ETSI
+
+Machine-readable errors and per-item outcomes that NGSI-LD does not define yet - taken to the ETSI
+TC DATA face-to-face in Athens; not implemented. `problem-details.md`, `error-reporting.md` (not
+published while in front of ETSI).
+
+### An NGSI-LD-aware JSON parser
+
+The core terms are a closed set, so `type`, `value`, `observedAt`, `Property`, `Relationship` and the
+rest can be an enum rather than a string - smaller on the wire and on disk, a compare rather than a
+`strcmp` everywhere. The same decision as the [cor format](cor-protocol.md); one keyword enum in
+corNgsild.
+
+### Our own string collation, replacing ICU
+
+§ 7.6.2.1 makes ICU "root" collation the default order for `orderBy` on strings, and libicu costs
+three shared libraries and 39.2 MiB - `libicudata` alone is 31.6 MiB, nine times the broker, for a
+table. An MVP of root collation in corNgsild: UTF-8 to code points, a primary/secondary/tertiary
+weight table for the Latin ranges real deployments use, the category order (punctuation < digits <
+letters) the current ASCII approximation gets wrong; locale tailorings added on demand, one at a
+time. ICU stays behind `COR_FEATURE_ICU_COLLATION=ON`. `orderby_collation_locale.test` is the
+discriminator the MVP has to turn green without ICU.
+
+### Array reduction in corJsonld
+
+One JSON-LD normalisation applied once at the input boundary rather than at each call site.
+
+### One MIME-type handling
+
+The media types parsed, negotiated and rendered in one place instead of several.
+
+## Security
+
+### Authorisation - inside the broker, and as an APISIX plugin
+
+NGSI-LD defines no authentication or authorisation. An optional layer inside coraine decides on the
+request it has already parsed: per entity in a batch, for entity types after `@context` expansion,
+by tenant - "may only read type X" becomes a condition on the query, not a filter on the response.
+ODRL policies, as in the FIWARE Data Space Connector; the identity is the verifier's token for a
+verifiable credential. The same decision engine in an [APISIX](https://apisix.apache.org/) plugin, in
+front of any NGSI-LD broker. [Authorization in the broker](authorization.md).
+
+## Operations and availability
+
+### haaux
+
+High-availability cache synchronisation without a shared database: brokers register with each other
+at startup, keep the connection, and sync subscriptions, registrations and contexts interrupt-driven
+in single-digit milliseconds. No polling. [High availability](high-availability.md).
+
+### A memory budget and admission control
+
+A broker that knows its memory budget (a container's limit) and refuses writes before the OOM killer
+ends it - `--memoryLimit` is the start of it.
+
+## Build, distribution and footprint
+
+### Packages
+
+A Debian repository and `apt-get install coraine`, with a `coraine-dev` that pulls the whole
+dependency stack in one command. Today building from source is the only way to a machine that does
+not run the container image.
+
+### Finish conditional compilation
+
+Per-feature `#ifdef`s so a deployment compiles only the NGSI-LD it uses. `REGISTRATIONS` and
+`SUBSCRIPTIONS` compile out and the HTTP server is a build choice, but most declared feature flags do
+not reach the code they name - [Building from source, in detail](building-details.md) says which.
+
+### Release libraries, all of them
+
+`make release` builds corRest, corJsonld and corNgsild as release; the libraries under them come in
+as the last build, usually debug. Each needs an archive per flavour first (`doc/performance.md`).
+
+### Embedded deployment
+
+The broker adds 4.3 MiB to a machine, holds 17 MiB resident and answers 12 ms after `exec`; constrained
+hardware is a build-configuration question, not a redesign - conditional compilation is what makes
+that true.
+
+### An ARM image, and a more diverse nightly
+
+An ARM64 image; nightly builds with `unsigned char`, the sanitizers (ASan, UBSan), clang and musl -
+each finds bugs the others hide.
+
+## Quality
+
+### Continuous ETSI conformance
+
+The official test suite kept at 100 % as the specification evolves, test-side corrections fed
+upstream.
+
+### Broader performance regression coverage
+
+More scenarios measured nightly and recorded, so a regression is noticed by CI, not by a user.
+
+### `--connectionPoolSize` on one core
+
+Why `corHttp` is slower than libmicrohttpd on one core, and whether the pool size is the cause -
+[Performance](performance.md), "An open question".
