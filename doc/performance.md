@@ -495,10 +495,52 @@ and it is measured rather than extrapolated.
 > `corDB` rows land at 147–152k, and at that rate `wrk` on eight physical cores
 > is doing ~19 000 requests/s per core of its own. Treat those as a floor.
 
-> ⚠️ `corDB` **does not persist yet**, so its rows are not like-for-like with
-> anything backed by a database server: one of them survives a restart. A
-> persisting `corDB` will cost something this page cannot yet quote. It will not
-> cost libraries — everything persistence needs is in libc.
+> ⚠️ The `corDB` rows above are corDB **in RAM** (no `--dbDir`). What
+> persistence costs is the next section. It costs no libraries — everything it
+> needs is in libc.
+
+### corDB on disk: what persistence costs
+
+`--dbDir` makes corDB survive a restart: every write appends its effect to a log,
+synced every 100 ms (`--dbSync interval`, the default), with snapshots as the log
+grows ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+`test/perf/perfRun.sh corDB`, PGO release, one tenant, the log on an NVMe disk
+(ext4), AMD Ryzen 9 8940HX (32 threads, nothing pinned), 2026-10-03 - requests/s,
+against the same broker without `--dbDir`:
+
+| scenario | in RAM | `--dbDir` | change | `--dbSync request` | change |
+|---|---:|---:|---:|---:|---:|
+| query, `limit=20`, c50 | 135 509 | 140 655 | +4 % | 141 887 | +5 % |
+| `GET /entities/{id}`, c50 | 638 103 | 661 077 | +4 % | 659 162 | +3 % |
+| `PATCH`, c50 | 132 460 | 100 772 | −24 % | 16 063 | −88 % |
+| `PATCH`, c1 | 50 511 | 46 692 | −8 % | 1 342 | −97 % |
+| merge, c50 | 82 543 | 70 651 | −14 % | 16 330 | −80 % |
+| `DELETE`, c50 | 149 470 | 140 829 | −6 % | 15 345 | −90 % |
+| batch update (20), c50 | 27 309 | 24 029 | −12 % | 16 341 | −40 % |
+| batch delete (20), c50 | 47 087 | 42 060 | −11 % | 19 309 | −59 % |
+| create, c50 | 110 124 | 79 216 | −28 % | 15 815 | −86 % |
+| create, c1 | 36 217 | 32 334 | −11 % | 1 246 | −97 % |
+| batch create (20), c50 | 47 719 | 13 375 | −72 % | 9 588 | −80 % |
+
+- **Reads cost nothing.** A query or a retrieve never touches the log.
+- **A write that changes the store costs 6-24 %** - the encoding of its record
+  (the whole entity today; a PATCH that logs only the attributes it touched is
+  the next step - corDB's design, § 3).
+- **Creates cost more because the store grows**, and a growing store needs
+  snapshots: batch create, which grows it by a million entities in ten seconds,
+  loses 72 % of its throughput. Its p99 drops by 94 % (350 ms to 22 ms): a
+  snapshot takes the write lock for at most a few milliseconds at a time.
+- **`--dbSync request` is the disk's speed**: a write answers when its record is
+  synced, so one connection does ~1 300 writes/s and fifty share each sync
+  (group commit) for ~16 000.
+- **Recovery is not a pause worth planning for**: 100 000 entities (38 MB of log
+  or of snapshot) are back in **0.21 s** after `kill -9` (the log replayed) or a
+  clean stop (the snapshot loaded). A clean stop of that store, its last sync and
+  its snapshot included, takes 0.18 s.
+
+What was tried on the way to these numbers, including what did not help, is in
+[the history](history/performance.md) and in corDB's
+[persistence history](https://github.com/SEAMWARE/corDB/blob/main/doc/history/persistence.md).
 
 ## An open question: `--connectionPoolSize`
 
