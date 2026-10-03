@@ -9,8 +9,11 @@ only constrained here, not designed.*
 corDB keeps every tenant's entities, subscriptions and registrations in RAM, one `CorNode` tree per
 tenant (`corDbStore.h`). A restart loses all of it. After this step:
 
-- a broker restarted - cleanly, by `kill -9`, by a power cut - comes back with what it had, less at
-  most the last ~100 ms of writes (the default; MongoDB's journal makes the same promise)
+- a broker **stopped cleanly** (SIGTERM, SIGINT) loses nothing: everything in RAM is on disk before
+  it exits (§ 5a)
+- a broker that **dies** - `kill -9`, a crash, a power cut - comes back with what it had, less at
+  most the last ~100 ms of writes (the default; MongoDB's journal makes the same promise) - nothing,
+  with `--dbSync request`
 - recovery time is bounded by a snapshot, not by the age of the broker
 - **no new library**: `open`, `write`, `fdatasync`, `rename`, `ftruncate` - and the cor:// codec the
   broker already has
@@ -102,6 +105,21 @@ for each tenant with something buffered, swap the buffer out, `write()` it, `fda
 - `--dbSync none`: no fsync at all (tests, benchmarks, a RAM disk) - the log is still written
 - a write error (disk full) is not silent: logged, a metric, and with `--dbSync request` the request
   fails 503 - a broker that acknowledges what it cannot keep is worse than one that refuses
+
+## 5a. A clean stop loses nothing
+
+On SIGTERM or SIGINT, in this order:
+
+1. **no new requests** - the servers stop taking them; the requests in flight finish. A write appends
+   its record under the tenant's write lock, so once the locks are free every acknowledged write is
+   in a log buffer
+2. **every tenant's log buffer written and `fdatasync`ed** - nothing that was only in RAM is left
+3. **a snapshot per tenant** (§ 6) - the next start loads it and has no log to replay
+
+Only then does the broker exit. A stop that takes too long is still a clean stop: step 2 does not
+depend on step 3, so a broker killed during its snapshots has lost nothing either - it replays the
+log on the next start. Only an end without a stop - `kill -9`, a crash, a power cut - can lose the
+writes since the last sync (§ 5).
 
 ## 6. Snapshots and recovery
 
