@@ -19,8 +19,8 @@ coraine/
 │   │   ├── forwarding/      # distributed-ops (CSR) forwarding
 │   │   └── metrics/         # Prometheus via corProm
 │   └── plugins/
-│       ├── currentState/    # mongoc, corDB   (DB plugins)
-│       ├── temporal/        # none, corDB, timescale  (TRoE plugins)
+│       ├── currentState/    # mongoc   (DB plugins; corDB is its own repo, ../corDB)
+│       ├── temporal/        # none, timescale  (TRoE plugins; corDB's in ../corDB/troe)
 │       ├── api/admin/       # admin API plugin
 │       └── shared/          # geoMatch.c etc. shared across plugins
 ├── test/funcTests/          # corTest functional tests

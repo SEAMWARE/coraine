@@ -68,7 +68,10 @@ all:        release
 # previous build had left their artefacts behind - on a genuinely clean tree
 # corNgsild failed to link.
 #
-SIBLING_LIBS = corRest corJsonld corNgsild
+# corDB is a plugin repo, not a lib the broker links: built here so its plugins (installed into
+# $(PLUGIN_DIR)) are always the flavour of the broker beside them. It keeps each flavour's .so apart.
+#
+SIBLING_LIBS = corRest corJsonld corNgsild corDB
 
 #
 # COR_HTTP_SERVER - mhd | builtin. Passed DOWN to the libs, not only to cmake.
@@ -222,7 +225,7 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 # the end: a `make di` after this must not link profile-guided release archives.
 # Against the same source without it: +1-10 % per core, +4-15 % on the chain (doc/performance.md).
 #
-PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild
+PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild corDB
 PGO_PROFILE   = $(CURDIR)/BUILD_PGO_PROFILE
 PGO_GEN       = -fprofile-generate=$(PGO_PROFILE) -fprofile-update=atomic
 PGO_USE       = -fprofile-use=$(PGO_PROFILE) -fprofile-partial-training -fprofile-correction -Wno-missing-profile
@@ -280,9 +283,7 @@ define install_from
 	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(ETC_DIR)
 	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
-	cp -p $(1)/src/plugins/currentState/corDB/corDB.so     $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
-	cp -p $(1)/src/plugins/temporal/corDB/corDB.so            $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
 	cp -p $(1)/src/plugins/bridge/loopback/loopback.so          $(PLUGIN_DIR)/bridge/
@@ -353,6 +354,8 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d COR_WITH_ICU=$(COR_WITH_ICU) BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
+	@rm -rf $(SIBLING_DIR)/corDB/obj/coverage
+	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=coverage >/dev/null
 	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
@@ -364,9 +367,11 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
+	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/corDB.so        $(COV_PLUGIN_DIR)/db/currentState/
+	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/troe/corDB.so   $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
-	@find $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) -name '*.gcda' -delete
+	@find $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) $(SIBLING_DIR)/corDB/obj/coverage -name '*.gcda' -delete
 #
 # COR_PLUGIN_DIR is how the HARNESS spells a plugin path (--database ...).
 # SEAMWARE_PLUGIN_DIR is how the BROKER resolves a short name a test passes
@@ -431,10 +436,11 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	      --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
 	      -f '$(CURDIR)/src/' \
 	      $(foreach d,$(COV_LIBS),-f '$(SIBLING_DIR)/$(d)/') \
+	      $(if $(filter corDB,$(COV_DB)),-f '$(SIBLING_DIR)/corDB/') \
 	      -e '.*/plugins/currentState/$(COV_OTHER_DB)/.*' \
 	      --html-details $(COV_REPORT) --html-title "coraine coverage ($(COV_DB))" \
 	      --print-summary \
-	      $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS))
+	      $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) $(if $(filter corDB,$(COV_DB)),$(SIBLING_DIR)/corDB/obj/coverage)
 	@echo ""
 	@echo "Coverage report ($(COV_DB)): file://$(CURDIR)/$(COV_REPORT)"
 	@echo ""

@@ -75,9 +75,20 @@ for cfg in "${CONFIGS[@]}"; do
   # mongo to answer would be untestable in exactly the case (MONGOC=OFF) that
   # most needs testing.
   #
+  # corDB is a repo of its own (../corDB): built for this configuration too - a plugin carries the
+  # broker's feature switches - in a directory of its own, the tree's own builds untouched.
+  #
+  dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | tr '\n' ' ')
+  if ! make -C "$SRC/../corDB" OBJDIR="$d.corDB" $dbFlags > "$d.corDB.log" 2>&1; then
+    echo "$label: corDB build FAILED"
+    grep -E "error:|undefined reference" "$d.corDB.log" | head -5
+    rc=1
+    continue
+  fi
+
   P="$d.plugins"
   mkdir -p "$P/db/currentState" "$P/troe/temporal" "$P/api"
-  cp -p "$d/src/plugins/currentState/corDB/corDB.so" "$P/db/currentState/" 2>/dev/null
+  cp -p "$d.corDB/corDB.so"                          "$P/db/currentState/" 2>/dev/null
   cp -p "$d/src/plugins/temporal/none/none.so"       "$P/troe/temporal/"   2>/dev/null
 
   SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" \

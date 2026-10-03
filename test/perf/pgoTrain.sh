@@ -11,7 +11,8 @@
 # no CPU 8-15 for corChain.sh's taskset). Needs curl and wrk; corRequest and corTestClient from corLibs.
 #
 # <build-plugins-dir>: the plugins of the SAME instrumented build (BUILD_PGO/src/plugins) - laid out
-# here as the broker loads them.
+# here as the broker loads them; corDB's from its own repo (../corDB, built release and instrumented by
+# `make pgo` before this runs).
 #
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
@@ -24,7 +25,8 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/plugins/db/currentState" "$TMP/plugins/troe/temporal" "$TMP/plugins/api" "$TMP/plugins/bridge"
-cp "$SRC/currentState/corDB/corDB.so" "$TMP/plugins/db/currentState/"
+CORDB=${COR_DB_DIR:-$(cd "$HERE/../../../corDB" && pwd)}
+cp "$CORDB/obj/release/corDB.so"      "$TMP/plugins/db/currentState/"
 cp "$SRC/temporal/none/none.so"       "$TMP/plugins/troe/temporal/"
 export SEAMWARE_PLUGIN_DIR=$TMP/plugins
 

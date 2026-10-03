@@ -172,7 +172,7 @@ Of the **three** in the untested-behaviour group, only ONE is a gap in the suite
 - **`geoEntityValidate`** (23) and **`attrInstanceOf`** (10) are **not gaps at all** —
   they are an artefact of what a single run measures. `geoEntityValidate` lives in
   `plugins/shared/`, which no run excludes, but it is called only from
-  `plugins/currentState/corDB/`, which a mongoc run *does* exclude. It can therefore
+  corDB (its own repository, in the report as `corDB/`), which a mongoc run *does* exclude. It can therefore
   never be non-zero in the mongoc column, whatever anyone writes. All four of its
   diagnostics are already asserted, by `geoproperty_degenerate_polygon` and three
   others. `attrInstanceOf` is the same shape one level up: it is reached only
