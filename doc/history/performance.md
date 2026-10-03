@@ -11,6 +11,16 @@ of the changes behind today's numbers. The numbers as they are now are in
 Not every idea that should make a broker faster does. Measured on the same
 machine, release builds, and left out:
 
+- **corDB persistence: where a create's 25 % goes** (2026-10-03). With `--dbDir` and snapshots off, one
+  tenant's creates at 50 connections ran ~25 % below no `--dbDir`. Three suspects measured and cleared:
+  *page faults* of the growing log buffer - 0.74 against 0.76 minor faults a request, the same; *PGO
+  treating the log as cold code* (pgoTrain runs no `--dbDir`) - a plain `-O2` corDB loses the same
+  25 %; *the append under the write lock* - built to return at once, 94-98k against 97k req/s, noise.
+  What it is: ~3 µs of CPU a request for the record's encode (39 against 36 µs, the HTTP workers
+  CPU-bound) and ~10 % more futex waits a request (2.77 against 2.51, `strace -c`). Moving the encode
+  before the write lock (create, replace, batch create and update) took batch create from 19 088 to
+  30 692 req/s; single creates did not move - the lock was not their limit.
+
 - **Link-time optimisation** (`-flto` across the libraries, 2026-09-30): noise.
   About three quarters of a small request's cycles are spent in the kernel - its
   system calls and thread switches - and LTO can only work on the quarter that is
