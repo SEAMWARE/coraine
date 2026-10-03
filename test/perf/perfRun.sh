@@ -100,7 +100,13 @@ esac
 DB_DIR=${PERF_DB_DIR:-}
 [ -n "$DB_DIR" ] && BROKER_ARGS="$BROKER_ARGS --dbDir $DB_DIR"
 
-BROKER_CMD=${PERF_BROKER_CMD:-coraine --port $PORT $dbArgs --troe none $BROKER_ARGS}
+#
+# PERF_TROE - the temporal store (default none: current state only). corDB: history in the corDB
+# store itself (needs PERF_DB corDB - the db argument).
+#
+TROE=${PERF_TROE:-none}
+
+BROKER_CMD=${PERF_BROKER_CMD:-coraine --port $PORT $dbArgs --troe $TROE $BROKER_ARGS}
 
 #
 # {CPUS} in PERF_BROKER_CMD - the command pins the broker ITSELF, to the CPUs PERF_BROKER_CORES chose.
