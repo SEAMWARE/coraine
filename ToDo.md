@@ -735,13 +735,16 @@ nothing" measured on 2026-09-16 (40 257 req/s against 40 073 for `--troe none`,
 in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
 (11 099) and **94% of its batch rate**.
 
-**Decided 2026-10-03 (KZ): real history behind `--troe corDB`**, in the log
-persistence already writes - phases: (1) attribute instances as log records, a RAM
-index rebuilt at recovery; (2) retrieve + query (selectors, attrs, timerel /
-timeproperty, lastN / firstN, pagination, count, datasetId) - the temporal functests
-on it; (3) q, geo, aggregation, instance modify/delete - all 67 temporal functests
-and the ETSI temporal TPs; (4) retention. Measured after each phase, against
-`--troe none` and `timescale`. **The selector** (what history records - a special
+**Decided 2026-10-03 (KZ): real history behind `--troe corDB`** - in the corDB store itself (the
+broker takes the TRoE driver from corDB.so), recorded at corDB's write sites: current state
+overwrites, history appends. 99.99 % of history is what leaks in from current state; the temporal
+write endpoints (§ 5.6.11-16) are the correction path - nice to have. Phases: (1) history recorded
+from current state, its own log segments, rebuilt at recovery, the retrieve - **done 2026-10-03**;
+(2) reading it: query and retrieve with selectors, attrs, timerel / timeproperty, lastN / firstN,
+pagination, count, datasetId - tested with current-state writes read back through the temporal GET,
+restarts included; (3) q, geo, aggregation on history; (4) retention; (5) the temporal write
+endpoints. Measured after each phase, against `--troe none` (and timescale).
+**The selector** (what history records - a special
 subscription consulted to keep or drop a write's history) is **not in the spec
 yet: backlog**, like the Entity at time T.
 
