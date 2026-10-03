@@ -53,6 +53,17 @@ a body (411), a method the broker does not have, a body over 1 MiB (413).
 suite passes that way.
 
 
+## The functests on a persistent corDB
+
+```sh
+COR_DB_PERSIST=1 ~/git/corLibs/bin/corTest -db corDB
+```
+
+gives every corDB broker `--dbDir` (corDB's persistence), a directory per role under
+`COR_DB_PERSIST_DIR` (default `/tmp/corTest-dbDir`), emptied as the broker starts: each start
+begins empty, as without it, and every write of the suite goes through the log.
+
+
 ## Functional tests never read the log
 
 A test waits on, and asserts on, what the **API** says — never on a trace line in
