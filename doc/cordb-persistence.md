@@ -168,9 +168,14 @@ No `--dbDir`, no change: a corDB without a directory is the in-RAM store of toda
 1. **The record writer and reader** in corDB, unit-tested: encode every op, decode it back; a torn
    tail and a flipped bit are found and stop the replay.
 2. **The 17 write sites append**; the flusher; `--dbDir`, `--dbSync`.
-3. **Recovery**: snapshot load + replay. Functests: write, `kill -9`, restart, read it all back -
-   entities, attributes after PATCH/merge/delete, subscriptions, registrations, two tenants; a
-   truncated log; an interrupted snapshot (`.tmp`).
+3. **Recovery**: snapshot load + replay. Functests, two kinds that assert different things:
+   - **a clean stop loses nothing** - write, stop (SIGTERM), restart, read it ALL back, the last write
+     before the stop included, with `--dbSync interval` (the default - so a stop that skipped § 5a's
+     flush fails): entities, attributes after PATCH/merge/delete, subscriptions, registrations, two
+     tenants
+   - **a death loses at most the unsynced** - write, `kill -9`, restart: everything written before the
+     last sync is back (with `--dbSync request`: everything acknowledged); a truncated log; an
+     interrupted snapshot (`.tmp`)
 4. **Snapshots** + log rollover; recovery from snapshot + log.
 5. **Measure**: write throughput with `--dbSync interval` against no `--dbDir` (the bar: within a few
    per cent), `request` against it, recovery time for 100 000 entities. Documented in
