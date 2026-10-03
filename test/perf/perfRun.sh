@@ -92,6 +92,14 @@ esac
 # already gone, the port stays held, and the next run measures a broker nobody
 # started. coraine runs in the foreground by default; Orion-LD needs -fg.
 #
+#
+# PERF_DB_DIR - a persistent corDB (--dbDir) in this directory, EMPTIED at every reset. A reset
+# restarts the broker to start from an empty store, and a persistent store comes back from its
+# files - the fixture then got 409 for every entity it creates.
+#
+DB_DIR=${PERF_DB_DIR:-}
+[ -n "$DB_DIR" ] && BROKER_ARGS="$BROKER_ARGS --dbDir $DB_DIR"
+
 BROKER_CMD=${PERF_BROKER_CMD:-coraine --port $PORT $dbArgs --troe none $BROKER_ARGS}
 
 #
@@ -280,15 +288,22 @@ dropMongo() {
     || { echo "perfRun.sh: could not drop mongo database '$MONGO_DB' - a create scenario would measure a growing store" >&2; exit 1; }
 }
 
+dropDbDir() {
+  [ -n "$DB_DIR" ] && rm -rf "$DB_DIR"
+  return 0
+}
+
 resetStore() {
   stopBroker
   dropMongo
+  dropDbDir
   startBroker
   fixture
 }
 
 trap stopBroker EXIT
 dropMongo          # whatever a previous run left behind is not this run's store
+dropDbDir
 startBroker
 fixture
 
