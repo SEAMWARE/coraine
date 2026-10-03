@@ -10,7 +10,7 @@ Each idea: one line, then what there is to say about it, and where more lives.
 
 ### corDB persistence
 
-corDB survives a restart. Today a corDB deployment does not, the one place the "no servers"
+corDB survives a restart ([corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)). Today a corDB deployment does not, the one place the "no servers"
 configuration is weaker than the MongoDB one. Snapshot plus an append log of every write's effect,
 group-commit `fsync` on a timer - the durability MongoDB gives by default - keeping the write path as
 fast as it is. The log's records are cor trees (`cor-protocol-details.md` § 4), so one serializer
@@ -31,7 +31,7 @@ A maintenance tool (a general broker shell is for later), part of corDB's own re
 leaves this one: `stats`, `backup` (consistent while the broker runs - a snapshot,
 then hard links), `compact`, `purge` by type or `q`, `drop` a tenant, `index add/drop/list`, and on a
 stopped broker's files `verify`, `dump`, `export`/`import`. Live data goes through the broker (cor://
-to the `admin` plugin); files only when no broker runs. Design: `cordb-persistence.md` § 10 (#219).
+to the `admin` plugin); files only when no broker runs. Design: [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md) § 10.
 
 ### corDB indexes
 
