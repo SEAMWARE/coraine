@@ -38,6 +38,27 @@ what makes the fixes usable now; the merge requests make them official.
   face-to-face (20-22 October 2026) to agree who reviews which. The spec questions go there as
   issues. Pushing to the forge takes KZ's credentials.
 
+### corAlloc: the arena's sizes, and whether it must zero
+
+A request's arena starts in an inline buffer (`CorRestState.kallocBuffer`, 8 KiB) and grows in chunks
+(`allocSize`, 256 KiB - `corRestStateInit.c`); an allocation bigger than a chunk gets a block of its
+own, freed with the rest at the end of the request. Both sizes were chosen, not measured.
+
+- **The sweep**: chunk 16, 32, 64, 128, 256 KiB and 1 MiB; inline 4, 8, 16, 32 KiB. Retrieve, query
+  `limit=20` and `limit=100`, PATCH, batch create and update - two cores, the same for every run:
+  req/s, p99, instructions and cycles a request (`perf stat`), mallocs a request, RSS. Every result
+  documented, the losers too; a default changes only if a size clearly wins. 256 KiB is above glibc's
+  starting mmap threshold (128 KiB) - part of what to look at.
+- **The zeroing**: corAlloc hands out zeroed memory (a memset per allocation; `calloc` for an
+  oversized block) - insurance against a field nobody set, like the `next` pointer that once pointed
+  nowhere. Its cost is at most ~2 % (all of memset under a create load, 2026-10-03). Before deciding,
+  find what relies on it: a build that fills every hand-out with `0xFEEDC0DE` instead of zero (a
+  forgotten pointer is then non-canonical and crashes at once, a forgotten length absurd), run the
+  functional suite and valgrind on it - every report is a latent bug. Fix those; then measure, and keep
+  or drop the zeroing on the numbers.
+- The comment in `corRestStateInit.c` says corAlloc returns NULL for an allocation bigger than a
+  chunk - stale: it gets a block of its own.
+
 ---
 
 ## 0. TRoE timescale: automatic chunking and compression
