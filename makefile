@@ -371,6 +371,15 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/troe/corDB.so   $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
+#
+# The bridges from their own repositories (mqtt.so, modbus.so, dds.so) are not built here: staged
+# as installed, without counters - their code is not coraine's and not in this report. Without
+# them a test's --bridges mqtt names a plugin this directory does not have, the broker does not
+# start, and every bridge and MQTT-notification test fails in its INIT.
+#
+	@for p in $(PLUGIN_DIR)/bridge/*.so; do \
+	   [ -e $(COV_PLUGIN_DIR)/bridge/$$(basename $$p) ] || cp -p $$p $(COV_PLUGIN_DIR)/bridge/; \
+	 done
 	@find $(BUILD_COVERAGE) $(addprefix $(SIBLING_DIR)/,$(COV_LIBS)) $(SIBLING_DIR)/corDB/obj/coverage -name '*.gcda' -delete
 #
 # COR_PLUGIN_DIR is how the HARNESS spells a plugin path (--database ...).
