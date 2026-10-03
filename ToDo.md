@@ -20,12 +20,23 @@ of CSV files, no details discussed yet. KZ pushes it in Athens (20-22 October 20
 Orion-LD to coraine is export plus import, and so is any other broker. Design the converter so its
 reading and writing halves can meet in that format. [Ideas](doc/ideas.md#migrating-from-orion-ld).
 
-### Six MRs to the ETSI test suite
+### The ETSI test suite: our fixes, current and upstream
 
-Promised by KZ: one merge request per open issue from the 2026-10-02 review of the errors the
-GeonicDB team found in the suite (geolonia/ngsi-ld-test-suite-patches; #1 is closed, done in !331) -
-the mock-server stub matchers (#3, #4, #5, #6), the type-as-array expectations of 036 (#14), the
-languageMap tombstone fixture of 046_37 (#2). Pushing to the forge takes KZ's credentials.
+`integration/all-fixes` (local, in `~/git/ngsi-ld-test-suite`, never pushed) is the corrected suite
+coraine runs today - the upstream review queue moves at about three merges a month, so the branch is
+what makes the fixes usable now; the merge requests make them official.
+
+- **Merge `develop` into `integration/all-fixes`** - not done since !309/!311, about 30 conflicting
+  files. Until then the branch tests against an older suite than everyone else.
+- **Fold in the six MRs filed 2026-10-03** (!313-!318, the GeonicDB team's fixes for
+  geolonia/ngsi-ld-test-suite-patches #2-#6, #14): !318 is on the branch, the four mock-server fixes
+  and the 036 one are not.
+- **`testsuite-doubts.md` up to date** - every entry says what the branch does about it and where its
+  fix stands upstream (merged, in an open MR, ours only, spec question).
+- **The rest upstream, as a few thematic MRs** (mock server, LdContextNotAvailable 503/504, DistOps
+  fixtures, temporal, subscriptions ...) rather than one per doubt, and taken to the Athens
+  face-to-face (20-22 October 2026) to agree who reviews which. The spec questions go there as
+  issues. Pushing to the forge takes KZ's credentials.
 
 ---
 
