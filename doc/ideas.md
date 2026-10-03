@@ -27,20 +27,22 @@ PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal ind
 
 ### corsh - the corDB shell
 
-A tool for database maintenance: `stats`, `backup` (consistent while the broker runs - a snapshot,
+A maintenance tool (a general broker shell is for later), part of corDB's own repository once corDB
+leaves this one: `stats`, `backup` (consistent while the broker runs - a snapshot,
 then hard links), `compact`, `purge` by type or `q`, `drop` a tenant, `index add/drop/list`, and on a
 stopped broker's files `verify`, `dump`, `export`/`import`. Live data goes through the broker (cor://
 to the `admin` plugin); files only when no broker runs. Design: `cordb-persistence.md` § 10 (#219).
 
 ### corDB indexes
 
-corDB indexes the entity id only; a query by type, a `q` and a geo-query walk the tenant. A **type**
-index (likely a default), **attribute-value** indexes for `q`, an **R-tree** for `georel` - each a
+corDB indexes the entity id (a hash) and keeps entities in creation order - the default query order,
+as with `mongoc`. A query by type, a `q` and a geo-query walk the tenant. A **type** index in creation
+order (with persistence), **attribute-value** indexes for `q`, an **R-tree** for `georel` - each a
 declaration kept with the tenant's data, rebuilt at load, measured before it stays.
 
 ### corDB standalone - and as haaux
 
-corDB as a process of its own, beside the brokers, for high availability: already connected to every
+corDB in a repository of its own, with corsh. Then corDB as a process of its own, beside the brokers, for high availability: already connected to every
 broker of the group, it is what haaux needs (below). One codebase, built as the in-broker plugin (the
 default) or the server; backups of current state and history. Its own repository, later.
 
