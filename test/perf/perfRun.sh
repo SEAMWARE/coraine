@@ -16,9 +16,14 @@
 #
 set -euo pipefail
 
-DB=${1:?usage: perfRun.sh <mongoc|corDB> [port]}
+DB=${1:?usage: perfRun.sh <mongoc|corDB|ramDB> [port]}
 PORT=${2:-1029}
 HOST=${COR_MONGO_HOST:-localhost}
+#
+# PERF_MONGO_PORT - a MongoDB on a port of its own (a container pinned with the broker, say): the
+# broker's --dbPort and the drop between repeats both go there
+#
+MONGO_PORT=${PERF_MONGO_PORT:-}
 ENTITIES=${PERF_ENTITIES:-100}
 DURATION=${PERF_DURATION:-5s}
 THREADS=${PERF_THREADS:-8}
@@ -71,8 +76,9 @@ if [ -n "$BROKER_CORES" ]; then
 fi
 
 case "$DB" in
-  mongoc) dbArgs="--database mongoc --dbHost $HOST --dbName corperf" ;;
+  mongoc) dbArgs="--database mongoc --dbHost $HOST --dbName corperf${MONGO_PORT:+ --dbPort $MONGO_PORT}" ;;
   corDB)  dbArgs="--database corDB" ;;
+  ramDB)  dbArgs="--database ramDB" ;;   # corDB in RAM only
   other)  dbArgs="" ;;   # PERF_BROKER_CMD supplies everything
   *)      echo "perfRun.sh: unknown db '$DB'" >&2; exit 1 ;;
 esac
@@ -289,7 +295,8 @@ dropMongo() {
   # repeat onto the last one's work.
   #
   [ "$DB" = "corDB" ] && return 0
-  mongosh --quiet --host "$HOST" \
+  [ "$DB" = "ramDB" ] && return 0
+  mongosh --quiet --host "$HOST" ${MONGO_PORT:+--port $MONGO_PORT} \
           --eval "db.getSiblingDB(\"$MONGO_DB\").dropDatabase()" > /dev/null 2>&1 \
     || { echo "perfRun.sh: could not drop mongo database '$MONGO_DB' - a create scenario would measure a growing store" >&2; exit 1; }
 }
@@ -299,10 +306,17 @@ dropDbDir() {
   return 0
 }
 
+#
+# PERF_RESET_HOOK - a command run at every reset, the broker stopped: what else holds the store's state
+# empties it there too - a TRoE database, which would otherwise grow from one scenario to the next
+#
+RESET_HOOK=${PERF_RESET_HOOK:-}
+
 resetStore() {
   stopBroker
   dropMongo
   dropDbDir
+  [ -n "$RESET_HOOK" ] && eval "$RESET_HOOK"
   startBroker
   fixture
 }
