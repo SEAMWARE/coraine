@@ -28,8 +28,12 @@ import re, sys, pathlib
 CASES = pathlib.Path("test/funcTests/cases")
 
 # Body fields whose VALUE varies in length across runs (zero-stripping)
+#
+# observedAt is NOT here: the client supplies it, so it is deterministic and the expectation is the
+# literal (a REGEX on it would accept any time at all - the bug this list had)
+#
 TS_FIELDS = (
-    "notifiedAt", "observedAt", "createdAt", "modifiedAt",
+    "notifiedAt", "createdAt", "modifiedAt",
     "deletedAt", "lastNotification", "lastSuccess", "lastFailure",
     "expiresAt", "lastChange", "lastUsage", "lastUsedAt",
     "contextSourceTimeAt", "contextSourceUptime", "instanceId",
@@ -71,6 +75,22 @@ ESC_NID_RE = re.compile(r'\\"urn:ngsi-ld:Notification:[0-9a-fA-F]+:[0-9a-fA-F]+\
 ESC_TS_RE = re.compile(
     r'(\\"(?:' + "|".join(TS_FIELDS) + r')\\"\s*:\s*)\\"[^\\]+\\"'
 )
+
+
+ISO_RE = re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$')
+
+
+def volatileValue(m):
+    """A generated value as a pattern of its FORM - never a bare REGEX(.*): an instanceId is one of
+    the TRoE stores' forms (timescale's UUID, corDB's hex:counter), an ISO timestamp an ISO timestamp."""
+    field = m.group(1)
+    value = m.group(0)[len(field):].strip().strip('"')
+
+    if '"instanceId"' in field:
+        return field + r'"urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))"'
+    if ISO_RE.match(value):
+        return field + r'"REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)"'
+    return field + '"REGEX(.*)"'
 
 
 def line_normalize(line, has_volatile_so_far):
@@ -121,7 +141,7 @@ def line_normalize(line, has_volatile_so_far):
         parts.append(re.escape(line[last:]))
         line = 'REGEX(' + ''.join(parts) + ')'
     if TS_RE.search(line):
-        line = TS_RE.sub(r'\1"REGEX(.*)"', line)
+        line = TS_RE.sub(volatileValue, line)
         sets_volatile = True
     if UA_RE.search(line):
         line = UA_RE.sub(r'\1"REGEX(Coraine/.*)"', line)
