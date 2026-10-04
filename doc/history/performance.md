@@ -4,12 +4,42 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-04 - corDB measured on the wrong build
+
+From corDB's move to its own repository (2026-10-03 12:40) a local `make pgo` ended with `make di` on
+every library it had built with the profile. corDB is a plugin, not an archive linked into the PGO
+broker, so the **debug** corDB.so (no `-O`, traces compiled in) stayed installed beside the
+profile-guided broker; `make install_pgo` did not install corDB at all. The Docker image and the
+nightly (`PGO_RESTORE_DEBUG=0`) were not affected. `make install_pgo` now installs corDB's PGO release
+plugins.
+
+"corDB on disk" in [the performance page](../performance.md) was measured again with it (32 threads,
+nothing pinned). Before → after, `--dbDir` against in RAM: PATCH c50 −24 → −27 %, merge −14 → −18 %,
+DELETE −6 → −7 %, batch update −12 → −17 %, batch delete −11 → −10 %, create c50 −28 → −38 %, create c1
+−11 → −13 %, batch create −72 → −76 %; recovery of 100 000 entities 0.21 → 0.19 s. The in-RAM baseline
+got faster (PATCH 132 → 141k, create 110 → 124k, batch create 48 → 68k req/s); the log's cost did not,
+so it weighs more.
+
+One of the three runs was lost: its broker was killed (SIGKILL) during the 200-connection query, with
+no OOM kill, no systemd-oomd entry and nothing in the broker that sends one; the same run again was
+clean. Noted, not explained.
+
 ## 2026-09-30 and later - measured, and dropped or found on the way
 
 ### Tried, measured, and dropped
 
 Not every idea that should make a broker faster does. Measured on the same
 machine, release builds, and left out:
+
+- **corDB persistence: where a create's 25 % goes** (2026-10-03). With `--dbDir` and snapshots off, one
+  tenant's creates at 50 connections ran ~25 % below no `--dbDir`. Three suspects measured and cleared:
+  *page faults* of the growing log buffer - 0.74 against 0.76 minor faults a request, the same; *PGO
+  treating the log as cold code* (pgoTrain runs no `--dbDir`) - a plain `-O2` corDB loses the same
+  25 %; *the append under the write lock* - built to return at once, 94-98k against 97k req/s, noise.
+  What it is: ~3 µs of CPU a request for the record's encode (39 against 36 µs, the HTTP workers
+  CPU-bound) and ~10 % more futex waits a request (2.77 against 2.51, `strace -c`). Moving the encode
+  before the write lock (create, replace, batch create and update) took batch create from 19 088 to
+  30 692 req/s; single creates did not move - the lock was not their limit.
 
 - **Link-time optimisation** (`-flto` across the libraries, 2026-09-30): noise.
   About three quarters of a small request's cycles are spent in the kernel - its

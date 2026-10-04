@@ -1,0 +1,206 @@
+#
+# FILE            cordb_persist_kill.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a death loses at most what was not synced (corDB doc/persistence.md § 5, § 6).
+# With --dbSync request a write answers only once its record is on the disk, so after a kill -9
+# everything acknowledged is back. Then a torn tail - the half-written record a death in mid-write
+# leaves - is cut at the next start: the store is what the good records say, a new write is
+# appended after them, and the restart after that finds it.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - kill -9 loses nothing acknowledged with --dbSync request; a torn tail is cut
+
+--TAGS--
+corDB persistence
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_kill
+coraineStart --dbDir /tmp/corTest-cordb_persist_kill --dbSync request
+
+--RUN--
+
+#
+# 01. Create E1, E2, E3; PATCH E2 (a=2); DELETE E3
+# 02. kill -9 the broker, start it on the same --dbDir
+# 03. GET /entities?type=T - E1, E2 (a=2)
+# 04. Stop, append a torn record to the newest log segment, start
+# 05. GET /entities?type=T - E1, E2 (a=2): the torn record is ignored
+# 06. Create E4, stop, start
+# 07. GET /entities?type=T - E1, E2, E4: the write after the cut is found
+#
+
+DIR=/tmp/corTest-cordb_persist_kill
+
+echo "01. Create E1, E2, E3; PATCH E2 (a=2); DELETE E3"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E2/attrs --payload '{"a":{"type":"Property","value":2}}' | head -1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E3 | head -1
+echo
+echo
+
+
+echo "02. kill -9 the broker, start it on the same --dbDir"
+echo "===================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR --dbSync request
+echo "restarted"
+echo
+echo
+
+
+echo "03. GET /entities?type=T - E1, E2 (a=2)"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "04. Stop, append a torn record to the newest log segment, start"
+echo "================================================================"
+coraineStop
+log=$(ls $DIR/_/log-*.cor | tail -1)                # the segment the log continues in
+printf 'cr\001\001\377\000\000\000torn' >> $log
+coraineStart --dbDir $DIR --dbSync request
+echo "restarted"
+echo
+echo
+
+
+echo "05. GET /entities?type=T - E1, E2 (a=2): the torn record is ignored"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "06. Create E4, stop, start"
+echo "=========================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"T"}' | head -1
+coraineStop
+coraineStart --dbDir $DIR --dbSync request
+echo "restarted"
+echo
+echo
+
+
+echo "07. GET /entities?type=T - E1, E2, E4: the write after the cut is found"
+echo "======================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1, E2, E3; PATCH E2 (a=2); DELETE E3
+================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. kill -9 the broker, start it on the same --dbDir
+====================================================
+restarted
+
+
+03. GET /entities?type=T - E1, E2 (a=2)
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 117
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+04. Stop, append a torn record to the newest log segment, start
+================================================================
+restarted
+
+
+05. GET /entities?type=T - E1, E2 (a=2): the torn record is ignored
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 117
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+06. Create E4, stop, start
+==========================
+HTTP/1.1 201 Created
+restarted
+
+
+07. GET /entities?type=T - E1, E2, E4: the write after the cut is found
+=======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  },
+  {
+    "id": "urn:E4",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_kill
