@@ -21,6 +21,9 @@
 #   urn:V1  speed 10, speed.accuracy 1, speed.meta.value {x:{y:3}}, observedAt 2026-01
 #   urn:V2  speed 99, speed.accuracy 9, speed.meta.value {x:{y:7}}, observedAt 2026-06
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE timescale - temporal q reaches sub-attributes, value components, ranges, lists and DateTimes
 

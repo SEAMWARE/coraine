@@ -9,6 +9,9 @@
 # columns (v_text / v_number / v_bool / v_compound), attr_kind, and
 # sub_attrs JSONB.
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE timescale - value extraction into typed columns
 

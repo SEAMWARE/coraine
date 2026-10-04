@@ -11,6 +11,9 @@
 # Requires postgres running on localhost:5432 with a 'postgres' user
 # (passwordless, e.g. peer auth on Ubuntu).
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE timescale - end-to-end postgres persistence
 

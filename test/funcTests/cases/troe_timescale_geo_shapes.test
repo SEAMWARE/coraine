@@ -15,6 +15,9 @@
 # unchanged, both as a top-level GeoProperty (v_compound) and as a geo
 # sub-property (sub_attrs).
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE timescale - GeoJSON geometry shapes (2D/3D) round-trip
 

@@ -7,7 +7,7 @@
 #
 
 corCliParamAdd "-db"     "COR_DB_TYPE"      "mongoc" "Current-state DB: corDB|mongoc"    "DB"
-corCliParamAdd "-troeDb" "COR_TROE_DB_TYPE" "NONE" "TRoE DB: postgres|mongo|..."       "TROEDB"
+corCliParamAdd "-troeDb" "COR_TROE_DB_TYPE" "NONE" "TRoE store: corDB (the --troe timescale tests on --troe corDB)"       "TROEDB"
 
 #
 # -ha: does this environment support the HA cache sync (--ha mongo)?
