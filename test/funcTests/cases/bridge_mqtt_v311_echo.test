@@ -18,14 +18,14 @@ bridge mqtt
 
 --INIT--
 corDbDrop
-echo "listener 11883
-allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
-mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
-mosquittoWait 11883
-ftClientStart --mqttPort 11883
+echo "listener 11888
+allow_anonymous true" > /tmp/mqtt-v311-echo.conf
+mosquitto -d -c /tmp/mqtt-v311-echo.conf
+mosquittoWait 11888
+ftClientStart --mqttPort 11888
 
 cat > /tmp/coraine_bridges_mqtt_v311.json <<J
-{ "mqtt": { "server": { "uri": "mqtt://localhost:11883", "MQTT-Version": "mqtt3.1.1", "clientId": "coraine-bridge-mqtt-v311" },
+{ "mqtt": { "server": { "uri": "mqtt://localhost:11888", "MQTT-Version": "mqtt3.1.1", "clientId": "coraine-bridge-mqtt-v311" },
             "ngsild": { "topics": {
               "plant/tank1/setpoint": { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "setpoint" } } } } }
 J
@@ -70,8 +70,8 @@ echo
 coraineStop
 ftClientStop
 corDbDrop
-pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
-\rm -f /tmp/mqtt-test-mosquitto.conf /tmp/coraine_bridges_mqtt_v311.json
+mosquittoStop /tmp/mqtt-v311-echo.conf 11888
+\rm -f /tmp/mqtt-v311-echo.conf /tmp/coraine_bridges_mqtt_v311.json
 
 --EXPECT--
 01. PATCH setpoint 70 - published, and its echo dropped: samplesIn 0, samplesOut 1

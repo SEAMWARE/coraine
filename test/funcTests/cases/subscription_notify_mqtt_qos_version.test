@@ -166,5 +166,5 @@ Content-Length: 0
 coraineStop
 ftClientStop
 corDbDrop
-pkill -f "mosquitto -d -c /tmp/mqtt-qosver-mosquitto.conf" 2>/dev/null
+mosquittoStop /tmp/mqtt-qosver-mosquitto.conf 11886
 \rm -f /tmp/mqtt-qosver-mosquitto.conf
