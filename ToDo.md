@@ -7,6 +7,60 @@ design* are restated below.
 
 ---
 
+## Short term (KZ, 2026-10-03)
+
+### Migrating from Orion-LD
+
+An executable that converts an Orion-LD database to coraine's format - entities, subscriptions,
+registrations; MongoDB for `mongoc` and the files of a persistent corDB. Needed before coraine can
+be offered to Orion-LD's users as the way forward: they must be able to take their data with them.
+
+**The longer road** (ETSI TC DATA): a broker saves its data to a **neutral format** - possibly a set
+of CSV files, no details discussed yet. KZ pushes it in Athens (20-22 October 2026). Once it exists,
+Orion-LD to coraine is export plus import, and so is any other broker. Design the converter so its
+reading and writing halves can meet in that format. [Ideas](doc/ideas.md#migrating-from-orion-ld).
+
+### The ETSI test suite: our fixes, current and upstream
+
+`integration/all-fixes` (local, in `~/git/ngsi-ld-test-suite`, never pushed) is the corrected suite
+coraine runs today - the upstream review queue moves at about three merges a month, so the branch is
+what makes the fixes usable now; the merge requests make them official.
+
+- **Merge `develop` into `integration/all-fixes`** - not done since !309/!311, about 30 conflicting
+  files. Until then the branch tests against an older suite than everyone else.
+- **Fold in the six MRs filed 2026-10-03** (!313-!318, the GeonicDB team's fixes for
+  geolonia/ngsi-ld-test-suite-patches #2-#6, #14): !318 is on the branch, the four mock-server fixes
+  and the 036 one are not.
+- **`testsuite-doubts.md` up to date** - every entry says what the branch does about it and where its
+  fix stands upstream (merged, in an open MR, ours only, spec question).
+- **The rest upstream, as a few thematic MRs** (mock server, LdContextNotAvailable 503/504, DistOps
+  fixtures, temporal, subscriptions ...) rather than one per doubt, and taken to the Athens
+  face-to-face (20-22 October 2026) to agree who reviews which. The spec questions go there as
+  issues. Pushing to the forge takes KZ's credentials.
+
+### corAlloc: the arena's sizes, and whether it must zero
+
+A request's arena starts in an inline buffer (`CorRestState.kallocBuffer`, 8 KiB) and grows in chunks
+(`allocSize`, 256 KiB - `corRestStateInit.c`); an allocation bigger than a chunk gets a block of its
+own, freed with the rest at the end of the request. Both sizes were chosen, not measured.
+
+- **The sweep**: chunk 16, 32, 64, 128, 256 KiB and 1 MiB; inline 4, 8, 16, 32 KiB. Retrieve, query
+  `limit=20` and `limit=100`, PATCH, batch create and update - two cores, the same for every run:
+  req/s, p99, instructions and cycles a request (`perf stat`), mallocs a request, RSS. Every result
+  documented, the losers too; a default changes only if a size clearly wins. 256 KiB is above glibc's
+  starting mmap threshold (128 KiB) - part of what to look at.
+- **The zeroing**: corAlloc hands out zeroed memory (a memset per allocation; `calloc` for an
+  oversized block) - insurance against a field nobody set, like the `next` pointer that once pointed
+  nowhere. Its cost is at most ~2 % (all of memset under a create load, 2026-10-03). Before deciding,
+  find what relies on it: a build that fills every hand-out with `0xFEEDC0DE` instead of zero (a
+  forgotten pointer is then non-canonical and crashes at once, a forgotten length absurd), run the
+  functional suite and valgrind on it - every report is a latent bug. Fix those; then measure, and keep
+  or drop the zeroing on the numbers.
+- The comment in `corRestStateInit.c` says corAlloc returns NULL for an allocation bigger than a
+  chunk - stale: it gets a block of its own.
+
+---
+
 ## 0. TRoE timescale: automatic chunking and compression
 
 **Decided 2026-09-26 (KZ): do it, early.** Found by the A10 capacity benchmark:
@@ -554,8 +608,10 @@ needs to understand them.
 
 **1. "Give me the Entity exactly as it was at time T."** Not the history list of
 attributes with their timestamps - a *current-state Entity*, at an instant in
-the past. Already decided at ETSI, so it is coming whether or not we plan for
-it.
+the past. Discussed at ETSI - **not in the specification yet** (checked 2026-10-03: no
+branch of TS 104-175 or TS 104-176 has it), so it is **backlog**, implemented once it is
+in the spec ([Ideas](doc/ideas.md#the-entity-as-it-was-at-time-t)). The design below keeps
+it cheap when it comes.
 
 **2. The time axis is a parameter, not a constant.** `observedAt` (default),
 `modifiedAt` and `createdAt` all have to work - they do today, via
@@ -672,10 +728,25 @@ mapped load can be added later as an optimisation rather than a rewrite.
 ## 16. corDB history is intrinsic; timescale stays a plugin
 
 `--troe corDB` selects a TRoE plugin that keeps temporal history in the
-process. Measured on eight shared cores, it costs **nothing**: 40 257 req/s
-against 40 073 for `--troe none`, and 123 307 PATCH/s against 125 187. History
+process - **today a ring buffer of the last 256 events, for the functests that
+assert a write produced its event; it answers no temporal query.** So the "costs
+nothing" measured on 2026-09-16 (40 257 req/s against 40 073 for `--troe none`,
+123 307 PATCH/s against 125 187) is the cost of that ring, not of history. History
 in PostgreSQL, on the same hardware, costs corDB **91% of its PATCH rate**
 (11 099) and **94% of its batch rate**.
+
+**Decided 2026-10-03 (KZ): real history behind `--troe corDB`** - in the corDB store itself (the
+broker takes the TRoE driver from corDB.so), recorded at corDB's write sites: current state
+overwrites, history appends. 99.99 % of history is what leaks in from current state; the temporal
+write endpoints (§ 5.6.11-16) are the correction path - nice to have. Phases: (1) history recorded
+from current state, its own log segments, rebuilt at recovery, the retrieve - **done 2026-10-03**;
+(2) reading it: query and retrieve with selectors, attrs, timerel / timeproperty, lastN / firstN,
+pagination, count, datasetId - tested with current-state writes read back through the temporal GET,
+restarts included; (3) q, geo, aggregation on history; (4) retention; (5) the temporal write
+endpoints. Measured after each phase, against `--troe none` (and timescale).
+**The selector** (what history records - a special
+subscription consulted to keep or drop a write's history) is **not in the spec
+yet: backlog**, like the Entity at time T.
 
 So the in-process option is the interesting one, and it should not be reached
 through the plugin mechanism at all. When the current-state store is corDB, its
@@ -745,6 +816,39 @@ shape where coraine on MongoDB loses, which points at something specific in
 reading beside Orion-LD's batch path, which is public.
 
 ---
+
+## 18. coraine as a device agent: small boards and MCUs
+
+An agent next to the devices, not a central broker: stripped down considerably - no TRoE, no
+registrations, no subscriptions (`COR_FEATURE_SUBSCRIPTIONS=0`, `COR_FEATURE_REGISTRATIONS=0`),
+current state in RAM (ramDB). What it does need is its southbound protocol plugins: Zigbee,
+UltraLight, MQTT and others (§6, the bridge family). After the ARM image.
+
+**Two targets, two efforts:**
+
+- **Small Linux boards** (Pi Zero class, Cortex-A, 64-512 MB): no OS work. The ARM image, the builtin
+  HTTP server instead of libmicrohttpd, TLS optional, the byte budget (§12).
+- **MCUs** (Cortex-M, ESP32 - no MMU, 256 KB-8 MB RAM): an existing RTOS, not an OS of our own -
+  NuttX (the most POSIX: most of our C compiles as is), Zephyr (the most boards), FreeRTOS + lwIP (the
+  smallest). They bring TCP, BSD sockets, TLS (mbedTLS) and a flash filesystem (littlefs). What changes
+  in coraine: plugins linked statically (no `dlopen`), `poll` instead of `epoll`, coroutines on one
+  thread, persistence (if any) on the flash filesystem.
+
+**Speed is not the reason.** The kernel is ~28 % of the broker's CPU on a batch update (2026-10-04,
+2 cores: TCP, epoll, syscalls); an OS of our own removes the syscall and switch part of that, not the
+TCP work - 10-25 % on the same CPU. The reason is footprint: running where Linux cannot.
+
+**The hard part is RAM, not the OS:** arena sizes, CorNode trees, @context expansion (a precompiled
+core context). A full broker on a 256 KB part is not realistic - there, a small cor:// device client
+talking to a broker is.
+
+**Order of work:**
+
+1. Measure: RSS idle and per entity, every optional feature off - that number says which MCU class is
+   possible at all.
+2. Boot on NuttX or Zephyr in QEMU (1-2 weeks).
+3. A "coraine-micro" profile on a fat MCU - ESP32-S3 with 8 MB PSRAM, STM32H7 with 1 MB (1-2 months,
+   most of it the memory diet).
 
 ---
 
