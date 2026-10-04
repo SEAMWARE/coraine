@@ -96,6 +96,7 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
+  "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z)",
   "id": "urn:V1",
   "speed": [
     {
@@ -150,6 +151,7 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 {
+  "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z)",
   "id": "urn:V3",
   "speed": [
     {

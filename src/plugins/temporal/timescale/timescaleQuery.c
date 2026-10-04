@@ -516,18 +516,22 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   // page began with the instances that have no time at all, ahead of the
   // latest ones that do. An instance with no time is never the latest nor the
   // earliest of anything; it goes after every instance that has one.
+  //
+  // And equal times - instances without the time property, all of them NULL - in the order they were
+  // written (modified_at), the reverse for lastN: PostgreSQL leaves the order of ties undefined, and
+  // an answer then came back in whatever order the plan happened to produce.
   char rnClip[96];
   snprintf(rnClip, sizeof(rnClip), "rn > %d AND rn <= %d", offsetN, offsetN + pageLimit);
 
   snprintf(sql, sqlSize,
     "SELECT * FROM ("
     "SELECT %s, "
-    "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s NULLS LAST) AS rn "
+    "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s NULLS LAST, modified_at %s) AS rn "
     "FROM troe_attrs "
     "WHERE entity_id = $1%s%s%s%s) sub "
     "WHERE %s "
-    "ORDER BY attr_name, dataset_id, %s %s NULLS LAST",
-    selectCols, tCol, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir);
+    "ORDER BY attr_name, dataset_id, %s %s NULLS LAST, modified_at %s",
+    selectCols, tCol, orderDir, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir, orderDir);
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
 

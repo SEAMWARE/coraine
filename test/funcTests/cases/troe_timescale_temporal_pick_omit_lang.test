@@ -110,7 +110,7 @@ Content-Length: REGEX(\d+)
 {
   "speed": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
@@ -132,7 +132,7 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "name": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "languageMap": {
         "@none": "Hola",
         "en": "Hello",
@@ -144,7 +144,7 @@ Content-Length: REGEX(\d+)
   ],
   "speed": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
@@ -166,7 +166,7 @@ Content-Length: REGEX(\d+)
 {
   "color": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": "red"
@@ -175,7 +175,7 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "name": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "lang": "fr",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
@@ -184,7 +184,7 @@ Content-Length: REGEX(\d+)
   ],
   "speed": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
@@ -206,7 +206,7 @@ Content-Length: REGEX(\d+)
 {
   "color": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": "red"
@@ -215,7 +215,7 @@ Content-Length: REGEX(\d+)
   "id": "urn:V1",
   "name": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "lang": "@none",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
@@ -224,7 +224,7 @@ Content-Length: REGEX(\d+)
   ],
   "speed": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "observedAt": "2026-04-28T09:00:00Z",
       "type": "Property",
       "value": 10
@@ -247,7 +247,7 @@ Content-Length: REGEX(\d+)
   {
     "speed": [
       {
-        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
         "observedAt": "2026-04-28T09:00:00Z",
         "type": "Property",
         "value": 10

@@ -106,15 +106,15 @@ Content-Length: REGEX(\d+)
       "value": 1
     },
     {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 2
+    },
+    {
       "datasetId": "urn:ds1",
       "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
       "type": "Property",
       "value": 10
-    },
-    {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
-      "type": "Property",
-      "value": 2
     },
     {
       "datasetId": "urn:ds1",

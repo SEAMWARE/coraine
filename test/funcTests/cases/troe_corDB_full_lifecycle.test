@@ -108,6 +108,7 @@ Content-Length: REGEX(\d+)
       "value": "urn:ngsi-ld:null"
     }
   ],
+  "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z)",
   "id": "urn:V1",
   "speed": [
     {

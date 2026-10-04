@@ -282,7 +282,7 @@ Content-Length: 3148
   "id": "urn:ngsi-ld:E1",
   "ls": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -303,7 +303,7 @@ Content-Length: 3148
   ],
   "mls": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -338,7 +338,7 @@ Content-Length: 3148
   ],
   "mp": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -357,7 +357,7 @@ Content-Length: 3148
   ],
   "mpg": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -392,7 +392,7 @@ Content-Length: 3148
   ],
   "obs": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 1,
       "where": {
@@ -410,7 +410,7 @@ Content-Length: 3148
   ],
   "p": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -424,7 +424,7 @@ Content-Length: 3148
   ],
   "pg": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "GeoProperty",
       "value": {
         "coordinates": [

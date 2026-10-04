@@ -80,8 +80,8 @@ HTTP/1.1 204 No Content
 03. Temporal history holds both instances (5 and 10)
 ====================================================
   "id": "urn:ngsi-ld:E1",
-      "value": 10
       "value": 5
+      "value": 10
 
 []
 --TEARDOWN--
