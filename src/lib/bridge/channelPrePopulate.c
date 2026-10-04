@@ -16,6 +16,7 @@
 #include "corAlloc/corAlloc.h"                        // corAlloc
 
 #include "corRest/corRest.h"                          // corRest
+#include "corNgsild/CorNgsild.h"                      // corNgsild
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
@@ -192,9 +193,18 @@ int channelPrePopulate(Tenant* tenantP)
     // told, and a subscriber woken by "uninitialized" learns only that a
     // broker restarted.
     //
+    //
+    // The placeholders are not history (below): a store that keeps history itself is told so
+    //
+    corNgsild.troeEntityOnly = true;
+
     if (exists == false)
     {
-      if (db.entityCreate(tenantP, entityId, entityP) != DB_OK)
+      int rc = db.entityCreate(tenantP, entityId, entityP);
+
+      corNgsild.troeEntityOnly = false;
+
+      if (rc != DB_OK)
       {
         COR_W("could not create entity '%s'", entityId);
         continue;
@@ -253,7 +263,11 @@ int channelPrePopulate(Tenant* tenantP)
       //
       LdMergeReport report = { NULL };
 
-      if (db.entityAttrsSet(tenantP, entityId, entityP, false, corRest.requestStartTime, &report) != DB_OK)
+      int rc = db.entityAttrsSet(tenantP, entityId, entityP, false, corRest.requestStartTime, &report);
+
+      corNgsild.troeEntityOnly = false;
+
+      if (rc != DB_OK)
       {
         COR_W("could not add the missing attributes of entity '%s'", entityId);
         continue;

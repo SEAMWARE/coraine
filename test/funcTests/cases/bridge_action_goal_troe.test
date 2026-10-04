@@ -263,7 +263,7 @@ Content-Length: REGEX(\d+)
   "id": "urn:R:2",
   "navigate": [
     {
-      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": {
         "x": 2
@@ -271,7 +271,7 @@ Content-Length: REGEX(\d+)
     },
     {
       "datasetId": "urn:goal:2",
-      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "result": {
         "type": "Property",
         "value": {
@@ -286,7 +286,7 @@ Content-Length: REGEX(\d+)
     {
       "datasetId": "urn:goal:2",
       "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
-      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": "urn:ngsi-ld:null"
     }
