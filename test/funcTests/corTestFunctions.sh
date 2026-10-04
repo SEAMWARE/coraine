@@ -136,14 +136,16 @@ coraineStart() {
   #
   # TRoE store. -troeDb corDB: a test's "--troe timescale" runs as "--troe corDB" - the history
   # inside the corDB store, so the temporal tests written against timescale check corDB's history
-  # with the same expectations. Needs -db corDB (--troe corDB is the corDB store's own).
+  # with the same expectations. Needs -db corDB (--troe corDB is the corDB store's own) - checked
+  # only where a rewrite happens: a test that starts on its own database (the ring tests: ramDB,
+  # --troe ramDB) is left as it is.
   #
   case "$COR_TROE_DB_TYPE" in
     NONE|"") ;;  # compiled-in default or unset
-    corDB)   if [ "$COR_DB_TYPE" != "corDB" ]; then echo "coraineStart: -troeDb corDB needs -db corDB"; return 1; fi
-             local i
+    corDB)   local i
              for i in "${!extraParams[@]}"; do
                if [ "${extraParams[$i]}" == "timescale" ] && [ "$i" -gt 0 ] && [[ "${extraParams[$((i-1))]}" =~ ^-?-troe$ ]]; then
+                 if [ "$COR_DB_TYPE" != "corDB" ]; then echo "coraineStart: -troeDb corDB needs -db corDB"; return 1; fi
                  extraParams[$i]="corDB"
                fi
              done
