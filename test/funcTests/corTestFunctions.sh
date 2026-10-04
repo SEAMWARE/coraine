@@ -834,7 +834,12 @@ corPidAlive() {
   [ -n "$pid" ] || return 1
   [ -r "/proc/$pid/stat" ] || return 1
   local _p _c state
-  read -r _p _c state _ < "/proc/$pid/stat" 2>/dev/null || return 1   # a builtin - no fork in a polling loop
+  #
+  # 2>/dev/null BEFORE the input: redirections apply left to right, so with it after, a process that
+  # exited between the -r test and the read had bash print "No such file or directory" first - on
+  # stderr, which fails the test that was only stopping its broker (csource_reg_mongoc_persist, CI)
+  #
+  read -r _p _c state _ 2>/dev/null < "/proc/$pid/stat" || return 1   # a builtin - no fork in a polling loop
   [ "$state" != "Z" ]
 }
 
