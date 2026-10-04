@@ -1,0 +1,174 @@
+#
+# FILE            cordb_persist_snapshot.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a snapshot and the log after it (corDB doc/persistence.md § 6). With
+# --dbSnapshotEvery 1, about 1.2 MiB of writes make the flusher snapshot the tenant once: snap-1 holds
+# the store, log-1 the writes after it, and the files before it are gone. A kill -9 then - no snapshot
+# at the stop - restarts from snap-1 plus log-1: every entity, in creation order. --dbSync request:
+# an answered write is on the disk, so the kill needs no wait.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - a snapshot, then the log after it; kill -9 recovers from both
+
+--TAGS--
+corDB persistence
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_snapshot
+coraineStart --dbDir /tmp/corTest-cordb_persist_snapshot --dbSnapshotEvery 1 --dbSync request
+
+--RUN--
+
+#
+# 01. Batch create 12 x 100 entities with a 1000-character attribute (about 1.2 MiB of log)
+# 02. Wait for the snapshot - the files: snap-000001.cor, log-000001.cor
+# 03. Create urn:Last - after the snapshot, in log-000001
+# 04. kill -9 the broker, start it on the same --dbDir
+# 05. GET /entities?type=T&count=true&limit=3 - 1201 entities, the first three in creation order
+# 06. GET /entities/urn:Last
+#
+
+DIR=/tmp/corTest-cordb_persist_snapshot
+
+echo "01. Batch create 12 x 100 entities with a 1000-character attribute (about 1.2 MiB of log)"
+echo "========================================================================================"
+big=$(printf 'x%.0s' $(seq 1000))
+for b in $(seq 0 11)
+do
+  payload="["
+  for i in $(seq 0 99)
+  do
+    n=$((b * 100 + i))
+    [ $i != 0 ] && payload="$payload,"
+    payload="$payload{\"id\":\"urn:E$n\",\"type\":\"T\",\"big\":{\"type\":\"Property\",\"value\":\"$big\"}}"
+  done
+  payload="$payload]"
+  corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | head -1
+done
+echo
+echo
+
+
+echo "02. Wait for the snapshot - the files: snap-000001.cor, log-000001.cor"
+echo "======================================================================"
+n=0
+while [ ! -f $DIR/_/snap-000001.cor ] && [ $n -lt 500 ]; do sleep 0.01; n=$((n + 1)); done
+ls $DIR/_
+echo
+echo
+
+
+echo "03. Create urn:Last - after the snapshot, in log-000001"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Last","type":"T"}' | head -1
+echo
+echo
+
+
+echo "04. kill -9 the broker, start it on the same --dbDir"
+echo "===================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR --dbSnapshotEvery 1 --dbSync request
+echo "restarted"
+echo
+echo
+
+
+echo "05. GET /entities?type=T&count=true&limit=3 - 1201 entities, the first three in creation order"
+echo "==============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&count=true&limit=3&pick=id'
+echo
+echo
+
+
+echo "06. GET /entities/urn:Last"
+echo "=========================="
+corCurl --url /ngsi-ld/v1/entities/urn:Last
+echo
+echo
+
+
+--EXPECT--
+01. Batch create 12 x 100 entities with a 1000-character attribute (about 1.2 MiB of log)
+========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Wait for the snapshot - the files: snap-000001.cor, log-000001.cor
+======================================================================
+log-000001.cor
+snap-000001.cor
+
+
+03. Create urn:Last - after the snapshot, in log-000001
+=======================================================
+HTTP/1.1 201 Created
+
+
+04. kill -9 the broker, start it on the same --dbDir
+====================================================
+restarted
+
+
+05. GET /entities?type=T&count=true&limit=3 - 1201 entities, the first three in creation order
+===============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 1201
+Link: </ngsi-ld/v1/entities?type=T&count=true&pick=id&limit=3&offset=3>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 87
+
+[
+  {
+    "id": "urn:E0"
+  },
+  {
+    "id": "urn:E1"
+  },
+  {
+    "id": "urn:E2"
+  }
+]
+
+
+
+06. GET /entities/urn:Last
+==========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 38
+
+{
+  "id": "urn:Last",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_snapshot

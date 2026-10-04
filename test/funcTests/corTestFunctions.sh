@@ -116,7 +116,18 @@ coraineStart() {
   # Current-state DB plugin
   case "$COR_DB_TYPE" in
     mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
-    corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so" ;;
+    corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so"
+            #
+            # COR_DB_PERSIST=1: every corDB broker persistent, each role in a directory of its own,
+            # emptied at its start - a start begins empty, as without it. A test that names its own
+            # --dbDir (a restart that must find its data) keeps it.
+            #
+            if [ "$COR_DB_PERSIST" == "1" ] && ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-dbDir'; then
+              local dbDir="${COR_DB_PERSIST_DIR:-/tmp/corTest-dbDir}/$role"
+              rm -rf "$dbDir"
+              cmd="$cmd --dbDir $dbDir"
+            fi
+            ;;
     NONE)   ;;  # compiled-in default
     *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
   esac

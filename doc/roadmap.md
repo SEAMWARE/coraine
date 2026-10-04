@@ -30,6 +30,8 @@ Recently built, and documented where it lives:
     requests in flight on one connection ([The cor format and cor://](cor-protocol.md)).
 -   **Requests that wait run as coroutines** of the event loops, not on worker threads
     ([Coroutines](coroutines.md)).
+-   **corDB on disk** - `--dbDir`: an append log synced every 100 ms and snapshots; the store
+    survives a restart, still with no database server ([Installation](installation.md), "corDB on disk").
 
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
@@ -40,7 +42,7 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **corDB persistence** - corDB survives a restart: snapshot plus an append log, `fsync` on a timer. ([more](ideas.md#cordb-persistence))
+-   **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity. ([more](ideas.md#cordb-persistence---cheaper-writes))
 -   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
 -   **Automatic TRoE in corDB** - temporal history from the same log, by a boolean. ([more](ideas.md#automatic-troe-in-cordb))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))

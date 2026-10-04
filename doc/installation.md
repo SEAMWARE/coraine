@@ -109,6 +109,23 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--version` / `-V` | — | print the version and exit |
 | `--traceLevels` / `-t` | — | trace levels for debugging |
 
+### corDB on disk
+
+`corDB` keeps the store in the broker's memory. With **`--dbDir <directory>`** it also keeps
+it on disk and survives a restart: every write appends its effect to a log, synced
+every 100 ms, with a snapshot as the log grows. A clean stop (SIGTERM) loses nothing;
+`kill -9` or a power cut loses at most the last unsynced interval.
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `--dbDir` | none: in RAM only | the directory - one subdirectory per tenant |
+| `--dbSync` | `interval` | `interval`: synced every `--dbSyncInterval` ms; `request`: a write answers once its record is on the disk; `none`: written, never synced |
+| `--dbSyncInterval` | 100 | ms between two syncs |
+| `--dbSnapshotEvery` | 64 | MiB of log after which a tenant is snapshotted (and at least as much as its last snapshot) |
+
+What it costs: [Performance](performance.md), "corDB on disk". How it works:
+[corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md).
+
 ### Environment variables
 
 **Every** command-line option can also be given as an environment variable, named
@@ -232,7 +249,8 @@ end-to-end test the database exists:
 mongosh --quiet --eval 'db.getMongo().getDBNames()'
 ```
 
-`corDB` keeps its state in the broker process and needs no database.
+`corDB` keeps its state in the broker process and needs no database - with
+`--dbDir`, in that directory (`snap-N.cor`, `log-N.cor`, per tenant).
 
 ### Diagnosis
 
@@ -248,6 +266,6 @@ mongosh --quiet --eval 'db.getMongo().getDBNames()'
 
 Tenants are selected per request with the `NGSILD-Tenant` header. With the `mongoc`
 plugin each tenant is a separate database; with `corDB` each tenant is a separate
-in-memory store. No configuration is needed to create one: a write naming an
+store (and, with `--dbDir`, a directory of its own). No configuration is needed to create one: a write naming an
 unknown tenant creates it, while a read of a tenant that does not exist answers
 **404 NonexistentTenant** rather than an empty result.

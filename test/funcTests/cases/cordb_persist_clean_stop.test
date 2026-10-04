@@ -1,0 +1,351 @@
+#
+# FILE            cordb_persist_clean_stop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a clean stop (SIGTERM) loses nothing (corDB doc/persistence.md § 5a, § 6).
+# Every kind of write, on two tenants, then a stop and a start on the same directory: the store comes
+# back exactly, in creation order. The flusher's interval is a minute, so nothing reaches the disk
+# on the timer: what comes back came back because the stop wrote it - a stop that skipped writing
+# out the log buffers fails here every time, not one run in a hundred. A write after the restart is
+# appended after the replayed ones and survives the next restart too.
+#
+# REQUIRE_DB: corDB
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+corDB persistence - a clean stop loses nothing
+
+--TAGS--
+corDB persistence
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_clean_stop
+coraineStart --dbDir /tmp/corTest-cordb_persist_clean_stop --dbSyncInterval 60000
+
+--RUN--
+
+#
+# 01. Create E1 (a, b), E2, E3 - type T
+# 02. PATCH E1/attrs: a=2
+# 03. POST E2/attrs (append c)
+# 04. DELETE E1/attrs/b
+# 05. DELETE E3
+# 06. Batch create E4, E5 in tenant t1
+# 07. Create subscription S1, then PATCH it (description)
+# 08. Create registration R1
+# 09. Stop (SIGTERM), start on the same --dbDir
+# 10. GET /entities?type=T - E1 (a=2, no b), E2 (with c), no E3, creation order
+# 11. GET /entities?type=T in tenant t1 - E4, E5
+# 12. GET /subscriptions/S1 - with its description
+# 13. GET /csourceRegistrations/R1
+# 14. Create E6, stop, start again
+# 15. GET /entities?type=T - E1, E2, E6
+#
+
+DIR=/tmp/corTest-cordb_persist_clean_stop
+
+echo "01. Create E1 (a, b), E2, E3 - type T"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":1},"b":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","a":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. PATCH E1/attrs: a=2"
+echo "======================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"a":{"type":"Property","value":2}}' | head -1
+echo
+echo
+
+
+echo "03. POST E2/attrs (append c)"
+echo "============================"
+corCurl -X POST --url /ngsi-ld/v1/entities/urn:E2/attrs --payload '{"c":{"type":"Property","value":"C"}}' | head -1
+echo
+echo
+
+
+echo "04. DELETE E1/attrs/b"
+echo "====================="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/b | head -1
+echo
+echo
+
+
+echo "05. DELETE E3"
+echo "============="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E3 | head -1
+echo
+echo
+
+
+echo "06. Batch create E4, E5 in tenant t1"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/entityOperations/create -H "NGSILD-Tenant: t1" --payload '[{"id":"urn:E4","type":"T"},{"id":"urn:E5","type":"T"}]' | head -1
+echo
+echo
+
+
+echo "07. Create subscription S1, then PATCH it (description)"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:1234/S1"}}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:S1 --payload '{"description":"patched before the stop"}' | head -1
+echo
+echo
+
+
+echo "08. Create registration R1"
+echo "=========================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:R1","type":"ContextSourceRegistration","endpoint":"http://r.example","information":[{"entities":[{"type":"V"}]}]}' | head -1
+echo
+echo
+
+
+echo "09. Stop (SIGTERM), start on the same --dbDir"
+echo "============================================="
+coraineStop
+coraineStart --dbDir $DIR --dbSyncInterval 60000
+echo "restarted"
+echo
+echo
+
+
+echo "10. GET /entities?type=T - E1 (a=2, no b), E2 (with c), no E3, creation order"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "11. GET /entities?type=T in tenant t1 - E4, E5"
+echo "=============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "12. GET /subscriptions/S1 - with its description"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+echo
+echo
+
+
+echo "13. GET /csourceRegistrations/R1"
+echo "================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:R1
+echo
+echo
+
+
+echo "14. Create E6, stop, start again"
+echo "================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E6","type":"T"}' | head -1
+coraineStop
+coraineStart --dbDir $DIR --dbSyncInterval 60000
+echo "restarted"
+echo
+echo
+
+
+echo "15. GET /entities?type=T - E1, E2, E6"
+echo "====================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (a, b), E2, E3 - type T
+=====================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. PATCH E1/attrs: a=2
+=======================
+HTTP/1.1 204 No Content
+
+
+03. POST E2/attrs (append c)
+============================
+HTTP/1.1 204 No Content
+
+
+04. DELETE E1/attrs/b
+=====================
+HTTP/1.1 204 No Content
+
+
+05. DELETE E3
+=============
+HTTP/1.1 204 No Content
+
+
+06. Batch create E4, E5 in tenant t1
+====================================
+HTTP/1.1 201 Created
+
+
+07. Create subscription S1, then PATCH it (description)
+=======================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+08. Create registration R1
+==========================
+HTTP/1.1 201 Created
+
+
+09. Stop (SIGTERM), start on the same --dbDir
+=============================================
+restarted
+
+
+10. GET /entities?type=T - E1 (a=2, no b), E2 (with c), no E3, creation order
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 131
+
+[
+  {
+    "a": 2,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 1,
+    "c": "C",
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+11. GET /entities?type=T in tenant t1 - E4, E5
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+[
+  {
+    "id": "urn:E4",
+    "type": "T"
+  },
+  {
+    "id": "urn:E5",
+    "type": "T"
+  }
+]
+
+
+
+12. GET /subscriptions/S1 - with its description
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 419
+
+{
+  "description": "patched before the stop",
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:S1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:1234/S1"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription"
+}
+
+
+
+13. GET /csourceRegistrations/R1
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 200
+
+{
+  "endpoint": "http://r.example",
+  "id": "urn:R1",
+  "information": [
+    {
+      "entities": [
+        {
+          "type": "V"
+        }
+      ]
+    }
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+14. Create E6, stop, start again
+================================
+HTTP/1.1 201 Created
+restarted
+
+
+15. GET /entities?type=T - E1, E2, E6
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 176
+
+[
+  {
+    "a": 2,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 1,
+    "c": "C",
+    "id": "urn:E2",
+    "type": "T"
+  },
+  {
+    "id": "urn:E6",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_clean_stop

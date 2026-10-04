@@ -191,7 +191,7 @@ the headers — read these before writing a plugin:
 | Plugin | Category | Notes |
 |--------|----------|-------|
 | **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
-| **corDB** | DB | In-memory; GEOS geo-filtering, per-tenant isolation. No persistence by design. Ideal for tests and demos. |
+| **corDB** | DB | In-process; GEOS geo-filtering, per-tenant isolation. In RAM, or on disk with `--dbDir` (a log and snapshots). |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
 | **corDB** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
