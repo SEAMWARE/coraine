@@ -296,8 +296,14 @@ install: etc/contextSourceExtras.json
 install_debug: etc/contextSourceExtras.json
 	$(call install_from,$(BUILD_DEBUG))
 
+#
+# corDB is a plugin, not an archive linked into BUILD_PGO: its .so goes in from its own obj/release,
+# with the same make line as the PGO-use pass above (same flags, so nothing rebuilds). Without it,
+# PGO_RESTORE_DEBUG=1 leaves the DEBUG corDB.so installed next to a profile-guided broker.
+#
 install_pgo: etc/contextSourceExtras.json
 	$(call install_from,BUILD_PGO)
+	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_USE)" install > /dev/null
 
 test:
 	$(CORTEST)
