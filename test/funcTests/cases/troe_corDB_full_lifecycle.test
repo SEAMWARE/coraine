@@ -5,29 +5,24 @@
 #
 # Copyright 2026 Seamware
 #
-# TRoE: full single-entity lifecycle event capture.
-#   POST entity            → entityCreated
-#   PATCH /entities/{id}   → attrCreated (added 'color')
-#                          + attrModified (changed 'speed')
-#   PUT   /attrs/speed     → attrReplaced
-#   DELETE /attrs/color    → attrDeleted
-#   DELETE entity          → entityDeleted
+# TRoE in corDB (--troe corDB): merge, attribute replace, attribute delete (a tombstone), entity delete.
+# The history is read back through the temporal API (§ 5.7.3).
 #
 --NAME--
-TRoE - full lifecycle: create / patch entity / put attr / delete attr / delete entity
+TRoE corDB - an entity's whole lifecycle in its history
 
 --TAGS--
 troe lifecycle
 
 --INIT--
 corDbDrop
-coraineStart --troe corDB --apiPlugins admin --troeSync
+coraineStart --troe corDB
 
 --RUN--
 
 echo "01. POST entity urn:V1 with speed=42"
 echo "===================================="
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
 echo
 echo
 echo
@@ -57,27 +52,9 @@ corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
 echo
 echo
 
-
-echo "06. GET /admin/troe/dump — six events in order"
-echo "=============================================="
-corCurl --url /admin/troe/dump | python3 -c "
-import sys, json, re
-hdr = ''
-body = ''
-for line in sys.stdin:
-    if hdr == '' and line.strip() == '':
-        hdr = 'done'
-        continue
-    if hdr == 'done':
-        body += line
-d = json.loads(body) if body.strip() else {}
-events = d.get('events', [])
-print('  count:', len(events))
-for e in events:
-    a = e.get('attrName', '')
-    a = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', a)
-    print('  op=%s entityId=%s attrName=%s' % (e.get('op'), e.get('entityId'), a))
-"
+echo "06. GET /temporal/entities/urn:V1"
+echo "================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -85,6 +62,7 @@ echo
 --EXPECT--
 01. POST entity urn:V1 with speed=42
 ====================================
+HTTP/1.1 201 Created
 
 
 
@@ -105,15 +83,49 @@ HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
 
 
-06. GET /admin/troe/dump — six events in order
-==============================================
-  count: 6
-  op=entityCreated entityId=urn:V1 attrName=
-  op=attrModified entityId=urn:V1 attrName=speed
-  op=attrCreated entityId=urn:V1 attrName=color
-  op=attrReplaced entityId=urn:V1 attrName=speed
-  op=attrDeleted entityId=urn:V1 attrName=color
-  op=entityDeleted entityId=urn:V1 attrName=
+06. GET /temporal/entities/urn:V1
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "color": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": "red"
+    },
+    {
+      "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 42
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 80
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 120
+    }
+  ],
+  "type": "Vehicle"
+}
+
 
 
 --TEARDOWN--
