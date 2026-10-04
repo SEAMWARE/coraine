@@ -25,6 +25,7 @@ HOST=${COR_MONGO_HOST:-localhost}
 #
 MONGO_PORT=${PERF_MONGO_PORT:-}
 ENTITIES=${PERF_ENTITIES:-100}
+SCRIPTDIR=$(cd "$(dirname "$0")" && pwd)
 DURATION=${PERF_DURATION:-5s}
 THREADS=${PERF_THREADS:-8}
 REPEATS=${PERF_REPEATS:-3}
@@ -369,7 +370,7 @@ median() {                      # median <label> "<rps> <p99>"...  -> the median
 # No scenario measured by this script has a legitimate one: reads answer 200,
 # a PATCH 204, a batch 201/204/207.
 #
-wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s> <p99 in us>"
+wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s> <p99> <p50> <p95>", in us
   local label="$1"; shift
   local out
   out=$("$@" 2>&1) || true
@@ -398,6 +399,7 @@ wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s>
   printf '%s' "$out" | awk '
     /Requests\/sec/ { if (cons == "") rps = $2 }
     /^Consumed\/sec/ { cons = $2; rps = $2 }
+    /^PCTL / { p50 = $2; p95 = $3; p99x = $4 }
     /^ *99%/ {
       v = $2
       if      (v ~ /us$/) { sub(/us$/, "", v); p99 = v }
@@ -405,16 +407,16 @@ wrkRun() {                      # wrkRun <label> <wrk args...>  -> "<requests/s>
       else if (v ~ /m$/)  { sub(/m$/,  "", v); p99 = v * 60000000 }
       else if (v ~ /s$/)  { sub(/s$/,  "", v); p99 = v * 1000000 }
     }
-    END { printf "%.0f %.0f", rps, p99 }'
+    END { if (p99x != "") p99 = p99x; printf "%.0f %.0f %.0f %.0f", rps, p99, p50, p95 }'
 }
 
 # median of REPEATS runs - a single wrk run on a shared runner is a rumour
 measure() {
   local url="$1" conns="$2" rpsList=() t
   t=$(wrkThreads "$conns")
-  wrkRun "warmup $url" "${loadPin[@]}" wrk --latency -t"$t" -c"$conns" -d2s "$url" > /dev/null
+  wrkRun "warmup $url" "${loadPin[@]}" wrk --latency -t"$t" -c"$conns" -d2s -s "$SCRIPTDIR/latency.lua" "$url" > /dev/null
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(wrkRun "-t$t -c$conns $url" "${loadPin[@]}" wrk --latency -t"$t" -c"$conns" -d"$DURATION" "$url")" )
+    rpsList+=( "$(wrkRun "-t$t -c$conns $url" "${loadPin[@]}" wrk --latency -t"$t" -c"$conns" -d"$DURATION" -s "$SCRIPTDIR/latency.lua" "$url")" )
   done
   median "-t$t -c$conns $url" "${rpsList[@]}"
 }
@@ -449,9 +451,9 @@ measureScript() {
 #
 scen() { SCEN=$("$@"); }
 
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50 ; read -r queryC50    queryC50P99 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200 ; read -r queryC200   queryC200P99 <<< "$SCEN"
-scen measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50 ; read -r retrieve    retrieveP99 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50 ; read -r queryC50    queryC50P99 queryC50P50 queryC50P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200 ; read -r queryC200   queryC200P99 queryC200P50 queryC200P95 <<< "$SCEN"
+scen measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50 ; read -r retrieve    retrieveP99 retrieveP50 retrieveP95 <<< "$SCEN"
 
 #
 # THE PAGE SIZE, held at one concurrency so the three are comparable.
@@ -468,8 +470,8 @@ scen measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7"
 #   limit=20    a realistic page
 #   limit=100   where per-entity serialisation dominates and the servers diverge
 #
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=1" 50 ; read -r queryL1C50   queryL1C50P99 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100" 50 ; read -r queryL100C50 queryL100C50P99 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=1" 50 ; read -r queryL1C50   queryL1C50P99 queryL1C50P50 queryL1C50P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100" 50 ; read -r queryL100C50 queryL100C50P99 queryL100C50P50 queryL100C50P95 <<< "$SCEN"
 
 #
 # WRITES. Until 2026-09-15 this script measured three request shapes and every
@@ -485,9 +487,8 @@ scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100"
 # server that is fast alone and collapses in company says so in the ratio, and
 # that is exactly the shape the corDB bug had (30 433 req/s at c1, dead at c20).
 #
-SCRIPTDIR=$(cd "$(dirname "$0")" && pwd)
-scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchC50 patchC50P99 <<< "$SCEN"
-scen measureScript "$SCRIPTDIR/patchAttr.lua" 1 ; read -r patchC1  patchC1P99 <<< "$SCEN"
+scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchC50 patchC50P99 patchC50P50 patchC50P95 <<< "$SCEN"
+scen measureScript "$SCRIPTDIR/patchAttr.lua" 1 ; read -r patchC1  patchC1P99 patchC1P50 patchC1P95 <<< "$SCEN"
 
 #
 # The same write, twenty at a time. Per ENTITY it should be far cheaper - one
@@ -498,7 +499,7 @@ scen measureScript "$SCRIPTDIR/patchAttr.lua" 1 ; read -r patchC1  patchC1P99 <<
 # batching is actually worth, and a ratio near 1 would say the per-request
 # overhead is not where the time goes.
 #
-PERF_BATCH=20 scen measureScript "$SCRIPTDIR/batchUpdate.lua" 50 ; read -r batch20C50 batch20C50P99 <<< "$SCEN"
+PERF_BATCH=20 scen measureScript "$SCRIPTDIR/batchUpdate.lua" 50 ; read -r batch20C50 batch20C50P99 batch20C50P50 batch20C50P95 <<< "$SCEN"
 
 #
 # CREATES. Everything above leaves the store the size it found it: a query reads,
@@ -542,16 +543,16 @@ measureGrowing() {
   MEASURED=$(median "-t$t -c$conns -s $(basename "$script") (store reset per repeat)" "${rpsList[@]}")
 }
 
-measureGrowing "$SCRIPTDIR/createEntity.lua" 50 ; read -r createC50 createC50P99 <<< "$MEASURED"
-measureGrowing "$SCRIPTDIR/createEntity.lua" 1  ; read -r createC1  createC1P99  <<< "$MEASURED"
-PERF_BATCH=20 measureGrowing "$SCRIPTDIR/batchCreate.lua" 50 ; read -r batch20CreateC50 batch20CreateC50P99 <<< "$MEASURED"
+measureGrowing "$SCRIPTDIR/createEntity.lua" 50 ; read -r createC50 createC50P99 createC50P50 createC50P95 <<< "$MEASURED"
+measureGrowing "$SCRIPTDIR/createEntity.lua" 1  ; read -r createC1  createC1P99 createC1P50 createC1P95 <<< "$MEASURED"
+PERF_BATCH=20 measureGrowing "$SCRIPTDIR/batchCreate.lua" 50 ; read -r batch20CreateC50 batch20CreateC50P99 batch20CreateC50P50 batch20CreateC50P95 <<< "$MEASURED"
 
 #
 # MERGE. PATCH /entities/{id} - the other way a device's new value reaches an entity: the stored
 # entity is read, the fragment merged into it and the result written back. Added 2026-09-30 with
 # the deletes below; patch_c50 (PATCH .../attrs) is a different write path in both stores.
 #
-scen measureScript "$SCRIPTDIR/mergeEntity.lua" 50 ; read -r mergeC50 mergeC50P99 <<< "$SCEN"
+scen measureScript "$SCRIPTDIR/mergeEntity.lua" 50 ; read -r mergeC50 mergeC50P99 mergeC50P50 mergeC50P95 <<< "$SCEN"
 
 #
 # DELETES. A delete CONSUMES what it measures - the second DELETE of an id is a 404, and wrkRun
@@ -602,8 +603,8 @@ measureConsuming() {
   MEASURED=$(median "-t$t -c$conns -s $(basename "$script") (pool $POOL, refilled per repeat)" "${rpsList[@]}")
 }
 
-measureConsuming "$SCRIPTDIR/deleteEntity.lua" 50 ; read -r deleteC50 deleteC50P99 <<< "$MEASURED"
-PERF_BATCH=20 measureConsuming "$SCRIPTDIR/batchDelete.lua" 50 ; read -r batch20DeleteC50 batch20DeleteC50P99 <<< "$MEASURED"
+measureConsuming "$SCRIPTDIR/deleteEntity.lua" 50 ; read -r deleteC50 deleteC50P99 deleteC50P50 deleteC50P95 <<< "$MEASURED"
+PERF_BATCH=20 measureConsuming "$SCRIPTDIR/batchDelete.lua" 50 ; read -r batch20DeleteC50 batch20DeleteC50P99 batch20DeleteC50P50 batch20DeleteC50P95 <<< "$MEASURED"
 
 #
 # Every rate carries the tail it was measured with. A throughput number on its
@@ -612,17 +613,17 @@ PERF_BATCH=20 measureConsuming "$SCRIPTDIR/batchDelete.lua" 50 ; read -r batch20
 # p99, and a table with only the rate column makes that look like a clean win.
 #
 printf '{"db":"%s"'                                        "$DB"
-printf ',"query_c50":%s,"query_c50_p99us":%s'              "$queryC50"         "$queryC50P99"
-printf ',"query_c200":%s,"query_c200_p99us":%s'            "$queryC200"        "$queryC200P99"
-printf ',"query_l1_c50":%s,"query_l1_c50_p99us":%s'        "$queryL1C50"       "$queryL1C50P99"
-printf ',"query_l100_c50":%s,"query_l100_c50_p99us":%s'    "$queryL100C50"     "$queryL100C50P99"
-printf ',"retrieve_c50":%s,"retrieve_c50_p99us":%s'        "$retrieve"         "$retrieveP99"
-printf ',"patch_c50":%s,"patch_c50_p99us":%s'              "$patchC50"         "$patchC50P99"
-printf ',"patch_c1":%s,"patch_c1_p99us":%s'                "$patchC1"          "$patchC1P99"
-printf ',"batch20_c50":%s,"batch20_c50_p99us":%s'          "$batch20C50"       "$batch20C50P99"
-printf ',"create_c50":%s,"create_c50_p99us":%s'            "$createC50"        "$createC50P99"
-printf ',"create_c1":%s,"create_c1_p99us":%s'              "$createC1"         "$createC1P99"
-printf ',"batch20create_c50":%s,"batch20create_c50_p99us":%s' "$batch20CreateC50" "$batch20CreateC50P99"
-printf ',"merge_c50":%s,"merge_c50_p99us":%s'              "$mergeC50"         "$mergeC50P99"
-printf ',"delete_c50":%s,"delete_c50_p99us":%s'            "$deleteC50"        "$deleteC50P99"
-printf ',"batch20delete_c50":%s,"batch20delete_c50_p99us":%s}\n' "$batch20DeleteC50" "$batch20DeleteC50P99"
+printf ',"query_c50":%s,"query_c50_p50us":%s,"query_c50_p95us":%s,"query_c50_p99us":%s' "$queryC50" "$queryC50P50" "$queryC50P95" "$queryC50P99"
+printf ',"query_c200":%s,"query_c200_p50us":%s,"query_c200_p95us":%s,"query_c200_p99us":%s' "$queryC200" "$queryC200P50" "$queryC200P95" "$queryC200P99"
+printf ',"query_l1_c50":%s,"query_l1_c50_p50us":%s,"query_l1_c50_p95us":%s,"query_l1_c50_p99us":%s' "$queryL1C50" "$queryL1C50P50" "$queryL1C50P95" "$queryL1C50P99"
+printf ',"query_l100_c50":%s,"query_l100_c50_p50us":%s,"query_l100_c50_p95us":%s,"query_l100_c50_p99us":%s' "$queryL100C50" "$queryL100C50P50" "$queryL100C50P95" "$queryL100C50P99"
+printf ',"retrieve_c50":%s,"retrieve_c50_p50us":%s,"retrieve_c50_p95us":%s,"retrieve_c50_p99us":%s' "$retrieve" "$retrieveP50" "$retrieveP95" "$retrieveP99"
+printf ',"patch_c50":%s,"patch_c50_p50us":%s,"patch_c50_p95us":%s,"patch_c50_p99us":%s' "$patchC50" "$patchC50P50" "$patchC50P95" "$patchC50P99"
+printf ',"patch_c1":%s,"patch_c1_p50us":%s,"patch_c1_p95us":%s,"patch_c1_p99us":%s' "$patchC1" "$patchC1P50" "$patchC1P95" "$patchC1P99"
+printf ',"batch20_c50":%s,"batch20_c50_p50us":%s,"batch20_c50_p95us":%s,"batch20_c50_p99us":%s' "$batch20C50" "$batch20C50P50" "$batch20C50P95" "$batch20C50P99"
+printf ',"create_c50":%s,"create_c50_p50us":%s,"create_c50_p95us":%s,"create_c50_p99us":%s' "$createC50" "$createC50P50" "$createC50P95" "$createC50P99"
+printf ',"create_c1":%s,"create_c1_p50us":%s,"create_c1_p95us":%s,"create_c1_p99us":%s' "$createC1" "$createC1P50" "$createC1P95" "$createC1P99"
+printf ',"batch20create_c50":%s,"batch20create_c50_p50us":%s,"batch20create_c50_p95us":%s,"batch20create_c50_p99us":%s' "$batch20CreateC50" "$batch20CreateC50P50" "$batch20CreateC50P95" "$batch20CreateC50P99"
+printf ',"merge_c50":%s,"merge_c50_p50us":%s,"merge_c50_p95us":%s,"merge_c50_p99us":%s' "$mergeC50" "$mergeC50P50" "$mergeC50P95" "$mergeC50P99"
+printf ',"delete_c50":%s,"delete_c50_p50us":%s,"delete_c50_p95us":%s,"delete_c50_p99us":%s' "$deleteC50" "$deleteC50P50" "$deleteC50P95" "$deleteC50P99"
+printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s}\n' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
