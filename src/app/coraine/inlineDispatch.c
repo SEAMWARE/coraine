@@ -435,6 +435,17 @@ static bool neverWaits(const char* dbName, const char* troeName)
 
 // -----------------------------------------------------------------------------
 //
+// inlineDispatchNeverWaits -
+//
+bool inlineDispatchNeverWaits(void)
+{
+  return coroutineDbOk;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // inlineDispatchInit -
 //
 void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
