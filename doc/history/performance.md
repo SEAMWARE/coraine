@@ -4,6 +4,65 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-04 - eight cores: coraine and Orion-LD, MongoDB, TimescaleDB, corDB, ramDB
+
+"One machine, eight cores" in [the performance page](../performance.md) measured again: corDB on disk
+now, its history in the store, ramDB, Orion-LD beside coraine, the databases as containers pinned to
+the same eight cores, p50 and p95 beside p99 (`perfRun.sh` gained them: a `done()` hook in every wrk
+run). What the run found on the way:
+
+- **ramDB ran without the fast paths.** Inline dispatch and coroutines were switched on for the plugin
+  NAMED corDB; ramDB - corDB in RAM only - ran every request on a worker: its retrieve 2.4× below
+  corDB's. Asked of what the store is now (`neverWaits`): 178 000 → 428 000 retrieves/s.
+- **The first ramDB column was a debug ramDB.so**: the local corDB `main` was not pulled after corDB#4,
+  so `make pgo` built no ramDB and an old debug build stayed installed. Measured again.
+- **Orion-LD**: the installed binary was a debug build; its release build (`make release`, `-O3`) was
+  measured, run from its build directory. With MongoDB 8 it needs `-mongocOnly` - the legacy driver's
+  OP_QUERY is gone from MongoDB 8. One Orion-LD + TRoE broker aborted on a stop between two scenarios;
+  every number was in.
+
+#### The table before (corDB in RAM, no Orion-LD, p99 only)
+
+The tables above are per broker core. This one is the question somebody buying
+a machine actually asks: eight cores, and whatever the configuration needs
+running on them. The load generator is not in the budget — it stands in for
+clients, which are somebody else's machines.
+
+| Configuration | `limit=1` | `limit=20` | ent/s | `PATCH` | batch-20 | ent/s |
+|---|---:|---:|---:|---:|---:|---:|
+| `corDB` | **152 448** | **40 073** | **801 460** | **125 187** | 17 239 | **344 780** |
+| `corDB` + history in-process | 150 056 | 40 257 | 805 140 | 123 307 | 17 013 | 340 260 |
+| `corDB` + history in PostgreSQL | 147 654 | 39 806 | 796 120 | 11 099 | 1 055 | 21 100 |
+| `mongoc` | 60 527 | 23 185 | 463 700 | 19 961 | 1 994 | 39 880 |
+| `mongoc` + history in PostgreSQL | 59 754 | 22 947 | 458 940 | 8 251 | 753 | 15 060 |
+
+Three things fall out of that table.
+
+**Temporal history in-process is free.** `--troe corDB` against `--troe none`:
+40 257 against 40 073 on queries, 123 307 against 125 187 on PATCH. Within the
+noise, on every shape. History in PostgreSQL costs `corDB` **91% of its PATCH
+rate and 94% of its batch rate** — not because PostgreSQL is slow, but because
+`corDB`'s writes are otherwise nearly free, so the database becomes all of the
+cost. On `mongoc`, where writes already cost something, TRoE takes a further
+59%.
+
+**Queries do not care.** Every configuration reads at the same speed with
+history on or off, which is what you would hope: nothing on the read path
+touches the history database.
+
+**Scaling to eight cores is 6.1×**, not 8: 6 588 req/s on one core against
+40 073 on eight. The missing 24% is the store's lock and the memory system,
+and it is measured rather than extrapolated.
+
+> ⚠️ The `limit=1` column may be partly **load-generator bound**. All three
+> `corDB` rows land at 147–152k, and at that rate `wrk` on eight physical cores
+> is doing ~19 000 requests/s per core of its own. Treat those as a floor.
+
+> ⚠️ The `corDB` rows above are corDB **in RAM** (no `--dbDir`). What
+> persistence costs is the next section. It costs no libraries — everything it
+> needs is in libc.
+
+
 ## 2026-10-04 - corDB measured on the wrong build
 
 From corDB's move to its own repository (2026-10-03 12:40) a local `make pgo` ended with `make di` on
