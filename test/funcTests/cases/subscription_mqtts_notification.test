@@ -100,5 +100,5 @@ HTTP/1.1 201 Created
 --TEARDOWN--
 coraineStop
 ftClientStop
-pkill -f "mosquitto -d -c /tmp/mqtts-test.conf" 2>/dev/null
+mosquittoStop /tmp/mqtts-test.conf 11887
 \rm -f /tmp/mqtts-test.conf /tmp/mqtts-test.key /tmp/mqtts-test.crt

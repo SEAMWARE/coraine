@@ -9,7 +9,7 @@
 # with mqtt://; broker connects as MQTT client to that broker and
 # publishes the wrapped { metadata, body } JSON.
 #
-# Test rig: a private mosquitto on port 11883 (anonymous, runtime
+# Test rig: a private mosquitto on port 11889 (anonymous, runtime
 # config), ftClient subscribed to topic ngsild/notif. MQTT messages
 # land in the same dump array as HTTP notifications, with verb="MQTT".
 #
@@ -23,11 +23,11 @@ subscription notification mqtt
 
 --INIT--
 corDbDrop
-echo "listener 11883
-allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
-mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
-mosquittoWait 11883
-ftClientStart --mqttPort 11883 --mqttTopic ngsild/notif
+echo "listener 11889
+allow_anonymous true" > /tmp/mqtt-notify.conf
+mosquitto -d -c /tmp/mqtt-notify.conf
+mosquittoWait 11889
+ftClientStart --mqttPort 11889 --mqttTopic ngsild/notif
 coraineStart --bridges mqtt
 
 --RUN--
@@ -40,7 +40,7 @@ payload='{
   "entities":[{"type":"Vehicle"}],
   "notification":{
     "endpoint":{
-      "uri":"mqtt://localhost:11883/ngsild/notif",
+      "uri":"mqtt://localhost:11889/ngsild/notif",
       "notifierInfo":[
         {"key":"MQTT-QoS","value":"0"}
       ]
@@ -118,5 +118,5 @@ Content-Length: 0
 coraineStop
 ftClientStop
 corDbDrop
-pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
-\rm -f /tmp/mqtt-test-mosquitto.conf
+mosquittoStop /tmp/mqtt-notify.conf 11889
+\rm -f /tmp/mqtt-notify.conf

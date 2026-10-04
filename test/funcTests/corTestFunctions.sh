@@ -720,6 +720,29 @@ mosquittoWait() {
 }
 
 
+# mosquittoStop <conf> <port> - stop the test's mosquitto and wait until <port> is free
+#
+# pkill only SIGNALS: it returns while mosquitto is still shutting down, its port still bound. The next
+# test to start a mosquitto on that port then failed to bind - silently, `mosquitto -d` daemonises -
+# while mosquittoWait was satisfied by the old one still listening; the old one then exited and the
+# test found nothing on its port (bridge_mqtt_v311_echo after bridge_mqtt, both on 11883).
+#
+mosquittoStop() {
+  local conf=$1
+  local port=$2
+  local i
+
+  pkill -f "mosquitto -d -c $conf" 2>/dev/null
+  for ((i = 0; i < 250; i++)); do
+    corPortOpen "$port" || return 0
+    sleep 0.02
+  done
+
+  echo "mosquittoStop: port $port still open 5s after stopping the mosquitto of $conf" >&2
+  return 1
+}
+
+
 # ftClientUrl <port> <path> - scheme-correct URL for the corTestClient on <port>
 #
 ftClientUrl() {

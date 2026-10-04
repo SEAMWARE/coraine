@@ -113,7 +113,7 @@ echo
 coraineStop
 ftClientStop
 corDbDrop
-pkill -f "mosquitto -d -c /tmp/mqtt-test-mosquitto.conf" 2>/dev/null
+mosquittoStop /tmp/mqtt-test-mosquitto.conf 11883
 \rm -f /tmp/mqtt-test-mosquitto.conf /tmp/coraine_bridges_mqtt.json
 
 --EXPECT--
