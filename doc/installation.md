@@ -135,9 +135,9 @@ a cache in front of another system. **A restart starts empty**, by design, and n
 at runtime: choose it knowing that.
 
 - No disk options: `--dbDir` is an unknown option with ramDB, not one quietly ignored.
-- No history: `--troe corDB` is refused (corDB keeps history inside its own store, on disk). The
-  other TRoE choices work: `--troe none` (the default), or `--troe timescale` for history in
-  PostgreSQL.
+- No `--troe corDB`: it is refused (corDB keeps history inside its own store, on disk). The other
+  TRoE choices work: `--troe none` (the default), `--troe timescale` for history in PostgreSQL, or
+  `--troe ramDB` - a ring of the latest TRoE events in RAM, a dev/test tool today.
 - Everything else - queries, subscriptions, registrations, tenants, geo-queries - is corDB's.
 
 ### Environment variables
