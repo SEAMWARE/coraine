@@ -8,6 +8,9 @@
 # TRoE in corDB (--troe corDB): one instance per attribute of a created entity.
 # The history is read back through the temporal API (§ 5.7.3).
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 TRoE corDB - a created entity has one instance per attribute
 

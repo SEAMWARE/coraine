@@ -10,6 +10,9 @@
 # previous write had stamped (here a's default instance, PATCHed in step 02) was recorded a second
 # time, as if the delete had written it.
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 DELETE of one attribute instance: the entity's modifiedAt moves, history records only the tombstone
 

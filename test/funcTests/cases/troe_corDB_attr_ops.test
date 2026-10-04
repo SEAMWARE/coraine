@@ -8,6 +8,9 @@
 # TRoE in corDB (--troe corDB): a PATCH appends an instance; a deleted entity keeps its history.
 # The history is read back through the temporal API (§ 5.7.3).
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 TRoE corDB - an attribute PATCH appends, a deleted entity keeps its history
 

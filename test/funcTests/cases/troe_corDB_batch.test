@@ -8,6 +8,9 @@
 # TRoE in corDB (--troe corDB): batch create, update and delete - every entity keeps its own history.
 # The history is read back through the temporal API (§ 5.7.3).
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 TRoE corDB - batch create, update and delete
 

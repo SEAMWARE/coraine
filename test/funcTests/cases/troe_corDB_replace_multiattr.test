@@ -8,6 +8,9 @@
 # TRoE in corDB (--troe corDB): replace, append and PATCH of several attributes - only what each write wrote is recorded.
 # The history is read back through the temporal API (§ 5.7.3).
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 TRoE corDB - replace, append and PATCH of several attributes
 

@@ -11,6 +11,9 @@
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 URL parameter ?local=true suppresses distops on /types, /attributes, /temporal/entities (§ 6.3.18)
 
