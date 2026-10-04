@@ -817,6 +817,39 @@ reading beside Orion-LD's batch path, which is public.
 
 ---
 
+## 18. coraine as a device agent: small boards and MCUs
+
+An agent next to the devices, not a central broker: stripped down considerably - no TRoE, no
+registrations, no subscriptions (`COR_FEATURE_SUBSCRIPTIONS=0`, `COR_FEATURE_REGISTRATIONS=0`),
+current state in RAM (ramDB). What it does need is its southbound protocol plugins: Zigbee,
+UltraLight, MQTT and others (§6, the bridge family). After the ARM image.
+
+**Two targets, two efforts:**
+
+- **Small Linux boards** (Pi Zero class, Cortex-A, 64-512 MB): no OS work. The ARM image, the builtin
+  HTTP server instead of libmicrohttpd, TLS optional, the byte budget (§12).
+- **MCUs** (Cortex-M, ESP32 - no MMU, 256 KB-8 MB RAM): an existing RTOS, not an OS of our own -
+  NuttX (the most POSIX: most of our C compiles as is), Zephyr (the most boards), FreeRTOS + lwIP (the
+  smallest). They bring TCP, BSD sockets, TLS (mbedTLS) and a flash filesystem (littlefs). What changes
+  in coraine: plugins linked statically (no `dlopen`), `poll` instead of `epoll`, coroutines on one
+  thread, persistence (if any) on the flash filesystem.
+
+**Speed is not the reason.** The kernel is ~28 % of the broker's CPU on a batch update (2026-10-04,
+2 cores: TCP, epoll, syscalls); an OS of our own removes the syscall and switch part of that, not the
+TCP work - 10-25 % on the same CPU. The reason is footprint: running where Linux cannot.
+
+**The hard part is RAM, not the OS:** arena sizes, CorNode trees, @context expansion (a precompiled
+core context). A full broker on a 256 KB part is not realistic - there, a small cor:// device client
+talking to a broker is.
+
+**Order of work:**
+
+1. Measure: RSS idle and per entity, every optional feature off - that number says which MCU class is
+   possible at all.
+2. Boot on NuttX or Zephyr in QEMU (1-2 weeks).
+3. A "coraine-micro" profile on a fat MCU - ESP32-S3 with 8 MB PSRAM, STM32H7 with 1 MB (1-2 months,
+   most of it the memory diet).
+
 ---
 
 ## Smaller, still open
