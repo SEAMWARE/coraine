@@ -127,6 +127,10 @@ typedef struct TroeQueryFilter
   // merges it into its WHERE.
   const char*  qSqlPredicate;
 
+  // ?q= parsed (an LdQNode*), for a store that evaluates it itself rather than in SQL (--troe corDB).
+  // Set together with qSqlPredicate; NULL = no q filter.
+  void*        qTree;
+
   // Multi-entity entity selectors (only consumed by entityTemporalQuery,
   // ignored by entityTemporalRetrieve which uses an explicit entityId).
   char**       idV;          // NULL-terminated list of entity-id URIs

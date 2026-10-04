@@ -599,6 +599,7 @@ bool getEntitiesTemporal(void)
   if (corNgsild.qExpr != NULL)
   {
     filter.qSqlPredicate = troeQTreeToSql(corNgsild.qExpr, &corRest.kalloc);
+    filter.qTree         = corNgsild.qExpr;
 
     //
     // A q that cannot be turned into SQL must not simply be left out: the
