@@ -44,7 +44,7 @@ echo
 
 echo "02. Learn the speed instanceId (broker-generated, so kept out of the expect)"
 echo "==========================================================================="
-INST=$(corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -o 'urn:ngsi-ld:Instance:[a-zA-Z0-9-]*' | head -1)
+INST=$(corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?attrs=speed' | grep -o 'urn:ngsi-ld:Instance:[a-zA-Z0-9:-]*' | head -1)
 echo "instanceId captured: $([ -n "$INST" ] && echo yes || echo no)"
 echo
 echo
