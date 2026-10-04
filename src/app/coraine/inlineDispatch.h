@@ -46,4 +46,13 @@
 //
 extern void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// inlineDispatchNeverWaits - is the store one that never waits on I/O (corDB, ramDB, with TRoE none or
+// corDB) - known after inlineDispatchInit
+//
+extern bool inlineDispatchNeverWaits(void);
+
 #endif  // SRC_APP_CORAINE_INLINEDISPATCH_H_

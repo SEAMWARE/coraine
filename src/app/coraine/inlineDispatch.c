@@ -420,6 +420,32 @@ static bool isPlugin(const char* arg, const char* name)
 
 // -----------------------------------------------------------------------------
 //
+// neverWaits - a store in the process that never waits on I/O: corDB, or ramDB (corDB in RAM only) -
+// the condition for inline dispatch and coroutines, asked of what the store IS, not of one name
+//
+static bool neverWaits(const char* dbName, const char* troeName)
+{
+  bool db   = isPlugin(dbName, "corDB") || isPlugin(dbName, "ramDB");
+  bool troe = isPlugin(troeName, "none") || isPlugin(troeName, "corDB");
+
+  return db && troe;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// inlineDispatchNeverWaits -
+//
+bool inlineDispatchNeverWaits(void)
+{
+  return coroutineDbOk;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // inlineDispatchInit -
 //
 void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
@@ -427,7 +453,7 @@ void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
   //
   // Coroutines: their own question, and asked whatever the database - a mongoc broker answers 'no'
   //
-  coroutineDbOk = (isPlugin(dbName, "corDB") == true) && ((isPlugin(troeName, "none") == true) || (isPlugin(troeName, "corDB") == true));
+  coroutineDbOk = neverWaits(dbName, troeName);
   corRestSetCoroutineHook(coroutineCheck);
   corRestSetFinishCoroutineHook(finishCoroutineCheck);
 
@@ -437,9 +463,9 @@ void inlineDispatchInit(const char* dbName, const char* troeName, bool disabled)
     return;
   }
 
-  if ((isPlugin(dbName, "corDB") == false) || ((isPlugin(troeName, "none") == false) && (isPlugin(troeName, "corDB") == false)))
+  if (neverWaits(dbName, troeName) == false)
   {
-    COR_V("inline dispatch: off - database '%s', TRoE '%s' (only corDB with TRoE none/corDB never waits)", dbName, troeName);
+    COR_V("inline dispatch: off - database '%s', TRoE '%s' (only corDB or ramDB, with TRoE none/corDB, never waits)", dbName, troeName);
     return;
   }
 

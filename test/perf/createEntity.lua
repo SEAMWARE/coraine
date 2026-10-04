@@ -58,3 +58,12 @@ request = function()
                     {["Content-Type"] = "application/json"},
                     head .. seq .. tail)
 end
+
+-- The latency distribution, exact (wrk's own percentile), for perfRun.sh: p50, p95, p99 in microseconds
+local function pctl(latency)
+  io.write(string.format("PCTL %d %d %d\n", latency:percentile(50), latency:percentile(95), latency:percentile(99)))
+end
+
+function done(summary, latency, requests)
+  pctl(latency)
+end

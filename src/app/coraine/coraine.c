@@ -232,7 +232,7 @@ unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
 bool           fg           = false;
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
-int            poolSize     = 32;
+int            poolSize     = 0;
 int            httpLoops    = 0;   // 0: auto - see the corCpuCount call in main()
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
@@ -267,7 +267,7 @@ static CorArg kargV[] =
   { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 32,    _vp 1, _vp 200,  "MHD thread pool size" },
+  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "MHD thread pool size (0: the cores, for a store that never waits; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
@@ -1793,6 +1793,16 @@ int main(int argC, char* argV[])
   }
 
   corRestHttpLoopsSet(httpLoops);
+
+  //
+  // The worker pool. A request that waits - on mongod, on a forwarded request - holds its worker for the
+  // wait, so a store that waits needs more workers than cores: 32. One that never waits (corDB, ramDB, and
+  // no distributed operations) keeps every worker busy, and more of them than cores is the kernel taking
+  // them off the CPU in turn: 32 on 8 cores was 74 000 involuntary context switches a second and a p95 of
+  // 0.81 ms on a retrieve; 8 was 522 a second, 0.20 ms, and 6 % more requests (doc/history/performance.md).
+  //
+  if (poolSize == 0)
+    poolSize = ((inlineDispatchNeverWaits() == true) && (distributed == false)) ? corCpuCount() : 32;
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestInit failed on port %u", port);
