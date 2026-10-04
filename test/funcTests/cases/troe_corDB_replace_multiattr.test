@@ -5,25 +5,27 @@
 #
 # Copyright 2026 Seamware
 #
-# TRoE: PUT /entities/{id} (replace) → 1 entityReplaced + N attrReplaced;
-# POST /entities/{id}/attrs (append) → N attrCreated/Modified;
-# PATCH /entities/{id}/attrs (multi-attr) → N attrModified/Created.
+# TRoE in corDB (--troe corDB): replace, append and PATCH of several attributes - only what each write wrote is recorded.
+# The history is read back through the temporal API (§ 5.7.3).
+#
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
 #
 --NAME--
-TRoE - replaceEntity + multi-attr POST/PATCH
+TRoE corDB - replace, append and PATCH of several attributes
 
 --TAGS--
-troe replace patch
+troe replace append
 
 --INIT--
 corDbDrop
-coraineStart --troe corDB --apiPlugins admin --troeSync
+coraineStart --troe corDB
 
 --RUN--
 
 echo "01. POST entity urn:V1 with one attr"
 echo "===================================="
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' >/dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
 echo
 echo
 echo
@@ -47,27 +49,9 @@ corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"t
 echo
 echo
 
-
-echo "05. GET /admin/troe/dump — events in array order"
-echo "================================================"
-corCurl --url /admin/troe/dump | python3 -c "
-import sys, json, re
-hdr = ''
-body = ''
-for line in sys.stdin:
-    if hdr == '' and line.strip() == '':
-        hdr = 'done'
-        continue
-    if hdr == 'done':
-        body += line
-d = json.loads(body) if body.strip() else {}
-events = d.get('events', [])
-print('  count:', len(events))
-for e in events:
-    a = e.get('attrName', '')
-    a = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', a)
-    print('  op=%s entityId=%s attrName=%s' % (e.get('op'), e.get('entityId'), a))
-"
+echo "05. GET /temporal/entities/urn:V1"
+echo "================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -75,6 +59,7 @@ echo
 --EXPECT--
 01. POST entity urn:V1 with one attr
 ====================================
+HTTP/1.1 201 Created
 
 
 
@@ -91,17 +76,62 @@ HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
 
 
-05. GET /admin/troe/dump — events in array order
-================================================
-  count: 8
-  op=entityCreated entityId=urn:V1 attrName=
-  op=entityReplaced entityId=urn:V1 attrName=
-  op=attrReplaced entityId=urn:V1 attrName=speed
-  op=attrReplaced entityId=urn:V1 attrName=color
-  op=attrCreated entityId=urn:V1 attrName=weight
-  op=attrCreated entityId=urn:V1 attrName=brand
-  op=attrModified entityId=urn:V1 attrName=speed
-  op=attrModified entityId=urn:V1 attrName=weight
+05. GET /temporal/entities/urn:V1
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "brand": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": "X"
+    }
+  ],
+  "color": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": "red"
+    }
+  ],
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 42
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 99
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 120
+    }
+  ],
+  "type": "Vehicle",
+  "weight": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 1500
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 1600
+    }
+  ]
+}
+
 
 
 --TEARDOWN--

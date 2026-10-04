@@ -9,8 +9,11 @@
 
 #include <stdio.h>                                    // snprintf
 #include <string.h>                                   // memset, strcmp, strncpy, strchr, strtok_r
+#include <stdlib.h>                                   // qsort
+#include <unistd.h>                                   // access
 
 #include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
+#include "corArgs/corArgsInit.h"                      // corArgInfoV
 #include "corLog/corLog.h"                            // COR_I
 
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
@@ -152,7 +155,24 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&troe, 0, sizeof(TroeDriver));
 
-  corPluginResolve(corPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
+  //
+  // --troe corDB is not a plugin of its own: corDB keeps history in its store - the same lock, the same
+  // log - so the TRoE driver is the current-state plugin's own troeRegister. Which needs that plugin to
+  // BE corDB; another store's history goes to an external server (timescale).
+  //
+  if (strcmp(shortName, "corDB") == 0)
+  {
+    if ((db.alias == NULL) || (strcmp(db.alias, "corDB") != 0))
+    {
+      if (errorBuf != NULL)
+        snprintf(errorBuf, errorBufSize, "TRoE 'corDB' keeps the history inside the corDB store - it needs --database corDB (not '%s')", (db.alias != NULL) ? db.alias : "?");
+      return -1;
+    }
+
+    corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));
+  }
+  else
+    corPluginResolve(corPluginBaseDir(), "troe", "temporal", shortName, path, sizeof(path));
 
   char openErr[512];
   TroeRegisterFunc registerFunc = (TroeRegisterFunc) corPluginOpen(path, "troeRegister", openErr, sizeof(openErr));
@@ -172,6 +192,65 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   COR_I("troe plugin loaded: %s", path);
   return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginTroeArgUpdate -
+//
+static int nameCompare(const void* a, const void* b)
+{
+  return strcmp(*(const char* const*) a, *(const char* const*) b);
+}
+
+void pluginTroeArgUpdate(void)
+{
+  corPluginArgUpdate("--troe", "troe/temporal");
+
+  char path[512];
+  corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));
+  if (access(path, R_OK) != 0)
+    return;                                          // no corDB: no --troe corDB either
+
+  for (int i = 0; corArgInfoV[i].type != CorArgEnd; i++)
+  {
+    if ((corArgInfoV[i].longName == NULL) || (strcmp(corArgInfoV[i].longName, "--troe") != 0))
+      continue;
+
+    static char  buf[256];
+    char         copy[256];
+    const char*  nameV[32];
+    int          names = 0;
+    bool         haveCorDB = false;
+
+    snprintf(copy, sizeof(copy), "%s", (corArgInfoV[i].description != NULL) ? corArgInfoV[i].description : "");
+
+    char* saveP = NULL;
+    for (char* nameP = strtok_r(copy, "|", &saveP); (nameP != NULL) && (names < 31); nameP = strtok_r(NULL, "|", &saveP))
+    {
+      if (strcmp(nameP, "corDB") == 0)
+        haveCorDB = true;
+      nameV[names++] = nameP;
+    }
+
+    if (haveCorDB == false)
+      nameV[names++] = "corDB";
+
+    qsort(nameV, names, sizeof(nameV[0]), nameCompare);
+
+    buf[0] = 0;
+    for (int n = 0; n < names; n++)
+    {
+      if (n > 0)
+        strncat(buf, "|", sizeof(buf) - strlen(buf) - 1);
+      strncat(buf, nameV[n], sizeof(buf) - strlen(buf) - 1);
+    }
+
+    corArgInfoV[i].description = buf;
+    return;
+  }
 }
 
 

@@ -1,0 +1,135 @@
+#
+# FILE            troe_corDB_attr_delete_dataset.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Deleting one instance of an attribute (?datasetId=) modifies the entity: its modifiedAt moves to the
+# delete's time. It used to be written back with the old one - and with --troe corDB the instance the
+# previous write had stamped (here a's default instance, PATCHed in step 02) was recorded a second
+# time, as if the delete had written it.
+#
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
+--NAME--
+DELETE of one attribute instance: the entity's modifiedAt moves, history records only the tombstone
+
+--TAGS--
+troe delete datasetId
+
+--INIT--
+corDbDrop
+coraineStart --troe corDB
+
+--RUN--
+
+modifiedAt() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:E1?options=sysAttrs" | python3 -c "
+import sys, json
+body = sys.stdin.read().split('\n\n', 1)[-1]
+print(json.loads(body)['modifiedAt'])"
+}
+
+echo "01. POST urn:E1 - a: a default instance and one with datasetId urn:ds1"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":[{"type":"Property","value":1},{"type":"Property","value":10,"datasetId":"urn:ds1"}]}' | head -1
+echo
+echo
+
+
+echo "02. PATCH a's default instance"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"a":{"type":"Property","value":2}}' | head -1
+before=$(modifiedAt)
+echo
+echo
+
+
+echo "03. DELETE a?datasetId=urn:ds1"
+echo "=============================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E1/attrs/a?datasetId=urn:ds1' -X DELETE | head -1
+after=$(modifiedAt)
+echo
+echo
+
+
+echo "04. The entity's modifiedAt moved with the delete"
+echo "================================================="
+python3 -c "import sys; print('moved:', sys.argv[2] > sys.argv[1])" "$before" "$after"
+echo
+echo
+
+
+echo "05. GET /temporal/entities/urn:E1 - a: 1, 2 (default); 10 and its tombstone (urn:ds1)"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:E1
+echo
+echo
+
+
+--EXPECT--
+01. POST urn:E1 - a: a default instance and one with datasetId urn:ds1
+========================================================================
+HTTP/1.1 201 Created
+
+
+02. PATCH a's default instance
+==============================
+HTTP/1.1 204 No Content
+
+
+03. DELETE a?datasetId=urn:ds1
+==============================
+HTTP/1.1 204 No Content
+
+
+04. The entity's modifiedAt moved with the delete
+=================================================
+moved: True
+
+
+05. GET /temporal/entities/urn:E1 - a: 1, 2 (default); 10 and its tombstone (urn:ds1)
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "a": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 2
+    },
+    {
+      "datasetId": "urn:ds1",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 10
+    },
+    {
+      "datasetId": "urn:ds1",
+      "deletedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z)",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

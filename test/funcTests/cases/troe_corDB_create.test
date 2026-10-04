@@ -5,18 +5,21 @@
 #
 # Copyright 2026 Seamware
 #
-# TRoE: POST /entities defers an entityCreated event that the corDB
-# plugin captures. /admin/troe/dump exposes the captured ring.
+# TRoE in corDB (--troe corDB): one instance per attribute of a created entity.
+# The history is read back through the temporal API (§ 5.7.3).
+#
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
 #
 --NAME--
-TRoE - entity create captured by troeRamdb plugin
+TRoE corDB - a created entity has one instance per attribute
 
 --TAGS--
 troe create
 
 --INIT--
 corDbDrop
-coraineStart --troe corDB --apiPlugins admin --troeSync
+coraineStart --troe corDB
 
 --RUN--
 
@@ -26,28 +29,9 @@ corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","s
 echo
 echo
 
-
-echo "02. GET /admin/troe/dump — one entityCreated event"
-echo "=================================================="
-corCurl --url /admin/troe/dump | python3 -c "
-import sys, json, re
-hdr = ''
-body = ''
-for line in sys.stdin:
-    if hdr == '' and line.strip() == '':
-        hdr = 'done'
-        continue
-    if hdr == 'done':
-        body += line
-d = json.loads(body) if body.strip() else {}
-events = d.get('events', [])
-print('  count:', len(events))
-for e in events:
-    # Strip nanoseconds (volatile) and the @vocab IRI prefix on entityType.
-    t = e.get('entityType', '')
-    t = re.sub(r'https://uri\.etsi\.org/ngsi-ld/default-context/', '', t)
-    print('  op=%s entityId=%s entityType=%s' % (e.get('op'), e.get('entityId'), t))
-"
+echo "02. GET /temporal/entities/urn:V1"
+echo "================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
 echo
 echo
 
@@ -63,10 +47,26 @@ Content-Length: 0
 
 
 
-02. GET /admin/troe/dump — one entityCreated event
-==================================================
-  count: 1
-  op=entityCreated entityId=urn:V1 entityType=Vehicle
+02. GET /temporal/entities/urn:V1
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "type": "Property",
+      "value": 42
+    }
+  ],
+  "type": "Vehicle"
+}
+
 
 
 --TEARDOWN--

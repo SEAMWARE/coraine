@@ -1,0 +1,141 @@
+#
+# FILE            troe_corDB_writes_after_restart.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE in corDB (--troe corDB) with --dbDir: the temporal API's own writes - create with two types,
+# modify an instance, append with a new type, delete an instance, delete an attribute, delete the
+# entity's history - recovered after a restart from the history log, where each is a record of its own.
+#
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
+--NAME--
+TRoE corDB - the temporal API's writes survive a restart
+
+--TAGS--
+troe persistence
+
+--INIT--
+rm -rf /tmp/corTest-troe_corDB_writes_after_restart
+corDbDrop
+coraineStart --troe corDB --dbDir /tmp/corTest-troe_corDB_writes_after_restart
+
+--RUN--
+
+instanceId() {   # instanceId <attr> <value> - the instanceId of the instance with that value
+  corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1?attrs=$1" | python3 -c "
+import sys, json
+d = json.loads(sys.stdin.read().split('\n\n', 1)[-1])
+print([i['instanceId'] for i in d['$1'] if i.get('value') == $2][0])"
+}
+
+echo "01. Temporal create: V1, types Vehicle and Car, speed 10 and 20, color red"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id":"urn:V1","type":["Vehicle","Car"],"speed":[{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},{"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"}],"color":[{"type":"Property","value":"red","observedAt":"2026-04-28T09:00:00Z"}]}' | head -1
+echo
+echo
+
+
+echo "02. Modify speed 10 to 15, append weight with a new type Truck, delete speed 20, delete color"
+echo "============================================================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$(instanceId speed 10)" -X PATCH --payload '{"type":"Property","value":15}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs --payload '{"type":"Truck","weight":[{"type":"Property","value":5,"observedAt":"2026-04-28T11:00:00Z"}]}' | head -1
+corCurl --url "/ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed/$(instanceId speed 20)" -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs/color -X DELETE | head -1
+echo
+echo
+
+
+echo "03. Restart"
+echo "==========="
+coraineStop
+coraineStart --troe corDB --dbDir /tmp/corTest-troe_corDB_writes_after_restart
+echo restarted
+echo
+echo
+
+
+echo "04. V1 after the restart: types Vehicle, Car, Truck; speed 15 (observed 09:00); weight 5; no color"
+echo "=================================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+echo "05. Delete V1's history, restart - it stays gone"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 -X DELETE | head -1
+coraineStop
+coraineStart --troe corDB --dbDir /tmp/corTest-troe_corDB_writes_after_restart
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1 | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Temporal create: V1, types Vehicle and Car, speed 10 and 20, color red
+==========================================================================
+HTTP/1.1 201 Created
+
+
+02. Modify speed 10 to 15, append weight with a new type Truck, delete speed 20, delete color
+============================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+03. Restart
+===========
+restarted
+
+
+04. V1 after the restart: types Vehicle, Car, Truck; speed 15 (observed 09:00); weight 5; no color
+==================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 15
+    }
+  ],
+  "type": [
+    "Vehicle",
+    "Car",
+    "Truck"
+  ],
+  "weight": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 5
+    }
+  ]
+}
+
+
+
+05. Delete V1's history, restart - it stays gone
+================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf /tmp/corTest-troe_corDB_writes_after_restart

@@ -22,6 +22,9 @@
 # timescale cases carry none - each starts its own broker with --troe timescale
 # and brings its own database up with corTroeInit.
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 Bridges: a sample reaches the history database, not only current state
 

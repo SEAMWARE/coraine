@@ -11,6 +11,9 @@
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
 --NAME--
 URL parameter ?local=true suppresses distops on /types, /attributes, /temporal/entities (§ 6.3.18)
 
@@ -41,13 +44,14 @@ echo
 echo
 
 
-echo "03. Register CB→CP1 inclusive (Sensor)"
-echo "======================================"
+echo "03. Register CB→CP1 inclusive (Sensor), federationOps + retrieveTemporal"
+echo "========================================================================"
 payload='{
   "id": "urn:CSR:CP1",
   "type": "ContextSourceRegistration",
   "endpoint": "http://localhost:'$CP1_PORT'",
   "mode": "inclusive",
+  "operations": ["federationOps", "retrieveTemporal"],
   "information": [{"entities": [{"type": "Sensor"}]}]
 }'
 corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
@@ -83,15 +87,15 @@ echo
 echo
 
 
-echo "08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)"
-echo "======================================================================="
+echo "08. GET /temporal/entities/urn:S1 — forwarded to CP1: its history"
+echo "================================================================="
 corCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z'
 echo
 echo
 
 
-echo "09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)"
-echo "============================================================================================="
+echo "09. GET /temporal/entities/urn:S1?local=true — not forwarded: 404"
+echo "================================================================="
 corCurl --url '/ngsi-ld/v1/temporal/entities/urn:S1?timerel=after&timeAt=2026-01-01T00:00:00Z&local=true'
 echo
 echo
@@ -118,8 +122,8 @@ Content-Length: 0
 
 
 
-03. Register CB→CP1 inclusive (Sensor)
-======================================
+03. Register CB→CP1 inclusive (Sensor), federationOps + retrieveTemporal
+========================================================================
 HTTP/1.1 201 Created
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
@@ -204,34 +208,41 @@ Content-Length: 152
 
 
 
-08. GET /temporal/entities/urn:S1 — accepted (plugin layer 501 is fine)
-=======================================================================
-HTTP/1.1 422 Unprocessable Content
+08. GET /temporal/entities/urn:S1 — forwarded to CP1: its history
+=================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "TRoE plugin 'corDB' does not implement 'temporal-entity retrieve'",
-  "status": 422,
-  "title": "TRoE Not Available",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+  "id": "urn:S1",
+  "temp": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]+)",
+      "observedAt": "2026-04-01T00:00:00Z",
+      "type": "Property",
+      "value": 22
+    }
+  ],
+  "type": "Sensor"
 }
 
 
 
-09. GET /temporal/entities/urn:S1?local=true — accepted at API surface (regression: was 400)
-=============================================================================================
-HTTP/1.1 422 Unprocessable Content
+09. GET /temporal/entities/urn:S1?local=true — not forwarded: 404
+=================================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: REGEX(\d+)
+Content-Length: 162
 
 {
-  "detail": "TRoE plugin 'corDB' does not implement 'temporal-entity retrieve'",
-  "status": 422,
-  "title": "TRoE Not Available",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+  "detail": "no temporal data for entity 'urn:S1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

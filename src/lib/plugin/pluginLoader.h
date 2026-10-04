@@ -49,6 +49,15 @@ extern int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSiz
 
 // -----------------------------------------------------------------------------
 //
+// pluginTroeArgUpdate - --troe's usage text: the TRoE plugins found, and corDB when its current-state
+// plugin is there (--troe corDB is that plugin's own history, not a file under troe/temporal)
+//
+extern void pluginTroeArgUpdate(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // pluginLoadBridges - load bridge plugins from a comma-separated list
 //
 // Each name resolves to {baseDir}/bridge/{name}.so. Any number may be active.

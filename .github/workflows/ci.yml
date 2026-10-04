@@ -209,6 +209,11 @@ jobs:
           # because there is no running broker.
           #
           - { db: corDB,  name: 'reduced-builds', from: 1, to: 0, buildTests: 'yes', only: 'test/funcTests/cases/feature_builds.test' }
+          #
+          # corDB's history checked against timescale's: every --troe timescale test run with
+          # --troe corDB (-troeDb corDB), the same expectations - the TRoE tests only (~1 min).
+          #
+          - { db: corDB,  name: 'troe-corDB', from: 1, to: 0, troeDb: 'corDB', tags: 'troe' }
 
     #
     # The base image is PUBLIC, so the job needs no registry credential at all -
@@ -393,8 +398,12 @@ jobs:
           [ "${{ matrix.shard.to }}" != "0" ] && to="--toIx ${{ matrix.shard.to }}"
           bt=""
           [ -n "${{ matrix.shard.buildTests }}" ] && bt="-buildTests ${{ matrix.shard.buildTests }}"
+          tr=""
+          [ -n "${{ matrix.shard.troeDb }}" ] && tr="-troeDb ${{ matrix.shard.troeDb }}"
+          tg=""
+          [ -n "${{ matrix.shard.tags }}" ] && tg="--tags ${{ matrix.shard.tags }}"
           # `only` names a single test file; empty means the shard's index range.
-          ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor $bt \
+          ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor $bt $tr $tg \
               --fromIx ${{ matrix.shard.from }} $to ${{ matrix.shard.only }}
 
       #

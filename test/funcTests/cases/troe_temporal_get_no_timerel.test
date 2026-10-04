@@ -10,6 +10,9 @@
 # every attribute. Here an attribute is written three times; the temporal GET
 # without timerel returns all three values.
 #
+# In ascending order (TS 104-176 § 6.4.7.3: neither firstN nor lastN - ascending). None of the
+# three has an observedAt, the default time property: equal times come in the order written.
+#
 --NAME--
 GET /temporal/entities/{id} with no timerel — returns all instances
 
@@ -50,9 +53,9 @@ HTTP/1.1 204 No Content
 02. GET /temporal/entities/E1 with NO timerel — 200 + all three instances (1,2,3)
 =================================================================================
 HTTP/1.1 200 OK
-      "value": 3
-      "value": 2
       "value": 1
+      "value": 2
+      "value": 3
 
 
 --TEARDOWN--

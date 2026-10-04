@@ -166,22 +166,22 @@ Content-Length: REGEX(\d+)
   "id": "urn:ngsi-ld:Vehicle:V1",
   "speed": [
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
-      "value": 55
+      "value": 42
     },
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 50
     },
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f-]{36})",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
-      "value": 42
+      "value": 55
     }
   ],
   "type": "Vehicle"

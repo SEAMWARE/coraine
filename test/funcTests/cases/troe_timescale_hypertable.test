@@ -21,6 +21,9 @@
 # so the error only ever appeared in CI - one line at startup, in a log nobody
 # reads when the tests are green.
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE schema: troe_attrs can become a hypertable (migration 3)
 

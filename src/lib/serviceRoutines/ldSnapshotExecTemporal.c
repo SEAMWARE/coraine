@@ -140,7 +140,10 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
   {
     LdQNode* qExpr = ldQParse(qP->value.s, &corRest.kalloc);
     if (qExpr != NULL)
+    {
       fP->qSqlPredicate = troeQTreeToSql(qExpr, &corRest.kalloc);
+      fP->qTree         = qExpr;
+    }
   }
 
   return true;

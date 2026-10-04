@@ -530,7 +530,7 @@ static bool pluginsLoad(int argC, char* argV[])
   // Add available-plugin info (shown in -u usage output)
   //
   corPluginArgUpdate("--database", "db/currentState");
-  corPluginArgUpdate("--troe", "troe/temporal");
+  pluginTroeArgUpdate();
   corPluginArgUpdate("--apiPlugins", "api");
   corPluginArgUpdate("--bridges", "bridge");
 

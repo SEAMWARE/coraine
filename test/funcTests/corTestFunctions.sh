@@ -132,9 +132,21 @@ coraineStart() {
     *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
   esac
 
-  # TRoE DB plugin (future)
+  #
+  # TRoE store. -troeDb corDB: a test's "--troe timescale" runs as "--troe corDB" - the history
+  # inside the corDB store, so the temporal tests written against timescale check corDB's history
+  # with the same expectations. Needs -db corDB (--troe corDB is the corDB store's own).
+  #
   case "$COR_TROE_DB_TYPE" in
     NONE|"") ;;  # compiled-in default or unset
+    corDB)   if [ "$COR_DB_TYPE" != "corDB" ]; then echo "coraineStart: -troeDb corDB needs -db corDB"; return 1; fi
+             local i
+             for i in "${!extraParams[@]}"; do
+               if [ "${extraParams[$i]}" == "timescale" ] && [ "$i" -gt 0 ] && [[ "${extraParams[$((i-1))]}" =~ ^-?-troe$ ]]; then
+                 extraParams[$i]="corDB"
+               fi
+             done
+             ;;
     *)       echo "coraineStart: unknown -troeDb type: $COR_TROE_DB_TYPE"; return 1 ;;
   esac
 
@@ -822,7 +834,12 @@ corPidAlive() {
   [ -n "$pid" ] || return 1
   [ -r "/proc/$pid/stat" ] || return 1
   local _p _c state
-  read -r _p _c state _ < "/proc/$pid/stat" 2>/dev/null || return 1   # a builtin - no fork in a polling loop
+  #
+  # 2>/dev/null BEFORE the input: redirections apply left to right, so with it after, a process that
+  # exited between the -r test and the read had bash print "No such file or directory" first - on
+  # stderr, which fails the test that was only stopping its broker (csource_reg_mongoc_persist, CI)
+  #
+  read -r _p _c state _ 2>/dev/null < "/proc/$pid/stat" || return 1   # a builtin - no fork in a polling loop
   [ "$state" != "Z" ]
 }
 

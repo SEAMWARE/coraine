@@ -1,0 +1,183 @@
+#
+# FILE            troe_corDB_reads_after_restart.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE in corDB (--troe corDB) with --dbDir: the history read back after a restart - recovered from the
+# hist-N.cor segments - through the temporal filters and the temporal query: lastN, timerel between,
+# datasetId, and the query with type and count.
+#
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
+--NAME--
+TRoE corDB - history after a restart, read through lastN, timerel, datasetId and the query
+
+--TAGS--
+troe persistence
+
+--INIT--
+rm -rf /tmp/corTest-troe_corDB_reads_after_restart
+corDbDrop
+coraineStart --troe corDB --dbDir /tmp/corTest-troe_corDB_reads_after_restart
+
+--RUN--
+
+echo "01. V1: speed 10, 20, 30 (observed 09:00, 10:00, 11:00) and a datasetId instance; V2: speed 99"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"},{"type":"Property","value":1,"observedAt":"2026-04-28T09:00:00Z","datasetId":"urn:ds:a"}]}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":20,"observedAt":"2026-04-28T10:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":99,"observedAt":"2026-04-28T09:30:00Z"}}' | head -1
+echo
+echo
+
+
+echo "02. Restart - the history comes back from the disk"
+echo "=================================================="
+coraineStop
+coraineStart --troe corDB --dbDir /tmp/corTest-troe_corDB_reads_after_restart
+echo restarted
+echo
+echo
+
+
+echo "03. lastN=1 - the newest instance of each, the default instance and urn:ds:a"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?lastN=1'
+echo
+echo
+
+
+echo "04. timerel=between 09:30 and 11:00 (11:00 excluded), the default instance only"
+echo "================================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timerel=between&timeAt=2026-04-28T09:30:00Z&endTimeAt=2026-04-28T11:00:00Z&datasetId=@none'
+echo
+echo
+
+
+echo "05. The query: type=Vehicle after 09:15, count - V1 and V2"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T09:15:00Z&count=true'
+echo
+echo
+
+
+--EXPECT--
+01. V1: speed 10, 20, 30 (observed 09:00, 10:00, 11:00) and a datasetId instance; V2: speed 99
+===============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+02. Restart - the history comes back from the disk
+==================================================
+restarted
+
+
+03. lastN=1 - the newest instance of each, the default instance and urn:ds:a
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entities/urn:V1?lastN=1&offsetN=1>;rel="intervalbefore";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+      "observedAt": "2026-04-28T11:00:00Z",
+      "type": "Property",
+      "value": 30
+    },
+    {
+      "datasetId": "urn:ds:a",
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+      "observedAt": "2026-04-28T09:00:00Z",
+      "type": "Property",
+      "value": 1
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. timerel=between 09:30 and 11:00 (11:00 excluded), the default instance only
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+      "observedAt": "2026-04-28T10:00:00Z",
+      "type": "Property",
+      "value": 20
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. The query: type=Vehicle after 09:15, count - V1 and V2
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 2
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+        "observedAt": "2026-04-28T10:00:00Z",
+        "type": "Property",
+        "value": 20
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+        "observedAt": "2026-04-28T11:00:00Z",
+        "type": "Property",
+        "value": 30
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX([0-9a-f]+:[0-9a-f]{4,})",
+        "observedAt": "2026-04-28T09:30:00Z",
+        "type": "Property",
+        "value": 99
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf /tmp/corTest-troe_corDB_reads_after_restart

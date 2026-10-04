@@ -9,6 +9,9 @@
 # create the same entity-id with different attribute values; each
 # tenant's GET/PATCH/DELETE on that id sees ONLY their own data.
 #
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 TRoE timescale - multi-tenant isolation
 

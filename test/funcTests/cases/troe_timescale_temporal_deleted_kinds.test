@@ -113,7 +113,7 @@ Content-Length: REGEX(\d+)
   "isParkedIn": [
     {
       "deletedAt": REGEX("[0-9T:.Z-]+"),
-      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,})"),
       "object": "urn:ngsi-ld:null",
       "type": "Relationship"
     }
@@ -121,7 +121,7 @@ Content-Length: REGEX(\d+)
   "locatedAt": [
     {
       "deletedAt": REGEX("[0-9T:.Z-]+"),
-      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,})"),
       "object": "urn:ngsi-ld:null",
       "type": "Relationship"
     }
@@ -129,7 +129,7 @@ Content-Length: REGEX(\d+)
   "name": [
     {
       "deletedAt": REGEX("[0-9T:.Z-]+"),
-      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,})"),
       "languageMap": {
         "@none": "urn:ngsi-ld:null"
       },
@@ -139,7 +139,7 @@ Content-Length: REGEX(\d+)
   "scope": [
     {
       "deletedAt": REGEX("[0-9T:.Z-]+"),
-      "instanceId": REGEX("urn:ngsi-ld:Instance:[0-9a-f-]+"),
+      "instanceId": REGEX("urn:ngsi-ld:Instance:([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,})"),
       "type": "Property",
       "value": "urn:ngsi-ld:null"
     }
