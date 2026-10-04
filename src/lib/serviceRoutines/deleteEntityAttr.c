@@ -35,6 +35,7 @@
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -361,6 +362,13 @@ bool deleteEntityAttr(void)
 
         if (changed)
         {
+          //
+          // Deleting an attribute modifies the entity: its modifiedAt is this request's time. Written
+          // back with the old one, the entity said it had not changed - and a history kept by the store
+          // took the instance that last write had stamped for one this delete wrote.
+          //
+          ldSysTimestampModify(targetEntity);
+
           if (db.entityReplace == NULL)
           {
             ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",

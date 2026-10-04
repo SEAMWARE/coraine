@@ -23,6 +23,7 @@
 #include "corLog/corLog.h"                            // COR_T, COR_W
 
 #include "corRest/corRest.h"                          // corRest
+#include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "corNgsild/CorNgsild.h"                      // corNgsild, ldDefaultContext
 #include "corJsonld/CorLdContext.h"                  // CorLdContext
 #include "corJsonld/corLdExpandTree.h"                 // corLdExpandTree
@@ -1073,6 +1074,8 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 
   if (attrP->value.head == NULL)
     corTreeChildRemove(entityP, attrP);
+
+  ldSysTimestampModify(entityP);                     // removing an instance modifies the entity
 
   CorNode* oldEntityP = NULL;
 

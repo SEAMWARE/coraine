@@ -1,0 +1,80 @@
+#
+# FILE            attr_delete_modifiedat.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Deleting an attribute - all of it, or one instance (?datasetId=) - modifies the entity: its
+# modifiedAt moves to the delete's time (§ 4.8, system-generated). An instance the delete did not
+# touch keeps its own modifiedAt.
+#
+--NAME--
+DELETE of an attribute or of one of its instances moves the entity's modifiedAt
+
+--TAGS--
+delete sysAttrs datasetId
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+sysAttrs() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:E1?options=sysAttrs" | python3 -c "
+import sys, json
+e = json.loads(sys.stdin.read().split('\n\n', 1)[-1])
+a = e['a'] if isinstance(e['a'], list) else [e['a']]
+dflt = [i for i in a if 'datasetId' not in i][0]
+print(e['modifiedAt'], dflt['modifiedAt'])"
+}
+
+echo "01. POST urn:E1 - a (default + urn:ds1) and b"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":[{"type":"Property","value":1},{"type":"Property","value":10,"datasetId":"urn:ds1"}],"b":{"type":"Property","value":2}}' | head -1
+read e0 a0 <<< "$(sysAttrs)"
+echo
+echo
+
+
+echo "02. DELETE b - the entity's modifiedAt moves"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/b -X DELETE | head -1
+read e1 a1 <<< "$(sysAttrs)"
+python3 -c "import sys; print('entity moved:', sys.argv[2] > sys.argv[1])" "$e0" "$e1"
+echo
+echo
+
+
+echo "03. DELETE a?datasetId=urn:ds1 - the entity's moves, a's default instance keeps its own"
+echo "======================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E1/attrs/a?datasetId=urn:ds1' -X DELETE | head -1
+read e2 a2 <<< "$(sysAttrs)"
+python3 -c "import sys; print('entity moved:', sys.argv[2] > sys.argv[1]); print('default instance unchanged:', sys.argv[3] == sys.argv[4])" "$e1" "$e2" "$a1" "$a2"
+echo
+echo
+
+
+--EXPECT--
+01. POST urn:E1 - a (default + urn:ds1) and b
+==============================================
+HTTP/1.1 201 Created
+
+
+02. DELETE b - the entity's modifiedAt moves
+============================================
+HTTP/1.1 204 No Content
+entity moved: True
+
+
+03. DELETE a?datasetId=urn:ds1 - the entity's moves, a's default instance keeps its own
+=======================================================================================
+HTTP/1.1 204 No Content
+entity moved: True
+default instance unchanged: True
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
