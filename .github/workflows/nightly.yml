@@ -512,9 +512,13 @@ jobs:
           # in read-your-writes mode rather than with sleeps sprinkled through
           # somebody else's test suite.
           #
+          # --bridges mqtt: notifications to mqtt:// go through the MQTT bridge, and a broker
+          # without it refuses an mqtt:// endpoint (400, "no notification transport for this
+          # scheme is loaded") - which failed every TP of 058, the MQTT notifications.
+          #
           coraine --port 1026 --database mongoc --dbHost mongo --dbName etsi \
                   --troe timescale --troeHost timescale --troeName etsi_troe \
-                  --troeSync \
+                  --troeSync --bridges mqtt \
                   --distributed --apiPlugins admin > /tmp/etsi-broker.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
