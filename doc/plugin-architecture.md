@@ -193,7 +193,7 @@ the headers — read these before writing a plugin:
 | **mongoc** | DB | MongoDB via `libmongoc` v2; `$geoNear` aggregation, persistence, context hosting, per-tenant DBs. The default (`--database mongoc`). Needs the mongo-c **v2** driver at build time. |
 | **corDB** | DB | In-process; GEOS geo-filtering, per-tenant isolation. In RAM, or on disk with `--dbDir` (a log and snapshots). |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
-| **corDB** | TRoE | In-memory history; exposes a dev `dumpInfo`. Dev/test. |
+| **corDB** | TRoE | The temporal history inside the corDB store - `--troe corDB` takes it from the corDB current-state plugin and needs `--database corDB`; on disk with `--dbDir`. See [corDB's TRoE](https://github.com/SEAMWARE/corDB/blob/main/doc/troe.md). |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
