@@ -19,6 +19,7 @@
 #include "db/Tenant.h"                                // Tenant
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
 #include "serviceExecution/seRequest.h"               // seRequestParam
+#include "corNgsild/ldServiceDescription.h"           // ldServiceDescriptionIs
 #include "serviceExecution/seEntityServices.h"        // Own interface
 
 
@@ -79,11 +80,54 @@ static CorNode* description(CorNode* regP, bool details)
 
 // -----------------------------------------------------------------------------
 //
+// inEntity - the entity's own Service Descriptions (GR CIM-055 § 6.3.3): hidden without
+// ?includeServices; with it, serviceDescriptionInEntity true, and their schemas only with ?serviceDetails
+//
+static void inEntity(CorNode* entityP, bool include, bool details)
+{
+  CorNode* attrP = entityP->value.head;
+
+  while (attrP != NULL)
+  {
+    CorNode* nextP = attrP->next;
+    CorNode* instP = (attrP->type == CorObject) ? corTreeLookup(attrP, "@none") : NULL;
+
+    if (ldServiceDescriptionIs(instP))
+    {
+      if (include == false)
+        corTreeChildRemove(entityP, attrP);
+      else
+      {
+        CorNode* flagP = corTreeLookup(instP, "serviceDescriptionInEntity");
+
+        if (flagP != NULL)
+          corTreeChildRemove(instP, flagP);
+        corTreeChildAdd(instP, corTreeBoolean(corRest.kallocP, "serviceDescriptionInEntity", true));
+
+        if (details == false)
+        {
+          CorNode* inP  = corTreeLookup(instP, "inputSchema");
+          CorNode* outP = corTreeLookup(instP, "outputSchema");
+
+          if (inP  != NULL) corTreeChildRemove(instP, inP);
+          if (outP != NULL) corTreeChildRemove(instP, outP);
+        }
+      }
+    }
+
+    attrP = nextP;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // entityAdd - the services of one entity
 //
 static void entityAdd(CorNode* entityP, CorNode* regsP, bool details)
 {
-  if ((entityP == NULL) || (entityP->type != CorObject))
+  if ((entityP == NULL) || (entityP->type != CorObject) || (regsP == NULL))
     return;
 
   CorNode* idP   = corTreeLookup(entityP, "id");
@@ -140,19 +184,29 @@ void seEntityServicesAdd(CorNode* treeP)
 {
   CorNode* regsP = NULL;
 
-  if ((treeP == NULL) || (isTrue("includeServices") == false) || (db.docQuery == NULL))
+  if (treeP == NULL)
     return;
 
-  if ((db.docQuery((Tenant*) corNgsild.tenantP, "serviceRegistrations", &regsP) != DB_OK) || (regsP->value.head == NULL))
-    return;
-
+  bool include = isTrue("includeServices");
   bool details = isTrue("serviceDetails");
+
+  if ((include == true) && (db.docQuery != NULL) &&
+      ((db.docQuery((Tenant*) corNgsild.tenantP, "serviceRegistrations", &regsP) != DB_OK) || (regsP->value.head == NULL)))
+    regsP = NULL;
 
   if (treeP->type == CorArray)
   {
     for (CorNode* eP = treeP->value.head; eP != NULL; eP = eP->next)
-      entityAdd(eP, regsP, details);
+    {
+      inEntity(eP, include, details);
+      if (include == true)
+        entityAdd(eP, regsP, details);
+    }
   }
-  else
-    entityAdd(treeP, regsP, details);
+  else if (treeP->type == CorObject)
+  {
+    inEntity(treeP, include, details);
+    if (include == true)
+      entityAdd(treeP, regsP, details);
+  }
 }

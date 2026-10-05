@@ -15,7 +15,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// seEntityServicesAdd - ?includeServices=true: each service an entity has, as an attribute (GR CIM-055 § 6.4.2/3)
+// seEntityServicesAdd - an entity's services: ?includeServices=true shows them (GR CIM-055 § 6.4.2/3), else they are hidden
 //
 // For every Service Registration that applies to the entity: an attribute named by its serviceName,
 //

@@ -36,6 +36,7 @@
 #include "corNgsild/ldTenantHeader.h"                 // ldTenantHeaderAdd
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp, ldNotifyTransportSend
 #include "corNgsild/ldIso8601Duration.h"              // ldIso8601DurationParseNs
+#include "corNgsild/ldServiceDescription.h"           // ldServiceDescriptionIs
 
 #include "db/DbDriver.h"                              // db, DB_*
 #include "db/Tenant.h"                                // Tenant
@@ -326,6 +327,35 @@ static void finish(CorNode* execP, const char* status, CorNode* outputP, CorNode
 static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* entityP, const char* serviceName)
 {
   CorNode* regsP = NULL;
+
+  //
+  // The entity's own description of the service first (GR CIM-055 § 6.3.3) - an attribute named by the
+  // service, of type ServiceDescription: made into the registration it stands for
+  //
+  CorNode* attrP = corTreeLookup(entityP, serviceName);
+  CorNode* instP = (attrP != NULL) ? corTreeLookup(attrP, "@none") : NULL;
+
+  if (ldServiceDescriptionIs(instP))
+  {
+    CorNode*    regP     = corTreeObject(corRest.kallocP, NULL);
+    CorNode*    siP      = corTreeObject(corRest.kallocP, "serviceInformation");
+    const char* copied[] = { "mode", "inputSchema", "outputSchema", NULL };
+
+    corTreeChildAdd(regP, corTreeString(corRest.kallocP, "id", entityId));
+    corTreeChildAdd(regP, corTreeString(corRest.kallocP, "endpoint", str(instP, "endpoint")));
+    corTreeChildAdd(siP,  corTreeString(corRest.kallocP, "serviceName", serviceName));
+
+    for (int ix = 0; copied[ix] != NULL; ix++)
+    {
+      CorNode* mP = corTreeLookup(instP, copied[ix]);
+
+      if (mP != NULL)
+        corTreeChildAdd(siP, corTreeClone(corRest.kallocP, mP));
+    }
+
+    corTreeChildAdd(regP, siP);
+    return regP;
+  }
 
   if ((db.docQuery == NULL) || (db.docQuery(tenantP, "serviceRegistrations", &regsP) != DB_OK))
     return NULL;

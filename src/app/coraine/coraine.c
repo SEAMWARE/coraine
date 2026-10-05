@@ -99,6 +99,7 @@
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
+#include "corNgsild/ldServiceDescription.h"          // ldServiceDescriptionAccepted
 #include "serviceExecution/seExecution.h"            // seExecutionTick, seExecutionRetentionNs
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
@@ -1631,6 +1632,8 @@ int main(int argC, char* argV[])
   //
   if (seCoreTermsAdd(&contextAlloc) != 0)
     COR_X(1, "the Service Execution terms could not be added to the core context");
+
+  ldServiceDescriptionAccepted = true;               // an entity may hold its services' descriptions (GR CIM-055 § 6.3.3)
 #endif
 
   //
