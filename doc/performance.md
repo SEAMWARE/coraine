@@ -570,6 +570,7 @@ databases in containers on the host network, 2026-10-05:
 | | 1 000 entities | 100 000 entities | per entity |
 |---|---:|---:|---:|
 | corDB, `--dbDir` (the log, and the snapshot of a clean stop: the same size) | 740 172 | 74 418 601 | 744 |
+| corDB, `--dbDir --dbCompress` (the snapshot of a clean stop) | 12 282 | 1 360 203 | 14 |
 | MongoDB 8.2, the documents (`dataSize`, BSON) | 1 067 786 | 107 177 790 | 1 072 |
 | MongoDB 8.2, on disk (`storageSize` + `indexSize`) | 196 608 | 11 329 536 | 113 |
 
@@ -578,19 +579,19 @@ databases in containers on the host network, 2026-10-05:
 | | 1 000 entities | 100 000 entities |
 |---|---:|---:|
 | corDB, `--troe corDB` (`hist-*.cor`) | 4 225 466 | 425 960 175 |
+| corDB, `--troe corDB --dbCompress` | 4 225 466 ¹ | 52 081 577 ² |
 | TimescaleDB (PostgreSQL 16), `--troe timescale` (the database's growth) | 28 088 840 | 1 727 322 632 |
 
-**With `--dbCompress`** (corDB's snapshots and finished segments compressed, zstd): the current state
-of 1 000 entities 12 282 bytes, of 100 000 1 360 203 (MongoDB's files: 196 608 and 11 329 536); the
-history of 100 000, 52 081 577 (TimescaleDB: 1 727 322 632) - six finished segments compressed, the open
-one not. The history of 1 000 (4.2 MB) is all in the open segment, and stays as it is.
+¹ all of it in the open segment (under 64 MiB), which `--dbCompress` never compresses
+² six finished segments compressed, the open one not
 
-- **History: corDB takes a quarter to a sixth** of TimescaleDB's room. TimescaleDB's own compression
-  (a policy per hypertable) is off, as coraine creates the tables.
-- **Current state: MongoDB takes a sixth of corDB's** - an eighth of it with `--dbCompress`, off by
-  default. corDB's records are a third smaller than MongoDB's documents, but MongoDB compresses its
-  files (WiredTiger, snappy) and corDB does not unless asked. This
-  fixture favours a compressor - every entity carries the same 200-character description and the same
+- **History: corDB takes a quarter to a sixth** of TimescaleDB's room - with `--dbCompress` a
+  thirty-third, once its segments are finished. TimescaleDB's own compression (a policy per
+  hypertable) is off, as coraine creates the tables.
+- **Current state: without `--dbCompress`, MongoDB takes a sixth of corDB's room; with it, corDB
+  takes an eighth of MongoDB's.** corDB's records are a third smaller than MongoDB's documents, but
+  MongoDB compresses its files (WiredTiger, snappy) and corDB only with the option. This fixture
+  favours a compressor - every entity carries the same 200-character description and the same
   names. And a corDB record decodes on its own, so each one carries its attributes' expanded IRIs
   (`https://uri.etsi.org/ngsi-ld/default-context/speed`) again: most of its 744 bytes.
 
