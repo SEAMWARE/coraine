@@ -11,12 +11,14 @@
 //
 // The request's own parts that Service Execution reads - a header, a URL parameter.
 //
-// SE_PARAM_* - the URL parameters of GET /ngsi-ld/v1/services, registered by the broker (corRestParamAdd).
+// SE_PARAM_* - Service Execution's URL parameters, registered by the broker (corRestParamAdd).
 // LD_PARAM_* grow from bit 0, the broker's own from the top (bridgeServiceSync.h: ddsSync, bit 63).
 //
 #define SE_PARAM_ENTITY_ID         (1ULL << 62)
 #define SE_PARAM_SERVICE_NAME      (1ULL << 61)
 #define SE_PARAM_EXECUTION_STATUS  (1ULL << 60)
+#define SE_PARAM_INCLUDE_SERVICES  (1ULL << 59)   // GET /entities, /entities/{id}
+#define SE_PARAM_SERVICE_DETAILS   (1ULL << 58)
 
 
 

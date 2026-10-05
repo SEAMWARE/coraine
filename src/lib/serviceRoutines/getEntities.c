@@ -65,6 +65,9 @@
 
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
 
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
+#endif
 #include "serviceRoutines/getEntities.h"             // Own interface
 
 
@@ -1493,6 +1496,10 @@ static bool entityMapPaginate(void)
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
+#if COR_FEATURE_SERVICE_EXECUTION
+  seEntityServicesAdd(arrayP);                        // ?includeServices=true
+#endif
+
   corRest.out.responseTree = arrayP;
   return true;
 }
@@ -2484,6 +2491,10 @@ bool getEntities(void)
     if      (strcmp(corNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  seEntityServicesAdd(arrayP);                        // ?includeServices=true
+#endif
 
   corRest.out.responseTree = arrayP;
   return true;

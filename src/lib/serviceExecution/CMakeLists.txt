@@ -10,6 +10,7 @@ SET(SOURCES
   seJsonSchema.c
   seExecution.c
   seRequest.c
+  seEntityServices.c
 )
 
 ADD_LIBRARY(serviceExecution STATIC ${SOURCES})

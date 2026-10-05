@@ -1,0 +1,218 @@
+#
+# FILE            service_entity_services.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): an entity with its services. ?includeServices=true adds
+# one attribute per service a Service Registration offers the entity, of type ServiceDescription -
+# title, description, mode, serviceDescriptionInEntity false; ?serviceDetails=true adds its JSON
+# Schemas. Never the executor's endpoint. Retrieve and query, normalized and keyValues.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - entities with their services (includeServices, serviceDetails)
+
+--TAGS--
+service registration retrieve query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Lamps urn:MyLamp1 and urn:Other; setLight for every Lamp, blink for urn:MyLamp* only, dim (an IRI, inline @context) for every Lamp
+# 02. GET /entities/urn:MyLamp1 - no services
+# 03. GET /entities/urn:MyLamp1?includeServices=true - setLight, blink, dim
+# 04. GET /entities/urn:MyLamp1?includeServices=true&serviceDetails=true - with the schemas
+# 05. GET /entities?type=Lamp&includeServices=true&options=keyValues - urn:Other has no blink
+#
+
+echo "01. Lamps urn:MyLamp1 and urn:Other; setLight for every Lamp, blink for urn:MyLamp* only, dim (an IRI, inline @context) for every Lamp"
+echo "=================================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:MyLamp1","type":"Lamp","on":{"type":"Property","value":true}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Other","type":"Lamp"}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://localhost:9997/setLight","entities":[{"type":"Lamp"}],
+  "serviceInformation":{"serviceName":"setLight","title":"Set light","description":"Brightness, 0 = off","inputSchema":{"type":"object","properties":{"brightness":{"type":"integer"}}},"outputSchema":{"type":"string"}}}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://localhost:9997/blink","entities":[{"type":"Lamp","idPattern":"^urn:MyLamp"}],
+  "serviceInformation":{"serviceName":"blink","mode":"asynchronous"}}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations -H "Content-Type: application/ld+json" --payload '{"@context":[{"dim":"https://example.org/dim"},"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"],
+  "type":"ServiceRegistration","endpoint":"http://localhost:9997/dim","entities":[{"type":"Lamp"}],"serviceInformation":{"serviceName":"dim"}}' | head -1
+echo
+echo
+
+
+echo "02. GET /entities/urn:MyLamp1 - no services"
+echo "==========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:MyLamp1 | sed -n '/^{/,$p'
+echo
+echo
+
+
+echo "03. GET /entities/urn:MyLamp1?includeServices=true - setLight, blink, dim"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:MyLamp1?includeServices=true' | sed -n '/^{/,$p'
+echo
+echo
+
+
+echo "04. GET /entities/urn:MyLamp1?includeServices=true&serviceDetails=true - with the schemas"
+echo "========================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:MyLamp1?includeServices=true&serviceDetails=true' | sed -n '/^{/,$p'
+echo
+echo
+
+
+echo "05. GET /entities?type=Lamp&includeServices=true&options=keyValues - urn:Other has no blink"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Lamp&includeServices=true&options=keyValues' | sed -n '/^\[/,$p'
+echo
+echo
+
+
+--EXPECT--
+01. Lamps urn:MyLamp1 and urn:Other; setLight for every Lamp, blink for urn:MyLamp* only, dim (an IRI, inline @context) for every Lamp
+==================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET /entities/urn:MyLamp1 - no services
+===========================================
+{
+  "id": "urn:MyLamp1",
+  "on": {
+    "type": "Property",
+    "value": true
+  },
+  "type": "Lamp"
+}
+
+
+
+03. GET /entities/urn:MyLamp1?includeServices=true - setLight, blink, dim
+=========================================================================
+{
+  "blink": {
+    "mode": "asynchronous",
+    "serviceDescriptionInEntity": false,
+    "type": "ServiceDescription"
+  },
+  "https://example.org/dim": {
+    "mode": "synchronous",
+    "serviceDescriptionInEntity": false,
+    "type": "ServiceDescription"
+  },
+  "id": "urn:MyLamp1",
+  "on": {
+    "type": "Property",
+    "value": true
+  },
+  "setLight": {
+    "description": "Brightness, 0 = off",
+    "mode": "synchronous",
+    "serviceDescriptionInEntity": false,
+    "title": "Set light",
+    "type": "ServiceDescription"
+  },
+  "type": "Lamp"
+}
+
+
+
+04. GET /entities/urn:MyLamp1?includeServices=true&serviceDetails=true - with the schemas
+========================================================================================
+{
+  "blink": {
+    "mode": "asynchronous",
+    "serviceDescriptionInEntity": false,
+    "type": "ServiceDescription"
+  },
+  "https://example.org/dim": {
+    "mode": "synchronous",
+    "serviceDescriptionInEntity": false,
+    "type": "ServiceDescription"
+  },
+  "id": "urn:MyLamp1",
+  "on": {
+    "type": "Property",
+    "value": true
+  },
+  "setLight": {
+    "description": "Brightness, 0 = off",
+    "inputSchema": {
+      "properties": {
+        "brightness": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "mode": "synchronous",
+    "outputSchema": {
+      "type": "string"
+    },
+    "serviceDescriptionInEntity": false,
+    "title": "Set light",
+    "type": "ServiceDescription"
+  },
+  "type": "Lamp"
+}
+
+
+
+05. GET /entities?type=Lamp&includeServices=true&options=keyValues - urn:Other has no blink
+===========================================================================================
+[
+  {
+    "blink": {
+      "mode": "asynchronous",
+      "serviceDescriptionInEntity": false,
+      "type": "ServiceDescription"
+    },
+    "https://example.org/dim": {
+      "mode": "synchronous",
+      "serviceDescriptionInEntity": false,
+      "type": "ServiceDescription"
+    },
+    "id": "urn:MyLamp1",
+    "on": true,
+    "setLight": {
+      "description": "Brightness, 0 = off",
+      "mode": "synchronous",
+      "serviceDescriptionInEntity": false,
+      "title": "Set light",
+      "type": "ServiceDescription"
+    },
+    "type": "Lamp"
+  },
+  {
+    "https://example.org/dim": {
+      "mode": "synchronous",
+      "serviceDescriptionInEntity": false,
+      "type": "ServiceDescription"
+    },
+    "id": "urn:Other",
+    "setLight": {
+      "description": "Brightness, 0 = off",
+      "mode": "synchronous",
+      "serviceDescriptionInEntity": false,
+      "title": "Set light",
+      "type": "ServiceDescription"
+    },
+    "type": "Lamp"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

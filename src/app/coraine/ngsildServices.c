@@ -170,8 +170,8 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/services/*/*", SVCX(getEntityServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone          },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*/services/*/*", SVCX(deleteEntityServiceExecution), 0,                                    LdOpNone          },
 
-  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES,   LdOpQueryEntities  },
-  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY,     LdOpRetrieveEntity },
+  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS, LdOpQueryEntities  },
+  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS,   LdOpRetrieveEntity },
   { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY | BRIDGE_PARAM_DDS_SYNC,   LdOpMergeEntity    },
