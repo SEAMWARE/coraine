@@ -202,6 +202,7 @@ full list and the honest state of each.
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `corDB`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |
+| **Transport** (the API over another protocol) | `--transports` | any number | `ws` - WebSocket: subscriptions and their notifications over one connection ([doc](doc/websocket.md)) |
 
 **Why that matters, beyond tidiness.** The broker never talks to a database. It talks
 to a *driver interface* — `DbDriver.h` for current state, `TroeDriver.h` for history —

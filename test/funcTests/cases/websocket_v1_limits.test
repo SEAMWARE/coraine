@@ -1,0 +1,171 @@
+#
+# FILE            websocket_v1_limits.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# WebSocket as a transport (--transports ws, doc/websocket.md) - version 1's rules and the protocol's
+# edges: a subscription naming another connection is refused (403), a path other than
+# /ngsi-ld/v1/subscriptions is not served (501), a message that is no envelope is a 400; a message in
+# two frames, and a ping, are answered; an upgrade without its key, of another version or subprotocol,
+# or on another path, is refused before any WebSocket exists.
+#
+--NAME--
+WebSocket - version 1's limits, fragments and pings, refused handshakes
+
+--TAGS--
+websocket subscription
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. A subscription naming another connection (urn:ngsi-ld:WebSocket:99) - 403
+# 02. GET /ngsi-ld/v1/entities over the WebSocket - 501
+# 03. A message that is not JSON, and one without method and path - 400 and 400
+# 04. GET /ngsi-ld/v1/subscriptions in two frames (a text frame and a continuation) - 200
+# 05. A ping - its pong
+# 06. Upgrades refused: no Sec-WebSocket-Key, version 8, subprotocol other, path /ws, no Upgrade at all
+# 07. The subprotocol ngsi-ld.json - 101, and the server names it
+# 08. A request sent in the same write as the upgrade, before the 101 - answered
+#
+
+msg() { ftWsMessages | python3 -c "import json,sys; m=json.load(sys.stdin)[$1]; print(m['metadata'].get('status'), m['metadata'].get('requestId'), (m.get('body') or {}).get('detail') if isinstance(m.get('body'), dict) else '', m.get('pong', ''))"; }
+
+echo "01. A subscription naming another connection (urn:ngsi-ld:WebSocket:99) - 403"
+echo "=============================================================================="
+ftWsStart
+ftWsAwait 1
+ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"r1"},"body":{"type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:99"}}}}'
+ftWsAwait 2
+msg 1
+echo
+echo
+
+
+echo "02. GET /ngsi-ld/v1/entities over the WebSocket - 501"
+echo "====================================================="
+ftWsSend '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities?type=T","requestId":"r2"}}'
+ftWsAwait 3
+msg 2
+echo
+echo
+
+
+echo "03. A message that is not JSON, and one without method and path - 400 and 400"
+echo "============================================================================="
+ftWsSend 'not json'
+ftWsSend '{"metadata":{"requestId":"r3"}}'
+ftWsAwait 5
+msg 3
+msg 4
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/subscriptions in two frames (a text frame and a continuation) - 200"
+echo "======================================================================================"
+ftWsSendFrag '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/subscriptions","requestId":"r4"}}'
+ftWsAwait 6
+msg 5
+echo
+echo
+
+
+echo "05. A ping - its pong"
+echo "====================="
+ftWsPing 'are you there'
+ftWsAwait 7
+ftWsMessages | python3 -c "import json,sys; print(json.load(sys.stdin)[6])"
+ftWsStop
+echo
+echo
+
+
+echo "06. Upgrades refused: no Sec-WebSocket-Key, version 8, subprotocol other, path /ws, no Upgrade at all"
+echo "====================================================================================================="
+U='-H Upgrade:websocket -H Connection:Upgrade'
+curl -s -o /dev/null -w '%{http_code}\n' $U -H 'Sec-WebSocket-Version: 13' localhost:1026/ngsi-ld/v1/ws
+curl -s -o /dev/null -w '%{http_code}\n' $U -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 8' localhost:1026/ngsi-ld/v1/ws
+curl -s -o /dev/null -w '%{http_code}\n' $U -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Protocol: mqtt' localhost:1026/ngsi-ld/v1/ws
+curl -s -o /dev/null -w '%{http_code}\n' $U -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' localhost:1026/ws
+curl -s -o /dev/null -w '%{http_code}\n' localhost:1026/ngsi-ld/v1/ws
+echo
+echo
+
+
+echo "07. The subprotocol ngsi-ld.json - 101, and the server names it"
+echo "==============================================================="
+ftWsStart 1026 ngsi-ld.json
+ftWsAwait 2
+ftWsMessages
+echo
+ftWsStop
+echo
+echo
+
+
+echo "08. A request sent in the same write as the upgrade, before the 101 - answered"
+echo "=============================================================================="
+ftWsStart 1026 "" '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/subscriptions","requestId":"early"}}'
+ftWsAwait 2
+msg 1
+ftWsStop
+echo
+echo
+
+
+--EXPECT--
+01. A subscription naming another connection (urn:ngsi-ld:WebSocket:99) - 403
+==============================================================================
+403 r1 a subscription made over a WebSocket notifies its own connection, urn:ngsi-ld:WebSocket:1 
+
+
+02. GET /ngsi-ld/v1/entities over the WebSocket - 501
+=====================================================
+501 r2 over a WebSocket, version 1 serves /ngsi-ld/v1/subscriptions only 
+
+
+03. A message that is not JSON, and one without method and path - 400 and 400
+=============================================================================
+400 None a message is a JSON object with "metadata" (an object) and "body" 
+400 r3 a request names its "method" and "path" in "metadata" 
+
+
+04. GET /ngsi-ld/v1/subscriptions in two frames (a text frame and a continuation) - 200
+======================================================================================
+200 r4  
+
+
+05. A ping - its pong
+=====================
+{'pong': 'are you there'}
+
+
+06. Upgrades refused: no Sec-WebSocket-Key, version 8, subprotocol other, path /ws, no Upgrade at all
+=====================================================================================================
+400
+400
+400
+404
+404
+
+
+07. The subprotocol ngsi-ld.json - 101, and the server names it
+===============================================================
+[{"subprotocol": "ngsi-ld.json"}, {"metadata": {"connection": "urn:ngsi-ld:WebSocket:2"}}]
+
+
+08. A request sent in the same write as the upgrade, before the 101 - answered
+==============================================================================
+200 early  
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop

@@ -1,106 +1,102 @@
 # WebSocket - subscriptions and notifications over one connection
 
-> **Design, for review - nothing of it is built yet.** Version 1 is what a web page needs: connect,
-> create a subscription over the connection, receive its notifications on it.
+A web page opens a WebSocket to the broker, creates subscriptions over it and receives their
+notifications on it - with nothing to poll and no endpoint of its own for the broker to reach.
 
-A web page opens a WebSocket to the broker, sends NGSI-LD requests over it and receives the responses
-and, for the subscriptions it created, the notifications - on the same connection, with nothing to
-poll and no endpoint of its own for the broker to reach.
+```console
+coraine --transports ws
+```
 
-## 1. Where it lives: a transport, not a bridge
+Version 1 serves `/ngsi-ld/v1/subscriptions` over the connection: create, list, retrieve, update,
+delete. Notifications go to the connection that created the subscription.
 
-A Bridge carries **attribute values** between a foreign endpoint and an entity, and never answers a
-request ([Bridges and Channels](bridge-channels.md)). A WebSocket here carries the broker's **API** -
-requests in, responses and notifications out - as HTTP and cor:// do. So it is a **transport**, and
-transports get a plugin type of their own: `ws.so` first, cor:// to follow (`cor.so`, its server and
-its client for forwarding), HTTP itself later.
+## Connecting
 
-| | `ws.so` | `cor.so` (later) |
-|---|---|---|
-| how a connection starts | an upgrade on the HTTP port | its own port (`--corPort`) |
-| the broker serves requests | yes | yes |
-| the broker as a client | no | yes - forwarding |
-| framing | WebSocket frames, the JSON envelope | cor binary |
+`GET /ngsi-ld/v1/ws` on the broker's HTTP port, with `Upgrade: websocket` (RFC 6455, version 13). The
+subprotocol `ngsi-ld.json` may be asked for (`Sec-WebSocket-Protocol`), and is then confirmed; none
+asked for is the same. Both HTTP servers serve it - libmicrohttpd and the built-in one.
 
-The seam, both ways:
-
-- broker → plugin: `init` (its options); **take this connection** (an upgraded socket, the bytes the
-  HTTP server already read behind the request included); **send** an envelope on a connection
-- plugin → broker: **request** (an envelope in, the response envelope out - through the same service
-  routines as HTTP); **opened** / **closed** (the broker keeps the connections subscriptions name)
-
-The plugin knows WebSocket and the envelope; the broker knows NGSI-LD. Neither crosses the line.
-
-## 2. Connecting
-
-`GET /ngsi-ld/v1/ws` with `Upgrade: websocket` on the broker's HTTP (or HTTPS) port, the
-`Sec-WebSocket-Protocol` `ngsi-ld.json`. Both HTTP servers hand the socket over after `101 Switching
-Protocols`: libmicrohttpd with its upgrade API (`MHD_create_response_for_upgrade`), corHttp with an
-upgrade hook added to it - same contract, so the plugin sees no difference. The WebSocket protocol
-itself (RFC 6455: the handshake's key, framing, masking, ping/pong, close) is `ws.so`'s, not
-libmicrohttpd's experimental `libmicrohttpd_ws`: the built-in server gets it too.
-
-The broker's first message on a new connection names it:
+The broker's first message names the connection:
 
 ```json
 { "metadata": { "connection": "urn:ngsi-ld:WebSocket:7" } }
 ```
 
-## 3. Messages: the envelope of the MQTT binding
+| Refused upgrade | Status |
+|---|---|
+| no `Sec-WebSocket-Key`, a version other than 13, a subprotocol other than `ngsi-ld.json` | 400 |
+| a path other than `/ngsi-ld/v1/ws` | 404 |
 
-Every message is a JSON object with `metadata` and `body` - the envelope of ETSI TS 104 243 (the
-MQTT notification binding), so a notification over WebSocket is byte for byte the one MQTT carries.
+## Messages
 
-**A request** - its method and path in `metadata`, with the headers HTTP would carry, and a
-`requestId` the page chooses, returned in the response:
+Text messages, each a JSON object with `metadata` and `body` - the envelope of the MQTT notification
+binding (ETSI TS 104 243 clause 5), so a notification over a WebSocket is the one MQTT carries.
+
+**A request** names its method and path in `metadata`, beside the headers HTTP would carry. A
+`requestId`, the client's choice, comes back in the response; several requests may be in flight.
 
 ```json
-{ "metadata": { "method": "POST", "path": "/ngsi-ld/v1/subscriptions", "requestId": "1",
+{ "metadata": { "method": "POST", "path": "/ngsi-ld/v1/subscriptions", "requestId": "r1",
                 "Content-Type": "application/json" },
   "body": { "type": "Subscription", "entities": [ { "type": "Vehicle" } ],
             "notification": { "endpoint": { "uri": "urn:ngsi-ld:WebSocket:7" } } } }
 ```
 
-**A response** - the status and the headers HTTP would return:
+**A response** carries the status, the `requestId` and the headers HTTP would return, and the body:
 
 ```json
-{ "metadata": { "status": 201, "requestId": "1", "Location": "/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:..." } }
+{ "metadata": { "status": 201, "requestId": "r1",
+                "Location": "/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:..." } }
 ```
 
-**A notification** - as on MQTT, `Content-Type` and `Link` in `metadata`, the Notification in `body`.
+**A notification** - `Content-Type` and `Link` in `metadata`, the NGSI-LD Notification in `body`.
 
-Several requests may be in flight; a response says which one it answers by its `requestId`.
+A request runs through the same service routines as over HTTP: what it can be refused for, and how,
+is the same. Over a WebSocket besides:
 
-## 4. A subscription notifies a connection
+| | Status |
+|---|---|
+| a message that is not a JSON object with a `metadata` object | 400 |
+| a request without `method` or `path` | 400 |
+| a path other than `/ngsi-ld/v1/subscriptions` | 501 |
+| a subscription whose endpoint names another connection | 403 |
 
-A subscription whose `endpoint.uri` is a connection's id is notified on that connection.
-corNgsild already hands every non-HTTP notification to one transport hook (`ldNotifyTransportSend`),
-which wraps it in the envelope and gives it to the plugin for its URI - `mqtt://` to `mqtt.so` today;
-`urn:ngsi-ld:WebSocket:` to `ws.so`. At subscription create and update, the same hook says whether
-the URI can be delivered (`ldNotifyTransportHas`): an id that names no open connection is refused.
+## Subscriptions
 
-## 5. Version 1
+A subscription created over a connection notifies that connection: its `notification.endpoint.uri` is
+the connection's id. Another connection's id is refused. When the connection closes - the client
+closes it, it breaks, or the broker stops - the subscriptions it created are deleted. The default
+tenant.
 
-- connect, both HTTP servers
-- `/ngsi-ld/v1/subscriptions` over the connection: create, list, retrieve, update, delete - any other
-  path answered `501` naming what version 1 serves
-- notifications to the connection that created the subscription
-- the connection closes: the subscriptions whose endpoint is it are deleted (an id never comes back)
-- the default tenant
+## The connection
 
-## 6. Decided (KZ 2026-10-05)
+- text frames; a fragmented message (a frame and its continuations) is one message; a ping is answered
+  with a pong; a close frame with the close
+- a binary frame closes the connection (1003); a frame the client did not mask (1002); a message over
+  16 MiB (1009)
+- a notification to a client that stopped reading gives up after 5 s
 
-1. **A subscription notifies only the connection that created it** - only that connection's own id is
-   accepted as the endpoint. To be revisited: another socket of the same page, or another page.
-2. **On close, the connection's subscriptions are deleted** - an id never comes back.
-3. **The path** is `/ngsi-ld/v1/ws`.
-4. **Tenant**: the default tenant. Another one named in the handshake (the upgrade request's
-   `NGSILD-Tenant`), and changing it on an open connection - version 2.
+## How it is built
 
-## 7. Later - roadmap, not short term
+WebSocket is a **transport**: it carries the broker's API, as HTTP and cor:// do - not a bridge, which
+carries attribute values and answers no request ([Bridges and Channels](bridge-channels.md)).
+Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), loaded from
+`<plugins>/transport/` by `--transports`; `ws.so` is the first.
+
+- **The plugin** knows the protocol: the handshake (`Sec-WebSocket-Accept`, SHA-1 from libcrypto), the
+  frames, its connections - one thread each.
+- **The broker** knows the messages: it parses a request's envelope, runs it to its end on the
+  connection's thread (corRest's `corRestRunJson` - the service routines of an HTTP request, JSON in and
+  out), answers in an envelope, keeps the subscriptions each connection created, and delivers the
+  notifications to a connection through corNgsild's transport hook - the one `mqtt://` goes through.
+- **The upgrade**: corRest asks the application for an `Upgrade` request (`corRestSetUpgradeHook`),
+  writes the `101`, and hands the socket over - with libmicrohttpd's upgrade API, or corHttp's
+  `corHttpUpgrade` on the built-in server, the same contract.
+
+## Not yet
 
 - every request over the connection, not only subscriptions
-- a second subprotocol, `ngsi-ld.cor`: binary frames carrying the same envelope cor-encoded - cor's
-  encoding and multiplexing through proxies and ingresses that block cor://'s own port
-- cor:// moved into the transport plugin type (`cor.so`)
-- a WebSocket **bridge** (device values through Channels), if a device use case comes
+- naming the tenant in the handshake, and changing it on an open connection
+- a subscription notifying another connection than its own
+- a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
+- cor:// as a transport plugin (`cor.so`)

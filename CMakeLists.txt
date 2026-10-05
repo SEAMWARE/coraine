@@ -221,6 +221,7 @@ ADD_SUBDIRECTORY(src/lib/ha)
 ADD_SUBDIRECTORY(src/lib/troe)
 ADD_SUBDIRECTORY(src/lib/plugin)
 ADD_SUBDIRECTORY(src/lib/bridge)
+ADD_SUBDIRECTORY(src/lib/transport)
 if (COR_FEATURE_METRICS)
   ADD_SUBDIRECTORY(src/lib/metrics)
 endif()
@@ -247,6 +248,11 @@ endif()
 # library present, and it is the reference a new bridge is written against.
 #
 ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
+
+#
+# ws - WebSocket as a transport of the broker's API (--transports ws, doc/websocket.md)
+#
+ADD_SUBDIRECTORY(src/plugins/transport/ws)
 
 ADD_SUBDIRECTORY(src/app/coraine)
 

@@ -280,13 +280,14 @@ etc/contextSourceExtras.json: FORCE
 
 # install_from <build-dir> — copy broker + plugins + etc out of a build tree
 define install_from
-	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(ETC_DIR)
+	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(ETC_DIR)
 	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
 	cp -p $(1)/src/plugins/bridge/loopback/loopback.so          $(PLUGIN_DIR)/bridge/
+	cp -p $(1)/src/plugins/transport/ws/ws.so                   $(PLUGIN_DIR)/transport/
 	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/
 endef
 
@@ -370,13 +371,14 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 # sits in /opt/seamware - an ordinary build with no counters - and every plugin
 # source then reports as unexecuted while the run appears to have covered it.
 #
-	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge
+	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge $(COV_PLUGIN_DIR)/transport
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/corDB.so        $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/troe/corDB.so   $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
+	@cp -p $(BUILD_COVERAGE)/src/plugins/transport/*/*.so    $(COV_PLUGIN_DIR)/transport/
 #
 # The bridges from their own repositories (mqtt.so, modbus.so, dds.so) are not built here: staged
 # as installed, without counters - their code is not coraine's and not in this report. Without
