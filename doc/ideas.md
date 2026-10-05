@@ -145,8 +145,7 @@ The `;v1.9` parameter on the core context's Link header, and § 13.4's `?core=`.
 ### Problem Details and error reporting - proposals to ETSI
 
 Machine-readable errors and per-item outcomes that NGSI-LD does not define yet - taken to the ETSI
-TC DATA face-to-face in Athens; not implemented. `problem-details.md`, `error-reporting.md` (not
-published while in front of ETSI).
+TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
 ### An NGSI-LD-aware JSON parser
 
