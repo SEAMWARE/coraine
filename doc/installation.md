@@ -113,8 +113,10 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 
 `corDB` keeps the store in the broker's memory. With **`--dbDir <directory>`** it also keeps
 it on disk and survives a restart: every write appends its effect to a log, synced
-every 100 ms, with a snapshot as the log grows. A clean stop (SIGTERM) loses nothing;
-`kill -9` or a power cut loses at most the last unsynced interval.
+every 100 ms, with a snapshot as the log grows. A clean stop (SIGTERM) loses nothing, and
+neither does `kill -9`, a crash or an OOM kill: the log is memory-mapped, so a record is in
+the kernel's page cache before the response. A power cut loses at most the last unsynced
+interval.
 
 | Option | Default | Meaning |
 |--------|---------|---------|

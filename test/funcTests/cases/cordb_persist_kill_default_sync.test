@@ -1,0 +1,270 @@
+#
+# FILE            cordb_persist_kill_default_sync.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir and the default --dbSync interval: a record is copied into the mapped log segment
+# by the write itself, so a broker killed (kill -9) before any sync has lost nothing it acknowledged -
+# the kernel has the pages. --dbSyncInterval 60000 keeps the flusher from syncing during the test:
+# what comes back after the kill came from the page cache, not from a sync.
+# The history log (--troe corDB) the same.
+#
+# Then a gap in the log: a segment whose first record does not follow the last one replayed (what
+# pages written out of order leave, when the MACHINE dies past the last sync) is not replayed - it is
+# set aside as <segment>.torn, and the store is what came before it.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - kill -9 loses nothing acknowledged with the default --dbSync; a segment after a gap is set aside
+
+--TAGS--
+corDB persistence troe
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_kill_default_sync
+coraineStart --dbDir /tmp/corTest-cordb_persist_kill_default_sync --dbSyncInterval 60000 --troe corDB
+
+--RUN--
+
+#
+# 01. Create E1 and E2 (a=1); PATCH E2 (a=2, observedAt 10:00)
+# 02. kill -9 the broker, start it on the same --dbDir
+# 03. GET /entities?type=T - E1, E2 (a=2)
+# 04. GET /temporal/entities/urn:E2 - a=1 and a=2
+# 05. Create E3; kill -9; copy the log's segment as the next one (it starts again at sequence 1); start
+# 06. The copy is set aside as .torn
+# 07. GET /entities?type=T - E1, E2 (a=2), E3: nothing replayed twice
+# 08. Create E4, stop, start
+# 09. GET /entities?type=T - E1, E2, E3, E4
+#
+
+DIR=/tmp/corTest-cordb_persist_kill_default_sync
+
+echo "01. Create E1 and E2 (a=1); PATCH E2 (a=2, observedAt 10:00)"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","a":{"type":"Property","value":1,"observedAt":"2026-10-04T09:00:00Z"}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E2/attrs --payload '{"a":{"type":"Property","value":2,"observedAt":"2026-10-04T10:00:00Z"}}' | head -1
+echo
+echo
+
+
+echo "02. kill -9 the broker, start it on the same --dbDir"
+echo "===================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR --dbSyncInterval 60000 --troe corDB
+echo "restarted"
+echo
+echo
+
+
+echo "03. GET /entities?type=T - E1, E2 (a=2)"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "04. GET /temporal/entities/urn:E2 - a=1 and a=2"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E2?options=temporalValues'
+echo
+echo
+
+
+echo "05. Create E3; kill -9; copy the log's segment as the next one (it starts again at sequence 1); start"
+echo "======================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T"}' | head -1
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+{ wait $pid; } 2>/dev/null                          # started by this shell (step 02): reaped here, without bash's "Killed"
+while corPidAlive $pid; do sleep 0.01; done
+log=$(ls $DIR/_/log-*.cor | tail -1)
+next=$(printf '%s/_/log-%06d.cor' $DIR $((10#$(basename $log .cor | sed 's/log-//') + 1)))
+cp $log $next
+coraineStart --dbDir $DIR --dbSyncInterval 60000 --troe corDB
+echo "restarted"
+echo
+echo
+
+
+echo "06. The copy is set aside as .torn"
+echo "=================================="
+ls $DIR/_ | grep -c '^log-.*\.cor\.torn$'
+echo
+echo
+
+
+echo "07. GET /entities?type=T - E1, E2 (a=2), E3: nothing replayed twice"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "08. Create E4, stop, start"
+echo "=========================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E4","type":"T"}' | head -1
+coraineStop
+coraineStart --dbDir $DIR --dbSyncInterval 60000 --troe corDB
+echo "restarted"
+echo
+echo
+
+
+echo "09. GET /entities?type=T - E1, E2, E3, E4"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 and E2 (a=1); PATCH E2 (a=2, observedAt 10:00)
+=============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+
+
+02. kill -9 the broker, start it on the same --dbDir
+====================================================
+restarted
+
+
+03. GET /entities?type=T - E1, E2 (a=2)
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 117
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+04. GET /temporal/entities/urn:E2 - a=1 and a=2
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 213
+
+{
+  "a": {
+    "type": "Property",
+    "values": [
+      [
+        1,
+        "2026-10-04T09:00:00Z"
+      ],
+      [
+        2,
+        "2026-10-04T10:00:00Z"
+      ]
+    ]
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+05. Create E3; kill -9; copy the log's segment as the next one (it starts again at sequence 1); start
+======================================================================================================
+HTTP/1.1 201 Created
+restarted
+
+
+06. The copy is set aside as .torn
+==================================
+1
+
+
+07. GET /entities?type=T - E1, E2 (a=2), E3: nothing replayed twice
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  },
+  {
+    "id": "urn:E3",
+    "type": "T"
+  }
+]
+
+
+
+08. Create E4, stop, start
+==========================
+HTTP/1.1 201 Created
+restarted
+
+
+09. GET /entities?type=T - E1, E2, E3, E4
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 207
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  },
+  {
+    "id": "urn:E3",
+    "type": "T"
+  },
+  {
+    "id": "urn:E4",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_kill_default_sync

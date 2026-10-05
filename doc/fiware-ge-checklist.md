@@ -55,7 +55,9 @@ libraries of which two are GEOS.
 **Persistence comes without giving that up.** `corDB` with `--dbDir` keeps the
 store in a directory - an append log synced every 100 ms and snapshots - so a
 deployment survives a restart with still no database server. A clean stop loses
-nothing; a crash, at most the last 100 ms (or nothing, with `--dbSync request`).
+nothing, and neither does a broker crash or `kill -9` (the log is memory-mapped:
+a record is in the kernel's page cache before the response); a machine that dies,
+at most the last 100 ms (or nothing, with `--dbSync request`).
 What it costs is measured in [Performance](performance.md), "corDB on disk".
 
 ### Submission checklist

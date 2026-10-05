@@ -4,6 +4,135 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-05 - every corDB-on-disk number measured again: the log memory-mapped, the databases on the host network
+
+**Why.** corDB on disk buffered a write's log record in the process for up to 100 ms: a broker that
+died (`kill -9`, a crash, an OOM kill) lost writes it had acknowledged, and the numbers published for
+corDB on disk were the numbers of a store that could. The log is memory-mapped now (corDB): the record
+is in the kernel before the response; only a machine that dies loses anything - the last 100 ms, as
+MongoDB's default. Every number of corDB on disk was measured again; so was every number with a
+database in a container: MongoDB and PostgreSQL ran behind a port mapping (`docker run -p`), a
+userland proxy on every database round trip. Now `--network host`.
+
+What changed between the tables below and today's:
+
+- **The mapped log** costs a write 0-8.5 % (batch update the most), a read nothing - corDB's
+  [persistence history](https://github.com/SEAMWARE/corDB/blob/main/doc/history/persistence.md) has
+  the table, and the page preparation (`MADV_POPULATE_*`) tried and dropped.
+- **The host network** gave Orion-LD + MongoDB + PostgreSQL 4-7 % on writes (create 4 656 → 4 991,
+  PATCH 5 100 → 5 374, `DELETE` 8 813 → 9 457); its reads within the noise.
+- **The worker pool** (as many workers as cores for a store that never waits, 2026-10-04) and **the id
+  table growing in steps** (corDB) took the p99 of most rows down by a factor: a retrieve 4.3 ms →
+  0.2 ms, ramDB's batch create 239 ms → 3.3 ms.
+- **The PGO training** runs corDB on disk with its history too (`pgoTrain.sh`): +1-5 % on those rows
+  against the build trained on corDB in RAM alone (create 81 754 → 84 559, PATCH 103 004 → 107 860).
+- **Still open: batch delete** is 11 % (corDB) and 20 % (ramDB, no log at all) below the tables
+  below - the pool or the id table, not the log; to be found.
+- Orion-LD + TRoE crashed on a stop four times in one run (two SIGSEGV, two SIGABRT) - between
+  scenarios, every number was in.
+
+The slide for the FIWARE TSC (2026-10-05) carries the first run with the mapped log, before the PGO
+training was extended - 2-5 % below this page's corDB columns.
+
+#### Per core, before (libmicrohttpd, 2026-09-30/10-01, MongoDB 4.4 behind a port mapping)
+
+| Response | req/s per core | entities/s per core |
+|---|---:|---:|
+| 1 entity | 74 915 | 74 915 |
+| 20 entities | 9 822 | 196 440 |
+| 100 entities | 2 082 | 208 200 |
+
+libmicrohttpd + `mongoc`, `limit=20`: 5 858 req/s, 117 160 entities/s.
+
+#### The eight-core tables before (2026-10-04: the log buffered in the process, the databases behind a port mapping)
+
+**Requests/s:**
+
+| | coraine + MongoDB | coraine + MongoDB + TimescaleDB | coraine, corDB on disk | coraine, corDB on disk + history | coraine, ramDB | Orion-LD + MongoDB | Orion-LD + MongoDB + PostgreSQL |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| create | 44 252 | 4 128 | 95 870 | 83 967 | 178 969 | 6 353 | 4 656 |
+| create, 1 connection | 7 255 | 645 | 28 116 | 22 913 | 31 305 | 3 449 | 897 |
+| batch create (20) | 12 131 | 311 | 17 059 | 7 379 | 47 090 | 3 507 | 1 522 |
+| merge | 26 506 | 6 614 | 97 777 | 79 135 | 124 705 | 6 267 | 4 989 |
+| `PATCH` | 16 080 | 7 240 | 133 862 | 112 056 | 173 299 | 6 407 | 5 100 |
+| `PATCH`, 1 connection | 2 874 | 816 | 37 611 | 35 787 | 39 932 | 3 008 | 848 |
+| batch update (20) | 2 197 | 605 | 29 076 | 20 188 | 36 650 | 2 330 | 2 000 |
+| `DELETE` | 28 821 | 8 942 | 201 909 | 196 254 | 214 114 | 18 119 | 8 813 |
+| batch delete (20) | 6 963 | 1 659 | 74 373 | 54 247 | 83 702 | 3 105 | 2 400 |
+| `GET /entities/{id}` | 54 394 | 55 293 | 432 549 | 434 841 | 428 273 | 31 622 | 31 460 |
+| query, `limit=20` | 21 304 | 21 982 | 77 273 | 77 390 | 78 052 | 5 405 | 5 403 |
+
+**Latency, p50 / p95 / p99, ms:**
+
+| | coraine + MongoDB | coraine + MongoDB + TimescaleDB | coraine, corDB on disk | coraine, corDB on disk + history | coraine, ramDB | Orion-LD + MongoDB | Orion-LD + MongoDB + PostgreSQL |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| create | 1.03 / 1.76 / 3.15 | 11.1 / 22.0 / 48.5 | 0.41 / 9.78 / 21.8 | 0.44 / 16.4 / 35.6 | 0.24 / 0.81 / 5.63 | 6.95 / 14.7 / 22.8 | 10.2 / 18.0 / 24.4 |
+| create, 1 connection | 0.13 / 0.16 / 0.20 | 1.52 / 1.67 / 33.0 | 0.03 / 0.04 / 0.99 | 0.04 / 0.05 / 1.34 | 0.03 / 0.03 / 0.04 | 0.28 / 0.39 / 0.42 | 1.06 / 1.35 / 1.42 |
+| batch create (20) | 3.55 / 9.16 / 28.0 | 141 / 300 / 410 | 2.14 / 12.1 / 20.3 | 4.50 / 30.3 / 62.3 | 0.79 / 10.8 / 239 | 12.7 / 28.8 / 40.1 | 30.9 / 53.4 / 68.3 |
+| merge | 1.75 / 2.52 / 3.13 | 6.24 / 15.4 / 19.9 | 0.46 / 1.45 / 2.05 | 0.61 / 1.56 / 2.25 | 0.38 / 1.04 / 1.46 | 7.13 / 16.2 / 27.9 | 9.51 / 16.3 / 21.7 |
+| `PATCH` | 2.92 / 3.99 / 4.65 | 5.78 / 12.9 / 16.3 | 0.37 / 1.07 / 1.55 | 0.42 / 1.30 / 1.89 | 0.26 / 0.81 / 1.12 | 6.82 / 16.5 / 31.8 | 9.30 / 16.0 / 21.3 |
+| `PATCH`, 1 connection | 0.34 / 0.39 / 0.47 | 1.29 / 1.47 / 1.61 | 0.02 / 0.03 / 0.03 | 0.03 / 0.03 / 0.03 | 0.02 / 0.02 / 0.03 | 0.33 / 0.35 / 0.40 | 1.17 / 1.23 / 1.37 |
+| batch update (20) | 21.5 / 28.1 / 31.1 | 73.8 / 153 / 193 | 1.62 / 3.73 / 5.39 | 2.26 / 4.62 / 6.45 | 1.34 / 2.77 / 3.78 | 19.4 / 37.9 / 50.2 | 22.3 / 46.2 / 59.0 |
+| `DELETE` | 1.59 / 2.33 / 3.39 | 4.06 / 9.92 / 12.9 | 0.16 / 0.57 / 0.81 | 0.17 / 0.62 / 0.92 | 0.14 / 0.54 / 0.77 | 2.54 / 4.64 / 6.56 | 5.33 / 9.58 / 13.2 |
+| batch delete (20) | 6.12 / 13.2 / 16.3 | 19.5 / 63.7 / 120 | 0.54 / 1.38 / 2.15 | 0.82 / 1.56 / 2.05 | 0.41 / 1.30 / 1.96 | 14.1 / 30.0 / 38.3 | 18.0 / 39.0 / 50.7 |
+| `GET /entities/{id}` | 0.84 / 1.41 / 1.98 | 0.83 / 1.40 / 1.98 | 0.07 / 2.49 / 4.49 | 0.06 / 2.25 / 4.34 | 0.07 / 2.12 / 4.22 | 1.45 / 3.01 / 4.62 | 1.46 / 2.97 / 4.53 |
+| query, `limit=20` | 2.15 / 3.57 / 5.08 | 2.08 / 3.44 / 4.87 | 0.32 / 6.21 / 9.02 | 0.30 / 6.22 / 9.19 | 0.32 / 5.66 / 6.50 | 8.35 / 15.5 / 20.7 | 8.40 / 15.8 / 21.9 |
+
+Eight physical cores for the whole deployment - the broker, and the databases it needs (mongod 8.2 and
+PostgreSQL 16 + TimescaleDB as containers pinned to the same cores); the load generator on the other
+eight, standing in for clients. 50 connections unless said, median of 3 × 5 s, `test/perf/perfRun.sh`,
+AMD Ryzen 9 8940HX, 2026-10-04. coraine a PGO release, corDB on disk with `--dbDir`; Orion-LD
+1.15.0-next, its release build (`-O3`), `-mongocOnly`.
+
+- **History is where it shows.** In a database server it costs a write 55-97 % (coraine + MongoDB +
+  TimescaleDB: create 44 252 → 4 128); in corDB 3-57 %, and coraine with corDB and its history
+  outruns MongoDB without any on every write but batch create - and MongoDB + TimescaleDB 12-44×.
+- **Persistence costs little:** ramDB, no disk at all, is 1.0-1.9× corDB on disk; 2.8× on batch
+  create, which grows the store fastest and so snapshots most.
+- **Reads** do not touch history in any configuration. corDB answers a retrieve 8× MongoDB's rate; its
+  p95/p99 there are higher (2-9 ms) because it serves 430 000 requests/s on the same 50 connections.
+- **The tails of a write** follow the throughput: p99 of a batch update 6 ms (corDB + history) against
+  193 ms (MongoDB + TimescaleDB).
+
+#### What persistence costs, before (2026-10-04: the log buffered in the process)
+
+`--dbDir` makes corDB survive a restart: every write appends its effect to a log,
+synced every 100 ms (`--dbSync interval`, the default), with snapshots as the log
+grows ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+`test/perf/perfRun.sh corDB`, PGO release, one tenant, the log on an NVMe disk
+(ext4), AMD Ryzen 9 8940HX (32 threads, nothing pinned), 2026-10-04 - requests/s,
+against the same broker without `--dbDir`:
+
+| scenario | in RAM | `--dbDir` | change | `--dbSync request` | change |
+|---|---:|---:|---:|---:|---:|
+| query, `limit=20`, c50 | 134 111 | 140 810 | +5 % | 139 692 | +4 % |
+| `GET /entities/{id}`, c50 | 640 083 | 665 814 | +4 % | 638 030 | 0 % |
+| `PATCH`, c50 | 140 886 | 103 343 | −27 % | 16 525 | −88 % |
+| `PATCH`, c1 | 51 414 | 48 155 | −6 % | 1 311 | −97 % |
+| merge, c50 | 87 189 | 71 410 | −18 % | 16 072 | −82 % |
+| `DELETE`, c50 | 173 285 | 160 999 | −7 % | 15 033 | −91 % |
+| batch update (20), c50 | 38 330 | 31 998 | −17 % | 16 665 | −57 % |
+| batch delete (20), c50 | 59 495 | 53 829 | −10 % | 19 548 | −67 % |
+| create, c50 | 124 364 | 77 424 | −38 % | 15 083 | −88 % |
+| create, c1 | 38 333 | 33 160 | −13 % | 1 205 | −97 % |
+| batch create (20), c50 | 67 629 | 16 497 | −76 % | 10 260 | −85 % |
+
+- **Reads cost nothing.** A query or a retrieve never touches the log.
+- **A write that changes the store costs 6-27 %** - the encoding of its record
+  (the whole entity today; a PATCH that logs only the attributes it touched is
+  the next step - corDB's design, § 3).
+- **Creates cost more because the store grows**, and a growing store needs
+  snapshots: batch create, which grows it by a million entities in ten seconds,
+  loses 76 % of its throughput. Its p99 drops by 94 % (257 ms to 16 ms): a
+  snapshot takes the write lock for at most a few milliseconds at a time.
+- **`--dbSync request` is the disk's speed**: a write answers when its record is
+  synced, so one connection does ~1 200-1 300 writes/s and fifty share each sync
+  (group commit) for ~15 000-16 500.
+- **Recovery is not a pause worth planning for**: 100 000 entities (38 MB of log
+  or of snapshot) are back in **0.19 s** after `kill -9` (the log replayed) or a
+  clean stop (the snapshot loaded). A clean stop of that store, its last sync and
+  its snapshot included, takes 0.19 s.
+
 ## 2026-10-04 - eight cores: coraine and Orion-LD, MongoDB, TimescaleDB, corDB, ramDB
 
 "One machine, eight cores" in [the performance page](../performance.md) measured again: corDB on disk
