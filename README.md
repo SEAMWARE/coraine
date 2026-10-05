@@ -323,6 +323,7 @@ repository, which is where to read them offline or alongside a checkout:
 | [High Availability](doc/high-availability.md) | several instances behind a load balancer: requirements, MongoDB privileges, troubleshooting |
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
 | [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
+| [WebSocket](doc/websocket.md) | subscriptions and their notifications over one connection - for a web page (`--transports ws`) |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [Building from source](doc/building.md) | the dependency stack, system packages, make targets; the source layout and compiling features out in its detail page |
 | [Testing](doc/testing.md) | running the suite, and measuring coverage |
