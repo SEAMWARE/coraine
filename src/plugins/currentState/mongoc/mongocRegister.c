@@ -49,8 +49,8 @@
 #include "currentState/mongoc/mongocRegistrationQuery.h"            // mongocRegistrationQuery
 #include "currentState/mongoc/mongocRegistrationUpdate.h"           // mongocRegistrationUpdate
 #include "currentState/mongoc/mongocRegistrationDelete.h"           // mongocRegistrationDelete
-#include "currentState/mongoc/mongocDoc.h"                          // mongocDocCreate, ...
 #endif
+#include "currentState/mongoc/mongocDoc.h"                          // mongocDocCreate, ...
 #include "currentState/mongoc/mongocSnapshotCreate.h"               // mongocSnapshotCreate
 #include "currentState/mongoc/mongocSnapshotQuery.h"                // mongocSnapshotQuery
 #include "currentState/mongoc/mongocSnapshotUpdate.h"               // mongocSnapshotUpdate
