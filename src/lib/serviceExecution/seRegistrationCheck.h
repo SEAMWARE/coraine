@@ -27,6 +27,8 @@
 //   entities             a non-empty array of { type, id | idPattern }
 //   q, geoQ              optional - entities matching them only
 //   executionTimeout     optional - an ISO 8601 duration
+//   notification         optional - { endpoint: { uri, accept? } }: where its executions are notified
+//                        (an execution's own notification wins)
 //   serviceInformation   { serviceName, title?, description?, mode?, inputSchema?, outputSchema? }
 //                        mode: "synchronous" (the default) or "asynchronous"
 //   createdAt, modifiedAt  the broker's - a stored registration has them

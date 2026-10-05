@@ -195,6 +195,14 @@ bool seRegistrationCheck(CorNode* regP)
       if ((isString(mP) == false) || (ldIso8601DurationParseNs(mP->value.s) <= 0))
         return bad("'executionTimeout' must be an ISO 8601 duration");
     }
+    else if (strcmp(mP->name, "notification") == 0)
+    {
+      CorNode* endpointP = (mP->type == CorObject) ? corTreeLookup(mP, "endpoint") : NULL;
+      CorNode* uriP      = ((endpointP != NULL) && (endpointP->type == CorObject)) ? corTreeLookup(endpointP, "uri") : NULL;
+
+      if ((isString(uriP) == false) || (ldUriValid(uriP->value.s) == false))
+        return bad("'notification' - where the executions are notified - needs an endpoint with a uri");
+    }
     else if ((strcmp(mP->name, "createdAt") == 0) || (strcmp(mP->name, "modifiedAt") == 0))
       continue;                                       // the broker's own, on a stored registration
     else if (strcmp(mP->name, "mode") == 0)

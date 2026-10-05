@@ -685,7 +685,7 @@ bool seExecutionUpdate(CorNode* execP, CorNode* updateP)
 
   if (terminal(status))
   {
-    ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict", "the Service Execution is %s - it changes no more", status);
+    ldError(409, LD_ERROR_CONFLICT, "Conflict", "the Service Execution is %s - it changes no more", status);
     return true;
   }
 
@@ -783,7 +783,7 @@ bool seExecutionCancel(CorNode* execP)
     if (result.accepted == false)
     {
       if (result.clientStatus == 409)
-        ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict", "the service's executor cannot cancel Service Execution '%s' - it goes on", execId);
+        ldError(409, LD_ERROR_CONFLICT, "Conflict", "the service's executor cannot cancel Service Execution '%s' - it goes on", execId);
       else
         answerError(result.clientStatus, result.errorP, execId);
 
