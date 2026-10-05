@@ -8,6 +8,9 @@ its own for the broker to reach.
 coraine --transports ws
 ```
 
+In the build by default; `-DCOR_FEATURE_TRANSPORTS=OFF` leaves it out - no `--transports`, no `ws.so`
+([building](building-details.md)).
+
 Served over the connection: every request the broker serves over HTTP - entities, batch operations,
 subscriptions, context source registrations and subscriptions, types and attributes, `@context`
 documents, temporal, `/version`, and the API plugins' paths. Notifications - of subscriptions and of

@@ -20,7 +20,7 @@
 # can compare it as expected output. Build logs go to files and only the tail of
 # one is printed, and only when it failed.
 #
-# Not run by the ordinary suite: five cmake builds is minutes, against two
+# Not run by the ordinary suite: six cmake builds is minutes, against two
 # seconds for every other case. `corTest -buildTests yes` opts in.
 #
 WORK=${COR_BUILD_TEST_DIR:-/tmp/coraine-featureBuild}
@@ -46,6 +46,7 @@ CONFIGS=(
   "REGISTRATIONS+SUBSCRIPTIONS=OFF|-DCOR_FEATURE_REGISTRATIONS=OFF -DCOR_FEATURE_SUBSCRIPTIONS=OFF"
   "MONGOC=OFF|-DCOR_FEATURE_MONGOC=OFF"
   "ADMIN_API=OFF|-DCOR_FEATURE_ADMIN_API=OFF"
+  "TRANSPORTS=OFF|-DCOR_FEATURE_TRANSPORTS=OFF"
 )
 
 rc=0

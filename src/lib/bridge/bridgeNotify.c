@@ -12,7 +12,9 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyTransportSet
+#if COR_FEATURE_TRANSPORTS
 #include "transport/transport.h"                       // transportNotifyHas, transportNotifySend
+#endif
 
 #include "bridge/bridgeNotify.h"                      // Own interface
 
@@ -89,7 +91,12 @@ static BridgeDriver* notifyBridge(const char* uri)
 //
 static bool transportHas(const char* uri)
 {
-  return transportNotifyHas(uri) || (notifyBridge(uri) != NULL);   // a transport's connection, or a bridge's scheme
+#if COR_FEATURE_TRANSPORTS
+  if (transportNotifyHas(uri) == true)              // a transport's connection
+    return true;
+#endif
+
+  return notifyBridge(uri) != NULL;                 // a bridge's scheme
 }
 
 
@@ -103,8 +110,10 @@ static bool transportHas(const char* uri)
 //
 static bool transportSend(const char* uri, const char* payload, const char* notifierInfoJson)
 {
+#if COR_FEATURE_TRANSPORTS
   if (transportNotifyHas(uri) == true)
     return transportNotifySend(uri, payload);       // a WebSocket connection: the envelope, as is
+#endif
 
   BridgeDriver* driverP = notifyBridge(uri);
 

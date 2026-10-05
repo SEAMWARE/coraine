@@ -40,6 +40,7 @@ const CoraineFeature coraineFeatures[] =
   { "MONGOC",            COR_FEATURE_MONGOC            },
   { "ADMIN_API",         COR_FEATURE_ADMIN_API         },
   { "METRICS",           COR_FEATURE_METRICS           },
+  { "TRANSPORTS",        COR_FEATURE_TRANSPORTS        },
   { "ICU_COLLATION",     COR_FEATURE_ICU_COLLATION     },
   { "LOCATION",          COR_FEATURE_LOCATION          },
   { "OBSERVATION_SPACE", COR_FEATURE_OBSERVATION_SPACE },
@@ -68,6 +69,9 @@ const CorainePlugin coraineBuiltPlugins[] =
   { "temporal",     "timescale" },
 #if COR_FEATURE_ADMIN_API
   { "api",          "admin"     },
+#endif
+#if COR_FEATURE_TRANSPORTS
+  { "transport",    "ws"        },
 #endif
   { NULL,           NULL        }
 };

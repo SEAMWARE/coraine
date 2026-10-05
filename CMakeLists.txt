@@ -31,6 +31,7 @@ option(COR_FEATURE_TENANTS         "Enable multi-tenancy (NGSILD-Tenant header)"
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
+option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -53,7 +54,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 foreach(feature ${COR_FEATURES})
   if (COR_FEATURE_${feature})
     add_compile_definitions(COR_FEATURE_${feature}=1)
@@ -221,7 +222,9 @@ ADD_SUBDIRECTORY(src/lib/ha)
 ADD_SUBDIRECTORY(src/lib/troe)
 ADD_SUBDIRECTORY(src/lib/plugin)
 ADD_SUBDIRECTORY(src/lib/bridge)
-ADD_SUBDIRECTORY(src/lib/transport)
+if (COR_FEATURE_TRANSPORTS)
+  ADD_SUBDIRECTORY(src/lib/transport)
+endif()
 if (COR_FEATURE_METRICS)
   ADD_SUBDIRECTORY(src/lib/metrics)
 endif()
@@ -252,7 +255,9 @@ ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
 #
 # ws - WebSocket as a transport of the broker's API (--transports ws, doc/websocket.md)
 #
-ADD_SUBDIRECTORY(src/plugins/transport/ws)
+if (COR_FEATURE_TRANSPORTS)
+  ADD_SUBDIRECTORY(src/plugins/transport/ws)
+endif()
 
 ADD_SUBDIRECTORY(src/app/coraine)
 
