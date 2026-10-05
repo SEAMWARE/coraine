@@ -96,6 +96,9 @@
 #endif
 
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
+#endif
 #include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
@@ -1599,6 +1602,14 @@ int main(int argC, char* argV[])
   //
   if (ldExtensionTermsAdd(&contextAlloc) != 0)
     COR_X(1, "the NGSI-LD extension terms could not be added to the core context");
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  //
+  // ... and Service Execution's (doc/service-execution.md) - to enter the spec, core terms here already
+  //
+  if (seCoreTermsAdd(&contextAlloc) != 0)
+    COR_X(1, "the Service Execution terms could not be added to the core context");
+#endif
 
   //
   // Every core term gets its CorTerm id - after the Bridge/Channel terms, which are core terms too.

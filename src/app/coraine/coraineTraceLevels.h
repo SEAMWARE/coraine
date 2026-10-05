@@ -20,7 +20,8 @@ enum CorBrokerTraceLevel
 {
   CtDistOpRequest = 400,  // Outbound distributed-operation request URL
   CtHa            = 401,  // Cache sync with the other broker instances
-  CtBridge        = 402   // Bridge plugins: transports to non-NGSI-LD peers
+  CtBridge        = 402,  // Bridge plugins: transports to non-NGSI-LD peers
+  CtService       = 403   // Service Execution: registrations, executions, executors
 };
 
 #endif  // CORAINE_TRACE_LEVELS_H_

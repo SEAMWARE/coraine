@@ -41,6 +41,7 @@ const CoraineFeature coraineFeatures[] =
   { "ADMIN_API",         COR_FEATURE_ADMIN_API         },
   { "METRICS",           COR_FEATURE_METRICS           },
   { "TRANSPORTS",        COR_FEATURE_TRANSPORTS        },
+  { "SERVICE_EXECUTION", COR_FEATURE_SERVICE_EXECUTION },
   { "ICU_COLLATION",     COR_FEATURE_ICU_COLLATION     },
   { "LOCATION",          COR_FEATURE_LOCATION          },
   { "OBSERVATION_SPACE", COR_FEATURE_OBSERVATION_SPACE },
