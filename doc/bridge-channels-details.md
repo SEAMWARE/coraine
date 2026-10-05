@@ -2015,9 +2015,8 @@ change. coraine adds a `watchedAttributes` entry that names one instance -
 `"navigate@urn:goal:<uuid>"` - watched only when that instance is written
 (`subscription_watched_attr_dataset.test`); with the `datasetId` projection it
 delivers that goal alone. A goal's own endpoint is served exactly that way
-(§ 9.1). It is not standard NGSI-LD. The lifecycle is unusual too: the attribute disappears when
-the last goal finishes and returns with the next, which no ordinary multi-
-instance attribute does.
+(§ 9.1). It is not standard NGSI-LD. After the last goal finishes the attribute stays - its default
+instance, without the goals ([DDS](dds.md)).
 
 Being provisional by intent, the migration when Service Execution lands is
 closer to a rename than a re-architecture — which is why quarantining behind
