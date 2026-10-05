@@ -122,6 +122,10 @@ IF (COR_FEATURE_SERVICE_EXECUTION)
     getServiceExecution.c
     patchServiceExecution.c
     deleteServiceExecution.c
+    postCombinedServiceTemplate.c
+    getCombinedServiceTemplate.c
+    patchCombinedServiceTemplate.c
+    deleteCombinedServiceTemplate.c
   )
 ENDIF()
 

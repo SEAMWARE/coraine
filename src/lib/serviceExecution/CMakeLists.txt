@@ -11,6 +11,7 @@ SET(SOURCES
   seExecution.c
   seRequest.c
   seEntityServices.c
+  seCombined.c
 )
 
 ADD_LIBRARY(serviceExecution STATIC ${SOURCES})

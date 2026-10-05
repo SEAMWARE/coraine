@@ -48,6 +48,20 @@ typedef enum SeOrigin
 
 // -----------------------------------------------------------------------------
 //
+// SeForward - what an executor answered a hand-off (or a cancel)
+//
+typedef struct SeForward
+{
+  bool      accepted;                                 // a 2xx (HTTP), BRIDGE_OK (a bridge)
+  int       clientStatus;                             // for the client when not accepted: 400, the executor's 4xx, 409, 502, 503, 504
+  CorNode*  outputP;                                  // a synchronous result
+  CorNode*  errorP;                                   // a ProblemDetails when not accepted
+} SeForward;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // seExecutionRetentionNs - how long a finished execution is kept (--serviceExecutionRetention)
 //
 extern int64_t seExecutionRetentionNs;
@@ -71,6 +85,30 @@ extern bool seExecute(SeOrigin origin, const char* entityId, const char* service
 
 // -----------------------------------------------------------------------------
 //
+// seExecutionBuild - a simple execution, pending, not stored; NULL: refused (*statusP 404 / 400, why)
+//
+extern CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP, int* statusP, char* why, int whySize);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionStart - a stored, pending simple execution handed to its executor; its outcome stored
+//
+extern void seExecutionStart(CorNode* execP, SeForward* resultP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionStore - an execution replaced in the database, and notified; a parent told of a child's end
+//
+extern bool seExecutionStore(Tenant* tenantP, CorNode* execP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // seExecutionRetrieve - a stored execution; NULL after a 404/500 has been raised
 //
 extern CorNode* seExecutionRetrieve(const char* execId);
@@ -82,6 +120,25 @@ extern CorNode* seExecutionRetrieve(const char* execId);
 // seExecutionRender - an execution made ready for a response: no '_' members, sysAttrs or not
 //
 extern void seExecutionRender(CorNode* execP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionRenderAll - seExecutionRender, a combined or grouped execution's children embedded
+//
+extern void seExecutionRenderAll(CorNode* execP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionCancelOne - cancel one simple execution, answering no request
+//
+// 204: cancelled (or ended already), 409: its executor cannot pre-empt it, else the executor's failure
+// (*resultP has the ProblemDetails).
+//
+extern int seExecutionCancelOne(CorNode* execP, SeForward* resultP);
 
 
 

@@ -21,6 +21,7 @@
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 
 #include "serviceExecution/seExecution.h"             // seExecute
+#include "serviceExecution/seCombined.h"              // seCombinedCreate
 #include "serviceRoutines/postServiceExecution.h"     // Own interface
 
 
@@ -44,6 +45,15 @@ bool postServiceExecution(void)
     return true;
   }
 
+  //
+  // Combined and Grouped Service Executions (and those made of a template) - seCombined.c
+  //
+  CorNode* bodyTypeP = corTreeLookup(bodyP, "type");
+
+  if ((bodyTypeP != NULL) && (bodyTypeP->type == CorString) &&
+      ((strcmp(bodyTypeP->value.s, "CombinedServiceExecution") == 0) || (strcmp(bodyTypeP->value.s, "GroupedServiceExecution") == 0)))
+    return seCombinedCreate(bodyP);
+
   for (CorNode* mP = bodyP->value.head; mP != NULL; mP = mP->next)
   {
     if      (strcmp(mP->name, "type")           == 0) typeP         = mP;
@@ -65,7 +75,7 @@ bool postServiceExecution(void)
 
   if ((typeP == NULL) || (typeP->type != CorString) || (strcmp(typeP->value.s, "ServiceExecution") != 0))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Service Execution's 'type' is \"ServiceExecution\"");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Service Execution's 'type' is ServiceExecution, CombinedServiceExecution or GroupedServiceExecution");
     return true;
   }
 

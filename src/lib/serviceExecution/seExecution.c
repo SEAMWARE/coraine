@@ -43,6 +43,7 @@
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_*
 #include "serviceExecution/seJsonSchema.h"            // seJsonSchemaCheck
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
+#include "serviceExecution/seCombined.h"              // seCombinedChildEnded, seCombinedCancel, seCombinedChildrenEmbed
 #include "serviceExecution/seExecution.h"             // Own interface
 #include "coraineTraceLevels.h"                       // CtService
 
@@ -178,6 +179,18 @@ void seExecutionRender(CorNode* execP)
 
 // -----------------------------------------------------------------------------
 //
+// seExecutionRenderAll - seExecutionRender, and a combined or grouped execution's children embedded
+//
+void seExecutionRenderAll(CorNode* execP)
+{
+  seCombinedChildrenEmbed(execP);
+  seExecutionRender(execP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // notify - the execution's change, to its notification endpoint
 //
 // An NGSI-LD Notification, data = [ the execution ], compacted with the @context of the request that
@@ -197,7 +210,7 @@ static void notify(CorNode* execP)
   bool     sysAttrs  = corNgsild.sysAttrs;
 
   corNgsild.sysAttrs = false;
-  seExecutionRender(renderedP);
+  seExecutionRenderAll(renderedP);
   corNgsild.sysAttrs = sysAttrs;
 
   const char*   contextUrl = str(execP, "_context");
@@ -257,7 +270,7 @@ static void notify(CorNode* execP)
 //
 // store - the execution replaced in the database, and notified
 //
-static bool store(Tenant* tenantP, CorNode* execP)
+bool seExecutionStore(Tenant* tenantP, CorNode* execP)
 {
   ldSysTimestampModify(execP);
 
@@ -268,6 +281,15 @@ static bool store(Tenant* tenantP, CorNode* execP)
   }
 
   notify(execP);
+
+  //
+  // A child of a combined or grouped execution that ended: its parent goes on (the next one), or ends
+  //
+  const char* parentId = str(execP, "_parent");
+
+  if ((parentId != NULL) && terminal(str(execP, "executionStatus")))
+    seCombinedChildEnded(parentId);
+
   return true;
 }
 
@@ -338,20 +360,6 @@ static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* enti
 
   return NULL;
 }
-
-
-
-// -----------------------------------------------------------------------------
-//
-// ForwardResult - what the executor answered
-//
-typedef struct ForwardResult
-{
-  bool      accepted;                                 // a 2xx
-  int       clientStatus;                             // for the client when not accepted: the executor's 4xx, 502, 503, 504
-  CorNode*  outputP;                                  // the executor's body (a synchronous result)
-  CorNode*  errorP;                                   // a ProblemDetails when not accepted
-} ForwardResult;
 
 
 
@@ -576,7 +584,7 @@ static CorNode* jsonTree(const char* json)
 //
 // forwardBridge - the executor is a loaded bridge (its scheme): the broker executes the service
 //
-static void forwardBridge(CorNode* execP, bool cancel, ForwardResult* resultP)
+static void forwardBridge(CorNode* execP, bool cancel, SeForward* resultP)
 {
   const char* endpoint  = str(execP, "_endpoint");
   const char* execId    = str(execP, "id");
@@ -660,14 +668,14 @@ static void forwardBridge(CorNode* execP, bool cancel, ForwardResult* resultP)
 //
 // forward - an HTTP request to the executor: POST the invocation, or DELETE (cancel)
 //
-static void forward(CorNode* execP, bool cancel, ForwardResult* resultP)
+static void forward(CorNode* execP, bool cancel, SeForward* resultP)
 {
   const char* endpoint  = str(execP, "_endpoint");
   const char* execId    = str(execP, "id");
   int64_t     timeoutNs = num(execP, "_timeoutNs");
   char        url[1024];
 
-  memset(resultP, 0, sizeof(ForwardResult));
+  memset(resultP, 0, sizeof(SeForward));
 
   if (ldNotifyIsHttp(endpoint) == false)
   {
@@ -771,51 +779,47 @@ static void answerError(int status, CorNode* errorP, const char* execId)
 
 // -----------------------------------------------------------------------------
 //
-// seExecute -
+// seExecutionBuild - a simple execution, pending, not stored: the entity, its service, the input checked
 //
-bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP)
+// NULL: refused - *statusP and why say how (404 entity / service, 400 input).
+//
+CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP, int* statusP, char* why, int whySize)
 {
   Tenant*  tenantP = (Tenant*) corNgsild.tenantP;
   CorNode* entityP = NULL;
 
-  if ((db.docCreate == NULL) || (db.entityRetrieve == NULL))
-  {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", "the database plugin keeps no Service Executions");
-    return true;
-  }
-
   if (db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
-    return true;
+    *statusP = 404;
+    snprintf(why, whySize, "entity '%s' not found", entityId);
+    return NULL;
   }
 
   CorNode* regP = serviceFind(tenantP, entityId, entityP, serviceName);
 
   if (regP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' has no service '%s'", entityId, corLdCompact(corNgsild.contextP, serviceName));
-    return true;
+    *statusP = 404;
+    snprintf(why, whySize, "entity '%s' has no service '%s'", entityId, corLdCompact(corNgsild.contextP, serviceName));
+    return NULL;
   }
 
   CorNode*    siP    = corTreeLookup(regP, "serviceInformation");
   const char* mode   = str(siP, "mode");
   bool        sync   = (mode == NULL) || (strcmp(mode, "synchronous") == 0);
   CorNode*    schema = corTreeLookup(siP, "inputSchema");
-  char        why[512];
+  char        schemaWhy[400];
 
   if (inputP == NULL)
     inputP = corTreeObject(corRest.kallocP, NULL);
 
-  if (seJsonSchemaCheck(schema, inputP, "", why, sizeof(why)) == false)
+  if (seJsonSchemaCheck(schema, inputP, "", schemaWhy, sizeof(schemaWhy)) == false)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the service's input: %s", why);
-    return true;
+    *statusP = 400;
+    snprintf(why, whySize, "the service's input: %s", schemaWhy);
+    return NULL;
   }
 
-  //
-  // The execution, pending
-  //
   const char* timeout   = str(regP, "executionTimeout");
   int64_t     timeoutNs = (timeout != NULL) ? ldIso8601DurationParseNs(timeout) : ((sync == true) ? 30LL * 1000000000LL : 3600LL * 1000000000LL);
   char*       execId    = ldIdGenerate(&corRest.kalloc, "ServiceExecution");
@@ -851,8 +855,84 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
   if ((corNgsild.contextP != NULL) && (corNgsild.contextP->url != NULL))
     corTreeChildAdd(execP, corTreeString(corRest.kallocP, "_context", corNgsild.contextP->url));
 
-  timestamp(execP, "executionStartedAt", "_startedNs", nowNs());
   ldSysTimestampCreate(execP);
+
+  return execP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionStart - a stored, pending simple execution handed to its executor; its outcome stored
+//
+// An asynchronous execution is executing - stored, and notified - BEFORE the hand-off: the executor
+// reports on threads (requests) of its own, possibly before forward() returns, and a store after it
+// would overwrite what it reported. Once it accepted, the record is the executor's; only a refusal
+// (which no report follows) is stored here. A synchronous one is stored with its outcome.
+//
+// *resultP: the hand-off's outcome (the outputP and errorP in corRest.kalloc).
+//
+void seExecutionStart(CorNode* execP, SeForward* resultP)
+{
+  Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
+  const char* mode    = str(execP, "_mode");
+  bool        sync    = (mode == NULL) || (strcmp(mode, "synchronous") == 0);
+
+  timestamp(execP, "executionStartedAt", "_startedNs", nowNs());
+
+  if (sync == false)
+  {
+    member(execP, corTreeString(corRest.kallocP, "executionStatus", "executing"));
+    seExecutionStore(tenantP, execP);
+  }
+
+  forward(execP, false, resultP);
+
+  if (resultP->accepted == false)
+  {
+    finish(execP, "failed", NULL, resultP->errorP);
+    seExecutionStore(tenantP, execP);
+  }
+  else if (sync == true)
+  {
+    finish(execP, "completed", resultP->outputP, NULL);
+    seExecutionStore(tenantP, execP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecute -
+//
+bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP)
+{
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+  int     status  = 0;
+  char    why[512];
+
+  if ((db.docCreate == NULL) || (db.entityRetrieve == NULL))
+  {
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", "the database plugin keeps no Service Executions");
+    return true;
+  }
+
+  CorNode* execP = seExecutionBuild(entityId, serviceName, inputP, notificationP, &status, why, sizeof(why));
+
+  if (execP == NULL)
+  {
+    if (status == 404)
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+    else
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
+    return true;
+  }
+
+  const char* execId = str(execP, "id");
+  const char* mode   = str(execP, "_mode");
+  bool        sync   = (strcmp(mode, "synchronous") == 0);
 
   if (db.docCreate(tenantP, "serviceExecutions", execId, execP) != DB_OK)
   {
@@ -860,32 +940,9 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
     return true;
   }
 
-  //
-  // Handed to the executor. An asynchronous execution is executing - stored, and notified - BEFORE
-  // the hand-off: the executor reports on threads (requests) of its own, possibly before forward()
-  // returns, and a store after it would overwrite what it reported. Once it accepted, the record is
-  // the executor's; only a refusal (which no report follows) is stored here.
-  //
-  ForwardResult result;
+  SeForward result;
 
-  if (sync == false)
-  {
-    member(execP, corTreeString(corRest.kallocP, "executionStatus", "executing"));
-    store(tenantP, execP);
-  }
-
-  forward(execP, false, &result);
-
-  if (result.accepted == false)
-  {
-    finish(execP, "failed", NULL, result.errorP);
-    store(tenantP, execP);
-  }
-  else if (sync == true)
-  {
-    finish(execP, "completed", result.outputP, NULL);
-    store(tenantP, execP);
-  }
+  seExecutionStart(execP, &result);
 
   //
   // The answer
@@ -1024,7 +1081,7 @@ bool seExecutionUpdate(CorNode* execP, CorNode* updateP)
   else if (newStatus != NULL)
     member(execP, corTreeString(corRest.kallocP, "executionStatus", newStatus));
 
-  if (store((Tenant*) corNgsild.tenantP, execP) == false)
+  if (seExecutionStore((Tenant*) corNgsild.tenantP, execP) == false)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating the Service Execution");
     return true;
@@ -1040,11 +1097,43 @@ bool seExecutionUpdate(CorNode* execP, CorNode* updateP)
 //
 // seExecutionCancel -
 //
+int seExecutionCancelOne(CorNode* execP, SeForward* resultP)
+{
+  const char* status = str(execP, "executionStatus");
+
+  memset(resultP, 0, sizeof(SeForward));
+
+  if (terminal(status))
+    return 204;
+
+  if (strcmp(status, "executing") == 0)
+  {
+    forward(execP, true, resultP);
+
+    if (resultP->accepted == false)
+      return resultP->clientStatus;
+  }
+
+  finish(execP, "cancelled", NULL, NULL);
+
+  return (seExecutionStore((Tenant*) corNgsild.tenantP, execP) == true) ? 204 : 500;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionCancel -
+//
 bool seExecutionCancel(CorNode* execP)
 {
   Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   const char* status  = str(execP, "executionStatus");
   const char* execId  = str(execP, "id");
+  const char* type    = str(execP, "type");
+
+  if ((type != NULL) && (strcmp(type, "ServiceExecution") != 0))
+    return seCombinedCancel(execP);
 
   if (terminal(status))
   {
@@ -1061,7 +1150,7 @@ bool seExecutionCancel(CorNode* execP)
 
   if (strcmp(status, "executing") == 0)
   {
-    ForwardResult result;
+    SeForward result;
 
     forward(execP, true, &result);
 
@@ -1078,7 +1167,7 @@ bool seExecutionCancel(CorNode* execP)
 
   finish(execP, "cancelled", NULL, NULL);
 
-  if (store(tenantP, execP) == false)
+  if (seExecutionStore(tenantP, execP) == false)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating Service Execution '%s'", execId);
   else
     corRest.out.httpStatusCode = 204;
@@ -1108,10 +1197,10 @@ void seExecutionSweep(Tenant* tenantP, int64_t now)
       if (now - num(execP, "_endedNs") > seExecutionRetentionNs)
         db.docDelete(tenantP, "serviceExecutions", str(execP, "id"));
     }
-    else if (now - num(execP, "_startedNs") > num(execP, "_timeoutNs"))
+    else if ((num(execP, "_startedNs") > 0) && (now - num(execP, "_startedNs") > num(execP, "_timeoutNs")))
     {
       finish(execP, "failed", NULL, problem(LD_ERROR_INTERNAL_ERROR, "Execution Timeout", 504, "the service's execution did not end within its executionTimeout"));
-      store(tenantP, execP);
+      seExecutionStore(tenantP, execP);
     }
   }
 }
@@ -1191,5 +1280,5 @@ void seExecutionApplyBridge(const char* executionId, const char* status, const c
   else if (status != NULL)
     member(execP, corTreeString(corRest.kallocP, "executionStatus", status));
 
-  store(tenantP, execP);
+  seExecutionStore(tenantP, execP);
 }

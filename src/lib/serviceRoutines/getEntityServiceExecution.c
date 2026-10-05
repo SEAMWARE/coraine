@@ -48,7 +48,7 @@ bool getEntityServiceExecution(void)
     return true;
   }
 
-  seExecutionRender(execP);
+  seExecutionRenderAll(execP);
 
   corNgsild.rawResponse    = true;
   corRest.out.responseTree = execP;

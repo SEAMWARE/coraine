@@ -84,7 +84,7 @@ bool getServiceExecutions(void)
     if (is(execP, "entityId", entityId) && is(execP, "serviceName", serviceName) && is(execP, "executionStatus", status))
     {
       corTreeChildRemove(execsP, execP);
-      seExecutionRender(execP);
+      seExecutionRenderAll(execP);
       corTreeChildAdd(outP, execP);
     }
 

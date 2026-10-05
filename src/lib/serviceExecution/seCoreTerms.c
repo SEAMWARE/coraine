@@ -52,6 +52,7 @@ static const CorLdCoreTerm seCoreTermV[] =
   { "executionStartedAt",          NULL     },
   { "executionEndedAt",            NULL     },
   { "executionTimeout",            NULL     },   // an ISO 8601 duration
+  { "serviceTemplateId",           "@id"    },   // a Combined Service Template's id
   { NULL,                          NULL     }
 };
 

@@ -107,6 +107,10 @@
 #include "serviceRoutines/getServiceExecution.h"          // getServiceExecution
 #include "serviceRoutines/patchServiceExecution.h"        // patchServiceExecution
 #include "serviceRoutines/deleteServiceExecution.h"       // deleteServiceExecution
+#include "serviceRoutines/postCombinedServiceTemplate.h"   // postCombinedServiceTemplate
+#include "serviceRoutines/getCombinedServiceTemplate.h"    // getCombinedServiceTemplate
+#include "serviceRoutines/patchCombinedServiceTemplate.h"  // patchCombinedServiceTemplate
+#include "serviceRoutines/deleteCombinedServiceTemplate.h" // deleteCombinedServiceTemplate
 #endif
 #include "serviceExecution/seRequest.h"                 // SE_PARAM_* - the bits exist in every build
 #include "serviceRoutines/corNotInThisBuild.h"   // corNotInThisBuild
@@ -242,6 +246,12 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/serviceRegistrations/*", SVCX(getServiceRegistration),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                          LdOpNone },
   { CorVerbPatch,  "/ngsi-ld/v1/serviceRegistrations/*", SVCX(patchServiceRegistration),  0,                                                            LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/serviceRegistrations/*", SVCX(deleteServiceRegistration), 0,                                                            LdOpNone },
+
+  // Service Execution - Combined Service Templates (the report's path, singular)
+  { CorVerbPost,   "/ngsi-ld/v1/combinedServiceTemplate",   SVCX(postCombinedServiceTemplate),   0,                                    LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(getCombinedServiceTemplate),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(patchCombinedServiceTemplate),  0,                                    LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(deleteCombinedServiceTemplate), 0,                                    LdOpNone },
 
   // Service Execution - Service Executions
   { CorVerbPost,   "/ngsi-ld/v1/services",   SVCX(postServiceExecution),   0,                                                                                        LdOpNone },
