@@ -118,4 +118,12 @@ extern void seExecutionSweep(Tenant* tenantP, int64_t nowNs);
 //
 extern void seExecutionTick(void* ctx, uint64_t nowNs, CorAlloc* kaP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionApplyBridge - a bridge's report on an asynchronous execution (bridgeServiceApplySet)
+//
+extern void seExecutionApplyBridge(const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson);
+
 #endif  // SRC_LIB_SERVICEEXECUTION_SEEXECUTION_H_

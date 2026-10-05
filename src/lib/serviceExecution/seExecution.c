@@ -37,6 +37,8 @@
 
 #include "db/DbDriver.h"                              // db, DB_*
 #include "db/Tenant.h"                                // Tenant
+#include "bridge/bridgeService.h"                     // bridgeServiceExecute, bridgeServiceCancel
+#include "corBridge/BridgeBroker.h"                   // BRIDGE_*
 #include "serviceExecution/seJsonSchema.h"            // seJsonSchemaCheck
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
 #include "serviceExecution/seExecution.h"             // Own interface
@@ -380,6 +382,125 @@ static CorNode* responseBody(CorRestClientResponse* respP)
 
 // -----------------------------------------------------------------------------
 //
+// invocationBody - what the executor receives: the entity's id and type (compacted with the request's
+// @context), and the input
+//
+static char* invocationBody(CorNode* execP)
+{
+  CorNode*    bodyP = corTreeObject(corRest.kallocP, NULL);
+  CorNode*    inP   = corTreeLookup(execP, "executionInput");
+  const char* type  = str(execP, "entityType");
+
+  corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "id", str(execP, "entityId")));
+  corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", (type != NULL) ? corLdCompact(corNgsild.contextP, type) : ""));
+
+  for (CorNode* mP = ((inP != NULL) && (inP->type == CorObject)) ? inP->value.head : NULL; mP != NULL; mP = mP->next)
+  {
+    if ((strcmp(mP->name, "id") != 0) && (strcmp(mP->name, "type") != 0))
+      corTreeChildAdd(bodyP, corTreeClone(corRest.kallocP, mP));
+  }
+
+  int   size = corJsonFastRenderSize(bodyP) + 1;
+  char* body = (char*) corAlloc(&corRest.kalloc, size);
+
+  corJsonFastRender(bodyP, body);
+  return body;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// jsonTree - a JSON text into a tree in the request's arena; NULL for NULL or unparsable
+//
+static CorNode* jsonTree(const char* json)
+{
+  if (json == NULL)
+    return NULL;
+
+  char* copy = corAllocStrdup(&corRest.kalloc, json);
+
+  return (copy != NULL) ? corJsonParse(corRest.corJsonP, copy) : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// forwardBridge - the executor is a loaded bridge (its scheme): the broker executes the service
+//
+static void forwardBridge(CorNode* execP, bool cancel, ForwardResult* resultP)
+{
+  const char* endpoint  = str(execP, "_endpoint");
+  const char* execId    = str(execP, "id");
+  const char* mode      = str(execP, "_mode");
+  bool        sync      = (mode != NULL) && (strcmp(mode, "synchronous") == 0);
+  int64_t     timeoutNs = num(execP, "_timeoutNs");
+
+  if (cancel == true)
+  {
+    int r = bridgeServiceCancel(endpoint, execId);
+
+    if ((r == BRIDGE_OK) || (r == BRIDGE_NOT_FOUND))  // cancelled, or nothing running any more
+      resultP->accepted = true;
+    else if (r == BRIDGE_UNSUPPORTED)
+    {
+      resultP->clientStatus = 409;
+      resultP->errorP       = problem(LD_ERROR_CONFLICT, "Conflict", 409, "the bridge cannot pre-empt it");
+    }
+    else
+    {
+      resultP->clientStatus = 502;
+      resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Refused", 502, "the bridge could not cancel it");
+    }
+    return;
+  }
+
+  BridgeServiceResult outcome;
+  int                 r = bridgeServiceExecute(endpoint, execId, corNgsild.tenantName, invocationBody(execP), (sync == true) ? (int) (timeoutNs / 1000000) : 0, &outcome);
+
+  if (r == BRIDGE_NOT_FOUND)
+  {
+    resultP->clientStatus = 503;
+    resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Unreachable", 503, "no loaded bridge executes this service");
+  }
+  else if (r == BRIDGE_BAD_INPUT)
+  {
+    resultP->clientStatus = 400;
+    resultP->errorP       = problem(LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", 400, "the service's bridge cannot use this input");
+  }
+  else if (r != BRIDGE_OK)
+  {
+    resultP->clientStatus = 502;
+    resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Refused", 502, "the service's bridge refused it");
+  }
+  else if (sync == false)
+    resultP->accepted = true;
+  else if (strcmp(outcome.status, "completed") == 0)
+  {
+    resultP->accepted = true;
+    resultP->outputP  = jsonTree(outcome.outputJson);
+  }
+  else if (strcmp(outcome.status, "failed") == 0)
+  {
+    CorNode* errorP = jsonTree(outcome.errorJson);
+
+    resultP->clientStatus = 502;
+    resultP->errorP       = ((errorP != NULL) && (errorP->type == CorObject)) ? errorP : problem(LD_ERROR_INTERNAL_ERROR, "Execution Failed", 502, "the service's bridge reported a failure");
+  }
+  else
+  {
+    resultP->clientStatus = 504;
+    resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Timeout", 504, "the service's bridge did not answer in time");
+  }
+
+  bridgeServiceResultRelease(&outcome);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // forward - an HTTP request to the executor: POST the invocation, or DELETE (cancel)
 //
 static void forward(CorNode* execP, bool cancel, ForwardResult* resultP)
@@ -390,6 +511,12 @@ static void forward(CorNode* execP, bool cancel, ForwardResult* resultP)
   char        url[1024];
 
   memset(resultP, 0, sizeof(ForwardResult));
+
+  if (ldNotifyIsHttp(endpoint) == false)
+  {
+    forwardBridge(execP, cancel, resultP);
+    return;
+  }
 
   if (cancel == true)
     snprintf(url, sizeof(url), "%s%s%s", endpoint, (endpoint[strlen(endpoint) - 1] == '/') ? "" : "/", execId);
@@ -405,26 +532,8 @@ static void forward(CorNode* execP, bool cancel, ForwardResult* resultP)
 
   if (cancel == false)
   {
-    //
-    // The invocation: the entity's id and type (compacted with the request's @context), and the input
-    //
-    CorNode*    bodyP = corTreeObject(corRest.kallocP, NULL);
-    CorNode*    inP   = corTreeLookup(execP, "executionInput");
-    const char* type  = str(execP, "entityType");
+    char* body = invocationBody(execP);
 
-    corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "id", str(execP, "entityId")));
-    corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", (type != NULL) ? corLdCompact(corNgsild.contextP, type) : ""));
-
-    for (CorNode* mP = ((inP != NULL) && (inP->type == CorObject)) ? inP->value.head : NULL; mP != NULL; mP = mP->next)
-    {
-      if ((strcmp(mP->name, "id") != 0) && (strcmp(mP->name, "type") != 0))
-        corTreeChildAdd(bodyP, corTreeClone(corRest.kallocP, mP));
-    }
-
-    int   size = corJsonFastRenderSize(bodyP) + 1;
-    char* body = (char*) corAlloc(&corRest.kalloc, size);
-
-    corJsonFastRender(bodyP, body);
     corRestClientRequestHeader(&req, "Content-Type", "application/json");
     corRestClientRequestBody(&req, body, strlen(body));
   }
@@ -587,20 +696,31 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
   }
 
   //
-  // Handed to the executor
+  // Handed to the executor. An asynchronous execution is executing - stored, and notified - BEFORE
+  // the hand-off: the executor reports on threads (requests) of its own, possibly before forward()
+  // returns, and a store after it would overwrite what it reported. Once it accepted, the record is
+  // the executor's; only a refusal (which no report follows) is stored here.
   //
   ForwardResult result;
+
+  if (sync == false)
+  {
+    member(execP, corTreeString(corRest.kallocP, "executionStatus", "executing"));
+    store(tenantP, execP);
+  }
 
   forward(execP, false, &result);
 
   if (result.accepted == false)
+  {
     finish(execP, "failed", NULL, result.errorP);
+    store(tenantP, execP);
+  }
   else if (sync == true)
+  {
     finish(execP, "completed", result.outputP, NULL);
-  else
-    member(execP, corTreeString(corRest.kallocP, "executionStatus", "executing"));
-
-  store(tenantP, execP);
+    store(tenantP, execP);
+  }
 
   //
   // The answer
@@ -860,4 +980,51 @@ void seExecutionTick(void* ctx, uint64_t now, CorAlloc* kaP)
 
   corNgsild.tenantP    = NULL;
   corNgsild.tenantName = NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionApplyBridge - an asynchronous execution's report from its bridge (bridgeServiceApplySet)
+//
+// On the plugin's thread, bound as the execution's tenant (bridgeThreadBind).
+//
+void seExecutionApplyBridge(const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson)
+{
+  Tenant*  tenantP = (Tenant*) corNgsild.tenantP;
+  CorNode* execP   = NULL;
+
+  if ((db.docRetrieve == NULL) || (db.docRetrieve(tenantP, "serviceExecutions", executionId, &execP) != DB_OK))
+  {
+    COR_W("Service Execution '%s': a bridge's report on an execution that is not there", executionId);
+    return;
+  }
+
+  if (terminal(str(execP, "executionStatus")))
+    return;                                           // ended (cancelled, timed out) - a late report changes nothing
+
+  CorNode* progressP = jsonTree(progressJson);
+
+  if (progressP != NULL)
+  {
+    progressP->name = (char*) "executionProgress";
+    member(execP, progressP);
+  }
+
+  if ((status != NULL) && (strcmp(status, "completed") == 0))
+    finish(execP, "completed", jsonTree(outputJson), NULL);
+  else if ((status != NULL) && (strcmp(status, "failed") == 0))
+  {
+    CorNode* errorP = jsonTree(errorJson);
+
+    if ((errorP == NULL) || (errorP->type != CorObject))
+      errorP = problem(LD_ERROR_INTERNAL_ERROR, "Execution Failed", 500, "the service's bridge reported a failure");
+
+    finish(execP, "failed", NULL, errorP);
+  }
+  else if (status != NULL)
+    member(execP, corTreeString(corRest.kallocP, "executionStatus", status));
+
+  store(tenantP, execP);
 }

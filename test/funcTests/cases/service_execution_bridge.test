@@ -1,0 +1,174 @@
+#
+# FILE            service_execution_bridge.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): the broker as the service's executor, through a bridge
+# (BridgeDriver.serviceExecute, ABI 11) - here the loopback bridge, whose loopback://<behaviour> are
+# scripted executors. A synchronous service is waited for; an asynchronous one is reported on the
+# bridge's own thread (BridgeBroker.serviceUpdateIn) and notified. Cancel goes to the bridge, which can
+# refuse (409). A registration whose endpoint scheme no loaded bridge executes is refused.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - the broker as executor through a bridge (loopback): sync, async, cancel
+
+--TAGS--
+service execution bridge
+
+--INIT--
+corDbDrop
+coraineStart --bridges loopback
+ftExecStart
+
+--RUN--
+
+#
+# 01. Robot urn:R1; services echo, fail (synchronous), progress, hold, stuck (asynchronous) - endpoints loopback://..., notifying /notify
+# 02. A registration with endpoint nobridge://x - 400
+# 03. Invoke echo {speed 3} - 200, the input back (the bridge's output); fail - 502, the bridge's ProblemDetails
+# 04. Invoke progress - 202; it ends completed, progress 50, output done; its notifications
+# 05. Invoke hold - 202; DELETE - 204, cancelled; invoke stuck - 202; DELETE - 409, still executing
+#
+
+reg() {
+  corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"loopback://$1\",\"entities\":[{\"type\":\"Robot\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:$FT_EXEC_PORT/notify\"}},\"serviceInformation\":{\"serviceName\":\"$1\",\"mode\":\"$2\"}}" | head -1
+}
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:R1/services/$1" --payload "${2:-{\}}" > /tmp/se.out
+  sed -n '1p' /tmp/se.out
+  sed -n '/^[[{"]/,$p' /tmp/se.out
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+awaitStatus() {
+  for i in $(seq 1 50); do
+    s=$(corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+    [ "$s" == "$2" ] && break
+    sleep 0.1
+  done
+  corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+print(e['serviceName'], e['executionStatus'], 'progress', json.dumps(e.get('executionProgress')), 'output', json.dumps(e.get('executionOutput')))"
+}
+
+echo "01. Robot urn:R1; services echo, fail (synchronous), progress, hold, stuck (asynchronous) - endpoints loopback://..., notifying /notify"
+echo "======================================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+reg echo     synchronous
+reg fail     synchronous
+reg progress asynchronous
+reg hold     asynchronous
+reg stuck    asynchronous
+echo
+echo
+
+
+echo "02. A registration with endpoint nobridge://x - 400"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"nobridge://x","entities":[{"type":"Robot"}],"serviceInformation":{"serviceName":"x"}}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+echo "03. Invoke echo {speed 3} - 200, the input back (the bridge's output); fail - 502, the bridge's ProblemDetails"
+echo "=============================================================================================================="
+invoke echo '{"speed":3}'
+invoke fail
+echo
+echo
+
+
+echo "04. Invoke progress - 202; it ends completed, progress 50, output done; its notifications"
+echo "========================================================================================"
+invoke progress
+P=$(lastId)
+awaitStatus $P completed
+ftExecNotifications | python3 -c "
+import json,sys
+for n in json.load(sys.stdin):
+    e = n['data'][0]
+    if e['id'] == '$P':
+        print(n['type'], e['executionStatus'], json.dumps(e.get('executionProgress')), json.dumps(e.get('executionOutput')))"
+echo
+echo
+
+
+echo "05. Invoke hold - 202; DELETE - 204, cancelled; invoke stuck - 202; DELETE - 409, still executing"
+echo "================================================================================================="
+invoke hold
+H=$(lastId)
+corCurl --url /ngsi-ld/v1/services/$H -X DELETE | head -1
+awaitStatus $H cancelled
+invoke stuck
+S=$(lastId)
+sleep 0.2
+corCurl --url /ngsi-ld/v1/services/$S -X DELETE | sed -n '1p;/"detail"/p' | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/'
+awaitStatus $S executing
+echo
+echo
+
+
+--EXPECT--
+01. Robot urn:R1; services echo, fail (synchronous), progress, hold, stuck (asynchronous) - endpoints loopback://..., notifying /notify
+======================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. A registration with endpoint nobridge://x - 400
+===================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'endpoint': no loaded bridge executes services of that scheme",
+
+
+03. Invoke echo {speed 3} - 200, the input back (the bridge's output); fail - 502, the bridge's ProblemDetails
+==============================================================================================================
+HTTP/1.1 200 OK
+{
+  "id": "urn:R1",
+  "speed": 3,
+  "type": "Robot"
+}
+
+HTTP/1.1 502 Bad Gateway
+{
+  "detail": "asked to fail",
+  "status": 502,
+  "title": "Loopback Failure",
+  "type": "https://example.org/errors/Loopback"
+}
+
+
+
+04. Invoke progress - 202; it ends completed, progress 50, output done; its notifications
+========================================================================================
+HTTP/1.1 202 Accepted
+progress completed progress {"percent": 50} output {"done": true}
+Notification executing null null
+Notification executing {"percent": 50} null
+Notification completed {"percent": 50} {"done": true}
+
+
+05. Invoke hold - 202; DELETE - 204, cancelled; invoke stuck - 202; DELETE - 409, still executing
+=================================================================================================
+HTTP/1.1 202 Accepted
+HTTP/1.1 204 No Content
+hold cancelled progress null output null
+HTTP/1.1 202 Accepted
+HTTP/1.1 409 Conflict
+  "detail": "the service's executor cannot cancel Service Execution '<id>' - it goes on",
+stuck executing progress null output null
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

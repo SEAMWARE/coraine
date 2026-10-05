@@ -13,6 +13,7 @@
 #include <stdint.h>                                   // int64_t
 
 #include "corTree/CorNode.h"                          // CorNode
+#include "db/Tenant.h"                                // Tenant
 
 
 
@@ -192,5 +193,17 @@ extern int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoi
 // the attribute they would have written (GET /bridges)
 //
 extern uint64_t bridgeSamplesDropped(const char* bridgeName);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeThreadBind - make a plugin's thread able to do broker work, as the tenant 'tenantP'
+//
+// Its thread-locals (corRest.kalloc, corRest.corJsonP, corNgsild) set up the first time, the arena
+// reset after that. For a callback of a plugin that writes to the broker: samples, a Service
+// Execution's outcome.
+//
+extern void bridgeThreadBind(Tenant* tenantP);
 
 #endif  // BRIDGE_BRIDGESAMPLEIN_H_

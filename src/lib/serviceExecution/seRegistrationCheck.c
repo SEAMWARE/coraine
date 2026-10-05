@@ -21,6 +21,8 @@
 #include "corNgsild/CorNgsild.h"                      // corNgsild
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 
+#include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp
+#include "bridge/bridgeService.h"                     // bridgeServiceHas
 #include "serviceExecution/seRegistrationCheck.h"     // Own interface
 
 
@@ -216,6 +218,12 @@ bool seRegistrationCheck(CorNode* regP)
 
   if ((isString(endpointP) == false) || (ldUriValid(endpointP->value.s) == false))
     return bad("a Service Registration needs an 'endpoint': the URI of the service's executor");
+
+  //
+  // Not HTTP: the broker executes the service itself, through the bridge that claims the scheme
+  //
+  if ((ldNotifyIsHttp(endpointP->value.s) == false) && (bridgeServiceHas(endpointP->value.s) == false))
+    return bad("'endpoint': no loaded bridge executes services of that scheme");
 
   return entitiesCheck(entitiesP) && serviceInformationCheck(siP);
 }

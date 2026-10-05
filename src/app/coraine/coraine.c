@@ -95,6 +95,7 @@
 #include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 #endif
 
+#include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
@@ -665,7 +666,8 @@ static BridgeBroker bridgeBroker =
   bridgeReplyMetaIn,
   bridgeGoalEventMetaIn,
   bridgeReplyExchangeIn,
-  bridgeEndpointDiscoveredIn
+  bridgeEndpointDiscoveredIn,
+  bridgeServiceUpdateIn
 };
 
 
@@ -1775,6 +1777,9 @@ int main(int argC, char* argV[])
 #if COR_FEATURE_SERVICE_EXECUTION
   // Service Executions: time-outs (failed) and retention (deleted), every tenant
   ldPeriodicLoopRegister(seExecutionTick, NULL);
+
+  // ... and the reports of the bridges that execute services (the broker as Service Executor)
+  bridgeServiceApplySet(seExecutionApplyBridge);
 #endif
 
   // Start the shared periodic dispatch thread (1-Hz tick over all
