@@ -1,0 +1,119 @@
+#
+# FILE            service_execution_selector.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): AttributeSelector (GR CIM-055 § 6.3.5.1). A member of
+# the input { "type": "AttributeSelector", "attributeSelector": <q-language path>, "entityId"? } is
+# replaced, when the execution is handed to its executor, by the value it selects - an attribute, a
+# sub-attribute, a member of a JSON value, of the execution's entity or of another. The execution keeps
+# the selectors as given; one that leads nowhere fails the execution (400).
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - AttributeSelector: input values taken from attributes at the hand-off
+
+--TAGS--
+service execution
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Lamps urn:L1 (brightness 40, unit lux; config {step 3}) and urn:L2 (brightness 90); changeBrightnessBy (/echo) for Lamps
+# 02. Invoke: delta 10, current = brightness, unit = brightness.unit, step = config[step], other = urn:L2's brightness - the executor gets the values
+# 03. GET the execution - its input as given, the selectors kept
+# 04. A selector of an attribute urn:L1 does not have - 400, the execution failed
+#
+
+echo "01. Lamps urn:L1 (brightness 40, unit lux; config {step 3}) and urn:L2 (brightness 90); changeBrightnessBy (/echo) for Lamps"
+echo "========================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Lamp","brightness":{"type":"Property","value":40,"unit":{"type":"Property","value":"lux"}},"config":{"type":"Property","value":{"step":3}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L2","type":"Lamp","brightness":{"type":"Property","value":90}}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",\"entities\":[{\"type\":\"Lamp\"}],\"serviceInformation\":{\"serviceName\":\"changeBrightnessBy\"}}" | head -1
+echo
+echo
+
+
+echo "02. Invoke: delta 10, current = brightness, unit = brightness.unit, step = config[step], other = urn:L2's brightness - the executor gets the values"
+echo "=================================================================================================================================================="
+payload='{
+  "delta": 10,
+  "current": { "type": "AttributeSelector", "attributeSelector": "brightness" },
+  "unit":    { "type": "AttributeSelector", "attributeSelector": "brightness.unit" },
+  "step":    { "type": "AttributeSelector", "attributeSelector": "config[step]" },
+  "other":   { "type": "AttributeSelector", "attributeSelector": "brightness", "entityId": "urn:L2" }
+}'
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/changeBrightnessBy --payload "$payload" > /tmp/se.out
+sed -n '1p' /tmp/se.out
+sed -n '/^{/,$p' /tmp/se.out
+ID=$(grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r')
+echo
+echo
+
+
+echo "03. GET the execution - its input as given, the selectors kept"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/services/$ID | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['executionInput'], sort_keys=True))"
+echo
+echo
+
+
+echo "04. A selector of an attribute urn:L1 does not have - 400, the execution failed"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/changeBrightnessBy --payload '{"x":{"type":"AttributeSelector","attributeSelector":"color"}}' > /tmp/se.out
+sed -n '1p;/"detail"/p' /tmp/se.out
+ID=$(grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r')
+corCurl --url /ngsi-ld/v1/services/$ID | sed -n '/^{/,$p' | python3 -c "import json,sys; e=json.load(sys.stdin); print(e['executionStatus'], e['executionError']['title'])"
+echo
+echo
+
+
+--EXPECT--
+01. Lamps urn:L1 (brightness 40, unit lux; config {step 3}) and urn:L2 (brightness 90); changeBrightnessBy (/echo) for Lamps
+=========================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Invoke: delta 10, current = brightness, unit = brightness.unit, step = config[step], other = urn:L2's brightness - the executor gets the values
+==================================================================================================================================================
+HTTP/1.1 200 OK
+{
+  "got": {
+    "current": 40,
+    "delta": 10,
+    "id": "urn:L1",
+    "other": 90,
+    "step": 3,
+    "type": "Lamp",
+    "unit": "lux"
+  }
+}
+
+
+
+03. GET the execution - its input as given, the selectors kept
+==============================================================
+{"current": {"attributeSelector": "brightness", "type": "AttributeSelector"}, "delta": 10, "other": {"attributeSelector": "brightness", "entityId": "urn:L2", "type": "AttributeSelector"}, "step": {"attributeSelector": "config[step]", "type": "AttributeSelector"}, "unit": {"attributeSelector": "brightness.unit", "type": "AttributeSelector"}}
+
+
+04. A selector of an attribute urn:L1 does not have - 400, the execution failed
+===============================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "input 'x': no attribute 'color' on entity 'urn:L1'",
+failed Bad Request Data
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

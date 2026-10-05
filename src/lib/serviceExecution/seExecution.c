@@ -20,6 +20,8 @@
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
+#include "corJsonld/corLdExpand.h"                    // corLdExpand
+#include "corTree/corTreeChildReplace.h"              // corTreeChildReplace
 #include "corJsonld/corLdCompactTree.h"               // corLdCompactTreeWith
 #include "corJsonld/corLdDownload.h"                  // corLdContextFromUrl
 #include "corRest/CorRestState.h"                     // corRest
@@ -382,14 +384,159 @@ static CorNode* responseBody(CorRestClientResponse* respP)
 
 // -----------------------------------------------------------------------------
 //
-// invocationBody - what the executor receives: the entity's id and type (compacted with the request's
-// @context), and the input
+// expandedLookup - a member by its name expanded with the request's @context, else as written
 //
-static char* invocationBody(CorNode* execP)
+static CorNode* expandedLookup(CorNode* containerP, const char* name)
+{
+  if ((containerP == NULL) || (containerP->type != CorObject))
+    return NULL;
+
+  CorNode* nodeP = corTreeLookup(containerP, corLdExpand(corNgsild.contextP, name, &corRest.kalloc, NULL, NULL));
+
+  return (nodeP != NULL) ? nodeP : corTreeLookup(containerP, name);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// selectorValue - an AttributeSelector's value: an attribute of a stored entity, by a q-language path
+//
+//   attr            the attribute's value
+//   attr.sub        a sub-attribute's value
+//   attr[key][...]  a member of a JSON value
+//
+// A stored attribute is its instances by datasetId - the default one ("@none") is the selected one.
+// NULL when the path leads nowhere.
+//
+static CorNode* selectorValue(CorNode* entityP, const char* path)
+{
+  char* copy = corAllocStrdup(&corRest.kalloc, path);
+  char* keys = strchr(copy, '[');
+
+  if (keys != NULL)
+    *keys = 0;
+
+  //
+  // attr.sub.sub ...
+  //
+  char*    save  = NULL;
+  char*    part  = strtok_r(copy, ".", &save);
+  CorNode* attrP = expandedLookup(entityP, part);
+
+  if (attrP == NULL)
+    return NULL;
+
+  CorNode* instP = corTreeLookup(attrP, "@none");
+
+  if (instP == NULL)
+    instP = attrP;
+
+  while ((part = strtok_r(NULL, ".", &save)) != NULL)
+  {
+    if ((instP = expandedLookup(instP, part)) == NULL)
+      return NULL;
+  }
+
+  CorNode* valueP = corTreeLookup(instP, "value");
+
+  if (valueP == NULL)
+    valueP = corTreeLookup(instP, "object");
+
+  //
+  // [key][key] ...
+  //
+  while ((valueP != NULL) && (keys != NULL))
+  {
+    char* key = keys + 1;
+    char* end = strchr(key, ']');
+
+    if (end == NULL)
+      return NULL;
+
+    *end   = 0;
+    valueP = expandedLookup(valueP, key);
+    keys   = (end[1] == '[') ? &end[1] : NULL;
+  }
+
+  return valueP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// inputResolve - the input with each AttributeSelector replaced by the value it selects (GR CIM-055 § 6.3.5.1)
+//
+// A member { "type": "AttributeSelector", "attributeSelector": <path>, "entityId"? } takes its value
+// from that attribute of that entity (the execution's own when no entityId) - read now, at the hand-off.
+// false: one led nowhere, and why.
+//
+static bool inputResolve(CorNode* execP, CorNode* inP, char* why, int whySize)
+{
+  Tenant*  tenantP     = (Tenant*) corNgsild.tenantP;
+  CorNode* ownEntityP  = NULL;
+
+  for (CorNode* mP = ((inP != NULL) && (inP->type == CorObject)) ? inP->value.head : NULL; mP != NULL; mP = mP->next)
+  {
+    const char* type = (mP->type == CorObject) ? str(mP, "type") : NULL;
+
+    if ((type == NULL) || (strcmp(type, "AttributeSelector") != 0))
+      continue;
+
+    const char* path     = str(mP, "attributeSelector");
+    const char* entityId = str(mP, "entityId");
+    CorNode*    entityP  = NULL;
+
+    if (path == NULL)
+    {
+      snprintf(why, whySize, "input '%s': an AttributeSelector needs its 'attributeSelector'", mP->name);
+      return false;
+    }
+
+    if (entityId == NULL)
+    {
+      if ((ownEntityP == NULL) && (db.entityRetrieve(tenantP, str(execP, "entityId"), &ownEntityP) != DB_OK))
+        ownEntityP = NULL;
+      entityP = ownEntityP;
+    }
+    else if (db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK)
+      entityP = NULL;
+
+    CorNode* valueP = (entityP != NULL) ? selectorValue(entityP, path) : NULL;
+
+    if (valueP == NULL)
+    {
+      snprintf(why, whySize, "input '%s': no attribute '%s' on entity '%s'", mP->name, path, (entityId != NULL) ? entityId : str(execP, "entityId"));
+      return false;
+    }
+
+    CorNode* cloneP = corTreeClone(corRest.kallocP, valueP);
+
+    cloneP->name = mP->name;
+    cloneP->next = mP->next;
+    corTreeChildReplace(inP, mP, cloneP);
+    mP = cloneP;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// invocationBody - what the executor receives: the entity's id and type (compacted with the request's
+// @context), and the input - its AttributeSelectors resolved. NULL: one could not be (why)
+//
+static char* invocationBody(CorNode* execP, char* why, int whySize)
 {
   CorNode*    bodyP = corTreeObject(corRest.kallocP, NULL);
-  CorNode*    inP   = corTreeLookup(execP, "executionInput");
+  CorNode*    inP   = corTreeClone(corRest.kallocP, corTreeLookup(execP, "executionInput"));
   const char* type  = str(execP, "entityType");
+
+  if ((inP != NULL) && (inputResolve(execP, inP, why, whySize) == false))
+    return NULL;
 
   corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "id", str(execP, "entityId")));
   corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", (type != NULL) ? corLdCompact(corNgsild.contextP, type) : ""));
@@ -456,8 +603,18 @@ static void forwardBridge(CorNode* execP, bool cancel, ForwardResult* resultP)
     return;
   }
 
+  char  why[512];
+  char* body = invocationBody(execP, why, sizeof(why));
+
+  if (body == NULL)
+  {
+    resultP->clientStatus = 400;
+    resultP->errorP       = problem(LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", 400, why);
+    return;
+  }
+
   BridgeServiceResult outcome;
-  int                 r = bridgeServiceExecute(endpoint, execId, corNgsild.tenantName, invocationBody(execP), (sync == true) ? (int) (timeoutNs / 1000000) : 0, &outcome);
+  int                 r = bridgeServiceExecute(endpoint, execId, corNgsild.tenantName, body, (sync == true) ? (int) (timeoutNs / 1000000) : 0, &outcome);
 
   if (r == BRIDGE_NOT_FOUND)
   {
@@ -532,7 +689,15 @@ static void forward(CorNode* execP, bool cancel, ForwardResult* resultP)
 
   if (cancel == false)
   {
-    char* body = invocationBody(execP);
+    char  why[512];
+    char* body = invocationBody(execP, why, sizeof(why));
+
+    if (body == NULL)
+    {
+      resultP->clientStatus = 400;
+      resultP->errorP       = problem(LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", 400, why);
+      return;
+    }
 
     corRestClientRequestHeader(&req, "Content-Type", "application/json");
     corRestClientRequestBody(&req, body, strlen(body));
