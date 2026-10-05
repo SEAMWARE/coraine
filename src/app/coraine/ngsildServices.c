@@ -99,7 +99,16 @@
 #include "serviceRoutines/getServiceRegistrations.h"   // getServiceRegistrations
 #include "serviceRoutines/patchServiceRegistration.h"  // patchServiceRegistration
 #include "serviceRoutines/deleteServiceRegistration.h" // deleteServiceRegistration
+#include "serviceRoutines/postEntityService.h"            // postEntityService
+#include "serviceRoutines/getEntityServiceExecution.h"    // getEntityServiceExecution
+#include "serviceRoutines/deleteEntityServiceExecution.h" // deleteEntityServiceExecution
+#include "serviceRoutines/postServiceExecution.h"         // postServiceExecution
+#include "serviceRoutines/getServiceExecutions.h"         // getServiceExecutions
+#include "serviceRoutines/getServiceExecution.h"          // getServiceExecution
+#include "serviceRoutines/patchServiceExecution.h"        // patchServiceExecution
+#include "serviceRoutines/deleteServiceExecution.h"       // deleteServiceExecution
 #endif
+#include "serviceExecution/seRequest.h"                 // SE_PARAM_* - the bits exist in every build
 #include "serviceRoutines/corNotInThisBuild.h"   // corNotInThisBuild
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
@@ -156,6 +165,11 @@
 //
 CorRestServiceSimplified ngsildCoreServices[] =
 {
+  // Service Execution - the entity's services, before every /entities/* route
+  { CorVerbPost,   "/ngsi-ld/v1/entities/*/services/*",   SVCX(postEntityService),            0,                                    LdOpInvokeService },
+  { CorVerbGet,    "/ngsi-ld/v1/entities/*/services/*/*", SVCX(getEntityServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone          },
+  { CorVerbDelete, "/ngsi-ld/v1/entities/*/services/*/*", SVCX(deleteEntityServiceExecution), 0,                                    LdOpNone          },
+
   { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES,   LdOpQueryEntities  },
   { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY,     LdOpRetrieveEntity },
   { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
@@ -228,6 +242,13 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/serviceRegistrations/*", SVCX(getServiceRegistration),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                          LdOpNone },
   { CorVerbPatch,  "/ngsi-ld/v1/serviceRegistrations/*", SVCX(patchServiceRegistration),  0,                                                            LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/serviceRegistrations/*", SVCX(deleteServiceRegistration), 0,                                                            LdOpNone },
+
+  // Service Execution - Service Executions
+  { CorVerbPost,   "/ngsi-ld/v1/services",   SVCX(postServiceExecution),   0,                                                                                        LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/services",   SVCX(getServiceExecutions),   LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS | SE_PARAM_ENTITY_ID | SE_PARAM_SERVICE_NAME | SE_PARAM_EXECUTION_STATUS, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/services/*", SVCX(getServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                                                     LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/services/*", SVCX(patchServiceExecution),  0,                                                                                        LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/services/*", SVCX(deleteServiceExecution), 0,                                                                                        LdOpNone },
 
   // EntityMap CRUD (§ 5.14)
   { CorVerbGet,    "/ngsi-ld/v1/entityMaps",    REGS(createEntityMap), LD_PARAMS_GET_ENTITIES, LdOpNone },

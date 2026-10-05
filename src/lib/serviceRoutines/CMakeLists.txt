@@ -114,6 +114,14 @@ IF (COR_FEATURE_SERVICE_EXECUTION)
     getServiceRegistrations.c
     patchServiceRegistration.c
     deleteServiceRegistration.c
+    postEntityService.c
+    getEntityServiceExecution.c
+    deleteEntityServiceExecution.c
+    postServiceExecution.c
+    getServiceExecutions.c
+    getServiceExecution.c
+    patchServiceExecution.c
+    deleteServiceExecution.c
   )
 ENDIF()
 

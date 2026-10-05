@@ -98,6 +98,8 @@
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
+#include "serviceExecution/seExecution.h"            // seExecutionTick, seExecutionRetentionNs
+#include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
 #include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
@@ -573,6 +575,22 @@ static CorRestParam bridgeParams[] =
   { "ddsSync", BRIDGE_PARAM_DDS_SYNC },
   { NULL,      0                     }
 };
+
+
+
+#if COR_FEATURE_SERVICE_EXECUTION
+// -----------------------------------------------------------------------------
+//
+// serviceParams - the URL parameters of GET /ngsi-ld/v1/services (Service Execution)
+//
+static CorRestParam serviceParams[] =
+{
+  { "entityId",        SE_PARAM_ENTITY_ID        },
+  { "serviceName",     SE_PARAM_SERVICE_NAME     },
+  { "executionStatus", SE_PARAM_EXECUTION_STATUS },
+  { NULL,              0                         }
+};
+#endif
 
 
 
@@ -1644,8 +1662,8 @@ int main(int argC, char* argV[])
 
     CorRestCorsConfig corsConf = {
       .allowOrigin   = origin,
-      .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization",
-      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning",
+      .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution",
+      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution",
       .maxAge        = corsMaxAge
     };
     corRestCorsConfig(&corsConf);
@@ -1653,6 +1671,11 @@ int main(int argC, char* argV[])
 
   if (corRestParamAdd(bridgeParams) == false)
     COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  if (corRestParamAdd(serviceParams) == false)
+    COR_X(1, "corRestParamAdd failed for the Service Execution URL parameters");
+#endif
 
   apiPluginsInit();
   //
@@ -1746,6 +1769,11 @@ int main(int argC, char* argV[])
   // Register the volatile-context reaper — drops never-fetched one-shot
   // hosted contexts (response / forward Link targets) past their TTL.
   ldContextHostReaperStart();
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  // Service Executions: time-outs (failed) and retention (deleted), every tenant
+  ldPeriodicLoopRegister(seExecutionTick, NULL);
+#endif
 
   // Start the shared periodic dispatch thread (1-Hz tick over all
   // registered consumers).

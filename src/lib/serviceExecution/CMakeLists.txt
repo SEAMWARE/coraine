@@ -7,6 +7,9 @@ SET(SOURCES
   seRegistrationCheck.c
   seRegistrationMatch.c
   seRegistrationRender.c
+  seJsonSchema.c
+  seExecution.c
+  seRequest.c
 )
 
 ADD_LIBRARY(serviceExecution STATIC ${SOURCES})
