@@ -426,3 +426,31 @@ jobs:
             /tmp/smoke.log
             /tmp/corTestClient.*.log
           retention-days: 7
+
+  #
+  # The one check main requires (branch protection). A required check must have a
+  # fixed name - the shards are named by their index ranges, which move whenever
+  # they are re-balanced by time. And until a workflow has queued its jobs a pull
+  # request shows NO checks, which GitHub reads as nothing to wait for: the merge
+  # button is green. Required, this check is pending from the moment the run
+  # starts and is missing - so merging is blocked - before it.
+  #
+  # Success: every shard passed, or `relevant` found nothing that needs the suite
+  # (the shards are then skipped). Anything else - a failed or cancelled shard, a
+  # failed `relevant` - fails it.
+  #
+  gate:
+    name: functests passed
+    needs: [relevant, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed, or none was needed
+        run: |
+          echo "relevant: ${{ needs.relevant.result }} (run: ${{ needs.relevant.outputs.run }}), test: ${{ needs.test.result }}"
+          [ "${{ needs.relevant.result }}" == "success" ] || exit 1
+          if [ "${{ needs.relevant.outputs.run }}" == "true" ]; then
+            [ "${{ needs.test.result }}" == "success" ] || exit 1
+          else
+            [ "${{ needs.test.result }}" == "skipped" ] || exit 1
+          fi
