@@ -12,13 +12,13 @@
 // The request's own parts that Service Execution reads - a header, a URL parameter.
 //
 // SE_PARAM_* - Service Execution's URL parameters, registered by the broker (corRestParamAdd).
-// LD_PARAM_* grow from bit 0, the broker's own from the top (bridgeServiceSync.h: ddsSync, bit 63).
+// LD_PARAM_* grow from bit 0 (55 now), the broker's own from the top: ddsSync 63 (bridgeServiceSync.h),
+// the admin plugin 59-62 (adminRegister.c). Three are left, 56-58: the three filters of GET /services
+// share one - they are allowed on that route only, and together.
 //
-#define SE_PARAM_ENTITY_ID         (1ULL << 62)
-#define SE_PARAM_SERVICE_NAME      (1ULL << 61)
-#define SE_PARAM_EXECUTION_STATUS  (1ULL << 60)
-#define SE_PARAM_INCLUDE_SERVICES  (1ULL << 59)   // GET /entities, /entities/{id}
-#define SE_PARAM_SERVICE_DETAILS   (1ULL << 58)
+#define SE_PARAM_INCLUDE_SERVICES  (1ULL << 56)   // GET /entities, /entities/{id}
+#define SE_PARAM_SERVICE_DETAILS   (1ULL << 57)   // GET /entities, /entities/{id}
+#define SE_PARAM_SERVICES_QUERY    (1ULL << 58)   // GET /services: entityId, serviceName, executionStatus
 
 
 

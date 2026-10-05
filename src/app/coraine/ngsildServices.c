@@ -255,7 +255,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
 
   // Service Execution - Service Executions
   { CorVerbPost,   "/ngsi-ld/v1/services",   SVCX(postServiceExecution),   0,                                                                                        LdOpNone },
-  { CorVerbGet,    "/ngsi-ld/v1/services",   SVCX(getServiceExecutions),   LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS | SE_PARAM_ENTITY_ID | SE_PARAM_SERVICE_NAME | SE_PARAM_EXECUTION_STATUS, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/services",   SVCX(getServiceExecutions),   LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS | SE_PARAM_SERVICES_QUERY, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/services/*", SVCX(getServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                                                     LdOpNone },
   { CorVerbPatch,  "/ngsi-ld/v1/services/*", SVCX(patchServiceExecution),  0,                                                                                        LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/services/*", SVCX(deleteServiceExecution), 0,                                                                                        LdOpNone },

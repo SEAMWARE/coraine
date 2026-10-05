@@ -587,9 +587,9 @@ static CorRestParam bridgeParams[] =
 //
 static CorRestParam serviceParams[] =
 {
-  { "entityId",        SE_PARAM_ENTITY_ID        },
-  { "serviceName",     SE_PARAM_SERVICE_NAME     },
-  { "executionStatus", SE_PARAM_EXECUTION_STATUS },
+  { "entityId",        SE_PARAM_SERVICES_QUERY   },
+  { "serviceName",     SE_PARAM_SERVICES_QUERY   },
+  { "executionStatus", SE_PARAM_SERVICES_QUERY   },
   { "includeServices", SE_PARAM_INCLUDE_SERVICES },
   { "serviceDetails",  SE_PARAM_SERVICE_DETAILS  },
   { NULL,              0                         }
