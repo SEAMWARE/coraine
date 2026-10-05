@@ -13,6 +13,7 @@
 #   --broker HOST:PORT   the broker (GET /ngsi-ld/v1/ws, Upgrade: websocket)
 #   --port N             the control API
 #   --protocol P         Sec-WebSocket-Protocol to ask for (default: none)
+#   --tenant T           NGSILD-Tenant of the upgrade request - the connection's tenant (default: none)
 #   --first JSON         a message sent in the same write as the upgrade request - before the 101: the
 #                        bytes a server must hand over with the socket
 #
@@ -99,7 +100,7 @@ def reader():
             received.append({"eof": True})
 
 
-def connect(broker, protocol, first):
+def connect(broker, protocol, first, tenant):
     global sock
     host, port = broker.split(":")
     sock = socket.create_connection((host, int(port)))
@@ -108,6 +109,8 @@ def connect(broker, protocol, first):
             "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n" % (broker, key))
     if protocol:
         req += "Sec-WebSocket-Protocol: %s\r\n" % protocol
+    if tenant:
+        req += "NGSILD-Tenant: %s\r\n" % tenant
     sock.sendall((req + "\r\n").encode() + (frame(0x1, first.encode()) if first else b""))
 
     head = b""
@@ -172,8 +175,9 @@ def main():
     port     = int(args[args.index("--port") + 1])
     protocol = args[args.index("--protocol") + 1] if "--protocol" in args else None
     first    = args[args.index("--first") + 1] if "--first" in args else None
+    tenant   = args[args.index("--tenant") + 1] if "--tenant" in args else None
 
-    connect(broker, protocol, first)
+    connect(broker, protocol, first, tenant)
     ThreadingHTTPServer(("127.0.0.1", port), Control).serve_forever()
 
 

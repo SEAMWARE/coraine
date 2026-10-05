@@ -1,17 +1,17 @@
-# WebSocket - subscriptions and notifications over one connection
+# WebSocket - the broker's API and its notifications over one connection
 
-A web page opens a WebSocket to the broker, reads and writes entities over it, creates subscriptions
-over it and receives their notifications on it - with nothing to poll and no endpoint of its own for
-the broker to reach.
+A web page opens a WebSocket to the broker, sends it any request it would send over HTTP, creates
+subscriptions over it and receives their notifications on it - with nothing to poll and no endpoint of
+its own for the broker to reach.
 
 ```console
 coraine --transports ws
 ```
 
-Served over the connection: `/ngsi-ld/v1/entities` and everything under it (create, retrieve, query,
-update, merge, replace, append, delete - of entities and of attributes), and
-`/ngsi-ld/v1/subscriptions` (create, list, retrieve, update, delete). Notifications go to the
-connection that created the subscription - for writes made over it as for any other.
+Served over the connection: every request the broker serves over HTTP - entities, batch operations,
+subscriptions, context source registrations and subscriptions, types and attributes, `@context`
+documents, temporal, `/version`, and the API plugins' paths. Notifications - of subscriptions and of
+context source subscriptions - go to the connection that created the subscription.
 
 ## Connecting
 
@@ -45,14 +45,16 @@ binding (ETSI TS 104 243 clause 5), so a notification over a WebSocket is the on
             "notification": { "endpoint": { "uri": "urn:ngsi-ld:WebSocket:7" } } } }
 ```
 
-**A response** carries the status, the `requestId` and the headers HTTP would return, and the body:
+**A response** carries the status, the `requestId` and the headers HTTP would return, and the body -
+a JSON body as it is, any other (the text of `/metrics`) as a JSON string:
 
 ```json
 { "metadata": { "status": 201, "requestId": "r1",
                 "Location": "/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:..." } }
 ```
 
-**A notification** - `Content-Type` and `Link` in `metadata`, the NGSI-LD Notification in `body`.
+**A notification** - `Content-Type` and `Link` in `metadata`, the NGSI-LD Notification (or
+ContextSourceNotification) in `body`.
 
 A request runs through the same service routines as over HTTP: what it can be refused for, and how,
 is the same. Over a WebSocket besides:
@@ -61,15 +63,19 @@ is the same. Over a WebSocket besides:
 |---|---|
 | a message that is not a JSON object with a `metadata` object | 400 |
 | a request without `method` or `path` | 400 |
-| a path other than `/ngsi-ld/v1/entities` and `/ngsi-ld/v1/subscriptions` | 501 |
 | a subscription whose endpoint names another connection | 403 |
+
+## Tenants
+
+A request's tenant is its own `NGSILD-Tenant` in `metadata`; without one, the connection's - the
+`NGSILD-Tenant` header of the upgrade request; without that, the default tenant.
 
 ## Subscriptions
 
-A subscription created over a connection notifies that connection: its `notification.endpoint.uri` is
-the connection's id. Another connection's id is refused. When the connection closes - the client
-closes it, it breaks, or the broker stops - the subscriptions it created are deleted. The default
-tenant.
+A subscription or context source subscription created over a connection notifies that connection: its
+`notification.endpoint.uri` is the connection's id. Another connection's id is refused. When the
+connection closes - the client closes it, it breaks, or the broker stops - the subscriptions it
+created and did not delete are deleted, each in its tenant.
 
 ## The connection
 
@@ -98,8 +104,7 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 
 ## Not yet
 
-- every request over the connection, not only entities and subscriptions
-- naming the tenant in the handshake, and changing it on an open connection
+- changing the connection's tenant on an open connection
 - a subscription notifying another connection than its own
 - a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
 - cor:// as a transport plugin (`cor.so`)

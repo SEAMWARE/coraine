@@ -1,0 +1,291 @@
+#
+# FILE            websocket_all_api.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# WebSocket as a transport (--transports ws, doc/websocket.md): every request the broker serves over
+# HTTP is served over the connection - the version, batch operations, types and attributes, context
+# source registrations, @context documents, context source subscriptions notifying the connection - and
+# a body that is not JSON comes as a JSON string. Tenants: a request's own NGSILD-Tenant, else the
+# connection's from the upgrade request, else the default. When the connection closes, the
+# subscriptions it created go, each in its tenant.
+#
+--NAME--
+WebSocket - the whole API over the connection, tenants per request and per connection, subscriptions deleted in their tenants on close
+
+--TAGS--
+websocket subscription registration tenant
+
+--INIT--
+corDbDrop
+coraineStart --transports ws --apiPlugins admin
+
+--RUN--
+
+#
+# 01. Connect; GET /version - 200
+# 02. POST /ngsi-ld/v1/entityOperations/create (urn:E1, urn:E2), then POST /ngsi-ld/v1/entityOperations/query
+# 03. GET /ngsi-ld/v1/types and GET /ngsi-ld/v1/attributes
+# 04. A context source subscription notifying this connection; POST, GET, PATCH, DELETE of a registration - 4 notifications
+# 05. POST /ngsi-ld/v1/jsonldContexts, then GET /ngsi-ld/v1/jsonldContexts?kind=Cached
+# 06. NGSILD-Tenant t1 in a request's metadata: an entity and a subscription, in t1 only (seen over HTTP)
+# 07. GET /metrics - a body that is not JSON, as a JSON string
+# 08. Close: the subscriptions go - of the default tenant and of t1, and the context source subscription
+# 09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes
+#
+
+#
+# req <json>  - send a request and wait for ITS response (by requestId) - notifications interleave
+# resp <id>   - that response: status, Location (an id the broker made shown as <id>), body
+# notifs <n> [type] - wait until n notifications (of 'type', default Notification) have arrived
+# http <path> [tenant] - GET over HTTP, the body sorted
+# subIn <id> [tenant]   - is the subscription request <id> created listed in the tenant (over HTTP)?
+#
+req() {
+  local id=$(echo "$1" | python3 -c "import json,sys; print(json.load(sys.stdin)['metadata']['requestId'])")
+  ftWsSend "$1"
+  for i in $(seq 1 100); do
+    ftWsMessages | python3 -c "import json,sys; sys.exit(0 if any(m.get('metadata',{}).get('requestId') == '$id' for m in json.load(sys.stdin)) else 1)" && return
+    sleep 0.05
+  done
+  echo "no response to $id"
+}
+resp() {
+  ftWsMessages | python3 -c "
+import json,re,sys
+for m in json.load(sys.stdin):
+    md = m.get('metadata', {})
+    if md.get('requestId') == '$1':
+        loc = re.sub(r'^(/ngsi-ld/v1/[A-Za-z]+/)urn:ngsi-ld:[A-Za-z]+:[0-9a-f:-]+$', r'\1<id>', md.get('Location', ''))
+        print('$1', md['status'], loc, json.dumps(m['body'], sort_keys=True) if 'body' in m else '')"
+}
+notifs() {
+  for i in $(seq 1 100); do
+    n=$(ftWsMessages | python3 -c "import json,sys; print(sum(1 for m in json.load(sys.stdin) if isinstance(m.get('body'), dict) and m['body'].get('type') == '${2:-Notification}'))")
+    [ "$n" -ge "$1" ] && break
+    sleep 0.05
+  done
+  echo "$n notifications"
+}
+http() {
+  corCurl --url "$1" ${2:+-H "NGSILD-Tenant: $2"} | sed -n '/^[[{]/,$p' | python3 -c "
+import json,sys
+b = json.load(sys.stdin)
+print(json.dumps([{'id': s.get('id', '')[:24], 'type': s['type']} for s in b] if isinstance(b, list) else b, sort_keys=True))"
+}
+
+subIn() {
+  local loc=$(ftWsMessages | python3 -c "
+import json,sys
+print([m for m in json.load(sys.stdin) if m.get('metadata',{}).get('requestId') == '$1'][0]['metadata']['Location'].split('/')[-1])")
+  corCurl --url /ngsi-ld/v1/subscriptions ${2:+-H "NGSILD-Tenant: $2"} | sed -n '/^[[{]/,$p' | python3 -c "
+import json,sys
+print('$1 in ${2:-the default tenant}:', any(s['id'] == '$loc' for s in json.load(sys.stdin)))"
+}
+
+echo "01. Connect; GET /version - 200"
+echo "==============================="
+ftWsStart
+ftWsAwait 1
+req '{"metadata":{"method":"GET","path":"/version","requestId":"v"}}'
+ftWsMessages | python3 -c "
+import json,sys
+m = [m for m in json.load(sys.stdin) if m.get('metadata',{}).get('requestId') == 'v'][0]
+print(m['metadata']['status'], type(m['body']).__name__)"
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/entityOperations/create (urn:E1, urn:E2), then POST /ngsi-ld/v1/entityOperations/query"
+echo "==========================================================================================================="
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entityOperations/create","requestId":"bc"},"body":[{"id":"urn:E1","type":"Room","temp":{"type":"Property","value":20}},{"id":"urn:E2","type":"Room","temp":{"type":"Property","value":22}}]}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entityOperations/query?options=keyValues","requestId":"bq"},"body":{"type":"Query","entities":[{"type":"Room"}],"q":"temp>21"}}'
+resp bc
+resp bq
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/types and GET /ngsi-ld/v1/attributes"
+echo "========================================================"
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/types","requestId":"ty"}}'
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/attributes","requestId":"at"}}'
+resp ty
+resp at
+echo
+echo
+
+
+echo "04. A context source subscription notifying this connection; POST, GET, PATCH, DELETE of a registration - 4 notifications"
+echo "========================================================================================================================="
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/csourceSubscriptions","requestId":"cs"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/csourceRegistrations","requestId":"rc"},"body":{"id":"urn:R1","type":"ContextSourceRegistration","information":[{"entities":[{"type":"Room"}]}],"endpoint":"http://localhost:9999"}}'
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/csourceRegistrations/urn:R1","requestId":"rr"}}'
+req '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/csourceRegistrations/urn:R1","requestId":"ru"},"body":{"endpoint":"http://localhost:9998"}}'
+req '{"metadata":{"method":"DELETE","path":"/ngsi-ld/v1/csourceRegistrations/urn:R1","requestId":"rd"}}'
+resp cs
+resp rc
+resp rr
+resp ru
+resp rd
+notifs 4 ContextSourceNotification
+ftWsMessages | python3 -c "
+import json,sys
+for m in json.load(sys.stdin):
+    b = m.get('body')
+    if isinstance(b, dict) and b.get('type') == 'ContextSourceNotification':
+        print(b.get('triggerReason'), [(r['id'], r.get('endpoint')) for r in b['data']])"
+echo
+echo
+
+
+echo "05. POST /ngsi-ld/v1/jsonldContexts, then GET /ngsi-ld/v1/jsonldContexts?kind=Cached"
+echo "===================================================================================="
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/jsonldContexts","requestId":"jc"},"body":{"@context":{"temp":"https://example.org/temp"}}}'
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/jsonldContexts?kind=Cached","requestId":"jl"}}'
+resp jc
+ftWsMessages | python3 -c "
+import json,sys
+m = [m for m in json.load(sys.stdin) if m.get('metadata',{}).get('requestId') == 'jl'][0]
+print('jl', m['metadata']['status'], type(m['body']).__name__)"
+echo
+echo
+
+
+echo "06. NGSILD-Tenant t1 in a request's metadata: an entity and a subscription, in t1 only (seen over HTTP)"
+echo "======================================================================================================"
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"t1e","NGSILD-Tenant":"t1"},"body":{"id":"urn:T1","type":"Room"}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"t1s","NGSILD-Tenant":"t1"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"d0s"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+resp t1e
+resp t1s
+resp d0s
+http '/ngsi-ld/v1/entities?type=Room' t1
+http '/ngsi-ld/v1/entities?type=Room'
+subIn t1s t1
+subIn t1s
+subIn d0s
+subIn d0s t1
+echo
+echo
+
+
+echo "07. GET /metrics - a body that is not JSON, as a JSON string"
+echo "============================================================"
+req '{"metadata":{"method":"GET","path":"/metrics","requestId":"me"}}'
+ftWsMessages | python3 -c "
+import json,sys
+m = [m for m in json.load(sys.stdin) if m.get('metadata',{}).get('requestId') == 'me'][0]
+print('me', m['metadata']['status'], type(m.get('body')).__name__)"
+echo
+echo
+
+
+echo "08. Close: the subscriptions go - of the default tenant and of t1, and the context source subscription"
+echo "====================================================================================================="
+ftWsClose
+sleep 0.3
+http '/ngsi-ld/v1/subscriptions'
+http '/ngsi-ld/v1/subscriptions' t1
+http '/ngsi-ld/v1/csourceSubscriptions'
+echo
+echo
+
+
+echo "09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes"
+echo "==============================================================================================================================="
+ftWsStart 1026 "" "" t2
+ftWsAwait 1
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"t2e"},"body":{"id":"urn:T2","type":"Room"}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"t2s"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:2"}}}}'
+resp t2e
+resp t2s
+http '/ngsi-ld/v1/entities?type=Room' t2
+subIn t2s t2
+subIn t2s
+ftWsClose
+sleep 0.3
+http '/ngsi-ld/v1/subscriptions' t2
+echo
+echo
+
+
+--EXPECT--
+01. Connect; GET /version - 200
+===============================
+200 dict
+
+
+02. POST /ngsi-ld/v1/entityOperations/create (urn:E1, urn:E2), then POST /ngsi-ld/v1/entityOperations/query
+===========================================================================================================
+bc 201  ["urn:E1", "urn:E2"]
+bq 200  [{"id": "urn:E2", "temp": 22, "type": "Room"}]
+
+
+03. GET /ngsi-ld/v1/types and GET /ngsi-ld/v1/attributes
+========================================================
+ty 200  {"id": "urn:ngsi-ld:EntityTypeList:local", "type": "EntityTypeList", "typeList": ["Room"]}
+at 200  {"attributeList": ["temp"], "id": "urn:ngsi-ld:AttributeList:local", "type": "AttributeList"}
+
+
+04. A context source subscription notifying this connection; POST, GET, PATCH, DELETE of a registration - 4 notifications
+=========================================================================================================================
+cs 201 /ngsi-ld/v1/csourceSubscriptions/<id> 
+rc 201 /ngsi-ld/v1/csourceRegistrations/urn:R1 
+rr 200  {"endpoint": "http://localhost:9999", "id": "urn:R1", "information": [{"entities": [{"type": "Room"}]}], "type": "ContextSourceRegistration"}
+ru 204  
+rd 204  
+4 notifications
+newlyMatching []
+newlyMatching [('urn:R1', 'http://localhost:9999')]
+updated [('urn:R1', 'http://localhost:9998')]
+noLongerMatching [('urn:R1', 'http://localhost:9998')]
+
+
+05. POST /ngsi-ld/v1/jsonldContexts, then GET /ngsi-ld/v1/jsonldContexts?kind=Cached
+====================================================================================
+jc 201 /ngsi-ld/v1/jsonldContexts/<id> 
+jl 200 list
+
+
+06. NGSILD-Tenant t1 in a request's metadata: an entity and a subscription, in t1 only (seen over HTTP)
+======================================================================================================
+t1e 201 /ngsi-ld/v1/entities/urn:T1 
+t1s 201 /ngsi-ld/v1/subscriptions/<id> 
+d0s 201 /ngsi-ld/v1/subscriptions/<id> 
+[{"id": "urn:T1", "type": "Room"}]
+[{"id": "urn:E1", "type": "Room"}, {"id": "urn:E2", "type": "Room"}]
+t1s in t1: True
+t1s in the default tenant: False
+d0s in the default tenant: True
+d0s in t1: False
+
+
+07. GET /metrics - a body that is not JSON, as a JSON string
+============================================================
+me 200 str
+
+
+08. Close: the subscriptions go - of the default tenant and of t1, and the context source subscription
+=====================================================================================================
+[]
+[]
+[]
+
+
+09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes
+===============================================================================================================================
+t2e 201 /ngsi-ld/v1/entities/urn:T2 
+t2s 201 /ngsi-ld/v1/subscriptions/<id> 
+[{"id": "urn:T2", "type": "Room"}]
+t2s in t2: True
+t2s in the default tenant: False
+[]
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop

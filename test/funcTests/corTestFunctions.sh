@@ -1211,8 +1211,10 @@ ftModbusStop() {
 #
 # ONE WebSocket to a broker (GET /ngsi-ld/v1/ws), kept open; its control API on FT_WS_PORT:
 #
-#   ftWsStart [port] [protocol] [first]   connect to the broker on 'port' (default 1026, CB); 'first': a
-#                                         message sent with the upgrade request, before the 101
+#   ftWsStart [port] [protocol] [first] [tenant]
+#                                         connect to the broker on 'port' (default 1026, CB); 'first': a
+#                                         message sent with the upgrade request, before the 101; 'tenant':
+#                                         the upgrade request's NGSILD-Tenant
 #   ftWsStop
 #   ftWsSend <json>                       one text message
 #   ftWsSendFrag <json>                   the same, as a text frame and a continuation
@@ -1227,8 +1229,9 @@ ftWsStart() {
   local brokerPort=${1:-1026}
   local protocol=$2
   local first=$3                        # a message sent with the upgrade request, before the 101
+  local tenant=$4
   ftWsStop
-  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftWs.py" --broker localhost:$brokerPort --port $FT_WS_PORT ${protocol:+--protocol $protocol} ${first:+--first "$first"} > /tmp/ftWs.$FT_WS_PORT.log 2>&1 &
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftWs.py" --broker localhost:$brokerPort --port $FT_WS_PORT ${protocol:+--protocol $protocol} ${first:+--first "$first"} ${tenant:+--tenant $tenant} > /tmp/ftWs.$FT_WS_PORT.log 2>&1 &
   echo $! > /tmp/ftWs.$FT_WS_PORT.pid
   corAwaitPort $FT_WS_PORT 10 > /dev/null
 }

@@ -57,21 +57,7 @@ static int              transportCount = 0;
 #define CONN_PREFIX_LEN  22
 #define WS_PATH          "/ngsi-ld/v1/ws"
 #define SUBS_PATH        "/ngsi-ld/v1/subscriptions"
-#define SUBS_PATH_LEN    25
-#define ENTITIES_PATH    "/ngsi-ld/v1/entities"
-
-
-
-// -----------------------------------------------------------------------------
-//
-// pathUnder - is 'path' the resource 'prefix', or under it (a '/' after it), or it with a query?
-//
-static bool pathUnder(const char* path, const char* prefix)
-{
-  size_t n = strlen(prefix);
-
-  return (strncmp(path, prefix, n) == 0) && ((path[n] == 0) || (path[n] == '/') || (path[n] == '?'));
-}
+#define CSUBS_PATH       "/ngsi-ld/v1/csourceSubscriptions"
 
 
 
@@ -79,13 +65,20 @@ static bool pathUnder(const char* path, const char* prefix)
 //
 // Conn - an open connection, and the subscriptions it created (deleted when it closes)
 //
+typedef struct Owned
+{
+  char*  path;                                       // as its Location said: /ngsi-ld/v1/subscriptions/<id>
+  char*  tenant;                                     // NULL: the default tenant
+} Owned;
+
 typedef struct Conn
 {
   int               connId;
   TransportDriver*  driverP;
-  char**            subV;
-  int               subN;
-  int               subSize;
+  char*             tenant;                          // the handshake's NGSILD-Tenant - a request's own overrides it; NULL: default
+  Owned*            ownV;                            // the subscriptions it created - deleted when it closes
+  int               ownN;
+  int               ownSize;
   struct Conn*      next;
 } Conn;
 
@@ -131,9 +124,15 @@ static int connIdOf(const char* uri)
 
 // -----------------------------------------------------------------------------
 //
-// subTrack / subUntrack - a subscription this connection created, or deleted
+// ownTrack / ownUntrack - a subscription (or a context source subscription) this connection created, in
+// its tenant, or deleted
 //
-static void subTrack(int connId, const char* subId)
+static bool tenantSame(const char* a, const char* b)
+{
+  return ((a == NULL) && (b == NULL)) || ((a != NULL) && (b != NULL) && (strcmp(a, b) == 0));
+}
+
+static void ownTrack(int connId, const char* path, const char* tenant)
 {
   pthread_mutex_lock(&connMutex);
 
@@ -141,37 +140,42 @@ static void subTrack(int connId, const char* subId)
 
   if (cP != NULL)
   {
-    if (cP->subN == cP->subSize)
+    if (cP->ownN == cP->ownSize)
     {
-      int    size = (cP->subSize == 0) ? 8 : cP->subSize * 2;
-      char** v    = (char**) realloc(cP->subV, size * sizeof(char*));
+      int    size = (cP->ownSize == 0) ? 8 : cP->ownSize * 2;
+      Owned* v    = (Owned*) realloc(cP->ownV, size * sizeof(Owned));
 
       if (v != NULL)
       {
-        cP->subV    = v;
-        cP->subSize = size;
+        cP->ownV    = v;
+        cP->ownSize = size;
       }
     }
 
-    if (cP->subN < cP->subSize)
-      cP->subV[cP->subN++] = strdup(subId);
+    if (cP->ownN < cP->ownSize)
+    {
+      cP->ownV[cP->ownN].path   = strdup(path);
+      cP->ownV[cP->ownN].tenant = (tenant != NULL) ? strdup(tenant) : NULL;
+      cP->ownN += 1;
+    }
   }
 
   pthread_mutex_unlock(&connMutex);
 }
 
-static void subUntrack(int connId, const char* subId)
+static void ownUntrack(int connId, const char* path, const char* tenant)
 {
   pthread_mutex_lock(&connMutex);
 
   Conn* cP = connFind(connId);
 
-  for (int i = 0; (cP != NULL) && (i < cP->subN); i++)
+  for (int i = 0; (cP != NULL) && (i < cP->ownN); i++)
   {
-    if (strcmp(cP->subV[i], subId) == 0)
+    if ((strcmp(cP->ownV[i].path, path) == 0) && tenantSame(cP->ownV[i].tenant, tenant))
     {
-      free(cP->subV[i]);
-      cP->subV[i] = cP->subV[--cP->subN];
+      free(cP->ownV[i].path);
+      free(cP->ownV[i].tenant);
+      cP->ownV[i] = cP->ownV[--cP->ownN];
       break;
     }
   }
@@ -283,8 +287,32 @@ static void reply(int connId, int status, const char* requestId, CorRestKeyValue
 
   if ((body != NULL) && (bodyLen > 0))
   {
+    //
+    // JSON as it is; anything else - the text of /metrics - as a JSON string, so the envelope stays JSON
+    //
+    const char* p = body;
+
+    while ((*p == ' ') || (*p == '\n') || (*p == '\r') || (*p == '\t'))
+      ++p;
+
     bufAdd(&b, ",\"body\":", 8);
-    bufAdd(&b, body, bodyLen);
+
+    if ((*p == '{') || (*p == '['))
+      bufAdd(&b, body, bodyLen);
+    else
+    {
+      char* text = (char*) malloc(bodyLen + 1);
+
+      if (text != NULL)
+      {
+        memcpy(text, body, bodyLen);
+        text[bodyLen] = 0;
+        bufStr(&b, text);
+        free(text);
+      }
+      else
+        bufAdd(&b, "null", 4);
+    }
   }
 
   bufAdd(&b, "}", 1);
@@ -331,6 +359,7 @@ typedef struct RunCtx
   const char*  requestId;
   const char*  verb;
   const char*  path;
+  const char*  tenant;                               // the request's - NULL: the default
 } RunCtx;
 
 static void runRespond(int status, CorRestKeyValue* headerV, int headers, const char* body, int bodyLen, void* ctx)
@@ -338,24 +367,32 @@ static void runRespond(int status, CorRestKeyValue* headerV, int headers, const 
   RunCtx* rP = (RunCtx*) ctx;
 
   //
-  // The subscriptions this connection creates and deletes - only those: a 201's Location is an
-  // entity's, a registration's ... on other paths
+  // The subscriptions this connection creates and deletes - of entities and of context sources, only
+  // those: a 201's Location is an entity's, a registration's ... on other paths
   //
-  if ((status == 201) && (strcmp(rP->verb, "POST") == 0) && (strcmp(rP->path, SUBS_PATH) == 0))
+  bool subs = (strcmp(rP->path, SUBS_PATH) == 0) || (strcmp(rP->path, CSUBS_PATH) == 0);
+
+  if ((status == 201) && (strcmp(rP->verb, "POST") == 0) && subs)
   {
     for (int i = 0; i < headers; i++)
     {
       if (strcasecmp(headerV[i].key, "Location") == 0)
-      {
-        const char* slash = strrchr(headerV[i].value, '/');
-
-        if (slash != NULL)
-          subTrack(rP->connId, &slash[1]);
-      }
+        ownTrack(rP->connId, headerV[i].value, rP->tenant);
     }
   }
-  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0) && (strncmp(rP->path, SUBS_PATH "/", SUBS_PATH_LEN + 1) == 0))
-    subUntrack(rP->connId, &rP->path[SUBS_PATH_LEN + 1]);
+  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0))
+  {
+    char        path[512];
+    const char* q = strchr(rP->path, '?');
+    int         n = (q != NULL) ? (int) (q - rP->path) : (int) strlen(rP->path);
+
+    if (n < (int) sizeof(path))
+    {
+      memcpy(path, rP->path, n);
+      path[n] = 0;
+      ownUntrack(rP->connId, path, rP->tenant);
+    }
+  }
 
   reply(rP->connId, status, rP->requestId, headerV, headers, body, bodyLen);
 }
@@ -420,17 +457,18 @@ static void hostClosed(int connId)
   if (cP == NULL)
     return;
 
-  for (int i = 0; i < cP->subN; i++)
+  for (int i = 0; i < cP->ownN; i++)
   {
-    char path[512];
+    CorRestKeyValue tenantH = { (char*) "NGSILD-Tenant", cP->ownV[i].tenant };
 
-    snprintf(path, sizeof(path), SUBS_PATH "/%s", cP->subV[i]);
-    corRestRunJson("DELETE", path, NULL, 0, NULL, 0, runIgnore, NULL);
-    COR_I("transport: connection %d closed - its subscription '%s' deleted", connId, cP->subV[i]);
-    free(cP->subV[i]);
+    corRestRunJson("DELETE", cP->ownV[i].path, &tenantH, (cP->ownV[i].tenant != NULL) ? 1 : 0, NULL, 0, runIgnore, NULL);
+    COR_I("transport: connection %d closed - '%s' (tenant %s) deleted", connId, cP->ownV[i].path, (cP->ownV[i].tenant != NULL) ? cP->ownV[i].tenant : "default");
+    free(cP->ownV[i].path);
+    free(cP->ownV[i].tenant);
   }
 
-  free(cP->subV);
+  free(cP->ownV);
+  free(cP->tenant);
   free(cP);
 }
 
@@ -440,8 +478,8 @@ static void hostClosed(int connId)
 //
 // hostMessage - a request: { "metadata": { "method", "path", "requestId", <headers> }, "body": ... }
 //
-// Served: /ngsi-ld/v1/subscriptions and /ngsi-ld/v1/entities (doc/websocket.md), and a subscription's
-// endpoint may name no connection but this one.
+// Any request the broker serves over HTTP (doc/websocket.md); a subscription's endpoint may name no
+// connection but this one.
 //
 static void hostMessage(int connId, const char* text, int len)
 {
@@ -489,14 +527,6 @@ static void hostMessage(int connId, const char* text, int len)
 
   const char* path = pathP->value.s;
 
-  if ((pathUnder(path, SUBS_PATH) == false) && (pathUnder(path, ENTITIES_PATH) == false))
-  {
-    replyError(connId, requestId, 501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported", "Not Implemented",
-               "over a WebSocket: /ngsi-ld/v1/subscriptions and /ngsi-ld/v1/entities");
-    corAllocBufferReset(&ka, false);
-    return;
-  }
-
   //
   // The endpoint a subscription created or changed here names: none of another connection
   //
@@ -517,17 +547,43 @@ static void hostMessage(int connId, const char* text, int len)
   //
   // The headers: every other string member of metadata
   //
-  CorRestKeyValue headerV[32];
+  CorRestKeyValue headerV[33];
   int             headers = 0;
+  const char*     tenant  = NULL;
 
   for (CorNode* mP = metaP->value.head; (mP != NULL) && (headers < 32); mP = mP->next)
   {
     if ((mP->type != CorString) || (strcmp(mP->name, "method") == 0) || (strcmp(mP->name, "path") == 0) || (strcmp(mP->name, "requestId") == 0))
       continue;
 
+    if (strcasecmp(mP->name, "NGSILD-Tenant") == 0)
+      tenant = mP->value.s;
+
     headerV[headers].key   = mP->name;
     headerV[headers].value = mP->value.s;
     ++headers;
+  }
+
+  //
+  // The tenant: the request's own, else the connection's (the handshake's), else the default
+  //
+  char connTenant[256] = "";
+
+  if (tenant == NULL)
+  {
+    pthread_mutex_lock(&connMutex);
+    Conn* cP = connFind(connId);
+    if ((cP != NULL) && (cP->tenant != NULL))
+      snprintf(connTenant, sizeof(connTenant), "%s", cP->tenant);
+    pthread_mutex_unlock(&connMutex);
+
+    if (connTenant[0] != 0)
+    {
+      tenant                 = connTenant;
+      headerV[headers].key   = (char*) "NGSILD-Tenant";
+      headerV[headers].value = connTenant;
+      ++headers;
+    }
   }
 
   //
@@ -551,7 +607,7 @@ static void hostMessage(int connId, const char* text, int len)
     }
   }
 
-  RunCtx run = { connId, requestId, methodP->value.s, path };
+  RunCtx run = { connId, requestId, methodP->value.s, path, tenant };
 
   corRestRunJson(methodP->value.s, path, headerV, headers, body, bodyLen, runRespond, &run);
   corAllocBufferReset(&ka, false);
@@ -581,16 +637,28 @@ static void respHeader(const char* key, const char* value)
 
 static int connNext = 1;                             // under connMutex
 
+typedef struct UpgradeCtx
+{
+  TransportDriver*  driverP;
+  char*             tenant;                          // the upgrade request's NGSILD-Tenant, NULL: none
+} UpgradeCtx;
+
 static void upgradeTake(int fd, const char* extra, int extraLen, CorRestUpgradeClose closeFn, void* closeArg, void* ctx)
 {
-  TransportDriver* driverP = (TransportDriver*) ctx;
+  UpgradeCtx*      uP      = (UpgradeCtx*) ctx;
+  TransportDriver* driverP = uP->driverP;
   Conn*            cP      = (Conn*) calloc(1, sizeof(Conn));
 
   if (cP == NULL)
   {
+    free(uP->tenant);
+    free(uP);
     closeFn(closeArg);
     return;
   }
+
+  cP->tenant = uP->tenant;                           // the connection's now
+  free(uP);
 
   //
   // Registered BEFORE the plugin has it: its thread may greet it (opened) the moment take starts it
@@ -637,8 +705,20 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
     return NULL;
   }
 
+  UpgradeCtx* uP     = (UpgradeCtx*) calloc(1, sizeof(UpgradeCtx));
+  const char* tenant = headerLookup("NGSILD-Tenant");
+
+  if (uP == NULL)
+  {
+    corRestProblem(500, "https://uri.etsi.org/ngsi-ld/errors/InternalError", "Internal Error", "out of memory");
+    return NULL;
+  }
+
+  uP->driverP = driverP;
+  uP->tenant  = ((tenant != NULL) && (tenant[0] != 0)) ? strdup(tenant) : NULL;
+
   corRest.out.httpStatusCode = 101;
-  *ctxP = driverP;
+  *ctxP = uP;
   return upgradeTake;
 }
 
