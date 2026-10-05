@@ -166,6 +166,65 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
 
 // -----------------------------------------------------------------------------
 //
+// writeErrorsApply - an unordered bulk: mark the entities the reply's writeErrors names
+//
+// Each writeError is { "index": <bulk op>, "errmsg": ... }; the index is a BULK slot, mapped back to the
+// entity through batchIx. Returns how many were marked: none means a reply that named no failure (a
+// transport error), where nothing can be told apart.
+//
+static int writeErrorsApply(const bson_t* reply, int* resultsV, int batchN, const int* batchIx, CorNode** mergedTargetsV, Tenant* tenantP)
+{
+  bson_iter_t top;
+  bson_iter_t arr;
+
+  if (!bson_iter_init_find(&top, reply, "writeErrors") || !bson_iter_recurse(&top, &arr))
+    return 0;
+
+  int marked = 0;
+
+  while (bson_iter_next(&arr))
+  {
+    bson_iter_t doc;
+
+    if (!bson_iter_recurse(&arr, &doc))
+      continue;
+
+    int         idx    = -1;
+    const char* errmsg = NULL;
+
+    while (bson_iter_next(&doc))
+    {
+      const char* key = bson_iter_key(&doc);
+
+      if      (strcmp(key, "index")  == 0) idx    = bson_iter_int32(&doc);
+      else if (strcmp(key, "errmsg") == 0 && BSON_ITER_HOLDS_UTF8(&doc)) errmsg = bson_iter_utf8(&doc, NULL);
+    }
+
+    if ((idx < 0) || (idx >= batchN))
+      continue;
+
+    int         entityIx = batchIx[idx];
+    const char* mixedP   = ((errmsg != NULL) && (strstr(errmsg, "Can't extract geo keys") != NULL)) ? mongocGeoIndexMixedName(tenantP, mergedTargetsV[entityIx]) : NULL;
+
+    ++marked;
+
+    if (mixedP != NULL)
+    {
+      COR_E("mongoc: entityBulkChangesApply: '%s' is held as a GeoProperty here and merged as another type", mixedP);
+      corNgsild.geoConflictAttr = mixedP;
+      resultsV[entityIx]        = DB_GEO_TYPE_CONFLICT;
+    }
+    else
+      resultsV[entityIx] = DB_ERR;
+  }
+
+  return marked;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocEntityBulkChangesApply - Phase 2/3: stage + execute the surgical bulk.
 //
 // `mergedTargetsV` are the already-merged trees (broker ran the merge engine);
@@ -184,7 +243,33 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
   if (n == 0)
     return DB_ERR;
 
-  bool* staged = (bool*) bson_malloc0(sizeof(bool) * n);
+  bool* staged  = (bool*) bson_malloc0(sizeof(bool) * n);
+  int*  batchIx = (int*)  bson_malloc0(sizeof(int) * n);   // bulk slot -> entity index
+  int   batchN  = 0;
+
+  //
+  // Ordered only when an id comes more than once (a batch merge with the same entity twice): its
+  // updates apply in array order, and the first that fails stops the rest. Every id distinct - a batch
+  // update or upsert, most merges - the bulk is unordered: one entity refused (a geo-type clash only
+  // the write sees) leaves the others written, and the reply's writeErrors names it.
+  //
+  bool ordered = false;
+
+  for (int i = 0; (i < n) && (ordered == false); i++)
+  {
+    CorNode* aP = corTreeLookup(fragmentAt(fragmentsArr, i), "id");
+
+    for (int j = i + 1; (aP != NULL) && (aP->type == CorString) && (j < n); j++)
+    {
+      CorNode* bP = corTreeLookup(fragmentAt(fragmentsArr, j), "id");
+
+      if ((bP != NULL) && (bP->type == CorString) && (strcmp(aP->value.s, bP->value.s) == 0))
+      {
+        ordered = true;
+        break;
+      }
+    }
+  }
 
   mongoc_client_t*     clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t* collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
@@ -230,8 +315,11 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
 
     if (bulk == NULL)
     {
-      // ordered=true so multi-instance same-id fragments apply in array order.
-      bulk = mongoc_collection_create_bulk_operation_with_opts(collP, NULL);
+      bson_t bulkOpts = BSON_INITIALIZER;
+
+      BSON_APPEND_BOOL(&bulkOpts, "ordered", ordered);
+      bulk = mongoc_collection_create_bulk_operation_with_opts(collP, &bulkOpts);
+      bson_destroy(&bulkOpts);
     }
 
     bson_t selector = BSON_INITIALIZER;
@@ -244,7 +332,10 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
       resultsV[i] = DB_ERR;
     }
     else
-      staged[i] = true;
+    {
+      staged[i]         = true;
+      batchIx[batchN++] = i;
+    }
 
     bson_destroy(&selector);
     bson_destroy(&update);
@@ -266,7 +357,12 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
       //
       bool geoClash = (strstr(error.message, "Can't extract geo keys") != NULL);
 
-      for (int i = 0; i < n; i++)
+      //
+      // Unordered: every update that did not fail was written - only the ones the reply names are not
+      //
+      bool decided = (ordered == false) && (writeErrorsApply(&reply, resultsV, batchN, batchIx, mergedTargetsV, tenantP) > 0);
+
+      for (int i = 0; (decided == false) && (i < n); i++)
       {
         if (!staged[i])
           continue;
@@ -291,6 +387,7 @@ int mongocEntityBulkChangesApply(Tenant* tenantP, CorNode* fragmentsArr,
   mongoc_client_pool_push(poolP, clientP);
 
   bson_free(staged);
+  bson_free(batchIx);
 
   bool anyOk = false;
   for (int k = 0; k < n; k++) if (resultsV[k] == DB_OK) { anyOk = true; break; }

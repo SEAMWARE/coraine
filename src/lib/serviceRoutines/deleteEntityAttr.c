@@ -369,15 +369,50 @@ bool deleteEntityAttr(void)
           //
           ldSysTimestampModify(targetEntity);
 
-          if (db.entityReplace == NULL)
+          if ((db.entityChangesApply == NULL) && (db.entityReplace == NULL))
           {
             ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
                     "Delete Attribute not supported by this DB plugin");
             return true;
           }
 
-          CorNode* oldEntity = NULL;
-          int r = db.entityReplace(tenantP, entityId, targetEntity, &oldEntity);
+          //
+          // To the store as what changed - the one attribute, gone or left with fewer instances - not as
+          // the whole entity: a store applies (and logs) just that (mongoc a $unset or a $set of it, corDB
+          // a record of it), as for a PATCH. Its own report: "attributeDeleted" removes the attribute
+          // whole, so a deleted INSTANCE is the attribute modified. The replace is for a store without it.
+          //
+          int r;
+
+          if (db.entityChangesApply != NULL)
+          {
+            LdMergeReport dbReport;
+            CorNode*      dbEntry = corTreeObject(corRest.kallocP, NULL);
+            bool          gone    = (corTreeLookup(targetEntity, attrIri) == NULL);
+
+            dbReport.changes = corTreeArray(corRest.kallocP, "changes");
+            corTreeChildAdd(dbEntry, corTreeString(corRest.kallocP, "attr", attrIri));
+            corTreeChildAdd(dbEntry, corTreeString(corRest.kallocP, "reason", gone ? "attributeDeleted" : "attributeModified"));
+
+            if (preSnapshot != NULL)
+            {
+              CorNode* preValue = corTreeClone(corRest.kallocP, preSnapshot);
+
+              if (preValue != NULL)
+              {
+                ldNodeRename(preValue, (char*) "preValue");
+                corTreeChildAdd(dbEntry, preValue);
+              }
+            }
+
+            corTreeChildAdd(dbReport.changes, dbEntry);
+            r = db.entityChangesApply(tenantP, entityId, targetEntity, &dbReport);
+          }
+          else
+          {
+            CorNode* oldEntity = NULL;
+            r = db.entityReplace(tenantP, entityId, targetEntity, &oldEntity);
+          }
 
           if (r != DB_OK && r != DB_NOT_FOUND)
           {

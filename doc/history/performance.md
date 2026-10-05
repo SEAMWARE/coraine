@@ -4,6 +4,28 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-05 - an attribute update logs the attributes, not the entity
+
+corDB logged a whole entity for every write, a PATCH of one attribute too. Now a write that updates
+attributes logs those attributes (corDB's `ATTRS_PUT`): the members it named, each whole after the
+write. On the perf fixture's entity (five attributes, ~550 bytes), PGO release, against the run before
+it (corDB with the mapped log, same build otherwise):
+
+| | before | after | |
+|---|---:|---:|---:|
+| `PATCH`, corDB on disk, 8 cores | 127 762 | 144 465 | +13.1 % |
+| `PATCH`, corDB on disk + history, 8 cores | 107 860 | 119 962 | +11.2 % |
+| `PATCH`, `--dbDir`, nothing pinned | 99 571 | 111 438 | +11.9 % |
+| merge, corDB on disk / + history, 8 cores | 96 317 / 77 202 | 103 106 / 82 574 | +7.0 % |
+| `PATCH`, `--dbSync request` | 22 558 | 24 100-25 301 | +7-12 % |
+| *in RAM, which the change does not touch* | | | −2.8 % to +1.8 % |
+
+An entity with a 2 KB attribute: twenty PATCHes of a small one grew the log by 47 194 bytes before,
+under 20 KB now (`cordb_persist_attr_updates`). The bigger the entity, the bigger the saving.
+
+The first `--dbSync request` run had `DELETE` at 10 582 (24 621 before): the run again, same build,
+23 407. A write there waits for its sync, and that run's syncs stalled - the page has the second run.
+
 ## 2026-10-05 - every corDB-on-disk number measured again: the log memory-mapped, the databases on the host network
 
 **Why.** corDB on disk buffered a write's log record in the process for up to 100 ms: a broker that
