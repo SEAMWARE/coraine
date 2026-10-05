@@ -1,0 +1,205 @@
+#
+# FILE            cordb_persist_attr_updates.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a write that updates attributes logs those attributes (CorDbLogAttrsPut), not
+# the entity. Every path that does - PATCH of one attribute, merge (an attribute added, one modified,
+# one deleted with null, a dataset instance), POST and PATCH of /attrs, PUT of an attribute, batch
+# merge - and then the entity, system attributes included, is the same after kill -9 (the log
+# replayed) and after a clean stop (the snapshot loaded, the log after it replayed).
+# And the log grows by the attribute: twenty PATCHes of a small attribute of an entity with a 2 KB
+# one add far less than twenty entities.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - attribute updates log the attributes, and replay to the same entity
+
+--TAGS--
+corDB persistence patch merge
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_attr_updates
+coraineStart --dbDir /tmp/corTest-cordb_persist_attr_updates
+
+--RUN--
+
+#
+# 01. Create E1 (a with a dataset instance, b, c, d) and E2
+# 02. PATCH /attrs/b; merge E1 (c modified, x added, a deleted); POST /attrs (y); PATCH /attrs (b, d); PUT /attrs/c; batch merge E1 (z) and E2 (b)
+# 03. GET E1 and E2 with sysAttrs - kept
+# 04. kill -9, start on the same --dbDir: E1 and E2 as kept
+# 05. Stop (a snapshot), start: E1 and E2 as kept
+# 06. Twenty PATCHes of b on E3, whose 'doc' is 2 KB: the log grows by less than 20 KB
+# 07. E1 as kept, once more - shown
+#
+
+DIR=/tmp/corTest-cordb_persist_attr_updates
+both() { corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs' | sed -n '/^{/,$p'; corCurl --url '/ngsi-ld/v1/entities/urn:E2?options=sysAttrs' | sed -n '/^{/,$p'; }
+
+echo "01. Create E1 (a with a dataset instance, b, c, d) and E2"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":[{"type":"Property","value":1},{"type":"Property","value":2,"datasetId":"urn:ds:1"}],"b":{"type":"Property","value":1},"c":{"type":"Property","value":1},"d":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","b":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. PATCH /attrs/b; merge E1 (c modified, x added, a deleted); POST /attrs (y); PATCH /attrs (b, d); PUT /attrs/c; batch merge E1 (z) and E2 (b)"
+echo "================================================================================================================================================"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/b --payload '{"value":2}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{"c":{"type":"Property","value":2},"x":{"type":"Property","value":"new"},"a":"urn:ngsi-ld:null"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"y":{"type":"Relationship","object":"urn:E2"}}' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"b":{"type":"Property","value":3},"d":{"type":"Property","value":3}}' | head -1
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1/attrs/c --payload '{"type":"Property","value":4}' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:E1","type":"T","z":{"type":"Property","value":5}},{"id":"urn:E2","type":"T","b":{"type":"Property","value":5}}]' | head -1
+echo
+echo
+
+
+echo "03. GET E1 and E2 with sysAttrs - kept"
+echo "======================================"
+both > /tmp/corTest-cordb_persist_attr_updates.kept
+grep -c '"id"' /tmp/corTest-cordb_persist_attr_updates.kept
+echo
+echo
+
+
+echo "04. kill -9, start on the same --dbDir: E1 and E2 as kept"
+echo "========================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR
+both | diff - /tmp/corTest-cordb_persist_attr_updates.kept && echo "same"
+echo
+echo
+
+
+echo "05. Stop (a snapshot), start: E1 and E2 as kept"
+echo "==============================================="
+coraineStop
+coraineStart --dbDir $DIR
+both | diff - /tmp/corTest-cordb_persist_attr_updates.kept && echo "same"
+echo
+echo
+
+
+echo "06. Twenty PATCHes of b on E3, whose 'doc' is 2 KB: the log grows by less than 20 KB"
+echo "====================================================================================="
+doc=$(head -c 2048 /dev/zero | tr '\0' 'x')
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","b":{"type":"Property","value":0},"doc":{"type":"Property","value":"'$doc'"}}' | head -1
+logBytes() { python3 -c "import glob; print(sum(len(open(f,'rb').read().rstrip(b'\\0')) for f in glob.glob('$DIR/_/log-*.cor')))"; }   # the records: a segment is allocated ahead with zeros
+before=$(logBytes)
+for i in $(seq 1 20); do corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E3/attrs/b --payload '{"value":'$i'}' > /dev/null; done
+after=$(logBytes)
+[ $((after - before)) -lt 20480 ] && echo "the log grew by less than 20 KB" || echo "the log grew by $((after - before)) bytes"
+echo
+echo
+
+
+echo "07. E1 as kept, once more - shown"
+echo "================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (a with a dataset instance, b, c, d) and E2
+==========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. PATCH /attrs/b; merge E1 (c modified, x added, a deleted); POST /attrs (y); PATCH /attrs (b, d); PUT /attrs/c; batch merge E1 (z) and E2 (b)
+================================================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+03. GET E1 and E2 with sysAttrs - kept
+======================================
+2
+
+
+04. kill -9, start on the same --dbDir: E1 and E2 as kept
+=========================================================
+same
+
+
+05. Stop (a snapshot), start: E1 and E2 as kept
+===============================================
+same
+
+
+06. Twenty PATCHes of b on E3, whose 'doc' is 2 KB: the log grows by less than 20 KB
+=====================================================================================
+HTTP/1.1 201 Created
+the log grew by less than 20 KB
+
+
+07. E1 as kept, once more - shown
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "b": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 3
+  },
+  "c": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 4
+  },
+  "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "d": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 3
+  },
+  "id": "urn:E1",
+  "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "type": "T",
+  "x": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": "new"
+  },
+  "y": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "object": "urn:E2",
+    "type": "Relationship"
+  },
+  "z": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 5
+  }
+}
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_attr_updates /tmp/corTest-cordb_persist_attr_updates.kept
