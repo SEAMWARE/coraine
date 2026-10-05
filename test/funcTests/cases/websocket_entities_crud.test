@@ -1,0 +1,199 @@
+#
+# FILE            websocket_entities_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# WebSocket as a transport (--transports ws, doc/websocket.md): the entities over the connection -
+# create, retrieve, query, update, append, replace an attribute, merge, delete an attribute, replace,
+# delete - each answered in an envelope with its requestId. A subscription made over the same connection
+# is notified of those writes on it. When the connection closes, its subscription goes - its entities
+# stay.
+#
+--NAME--
+WebSocket - entity CRUD over the connection, notified on it; on close the subscription goes, the entities stay
+
+--TAGS--
+websocket entity subscription notification
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. Connect; a subscription to type Vehicle, notifying this connection
+# 02. POST /ngsi-ld/v1/entities - 201, and the notification
+# 03. GET /ngsi-ld/v1/entities/urn:V1 and GET /ngsi-ld/v1/entities?type=Vehicle
+# 04. PATCH /attrs (speed 50), POST /attrs (color), PUT /attrs/color, PATCH /entities/urn:V1 (merge, brand)
+# 05. DELETE /attrs/color, then GET urn:V1
+# 06. PUT /ngsi-ld/v1/entities/urn:V1 (replace), then GET urn:V1
+# 07. POST urn:V2 - 7 writes notified (not the attribute delete: attributeDeleted is no default trigger); close: the subscription is gone, the entities are not
+#
+
+#
+# req <json>  - send a request and wait for ITS response (by requestId) - notifications interleave
+# resp <id>   - that response: status, Location, body
+# notifs <n>  - wait until n notifications have arrived
+#
+req() {
+  local id=$(echo "$1" | python3 -c "import json,sys; print(json.load(sys.stdin)['metadata']['requestId'])")
+  ftWsSend "$1"
+  for i in $(seq 1 100); do
+    ftWsMessages | python3 -c "import json,sys; sys.exit(0 if any(m.get('metadata',{}).get('requestId') == '$id' for m in json.load(sys.stdin)) else 1)" && return
+    sleep 0.05
+  done
+  echo "no response to $id"
+}
+resp() {
+  ftWsMessages | python3 -c "
+import json,sys
+for m in json.load(sys.stdin):
+    md = m.get('metadata', {})
+    if md.get('requestId') == '$1':
+        loc = md.get('Location', '').replace('/ngsi-ld/v1/subscriptions/', '/ngsi-ld/v1/subscriptions/<id> ').split(' ')[0]
+        print('$1', md['status'], loc, json.dumps(m['body'], sort_keys=True) if 'body' in m else '')"
+}
+notifs() {
+  for i in $(seq 1 100); do
+    n=$(ftWsMessages | python3 -c "import json,sys; print(sum(1 for m in json.load(sys.stdin) if isinstance(m.get('body'), dict) and m['body'].get('type') == 'Notification'))")
+    [ "$n" -ge "$1" ] && break
+    sleep 0.05
+  done
+  echo "$n notifications"
+}
+http() { corCurl --url "$1" | sed -n '/^[[{]/,$p' | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True))"; }
+
+echo "01. Connect; a subscription to type Vehicle, notifying this connection"
+echo "======================================================================"
+ftWsStart
+ftWsAwait 1
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"sub"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"},"format":"keyValues"}}}'
+resp sub
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/entities - 201, and the notification"
+echo "========================================================="
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"c1"},"body":{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10}}}'
+resp c1
+notifs 1
+ftWsMessages | python3 -c "
+import json,sys
+n = [m for m in json.load(sys.stdin) if isinstance(m.get('body'), dict) and m['body'].get('type') == 'Notification']
+print(json.dumps(n[0]['body']['data'], sort_keys=True))"
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/entities/urn:V1 and GET /ngsi-ld/v1/entities?type=Vehicle"
+echo "=============================================================================="
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities/urn:V1","requestId":"r1"}}'
+resp r1
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities?type=Vehicle&options=keyValues","requestId":"q1"}}'
+resp q1
+echo
+echo
+
+
+echo "04. PATCH /attrs (speed 50), POST /attrs (color), PUT /attrs/color, PATCH /entities/urn:V1 (merge, brand)"
+echo "========================================================================================================="
+req '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/entities/urn:V1/attrs","requestId":"u1"},"body":{"speed":{"type":"Property","value":50}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities/urn:V1/attrs","requestId":"a1"},"body":{"color":{"type":"Property","value":"red"}}}'
+req '{"metadata":{"method":"PUT","path":"/ngsi-ld/v1/entities/urn:V1/attrs/color","requestId":"p1"},"body":{"type":"Property","value":"blue"}}'
+req '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/entities/urn:V1","requestId":"m1"},"body":{"brand":{"type":"Property","value":"Volvo"}}}'
+resp u1
+resp a1
+resp p1
+resp m1
+echo
+echo
+
+
+echo "05. DELETE /attrs/color, then GET urn:V1"
+echo "========================================"
+req '{"metadata":{"method":"DELETE","path":"/ngsi-ld/v1/entities/urn:V1/attrs/color","requestId":"d1"}}'
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities/urn:V1?options=keyValues","requestId":"r2"}}'
+resp d1
+resp r2
+echo
+echo
+
+
+echo "06. PUT /ngsi-ld/v1/entities/urn:V1 (replace), then GET urn:V1"
+echo "==============================================================="
+req '{"metadata":{"method":"PUT","path":"/ngsi-ld/v1/entities/urn:V1","requestId":"rp"},"body":{"id":"urn:V1","type":"Vehicle","weight":{"type":"Property","value":1500}}}'
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities/urn:V1?options=keyValues","requestId":"r3"}}'
+resp rp
+resp r3
+echo
+echo
+
+
+echo "07. POST urn:V2 - 7 writes notified (not the attribute delete: attributeDeleted is no default trigger); close: the subscription is gone, the entities are not"
+echo "============================================================================================================================================================="
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"c2"},"body":{"id":"urn:V2","type":"Vehicle"}}'
+resp c2
+notifs 7
+ftWsClose
+sleep 0.3
+http /ngsi-ld/v1/subscriptions
+http '/ngsi-ld/v1/entities?type=Vehicle&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Connect; a subscription to type Vehicle, notifying this connection
+======================================================================
+sub 201 /ngsi-ld/v1/subscriptions/<id> 
+
+
+02. POST /ngsi-ld/v1/entities - 201, and the notification
+=========================================================
+c1 201 /ngsi-ld/v1/entities/urn:V1 
+1 notifications
+[{"id": "urn:V1", "speed": 10, "type": "Vehicle"}]
+
+
+03. GET /ngsi-ld/v1/entities/urn:V1 and GET /ngsi-ld/v1/entities?type=Vehicle
+==============================================================================
+r1 200  {"id": "urn:V1", "speed": {"type": "Property", "value": 10}, "type": "Vehicle"}
+q1 200  [{"id": "urn:V1", "speed": 10, "type": "Vehicle"}]
+
+
+04. PATCH /attrs (speed 50), POST /attrs (color), PUT /attrs/color, PATCH /entities/urn:V1 (merge, brand)
+=========================================================================================================
+u1 204  
+a1 204  
+p1 204  
+m1 204  
+
+
+05. DELETE /attrs/color, then GET urn:V1
+========================================
+d1 204  
+r2 200  {"brand": "Volvo", "id": "urn:V1", "speed": 50, "type": "Vehicle"}
+
+
+06. PUT /ngsi-ld/v1/entities/urn:V1 (replace), then GET urn:V1
+===============================================================
+rp 204  
+r3 200  {"id": "urn:V1", "type": "Vehicle", "weight": 1500}
+
+
+07. POST urn:V2 - 7 writes notified (not the attribute delete: attributeDeleted is no default trigger); close: the subscription is gone, the entities are not
+=============================================================================================================================================================
+c2 201 /ngsi-ld/v1/entities/urn:V2 
+7 notifications
+[]
+[{"id": "urn:V1", "type": "Vehicle", "weight": 1500}, {"id": "urn:V2", "type": "Vehicle"}]
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop

@@ -58,6 +58,20 @@ static int              transportCount = 0;
 #define WS_PATH          "/ngsi-ld/v1/ws"
 #define SUBS_PATH        "/ngsi-ld/v1/subscriptions"
 #define SUBS_PATH_LEN    25
+#define ENTITIES_PATH    "/ngsi-ld/v1/entities"
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pathUnder - is 'path' the resource 'prefix', or under it (a '/' after it), or it with a query?
+//
+static bool pathUnder(const char* path, const char* prefix)
+{
+  size_t n = strlen(prefix);
+
+  return (strncmp(path, prefix, n) == 0) && ((path[n] == 0) || (path[n] == '/') || (path[n] == '?'));
+}
 
 
 
@@ -323,7 +337,11 @@ static void runRespond(int status, CorRestKeyValue* headerV, int headers, const 
 {
   RunCtx* rP = (RunCtx*) ctx;
 
-  if ((status == 201) && (strcmp(rP->verb, "POST") == 0))
+  //
+  // The subscriptions this connection creates and deletes - only those: a 201's Location is an
+  // entity's, a registration's ... on other paths
+  //
+  if ((status == 201) && (strcmp(rP->verb, "POST") == 0) && (strcmp(rP->path, SUBS_PATH) == 0))
   {
     for (int i = 0; i < headers; i++)
     {
@@ -336,7 +354,7 @@ static void runRespond(int status, CorRestKeyValue* headerV, int headers, const 
       }
     }
   }
-  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0) && (rP->path[SUBS_PATH_LEN] == '/'))
+  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0) && (strncmp(rP->path, SUBS_PATH "/", SUBS_PATH_LEN + 1) == 0))
     subUntrack(rP->connId, &rP->path[SUBS_PATH_LEN + 1]);
 
   reply(rP->connId, status, rP->requestId, headerV, headers, body, bodyLen);
@@ -422,8 +440,8 @@ static void hostClosed(int connId)
 //
 // hostMessage - a request: { "metadata": { "method", "path", "requestId", <headers> }, "body": ... }
 //
-// Version 1 (doc/websocket.md § 5): /ngsi-ld/v1/subscriptions only, and a subscription's endpoint may
-// name no connection but this one.
+// Served: /ngsi-ld/v1/subscriptions and /ngsi-ld/v1/entities (doc/websocket.md), and a subscription's
+// endpoint may name no connection but this one.
 //
 static void hostMessage(int connId, const char* text, int len)
 {
@@ -471,10 +489,10 @@ static void hostMessage(int connId, const char* text, int len)
 
   const char* path = pathP->value.s;
 
-  if ((strncmp(path, SUBS_PATH, SUBS_PATH_LEN) != 0) || ((path[SUBS_PATH_LEN] != 0) && (path[SUBS_PATH_LEN] != '/') && (path[SUBS_PATH_LEN] != '?')))
+  if ((pathUnder(path, SUBS_PATH) == false) && (pathUnder(path, ENTITIES_PATH) == false))
   {
     replyError(connId, requestId, 501, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported", "Not Implemented",
-               "over a WebSocket, version 1 serves /ngsi-ld/v1/subscriptions only");
+               "over a WebSocket: /ngsi-ld/v1/subscriptions and /ngsi-ld/v1/entities");
     corAllocBufferReset(&ka, false);
     return;
   }

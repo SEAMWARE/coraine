@@ -1,14 +1,17 @@
 # WebSocket - subscriptions and notifications over one connection
 
-A web page opens a WebSocket to the broker, creates subscriptions over it and receives their
-notifications on it - with nothing to poll and no endpoint of its own for the broker to reach.
+A web page opens a WebSocket to the broker, reads and writes entities over it, creates subscriptions
+over it and receives their notifications on it - with nothing to poll and no endpoint of its own for
+the broker to reach.
 
 ```console
 coraine --transports ws
 ```
 
-Version 1 serves `/ngsi-ld/v1/subscriptions` over the connection: create, list, retrieve, update,
-delete. Notifications go to the connection that created the subscription.
+Served over the connection: `/ngsi-ld/v1/entities` and everything under it (create, retrieve, query,
+update, merge, replace, append, delete - of entities and of attributes), and
+`/ngsi-ld/v1/subscriptions` (create, list, retrieve, update, delete). Notifications go to the
+connection that created the subscription - for writes made over it as for any other.
 
 ## Connecting
 
@@ -58,7 +61,7 @@ is the same. Over a WebSocket besides:
 |---|---|
 | a message that is not a JSON object with a `metadata` object | 400 |
 | a request without `method` or `path` | 400 |
-| a path other than `/ngsi-ld/v1/subscriptions` | 501 |
+| a path other than `/ngsi-ld/v1/entities` and `/ngsi-ld/v1/subscriptions` | 501 |
 | a subscription whose endpoint names another connection | 403 |
 
 ## Subscriptions
@@ -95,7 +98,7 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 
 ## Not yet
 
-- every request over the connection, not only subscriptions
+- every request over the connection, not only entities and subscriptions
 - naming the tenant in the handshake, and changing it on an open connection
 - a subscription notifying another connection than its own
 - a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
