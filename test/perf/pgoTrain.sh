@@ -34,6 +34,16 @@ echo "pgoTrain: request shapes (perfRun, short)"
 PERF_DURATION=2s PERF_REPEATS=1 PERF_BROKER_CMD="$B --port 1029 --database corDB --troe none --httpLoops 1" \
   "$HERE/perfRun.sh" corDB 1029 > /dev/null 2>&1 || echo "pgoTrain: perfRun failed - the profile lacks the request shapes"
 
+#
+# The same shapes on corDB on disk with its history: the log, the snapshots and the history writes are
+# what corDB's numbers are mostly made of, and a path the training never runs gets no profile
+# (-fprofile-partial-training compiles it as plain -O2 - not cold, but not tuned either)
+#
+echo "pgoTrain: request shapes on corDB on disk, with history (perfRun, short)"
+PERF_DURATION=2s PERF_REPEATS=1 PERF_DB_DIR=$TMP/dbDir PERF_TROE=corDB \
+  PERF_BROKER_CMD="$B --port 1029 --database corDB --dbDir $TMP/dbDir --troe corDB --httpLoops 1" \
+  "$HERE/perfRun.sh" corDB 1029 > /dev/null 2>&1 || echo "pgoTrain: perfRun on disk failed - the profile lacks the log and the history"
+
 echo "pgoTrain: writes that notify"
 TOOLS=${COR_TOOLS_DIR:-$(cd "$HERE/../../../corLibs/bin" && pwd)}
 RECEIVER=$TOOLS/corTestClient
