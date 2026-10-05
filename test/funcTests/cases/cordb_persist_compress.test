@@ -1,0 +1,159 @@
+#
+# FILE            cordb_persist_compress.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir --dbCompress: the snapshots and the finished log segments are compressed (zstd,
+# libzstd loaded when needed), the open segment never. A finished segment a run without the option
+# left is compressed at the next start with it; the snapshot of a clean stop is compressed; and a
+# start WITHOUT the option still reads a compressed store - the zstd magic tells the files apart.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - --dbCompress: snapshots and finished segments compressed, read with or without the option
+
+--TAGS--
+corDB persistence
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_compress
+coraineStart --dbDir /tmp/corTest-cordb_persist_compress
+
+--RUN--
+
+#
+# 01. Without --dbCompress: create E1 and E2, kill -9 - their records in log-000000.cor
+# 02. An empty log-000001.cor beside it - log-000000 is finished; start with --dbCompress: it is compressed
+# 03. GET /entities?type=T - E1, E2
+# 04. Create E3, stop - the snapshot is compressed
+# 05. Start WITHOUT --dbCompress: GET /entities?type=T - E1, E2, E3
+#
+
+DIR=/tmp/corTest-cordb_persist_compress
+zstdOrNot() { [ "$(head -c 4 $1 | od -An -tx1 | tr -d ' \n')" = "28b52ffd" ] && echo "$(basename $1): zstd" || echo "$(basename $1): not compressed"; }
+
+echo "01. Without --dbCompress: create E1 and E2, kill -9 - their records in log-000000.cor"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","a":{"type":"Property","value":2}}' | head -1
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+zstdOrNot $DIR/_/log-000000.cor
+echo
+echo
+
+
+echo "02. An empty log-000001.cor beside it - log-000000 is finished; start with --dbCompress: it is compressed"
+echo "========================================================================================================="
+touch $DIR/_/log-000001.cor
+coraineStart --dbDir $DIR --dbCompress
+for i in $(seq 1 50); do [ "$(head -c 4 $DIR/_/log-000000.cor | od -An -tx1 | tr -d ' \n')" = "28b52ffd" ] && break; sleep 0.1; done
+zstdOrNot $DIR/_/log-000000.cor
+zstdOrNot $DIR/_/log-000001.cor
+echo
+echo
+
+
+echo "03. GET /entities?type=T - E1, E2"
+echo "================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+echo "04. Create E3, stop - the snapshot is compressed"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E3","type":"T","a":{"type":"Property","value":3}}' | head -1
+coraineStop
+zstdOrNot $(ls $DIR/_/snap-*.cor | tail -1)
+echo
+echo
+
+
+echo "05. Start WITHOUT --dbCompress: GET /entities?type=T - E1, E2, E3"
+echo "================================================================="
+coraineStart --dbDir $DIR
+corCurl --url '/ngsi-ld/v1/entities?type=T&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Without --dbCompress: create E1 and E2, kill -9 - their records in log-000000.cor
+======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+log-000000.cor: not compressed
+
+
+02. An empty log-000001.cor beside it - log-000000 is finished; start with --dbCompress: it is compressed
+=========================================================================================================
+log-000000.cor: zstd
+log-000001.cor: not compressed
+
+
+03. GET /entities?type=T - E1, E2
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 117
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  }
+]
+
+
+
+04. Create E3, stop - the snapshot is compressed
+================================================
+HTTP/1.1 201 Created
+snap-000002.cor: zstd
+
+
+05. Start WITHOUT --dbCompress: GET /entities?type=T - E1, E2, E3
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 174
+
+[
+  {
+    "a": 1,
+    "id": "urn:E1",
+    "type": "T"
+  },
+  {
+    "a": 2,
+    "id": "urn:E2",
+    "type": "T"
+  },
+  {
+    "a": 3,
+    "id": "urn:E3",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_compress
