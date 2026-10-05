@@ -559,6 +559,35 @@ What was tried on the way to these numbers, including what did not help, is in
 [the history](history/performance.md) and in corDB's
 [persistence history](https://github.com/SEAMWARE/corDB/blob/main/doc/history/persistence.md).
 
+### What the data takes on disk
+
+perfRun's fixture entity (five attributes, ~550 bytes of JSON), created with batch creates of 500;
+for the history, every entity's `speed` then updated ten times (batch updates). Bytes on disk, the
+databases in containers on the host network, 2026-10-05:
+
+**Current state:**
+
+| | 1 000 entities | 100 000 entities | per entity |
+|---|---:|---:|---:|
+| corDB, `--dbDir` (the log, and the snapshot of a clean stop: the same size) | 740 172 | 74 418 601 | 744 |
+| MongoDB 8.2, the documents (`dataSize`, BSON) | 1 067 786 | 107 177 790 | 1 072 |
+| MongoDB 8.2, on disk (`storageSize` + `indexSize`) | 196 608 | 11 329 536 | 113 |
+
+**History, ten updates of every entity:**
+
+| | 1 000 entities | 100 000 entities |
+|---|---:|---:|
+| corDB, `--troe corDB` (`hist-*.cor`) | 4 225 466 | 425 960 175 |
+| TimescaleDB (PostgreSQL 16), `--troe timescale` (the database's growth) | 28 088 840 | 1 727 322 632 |
+
+- **History: corDB takes a quarter to a sixth** of TimescaleDB's room. TimescaleDB's own compression
+  (a policy per hypertable) is off, as coraine creates the tables.
+- **Current state: MongoDB takes a sixth of corDB's.** corDB's records are a third smaller than
+  MongoDB's documents, but MongoDB compresses its files (WiredTiger, snappy) and corDB does not. This
+  fixture favours a compressor - every entity carries the same 200-character description and the same
+  names. And a corDB record decodes on its own, so each one carries its attributes' expanded IRIs
+  (`https://uri.etsi.org/ngsi-ld/default-context/speed`) again: most of its 744 bytes.
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above
