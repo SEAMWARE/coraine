@@ -91,6 +91,7 @@
 #include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
 #include "bridge/bridgeNotify.h"                  // bridgeNotifyInit
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
+#include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
@@ -227,6 +228,7 @@ char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
 char*          bridgeNames  = NULL;
+char*          transportNames = NULL;
 char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
@@ -262,6 +264,7 @@ static CorArg kargV[] =
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
   { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+  { "--transports",         "-transports",  CorArgString, _vp &transportNames, CorArgOpt, _vp NULL, NULL, NULL,      "transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)" },
   { "--bridgeConfig",       "-brc",         CorArgString, _vp &bridgeConfig, CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
   { "--ddsSync",            "-ddsSync",     CorArgBool,   _vp &bridgeSyncDefault,   CorArgOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
   { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
@@ -353,6 +356,7 @@ static void shutdownInOrder(void)
   // Bridges before the periodic loop, and both before dbClose: a bridge thread
   // is an inbound writer the broker does not own, and close() is what joins it.
   //
+  transportStop();                                  // its connections closed: their subscriptions deleted
   bridgesClose();
 
   ldPeriodicLoopStop();
@@ -1734,6 +1738,21 @@ int main(int argC, char* argV[])
   ldStatsFlushLoopStart(subStatsFlushInterval, subStatsFlushAll);
 
   bridgesInit();
+
+  //
+  // Transport plugins (--transports): the API over another protocol - a WebSocket upgraded from
+  // GET /ngsi-ld/v1/ws (doc/websocket.md). Before the REST server starts: the upgrade hook is set here.
+  //
+  if (transportNames != NULL)
+  {
+    char errBuf[1024] = "";
+
+    if ((transportLoad(transportNames, errBuf, sizeof(errBuf)) != 0) || (transportInit() == false))
+    {
+      fprintf(stderr, "%s\n", (errBuf[0] != 0) ? errBuf : "a transport plugin did not start - see the log");
+      exit(1);
+    }
+  }
 
   //
   // Build combined service array (core + plugins) and start the REST server

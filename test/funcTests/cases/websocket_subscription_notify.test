@@ -1,0 +1,186 @@
+#
+# FILE            websocket_subscription_notify.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# WebSocket as a transport (--transports ws, doc/websocket.md), version 1: a client connects to
+# GET /ngsi-ld/v1/ws, is told its connection's id, creates a subscription over the connection with that
+# id as the endpoint, and an entity created over HTTP arrives on the connection as a notification - in
+# the envelope of the MQTT notification binding. When the connection closes, its subscription is gone.
+#
+--NAME--
+WebSocket - a subscription made over the connection notifies it, and goes when it closes
+
+--TAGS--
+websocket subscription notification
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. Connect - the first message names the connection
+# 02. POST /ngsi-ld/v1/subscriptions over the WebSocket, endpoint urn:ngsi-ld:WebSocket:1 - the 201
+# 03. POST /ngsi-ld/v1/entities over HTTP - the notification on the WebSocket
+# 04. GET /ngsi-ld/v1/subscriptions over the WebSocket - the one subscription
+# 05. Close the WebSocket - GET /ngsi-ld/v1/subscriptions over HTTP: none
+#
+
+last() { ftWsMessages | python3 -c "import json,sys; m=json.load(sys.stdin); print(json.dumps(m[$1], indent=2, sort_keys=True))"; }
+
+echo "01. Connect - the first message names the connection"
+echo "===================================================="
+ftWsStart
+ftWsAwait 1
+last 0
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/subscriptions over the WebSocket, endpoint urn:ngsi-ld:WebSocket:1 - the 201"
+echo "=================================================================================================="
+ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"r1","Content-Type":"application/json"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+ftWsAwait 2
+last 1
+echo
+echo
+
+
+echo "03. POST /ngsi-ld/v1/entities over HTTP - the notification on the WebSocket"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+ftWsAwait 3
+last 2
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/subscriptions over the WebSocket - the one subscription"
+echo "==========================================================================="
+ftWsSend '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/subscriptions","requestId":"r2"}}'
+ftWsAwait 4
+last 3
+echo
+echo
+
+
+echo "05. Close the WebSocket - GET /ngsi-ld/v1/subscriptions over HTTP: none"
+echo "======================================================================="
+ftWsClose
+ftWsAwait 5
+last 4
+sleep 0.3
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Connect - the first message names the connection
+====================================================
+{
+  "metadata": {
+    "connection": "urn:ngsi-ld:WebSocket:1"
+  }
+}
+
+
+02. POST /ngsi-ld/v1/subscriptions over the WebSocket, endpoint urn:ngsi-ld:WebSocket:1 - the 201
+==================================================================================================
+{
+  "metadata": {
+    "Location": "REGEX(/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:[0-9a-f]+:[0-9a-f]+)",
+    "requestId": "r1",
+    "status": 201
+  }
+}
+
+
+03. POST /ngsi-ld/v1/entities over HTTP - the notification on the WebSocket
+===========================================================================
+HTTP/1.1 201 Created
+{
+  "body": {
+    "data": [
+      {
+        "id": "urn:V1",
+        "speed": {
+          "type": "Property",
+          "value": 42
+        },
+        "type": "Vehicle"
+      }
+    ],
+    "id": "REGEX(urn:ngsi-ld:Notification:[0-9a-f]+:[0-9a-f]+)",
+    "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "subscriptionId": "REGEX(urn:ngsi-ld:Subscription:[0-9a-f]+:[0-9a-f]+)",
+    "type": "Notification"
+  },
+  "metadata": {
+    "Content-Type": "application/json",
+    "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""
+  }
+}
+
+
+04. GET /ngsi-ld/v1/subscriptions over the WebSocket - the one subscription
+===========================================================================
+{
+  "body": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Subscription:[0-9a-f]+:[0-9a-f]+)",
+      "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+      "notification": {
+        "endpoint": {
+          "uri": "urn:ngsi-ld:WebSocket:1"
+        },
+        "lastNotification": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+        "lastSuccess": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+        "status": "ok",
+        "timesSent": 1
+      },
+      "notificationTrigger": [
+        "attributeCreated",
+        "attributeUpdated"
+      ],
+      "status": "active",
+      "type": "Subscription"
+    }
+  ],
+  "metadata": {
+    "Content-Type": "application/json",
+    "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+    "requestId": "r2",
+    "status": 200
+  }
+}
+
+
+05. Close the WebSocket - GET /ngsi-ld/v1/subscriptions over HTTP: none
+=======================================================================
+{
+  "close": 1000
+}
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop

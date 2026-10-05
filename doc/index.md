@@ -33,6 +33,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
 | see how authorization will work inside the broker | [Authorization in the broker](authorization.md) |
 | see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |
+| subscribe over a WebSocket and get the notifications on it | [WebSocket](websocket.md) |
 | see where a request runs - inline, as a coroutine, on a worker - and how it waits | [Coroutines](coroutines.md) |
 | read how it got here - designs dropped, regressions found, before and after | the History pages, e.g. [coroutines](history/coroutines.md), [performance](history/performance.md) |
 

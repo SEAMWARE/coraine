@@ -1203,6 +1203,61 @@ ftModbusStop() {
   fi
 }
 
+
+
+# -----------------------------------------------------------------------------
+#
+# ftWs - a WebSocket client for the WebSocket transport tests (tools/ftWs.py)
+#
+# ONE WebSocket to a broker (GET /ngsi-ld/v1/ws), kept open; its control API on FT_WS_PORT:
+#
+#   ftWsStart [port] [protocol] [first]   connect to the broker on 'port' (default 1026, CB); 'first': a
+#                                         message sent with the upgrade request, before the 101
+#   ftWsStop
+#   ftWsSend <json>                       one text message
+#   ftWsSendFrag <json>                   the same, as a text frame and a continuation
+#   ftWsPing <payload>
+#   ftWsClose                             a close frame (1000)
+#   ftWsMessages                          every message received so far, a JSON array
+#   ftWsAwait <n> [seconds]               until n messages have arrived (default 5 s)
+#
+FT_WS_PORT=7730
+
+ftWsStart() {
+  local brokerPort=${1:-1026}
+  local protocol=$2
+  local first=$3                        # a message sent with the upgrade request, before the 101
+  ftWsStop
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftWs.py" --broker localhost:$brokerPort --port $FT_WS_PORT ${protocol:+--protocol $protocol} ${first:+--first "$first"} > /tmp/ftWs.$FT_WS_PORT.log 2>&1 &
+  echo $! > /tmp/ftWs.$FT_WS_PORT.pid
+  corAwaitPort $FT_WS_PORT 10 > /dev/null
+}
+
+ftWsStop() {
+  local pidFile=/tmp/ftWs.$FT_WS_PORT.pid
+  if [ -f $pidFile ]; then
+    kill "$(cat $pidFile)" 2>/dev/null
+    rm -f $pidFile
+  fi
+}
+
+ftWsSend()     { curl -s -X POST localhost:$FT_WS_PORT/send     --data-binary "$1"; }
+ftWsSendFrag() { curl -s -X POST localhost:$FT_WS_PORT/sendFrag --data-binary "$1"; }
+ftWsPing()     { curl -s -X POST localhost:$FT_WS_PORT/ping     --data-binary "$1"; }
+ftWsClose()    { curl -s -X POST localhost:$FT_WS_PORT/close; }
+ftWsMessages() { curl -s localhost:$FT_WS_PORT/messages; }
+
+ftWsAwait() {
+  local n=$1
+  local tries=$(( ${2:-5} * 20 ))
+  for i in $(seq 1 $tries); do
+    [ "$(curl -s localhost:$FT_WS_PORT/count)" -ge "$n" ] 2>/dev/null && return 0
+    sleep 0.05
+  done
+  echo "ftWsAwait: $(curl -s localhost:$FT_WS_PORT/count) of $n messages"
+  return 1
+}
+
 ftModbusSet() {
   local table=$1 addr=$2
   shift 2
