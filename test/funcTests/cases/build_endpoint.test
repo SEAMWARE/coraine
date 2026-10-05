@@ -113,7 +113,8 @@ Content-Length: REGEX([0-9]+)
     "REGISTRATIONS": REGEX([a-z]+),
     "SCOPES": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
-    "TENANTS": REGEX([a-z]+)
+    "TENANTS": REGEX([a-z]+),
+    "TRANSPORTS": REGEX([a-z]+)
   },
   "plugins": {
     "built": [
@@ -140,6 +141,10 @@ Content-Length: REGEX([0-9]+)
       {
         "kind": "api",
         "name": "admin"
+      },
+      {
+        "kind": "transport",
+        "name": "ws"
       }
     ],
     "directory": "REGEX(.*/plugins)",
@@ -198,7 +203,8 @@ Content-Length: REGEX([0-9]+)
     "REGISTRATIONS": REGEX([a-z]+),
     "SCOPES": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
-    "TENANTS": REGEX([a-z]+)
+    "TENANTS": REGEX([a-z]+),
+    "TRANSPORTS": REGEX([a-z]+)
   },
   "plugins": {
     "built": [
@@ -225,6 +231,10 @@ Content-Length: REGEX([0-9]+)
       {
         "kind": "api",
         "name": "admin"
+      },
+      {
+        "kind": "transport",
+        "name": "ws"
       }
     ],
     "directory": "REGEX(.*/plugins)",

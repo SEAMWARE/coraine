@@ -3,9 +3,12 @@ ADD_EXECUTABLE(coraine coraine.c ngsildServices.c coraineFeatures.c crashReport.
 
 SET_TARGET_PROPERTIES(coraine PROPERTIES ENABLE_EXPORTS TRUE)
 
-SET(COR_BROKER_LIBS serviceRoutines linkedEntities db ha troe plugin bridge transport)
+SET(COR_BROKER_LIBS serviceRoutines linkedEntities db ha troe plugin bridge)
 IF (COR_FEATURE_METRICS)
   LIST(APPEND COR_BROKER_LIBS metrics)
+ENDIF()
+IF (COR_FEATURE_TRANSPORTS)
+  LIST(APPEND COR_BROKER_LIBS transport)
 ENDIF()
 IF (COR_FEATURE_REGISTRATIONS)
   LIST(APPEND COR_BROKER_LIBS forwarding)
