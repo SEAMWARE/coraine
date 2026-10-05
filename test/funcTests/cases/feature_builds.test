@@ -19,7 +19,7 @@
 # start and describe itself. It is the cheapest possible check and it catches
 # the whole class.
 #
-# ⚠️ Minutes, not seconds - six cmake builds. REQUIRE_BUILDTESTS keeps it out
+# ⚠️ Minutes, not seconds - seven cmake builds. REQUIRE_BUILDTESTS keeps it out
 # of the run set unless `corTest -buildTests yes` asks for it, which is a
 # separate CI job.
 #

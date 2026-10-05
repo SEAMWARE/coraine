@@ -163,7 +163,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_REGISTRATIONS=OFF` | 23,936 bytes | 15 routes answer 501 |
 | `COR_FEATURE_SUBSCRIPTIONS=OFF` | 18,880 bytes | 7 routes answer 501 |
 | `COR_FEATURE_TRANSPORTS=OFF` | 11,348 bytes, and `ws.so` is not built | no `--transports`; `GET /ngsi-ld/v1/ws` is no upgrade |
-| `COR_FEATURE_SERVICE_EXECUTION=OFF` | 13,798 bytes | 5 routes answer 501 |
+| `COR_FEATURE_SERVICE_EXECUTION=OFF` | 77,410 bytes | 17 routes answer 501 |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

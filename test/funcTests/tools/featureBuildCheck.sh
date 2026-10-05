@@ -20,7 +20,7 @@
 # can compare it as expected output. Build logs go to files and only the tail of
 # one is printed, and only when it failed.
 #
-# Not run by the ordinary suite: six cmake builds is minutes, against two
+# Not run by the ordinary suite: seven cmake builds is minutes, against two
 # seconds for every other case. `corTest -buildTests yes` opts in.
 #
 WORK=${COR_BUILD_TEST_DIR:-/tmp/coraine-featureBuild}
