@@ -6,8 +6,8 @@
 # Copyright 2026 Seamware
 #
 # WebSocket as a transport (--transports ws, doc/websocket.md) - version 1's rules and the protocol's
-# edges: a subscription naming another connection is refused (403), a path other than
-# /ngsi-ld/v1/subscriptions is not served (501), a message that is no envelope is a 400; a message in
+# edges: a subscription naming another connection is refused (403), a path the broker does not serve is
+# refused as over HTTP, a message that is no envelope is a 400; a message in
 # two frames, and a ping, are answered; an upgrade without its key, of another version or subprotocol,
 # or on another path, is refused before any WebSocket exists.
 #
@@ -25,7 +25,7 @@ coraineStart --transports ws
 
 #
 # 01. A subscription naming another connection (urn:ngsi-ld:WebSocket:99) - 403
-# 02. GET /ngsi-ld/v1/types over the WebSocket - 501
+# 02. GET /ngsi-ld/v1/nothing over the WebSocket - refused as over HTTP
 # 03. A message that is not JSON, and one without method and path - 400 and 400
 # 04. GET /ngsi-ld/v1/subscriptions in two frames (a text frame and a continuation) - 200
 # 05. A ping - its pong
@@ -47,9 +47,9 @@ echo
 echo
 
 
-echo "02. GET /ngsi-ld/v1/types over the WebSocket - 501"
-echo "=================================================="
-ftWsSend '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/types","requestId":"r2"}}'
+echo "02. GET /ngsi-ld/v1/nothing over the WebSocket - refused as over HTTP"
+echo "====================================================================="
+ftWsSend '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/nothing","requestId":"r2"}}'
 ftWsAwait 3
 msg 2
 echo
@@ -125,9 +125,9 @@ echo
 403 r1 a subscription made over a WebSocket notifies its own connection, urn:ngsi-ld:WebSocket:1 
 
 
-02. GET /ngsi-ld/v1/types over the WebSocket - 501
-==================================================
-501 r2 over a WebSocket: /ngsi-ld/v1/subscriptions and /ngsi-ld/v1/entities 
+02. GET /ngsi-ld/v1/nothing over the WebSocket - refused as over HTTP
+=====================================================================
+404 r2 GET /ngsi-ld/v1/nothing is not a recognized resource 
 
 
 03. A message that is not JSON, and one without method and path - 400 and 400
