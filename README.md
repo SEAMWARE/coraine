@@ -319,18 +319,30 @@ repository, which is where to read them offline or alongside a checkout:
 
 | Document | What it covers |
 |----------|----------------|
+| **Getting started** | |
 | [Installation & Administration](doc/installation.md) | dependencies, build, install, every option, the admin API, tenants |
+| [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
+| [Building from source](doc/building.md) | the dependency stack, system packages, make targets; the source layout and compiling features out in its detail page |
+| **Transports** - how a client talks to the broker, besides HTTP | |
+| ↳ [WebSocket](doc/websocket.md) | subscriptions and their notifications over one connection - for a web page (`--transports ws`) |
+| ↳ [The cor format and cor://](doc/cor-protocol.md) | the binary API - between brokers, and for clients that want it |
+| **Bridges** - how the broker reaches devices and other systems | |
+| ↳ [Bridges and Channels](doc/bridge-channels.md) | the model: a Channel ties a foreign endpoint to one attribute |
+| ↳ [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
+| ↳ [MQTT](doc/mqtt-bridge.md) | MQTT topics as Channels, and notifications to MQTT |
+| ↳ [Modbus](doc/modbus-bridge.md) | Modbus TCP registers as Channels |
+| ↳ [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
+| ↳ [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
+| **Running it** | |
+| [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [High Availability](doc/high-availability.md) | several instances behind a load balancer: requirements, MongoDB privileges, troubleshooting |
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
-| [API walkthrough](doc/api-walkthrough.md) | the API by example, from create to subscribe |
-| [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
-| [Building from source](doc/building.md) | the dependency stack, system packages, make targets; the source layout and compiling features out in its detail page |
+| [Coroutines](doc/coroutines.md) | how a request that waits runs without blocking the others |
+| **Quality** | |
 | [Testing](doc/testing.md) | running the suite, and measuring coverage |
-| [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
-| [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
-| [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | [Test coverage](doc/coverage.md) | what the suite covers, per DB, and what is left |
 | [Functest coverage of the spec](doc/spec-coverage-gaps.md) | every spec statement, and whether a test asserts it |
+| **Where it's going** | |
 | [Roadmap](doc/roadmap.md) | where coraine is going - short, medium and long term |
 | [Ideas](doc/ideas.md) | every idea, planned or only possible, with what there is to say about it |
 
