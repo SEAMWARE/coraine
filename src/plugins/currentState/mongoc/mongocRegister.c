@@ -49,6 +49,7 @@
 #include "currentState/mongoc/mongocRegistrationQuery.h"            // mongocRegistrationQuery
 #include "currentState/mongoc/mongocRegistrationUpdate.h"           // mongocRegistrationUpdate
 #include "currentState/mongoc/mongocRegistrationDelete.h"           // mongocRegistrationDelete
+#include "currentState/mongoc/mongocDoc.h"                          // mongocDocCreate, ...
 #endif
 #include "currentState/mongoc/mongocSnapshotCreate.h"               // mongocSnapshotCreate
 #include "currentState/mongoc/mongocSnapshotQuery.h"                // mongocSnapshotQuery
@@ -139,6 +140,12 @@ void dbRegister(DbDriver* driverP)
   driverP->registrationUpdate    = mongocRegistrationUpdate;
   driverP->registrationDelete    = mongocRegistrationDelete;
 #endif
+
+  driverP->docCreate             = mongocDocCreate;
+  driverP->docRetrieve           = mongocDocRetrieve;
+  driverP->docQuery              = mongocDocQuery;
+  driverP->docReplace            = mongocDocReplace;
+  driverP->docDelete             = mongocDocDelete;
 
   driverP->snapshotCreate        = mongocSnapshotCreate;
   driverP->snapshotQuery         = mongocSnapshotQuery;

@@ -263,6 +263,26 @@ typedef int  (*DbRegistrationDeleteFunc)(Tenant* tenantP, const char* regId);
 typedef CorNode* (*DbRegistrationListFunc)(Tenant* tenantP);
 
 //
+// Documents - a broker-held object kind of its own, one collection per kind: Service Execution's
+// "serviceRegistrations" and "serviceExecutions". A document is stored WHOLE (the broker owns every
+// merge), keyed by its id; its tree carries "id" too, and gets it back from a retrieve.
+//
+//   docCreate    DB_ALREADY_EXISTS for an id the collection has
+//   docRetrieve  DB_NOT_FOUND; the tree is allocated in corRest.kalloc
+//   docQuery     every document of the collection, an array in corRest.kalloc
+//   docReplace   DB_NOT_FOUND - never an insert
+//   docDelete    DB_NOT_FOUND
+//
+// NULL-allowed, all five together: a driver without them has no such kinds, and the broker refuses
+// the requests that need one (422).
+//
+typedef int  (*DbDocCreateFunc)(Tenant* tenantP, const char* collection, const char* docId, CorNode* docP);
+typedef int  (*DbDocRetrieveFunc)(Tenant* tenantP, const char* collection, const char* docId, CorNode** docPP);
+typedef int  (*DbDocQueryFunc)(Tenant* tenantP, const char* collection, CorNode** arrayPP);
+typedef int  (*DbDocReplaceFunc)(Tenant* tenantP, const char* collection, const char* docId, CorNode* docP);
+typedef int  (*DbDocDeleteFunc)(Tenant* tenantP, const char* collection, const char* docId);
+
+//
 // Snapshot persistence (§ 5.16). The snapshot's *metadata* (tree:
 // id, snapshotQueries, snapshotStatus, timestamps, priority,
 // snapshotQueriesDetails, plus a hidden "_snapSeq" used to rebuild
@@ -376,6 +396,14 @@ typedef struct DbDriver
   DbContextDeleteFunc     contextDelete;
   DbContextListFunc       contextList;
   DbContextGetFunc        contextGet;
+
+  // Documents (see the typedefs) - NULL-allowed, all five together. Appended: a plugin built against
+  // an older header leaves them zero (pluginLoadDb memsets the driver before dbRegister).
+  DbDocCreateFunc         docCreate;
+  DbDocRetrieveFunc       docRetrieve;
+  DbDocQueryFunc          docQuery;
+  DbDocReplaceFunc        docReplace;
+  DbDocDeleteFunc         docDelete;
 } DbDriver;
 
 

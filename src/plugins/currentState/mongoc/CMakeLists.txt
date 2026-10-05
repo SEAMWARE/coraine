@@ -62,6 +62,11 @@ IF (COR_FEATURE_REGISTRATIONS)
   )
 ENDIF()
 
+#
+# The document store (DbDriver doc*) - Service Execution's registrations and executions
+#
+LIST(APPEND SOURCES mongocDoc.c)
+
 ADD_LIBRARY(mongoc SHARED ${SOURCES})
 
 TARGET_COMPILE_DEFINITIONS(mongoc PRIVATE MONGOC_PLUGIN_VERSION="0.1.0")
