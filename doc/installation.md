@@ -124,6 +124,7 @@ interval.
 | `--dbSync` | `interval` | `interval`: synced every `--dbSyncInterval` ms; `request`: a write answers once its record is on the disk; `none`: written, never synced |
 | `--dbSyncInterval` | 100 | ms between two syncs |
 | `--dbSnapshotEvery` | 64 | MiB of log after which a tenant is snapshotted (and at least as much as its last snapshot) |
+| `--dbCompress` | off | the snapshots and the finished log segments compressed (zstd, loaded only then - libzstd is already in the image); the open segment never. A store written with it is read with or without it |
 
 What it costs: [Performance](performance.md), "corDB on disk". How it works:
 [corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md).
