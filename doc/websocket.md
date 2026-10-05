@@ -86,18 +86,16 @@ the URI can be delivered (`ldNotifyTransportHas`): an id that names no open conn
   path answered `501` naming what version 1 serves
 - notifications to the connection that created the subscription
 - the connection closes: the subscriptions whose endpoint is it are deleted (an id never comes back)
+- the default tenant
 
-## 6. For review
+## 6. Decided (KZ 2026-10-05)
 
-1. **Another connection as the endpoint.** May a page create a subscription that notifies a
-   connection other than its own (a second socket of the same page, another page)? Version 1: no -
-   only its own connection's id is accepted. Allowing it needs a rule: the same tenant, the same
-   credentials (once there are any)?
-2. **On close: delete, or keep?** Deleting is simple and leaves nothing behind. Keeping would need a
-   connection to come back under its old id - a resume token, later if ever.
-3. **The path** - `/ngsi-ld/v1/ws`, or a path outside the NGSI-LD tree (`/ws`)?
-4. **Tenant**: the `NGSILD-Tenant` of the upgrade request, for the whole connection, or per message in
-   `metadata`? Version 1: per connection.
+1. **A subscription notifies only the connection that created it** - only that connection's own id is
+   accepted as the endpoint. To be revisited: another socket of the same page, or another page.
+2. **On close, the connection's subscriptions are deleted** - an id never comes back.
+3. **The path** is `/ngsi-ld/v1/ws`.
+4. **Tenant**: the default tenant. Another one named in the handshake (the upgrade request's
+   `NGSILD-Tenant`), and changing it on an open connection - version 2.
 
 ## 7. Later - roadmap, not short term
 
