@@ -69,6 +69,7 @@
 #include "corNgsild/LdProblem.h"                      // LD_ERROR_*
 #include "corNgsild/ldEntityAttrsSet.h"               // ldEntityAttrsSet
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
+#include "db/dbChanges.h"                              // dbChangesAdd, dbChangesFinish
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate, LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/channelCache.h"                      // channelOutCount
@@ -605,6 +606,7 @@ bool postEntityBatchUpsert(void)
   const char** updateIdV     = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * gN);
   CorNode**    createEntityV = (CorNode**)    corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
   CorNode**    updateEntityV = (CorNode**)    corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
+  LdMergeReport* updateReportV = (LdMergeReport*) corAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);   // ?options=update: what changed, for the store (dbChanges.h)
 
   //
   // Requests to the DDS side go FIRST, per fragment, before the bulk writes -
@@ -834,7 +836,8 @@ bool postEntityBatchUpsert(void)
     //   - !exists: finalP = clone of first frag (post-chop); merge remaining.
     CorNode* finalP = exists ? existingDb : NULL;
 
-    bool    anyLocal = false;
+    bool          anyLocal = false;
+    LdMergeReport dbReport = { NULL };
 
     for (int fi = 0; fi < g->count; fi++)
     {
@@ -974,8 +977,11 @@ bool postEntityBatchUpsert(void)
         if (finalP == NULL)
           finalP = corTreeClone(corRest.kallocP, fragP);
         else
+        {
           ldEntityAttrsSet(finalP, fragP, true,
                            corRest.requestStartTime, &report, corRest.kallocP);
+          dbChangesAdd(&dbReport, &report);
+        }
       }
 
       anyLocal = true;
@@ -1029,6 +1035,9 @@ bool postEntityBatchUpsert(void)
     }
     else
     {
+      if (updateMode)
+        dbChangesFinish(&dbReport, finalP);
+      updateReportV[updateN] = dbReport;
       updateEntityV[updateN] = finalP;
       updateIdV[updateN++]   = g->id;
       corTreeChildAdd(finalsUpdate, finalP);
@@ -1205,14 +1214,28 @@ bool postEntityBatchUpsert(void)
 
   if (updateN > 0)
   {
-    if (db.entityBulkUpdate == NULL)
+    //
+    // ?options=update: to the store as what changed in each entity (dbChanges.h) - it applies and logs
+    // just those attributes. The default replaces the entity, and the entity is the change.
+    //
+    bool asChanges = (updateMode == true) && (db.entityBulkChangesApply != NULL);
+
+    if ((asChanges == false) && (db.entityBulkUpdate == NULL))
     {
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
               "Batch Entity Upsert (update path) not supported by this DB plugin");
       return true;
     }
     int* resultsV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * updateN);
-    db.entityBulkUpdate(tenantP, finalsUpdate, resultsV);
+
+    if (asChanges)
+    {
+      for (int k = 0; k < updateN; k++)
+        resultsV[k] = DB_OK;
+      db.entityBulkChangesApply(tenantP, finalsUpdate, updateEntityV, updateReportV, resultsV);
+    }
+    else
+      db.entityBulkUpdate(tenantP, finalsUpdate, resultsV);
 
     for (int k = 0; k < updateN; k++)
     {

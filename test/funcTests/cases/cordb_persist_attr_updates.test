@@ -8,8 +8,10 @@
 # corDB with --dbDir: a write that updates attributes logs those attributes (CorDbLogAttrsPut), not
 # the entity. Every path that does - PATCH of one attribute, merge (an attribute added, one modified,
 # one deleted with null, a dataset instance), POST and PATCH of /attrs, PUT of an attribute, batch
-# merge - and then the entity, system attributes included, is the same after kill -9 (the log
-# replayed) and after a clean stop (the snapshot loaded, the log after it replayed).
+# merge, the delete of an attribute and of one of its instances, batch update (one entity twice, a
+# type added), batch upsert with ?options=update - and then the entities, system attributes included,
+# are the same after kill -9 (the log replayed) and after a clean stop (the snapshot loaded, the log
+# after it replayed).
 # And the log grows by the attribute: twenty PATCHes of a small attribute of an entity with a 2 KB
 # one add far less than twenty entities.
 #
@@ -28,13 +30,14 @@ coraineStart --dbDir /tmp/corTest-cordb_persist_attr_updates
 --RUN--
 
 #
-# 01. Create E1 (a with a dataset instance, b, c, d) and E2
+# 01. Create E1 (a with a dataset instance, b, c, d), E2 (b, m with two instances)
 # 02. PATCH /attrs/b; merge E1 (c modified, x added, a deleted); POST /attrs (y); PATCH /attrs (b, d); PUT /attrs/c; batch merge E1 (z) and E2 (b)
+# 02b. DELETE E1's d; DELETE the urn:ds:2 instance of E2's m; batch update E2 twice (b, then a type U); batch upsert ?options=update E1 (y2)
 # 03. GET E1 and E2 with sysAttrs - kept
 # 04. kill -9, start on the same --dbDir: E1 and E2 as kept
 # 05. Stop (a snapshot), start: E1 and E2 as kept
 # 06. Twenty PATCHes of b on E3, whose 'doc' is 2 KB: the log grows by less than 20 KB
-# 07. E1 as kept, once more - shown
+# 07. E1 and E2 as kept, once more - shown
 #
 
 DIR=/tmp/corTest-cordb_persist_attr_updates
@@ -43,7 +46,7 @@ both() { corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs' | sed -n '
 echo "01. Create E1 (a with a dataset instance, b, c, d) and E2"
 echo "=========================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E1","type":"T","a":[{"type":"Property","value":1},{"type":"Property","value":2,"datasetId":"urn:ds:1"}],"b":{"type":"Property","value":1},"c":{"type":"Property","value":1},"d":{"type":"Property","value":1}}' | head -1
-corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","b":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E2","type":"T","b":{"type":"Property","value":1},"m":[{"type":"Property","value":1,"datasetId":"urn:ds:1"},{"type":"Property","value":2,"datasetId":"urn:ds:2"}]}' | head -1
 echo
 echo
 
@@ -56,6 +59,16 @@ corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"y":{"type":"Relatio
 corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"b":{"type":"Property","value":3},"d":{"type":"Property","value":3}}' | head -1
 corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1/attrs/c --payload '{"type":"Property","value":4}' | head -1
 corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[{"id":"urn:E1","type":"T","z":{"type":"Property","value":5}},{"id":"urn:E2","type":"T","b":{"type":"Property","value":5}}]' | head -1
+echo
+echo
+
+
+echo "02b. DELETE E1's d; DELETE the urn:ds:2 instance of E2's m; batch update E2 twice (b, then a type U); batch upsert ?options=update E1 (y2)"
+echo "=================================================================================================================================="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/d | head -1
+corCurl -X DELETE --url '/ngsi-ld/v1/entities/urn:E2/attrs/m?datasetId=urn:ds:2' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{"id":"urn:E2","type":"T","b":{"type":"Property","value":6}},{"id":"urn:E2","type":"U"}]' | head -1
+corCurl --url '/ngsi-ld/v1/entityOperations/upsert?options=update' --payload '[{"id":"urn:E1","type":"T","y2":{"type":"Property","value":7}}]' | head -1
 echo
 echo
 
@@ -102,9 +115,10 @@ echo
 echo
 
 
-echo "07. E1 as kept, once more - shown"
-echo "================================="
+echo "07. E1 and E2 as kept, once more - shown"
+echo "========================================="
 corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:E2?options=sysAttrs'
 echo
 echo
 
@@ -120,6 +134,14 @@ HTTP/1.1 201 Created
 ================================================================================================================================================
 HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02b. DELETE E1's d; DELETE the urn:ds:2 instance of E2's m; batch update E2 twice (b, then a type U); batch upsert ?options=update E1 (y2)
+==================================================================================================================================
 HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
@@ -147,8 +169,8 @@ HTTP/1.1 201 Created
 the log grew by less than 20 KB
 
 
-07. E1 as kept, once more - shown
-=================================
+07. E1 and E2 as kept, once more - shown
+=========================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -169,12 +191,6 @@ Content-Length: REGEX(\d+)
     "value": 4
   },
   "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
-  "d": {
-    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
-    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
-    "type": "Property",
-    "value": 3
-  },
   "id": "urn:E1",
   "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
   "type": "T",
@@ -190,12 +206,47 @@ Content-Length: REGEX(\d+)
     "object": "urn:E2",
     "type": "Relationship"
   },
+  "y2": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 7
+  },
   "z": {
     "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
     "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
     "type": "Property",
     "value": 5
   }
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "b": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 6
+  },
+  "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:E2",
+  "m": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "datasetId": "urn:ds:1",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 1
+  },
+  "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "type": [
+    "T",
+    "U"
+  ]
 }
 
 
