@@ -146,8 +146,8 @@ Six things worth taking from that table:
   `corRest`, `corJsonld`, `corTree`, `corAlloc` and the rest are *in* the megabyte.
 - **`--database corDB --dbDir <dir> --troe corDB` needs no other service at all** —
   the store and its temporal history on disk, in the same process. On eight cores
-  the history costs a write 6-43 % (PATCH: 119 962/s against 144 465 without it);
-  in TimescaleDB it costs coraine + MongoDB 51-97 % (PATCH: 8 516/s against 17 360).
+  the history costs a write 4-43 % (PATCH: 120 379/s against 145 664 without it);
+  in TimescaleDB it costs coraine + MongoDB 52-97 % (PATCH: 8 478/s against 17 486).
 - **The page size is the claim.** 12 703 requests/s per core at `limit=20` is
   **254 060 entities/s per core**; at `limit=1` it is 83 372 of each; at
   `limit=100` it is **273 700 entities/s**. A requests/s figure without the
@@ -162,8 +162,8 @@ Six things worth taking from that table:
 - **The database is the bill.** One broker core doing batch updates through
   MongoDB needs **four mongod cores behind it** before MongoDB stops being the
   limit — five cores of machine to do what `corDB` does on one. On eight cores
-  shared by everything a configuration needs, `corDB` on disk serves 144 465
-  PATCH/s and `mongoc` 17 360 (2026-10-05).
+  shared by everything a configuration needs, `corDB` on disk serves 145 664
+  PATCH/s and `mongoc` 17 486 (2026-10-05).
 
 📊 **[Performance and footprint](doc/performance.md)** has the rest: what is
 inside the megabyte, the per-client latency curve, what MongoDB costs in cores
