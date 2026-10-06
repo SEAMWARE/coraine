@@ -429,11 +429,17 @@ jobs:
     # failed were all query strings the functional suite never sends, so the
     # functional suite could not have caught them.
     #
-    name: etsi ${{ matrix.httpServer }}
+    # And once on corDB (mhd), the history in corDB too (--troe corDB): the database is
+    # part of the deployment as well.
+    #
+    name: etsi ${{ matrix.httpServer }} ${{ matrix.db }}
     strategy:
       fail-fast: false
       matrix:
         httpServer: [mhd, builtin]
+        db: [mongoc]
+        include:
+          - { httpServer: mhd, db: corDB }
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
@@ -516,8 +522,12 @@ jobs:
           # without it refuses an mqtt:// endpoint (400, "no notification transport for this
           # scheme is loaded") - which failed every TP of 058, the MQTT notifications.
           #
-          coraine --port 1026 --database mongoc --dbHost mongo --dbName etsi \
-                  --troe timescale --troeHost timescale --troeName etsi_troe \
+          if [ "${{ matrix.db }}" == "corDB" ]; then
+            DB_ARGS="--database corDB --dbDir /tmp/etsi-corDB --troe corDB"
+          else
+            DB_ARGS="--database mongoc --dbHost mongo --dbName etsi --troe timescale --troeHost timescale --troeName etsi_troe"
+          fi
+          coraine --port 1026 $DB_ARGS \
                   --troeSync --bridges mqtt \
                   --distributed --apiPlugins admin > /tmp/etsi-broker.log 2>&1 &
           for i in $(seq 1 30); do
@@ -609,9 +619,9 @@ jobs:
         if: always()
         working-directory: etsi-suite
         run: |
-          # Which server this run measured - the two legs' summaries are
+          # Which server and database this run measured - the legs' summaries are
           # otherwise identical documents with different numbers in them.
-          echo "### HTTP server: ${{ matrix.httpServer }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### HTTP server: ${{ matrix.httpServer }}, database: ${{ matrix.db }}" >> "$GITHUB_STEP_SUMMARY"
           python3 "$GITHUB_WORKSPACE/stack/coraine/test/etsi/etsiSummary.py" \
             /tmp/etsi-out/output.xml /tmp/etsi-out/first-pass-failures.txt \
             >> "$GITHUB_STEP_SUMMARY"
@@ -622,7 +632,7 @@ jobs:
         with:
           # Unique per matrix leg: two jobs uploading one artifact name is an
           # upload conflict, and the one that wins is whichever finished last.
-          name: etsi-results-${{ matrix.httpServer }}
+          name: etsi-results-${{ matrix.httpServer }}-${{ matrix.db }}
           path: |
             /tmp/etsi-out
             /tmp/etsi-broker.log
