@@ -34,6 +34,7 @@
 #include "corNgsild/ldApiEntityToDbModel.h"            // ldApiEntityToDbModel
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_*
+#include "corNgsild/ldSubCache.h"                      // ldSubCacheEmpty
 #include "corNgsild/LdSubCache.h"                      // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
@@ -563,7 +564,9 @@ bool postEntityAttrs(void)
     if ((r == DB_OK) && (written == true))
     {
       CorNode* mergedEntity = NULL;
-      if (tenantP->subCacheP != NULL)
+
+      // The entity read back only for a subscription to match it against - none, no read
+      if (ldSubCacheEmpty((LdSubCache*) tenantP->subCacheP) == false)
         db.entityRetrieve(tenantP, entityId, &mergedEntity);
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
