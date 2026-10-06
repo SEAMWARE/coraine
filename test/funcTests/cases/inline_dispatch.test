@@ -95,6 +95,7 @@ echo
 echo "08. Restart WITH --distributed: the registration's absence and presence decide"
 echo "=============================================================================="
 coraineStop
+corDbDrop                                   # each start begins empty: corDB keeps its data over a restart
 coraineStart --apiPlugins admin --distributed
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
 corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ID:R1","type":"ContextSourceRegistration","information":[{"entities":[{"type":"Other"}]}],"endpoint":"http://localhost:9"}' | head -1
@@ -107,6 +108,7 @@ echo
 echo "09. Restart with --noInline: every request is handed to a worker"
 echo "================================================================"
 coraineStop
+corDbDrop                                   # each start begins empty: corDB keeps its data over a restart
 coraineStart --apiPlugins admin --noInline
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ID:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
 corCurl --url /ngsi-ld/v1/entities/urn:ID:E1 | head -1
@@ -118,6 +120,7 @@ echo
 echo "10. A bridge service with a slow reply: a PATCH with ?ddsSync=true waits for it - worker; without it - inline"
 echo "============================================================================================================="
 coraineStop
+corDbDrop                                   # each start begins empty: corDB keeps its data over a restart
 BRIDGE_CONFIG=$(bridgeConfig --replyDelay "slow=300" --service "slow,Calculator,urn:ID:S,job")
 coraineStart --apiPlugins admin --bridges loopback --bridgeConfig $BRIDGE_CONFIG --ddsSyncTimeout 1000
 corCurl --url '/ngsi-ld/v1/entities/urn:ID:S/attrs/job?ddsSync=true' -X PATCH --payload '{"value":{"a":1}}' | head -1
