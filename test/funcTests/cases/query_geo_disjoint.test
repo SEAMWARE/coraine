@@ -16,6 +16,9 @@
 # this test is mongoc-only; the GEOS behaviour is covered by
 # query_geo_disjoint_corDB.test.
 #
+#
+# MongoDB-only: MongoDB's geometry engine answers differently from corDB's GEOS (see above) - the corDB twin
+# of this test pins corDB's answers
 # REQUIRE_DB: mongoc
 #
 --NAME--

@@ -5,10 +5,12 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_HA: yes
 #
 # REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+# MongoDB-only: two brokers sharing ONE MongoDB database, synchronised by its change streams - corDB has no shared database
+# REQUIRE_DB: mongoc
 #
 --NAME--
 HA - a second instance learns what the first one wrote (--high-availability mongo)

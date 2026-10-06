@@ -53,15 +53,13 @@ a body (411), a method the broker does not have, a body over 1 MiB (413).
 suite passes that way.
 
 
-## The functests on a persistent corDB
+## corDB in the functests: persistent, as MongoDB
 
-```sh
-COR_DB_PERSIST=1 ~/git/corLibs/bin/corTest -db corDB
-```
-
-gives every corDB broker `--dbDir` (corDB's persistence), a directory per role under
-`COR_DB_PERSIST_DIR` (default `/tmp/corTest-dbDir`), emptied as the broker starts: each start
-begins empty, as without it, and every write of the suite goes through the log.
+With `-db corDB` every broker has `--dbDir` (corDB's persistence): a directory per role under
+`COR_DB_PERSIST_DIR` (default `/tmp/corTest-dbDir`). As with MongoDB, a (re)start keeps what is there
+and `corDbDrop` empties it - the role's directory, or with `-tenant` that tenant's - so a test that
+stops and starts its broker finds its data on either database, and every write of the suite goes
+through corDB's log. A test that gives its broker a `--dbDir` of its own keeps it.
 
 
 ## Functional tests never read the log

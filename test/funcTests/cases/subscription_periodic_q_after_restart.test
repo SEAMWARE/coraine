@@ -17,7 +17,6 @@
 # the core context alone, named an attribute nobody has, and matched nothing. It is stored with
 # its names expanded now (an IRI's dots written '^'). spd is a DOTTED IRI on purpose.
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
 --NAME--

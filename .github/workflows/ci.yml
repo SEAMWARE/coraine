@@ -164,7 +164,7 @@ jobs:
     # minute of a seventeen-minute job. Sharing one build between them, which is
     # the obvious optimisation, would buy almost nothing. Measure before doing it.
     #
-    # corDB is cut at its OWN index. It runs 563 tests where mongoc runs 612 - a
+    # corDB is cut at its OWN index. It runs 757 tests where mongoc runs 741 - a
     # test that pins a backend-specific answer declares REQUIRE_DB and belongs to
     # one of them only - and corTest filters before it numbers, so index 314 is a
     # different test in each. The two ranges are not comparable and are not meant
@@ -191,9 +191,12 @@ jobs:
           - { db: mongoc, name: '294-473', from: 294, to: 473 }
           - { db: mongoc, name: '474-616', from: 474, to: 616 }
           - { db: mongoc, name: '617-end', from: 617, to: 0 }
-          - { db: corDB,  name: '1-226',   from: 1,   to: 226 }
-          - { db: corDB,  name: '227-529', from: 227, to: 529 }
-          - { db: corDB,  name: '530-end', from: 530, to: 0 }
+          # corDB re-cut 2026-10-06 (757 tests since the mongoc-only ones run on it too): ~202 s
+          # of tests a shard, the same per-test measure.
+          #
+          - { db: corDB,  name: '1-254',   from: 1,   to: 254 }
+          - { db: corDB,  name: '255-569', from: 255, to: 569 }
+          - { db: corDB,  name: '570-end', from: 570, to: 0 }
           #
           # The reduced builds. Its own shard rather than a share of one,
           # because it is the only case that COMPILES rather than requesting -

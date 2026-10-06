@@ -32,7 +32,6 @@
 # had drifted apart, which is how one of the four came to be right and three
 # wrong. Same entity, same format, same bytes — that is what keeps them merged.
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #

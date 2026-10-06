@@ -33,11 +33,22 @@
 #include <stdbool.h>                                     // bool
 
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache, LdSnapshotCacheItem
+#include "corTree/CorNode.h"                             // CorNode
 #include "db/Tenant.h"                                   // Tenant
 
 
 extern bool ldSnapshotExecTemporalQueries(LdSnapshotCache*     cacheP,
                                           LdSnapshotCacheItem* itemP,
                                           Tenant*              tenantP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ldSnapshotInstanceIdsRemove - the instanceIds of a temporal entity copied into a
+// snapshot are dropped: the snapshot's TRoE store assigns its own
+//
+extern void ldSnapshotInstanceIdsRemove(CorNode* entityP);
+
 
 #endif  // SERVICEROUTINES_LDSNAPSHOTEXECTEMPORAL_H_

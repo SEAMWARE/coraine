@@ -17,7 +17,6 @@
 #  - Flush #3 with NO new notifs → mongo stays 3 (delta=0 is a no-op)
 #  - Restart broker — GET sub shows timesSent=3 (mongo state)
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription stats — back-to-back flushes use deltas, no double count

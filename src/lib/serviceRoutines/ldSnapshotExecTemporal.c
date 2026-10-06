@@ -152,6 +152,35 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
 
 
 //
+// ldSnapshotInstanceIdsRemove - an instanceId is assigned by the store that keeps the
+// instance; the snapshot's store assigns its own. One carried over from the
+// source is not the snapshot's - a TRoE plugin keeps it as a sub-attribute,
+// beside the instanceId it assigns.
+//
+void ldSnapshotInstanceIdsRemove(CorNode* entityP)
+{
+  for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
+  {
+    if      (attrP->type == CorObject)
+    {
+      CorNode* idP = corTreeLookup(attrP, "instanceId");
+      if (idP != NULL) corTreeChildRemove(attrP, idP);
+    }
+    else if (attrP->type == CorArray)
+    {
+      for (CorNode* instP = attrP->value.head; instP != NULL; instP = instP->next)
+      {
+        if (instP->type != CorObject) continue;
+        CorNode* idP = corTreeLookup(instP, "instanceId");
+        if (idP != NULL) corTreeChildRemove(instP, idP);
+      }
+    }
+  }
+}
+
+
+
+//
 // runOneTemporalQuery - run a single snapshotTemporalQueries entry,
 // streaming results into the snap-tenant's TRoE store.
 //
@@ -182,6 +211,7 @@ static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, CorNode* queryP, Tena
   for (CorNode* entityP = result->value.head; entityP != NULL; entityP = entityP->next)
   {
     if (entityP->type != CorObject) continue;
+    ldSnapshotInstanceIdsRemove(entityP);
     if (troe.entityTemporalCreate(snapTenantP, entityP) == TROE_OK)
       n++;
   }

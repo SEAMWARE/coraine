@@ -5,7 +5,6 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription persistence — survives broker restart (mongoc)

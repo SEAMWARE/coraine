@@ -17,7 +17,6 @@
 # dropped Entity-level value leaves the per-Attribute expiry untouched. That
 # cascade is exercised here on the query (list) path too, not just retrieve.
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #

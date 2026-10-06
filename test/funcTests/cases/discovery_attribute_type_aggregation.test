@@ -30,6 +30,9 @@
 # Steps 06-07 pin a mongoc storage limit, so this file is mongoc-only; the corDB
 # side of the same behaviour is discovery_attribute_type_aggregation_corDB.test.
 #
+#
+# MongoDB-only: a 2dsphere index cannot hold a GeoProperty and another type under one name (the corDB twin
+# of this test pins corDB's behaviour)
 # REQUIRE_DB: mongoc
 #
 --NAME--

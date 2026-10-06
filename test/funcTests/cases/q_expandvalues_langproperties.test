@@ -24,7 +24,6 @@
 # is why this runs on mongoc only (corDB keeps its subscriptions in RAM; the query steps are store-
 # independent and covered on both by the suites).
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 q with expandValues and langProperties - in queries, Query bodies and stored Subscriptions; unquoted values say why

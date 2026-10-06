@@ -10,7 +10,6 @@
 # invalid content, which is 400 BadRequestData). Exercised across several
 # operations that accept a body, since they share the parse layer.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Syntactically invalid JSON body -> 400 InvalidRequest (parse layer)

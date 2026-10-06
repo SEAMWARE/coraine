@@ -43,6 +43,7 @@
 #include "troe/TroeDriver.h"                             // troe
 
 #include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
+#include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotInstanceIdsRemove
 #include "serviceRoutines/cloneSnapshot.h"               // Own interface
 
 
@@ -276,6 +277,7 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
   if (sourceSnapP != NULL && cloneSnapP != NULL)
   {
     DbQueryFilter all = {0};
+    all.unpaged = true;                                // every entity - a zero limit is count-only (DbQueryFilter.h)
     CorNode* arrayP = NULL;
     if (db.entityQuery(sourceSnapP, &all, &arrayP) == DB_OK &&
         arrayP != NULL && arrayP->type == CorArray)
@@ -308,6 +310,7 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
         for (CorNode* eP = tArr->value.head; eP != NULL; eP = eP->next)
         {
           if (eP->type != CorObject) continue;
+          ldSnapshotInstanceIdsRemove(eP);
           troe.entityTemporalCreate(cloneSnapP, eP);
         }
       }

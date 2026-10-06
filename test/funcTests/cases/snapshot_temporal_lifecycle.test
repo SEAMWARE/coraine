@@ -11,7 +11,9 @@
 #
 # Requires postgres + the timescale TRoE plugin.
 #
-# REQUIRE_DB: mongoc
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
 --NAME--
 Snapshot temporal lifecycle — clone + delete (§ 5.16.2 / § 5.16.5 / Phase #146d)
 
@@ -167,18 +169,15 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 42
     },
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 50
     },
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 55

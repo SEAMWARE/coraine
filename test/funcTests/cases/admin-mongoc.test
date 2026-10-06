@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+#
+# MongoDB-only: the admin plugin's MongoDB report (admin-corDB.test is the corDB twin)
 # REQUIRE_DB: mongoc
 #
 --NAME--

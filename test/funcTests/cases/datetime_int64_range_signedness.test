@@ -12,7 +12,6 @@
 #   * DateTimes outside the int64-ns window are rejected with 400 (they would
 #     otherwise overflow the seconds->nanoseconds multiply).
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #

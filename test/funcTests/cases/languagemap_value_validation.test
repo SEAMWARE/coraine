@@ -10,7 +10,6 @@
 # forms and reject malformed ones with 400 BadRequestData — on create AND on
 # merge (a merge must never corrupt a stored languageMap's structure).
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 languageMap value: string or array-of-strings accepted; malformed -> 400 (create+merge)

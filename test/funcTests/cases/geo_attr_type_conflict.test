@@ -27,6 +27,9 @@
 # corDB has no such index and stores the mix exactly as the spec describes - see
 # geo_attr_type_conflict_corDB, which pins that deliberate divergence.
 #
+#
+# MongoDB-only: a 2dsphere index cannot hold a GeoProperty and another type under one name (the corDB twin
+# of this test pins corDB's behaviour)
 # REQUIRE_DB: mongoc
 #
 --NAME--

@@ -18,7 +18,6 @@
 # id regardless of objectType (steps 13/14 still match with objectType
 # removed).
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
