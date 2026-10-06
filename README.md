@@ -357,6 +357,7 @@ coraine implements in full. Every command-line option is listed by
 Next, in roughly this order - each in more detail in the [roadmap](doc/roadmap.md), and every idea,
 planned or not, in [Ideas](doc/ideas.md):
 
+- **Array reduction in corJsonld** - the JSON-LD rule once, term-aware, at the input boundary.
 - **One system timestamp per entity in MongoDB** - as corDB has it (21-30 % less memory there).
 - **The whole NGSI-LD API on corDB** - Snapshots first.
 - **A memory budget and admission control** - refuse writes before the OOM killer.

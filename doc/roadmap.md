@@ -54,6 +54,7 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
+-   **Array reduction in corJsonld** - done today in five places; once, term-aware, at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
 -   **One system timestamp per entity in MongoDB** - as corDB has it: smaller documents, a smaller cache. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
 -   **The whole NGSI-LD API on corDB** - Snapshots first. ([more](ideas.md#the-whole-ngsi-ld-api-on-cordb---snapshots-first))
 -   **A memory budget and admission control** - refuse writes before the OOM killer. ([more](ideas.md#a-memory-budget-and-admission-control))
@@ -86,7 +87,6 @@ timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
 
 -   **Our own string collation, replacing ICU** - root collation without 39 MiB of libicu. ([more](ideas.md#our-own-string-collation-replacing-icu))
--   **Array reduction in corJsonld** - done today in five places; once, term-aware, at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
 -   **Broader performance regression coverage** - more scenarios, nightly. ([more](ideas.md#broader-performance-regression-coverage))
