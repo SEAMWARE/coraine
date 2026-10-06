@@ -163,18 +163,15 @@ Content-Length: REGEX(\d+)
   "speed": [
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 42
     },
     {
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 50
     },
     {
-      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
       "type": "Property",
       "value": 55
@@ -200,18 +197,15 @@ Content-Length: REGEX(\d+)
     "speed": [
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
         "type": "Property",
         "value": 42
       },
       {
         "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
-        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
         "type": "Property",
         "value": 50
       },
       {
-        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
         "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
         "type": "Property",
         "value": 55
