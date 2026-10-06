@@ -48,7 +48,7 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "corJsonld/corLdDownload.h"                   // corLdContextFromUrl
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS
-#include "db/Tenant.h"                               // Tenant
+#include "db/Tenant.h"                               // Tenant, tenantApiName
 
 #include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
 #include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
@@ -431,7 +431,7 @@ bool postSubscriptions(void)
   if (isPernot)
   {
     if (tenantP->pernotCacheP != NULL)
-      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP, tenantP->name);
+      ldPernotCacheItemAdd((LdPernotCache*) tenantP->pernotCacheP, subP, tenantP, tenantApiName(tenantP));
   }
   else
   {

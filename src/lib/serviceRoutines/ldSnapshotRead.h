@@ -75,9 +75,12 @@ extern bool snapshotGetEntities(LdSnapshotCacheItem* itemP);
 //
 // COR_FEATURE_SNAPSHOT_WRITE: an operation on Entities or their Temporal Evolution (§ 7.9.2) is
 // routed to the snapshot's own tenant, in a local scope - corNgsild.tenantP becomes the snapshot's,
-// corNgsild.local true. Any other operation (subscriptions, registrations, ...) is a 422
-// OperationNotSupported. Without the feature every non-GET is a 422 (snapshots read-only).
-// Reads pass through - each read routine routes itself, and always locally: the snap-tenant
+// corNgsild.snapshotId its id, corNgsild.local true. COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS: so is
+// every operation on /subscriptions, the reads included - the snapshot's tenant holds its own
+// subscriptions, notified by the writes on the snapshot (with NGSILD-Snapshot, TS 104-176 § 6.4.9).
+// Any other operation (registrations, CSR-subscriptions, ...) is a 422 OperationNotSupported.
+// Without the features every non-GET is a 422 (snapshots read-only).
+// Entity reads pass through - each read routine routes itself, and always locally: the snap-tenant
 // holds the federated view captured at create time, and a distop fan-out would mix live data
 // into it.
 //

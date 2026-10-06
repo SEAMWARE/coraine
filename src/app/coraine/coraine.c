@@ -72,12 +72,12 @@
 #include "corNgsild/ldError.h"                     // ldError
 #include "corNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
-#include "db/snapshotTenant.h"                     // snapshotItemDestroy
+#include "db/snapshotTenant.h"                     // snapshotItemDestroy, snapshotTenantsVisit
 #include "db/DbDriver.h"                          // db, DB_OK
 #include "db/DbQueryFilter.h"                     // DbQueryFilter
 #include "db/dbInit.h"                            // dbStart
 #include "db/dbClose.h"                           // dbClose
-#include "db/Tenant.h"                            // tenantPreServiceHook
+#include "db/Tenant.h"                            // tenantPreServiceHook, tenantApiName
 #include "db/contextCache.h"                      // contextCacheReload
 #include "ha/haInit.h"                            // haInit, haChannel
 #include "serviceRoutines/ldSnapshotRead.h"       // ldSnapshotWriteGuard
@@ -964,6 +964,47 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
 
 // -----------------------------------------------------------------------------
 //
+// pernotTenantVisit - one tenant's pernot cache, and its Snapshots' own
+//
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+typedef struct PernotVisit
+{
+  LdPernotCacheVisitFn  visit;
+  void*                 arg;
+} PernotVisit;
+
+//
+// A Snapshot's own pernot cache: its notifications name the snapshot (NGSILD-Snapshot) - the item
+// carries its tenant, the visit sets the snapshot. Pinned by snapshotTenantsVisit.
+//
+static void pernotSnapshotVisit(Tenant* snapTenantP, void* arg)
+{
+  PernotVisit* pvP = (PernotVisit*) arg;
+
+  if (snapTenantP->pernotCacheP == NULL)
+    return;
+
+  corNgsild.snapshotId = snapTenantP->snapshotId;
+  pvP->visit((LdPernotCache*) snapTenantP->pernotCacheP, pvP->arg);
+  corNgsild.snapshotId = NULL;
+}
+#endif
+
+static void pernotTenantVisit(Tenant* tP, LdPernotCacheVisitFn visit, void* arg)
+{
+  if (tP->pernotCacheP != NULL)
+    visit((LdPernotCache*) tP->pernotCacheP, arg);
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+  PernotVisit pv = { visit, arg };
+  snapshotTenantsVisit(tP, pernotSnapshotVisit, &pv);
+#endif
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // brokerPernotCaches - every tenant's pernot cache, for the periodic loop
 //
 // The tenants: tenant0, then the list - published with a release store and never freed, so it
@@ -971,14 +1012,10 @@ static CorNode* pernotQueryCallback(void* tenantP, LdPernotItem* itemP, void* al
 //
 static void brokerPernotCaches(LdPernotCacheVisitFn visit, void* arg)
 {
-  if (tenant0.pernotCacheP != NULL)
-    visit((LdPernotCache*) tenant0.pernotCacheP, arg);
+  pernotTenantVisit(&tenant0, visit, arg);
 
   for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
-  {
-    if (tP->pernotCacheP != NULL)
-      visit((LdPernotCache*) tP->pernotCacheP, arg);
-  }
+    pernotTenantVisit(tP, visit, arg);
 }
 
 
@@ -1024,23 +1061,48 @@ static void tenantCachesVisit(Tenant* tP, LdTenantCachesVisitFn visit, void* arg
 
   //
   // The tick runs AS the visited tenant, as a request runs as its own: what it sends goes out
-  // tagged with it (NGSILD-Tenant), and it has no request to take the tenant from.
+  // tagged with it (NGSILD-Tenant - and NGSILD-Snapshot for a Snapshot's own tenant), and it has
+  // no request to take the tenant from.
   //
   corNgsild.tenantP    = tP;
-  corNgsild.tenantName = tP->name;
+  corNgsild.tenantName = tenantApiName(tP);
+  corNgsild.snapshotId = tP->snapshotId;
 
   visit(&tc, arg);
 
   corNgsild.tenantP    = NULL;
   corNgsild.tenantName = NULL;
+  corNgsild.snapshotId = NULL;
 }
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+typedef struct TenantCachesVisit
+{
+  LdTenantCachesVisitFn  visit;
+  void*                  arg;
+} TenantCachesVisit;
+
+static void tenantCachesSnapshotVisit(Tenant* snapTenantP, void* arg)
+{
+  TenantCachesVisit* tvP = (TenantCachesVisit*) arg;
+
+  tenantCachesVisit(snapTenantP, tvP->visit, tvP->arg);
+}
+#endif
 
 static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)
 {
-  tenantCachesVisit(&tenant0, visit, arg);
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+  TenantCachesVisit tv = { visit, arg };
+#endif
 
-  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
+  for (Tenant* tP = &tenant0; tP != NULL; tP = (tP == &tenant0)? __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE) : tP->next)
+  {
     tenantCachesVisit(tP, visit, arg);
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+    snapshotTenantsVisit(tP, tenantCachesSnapshotVisit, &tv);   // the subscriptions on its Snapshots (throttle flush)
+#endif
+  }
 }
 
 

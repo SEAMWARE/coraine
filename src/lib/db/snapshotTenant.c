@@ -15,7 +15,11 @@
 
 #include "corLog/corLog.h"                               // COR_I
 
-#include "corNgsild/LdSnapshotCache.h"                  // LdSnapshotCacheItem
+#include "corNgsild/LdSnapshotCache.h"                  // LdSnapshotCacheItem, ldSnapshotCacheRdLock, ldSnapshotCacheItemPin
+#include "corNgsild/LdSubCache.h"                       // LdSubCache
+#include "corNgsild/ldSubCache.h"                       // ldSubCacheCreate, ldSubCacheRelease
+#include "corNgsild/LdPernotCache.h"                    // LdPernotCache
+#include "corNgsild/ldPernotCache.h"                    // ldPernotCacheCreate, ldPernotCacheRelease
 #include "db/DbDriver.h"                                 // db, DB_OK
 #include "troe/TroeDriver.h"                             // troe
 #include "db/Tenant.h"                                   // Tenant, tenant0
@@ -38,10 +42,12 @@ static void nameSuffix(char* buf, size_t bufLen, int snapSeq)
 
 
 
-Tenant* snapshotTenantCreate(Tenant* origP, int snapSeq)
+Tenant* snapshotTenantCreate(Tenant* origP, LdSnapshotCacheItem* itemP)
 {
   if (origP == NULL)
     return NULL;
+
+  int snapSeq = itemP->snapSeq;
 
   char suffix[32];
   nameSuffix(suffix, sizeof(suffix), snapSeq);
@@ -79,14 +85,28 @@ Tenant* snapshotTenantCreate(Tenant* origP, int snapSeq)
   tP->dbName[origDbLen + suffixLen] = 0;
 
   tP->initialized = false;
-  // No subCacheP / pernotCacheP / regCacheP / regSubCacheP / entityMapStoreP
-  // / snapshotCacheP — snap-tenants don't participate in those flows.
+  tP->liveTenantP = origP;
+  tP->snapshotId  = itemP->id;
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+  //
+  // § 7.9.2: the Core API on a snapshot includes its subscriptions - notified by the writes on the
+  // snapshot, and only by them. Created with the tenant, not at its first subscription: the
+  // tenant's fields are read with no lock, by requests and by the loops.
+  //
+  tP->subCacheP = ldSubCacheCreate();
+  if (tP->subCacheP != NULL && db.geoMatchFunc != NULL)
+    ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
+  tP->pernotCacheP = ldPernotCacheCreate();
+#endif
+  // No regCacheP / regSubCacheP / entityMapStoreP / snapshotCacheP - a snapshot is local scope
+  // (§ 7.9.2: no Context Source Registration is used) and has no snapshots of its own.
 
   if (db.tenantSetup != NULL)
   {
     if (db.tenantSetup(tP) != DB_OK)
     {
-      free(tP);
+      snapshotTenantDestroy(tP);
       return NULL;
     }
   }
@@ -102,8 +122,70 @@ void snapshotTenantDestroy(Tenant* snapTenantP)
 {
   if (snapTenantP == NULL)
     return;
+
+  //
+  // Nobody is left using the caches: whatever uses them - a request routed to the snapshot, a
+  // loop's visit - holds the snapshot pinned, and this runs at the last unpin.
+  //
+  ldSubCacheRelease((LdSubCache*) snapTenantP->subCacheP);
+  ldPernotCacheRelease((LdPernotCache*) snapTenantP->pernotCacheP);
+
   free(snapTenantP);
 }
+
+
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+// -----------------------------------------------------------------------------
+//
+// snapshotTenantsVisit -
+//
+// The snapshots are picked and pinned under the cache's rdlock; the visits - notifications, DB
+// queries - run with no lock, so a DELETE or a capture never waits for a send.
+//
+void snapshotTenantsVisit(Tenant* liveP, SnapshotTenantVisitFn visit, void* arg)
+{
+  LdSnapshotCache* cacheP = (LdSnapshotCache*) liveP->snapshotCacheP;
+
+  if (cacheP == NULL)
+    return;
+
+  int                   pinnedN = 0;
+  int                   cap     = 0;
+  LdSnapshotCacheItem** pinnedV = NULL;
+
+  ldSnapshotCacheRdLock(cacheP);
+  for (LdSnapshotCacheItem* itemP = cacheP->head; itemP != NULL; itemP = itemP->next)
+  {
+    if (__atomic_load_n(&itemP->snapTenantP, __ATOMIC_ACQUIRE) == NULL)   // being created (postSnapshot / cloneSnapshot)
+      continue;
+
+    if (pinnedN == cap)
+    {
+      int                   newCap = (cap == 0)? 8 : 2 * cap;
+      LdSnapshotCacheItem** newV   = (LdSnapshotCacheItem**) realloc(pinnedV, newCap * sizeof(LdSnapshotCacheItem*));
+
+      if (newV == NULL)
+        break;                     // the rest next time
+
+      pinnedV = newV;
+      cap     = newCap;
+    }
+
+    ldSnapshotCacheItemPin(itemP);
+    pinnedV[pinnedN++] = itemP;
+  }
+  ldSnapshotCacheUnlock(cacheP);
+
+  for (int ix = 0; ix < pinnedN; ix++)
+  {
+    visit((Tenant*) __atomic_load_n(&pinnedV[ix]->snapTenantP, __ATOMIC_ACQUIRE), arg);
+    ldSnapshotCacheItemUnpin(pinnedV[ix]);          // may destroy it - deleted meanwhile
+  }
+
+  free(pinnedV);
+}
+#endif
 
 
 

@@ -32,7 +32,7 @@
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
-#include "db/Tenant.h"                               // Tenant
+#include "db/Tenant.h"                               // Tenant, tenantApiName
 
 #include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
 #include "serviceRoutines/patchSubscription.h"       // Own interface
@@ -304,7 +304,7 @@ bool patchSubscription(void)
   if (existingIsPernot)
   {
     ldSubCacheUnlock(subCacheP);
-    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP, tenantP->name);
+    ldPernotCacheItemReplace(pernotCacheP, mergedSubP, tenantP, tenantApiName(tenantP));
     corRest.out.httpStatusCode = 204;
     return true;
   }
