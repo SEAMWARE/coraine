@@ -72,12 +72,13 @@ incorporated in the next release of the product, in roughly this order:
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **What history records in corDB** - a selector, "the last X", the temporal index. ([more](ideas.md#automatic-troe-in-cordb))
+-   **What history records** - a selector and "the last X", for any TRoE database. ([more](ideas.md#what-history-records))
+-   **The temporal index in corDB** - `(entity, attribute, time)`. ([more](ideas.md#automatic-troe-in-cordb))
 -   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
 -   **A Grafana data source** - dashboards over the current state and the temporal API. ([more](ideas.md#a-grafana-data-source))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
--   **cor-haaux** - high-availability cache sync for corDB. ([more](cordb.md#haaux))
+-   **cor-haaux** - high-availability cache sync for corDB. ([more](ideas.md#cordb-standalone---and-as-haaux))
 -   **haaux** - standalone high-availability cache sync. ([more](ideas.md#haaux))
 
 ## Long term

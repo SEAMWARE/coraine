@@ -30,12 +30,18 @@ less memory, and faster writes ([corDB's README](https://github.com/SEAMWARE/cor
 fits `mongoc`, where it shrinks every document and the database's cache - and a query on a time has to
 fall back to the entity's `createdAt`.
 
+### What history records
+
+Today a temporal store records every change of every entity. What it records should be configurable, and
+the same for every TRoE database - corDB's own history (`--troe corDB`), PostgreSQL / TimescaleDB, any
+other: subscription-shaped (entities by type, id or pattern; attributes; include or exclude), and how long
+it is kept - "the last X", an ISO 8601 duration.
+
 ### Automatic TRoE in corDB
 
 Temporal history in the same process as the store: `--troe corDB`, written where the store is written -
-no second plugin with its own copy of the store. What is left: what history records, configurable and
-subscription-shaped (entities, attributes, include or exclude, "the last X" as an ISO 8601 duration),
-and the temporal index `(entity, attribute, time)`.
+no second plugin with its own copy of the store. What it records is [the same choice](#what-history-records)
+as for any TRoE database. What is corDB's own: the temporal index `(entity, attribute, time)`.
 
 ### The Entity as it was at time T
 
