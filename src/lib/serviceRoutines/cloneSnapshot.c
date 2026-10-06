@@ -43,6 +43,7 @@
 #include "troe/TroeDriver.h"                             // troe
 
 #include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
+#include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotInstanceIdsRemove
 #include "serviceRoutines/cloneSnapshot.h"               // Own interface
 
 
@@ -309,6 +310,7 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
         for (CorNode* eP = tArr->value.head; eP != NULL; eP = eP->next)
         {
           if (eP->type != CorObject) continue;
+          ldSnapshotInstanceIdsRemove(eP);
           troe.entityTemporalCreate(cloneSnapP, eP);
         }
       }

@@ -152,12 +152,12 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
 
 
 //
-// instanceIdsRemove - an instanceId is assigned by the store that keeps the
+// ldSnapshotInstanceIdsRemove - an instanceId is assigned by the store that keeps the
 // instance; the snapshot's store assigns its own. One carried over from the
 // source is not the snapshot's - a TRoE plugin keeps it as a sub-attribute,
 // beside the instanceId it assigns.
 //
-static void instanceIdsRemove(CorNode* entityP)
+void ldSnapshotInstanceIdsRemove(CorNode* entityP)
 {
   for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
   {
@@ -211,7 +211,7 @@ static int runOneTemporalQuery(LdSnapshotCacheItem* itemP, CorNode* queryP, Tena
   for (CorNode* entityP = result->value.head; entityP != NULL; entityP = entityP->next)
   {
     if (entityP->type != CorObject) continue;
-    instanceIdsRemove(entityP);
+    ldSnapshotInstanceIdsRemove(entityP);
     if (troe.entityTemporalCreate(snapTenantP, entityP) == TROE_OK)
       n++;
   }
