@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stdio.h>                                    // snprintf
+#include <pthread.h>                                  // pthread_mutex_*
 #include <string.h>                                   // strcmp, strlen, strncmp
 #include <time.h>                                     // clock_gettime
 
@@ -269,15 +270,48 @@ static void notify(CorNode* execP)
 
 // -----------------------------------------------------------------------------
 //
+// storeMutex - every store re-reads the record under it: the writers (a request, a bridge's report on
+// the bridge's thread, the sweep) each read the record before they change it, and an ended execution
+// replaced by a copy read before it ended would be running again
+//
+static pthread_mutex_t storeMutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // store - the execution replaced in the database, and notified
+//
+// One that ended meanwhile (cancelled, completed, timed out) changes no more: nothing is stored, and
+// that is no error.
 //
 bool seExecutionStore(Tenant* tenantP, CorNode* execP)
 {
+  const char* execId    = str(execP, "id");
+  CorNode*    currentP  = NULL;
+  bool        ended     = false;
+  bool        stored    = false;
+
   ldSysTimestampModify(execP);
 
-  if (db.docReplace(tenantP, "serviceExecutions", str(execP, "id"), execP) != DB_OK)
+  pthread_mutex_lock(&storeMutex);
+
+  if ((db.docRetrieve(tenantP, "serviceExecutions", execId, &currentP) == DB_OK) && terminal(str(currentP, "executionStatus")))
+    ended = true;
+  else
+    stored = (db.docReplace(tenantP, "serviceExecutions", execId, execP) == DB_OK);
+
+  pthread_mutex_unlock(&storeMutex);
+
+  if (ended == true)
   {
-    COR_W("Service Execution '%s': could not be stored", str(execP, "id"));
+    COR_T(CtService, "Service Execution '%s' ended meanwhile - not stored", execId);
+    return true;
+  }
+
+  if (stored == false)
+  {
+    COR_W("Service Execution '%s': could not be stored", execId);
     return false;
   }
 
