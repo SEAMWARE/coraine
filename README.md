@@ -357,10 +357,14 @@ coraine implements in full. Every command-line option is listed by
 Next, in roughly this order - each in more detail in the [roadmap](doc/roadmap.md), and every idea,
 planned or not, in [Ideas](doc/ideas.md):
 
-- **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity.
-- **Automatic TRoE in corDB** - temporal history from the same log, by a boolean.
+- **One system timestamp per entity in MongoDB** - as corDB has it (21-30 % less memory there).
+- **The whole NGSI-LD API on corDB** - Snapshots first.
+- **A memory budget and admission control** - refuse writes before the OOM killer.
+- **An ARM image, and a more diverse nightly** - ARM64; sanitizers, clang, musl.
+- **Authorisation** - inside the broker, and as an APISIX plugin.
+- **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format.
+- **Service Execution through the DDS and Modbus bridges** - ROS 2 services and actions, Modbus writes.
 - **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam.
-- **Service Execution** - "do this" in the API, not a write to an attribute.
 - **Packages** - `apt-get install coraine`.
 - **Finish conditional compilation** - every feature flag reaches the code it names.
 - **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too.

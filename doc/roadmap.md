@@ -34,8 +34,14 @@ Recently built, and documented where it lives:
 -   **corDB on disk** - `--dbDir`: an append log synced every 100 ms and snapshots; an attribute update
     logs the attributes, not the entity; `--dbCompress`; the store survives a restart, still with no
     database server ([Installation](installation.md), "corDB on disk").
+-   **One system timestamp per entity in corDB** - an entity is created with one time; below it only
+    the times that differ are stored: 21-30 % less memory, faster writes ([corDB's README](https://github.com/SEAMWARE/corDB#readme)).
 -   **History in corDB** - `--troe corDB`: the temporal API from the store's own process, no second
     database ([Installation](installation.md)).
+-   **Service Execution** - "do this" in the API, not a write to an attribute: service registrations,
+    executions with their lifecycle and notifications, combined and grouped executions, after the ETSI
+    report GR CIM-055 - under conditional compilation. Its documentation follows the report's
+    publication.
 
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
@@ -46,13 +52,13 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **Service Execution** - "do this" in the API, not a write to an attribute; built, being merged. ([more](ideas.md#service-execution))
--   **One system timestamp per entity** - corDB first, then MongoDB: 21-30 % less memory. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
+-   **One system timestamp per entity in MongoDB** - as corDB has it: smaller documents, a smaller cache. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
 -   **The whole NGSI-LD API on corDB** - Snapshots first. ([more](ideas.md#the-whole-ngsi-ld-api-on-cordb---snapshots-first))
 -   **A memory budget and admission control** - refuse writes before the OOM killer. ([more](ideas.md#a-memory-budget-and-admission-control))
 -   **An ARM image, and a more diverse nightly** - ARM64; sanitizers, clang, musl. ([more](ideas.md#an-arm-image-and-a-more-diverse-nightly))
 -   **Authorisation** - inside the broker, and as an APISIX plugin; ODRL, verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker-and-as-an-apisix-plugin))
 -   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
+-   **Service Execution through the DDS and Modbus bridges** - ROS 2 services and actions, Modbus writes, as services. ([more](ideas.md#service-execution))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))

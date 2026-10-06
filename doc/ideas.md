@@ -120,10 +120,11 @@ not standard NGSI-LD.
 
 ### Service Execution
 
-Actuation as a first-class citizen of the API: "do this", not a write to an attribute. Built after ETSI
-GR CIM-055 - service registrations, executions with their lifecycle and notifications, combined and
-grouped executions - with coraine itself as an executor through its bridges (DDS services and actions,
-Modbus), under conditional compilation. Being merged.
+Actuation as a first-class citizen of the API: "do this", not a write to an attribute. Built after the
+ETSI report GR CIM-055 - service registrations, executions with their lifecycle and notifications,
+combined and grouped executions - under conditional compilation. A bridge can be the executor (the
+bridge contract has it); next, the DDS bridge's services and actions and the Modbus bridge's writes,
+replacing the provisional actuation through attribute writes. Documented when the report is published.
 
 ### The IoT Agents as cor-agent plugins
 
