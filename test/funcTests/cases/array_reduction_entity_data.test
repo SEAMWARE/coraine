@@ -1,0 +1,349 @@
+#
+# FILE            array_reduction_entity_data.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# JSON-LD array reduction of ENTITY data, at the input boundary (corJsonld's corLdExpandEntityTree): a
+# member whose value is an array of one element takes the element - a Property's value, a Relationship's
+# object, a VocabProperty's vocab, a language map's entries, a sub-attribute, the members of a compound
+# value, an entity's type, an attribute given as an array of one instance. Not where the term keeps its
+# array: a ListProperty's valueList (@list), a JsonProperty's json (@json), a user term declared @set
+# (inside a compound value - a Property's own value is under the core term hasValue, which has no
+# container: a one-element value array is kept only by a ListProperty or a JsonProperty).
+# It is stored reduced - a q matches the value itself. API objects are not reduced: a Subscription's
+# entities and watchedAttributes stay arrays. And an @context array of one URL is that URL: the
+# Subscription's jsonldContext is the URL, not a minted context.
+#
+--NAME--
+Array reduction: entity data reduced at the input by the @context; API objects keep their arrays
+
+--TAGS--
+jsonld array reduction
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create urn:E1 - one-element arrays in type, value, vocab, languageMap, valueList, json, object, a one-instance attribute, a compound value, a sub-attribute
+# 02. GET urn:E1 - reduced, but valueList and json keep their arrays
+# 03. q=P=="x" - the stored value is "x"
+# 04. PATCH P with ["y"] - stored as "y"
+# 05. Create urn:E2 with a user @context - in a compound value tags is @set (kept), one is not (reduced); Y simplified (reduced)
+# 06. GET urn:E2
+# 07. A Subscription with one-element arrays and an @context array of one URL
+# 08. GET the Subscription - entities and watchedAttributes are arrays, jsonldContext is the URL
+# 09. A ListRelationship of one object stays a list; a ListProperty's valueList as a string - 400
+#
+
+echo "01. Create urn:E1 - one-element arrays everywhere"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1",
+  "type": ["T"],
+  "P":   { "type": "Property",         "value": ["x"] },
+  "V":   { "type": "VocabProperty",    "vocab": ["abc"] },
+  "L":   { "type": "LanguageProperty", "languageMap": { "en": ["hello"] } },
+  "Lst": { "type": "ListProperty",     "valueList": ["a"] },
+  "J":   { "type": "JsonProperty",     "json": ["a"] },
+  "R":   [ { "type": "Relationship",   "object": ["urn:X"] } ],
+  "C":   { "type": "Property",         "value": { "k": ["x"], "n": [1] } },
+  "S":   { "type": "Property",         "value": 1, "sub": { "type": "Property", "value": ["s"] } }
+}' | head -1
+echo
+echo
+
+
+echo "02. GET urn:E1 - reduced, but valueList and json keep their arrays"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "03. q=P==\"x\" - the stored value is \"x\""
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=P==%22x%22&attrs=P'
+echo
+echo
+
+
+echo "04. PATCH P with [\"y\"] - stored as \"y\""
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{ "P": { "type": "Property", "value": ["y"] } }' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:E1?attrs=P'
+echo
+echo
+
+
+echo "05. Create urn:E2 with a user @context - in a compound value tags is @set (kept), one is not (reduced); Y simplified (reduced)"
+echo "================================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities -H "Content-Type: application/ld+json" --payload '{
+  "id": "urn:E2",
+  "type": "T",
+  "X": { "type": "Property", "value": { "tags": ["a"], "one": ["b"] } },
+  "Y": ["c"],
+  "@context": [ { "tags": { "@id": "https://example.org/tags", "@container": "@set" }, "one": "https://example.org/one" },
+                "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ]
+}' | head -1
+echo
+echo
+
+
+echo "06. GET urn:E2 (expanded names: no @context in the request)"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2
+echo
+echo
+
+
+echo "07. A Subscription with one-element arrays and an @context array of one URL"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H "Content-Type: application/ld+json" --payload '{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "watchedAttributes": [ "P" ],
+  "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } },
+  "@context": [ "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ]
+}' | head -1
+echo
+echo
+
+
+echo "08. GET the Subscription - entities and watchedAttributes are arrays, jsonldContext is the URL"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1
+echo
+echo
+
+
+echo "09. A ListRelationship of one object stays a list; a ListProperty's valueList as a string - 400"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "LR": { "type": "ListRelationship", "objectList": ["urn:X"] } }' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:E3?attrs=LR'
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E4", "type": "T", "Lst": { "type": "ListProperty", "valueList": "a" } }'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 - one-element arrays everywhere
+=================================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:E1 - reduced, but valueList and json keep their arrays
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 667
+
+{
+  "C": {
+    "type": "Property",
+    "value": {
+      "k": "x",
+      "n": 1
+    }
+  },
+  "J": {
+    "json": [
+      "a"
+    ],
+    "type": "JsonProperty"
+  },
+  "L": {
+    "languageMap": {
+      "en": "hello"
+    },
+    "type": "LanguageProperty"
+  },
+  "Lst": {
+    "type": "ListProperty",
+    "valueList": [
+      "a"
+    ]
+  },
+  "P": {
+    "type": "Property",
+    "value": "x"
+  },
+  "R": {
+    "object": "urn:X",
+    "type": "Relationship"
+  },
+  "S": {
+    "sub": {
+      "type": "Property",
+      "value": "s"
+    },
+    "type": "Property",
+    "value": 1
+  },
+  "V": {
+    "type": "VocabProperty",
+    "vocab": "abc"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+03. q=P=="x" - the stored value is "x"
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+[
+  {
+    "P": {
+      "type": "Property",
+      "value": "x"
+    },
+    "id": "urn:E1",
+    "type": "T"
+  }
+]
+
+
+
+04. PATCH P with ["y"] - stored as "y"
+========================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 91
+
+{
+  "P": {
+    "type": "Property",
+    "value": "y"
+  },
+  "id": "urn:E1",
+  "type": "T"
+}
+
+
+
+05. Create urn:E2 with a user @context - in a compound value tags is @set (kept), one is not (reduced); Y simplified (reduced)
+================================================================================================================================
+HTTP/1.1 201 Created
+
+
+06. GET urn:E2 (expanded names: no @context in the request)
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 244
+
+{
+  "X": {
+    "type": "Property",
+    "value": {
+      "https://example.org/one": "b",
+      "https://example.org/tags": [
+        "a"
+      ]
+    }
+  },
+  "Y": {
+    "type": "Property",
+    "value": "c"
+  },
+  "id": "urn:E2",
+  "type": "T"
+}
+
+
+
+07. A Subscription with one-element arrays and an @context array of one URL
+===========================================================================
+HTTP/1.1 201 Created
+
+
+08. GET the Subscription - entities and watchedAttributes are arrays, jsonldContext is the URL
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 417
+
+{
+  "entities": [
+    {
+      "type": "T"
+    }
+  ],
+  "id": "urn:S1",
+  "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:9997/notify"
+    }
+  },
+  "notificationTrigger": [
+    "attributeCreated",
+    "attributeUpdated"
+  ],
+  "status": "active",
+  "type": "Subscription",
+  "watchedAttributes": [
+    "P"
+  ]
+}
+
+
+
+09. A ListRelationship of one object stays a list; a ListProperty's valueList as a string - 400
+===============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "LR": {
+    "objectList": [
+      "urn:X"
+    ],
+    "type": "ListRelationship"
+  },
+  "id": "urn:E3",
+  "type": "T"
+}
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 228
+
+{
+  "detail": "ListProperty 'https://uri.etsi.org/ngsi-ld/default-context/Lst': 'valueList' must be an array",
+  "status": 400,
+  "title": "Invalid ListProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

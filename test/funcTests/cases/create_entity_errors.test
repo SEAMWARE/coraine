@@ -2156,10 +2156,10 @@ Content-Length: 171
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 178
+Content-Length: 184
 
 {
-  "detail": "Entity 'type' array elements must be strings",
+  "detail": "Entity 'type' must be a string or array of strings",
   "status": 400,
   "title": "Invalid Entity Type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
