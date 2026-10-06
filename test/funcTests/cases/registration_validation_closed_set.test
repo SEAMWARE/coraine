@@ -279,10 +279,10 @@ Content-Length: 0
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 191
+Content-Length: 219
 
 {
-  "detail": "'entities[].idPattern' is not a valid regular expression",
+  "detail": "'entities[].idPattern' is not a valid regular expression: Invalid regular expression",
   "status": 400,
   "title": "Invalid Registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
