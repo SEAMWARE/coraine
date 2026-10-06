@@ -162,10 +162,12 @@ TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
 ### An NGSI-LD-aware JSON parser
 
-The core terms are a closed set, so `type`, `value`, `observedAt`, `Property`, `Relationship` and the
-rest can be an enum rather than a string - smaller on the wire and on disk, a compare rather than a
-`strcmp` everywhere. The same decision as the [cor format](cor-protocol.md); one keyword enum in
-corNgsild.
+Built, without touching the JSON parser: corJson stays generic and calls a hook the moment a member's
+name is final (`CorJsonKeyFunction`); corNgsild's hook stamps the core terms - `type`, `value`,
+`observedAt`, `Property`, `Relationship` and the rest - as an id of the `CorTerm` enum on the node,
+during the parse, with no second walk of the tree. A compare instead of a `strcmp`, and the same ids
+the [cor format](cor-protocol.md) puts on the wire. What is left: code that still compares names as
+strings, moved to the ids where it pays.
 
 ### Our own string collation, replacing ICU
 

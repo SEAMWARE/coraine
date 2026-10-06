@@ -31,6 +31,8 @@ Recently built, and documented where it lives:
     requests in flight on one connection ([The cor format and cor://](cor-protocol.md)).
 -   **Requests that wait run as coroutines** of the event loops, not on worker threads
     ([Coroutines](coroutines.md)).
+-   **An NGSI-LD-aware JSON parser** - the JSON parser unchanged, the core terms stamped as ids by a
+    hook during the parse ([Ideas](ideas.md#an-ngsi-ld-aware-json-parser)).
 -   **corDB on disk** - `--dbDir`: an append log synced every 100 ms and snapshots; an attribute update
     logs the attributes, not the entity; `--dbCompress`; the store survives a restart, still with no
     database server ([Installation](installation.md), "corDB on disk").
@@ -56,12 +58,12 @@ incorporated in the next release of the product, in roughly this order:
 -   **The whole NGSI-LD API on corDB** - Snapshots first. ([more](ideas.md#the-whole-ngsi-ld-api-on-cordb---snapshots-first))
 -   **A memory budget and admission control** - refuse writes before the OOM killer. ([more](ideas.md#a-memory-budget-and-admission-control))
 -   **An ARM image, and a more diverse nightly** - ARM64; sanitizers, clang, musl. ([more](ideas.md#an-arm-image-and-a-more-diverse-nightly))
+-   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Authorisation** - inside the broker, and as an APISIX plugin; ODRL, verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker-and-as-an-apisix-plugin))
 -   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
 -   **Service Execution through the DDS and Modbus bridges** - ROS 2 services and actions, Modbus writes, as services. ([more](ideas.md#service-execution))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
--   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
 
 ## Medium term
@@ -73,8 +75,8 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
 -   **A Grafana data source** - dashboards over the current state and the temporal API. ([more](ideas.md#a-grafana-data-source))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
--   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
+-   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 
 ## Long term
 
@@ -83,7 +85,6 @@ Take into account that there is no commitment to deliver them in a specific
 timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
 
--   **An NGSI-LD-aware JSON parser** - the core terms as an enum, not strings. ([more](ideas.md#an-ngsi-ld-aware-json-parser))
 -   **Our own string collation, replacing ICU** - root collation without 39 MiB of libicu. ([more](ideas.md#our-own-string-collation-replacing-icu))
 -   **Array reduction in corJsonld** - one normalisation at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
