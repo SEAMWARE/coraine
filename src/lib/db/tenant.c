@@ -265,7 +265,7 @@ Tenant* tenantFromRequest(bool autoCreate)
   }
 
   //
-  // Tenant not found -- auto-create for write operations, 404 for read operations
+  // Tenant not found -- created by a creation, 404 for anything else
   //
   if (!autoCreate)
   {
@@ -299,10 +299,51 @@ Tenant* tenantFromRequest(bool autoCreate)
 
 // -----------------------------------------------------------------------------
 //
+// creates - does the request create an NGSI-LD object? Only such a request creates its tenant (§ 7.8.2:
+// Create Entity, Batch Entity Creation, Create or Update Temporal Evolution of an Entity, Create
+// Subscription, Register Context Source, Create Context Source Registration Subscription - and the
+// creations of the API's other objects: Snapshot, Service Registration, Combined Service Template,
+// Service Execution, EntityMap). Any other operation on a tenant that does not exist is a
+// NonexistentTenant - an upsert too: it is an update as much as a creation.
+//
+static bool creates(void)
+{
+  static const char* createPathV[] =
+  {
+    "/ngsi-ld/v1/entities",
+    "/ngsi-ld/v1/entityOperations/create",
+    "/ngsi-ld/v1/temporal/entities",
+    "/ngsi-ld/v1/subscriptions",
+    "/ngsi-ld/v1/csourceRegistrations",
+    "/ngsi-ld/v1/csourceSubscriptions",
+    "/ngsi-ld/v1/snapshots",
+    "/ngsi-ld/v1/serviceRegistrations",
+    "/ngsi-ld/v1/combinedServiceTemplate",
+    "/ngsi-ld/v1/services",
+    "/ngsi-ld/v1/entityMaps",
+    NULL
+  };
+
+  if ((corRest.in.verb != CorVerbPost) || (corRest.in.urlPath == NULL))
+    return false;
+
+  for (int ix = 0; createPathV[ix] != NULL; ix++)
+  {
+    if (strcmp(corRest.in.urlPath, createPathV[ix]) == 0)
+      return true;
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantPreServiceHook - resolve tenant before every service routine
 //
-// Uses the HTTP verb to decide: POST/PATCH/DELETE auto-create, GET rejects unknown.
-// Stores the result in corNgsild.tenantP.
+// A request that creates an NGSI-LD object creates its tenant (creates()); any other on a tenant that
+// does not exist is a 404 NonexistentTenant. Stores the result in corNgsild.tenantP.
 // Returns true to continue to service routine, false to skip (error already set).
 //
 bool tenantPreServiceHook(void)
@@ -316,7 +357,7 @@ bool tenantPreServiceHook(void)
   if (corRest.in.urlPath != NULL && strcmp(corRest.in.urlPath, "/ngsi-ld/v1/info/sourceIdentity") == 0)
     return true;
 
-  bool autoCreate = (corRest.in.verb != CorVerbGet);
+  bool autoCreate = creates();
 
   Tenant* tP = tenantFromRequest(autoCreate);
 
