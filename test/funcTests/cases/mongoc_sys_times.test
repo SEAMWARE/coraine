@@ -1,0 +1,218 @@
+#
+# FILE            mongoc_sys_times.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# System timestamps - one per created entity (doc/cor-protocol-details.md § 4.10a), mongoc. An entity is
+# created whole, with one time: its document keeps that one time - the entity's createdAt - and, below
+# the entity, only the times that differ from it. A time that is not there is the entity's createdAt:
+# every read puts it back, and a q on it matches it. A document with every time in place (written
+# before) is read as it is.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+mongoc - one system timestamp per created entity: stored once, read back everywhere, matched by q
+
+--TAGS--
+mongoc createdAt modifiedAt sysattrs
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create E1: speed (+ sub-attribute unit), p2 (two instances), loc (GeoProperty)
+# 02. The document: one time - the entity's createdAt - and no other
+# 03. GET E1 ?options=sysAttrs: every object has both times, each the entity's createdAt
+# 04. PATCH speed, append p3: the document keeps speed's modifiedAt, p3's createdAt + modifiedAt, the entity's modifiedAt
+# 05. GET E1 ?options=sysAttrs: speed created with the entity, modified since; p3 created since; the rest the entity's
+# 06. q over inherited times: E2 untouched - its modifiedAt, speed.modifiedAt and speed.unit.createdAt are its createdAt
+# 07. A document with every time in place (another broker's): read as it is
+#
+
+# The document of an entity: the path of every createdAt / modifiedAt in it, 'C' when it is the entity's createdAt
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+
+storedTimes() {
+  mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval 'print(EJSON.stringify(db.entities.findOne({_id: "'$1'"}), {relaxed: false}))' | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+c = d['createdAt']['\$numberLong']
+def walk(o, path):
+    for k, v in o.items():
+        k = k.replace('．', '.').split('/')[-1]
+        if k in ('createdAt', 'modifiedAt'):
+            print('  ' + (path + '.' if path else '') + k, '= C' if v['\$numberLong'] == c else '= other')
+        elif isinstance(v, dict) and k != 'value':
+            walk(v, (path + '.' if path else '') + k)
+walk(d, '')"
+}
+
+# GET with sysAttrs: every object's two times, 'C' for the entity's createdAt, 'later' for one after it
+apiTimes() {
+  corCurl --url "/ngsi-ld/v1/entities/$1?options=sysAttrs" | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+c = e['createdAt']
+def t(v): return 'C' if v == c else ('later' if v > c else 'EARLIER')
+def walk(o, path):
+    if isinstance(o, list):
+        for i, x in enumerate(o): walk(x, path + '[' + str(i) + ']')
+        return
+    print('  ' + (path or 'entity'), 'createdAt', t(o.get('createdAt', 'MISSING')), 'modifiedAt', t(o.get('modifiedAt', 'MISSING')))
+    for k, v in o.items():
+        if isinstance(v, (dict, list)) and k not in ('value', 'createdAt', 'modifiedAt'):
+            walk(v, (path + '.' if path else '') + k)
+walk(e, '')"
+}
+
+q() {
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$1")" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print('  q=$1:', sorted(e['id'] for e in json.load(sys.stdin)))"
+}
+
+echo "01. Create E1: speed (+ sub-attribute unit), p2 (two instances), loc (GeoProperty)"
+echo "==================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1", "type": "T",
+  "speed": {"type": "Property", "value": 1, "unit": {"type": "Property", "value": "KMH"}},
+  "p2": [{"type": "Property", "value": 2}, {"type": "Property", "value": 3, "datasetId": "urn:ds1"}],
+  "loc": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [1, 2]}}
+}' | head -1
+echo
+echo
+
+
+echo "02. The document: one time - the entity's createdAt - and no other"
+echo "=================================================================="
+storedTimes urn:E1
+echo
+echo
+
+
+echo "03. GET E1 ?options=sysAttrs: every object has both times, each the entity's createdAt"
+echo "======================================================================================"
+apiTimes urn:E1
+echo
+echo
+
+
+echo "04. PATCH speed, append p3: the document keeps speed's modifiedAt, p3's createdAt + modifiedAt, the entity's modifiedAt"
+echo "======================================================================================================================"
+sleep 0.01
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"speed": {"type": "Property", "value": 5}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p3": {"type": "Property", "value": 7}}' | head -1
+storedTimes urn:E1
+echo
+echo
+
+
+echo "05. GET E1 ?options=sysAttrs: speed created with the entity, modified since; p3 created since; the rest the entity's"
+echo "==================================================================================================================="
+apiTimes urn:E1
+echo
+echo
+
+
+echo "06. q over inherited times: E2 untouched - its modifiedAt, speed.modifiedAt and speed.unit.createdAt are its createdAt"
+echo "====================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T", "speed": {"type": "Property", "value": 1, "unit": {"type": "Property", "value": "KMH"}}}' | head -1
+q 'modifiedAt<2099-01-01T00:00:00Z'
+q 'modifiedAt>2099-01-01T00:00:00Z'
+q 'speed.modifiedAt<2099-01-01T00:00:00Z'
+q 'speed.createdAt>2099-01-01T00:00:00Z'
+q 'speed.unit.createdAt<2099-01-01T00:00:00Z'
+q 'speed.unit.modifiedAt!=2000-01-01T00:00:00Z'
+q 'nothing.createdAt<2099-01-01T00:00:00Z'
+q 'speed.nothing.createdAt<2099-01-01T00:00:00Z'
+q 'p3.createdAt<2099-01-01T00:00:00Z;speed.modifiedAt<2099-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "07. A document with every time in place (another broker's): read as it is"
+echo "=========================================================================="
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval '
+db.entities.insertOne({
+  _id: "urn:E3", type: "https://uri.etsi.org/ngsi-ld/default-context/T",
+  ["https://uri．etsi．org/ngsi-ld/default-context/a"]: {"@none": {type: "Property", value: NumberLong("1"), createdAt: NumberLong("1700000001000000000"), modifiedAt: NumberLong("1700000002000000000")}},
+  createdAt: NumberLong("1700000000000000000"), modifiedAt: NumberLong("1700000003000000000")
+}); print("inserted")'
+corCurl --url '/ngsi-ld/v1/entities/urn:E3?options=sysAttrs' | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+print('  entity', e['createdAt'], e['modifiedAt'])
+print('  a     ', e['a']['createdAt'], e['a']['modifiedAt'])"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1: speed (+ sub-attribute unit), p2 (two instances), loc (GeoProperty)
+===================================================================================
+HTTP/1.1 201 Created
+
+
+02. The document: one time - the entity's createdAt - and no other
+==================================================================
+  createdAt = C
+
+
+03. GET E1 ?options=sysAttrs: every object has both times, each the entity's createdAt
+======================================================================================
+  entity createdAt C modifiedAt C
+  loc createdAt C modifiedAt C
+  p2[0] createdAt C modifiedAt C
+  p2[1] createdAt C modifiedAt C
+  speed createdAt C modifiedAt C
+  speed.unit createdAt C modifiedAt C
+
+
+04. PATCH speed, append p3: the document keeps speed's modifiedAt, p3's createdAt + modifiedAt, the entity's modifiedAt
+======================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+  speed.@none.modifiedAt = other
+  createdAt = C
+  modifiedAt = other
+  p3.@none.createdAt = other
+  p3.@none.modifiedAt = other
+
+
+05. GET E1 ?options=sysAttrs: speed created with the entity, modified since; p3 created since; the rest the entity's
+===================================================================================================================
+  entity createdAt C modifiedAt later
+  loc createdAt C modifiedAt C
+  p2[0] createdAt C modifiedAt C
+  p2[1] createdAt C modifiedAt C
+  p3 createdAt later modifiedAt later
+  speed createdAt C modifiedAt later
+
+
+06. q over inherited times: E2 untouched - its modifiedAt, speed.modifiedAt and speed.unit.createdAt are its createdAt
+=====================================================================================================================
+HTTP/1.1 201 Created
+  q=modifiedAt<2099-01-01T00:00:00Z: ['urn:E1', 'urn:E2']
+  q=modifiedAt>2099-01-01T00:00:00Z: []
+  q=speed.modifiedAt<2099-01-01T00:00:00Z: ['urn:E1', 'urn:E2']
+  q=speed.createdAt>2099-01-01T00:00:00Z: []
+  q=speed.unit.createdAt<2099-01-01T00:00:00Z: ['urn:E2']
+  q=speed.unit.modifiedAt!=2000-01-01T00:00:00Z: ['urn:E2']
+  q=nothing.createdAt<2099-01-01T00:00:00Z: []
+  q=speed.nothing.createdAt<2099-01-01T00:00:00Z: []
+  q=p3.createdAt<2099-01-01T00:00:00Z;speed.modifiedAt<2099-01-01T00:00:00Z: ['urn:E1']
+
+
+07. A document with every time in place (another broker's): read as it is
+==========================================================================
+inserted
+  entity 2023-11-14T22:13:20Z 2023-11-14T22:13:23Z
+  a      2023-11-14T22:13:21Z 2023-11-14T22:13:22Z
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

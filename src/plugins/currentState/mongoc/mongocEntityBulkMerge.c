@@ -39,7 +39,7 @@
 #include "corNgsild/ldEntityMerge.h"                      // LdMergeReport
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
-#include "currentState/mongoc/mongocBsonToTree.h"        // mongocBsonToTree
+#include "currentState/mongoc/mongocBsonToTree.h"        // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
 #include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
@@ -144,7 +144,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
       if (idP == NULL || idP->type != CorString) continue;
       if (strcmp(idP->value.s, foundId) != 0) continue;
       if (shared == NULL)
-        shared = mongocBsonToTree(&corRest.kalloc, doc);
+        shared = mongocEntityBsonToTree(&corRest.kalloc, doc);
       targetsV[k] = shared;
     }
   }

@@ -36,7 +36,7 @@
 #include "corNgsild/ldEntityMerge.h"                   // LdMergeReport
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocTreeToBson.h"     // mongocNodeAppend
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocNodeAppend, mongocAttrAppend, mongocEntityCreatedAt
 #include "currentState/mongoc/mongocDotEscape.h"      // mongocEscapeDotsInKey
 #include "corNgsild/CorNgsild.h"                      // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
@@ -75,8 +75,9 @@ void mongocBuildSurgicalUpdate(CorNode*       mergedEntity,
   bson_init(&setDoc);
   bson_init(&unsetDoc);
 
-  bool hasSet   = false;
-  bool hasUnset = false;
+  bool    hasSet          = false;
+  bool    hasUnset        = false;
+  int64_t entityCreatedAt = mongocEntityCreatedAt(mergedEntity);   // what an attribute inherits (mongocAttrAppend)
 
   if (reportP != NULL && reportP->changes != NULL)
   {
@@ -125,7 +126,7 @@ void mongocBuildSurgicalUpdate(CorNode*       mergedEntity,
         if (attrWrapper == NULL)
           continue;
 
-        mongocNodeAppend(&setDoc, escaped, attrWrapper);
+        mongocAttrAppend(&setDoc, escaped, attrWrapper, entityCreatedAt);
         hasSet = true;
       }
     }

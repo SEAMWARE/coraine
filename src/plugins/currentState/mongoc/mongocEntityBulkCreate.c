@@ -23,7 +23,7 @@
 
 #include "db/DbDriver.h"                              // DB_OK, DB_ALREADY_EXISTS, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocTreeToBson.h"     // mongocTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocEntityToBson
 #include "corNgsild/CorNgsild.h"                      // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkCreate.h"  // Own interface
@@ -184,7 +184,7 @@ int mongocEntityBulkCreate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     }
 
     resultsV[i] = DB_OK;   // optimistic default; overwritten by applyWriteErrors
-    mongocTreeToBson(inP, &docs[batchN]);
+    mongocEntityToBson(inP, &docs[batchN]);
     docPtrs[batchN] = &docs[batchN];
     batchIx[batchN] = i;
     batchN++;

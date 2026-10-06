@@ -26,7 +26,7 @@
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocBsonToTree.h"        // mongocBsonToTree
+#include "currentState/mongoc/mongocBsonToTree.h"        // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityBulkDelete.h"  // Own interface
 
 
@@ -91,7 +91,7 @@ int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
       {
         if (idV[i] != NULL && strcmp(idV[i], foundId) == 0)
         {
-          snapshotsV[i] = mongocBsonToTree(&corRest.kalloc, docP);
+          snapshotsV[i] = mongocEntityBsonToTree(&corRest.kalloc, docP);
           resultsV[i]   = DB_OK;  // optimistic; downgraded if bulk fails
           break;
         }

@@ -188,8 +188,8 @@ them on write (`ldApiEntityToDbModel`, from the request's one time) and renders 
 `timeproperty=modifiedAt`). The broker owns the clock: one time per request, so the current state,
 TRoE and the notifications agree to the microsecond.
 
-An entity is created whole, with one time. corDB stores that one time - the entity's `createdAt` - and,
-below the entity, only the times that differ from it (corDB's README):
+An entity is created whole, with one time. corDB and mongoc store that one time - the entity's
+`createdAt` - and, below the entity, only the times that differ from it (corDB's README):
 
 | | stored |
 |---|---|
@@ -198,10 +198,19 @@ below the entity, only the times that differ from it (corDB's README):
 | an added attribute | its own `createdAt` and `modifiedAt` |
 
 A time that is not there is the entity's `createdAt`; a store with every time in place is read as it
-is. 100k entities of ten attributes take 21-30 % less memory (the figures, and what it does to
-throughput: corDB's README). The conversion is at corDB's edges - every tree that leaves the store has
-every timestamp - so mongoc and **cor://** are unchanged, and corNgsild knows one thing: its in-place
-attribute update (`ldEntityAttrsSet`) keeps an inherited `createdAt` inherited. cor:// carries the times
+is. The conversion is at each store's edges - every tree that leaves the store has every timestamp - so
+**cor://** is unchanged, and corNgsild knows one thing: its in-place attribute update
+(`ldEntityAttrsSet`) keeps an inherited `createdAt` inherited.
+
+- **corDB**: 100k entities of ten attributes take 21-30 % less memory (the figures, and what it does to
+  throughput: corDB's README).
+- **mongoc**: in the conversion that already walks the document (`mongocEntityToBson` /
+  `mongocAttrAppend` out, `mongocEntityBsonToTree` in - no extra copy). A `q` on an inherited time -
+  the entity's `modifiedAt`, an attribute's or a sub-attribute's `createdAt` / `modifiedAt` - is
+  `{ $or: [ { <time>: <cmp> }, { <time>: absent, <its object>: there, createdAt: <cmp> } ] }`; the
+  entity's `createdAt`, always there, keeps its plain compare and its `{createdAt, _id}` index. An
+  entity's document (`bsonsize`, ten Property attributes): 1,603 -> 1,193 bytes (**-25.6 %**); with
+  two sub-attributes and an `observedAt` per attribute: 4,433 -> 3,243 bytes (**-26.8 %**). cor:// carries the times
 only when the request asked for them, as integers - no guard needed, § 4.10's "convert only if it
 re-renders exactly" is for the user's `observedAt`.
 
