@@ -181,7 +181,14 @@ discriminator the MVP has to turn green without ICU.
 
 ### Array reduction in corJsonld
 
-One JSON-LD normalisation applied once at the input boundary rather than at each call site.
+A one-element array collapsed to its element is a JSON-LD rule, and coraine applies it - in five
+hand-written copies: on storage (an attribute's value, twice), on render, and for a subscription's
+`@context` (twice, reaching into the raw body). It belongs once, in corJsonld, at the input boundary, so
+every layer above meets one shape. It is not a blanket rule: an array's length means something for a
+term of `@type: @json` (a JsonProperty's `json`, and any user term declared so), under
+`@container: @list` or `@container: @language`, and on the temporal path. Every exception is stated in
+the `@context`, which corJsonld holds - so it can decide alone, and the render path's
+`collapseSingletonArrays` flag goes.
 
 ### One MIME-type handling
 

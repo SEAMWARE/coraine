@@ -86,7 +86,7 @@ timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
 
 -   **Our own string collation, replacing ICU** - root collation without 39 MiB of libicu. ([more](ideas.md#our-own-string-collation-replacing-icu))
--   **Array reduction in corJsonld** - one normalisation at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
+-   **Array reduction in corJsonld** - done today in five places; once, term-aware, at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
 -   **Broader performance regression coverage** - more scenarios, nightly. ([more](ideas.md#broader-performance-regression-coverage))
