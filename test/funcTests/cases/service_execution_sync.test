@@ -1,0 +1,271 @@
+#
+# FILE            service_execution_sync.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): synchronous services over HTTP. An invocation
+# (POST /entities/{id}/services/{name}) is checked against the service's inputSchema, handed to the
+# executor with the entity's id and type and a Service-Execution header, and answered with the
+# executor's result; the execution is kept, completed or failed - the executor's refusal (its
+# ProblemDetails), its crash (502), its silence past the executionTimeout (504). The executions are
+# listed by entity, service and status; a finished one is deleted.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - synchronous services: result, refusals, time-out; the executions kept
+
+--TAGS--
+service execution
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Lamp urn:L1, and its services: setLight (/echo, brightness 0-255), refuse, crash, text, slow (executionTimeout PT1S)
+# 02. Invoke setLight {brightness 125} - 200, the executor's result; GET the execution it names
+# 03. Invoke setLight {brightness 300} - 400 (inputSchema), no execution
+# 04. Invoke refuse - 400, the executor's ProblemDetails; crash - 502; text - 200 "done"; slow - 504
+# 05. Invoke dim (no such service) - 404; setLight on urn:Nobody - 404
+# 06. What the executor received
+# 07. GET /services?serviceName=setLight - 1 (the refused input made none); ?executionStatus=failed - 3, each with its executionError
+# 08. DELETE the completed setLight execution - 204; GET it - 404
+#
+
+reg() {
+  corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/$2\",\"entities\":[{\"type\":\"Lamp\"}],$3\"serviceInformation\":{\"serviceName\":\"$1\",\"mode\":\"synchronous\"$4}}" | head -1
+}
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/$1/services/$2" --payload "$3" > /tmp/se.out
+  sed -n '1p' /tmp/se.out
+  grep -i '^Service-Execution:' /tmp/se.out | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/'
+  sed -n '/^[[{"]/,$p' /tmp/se.out
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+summary() {
+  sed -n '/^\[/,$p' | python3 -c "
+import json,sys
+for e in json.load(sys.stdin):
+    print(e['serviceName'], e['executionStatus'], json.dumps(e.get('executionOutput')), (e.get('executionError') or {}).get('title'), 'ended' if 'executionEndedAt' in e else '')"
+}
+
+echo "01. Lamp urn:L1, and its services: setLight (/echo, brightness 0-255), refuse, crash, text, slow (executionTimeout PT1S)"
+echo "======================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Lamp"}' | head -1
+reg setLight echo "" ',"inputSchema":{"type":"object","properties":{"brightness":{"type":"integer","minimum":0,"maximum":255}},"required":["brightness"]}'
+reg refuse   refuse
+reg crash    crash
+reg text     text
+reg slow     slow '"executionTimeout":"PT1S",'
+echo
+echo
+
+
+echo "02. Invoke setLight {brightness 125} - 200, the executor's result; GET the execution it names"
+echo "============================================================================================="
+invoke urn:L1 setLight '{"brightness":125}'
+corCurl --url /ngsi-ld/v1/services/$(lastId) | sed -n '/^{/,$p' | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/; s/"executionStartedAt": ".*"/"executionStartedAt": "<time>"/; s/"executionEndedAt": ".*"/"executionEndedAt": "<time>"/'
+echo
+echo
+
+
+echo "03. Invoke setLight {brightness 300} - 400 (inputSchema), no execution"
+echo "======================================================================"
+invoke urn:L1 setLight '{"brightness":300}'
+echo
+echo
+
+
+echo "04. Invoke refuse - 400, the executor's ProblemDetails; crash - 502; text - 200 \"done\"; slow - 504"
+echo "=================================================================================================="
+invoke urn:L1 refuse '{}'
+invoke urn:L1 crash '{}'
+invoke urn:L1 text '{}'
+invoke urn:L1 slow '{}'
+echo
+echo
+
+
+echo "05. Invoke dim (no such service) - 404; setLight on urn:Nobody - 404"
+echo "===================================================================="
+invoke urn:L1 dim '{}'
+invoke urn:Nobody setLight '{"brightness":1}'
+echo
+echo
+
+
+echo "06. What the executor received"
+echo "=============================="
+ftExecLog | python3 -c "
+import json,sys
+for r in json.load(sys.stdin):
+    se = 'Service-Execution: <id>' if (r['serviceExecution'] or '').startswith('urn:ngsi-ld:ServiceExecution:') else r['serviceExecution']
+    print(r['method'], r['path'], se, json.dumps(r['body'], sort_keys=True))"
+echo
+echo
+
+
+echo "07. GET /services?serviceName=setLight - 1 (the refused input made none); ?executionStatus=failed - 3, each with its executionError"
+echo "==================================================================================================================================="
+corCurl --url '/ngsi-ld/v1/services?serviceName=setLight' | summary
+echo "then"
+corCurl --url '/ngsi-ld/v1/services?executionStatus=failed' | summary
+echo
+echo
+
+
+echo "08. DELETE the completed setLight execution - 204; GET it - 404"
+echo "==============================================================="
+id=$(corCurl --url '/ngsi-ld/v1/services?serviceName=setLight' | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+corCurl --url /ngsi-ld/v1/services/$id -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/services/$id | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Lamp urn:L1, and its services: setLight (/echo, brightness 0-255), refuse, crash, text, slow (executionTimeout PT1S)
+======================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Invoke setLight {brightness 125} - 200, the executor's result; GET the execution it names
+=============================================================================================
+HTTP/1.1 200 OK
+Service-Execution: <id>
+{
+  "got": {
+    "brightness": 125,
+    "id": "urn:L1",
+    "type": "Lamp"
+  }
+}
+
+{
+  "entityId": "urn:L1",
+  "entityType": "Lamp",
+  "executionEndedAt": "<time>",
+  "executionInput": {
+    "brightness": 125
+  },
+  "executionOutput": {
+    "got": {
+      "brightness": 125,
+      "id": "urn:L1",
+      "type": "Lamp"
+    }
+  },
+  "executionStartedAt": "<time>",
+  "executionStatus": "completed",
+  "id": "<id>",
+  "serviceName": "setLight",
+  "type": "ServiceExecution"
+}
+
+
+
+03. Invoke setLight {brightness 300} - 400 (inputSchema), no execution
+======================================================================
+HTTP/1.1 400 Bad Request
+{
+  "detail": "the service's input: brightness: must be at most 255",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Invoke refuse - 400, the executor's ProblemDetails; crash - 502; text - 200 "done"; slow - 504
+==================================================================================================
+HTTP/1.1 400 Bad Request
+Service-Execution: <id>
+{
+  "detail": "brightness out of range",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 502 Bad Gateway
+Service-Execution: <id>
+{
+  "detail": "the service's executor answered 500",
+  "status": 502,
+  "title": "Executor Refused",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+HTTP/1.1 200 OK
+Service-Execution: <id>
+"done"
+HTTP/1.1 504 Gateway Timeout
+Service-Execution: <id>
+{
+  "detail": "the service's executor did not answer in time",
+  "status": 504,
+  "title": "Executor Timeout",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+05. Invoke dim (no such service) - 404; setLight on urn:Nobody - 404
+====================================================================
+HTTP/1.1 404 Not Found
+{
+  "detail": "entity 'urn:L1' has no service 'dim'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+HTTP/1.1 404 Not Found
+{
+  "detail": "entity 'urn:Nobody' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. What the executor received
+==============================
+POST /echo Service-Execution: <id> {"brightness": 125, "id": "urn:L1", "type": "Lamp"}
+POST /refuse Service-Execution: <id> {"id": "urn:L1", "type": "Lamp"}
+POST /crash Service-Execution: <id> {"id": "urn:L1", "type": "Lamp"}
+POST /text Service-Execution: <id> {"id": "urn:L1", "type": "Lamp"}
+POST /slow Service-Execution: <id> {"id": "urn:L1", "type": "Lamp"}
+
+
+07. GET /services?serviceName=setLight - 1 (the refused input made none); ?executionStatus=failed - 3, each with its executionError
+===================================================================================================================================
+setLight completed {"got": {"brightness": 125, "id": "urn:L1", "type": "Lamp"}} None ended
+then
+refuse failed null Bad Request Data ended
+crash failed null Executor Refused ended
+slow failed null Executor Timeout ended
+
+
+08. DELETE the completed setLight execution - 204; GET it - 404
+===============================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

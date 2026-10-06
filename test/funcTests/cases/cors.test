@@ -65,7 +65,7 @@ Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Access-Control-Allow-Origin: *
-Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 Content-Length: 3
 
 []
@@ -79,9 +79,9 @@ Date: REGEX(.*)
 Allow: GET, POST, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
 Access-Control-Max-Age: 86400
-Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 
 
 
@@ -93,9 +93,9 @@ Date: REGEX(.*)
 Allow: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, PUT, DELETE, PATCH, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
 Access-Control-Max-Age: 86400
-Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 
 
 
@@ -107,9 +107,9 @@ Date: REGEX(.*)
 Allow: GET, POST, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
 Access-Control-Max-Age: 86400
-Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 
 
 
@@ -121,9 +121,9 @@ Date: REGEX(.*)
 Allow: GET, DELETE, HEAD, OPTIONS
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, DELETE, HEAD, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
 Access-Control-Max-Age: 86400
-Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 
 
 

@@ -1,0 +1,260 @@
+#
+# FILE            service_execution_async.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): asynchronous services. An invocation is answered 202
+# at once (Location, Service-Execution); the executor reports back - executing with progress, then
+# completed with the output, or failed with a ProblemDetails - and every change is notified to the
+# execution's notification endpoint (the registration's default, or the execution's own - a
+# WebSocket connection too). Cancel: a running execution is cancelled by its executor, or goes on
+# when it cannot pre-empt (409). The executor's PATCH needs the Service-Execution header and a
+# running execution. A running execution past its executionTimeout fails (the periodic sweep).
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - asynchronous services: progress, notifications (HTTP and WebSocket), cancel, time-out
+
+--TAGS--
+service execution notification websocket
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+ftExecStart
+
+--RUN--
+
+#
+# 01. Door urn:D1; services open (/async), jam (/asyncFail), hold (/asyncHold), stuck (/noCancel), sleepy (/asyncHold, PT1S) - all asynchronous, notifying /notify
+# 02. Invoke open - 202, Location, Service-Execution; it ends completed - its progress and output
+# 03. The notifications of open: executing, executing + progress 50, completed + output
+# 04. Invoke jam - 202; it ends failed, with the executor's ProblemDetails
+# 05. Invoke hold - 202; DELETE it - 204, cancelled; the executor got the DELETE; DELETE it again - 204, gone
+# 06. Invoke stuck - 202; DELETE it - 409, still executing
+# 07. The executor's PATCH: without Service-Execution - 400; on a completed execution - 409; an unknown member - 400
+# 08. Invoke sleepy (executionTimeout PT1S) - 202; after the sweep - failed, "Execution Timeout"
+# 09. Over a WebSocket: POST /services (hold) notifying the connection - the 201, then the notifications on the connection
+#
+
+reg() {
+  corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/$2\",\"entities\":[{\"type\":\"Door\"}],$3\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:$FT_EXEC_PORT/notify\"}},\"serviceInformation\":{\"serviceName\":\"$1\",\"mode\":\"asynchronous\"}}" | head -1
+}
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:D1/services/$1" --payload '{}' > /tmp/se.out
+  sed -n '1p' /tmp/se.out
+  grep -i '^Location:\|^Service-Execution:' /tmp/se.out | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/'
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+awaitStatus() {
+  for i in $(seq 1 100); do
+    s=$(corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+    [ "$s" == "$2" ] && break
+    sleep 0.1
+  done
+  corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+print(e['serviceName'], e['executionStatus'], 'progress', json.dumps(e.get('executionProgress')), 'output', json.dumps(e.get('executionOutput')), 'error', json.dumps((e.get('executionError') or {}).get('title')))"
+}
+notifs() {
+  ftExecNotifications | python3 -c "
+import json,sys
+for n in json.load(sys.stdin):
+    e = n['data'][0]
+    if e['id'] == '$1':
+        print(n['type'], e['executionStatus'], json.dumps(e.get('executionProgress')), json.dumps(e.get('executionOutput')))"
+}
+exPatch() { corCurl --url /ngsi-ld/v1/services/$1 -X PATCH --payload "$2" ${3:+-H "Service-Execution: $3"} | sed -n '1p;/"detail"/p'; }
+
+echo "01. Door urn:D1; services open (/async), jam (/asyncFail), hold (/asyncHold), stuck (/noCancel), sleepy (/asyncHold, PT1S) - all asynchronous, notifying /notify"
+echo "=================================================================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"Door"}' | head -1
+reg open   async
+reg jam    asyncFail
+reg hold   asyncHold
+reg stuck  noCancel
+reg sleepy asyncHold '"executionTimeout":"PT1S",'
+echo
+echo
+
+
+echo "02. Invoke open - 202, Location, Service-Execution; it ends completed - its progress and output"
+echo "================================================================================================"
+invoke open
+OPEN=$(lastId)
+awaitStatus $OPEN completed
+echo
+echo
+
+
+echo "03. The notifications of open: executing, executing + progress 50, completed + output"
+echo "====================================================================================="
+notifs $OPEN
+echo
+echo
+
+
+echo "04. Invoke jam - 202; it ends failed, with the executor's ProblemDetails"
+echo "========================================================================"
+invoke jam
+awaitStatus $(lastId) failed
+echo
+echo
+
+
+echo "05. Invoke hold - 202; DELETE it - 204, cancelled; the executor got the DELETE; DELETE it again - 204, gone"
+echo "==========================================================================================================="
+invoke hold
+HOLD=$(lastId)
+corCurl --url /ngsi-ld/v1/services/$HOLD -X DELETE | head -1
+awaitStatus $HOLD cancelled
+ftExecLog | python3 -c "import json,sys; print([(r['method'], r['path'].replace('$HOLD','<id>')) for r in json.load(sys.stdin) if r['method'] == 'DELETE'])"
+corCurl --url /ngsi-ld/v1/services/$HOLD -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/services/$HOLD | head -1
+echo
+echo
+
+
+echo "06. Invoke stuck - 202; DELETE it - 409, still executing"
+echo "========================================================"
+invoke stuck
+STUCK=$(lastId)
+corCurl --url /ngsi-ld/v1/services/$STUCK -X DELETE | sed -n '1p;/"detail"/p' | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/'
+awaitStatus $STUCK executing
+echo
+echo
+
+
+echo "07. The executor's PATCH: without Service-Execution - 400; on a completed execution - 409; an unknown member - 400"
+echo "=================================================================================================================="
+exPatch $STUCK '{"executionStatus":"completed"}'
+exPatch $OPEN '{"executionStatus":"completed"}' $OPEN
+exPatch $STUCK '{"color":"red"}' $STUCK
+echo
+echo
+
+
+echo "08. Invoke sleepy (executionTimeout PT1S) - 202; after the sweep - failed, \"Execution Timeout\""
+echo "================================================================================================"
+invoke sleepy
+SLEEPY=$(lastId)
+for i in $(seq 1 80); do
+  s=$(corCurl --url /ngsi-ld/v1/services/$SLEEPY | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+  [ "$s" == "failed" ] && break
+  sleep 0.1
+done
+awaitStatus $SLEEPY failed
+notifs $SLEEPY | tail -1
+echo
+echo
+
+
+echo "09. Over a WebSocket: POST /services (hold) notifying the connection - the 201, then the notifications on the connection"
+echo "======================================================================================================================"
+ftWsStart
+ftWsAwait 1
+ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/services","requestId":"x1"},"body":{"type":"ServiceExecution","entityId":"urn:D1","serviceName":"hold","notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+ftWsAwait 3
+ftWsMessages | python3 -c "
+import json,sys
+for m in json.load(sys.stdin)[1:]:
+    md = m.get('metadata', {})
+    if 'requestId' in md:
+        print('response', md['status'], md.get('Location', '').replace(md.get('Service-Execution', ''), '<id>'))
+    else:
+        print(m['body']['type'], m['body']['data'][0]['executionStatus'])"
+ftWsStop
+echo
+echo
+
+
+--EXPECT--
+01. Door urn:D1; services open (/async), jam (/asyncFail), hold (/asyncHold), stuck (/noCancel), sleepy (/asyncHold, PT1S) - all asynchronous, notifying /notify
+==================================================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Invoke open - 202, Location, Service-Execution; it ends completed - its progress and output
+================================================================================================
+HTTP/1.1 202 Accepted
+Service-Execution: <id>
+Location: /ngsi-ld/v1/services/<id>
+open completed progress {"percent": 50} output {"done": true} error null
+
+
+03. The notifications of open: executing, executing + progress 50, completed + output
+=====================================================================================
+Notification executing null null
+Notification executing {"percent": 50} null
+Notification completed {"percent": 50} {"done": true}
+
+
+04. Invoke jam - 202; it ends failed, with the executor's ProblemDetails
+========================================================================
+HTTP/1.1 202 Accepted
+Service-Execution: <id>
+Location: /ngsi-ld/v1/services/<id>
+jam failed progress null output null error "Jammed"
+
+
+05. Invoke hold - 202; DELETE it - 204, cancelled; the executor got the DELETE; DELETE it again - 204, gone
+===========================================================================================================
+HTTP/1.1 202 Accepted
+Service-Execution: <id>
+Location: /ngsi-ld/v1/services/<id>
+HTTP/1.1 204 No Content
+hold cancelled progress null output null error null
+[('DELETE', '/asyncHold/<id>')]
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+
+
+06. Invoke stuck - 202; DELETE it - 409, still executing
+========================================================
+HTTP/1.1 202 Accepted
+Service-Execution: <id>
+Location: /ngsi-ld/v1/services/<id>
+HTTP/1.1 409 Conflict
+  "detail": "the service's executor cannot cancel Service Execution '<id>' - it goes on",
+stuck executing progress null output null error null
+
+
+07. The executor's PATCH: without Service-Execution - 400; on a completed execution - 409; an unknown member - 400
+==================================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "an executor's update names the execution in a 'Service-Execution' header",
+HTTP/1.1 409 Conflict
+  "detail": "the Service Execution is completed - it changes no more",
+HTTP/1.1 400 Bad Request
+  "detail": "'color' - an executor reports executionStatus, executionProgress, executionOutput and executionError",
+
+
+08. Invoke sleepy (executionTimeout PT1S) - 202; after the sweep - failed, "Execution Timeout"
+================================================================================================
+HTTP/1.1 202 Accepted
+Service-Execution: <id>
+Location: /ngsi-ld/v1/services/<id>
+sleepy failed progress null output null error "Execution Timeout"
+Notification failed null null
+
+
+09. Over a WebSocket: POST /services (hold) notifying the connection - the 201, then the notifications on the connection
+======================================================================================================================
+Notification executing
+response 201 /ngsi-ld/v1/services/<id>
+
+
+--TEARDOWN--
+ftWsStop
+ftExecStop
+coraineStop
+corDbDrop

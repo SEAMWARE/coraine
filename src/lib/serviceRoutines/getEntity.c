@@ -53,6 +53,9 @@
 #include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesFlat
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader, snapshotGetEntity
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
+#endif
 #include "serviceRoutines/getEntity.h"               // Own interface
 
 
@@ -1001,6 +1004,10 @@ bool getEntity(void)
       return true;
     }
   }
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  seEntityServicesAdd(entityP);                       // ?includeServices=true - its services, as ServiceDescription attributes
+#endif
 
   // § 4.5.23 — linked-entity expansion. join=flat returns an array
   // (primary + targets); join=inline nests targets as `entity` sub-

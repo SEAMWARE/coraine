@@ -1,0 +1,574 @@
+#
+# FILE            service_registration_crud.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): Service Registrations - create, retrieve, list, discover
+# (the registrations of one entity: its type, its id against id/idPattern, the registration's q against
+# the entity), update, delete; the refusals of a malformed registration.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Registration CRUD and discovery
+
+--TAGS--
+service registration create retrieve update delete
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. POST a Service Registration (setLight, every Lamp whose id starts urn:MyLamp) - 201
+# 02. GET it
+# 03. POST a second, no id (getModel, Lamps with model X1) - 201, a generated id
+# 04. GET /serviceRegistrations - both
+# 05. Two Lamps: urn:MyLamp1 (model X1), urn:Other (model X2)
+# 06. Discover: type=Lamp&id=urn:MyLamp1 - both; type=Lamp&id=urn:Other - neither (id pattern, q); type=Door - none
+# 07. PATCH the first: serviceInformation replaced whole (a new description, mode asynchronous); GET it
+# 08. Refused: no serviceInformation, no serviceName, 'input' instead of inputSchema, a mode that is neither, an entities member without type - 400 each
+# 09. POST the first again - 409
+# 10. DELETE the first - 204; GET it - 404; DELETE it again - 404
+# 11. With an inline @context (Dimmer, dim): stored expanded - GET without it shows the IRIs; discovered by the type's IRI
+#
+
+echo "01. POST a Service Registration (setLight, every Lamp whose id starts urn:MyLamp) - 201"
+echo "======================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:ServiceRegistration:SR1",
+  "type": "ServiceRegistration",
+  "endpoint": "http://localhost:9997/setLight",
+  "entities": [ { "idPattern": "^urn:MyLamp", "type": "Lamp" } ],
+  "serviceInformation": {
+    "serviceName": "setLight",
+    "title": "setLight",
+    "description": "Set brightness of light, 0 means off",
+    "mode": "synchronous",
+    "inputSchema": { "type": "object", "properties": { "brightness": { "type": "integer", "minimum": 0, "maximum": 255 } }, "required": [ "brightness" ] },
+    "outputSchema": { "type": "string" }
+  }
+}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. GET it"
+echo "=========="
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1
+echo
+echo
+
+
+echo "03. POST a second, no id (getModel, Lamps with model X1) - 201, a generated id"
+echo "=============================================================================="
+payload='{
+  "type": "ServiceRegistration",
+  "endpoint": "http://localhost:9997/getModel",
+  "entities": [ { "type": "Lamp" } ],
+  "q": "model==\"X1\"",
+  "serviceInformation": { "serviceName": "getModel", "mode": "synchronous" }
+}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /serviceRegistrations - both"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations
+echo
+echo
+
+
+echo "05. Two Lamps: urn:MyLamp1 (model X1), urn:Other (model X2)"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:MyLamp1","type":"Lamp","model":{"type":"Property","value":"X1"}}'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Other","type":"Lamp","model":{"type":"Property","value":"X2"}}'
+echo
+echo
+
+
+echo "06. Discover: type=Lamp&id=urn:MyLamp1 - both; type=Lamp&id=urn:Other - neither (id pattern, q); type=Door - none"
+echo "=================================================================================================================="
+corCurl --url '/ngsi-ld/v1/serviceRegistrations?type=Lamp&id=urn:MyLamp1'
+corCurl --url '/ngsi-ld/v1/serviceRegistrations?type=Lamp&id=urn:Other'
+corCurl --url '/ngsi-ld/v1/serviceRegistrations?type=Door'
+echo
+echo
+
+
+echo "07. PATCH the first: serviceInformation replaced whole (a new description, mode asynchronous); GET it"
+echo "====================================================================================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1 -X PATCH --payload '{"serviceInformation":{"serviceName":"setLight","description":"Dims the light","mode":"asynchronous"}}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1
+echo
+echo
+
+
+echo "08. Refused: no serviceInformation, no serviceName, 'input' instead of inputSchema, a mode that is neither, an entities member without type - 400 each"
+echo "======================================================================================================================================================"
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Lamp"}]}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Lamp"}],"serviceInformation":{"mode":"synchronous"}}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Lamp"}],"serviceInformation":{"serviceName":"s","input":{"type":"object"}}}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Lamp"}],"serviceInformation":{"serviceName":"s","mode":"sometimes"}}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"id":"urn:X"}],"serviceInformation":{"serviceName":"s"}}'
+echo
+echo
+
+
+echo "09. POST the first again - 409"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"id":"urn:ngsi-ld:ServiceRegistration:SR1","type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Lamp"}],"serviceInformation":{"serviceName":"s"}}'
+echo
+echo
+
+
+echo "10. DELETE the first - 204; GET it - 404; DELETE it again - 404"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1 -X DELETE
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1 -X DELETE
+echo
+echo
+
+
+echo "11. With an inline @context (Dimmer, dim): stored expanded - GET without it shows the IRIs; discovered by the type's IRI"
+echo "========================================================================================================================"
+payload='{
+  "@context": [ { "Dimmer": "https://example.org/Dimmer", "dim": "https://example.org/dim" }, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ],
+  "id": "urn:ngsi-ld:ServiceRegistration:SR3",
+  "type": "ServiceRegistration",
+  "endpoint": "http://localhost:9997/dim",
+  "entities": [ { "type": "Dimmer" } ],
+  "serviceInformation": { "serviceName": "dim" }
+}'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$payload" -H "Content-Type: application/ld+json"
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR3
+corCurl --url '/ngsi-ld/v1/serviceRegistrations?type=https://example.org/Dimmer'
+echo
+echo
+
+
+--EXPECT--
+01. POST a Service Registration (setLight, every Lamp whose id starts urn:MyLamp) - 201
+=======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1
+Content-Length: 0
+
+
+
+
+02. GET it
+==========
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 687
+
+{
+  "endpoint": "http://localhost:9997/setLight",
+  "entities": [
+    {
+      "idPattern": "^urn:MyLamp",
+      "type": "Lamp"
+    }
+  ],
+  "id": "urn:ngsi-ld:ServiceRegistration:SR1",
+  "serviceInformation": {
+    "description": "Set brightness of light, 0 means off",
+    "inputSchema": {
+      "properties": {
+        "brightness": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "brightness"
+      ],
+      "type": "object"
+    },
+    "mode": "synchronous",
+    "outputSchema": {
+      "type": "string"
+    },
+    "serviceName": "setLight",
+    "title": "setLight"
+  },
+  "type": "ServiceRegistration"
+}
+
+
+
+03. POST a second, no id (getModel, Lamps with model X1) - 201, a generated id
+==============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/serviceRegistrations/REGEX(urn:ngsi-ld:ServiceRegistration:[0-9a-f]+:[0-9]+)
+Content-Length: 0
+
+
+
+
+04. GET /serviceRegistrations - both
+====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1095
+
+[
+  {
+    "endpoint": "http://localhost:9997/setLight",
+    "entities": [
+      {
+        "idPattern": "^urn:MyLamp",
+        "type": "Lamp"
+      }
+    ],
+    "id": "urn:ngsi-ld:ServiceRegistration:SR1",
+    "serviceInformation": {
+      "description": "Set brightness of light, 0 means off",
+      "inputSchema": {
+        "properties": {
+          "brightness": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "brightness"
+        ],
+        "type": "object"
+      },
+      "mode": "synchronous",
+      "outputSchema": {
+        "type": "string"
+      },
+      "serviceName": "setLight",
+      "title": "setLight"
+    },
+    "type": "ServiceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9997/getModel",
+    "entities": [
+      {
+        "type": "Lamp"
+      }
+    ],
+    "id": "REGEX(urn:ngsi-ld:ServiceRegistration:[0-9a-f]+:[0-9]+)",
+    "q": "model==\"X1\"",
+    "serviceInformation": {
+      "mode": "synchronous",
+      "serviceName": "getModel"
+    },
+    "type": "ServiceRegistration"
+  }
+]
+
+
+
+05. Two Lamps: urn:MyLamp1 (model X1), urn:Other (model X2)
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:MyLamp1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:Other
+Content-Length: 0
+
+
+
+
+06. Discover: type=Lamp&id=urn:MyLamp1 - both; type=Lamp&id=urn:Other - neither (id pattern, q); type=Door - none
+==================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1095
+
+[
+  {
+    "endpoint": "http://localhost:9997/setLight",
+    "entities": [
+      {
+        "idPattern": "^urn:MyLamp",
+        "type": "Lamp"
+      }
+    ],
+    "id": "urn:ngsi-ld:ServiceRegistration:SR1",
+    "serviceInformation": {
+      "description": "Set brightness of light, 0 means off",
+      "inputSchema": {
+        "properties": {
+          "brightness": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "brightness"
+        ],
+        "type": "object"
+      },
+      "mode": "synchronous",
+      "outputSchema": {
+        "type": "string"
+      },
+      "serviceName": "setLight",
+      "title": "setLight"
+    },
+    "type": "ServiceRegistration"
+  },
+  {
+    "endpoint": "http://localhost:9997/getModel",
+    "entities": [
+      {
+        "type": "Lamp"
+      }
+    ],
+    "id": "REGEX(urn:ngsi-ld:ServiceRegistration:[0-9a-f]+:[0-9]+)",
+    "q": "model==\"X1\"",
+    "serviceInformation": {
+      "mode": "synchronous",
+      "serviceName": "getModel"
+    },
+    "type": "ServiceRegistration"
+  }
+]
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+07. PATCH the first: serviceInformation replaced whole (a new description, mode asynchronous); GET it
+=====================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 345
+
+{
+  "endpoint": "http://localhost:9997/setLight",
+  "entities": [
+    {
+      "idPattern": "^urn:MyLamp",
+      "type": "Lamp"
+    }
+  ],
+  "id": "urn:ngsi-ld:ServiceRegistration:SR1",
+  "serviceInformation": {
+    "description": "Dims the light",
+    "mode": "asynchronous",
+    "serviceName": "setLight"
+  },
+  "type": "ServiceRegistration"
+}
+
+
+
+08. Refused: no serviceInformation, no serviceName, 'input' instead of inputSchema, a mode that is neither, an entities member without type - 400 each
+======================================================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 210
+
+{
+  "detail": "a Service Registration needs 'serviceInformation': an object naming the service",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "serviceInformation needs a 'serviceName'",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 222
+
+{
+  "detail": "serviceInformation: 'input' - a service's JSON Schemas are 'inputSchema' and 'outputSchema'",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 196
+
+{
+  "detail": "serviceInformation: 'mode' is \"synchronous\" or \"asynchronous\"",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "a member of 'entities' needs a 'type'",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. POST the first again - 409
+==============================
+HTTP/1.1 409 Conflict
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 201
+
+{
+  "detail": "Service Registration 'urn:ngsi-ld:ServiceRegistration:SR1' already exists",
+  "status": 409,
+  "title": "Already Exists",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+}
+
+
+
+10. DELETE the first - 204; GET it - 404; DELETE it again - 404
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "Service Registration 'urn:ngsi-ld:ServiceRegistration:SR1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "Service Registration 'urn:ngsi-ld:ServiceRegistration:SR1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. With an inline @context (Dimmer, dim): stored expanded - GET without it shows the IRIs; discovered by the type's IRI
+========================================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR3
+Content-Length: 0
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 278
+
+{
+  "endpoint": "http://localhost:9997/dim",
+  "entities": [
+    {
+      "type": "https://example.org/Dimmer"
+    }
+  ],
+  "id": "urn:ngsi-ld:ServiceRegistration:SR3",
+  "serviceInformation": {
+    "serviceName": "https://example.org/dim"
+  },
+  "type": "ServiceRegistration"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 308
+
+[
+  {
+    "endpoint": "http://localhost:9997/dim",
+    "entities": [
+      {
+        "type": "https://example.org/Dimmer"
+      }
+    ],
+    "id": "urn:ngsi-ld:ServiceRegistration:SR3",
+    "serviceInformation": {
+      "serviceName": "https://example.org/dim"
+    },
+    "type": "ServiceRegistration"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

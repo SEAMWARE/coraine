@@ -1304,6 +1304,134 @@ static const char* loopbackVersionInfo(void)
 
 // -----------------------------------------------------------------------------
 //
+// Service Execution, ABI 11 - the broker as a service's executor, with no transport at all
+//
+// loopback://<behaviour>, each a scripted executor, reporting from a thread of its own as a real
+// bridge does (BridgeBroker.serviceUpdateIn):
+//
+//   echo      completed, the output = the input
+//   progress  executing + progress {"percent": 50}, then completed {"done": true}
+//   fail      failed, a ProblemDetails
+//   hold      executing - until cancelled (serviceCancel: BRIDGE_OK)
+//   stuck     executing - and cannot be pre-empted (serviceCancel: BRIDGE_UNSUPPORTED)
+//
+typedef struct LoopbackRun
+{
+  char* behaviour;
+  char* executionId;
+  char* input;
+} LoopbackRun;
+
+static const char* loopbackBehaviours[] = { "echo", "progress", "fail", "hold", "stuck", NULL };
+
+
+
+static const char* loopbackBehaviour(const char* url)
+{
+  if (strncmp(url, "loopback://", 11) != 0)
+    return NULL;
+
+  for (int ix = 0; loopbackBehaviours[ix] != NULL; ix++)
+  {
+    if (strcmp(&url[11], loopbackBehaviours[ix]) == 0)
+      return loopbackBehaviours[ix];
+  }
+
+  return NULL;
+}
+
+
+
+static void loopbackServiceUpdate(const char* id, const char* status, const char* progress, const char* output, const char* error)
+{
+  if ((brokerP != NULL) && (brokerP->abiVersion >= 11) && (brokerP->serviceUpdateIn != NULL))
+    brokerP->serviceUpdateIn("loopback", id, status, progress, output, error);
+}
+
+
+
+static void* loopbackServiceRun(void* arg)
+{
+  LoopbackRun* runP = (LoopbackRun*) arg;
+  const char*  b    = runP->behaviour;
+
+  usleep(20000);
+
+  if (strcmp(b, "echo") == 0)
+    loopbackServiceUpdate(runP->executionId, "completed", NULL, runP->input, NULL);
+  else if (strcmp(b, "progress") == 0)
+  {
+    loopbackServiceUpdate(runP->executionId, "executing", "{\"percent\":50}", NULL, NULL);
+    usleep(100000);
+    loopbackServiceUpdate(runP->executionId, "completed", NULL, "{\"done\":true}", NULL);
+  }
+  else if (strcmp(b, "fail") == 0)
+    loopbackServiceUpdate(runP->executionId, "failed", NULL, NULL,
+                          "{\"type\":\"https://example.org/errors/Loopback\",\"title\":\"Loopback Failure\",\"status\":500,\"detail\":\"asked to fail\"}");
+  else
+    loopbackServiceUpdate(runP->executionId, "executing", NULL, NULL, NULL);   // hold, stuck: running
+
+  free(runP->executionId);
+  free(runP->input);
+  free(runP);
+  return NULL;
+}
+
+
+
+static int loopbackServiceExecute(const char* url, const char* executionId, const char* inputJson)
+{
+  const char* behaviour = loopbackBehaviour(url);
+
+  if (behaviour == NULL)
+    return BRIDGE_NOT_FOUND;
+
+  LoopbackRun* runP = (LoopbackRun*) calloc(1, sizeof(LoopbackRun));
+  pthread_t    tid;
+
+  if (runP == NULL)
+    return BRIDGE_ERR;
+
+  runP->behaviour   = (char*) behaviour;
+  runP->executionId = strdup(executionId);
+  runP->input       = strdup((inputJson != NULL) ? inputJson : "{}");
+
+  if (pthread_create(&tid, NULL, loopbackServiceRun, runP) != 0)
+  {
+    free(runP->executionId);
+    free(runP->input);
+    free(runP);
+    return BRIDGE_ERR;
+  }
+
+  pthread_detach(tid);
+  return BRIDGE_OK;
+}
+
+
+
+static int loopbackServiceCancel(const char* url, const char* executionId)
+{
+  const char* behaviour = loopbackBehaviour(url);
+
+  (void) executionId;
+
+  if (behaviour == NULL)
+    return BRIDGE_NOT_FOUND;
+
+  if (strcmp(behaviour, "hold") == 0)
+    return BRIDGE_OK;
+
+  if (strcmp(behaviour, "stuck") == 0)
+    return BRIDGE_UNSUPPORTED;
+
+  return BRIDGE_NOT_FOUND;                            // echo, progress, fail: over already
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRegister - the one symbol this .so exports
 //
 void bridgeRegister(BridgeDriver* driverP)
@@ -1340,6 +1468,13 @@ void bridgeRegister(BridgeDriver* driverP)
   {
     driverP->actionGoalSend   = loopbackActionGoalSend;
     driverP->actionGoalCancel = loopbackActionGoalCancel;
+  }
+
+  if (hostAbi >= 11)
+  {
+    driverP->serviceSchemes = "loopback";
+    driverP->serviceExecute = loopbackServiceExecute;
+    driverP->serviceCancel  = loopbackServiceCancel;
   }
 
   //

@@ -1,0 +1,96 @@
+#
+# FILE            cordb_persist_documents.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: the document store (DbDriver doc*, Service Execution's registrations) persists like
+# the rest - its writes in the log (DocPut / DocDelete), replayed after a kill -9; a clean stop
+# snapshots the store, documents included, and a start reads them back from the snapshot.
+#
+# REQUIRE_DB: corDB
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+corDB persistence - documents (Service Registrations) through the log and through a snapshot
+
+--TAGS--
+corDB persistence service registration
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_documents
+coraineStart --dbDir /tmp/corTest-cordb_persist_documents --dbSync request
+
+--RUN--
+
+#
+# 01. POST SR1, SR2, SR3; PATCH SR1 (serviceName dim); DELETE SR2
+# 02. kill -9 the broker, start it on the same --dbDir - from the log: SR1 (patched), SR3
+# 03. Stop it cleanly (a snapshot), start it again - from the snapshot: SR1, SR3
+#
+
+DIR=/tmp/corTest-cordb_persist_documents
+sr() { echo "{\"id\":\"urn:ngsi-ld:ServiceRegistration:$1\",\"type\":\"ServiceRegistration\",\"endpoint\":\"http://x/$1\",\"entities\":[{\"type\":\"Lamp\"}],\"serviceInformation\":{\"serviceName\":\"$2\"}}"; }
+list() { corCurl --url /ngsi-ld/v1/serviceRegistrations | sed -n '/^\[/,$p' | python3 -c "import json,sys; print([(r['id'][-3:], r['serviceInformation']['serviceName']) for r in json.load(sys.stdin)])"; }
+
+echo "01. POST SR1, SR2, SR3; PATCH SR1 (serviceName dim); DELETE SR2"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$(sr SR1 setLight)" | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$(sr SR2 blink)" | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "$(sr SR3 reset)" | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR1 -X PATCH --payload '{"serviceInformation":{"serviceName":"dim"}}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:ngsi-ld:ServiceRegistration:SR2 -X DELETE | head -1
+list
+echo
+echo
+
+
+echo "02. kill -9 the broker, start it on the same --dbDir - from the log: SR1 (patched), SR3"
+echo "======================================================================================"
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR --dbSync request
+list
+echo
+echo
+
+
+echo "03. Stop it cleanly (a snapshot), start it again - from the snapshot: SR1, SR3"
+echo "=============================================================================="
+coraineStop
+ls $DIR/_
+coraineStart --dbDir $DIR --dbSync request
+list
+echo
+echo
+
+
+--EXPECT--
+01. POST SR1, SR2, SR3; PATCH SR1 (serviceName dim); DELETE SR2
+================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+[('SR1', 'dim'), ('SR3', 'reset')]
+
+
+02. kill -9 the broker, start it on the same --dbDir - from the log: SR1 (patched), SR3
+======================================================================================
+[('SR1', 'dim'), ('SR3', 'reset')]
+
+
+03. Stop it cleanly (a snapshot), start it again - from the snapshot: SR1, SR3
+==============================================================================
+log-000001.cor
+snap-000001.cor
+[('SR1', 'dim'), ('SR3', 'reset')]
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_documents

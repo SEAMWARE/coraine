@@ -107,4 +107,26 @@ IF (COR_FEATURE_SUBSCRIPTIONS AND COR_FEATURE_REGISTRATIONS)
   )
 ENDIF()
 
+IF (COR_FEATURE_SERVICE_EXECUTION)
+  LIST(APPEND SOURCES
+    postServiceRegistration.c
+    getServiceRegistration.c
+    getServiceRegistrations.c
+    patchServiceRegistration.c
+    deleteServiceRegistration.c
+    postEntityService.c
+    getEntityServiceExecution.c
+    deleteEntityServiceExecution.c
+    postServiceExecution.c
+    getServiceExecutions.c
+    getServiceExecution.c
+    patchServiceExecution.c
+    deleteServiceExecution.c
+    postCombinedServiceTemplate.c
+    getCombinedServiceTemplate.c
+    patchCombinedServiceTemplate.c
+    deleteCombinedServiceTemplate.c
+  )
+ENDIF()
+
 ADD_LIBRARY(serviceRoutines STATIC ${SOURCES})

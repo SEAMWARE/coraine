@@ -1,0 +1,208 @@
+#
+# FILE            service_entity_description.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): a Service Description stored in the entity (GR CIM-055
+# § 6.3.3) - an attribute of type ServiceDescription, its executor's endpoint included, created, replaced
+# and deleted as any attribute. Hidden unless ?includeServices=true (then serviceDescriptionInEntity is
+# true; its schemas with ?serviceDetails=true); invoked as a registered service is.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - a Service Description stored in the entity: hidden, shown, invoked, replaced, deleted
+
+--TAGS--
+service execution attribute
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Lamp urn:L1 with on (a Property) and setLight (a ServiceDescription: /echo, brightness 0-255) - 201
+# 02. GET urn:L1 - setLight hidden
+# 03. GET urn:L1?includeServices=true - setLight, its endpoint, serviceDescriptionInEntity true, no schemas
+# 04. GET urn:L1?includeServices=true&serviceDetails=true&options=keyValues - with its schemas
+# 05. Invoke setLight {brightness 125} - 200, the executor's echo; {brightness 300} - 400
+# 06. Replace setLight: asynchronous, /async - invoke: 202
+# 07. Refused: a ServiceDescription without endpoint; with a member it does not have - 400 each
+# 08. DELETE the attribute setLight - invoke: 404
+#
+
+echo "01. Lamp urn:L1 with on (a Property) and setLight (a ServiceDescription: /echo, brightness 0-255) - 201"
+echo "======================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:L1\",\"type\":\"Lamp\",\"on\":{\"type\":\"Property\",\"value\":true},
+  \"setLight\":{\"type\":\"ServiceDescription\",\"title\":\"Set light\",\"mode\":\"synchronous\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",
+  \"inputSchema\":{\"type\":\"object\",\"properties\":{\"brightness\":{\"type\":\"integer\",\"maximum\":255}}},\"outputSchema\":{\"type\":\"object\"}}}" | head -1
+echo
+echo
+
+
+echo "02. GET urn:L1 - setLight hidden"
+echo "================================"
+corCurl --url /ngsi-ld/v1/entities/urn:L1 | sed -n '/^{/,$p'
+echo
+echo
+
+
+echo "03. GET urn:L1?includeServices=true - setLight, its endpoint, serviceDescriptionInEntity true, no schemas"
+echo "========================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:L1?includeServices=true' | sed -n '/^{/,$p' | sed "s/localhost:$FT_EXEC_PORT/localhost:<port>/"
+echo
+echo
+
+
+echo "04. GET urn:L1?includeServices=true&serviceDetails=true&options=keyValues - with its schemas"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:L1?includeServices=true&serviceDetails=true&options=keyValues' | sed -n '/^{/,$p' | sed "s/localhost:$FT_EXEC_PORT/localhost:<port>/"
+echo
+echo
+
+
+echo "05. Invoke setLight {brightness 125} - 200, the executor's echo; {brightness 300} - 400"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/setLight --payload '{"brightness":125}' | sed -n '1p;/^{/,$p'
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/setLight --payload '{"brightness":300}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+echo "06. Replace setLight: asynchronous, /async - invoke: 202"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:L1/attrs/setLight -X PUT --payload "{\"type\":\"ServiceDescription\",\"mode\":\"asynchronous\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/async\"}" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/setLight --payload '{}' | head -1
+echo
+echo
+
+
+echo "07. Refused: a ServiceDescription without endpoint; with a member it does not have - 400 each"
+echo "============================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L2","type":"Lamp","s":{"type":"ServiceDescription","mode":"synchronous"}}' | sed -n '1p;/"detail"/p'
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L2","type":"Lamp","s":{"type":"ServiceDescription","endpoint":"http://x","value":3}}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+echo "08. DELETE the attribute setLight - invoke: 404"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:L1/attrs/setLight -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/setLight --payload '{}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+--EXPECT--
+01. Lamp urn:L1 with on (a Property) and setLight (a ServiceDescription: /echo, brightness 0-255) - 201
+======================================================================================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:L1 - setLight hidden
+================================
+{
+  "id": "urn:L1",
+  "on": {
+    "type": "Property",
+    "value": true
+  },
+  "type": "Lamp"
+}
+
+
+
+03. GET urn:L1?includeServices=true - setLight, its endpoint, serviceDescriptionInEntity true, no schemas
+========================================================================================================
+{
+  "id": "urn:L1",
+  "on": {
+    "type": "Property",
+    "value": true
+  },
+  "setLight": {
+    "endpoint": "http://localhost:<port>/echo",
+    "mode": "synchronous",
+    "serviceDescriptionInEntity": true,
+    "title": "Set light",
+    "type": "ServiceDescription"
+  },
+  "type": "Lamp"
+}
+
+
+
+04. GET urn:L1?includeServices=true&serviceDetails=true&options=keyValues - with its schemas
+===========================================================================================
+{
+  "id": "urn:L1",
+  "on": true,
+  "setLight": {
+    "endpoint": "http://localhost:<port>/echo",
+    "inputSchema": {
+      "properties": {
+        "brightness": {
+          "maximum": 255,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "mode": "synchronous",
+    "outputSchema": {
+      "type": "object"
+    },
+    "serviceDescriptionInEntity": true,
+    "title": "Set light",
+    "type": "ServiceDescription"
+  },
+  "type": "Lamp"
+}
+
+
+
+05. Invoke setLight {brightness 125} - 200, the executor's echo; {brightness 300} - 400
+======================================================================================
+HTTP/1.1 200 OK
+{
+  "got": {
+    "brightness": 125,
+    "id": "urn:L1",
+    "type": "Lamp"
+  }
+}
+
+HTTP/1.1 400 Bad Request
+  "detail": "the service's input: brightness: must be at most 255",
+
+
+06. Replace setLight: asynchronous, /async - invoke: 202
+========================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 202 Accepted
+
+
+07. Refused: a ServiceDescription without endpoint; with a member it does not have - 400 each
+=============================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "ServiceDescription 'https://uri.etsi.org/ngsi-ld/default-context/s' needs its 'endpoint' - where the service is executed",
+HTTP/1.1 400 Bad Request
+  "detail": "ServiceDescription 'https://uri.etsi.org/ngsi-ld/default-context/s': 'value' is not one of its members",
+
+
+08. DELETE the attribute setLight - invoke: 404
+===============================================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+  "detail": "entity 'urn:L1' has no service 'setLight'",
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

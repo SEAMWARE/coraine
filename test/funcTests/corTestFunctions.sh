@@ -1210,6 +1210,38 @@ ftModbusStop() {
 # ftWs - a WebSocket client for the WebSocket transport tests (tools/ftWs.py)
 #
 # ONE WebSocket to a broker (GET /ngsi-ld/v1/ws), kept open; its control API on FT_WS_PORT:
+
+# -----------------------------------------------------------------------------
+#
+# ftExecutor - a Service Executor for the Service Execution tests (tools/ftExecutor.py): it answers
+# the broker's invocations by path (/echo, /refuse, /async, ...) and receives notifications (/notify)
+#
+#   ftExecStart [brokerPort]   listen on FT_EXEC_PORT (7731); PATCH back to the broker on 'brokerPort' (default 1026)
+#   ftExecStop
+#   ftExecLog                  every request it received, a JSON array
+#   ftExecNotifications        the notifications it received, a JSON array of their bodies
+#
+FT_EXEC_PORT=7731
+
+ftExecStart() {
+  local brokerPort=${1:-1026}
+  ftExecStop
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftExecutor.py" --port $FT_EXEC_PORT --broker localhost:$brokerPort > /tmp/ftExecutor.$FT_EXEC_PORT.log 2>&1 &
+  echo $! > /tmp/ftExecutor.$FT_EXEC_PORT.pid
+  corAwaitPort $FT_EXEC_PORT 10 > /dev/null
+}
+
+ftExecStop() {
+  local pidFile=/tmp/ftExecutor.$FT_EXEC_PORT.pid
+  if [ -f $pidFile ]; then
+    kill "$(cat $pidFile)" 2>/dev/null
+    rm -f $pidFile
+  fi
+}
+
+ftExecLog()           { curl -s localhost:$FT_EXEC_PORT/log; }
+ftExecNotifications() { curl -s localhost:$FT_EXEC_PORT/notifications; }
+
 #
 #   ftWsStart [port] [protocol] [first] [tenant]
 #                                         connect to the broker on 'port' (default 1026, CB); 'first': a

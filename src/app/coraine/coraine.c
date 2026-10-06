@@ -95,7 +95,14 @@
 #include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 #endif
 
+#include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
+#include "corNgsild/ldServiceDescription.h"          // ldServiceDescriptionAccepted
+#include "serviceExecution/seExecution.h"            // seExecutionTick, seExecutionRetentionNs
+#include "serviceExecution/seRequest.h"              // SE_PARAM_*
+#endif
 #include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
@@ -573,6 +580,24 @@ static CorRestParam bridgeParams[] =
 
 
 
+#if COR_FEATURE_SERVICE_EXECUTION
+// -----------------------------------------------------------------------------
+//
+// serviceParams - the URL parameters of GET /ngsi-ld/v1/services (Service Execution)
+//
+static CorRestParam serviceParams[] =
+{
+  { "entityId",        SE_PARAM_SERVICES_QUERY   },
+  { "serviceName",     SE_PARAM_SERVICES_QUERY   },
+  { "executionStatus", SE_PARAM_SERVICES_QUERY   },
+  { "includeServices", SE_PARAM_INCLUDE_SERVICES },
+  { "serviceDetails",  SE_PARAM_SERVICE_DETAILS  },
+  { NULL,              0                         }
+};
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // apiPluginsInit - register API plugin params and call init()
@@ -642,7 +667,8 @@ static BridgeBroker bridgeBroker =
   bridgeReplyMetaIn,
   bridgeGoalEventMetaIn,
   bridgeReplyExchangeIn,
-  bridgeEndpointDiscoveredIn
+  bridgeEndpointDiscoveredIn,
+  bridgeServiceUpdateIn
 };
 
 
@@ -1600,6 +1626,16 @@ int main(int argC, char* argV[])
   if (ldExtensionTermsAdd(&contextAlloc) != 0)
     COR_X(1, "the NGSI-LD extension terms could not be added to the core context");
 
+#if COR_FEATURE_SERVICE_EXECUTION
+  //
+  // ... and Service Execution's (doc/service-execution.md) - to enter the spec, core terms here already
+  //
+  if (seCoreTermsAdd(&contextAlloc) != 0)
+    COR_X(1, "the Service Execution terms could not be added to the core context");
+
+  ldServiceDescriptionAccepted = true;               // an entity may hold its services' descriptions (GR CIM-055 § 6.3.3)
+#endif
+
   //
   // Every core term gets its CorTerm id - after the Bridge/Channel terms, which are core terms too.
   //
@@ -1633,8 +1669,8 @@ int main(int argC, char* argV[])
 
     CorRestCorsConfig corsConf = {
       .allowOrigin   = origin,
-      .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization",
-      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning",
+      .allowHeaders  = "Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution",
+      .exposeHeaders = "Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution",
       .maxAge        = corsMaxAge
     };
     corRestCorsConfig(&corsConf);
@@ -1642,6 +1678,11 @@ int main(int argC, char* argV[])
 
   if (corRestParamAdd(bridgeParams) == false)
     COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  if (corRestParamAdd(serviceParams) == false)
+    COR_X(1, "corRestParamAdd failed for the Service Execution URL parameters");
+#endif
 
   apiPluginsInit();
   //
@@ -1735,6 +1776,14 @@ int main(int argC, char* argV[])
   // Register the volatile-context reaper — drops never-fetched one-shot
   // hosted contexts (response / forward Link targets) past their TTL.
   ldContextHostReaperStart();
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  // Service Executions: time-outs (failed) and retention (deleted), every tenant
+  ldPeriodicLoopRegister(seExecutionTick, NULL);
+
+  // ... and the reports of the bridges that execute services (the broker as Service Executor)
+  bridgeServiceApplySet(seExecutionApplyBridge);
+#endif
 
   // Start the shared periodic dispatch thread (1-Hz tick over all
   // registered consumers).

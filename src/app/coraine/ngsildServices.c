@@ -93,6 +93,26 @@
 #include "serviceRoutines/patchEntityTemporalInstance.h"  // patchEntityTemporalInstance
 #include "serviceRoutines/deleteEntityTemporalInstance.h" // deleteEntityTemporalInstance
 
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceRoutines/postServiceRegistration.h"   // postServiceRegistration
+#include "serviceRoutines/getServiceRegistration.h"    // getServiceRegistration
+#include "serviceRoutines/getServiceRegistrations.h"   // getServiceRegistrations
+#include "serviceRoutines/patchServiceRegistration.h"  // patchServiceRegistration
+#include "serviceRoutines/deleteServiceRegistration.h" // deleteServiceRegistration
+#include "serviceRoutines/postEntityService.h"            // postEntityService
+#include "serviceRoutines/getEntityServiceExecution.h"    // getEntityServiceExecution
+#include "serviceRoutines/deleteEntityServiceExecution.h" // deleteEntityServiceExecution
+#include "serviceRoutines/postServiceExecution.h"         // postServiceExecution
+#include "serviceRoutines/getServiceExecutions.h"         // getServiceExecutions
+#include "serviceRoutines/getServiceExecution.h"          // getServiceExecution
+#include "serviceRoutines/patchServiceExecution.h"        // patchServiceExecution
+#include "serviceRoutines/deleteServiceExecution.h"       // deleteServiceExecution
+#include "serviceRoutines/postCombinedServiceTemplate.h"   // postCombinedServiceTemplate
+#include "serviceRoutines/getCombinedServiceTemplate.h"    // getCombinedServiceTemplate
+#include "serviceRoutines/patchCombinedServiceTemplate.h"  // patchCombinedServiceTemplate
+#include "serviceRoutines/deleteCombinedServiceTemplate.h" // deleteCombinedServiceTemplate
+#endif
+#include "serviceExecution/seRequest.h"                 // SE_PARAM_* - the bits exist in every build
 #include "serviceRoutines/corNotInThisBuild.h"   // corNotInThisBuild
 
 #include "plugin/ApiPlugin.h"                    // ApiPlugin, apiPlugins, apiPluginCount
@@ -119,6 +139,12 @@
 #  define REGS(handler)   corNotInThisBuild
 #endif
 
+#if COR_FEATURE_SERVICE_EXECUTION
+#  define SVCX(handler)   handler
+#else
+#  define SVCX(handler)   corNotInThisBuild
+#endif
+
 #if COR_FEATURE_SUBSCRIPTIONS
 #  define SUBS(handler)   handler
 #else
@@ -143,8 +169,13 @@
 //
 CorRestServiceSimplified ngsildCoreServices[] =
 {
-  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES,   LdOpQueryEntities  },
-  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY,     LdOpRetrieveEntity },
+  // Service Execution - the entity's services, before every /entities/* route
+  { CorVerbPost,   "/ngsi-ld/v1/entities/*/services/*",   SVCX(postEntityService),            0,                                    LdOpInvokeService },
+  { CorVerbGet,    "/ngsi-ld/v1/entities/*/services/*/*", SVCX(getEntityServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone          },
+  { CorVerbDelete, "/ngsi-ld/v1/entities/*/services/*/*", SVCX(deleteEntityServiceExecution), 0,                                    LdOpNone          },
+
+  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS, LdOpQueryEntities  },
+  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS,   LdOpRetrieveEntity },
   { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY | BRIDGE_PARAM_DDS_SYNC,   LdOpMergeEntity    },
@@ -208,6 +239,26 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(getCsourceSubscription),     LD_PARAMS_GET_CSOURCE_SUBSCRIPTION,     LdOpRetrieveCsourceSubscription },
   { CorVerbPatch,  "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(patchCsourceSubscription),   LD_PARAMS_PATCH_CSOURCE_SUBSCRIPTION,   LdOpUpdateCsourceSubscription   },
   { CorVerbDelete, "/ngsi-ld/v1/csourceSubscriptions/*", CSUBS(deleteCsourceSubscription),  LD_PARAMS_DELETE_CSOURCE_SUBSCRIPTION,  LdOpDeleteCsourceSubscription   },
+
+  // Service Execution (doc/service-execution.md) - Service Registrations
+  { CorVerbPost,   "/ngsi-ld/v1/serviceRegistrations",   SVCX(postServiceRegistration),   0,                                                            LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/serviceRegistrations",   SVCX(getServiceRegistrations),   LD_PARAM_TYPE | LD_PARAM_ID | LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/serviceRegistrations/*", SVCX(getServiceRegistration),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                          LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/serviceRegistrations/*", SVCX(patchServiceRegistration),  0,                                                            LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/serviceRegistrations/*", SVCX(deleteServiceRegistration), 0,                                                            LdOpNone },
+
+  // Service Execution - Combined Service Templates (the report's path, singular)
+  { CorVerbPost,   "/ngsi-ld/v1/combinedServiceTemplate",   SVCX(postCombinedServiceTemplate),   0,                                    LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(getCombinedServiceTemplate),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(patchCombinedServiceTemplate),  0,                                    LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/combinedServiceTemplate/*", SVCX(deleteCombinedServiceTemplate), 0,                                    LdOpNone },
+
+  // Service Execution - Service Executions
+  { CorVerbPost,   "/ngsi-ld/v1/services",   SVCX(postServiceExecution),   0,                                                                                        LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/services",   SVCX(getServiceExecutions),   LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS | SE_PARAM_SERVICES_QUERY, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/services/*", SVCX(getServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                                                     LdOpNone },
+  { CorVerbPatch,  "/ngsi-ld/v1/services/*", SVCX(patchServiceExecution),  0,                                                                                        LdOpNone },
+  { CorVerbDelete, "/ngsi-ld/v1/services/*", SVCX(deleteServiceExecution), 0,                                                                                        LdOpNone },
 
   // EntityMap CRUD (§ 5.14)
   { CorVerbGet,    "/ngsi-ld/v1/entityMaps",    REGS(createEntityMap), LD_PARAMS_GET_ENTITIES, LdOpNone },

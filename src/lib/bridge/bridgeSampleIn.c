@@ -69,7 +69,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// threadBind - make this plugin thread able to do broker work
+// bridgeThreadBind - make this plugin thread able to do broker work
 //
 // A transport runs threads of its own and hands a sample over on one of them.
 // The broker did not create that thread, so its thread-locals - corRest.kalloc,
@@ -81,7 +81,7 @@
 // reaching it a second time on the same arena walks a dangling list and frees
 // the same pointers again.
 //
-static void threadBind(Tenant* tenantP)
+void bridgeThreadBind(Tenant* tenantP)
 {
   static __thread bool  inited = false;
   static __thread char  buffer[BRIDGE_SAMPLE_BUFFER];
@@ -391,7 +391,7 @@ static void instanceCarryOver(CorNode* newInstanceP, CorNode* oldInstanceP)
 // define its own @vocab, and an endpoint quoted under the wrong one is an
 // attribute nobody else names the same way.
 //
-// In the thread's arena (threadBind first). NULL, traced, when there is no @vocab.
+// In the thread's arena (bridgeThreadBind first). NULL, traced, when there is no @vocab.
 //
 static char* catchAllAttrName(const char* bridgeName, const char* endpoint)
 {
@@ -551,7 +551,7 @@ static int sampleIn(const char* bridgeName,
     return BRIDGE_NOT_FOUND;
   }
 
-  threadBind(tenantP);
+  bridgeThreadBind(tenantP);
 
   //
   // The endpoint IS the attribute name here, and it is put under @vocab
@@ -1055,7 +1055,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
   const char* entityId = channelP->entityId;
   const char* attrName = channelP->attrName;
 
-  threadBind(tenantP);
+  bridgeThreadBind(tenantP);
 
   CorNode* entityP = NULL;
 
@@ -1193,7 +1193,7 @@ int bridgeEndpointDiscoveredIn(const char* bridgeName, const char* endpoint, int
     return BRIDGE_NOT_FOUND;
   }
 
-  threadBind(tenantP);
+  bridgeThreadBind(tenantP);
 
   char* shortName = corAllocStrdup(&corRest.kalloc, endpoint);
 
