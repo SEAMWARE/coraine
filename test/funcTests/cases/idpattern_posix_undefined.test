@@ -1,0 +1,166 @@
+#
+# FILE            idpattern_posix_undefined.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An idPattern is a "Regular expression as per IEEE 1003.2" (TS 104 175 § 5.2.8 / § 5.2.9). POSIX leaves
+# undefined a duplication symbol right after another one ("a**", "a+?", "x{2}{3}") or with nothing to
+# repeat ("*a", "a|*b") - glibc's regcomp accepts them, a PCRE engine (MongoDB's) refuses them. Refused
+# with 400 everywhere an idPattern is taken - the query's URL, a Subscription's entities, a Registration's
+# information - on every database. A valid pattern still works. (ETSI 019_03_02: "invalid_entity_id_pattern**".)
+#
+--NAME--
+idPattern: what POSIX leaves undefined is 400, on every database
+
+--TAGS--
+idPattern query subscription registration
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create urn:ngsi-ld:B:1 of type B
+# 02. GET ?idPattern=urn:ngsi-ld:B:1** - 400
+# 03. GET ?idPattern=*urn - 400 (nothing to repeat)
+# 04. GET ?idPattern=^urn:ngsi-ld:B:[0-9]+$ - the entity
+# 05. A Subscription with entities[].idPattern "a+?" - 400
+# 06. A Registration with information[].entities[].idPattern "x{2}{3}" - 400
+#
+
+echo "01. Create urn:ngsi-ld:B:1 of type B"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:B:1", "type": "B" }' | head -1
+echo
+echo
+
+
+echo "02. GET ?idPattern=urn:ngsi-ld:B:1** - 400"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=B&idPattern=urn:ngsi-ld:B:1**'
+echo
+echo
+
+
+echo "03. GET ?idPattern=*urn - 400 (nothing to repeat)"
+echo "================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=B&idPattern=*urn'
+echo
+echo
+
+
+echo "04. GET ?idPattern=^urn:ngsi-ld:B:[0-9]+$ - the entity"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=B&idPattern=%5Eurn:ngsi-ld:B:%5B0-9%5D%2B%24'
+echo
+echo
+
+
+echo "05. A Subscription with entities[].idPattern \"a+?\" - 400"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "type": "Subscription", "entities": [ { "type": "B", "idPattern": "a+?" } ], "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } } }'
+echo
+echo
+
+
+echo "06. A Registration with information[].entities[].idPattern \"x{2}{3}\" - 400"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{ "type": "ContextSourceRegistration", "information": [ { "entities": [ { "type": "B", "idPattern": "x{2}{3}" } ] } ], "endpoint": "http://localhost:9998" }'
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:ngsi-ld:B:1 of type B
+====================================
+HTTP/1.1 201 Created
+
+
+02. GET ?idPattern=urn:ngsi-ld:B:1** - 400
+==========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 270
+
+{
+  "detail": "'idPattern' is not a valid regex: a duplication symbol at offset 16 follows another one - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid idPattern",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET ?idPattern=*urn - 400 (nothing to repeat)
+=================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 271
+
+{
+  "detail": "'idPattern' is not a valid regex: a duplication symbol at offset 0 has nothing to repeat - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid idPattern",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. GET ?idPattern=^urn:ngsi-ld:B:[0-9]+$ - the entity
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+[
+  {
+    "id": "urn:ngsi-ld:B:1",
+    "type": "B"
+  }
+]
+
+
+
+05. A Subscription with entities[].idPattern "a+?" - 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 296
+
+{
+  "detail": "'entities[].idPattern' is not a valid regular expression: a duplication symbol at offset 2 follows another one - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. A Registration with information[].entities[].idPattern "x{2}{3}" - 400
+===========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 296
+
+{
+  "detail": "'entities[].idPattern' is not a valid regular expression: a duplication symbol at offset 4 follows another one - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
