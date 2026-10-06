@@ -282,6 +282,9 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
     if (db.entityQuery(sourceSnapP, &all, &arrayP) == DB_OK &&
         arrayP != NULL && arrayP->type == CorArray)
     {
+      bool skip = corNgsild.troeSkip;
+
+      corNgsild.troeSkip = true;                       // a copy - the history is copied below (ldSnapshotExec.c)
       for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
       {
         CorNode* idP = corTreeLookup(eP, "id");
@@ -291,6 +294,7 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
         if (db.entityCreate(cloneSnapP, idP->value.s, eP) == DB_OK)
           copied++;
       }
+      corNgsild.troeSkip = skip;
     }
 
     // Temporal-row copy. No time filter ⇒ all rows. Best-effort:

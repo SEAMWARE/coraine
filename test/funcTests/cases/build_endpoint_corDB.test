@@ -115,6 +115,7 @@ Content-Length: REGEX([0-9]+)
     "REGISTRATIONS": REGEX([a-z]+),
     "SCOPES": REGEX([a-z]+),
     "SERVICE_EXECUTION": REGEX([a-z]+),
+    "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TENANTS": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
@@ -206,6 +207,7 @@ Content-Length: REGEX([0-9]+)
     "REGISTRATIONS": REGEX([a-z]+),
     "SCOPES": REGEX([a-z]+),
     "SERVICE_EXECUTION": REGEX([a-z]+),
+    "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TENANTS": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)

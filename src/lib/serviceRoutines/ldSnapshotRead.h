@@ -71,15 +71,15 @@ extern bool snapshotGetEntities(LdSnapshotCacheItem* itemP);
 
 // -----------------------------------------------------------------------------
 //
-// ldSnapshotWriteGuard - dispatcher-level guard.
+// ldSnapshotWriteGuard - dispatcher-level guard for a non-GET request carrying NGSILD-Snapshot.
 //
-// Snapshots are immutable in NGSI-LD v1.9.1 (§ 5.16). Any non-GET
-// request (write op, batch op, subscription/registration creation,
-// ...) that carries the NGSILD-Snapshot header is rejected with 422
-// OperationNotSupported. Reads pass through; the snapshot-header
-// path is intrinsically local — the snap-tenant already holds the
-// federated view captured at create time, so distop fanout would
-// mix live data into a frozen view.
+// COR_FEATURE_SNAPSHOT_WRITE: an operation on Entities or their Temporal Evolution (§ 7.9.2) is
+// routed to the snapshot's own tenant, in a local scope - corNgsild.tenantP becomes the snapshot's,
+// corNgsild.local true. Any other operation (subscriptions, registrations, ...) is a 422
+// OperationNotSupported. Without the feature every non-GET is a 422 (snapshots read-only).
+// Reads pass through - each read routine routes itself, and always locally: the snap-tenant
+// holds the federated view captured at create time, and a distop fan-out would mix live data
+// into it.
 //
 // Returns true if the request may proceed, false if the guard fired
 // and set a problem detail (caller should abort).
