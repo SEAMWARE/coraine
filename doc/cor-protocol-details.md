@@ -180,23 +180,30 @@ back exactly as it was given, so the encoder converts only when the canonical re
 integer reproduces the string byte for byte. Otherwise it stays a string. Nothing is ever
 normalised in transit.
 
-### 4.10a System timestamps - corDB keeps them beside the node - v1
+### 4.10a System timestamps - one per created entity
 
 `createdAt` and `modifiedAt` are not the user's, and they are already integers: corNgsild attaches
 them on write (`ldApiEntityToDbModel`, from the request's one time) and renders them on read
 (`ldEntityToApi`, only when a request asks - `options=sysAttrs`, a temporal
-`timeproperty=modifiedAt`). What changes is where corDB keeps them:
+`timeproperty=modifiedAt`). The broker owns the clock: one time per request, so the current state,
+TRoE and the notifications agree to the microsecond.
 
-- **the broker owns the clock** - one time per request, passed into the DB call as today, so the
-  current state, TRoE and the notifications agree to the microsecond
-- **the plugin owns the representation** - a DB driver that keeps them itself says so (a capability
-  of the driver, not a check on its name), and corNgsild then does not build the two members into
-  the tree. corDB keeps them as two integers beside the entity and each attribute: two nodes, 80
-  bytes, fewer per object - about 80 MB for 100k entities of ten attributes. A plugin without the
-  capability (mongoc) gets the members as today
-- **snapshot and log** carry them as fixed integers in each record's header
-- **cor://** carries them only when the request asked for them, as integers - no guard needed,
-  § 4.10's "convert only if it re-renders exactly" is for the user's `observedAt`
+An entity is created whole, with one time. corDB stores that one time - the entity's `createdAt` - and,
+below the entity, only the times that differ from it (corDB's README):
+
+| | stored |
+|---|---|
+| a created entity | the entity's `createdAt`; its `modifiedAt` once it differs |
+| a modified attribute | its own `modifiedAt` - its `createdAt` is still the entity's |
+| an added attribute | its own `createdAt` and `modifiedAt` |
+
+A time that is not there is the entity's `createdAt`; a store with every time in place is read as it
+is. 100k entities of ten attributes take 21-30 % less memory (the figures, and what it does to
+throughput: corDB's README). The conversion is at corDB's edges - every tree that leaves the store has
+every timestamp - so mongoc and **cor://** are unchanged, and corNgsild knows one thing: its in-place
+attribute update (`ldEntityAttrsSet`) keeps an inherited `createdAt` inherited. cor:// carries the times
+only when the request asked for them, as integers - no guard needed, § 4.10's "convert only if it
+re-renders exactly" is for the user's `observedAt`.
 
 ### 4.11 Compression of a whole frame - later, off by default
 
@@ -243,8 +250,9 @@ Every message: a fixed 16-byte header, then one encoded tree (§ 3).
 
 ### 5.1 The magic
 
-The first four bytes of every frame, and of every snapshot and log file: **`C0 4F 52 01`** -
-0xC0 (which a hex dump shows as `C0`: almost "CO"), then `O`, `R`, and the format version.
+The first four bytes of every cor:// frame: **`C0 4F 52 01`** - 0xC0 (which a hex dump shows as `C0`:
+almost "CO"), then `O`, `R`, and the format version. corDB's log and snapshot records begin with their
+own four bytes, `c` `r`, the record version and the op (corDB's `doc/persistence.md` § 4).
 
 - **Wrong peer, said at once.** An HTTP client on the cor:// port, or the reverse, shows in the first
   bytes - `GET ` is not `C0 4F 52` - and the connection is refused with a clear error, not a
@@ -253,8 +261,8 @@ The first four bytes of every frame, and of every snapshot and log file: **`C0 4
   encoding, which UTF-8 forbids), so no text and no HTTP request can start with the magic. (PNG's
   `0x89` is the same idea.)
 - **Resynchronisation.** After a framing error the reader can scan for the next magic.
-- **Recognisable.** In a hex dump or a capture, and to `file` for a snapshot - and it carries the
-  format version before HELLO has been read.
+- **Recognisable.** In a hex dump or a capture - and it carries the format version before HELLO has
+  been read.
 
 ### 5.2 The bodies
 
@@ -323,9 +331,9 @@ of one second each, answered in one) are the functests.
 ## 6. What is built, and what it measures
 
 Built: the codec (corTree) with its NGSI-LD callbacks (corNgsild); cor:// in corRest - a listener
-(`--corPort`) and a client - with multiplexing (§ 5.3); forwarding over it. Not yet: packed numeric
-arrays and timestamps as integers (§ 4.9, § 4.10); the corDB snapshot and log in the cor format
-([corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)). Functests: `cor_forwarding_chain`, `cor_api_direct`, the two of § 5.3;
+(`--corPort`) and a client - with multiplexing (§ 5.3); forwarding over it; the corDB log and snapshot,
+whose record bodies are cor trees ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+Not yet: packed numeric arrays and timestamps as integers (§ 4.9, § 4.10). Functests: `cor_forwarding_chain`, `cor_api_direct`, the two of § 5.3;
 the whole suite runs with every request over cor:// as well (`COR_TRANSPORT=cor`, `doc/testing.md`).
 
 **Three brokers chained** (`test/perf/corChain.sh`): `corDB` brokers A -> B -> C, A and B each

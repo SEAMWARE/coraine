@@ -30,7 +30,7 @@ cor:// is a communication protocol, not a bridge: it reaches the broker's API, b
 
 ## What it is
 
-- **One format, three uses**: cor:// today; the corDB snapshot and log are to use the same codec.
+- **One format, three uses**: cor://, and the bodies of the corDB log and snapshot records.
 - **The codec knows nothing about NGSI-LD.** It lives in corTree and serialises any tree; corNgsild
   supplies, through callbacks, which names are core terms and which objects are attributes.
 - **Zero-copy on read** - strings keep their NUL and point into the read buffer; **skippable** -
