@@ -116,6 +116,17 @@ void troeDeferAttrEvent(const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
+// troeEventsOn -
+//
+bool troeEventsOn(void)
+{
+  return (troe.eventList != NULL) || (troe.attrEvent != NULL) || (troe.entityEvent != NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // troeDispatchPending -
 //
 void troeDispatchPending(void)
