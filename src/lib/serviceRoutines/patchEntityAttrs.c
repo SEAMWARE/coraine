@@ -51,6 +51,7 @@
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
+#include "troe/troeDispatch.h"                        // troeEventsOn
 
 #include "corNgsild/LdRegCache.h"                      // LdRegCache, LdRegCacheItem, LdRegMode, LdRegInfo
 #include "corNgsild/ldRegCache.h"                      // ldRegCacheMatchForRetrieveScoped, ldRegOpSupported
@@ -579,8 +580,8 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
 
-      // TRoE: defer one attr event per top-level attr in the merge report.
-      if (mergedEntity == NULL)
+      // TRoE: one attr event per top-level attr in the merge report - for a driver that takes them
+      if ((mergedEntity == NULL) && (troeEventsOn() == true))
         db.entityRetrieve(tenantP, entityId, &mergedEntity);
       {
         const char* etype = NULL;

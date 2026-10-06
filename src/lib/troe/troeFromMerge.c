@@ -22,7 +22,7 @@
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
-#include "troe/troeDispatch.h"                        // troeDeferAttrEvent
+#include "troe/troeDispatch.h"                        // troeDeferAttrEvent, troeEventsOn
 #include "troe/troeFromMerge.h"                       // Own interface
 
 
@@ -150,7 +150,7 @@ void troeDeferAttrEventsFromMerge(Tenant*         tenantP,
                                   LdMergeReport*  reportP,
                                   uint64_t        modifiedAtNs)
 {
-  if (reportP == NULL || reportP->changes == NULL)
+  if ((reportP == NULL) || (reportP->changes == NULL) || (troeEventsOn() == false))
     return;
 
   for (CorNode* changeP = reportP->changes->value.head; changeP != NULL; changeP = changeP->next)

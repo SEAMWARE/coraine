@@ -16,6 +16,7 @@
 // and ldNotifyDispatchPending.
 //
 
+#include <stdbool.h>                                  // bool
 #include "troe/TroeDriver.h"                              // TroeEvent, TroeOp
 
 
@@ -25,6 +26,15 @@
 // per-request kalloc arena).
 //
 extern void troeDeferEntityEvent(const TroeEvent* evP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeEventsOn - does a TRoE driver take events (--troe with a driver that records them)? With none, an
+// event would be built only to be dropped - and the entity read again only to build it
+//
+extern bool troeEventsOn(void);
 extern void troeDeferAttrEvent(const TroeEvent* evP);
 
 
