@@ -26,12 +26,16 @@ Recently built, and documented where it lives:
 -   **DDS** - topics both ways, services, actions, through the DDS bridge ([DDS and ROS 2](dds.md)).
 -   **MQTT** - device topics as Channels, and notifications to `mqtt://` ([The MQTT bridge](mqtt-bridge.md)).
 -   **Modbus TCP** - registers as Channels ([The Modbus bridge](modbus-bridge.md)).
+-   **WebSocket** - the whole API over one connection, and notifications on it ([WebSocket](websocket.md)).
 -   **`cor://`** - the binary protocol for GE-to-GE traffic: forwarding without a JSON parse, many
     requests in flight on one connection ([The cor format and cor://](cor-protocol.md)).
 -   **Requests that wait run as coroutines** of the event loops, not on worker threads
     ([Coroutines](coroutines.md)).
--   **corDB on disk** - `--dbDir`: an append log synced every 100 ms and snapshots; the store
-    survives a restart, still with no database server ([Installation](installation.md), "corDB on disk").
+-   **corDB on disk** - `--dbDir`: an append log synced every 100 ms and snapshots; an attribute update
+    logs the attributes, not the entity; `--dbCompress`; the store survives a restart, still with no
+    database server ([Installation](installation.md), "corDB on disk").
+-   **History in corDB** - `--troe corDB`: the temporal API from the store's own process, no second
+    database ([Installation](installation.md)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
@@ -42,11 +46,14 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity. ([more](ideas.md#cordb-persistence---cheaper-writes))
+-   **Service Execution** - "do this" in the API, not a write to an attribute; built, being merged. ([more](ideas.md#service-execution))
+-   **One system timestamp per entity** - corDB first, then MongoDB: 21-30 % less memory. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
+-   **The whole NGSI-LD API on corDB** - Snapshots first. ([more](ideas.md#the-whole-ngsi-ld-api-on-cordb---snapshots-first))
+-   **A memory budget and admission control** - refuse writes before the OOM killer. ([more](ideas.md#a-memory-budget-and-admission-control))
+-   **An ARM image, and a more diverse nightly** - ARM64; sanitizers, clang, musl. ([more](ideas.md#an-arm-image-and-a-more-diverse-nightly))
+-   **Authorisation** - inside the broker, and as an APISIX plugin; ODRL, verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker-and-as-an-apisix-plugin))
 -   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
--   **Automatic TRoE in corDB** - temporal history from the same log, by a boolean. ([more](ideas.md#automatic-troe-in-cordb))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
--   **Service Execution** - "do this" in the API, not a write to an attribute. ([more](ideas.md#service-execution))
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
@@ -56,8 +63,9 @@ incorporated in the next release of the product, in roughly this order:
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **What history records in corDB** - a selector, "the last X", the temporal index. ([more](ideas.md#automatic-troe-in-cordb))
 -   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
--   **Authorisation** - inside the broker, and as an APISIX plugin; ODRL, verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker-and-as-an-apisix-plugin))
+-   **A Grafana data source** - dashboards over the current state and the temporal API. ([more](ideas.md#a-grafana-data-source))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))

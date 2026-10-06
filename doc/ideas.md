@@ -11,19 +11,31 @@ Each idea: one line, then what there is to say about it, and where more lives.
 ### corDB persistence - cheaper writes
 
 corDB persists with `--dbDir` (a log and snapshots - [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md));
-what it costs is in [Performance](performance.md), "corDB on disk": nothing on reads, 6-24 % on
-writes that change the store, more while the store grows fast. Two ways to bring it down: a PATCH or
-merge that logs only the attributes it touched (`ATTRS_PUT`, already in the record format) instead
-of the whole entity, and a cheaper encode of a record (the per-request cost is the encode).
+what it costs is in [Performance](performance.md), "corDB on disk". An attribute update logs the
+attributes it touched, not the entity (`ATTRS_PUT`: PATCH +11-13 % on disk); `--dbCompress` keeps the
+finished files compressed. What is left: a cheaper encode of a record - the per-request cost is the
+encode.
+
+### The whole NGSI-LD API on corDB - Snapshots first
+
+corDB persists, so nothing keeps it from the parts of the API only `mongoc` has: NGSI-LD Snapshots
+(clause 5.16) first. A snapshot is a tenant of its own - its entities in a store and a directory of
+their own, its description in the document store - so corDB has most of it already. Then every test
+that runs on `mongoc` only is looked at again: most restart the broker, which corDB survives now.
+
+### One system timestamp per entity - in MongoDB too
+
+corDB keeps one `createdAt` per created entity and, below it, only the times that differ from it: 21-30 %
+less memory, and faster writes ([corDB's README](https://github.com/SEAMWARE/corDB#readme)). The same rule
+fits `mongoc`, where it shrinks every document and the database's cache - and a query on a time has to
+fall back to the entity's `createdAt`.
 
 ### Automatic TRoE in corDB
 
-Temporal history in the same process and the same tree, reached by a boolean rather than a second
-plugin with its own copy of the store - the persistence log *is* the history, kept by a retention
-policy. What history records is configurable, subscription-shaped (entities, attributes, include or
-exclude). In-process history costs nothing measured on eight shared cores; the same history in
-PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal index
-`(entity, attribute, time)`.
+Temporal history in the same process as the store: `--troe corDB`, written where the store is written -
+no second plugin with its own copy of the store. What is left: what history records, configurable and
+subscription-shaped (entities, attributes, include or exclude, "the last X" as an ISO 8601 duration),
+and the temporal index `(entity, attribute, time)`.
 
 ### The Entity as it was at time T
 
@@ -108,10 +120,10 @@ not standard NGSI-LD.
 
 ### Service Execution
 
-Actuation as a first-class citizen of the API, beyond the suggested workflows of TS 104 175 Annex G.
-DDS services and actions reach the broker today through Channels and a provisional convention (a
-write to an attribute, goals as its instances); the broker still needs a way to say "do this" that is
-not a write to an attribute.
+Actuation as a first-class citizen of the API: "do this", not a write to an attribute. Built after ETSI
+GR CIM-055 - service registrations, executions with their lifecycle and notifications, combined and
+grouped executions - with coraine itself as an executor through its bridges (DDS services and actions,
+Modbus), under conditional compilation. Being merged.
 
 ### The IoT Agents as cor-agent plugins
 
@@ -199,6 +211,11 @@ converter becomes "export, import". To be taken further at the Athens face-to-fa
 High-availability cache synchronisation without a shared database: brokers register with each other
 at startup, keep the connection, and sync subscriptions, registrations and contexts interrupt-driven
 in single-digit milliseconds. No polling. [High availability](high-availability.md).
+
+### A Grafana data source
+
+Grafana dashboards over NGSI-LD: a data source that queries the current state and the temporal API, the
+entity types and attributes as its fields.
 
 ### A memory budget and admission control
 
