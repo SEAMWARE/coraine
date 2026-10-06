@@ -1,0 +1,150 @@
+#
+# FILE            snapshot_write.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.9.2: "Operations permitted on Snapshots are the same as those specified for the Core API and,
+# if supported, the Temporal API" - applied to the snapshot only, in a local scope. Every write here
+# names the snapshot (NGSILD-Snapshot); the snapshot shows it, the live tenant does not.
+#
+# REQUIRE_FEATURE: SNAPSHOT_WRITE
+--NAME--
+Writes on a Snapshot - entities, attributes, batch and temporal - change the snapshot, never the live tenant
+
+--TAGS--
+snapshot troe
+
+--INIT--
+corDbDrop
+corSnapDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. Seed V1 (speed 42) and V2, live; Snapshot S captures the Vehicles (and their temporal evolution)
+# 02. On S: POST /entities V3 - 201, NGSILD-Snapshot echoed; PATCH V1 speed 99 - 204; DELETE V2 - 204; batch upsert V4 - 201
+# 03. On S: POST /temporal/entities/V1/attrs speed 7 at 2026-01-01 - 204
+# 04. GET /entities on S: V1 speed 99, V3, V4 - no V2
+# 05. GET /entities live: V1 speed 42, V2 - none of S's writes
+# 06. GET /temporal/entities/V1 on S: the instance at 2026-01-01 is there; live: it is not
+# 07. A write on a Snapshot that does not exist - 404
+#
+
+summary() {
+  sed -n '/^\[/,$p' | python3 -c "
+import json,sys
+for e in sorted(json.load(sys.stdin), key=lambda e: e['id']):
+    print(e['id'], 'speed', e.get('speed', {}).get('value') if isinstance(e.get('speed'), dict) else e.get('speed'))"
+}
+
+echo "01. Seed V1 (speed 42) and V2, live; Snapshot S captures the Vehicles (and their temporal evolution)"
+echo "====================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":10}}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:S","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}],"snapshotTemporalQueries":[{"type":"Query","entities":[{"type":"Vehicle"}],"temporalQ":{"timerel":"after","timeAt":"1970-01-01T00:00:00Z","timeproperty":"modifiedAt"}}]}' | head -1
+echo
+echo
+
+
+echo "02. On S: POST /entities V3 - 201, NGSILD-Snapshot echoed; PATCH V1 speed 99 - 204; DELETE V2 - 204; batch upsert V4 - 201"
+echo "=========================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Snapshot: urn:S' --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":3}}' | sed -n '1p;/^NGSILD-Snapshot/p'
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH -H 'NGSILD-Snapshot: urn:S' --payload '{"speed":{"type":"Property","value":99}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X DELETE -H 'NGSILD-Snapshot: urn:S' | head -1
+corCurl --url /ngsi-ld/v1/entityOperations/upsert -H 'NGSILD-Snapshot: urn:S' --payload '[{"id":"urn:V4","type":"Vehicle","speed":{"type":"Property","value":4}}]' | head -1
+echo
+echo
+
+
+echo "03. On S: POST /temporal/entities/V1/attrs speed 7 at 2026-01-01 - 204"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1/attrs -H 'NGSILD-Snapshot: urn:S' --payload '{"speed":[{"type":"Property","value":7,"observedAt":"2026-01-01T00:00:00Z"}]}' | head -1
+echo
+echo
+
+
+echo "04. GET /entities on S: V1 speed 99, V3, V4 - no V2"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' -H 'NGSILD-Snapshot: urn:S' | summary
+echo
+echo
+
+
+echo "05. GET /entities live: V1 speed 42, V2 - none of S's writes"
+echo "============================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle' | summary
+echo
+echo
+
+
+echo "06. GET /temporal/entities/V1 on S: the instance at 2026-01-01 is there; live: it is not"
+echo "========================================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1' -H 'NGSILD-Snapshot: urn:S' | sed -n '/^{/,$p' | python3 -c "import json,sys; e=json.load(sys.stdin); s=e['speed'] if isinstance(e['speed'],list) else [e['speed']]; print('S   :', sorted(i['value'] for i in s), [i['observedAt'] for i in s if 'observedAt' in i])"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1' | sed -n '/^{/,$p' | python3 -c "import json,sys; e=json.load(sys.stdin); s=e['speed'] if isinstance(e['speed'],list) else [e['speed']]; print('live:', sorted(i['value'] for i in s), [i['observedAt'] for i in s if 'observedAt' in i])"
+echo
+echo
+
+
+echo "07. A write on a Snapshot that does not exist - 404"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Snapshot: urn:NoSuchSnapshot' --payload '{"id":"urn:V5","type":"Vehicle"}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 (speed 42) and V2, live; Snapshot S captures the Vehicles (and their temporal evolution)
+=====================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. On S: POST /entities V3 - 201, NGSILD-Snapshot echoed; PATCH V1 speed 99 - 204; DELETE V2 - 204; batch upsert V4 - 201
+==========================================================================================================================
+HTTP/1.1 201 Created
+NGSILD-Snapshot: urn:S
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+03. On S: POST /temporal/entities/V1/attrs speed 7 at 2026-01-01 - 204
+======================================================================
+HTTP/1.1 204 No Content
+
+
+04. GET /entities on S: V1 speed 99, V3, V4 - no V2
+===================================================
+urn:V1 speed 99
+urn:V3 speed 3
+urn:V4 speed 4
+
+
+05. GET /entities live: V1 speed 42, V2 - none of S's writes
+============================================================
+urn:V1 speed 42
+urn:V2 speed 10
+
+
+06. GET /temporal/entities/V1 on S: the instance at 2026-01-01 is there; live: it is not
+========================================================================================
+S   : [7, 42, 99] ['2026-01-01T00:00:00Z']
+live: [42] []
+
+
+07. A write on a Snapshot that does not exist - 404
+===================================================
+HTTP/1.1 404 Not Found
+  "detail": "Snapshot 'urn:NoSuchSnapshot' not found",
+
+
+--TEARDOWN--
+coraineStop
+corSnapDrop
+corTroeDrop
+corDbDrop

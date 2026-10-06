@@ -33,6 +33,7 @@ option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                 
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
+option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -55,7 +56,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 foreach(feature ${COR_FEATURES})
   if (COR_FEATURE_${feature})
     add_compile_definitions(COR_FEATURE_${feature}=1)

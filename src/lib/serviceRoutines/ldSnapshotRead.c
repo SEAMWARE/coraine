@@ -14,7 +14,7 @@
 // — orderBy, q, pick/omit, pagination all just work, no special code.
 //
 #include <stdbool.h>                                     // bool
-#include <string.h>                                      // strcasecmp, strcmp
+#include <string.h>                                      // strcasecmp, strcmp, strncmp, strlen, strstr
 
 #include "corTree/CorNode.h"                             // CorNode
 
@@ -185,6 +185,41 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
 
 
 
+#if COR_FEATURE_SNAPSHOT_WRITE
+// -----------------------------------------------------------------------------
+//
+// pathIs - 'path' is 'base' or below it
+//
+static bool pathIs(const char* path, const char* base)
+{
+  size_t len = strlen(base);
+
+  return (strncmp(path, base, len) == 0) && ((path[len] == 0) || (path[len] == '/'));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// snapshotWritable - an operation a Snapshot takes: the Core API's and the Temporal API's on
+// Entities (§ 7.9.2) - not a Service invocation on one
+//
+static bool snapshotWritable(const char* path)
+{
+  if (path == NULL)
+    return false;
+
+  if (pathIs(path, "/ngsi-ld/v1/entities"))
+    return (strstr(path, "/services") == NULL);
+
+  return pathIs(path, "/ngsi-ld/v1/entityOperations") ||
+         pathIs(path, "/ngsi-ld/v1/temporal/entities") ||
+         pathIs(path, "/ngsi-ld/v1/temporal/entityOperations");
+}
+#endif
+
+
+
 bool ldSnapshotWriteGuard(void)
 {
   if (readSnapshotIdHeader() == NULL)
@@ -193,7 +228,36 @@ bool ldSnapshotWriteGuard(void)
   if (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead)
     return true;
 
+#if COR_FEATURE_SNAPSHOT_WRITE
+  if (snapshotWritable(corRest.in.urlPath))
+  {
+    //
+    // § 7.9.2: the operation is applied to the snapshot - its own tenant - and in a local scope (no
+    // Context Source Registration is used). A snapshot tenant has no subscription or registration
+    // caches, so nothing is forwarded and nothing notified.
+    //
+    bool                 seen  = false;
+    LdSnapshotCacheItem* itemP = ldSnapshotItemFromHeader(&seen);
+
+    if (itemP == NULL)
+      return false;                                   // 404, set
+
+    if (itemP->snapTenantP == NULL)
+    {
+      ldError(409, LD_ERROR_CONFLICT, "Conflict", "Snapshot '%s' has no information to update yet", itemP->id);
+      return false;
+    }
+
+    corNgsild.tenantP = itemP->snapTenantP;
+    corNgsild.local   = true;
+    return true;
+  }
+
+  ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
+          "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one");
+#else
   ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
           "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1");
+#endif
   return false;
 }

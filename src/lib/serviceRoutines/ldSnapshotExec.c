@@ -863,9 +863,28 @@ static LdSnapshotStatus statusFromString(const char* s)
 
 
 
+static bool execQueries(LdSnapshotCache* cacheP, LdSnapshotCacheItem* itemP, Tenant* tenantP);
+
 bool ldSnapshotExecQueries(LdSnapshotCache*     cacheP,
                            LdSnapshotCacheItem* itemP,
                            Tenant*              tenantP)
+{
+  //
+  // The capture COPIES entities into the snapshot: no history of its own (--troe corDB records one on
+  // every write) - the history comes with snapshotTemporalQueries, or not at all
+  //
+  bool skip = corNgsild.troeSkip;
+
+  corNgsild.troeSkip = true;
+  bool ok = execQueries(cacheP, itemP, tenantP);
+  corNgsild.troeSkip = skip;
+
+  return ok;
+}
+
+
+
+static bool execQueries(LdSnapshotCache* cacheP, LdSnapshotCacheItem* itemP, Tenant* tenantP)
 {
   if (itemP == NULL || itemP->tree == NULL) return false;
 

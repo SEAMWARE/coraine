@@ -5,14 +5,14 @@
 #
 # Copyright 2026 Seamware
 #
-# § 5.16 — snapshots are immutable in NGSI-LD v1.9.1. Any non-GET
-# request that carries the NGSILD-Snapshot header (writes, batch ops,
-# subscription / registration creation) must be rejected with 422
-# OperationNotSupported. GET paths pass through.
+# § 7.9.2 — a Snapshot takes the operations on Entities and their Temporal Evolution
+# (snapshot_write.test); any other non-GET request that carries the NGSILD-Snapshot header
+# (subscription / registration creation, the snapshot itself) is a 422 OperationNotSupported.
+# GET paths pass through.
 #
-# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS SNAPSHOT_WRITE
 --NAME--
-Snapshot NGSILD-Snapshot write guard (§ 5.16 / Phase #147)
+Snapshot NGSILD-Snapshot write guard - what a Snapshot does not take (§ 7.9.2)
 
 --TAGS--
 snapshot
@@ -44,28 +44,7 @@ echo
 echo
 
 
-echo "03. POST /entities with NGSILD-Snapshot — 422 OperationNotSupported"
-echo "==================================================================="
-corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle"}'
-echo
-echo
-
-
-echo "04. PATCH /entities/{id} with NGSILD-Snapshot — 422"
-echo "==================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"speed":{"type":"Property","value":99}}'
-echo
-echo
-
-
-echo "05. DELETE /entities/{id} with NGSILD-Snapshot — 422"
-echo "===================================================="
-corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1 -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen'
-echo
-echo
-
-
-echo "06. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)"
+echo "03. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)"
 echo "=================================================================================="
 corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
   "type":"Subscription",
@@ -76,7 +55,7 @@ echo
 echo
 
 
-echo "07. POST /csourceRegistrations with NGSILD-Snapshot — 422"
+echo "04. POST /csourceRegistrations with NGSILD-Snapshot — 422"
 echo "========================================================="
 corCurl --url /ngsi-ld/v1/csourceRegistrations -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
   "type":"ContextSourceRegistration",
@@ -87,14 +66,7 @@ echo
 echo
 
 
-echo "08. POST /entityOperations/create with NGSILD-Snapshot — 422 (batch)"
-echo "===================================================================="
-corCurl --url /ngsi-ld/v1/entityOperations/create -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '[{"id":"urn:ngsi-ld:Vehicle:V3","type":"Vehicle"}]'
-echo
-echo
-
-
-echo "09. PATCH /snapshots/{id} with NGSILD-Snapshot — 422 (can't patch a snapshot via the snapshot scope)"
+echo "05. PATCH /snapshots/{id} with NGSILD-Snapshot — 422 (can't patch a snapshot via the snapshot scope)"
 echo "===================================================================================================="
 corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{"snapshotPriority":9}'
 echo
@@ -141,63 +113,15 @@ Content-Length: 136
 
 
 
-03. POST /entities with NGSILD-Snapshot — 422 OperationNotSupported
-===================================================================
-HTTP/1.1 422 Unprocessable Content
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 296
-
-{
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
-  "status": 422,
-  "title": "Operation Not Supported",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-04. PATCH /entities/{id} with NGSILD-Snapshot — 422
-===================================================
-HTTP/1.1 422 Unprocessable Content
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 296
-
-{
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
-  "status": 422,
-  "title": "Operation Not Supported",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-05. DELETE /entities/{id} with NGSILD-Snapshot — 422
-====================================================
-HTTP/1.1 422 Unprocessable Content
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 296
-
-{
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
-  "status": 422,
-  "title": "Operation Not Supported",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-06. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)
+03. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)
 ==================================================================================
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 296
+Content-Length: 232
 
 {
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
@@ -205,15 +129,15 @@ Content-Length: 296
 
 
 
-07. POST /csourceRegistrations with NGSILD-Snapshot — 422
+04. POST /csourceRegistrations with NGSILD-Snapshot — 422
 =========================================================
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 296
+Content-Length: 232
 
 {
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
@@ -221,31 +145,15 @@ Content-Length: 296
 
 
 
-08. POST /entityOperations/create with NGSILD-Snapshot — 422 (batch)
-====================================================================
-HTTP/1.1 422 Unprocessable Content
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 296
-
-{
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
-  "status": 422,
-  "title": "Operation Not Supported",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
-}
-
-
-
-09. PATCH /snapshots/{id} with NGSILD-Snapshot — 422 (can't patch a snapshot via the snapshot scope)
+05. PATCH /snapshots/{id} with NGSILD-Snapshot — 422 (can't patch a snapshot via the snapshot scope)
 ====================================================================================================
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 296
+Content-Length: 232
 
 {
-  "detail": "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1",
+  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
