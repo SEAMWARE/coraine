@@ -274,8 +274,13 @@ bool postSnapshot(void)
   // The snap-tenant holds the frozen entity bodies — see snapshotTenant.h.
   // Captured entities stream into it via db.entityCreate; reads route
   // through it via the standard entity stack.
-  itemP->snapTenantP = snapshotTenantCreate(tenantP, itemP->snapSeq);
-  if (itemP->snapTenantP == NULL)
+  //
+  // Published with a RELEASE store: the item is already in the cache, and the loops that serve
+  // subscriptions on a snapshot (snapshotTenantsVisit) read it under the cache's rdlock only.
+  //
+  Tenant* snapTenantP = snapshotTenantCreate(tenantP, itemP);
+  __atomic_store_n(&itemP->snapTenantP, snapTenantP, __ATOMIC_RELEASE);
+  if (snapTenantP == NULL)
   {
     ldSnapshotCacheItemDelete(cacheP, idP->value.s);
     ldSnapshotCacheItemUnpin(itemP);

@@ -220,41 +220,63 @@ static bool snapshotWritable(const char* path)
 
 
 
+#if COR_FEATURE_SNAPSHOT_WRITE
+// -----------------------------------------------------------------------------
+//
+// snapshotRoute - apply the request to the snapshot it names: its own tenant, a local scope
+//
+// § 7.9.2: no Context Source Registration is used - a snapshot tenant has no registration caches,
+// so nothing is forwarded. corNgsild.tenantName stays the request's (NGSILD-Tenant), and
+// corNgsild.snapshotId names the snapshot on what goes out (NGSILD-Snapshot, a notification).
+//
+static bool snapshotRoute(void)
+{
+  bool                 seen  = false;
+  LdSnapshotCacheItem* itemP = ldSnapshotItemFromHeader(&seen);
+
+  if (itemP == NULL)
+    return false;                                   // 404, set
+
+  if (itemP->snapTenantP == NULL)
+  {
+    ldError(409, LD_ERROR_CONFLICT, "Conflict", "Snapshot '%s' has no information to update yet", itemP->id);
+    return false;
+  }
+
+  corNgsild.tenantP    = itemP->snapTenantP;
+  corNgsild.snapshotId = itemP->id;
+  corNgsild.local      = true;
+  return true;
+}
+#endif
+
+
+
 bool ldSnapshotWriteGuard(void)
 {
   if (readSnapshotIdHeader() == NULL)
     return true;
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+  //
+  // Reads too: the subscriptions on a snapshot are the snapshot tenant's, GET /subscriptions with
+  // the header lists them (and not the live tenant's)
+  //
+  if ((corRest.in.urlPath != NULL) && pathIs(corRest.in.urlPath, "/ngsi-ld/v1/subscriptions"))
+    return snapshotRoute();
+#endif
 
   if (corRest.in.verb == CorVerbGet || corRest.in.verb == CorVerbHead)
     return true;
 
 #if COR_FEATURE_SNAPSHOT_WRITE
   if (snapshotWritable(corRest.in.urlPath))
-  {
-    //
-    // § 7.9.2: the operation is applied to the snapshot - its own tenant - and in a local scope (no
-    // Context Source Registration is used). A snapshot tenant has no subscription or registration
-    // caches, so nothing is forwarded and nothing notified.
-    //
-    bool                 seen  = false;
-    LdSnapshotCacheItem* itemP = ldSnapshotItemFromHeader(&seen);
-
-    if (itemP == NULL)
-      return false;                                   // 404, set
-
-    if (itemP->snapTenantP == NULL)
-    {
-      ldError(409, LD_ERROR_CONFLICT, "Conflict", "Snapshot '%s' has no information to update yet", itemP->id);
-      return false;
-    }
-
-    corNgsild.tenantP = itemP->snapTenantP;
-    corNgsild.local   = true;
-    return true;
-  }
+    return snapshotRoute();
 
   ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
-          "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one");
+          COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+          ? "a Snapshot takes the operations on Entities, their Temporal Evolution and Subscriptions - not this one"
+          : "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one");
 #else
   ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
           "NGSILD-Snapshot header cannot be combined with write operations or with subscription / registration creation; snapshots are immutable in NGSI-LD v1.9.1");

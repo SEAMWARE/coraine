@@ -253,8 +253,10 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
     return true;
   }
 
-  newItemP->snapTenantP = snapshotTenantCreate(tenantP, newItemP->snapSeq);
-  if (newItemP->snapTenantP == NULL)
+  // Published with a RELEASE store - as postSnapshot does, for snapshotTenantsVisit
+  Tenant* snapTenantP = snapshotTenantCreate(tenantP, newItemP);
+  __atomic_store_n(&newItemP->snapTenantP, snapTenantP, __ATOMIC_RELEASE);
+  if (snapTenantP == NULL)
   {
     ldSnapshotCacheItemDelete(cacheP, newId);
     ldSnapshotCacheItemUnpin(newItemP);

@@ -47,6 +47,8 @@ typedef struct Tenant
   void*           regSubCacheP;   // CSR-subscription cache (LdSubCache*, § 5.11), owned by broker
   void*           entityMapStoreP; // entity map store (LdEntityMapStore*), for distributed query pagination
   void*           snapshotCacheP; // snapshot cache (LdSnapshotCache*, § 5.16), owned by broker
+  struct Tenant*  liveTenantP;    // a Snapshot's own tenant: the tenant the snapshot was taken on - NULL for any other
+  const char*     snapshotId;     // a Snapshot's own tenant: the snapshot's id (borrowed from its cache item) - NULL for any other
   struct Tenant*  next;           // linked list
 } Tenant;
 
@@ -58,6 +60,17 @@ typedef struct Tenant
 //
 extern Tenant  tenant0;
 extern Tenant* tenantList;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantApiName - the name a client knows the tenant by (NGSILD-Tenant; "" = the default tenant)
+//
+// A Snapshot's own tenant is known by the tenant the snapshot was taken on - its internal name
+// ("<tenant>-_snap_<seq>") is a DB name, never on the wire.
+//
+extern const char* tenantApiName(Tenant* tP);
 
 
 

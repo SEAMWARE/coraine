@@ -1,0 +1,296 @@
+#
+# FILE            snapshot_subscriptions.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.9.2: "Operations permitted on Snapshots are the same as those specified for the Core API" -
+# subscriptions included, applied to the snapshot only. A subscription made with NGSILD-Snapshot is
+# the snapshot's: listed with the header and not without it, notified by the writes on the snapshot
+# and not by the live tenant's (nor the live tenant's subscriptions by the snapshot's writes). Its
+# notifications carry NGSILD-Snapshot (TS 104-176 § 6.4.9) - and NGSILD-Tenant, the tenant the
+# snapshot was taken on - change-driven and periodic alike, and neither header can be replaced
+# through receiverInfo (§ 6.5.2). It survives a restart, and goes with the snapshot.
+#
+# REQUIRE_FEATURE: SNAPSHOT_SUBSCRIPTIONS
+--NAME--
+Subscriptions on a Snapshot - notified by the snapshot's writes only, with NGSILD-Snapshot
+
+--TAGS--
+snapshot subscription notification
+
+--INIT--
+corDbDrop
+corSnapDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. Seed V1 (speed 42) live; Snapshot S captures the Vehicles
+# 02. Subscription SubS on S (receiverInfo tries NGSILD-Snapshot + NGSILD-Tenant); SubL on the live tenant
+# 03. GET /subscriptions on S: SubS only; live: SubL only; GET SubS live: 404
+# 04. PATCH V1 speed 99 on S: SubS notifies, with NGSILD-Snapshot urn:S - SubL does not
+# 05. PATCH V1 speed 50 live: SubL notifies, no NGSILD-Snapshot - SubS does not
+# 06. Tenant t1: Snapshot T, subscription SubT on it; a write on T: NGSILD-Tenant t1 + NGSILD-Snapshot urn:T
+# 06b. Periodic subscription SubTP on T: NGSILD-Tenant t1 (not the snapshot tenant's own name) + NGSILD-Snapshot urn:T
+# 06c. Throttled subscription SubTh on T: the coalesced flush (the tick) carries NGSILD-Tenant t1 + NGSILD-Snapshot urn:T
+# 07. Periodic subscription SubP on S: its notification carries the snapshot's V1 (99) and NGSILD-Snapshot urn:S
+# 08. Restart: SubS is still on S (and only there), and still notified by a write on S
+# 09. DELETE SubS on S - 204; a write on S notifies nobody
+# 10. DELETE Snapshot S (SubP on it) - 204; the broker answers
+#
+
+#
+# One line per notification. A header sent twice is two members of the dump's "headers" object - all
+# its values are printed (json.load would keep only the last).
+#
+notifications() {
+  python3 -c "
+import json,sys
+def pairs(kv):
+    o = {}
+    for k, v in kv:
+        o[k] = (o[k] + ',' + v) if (k in o and isinstance(v, str) and isinstance(o[k], str)) else v
+    return o
+for n in sorted(json.load(sys.stdin, object_pairs_hook=pairs), key=lambda n: n['body']['subscriptionId']):
+    h = n['headers']
+    data = ' '.join('%s:%s' % (e['id'], e.get('speed', {}).get('value')) for e in sorted(n['body']['data'], key=lambda e: e['id']))
+    print(n['body']['subscriptionId'], data, 'tenant=' + h.get('NGSILD-Tenant', '-'), 'snapshot=' + h.get('NGSILD-Snapshot', '-'))"
+}
+
+subIds() {
+  sed -n '/^\[/,$p' | python3 -c "import json,sys; print(sorted(s['id'] for s in json.load(sys.stdin)))"
+}
+
+sub() {  # sub <id> [extra JSON members]
+  echo '{"id":"'$1'","type":"Subscription","entities":[{"type":"Vehicle"}],'$2'"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}'
+}
+
+echo "01. Seed V1 (speed 42) live; Snapshot S captures the Vehicles"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:S","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "02. Subscription SubS on S (receiverInfo tries NGSILD-Snapshot + NGSILD-Tenant); SubL on the live tenant"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:S' --payload "$(sub urn:SubS)" | sed -n '1p;/^NGSILD-Snapshot/p'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:SubS -X PATCH -H 'NGSILD-Snapshot: urn:S' --payload '{"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify","receiverInfo":[{"key":"NGSILD-Snapshot","value":"urn:Forged"},{"key":"NGSILD-Tenant","value":"forged"}]}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$(sub urn:SubL)" | head -1
+echo
+echo
+
+
+echo "03. GET /subscriptions on S: SubS only; live: SubL only; GET SubS live: 404"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:S' | subIds
+corCurl --url /ngsi-ld/v1/subscriptions | subIds
+corCurl --url /ngsi-ld/v1/subscriptions/urn:SubS | head -1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:SubS -H 'NGSILD-Snapshot: urn:S' | head -1
+echo
+echo
+
+
+echo "04. PATCH V1 speed 99 on S: SubS notifies, with NGSILD-Snapshot urn:S - SubL does not"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH -H 'NGSILD-Snapshot: urn:S' --payload '{"speed":{"type":"Property","value":99}}' | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "05. PATCH V1 speed 50 live: SubL notifies, no NGSILD-Snapshot - SubS does not"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":50}}' | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "06. Tenant t1: Snapshot T, subscription SubT on it; a write on T: NGSILD-Tenant t1 + NGSILD-Snapshot urn:T"
+echo "=========================================================================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t1' --payload '{"id":"urn:V9","type":"Vehicle","speed":{"type":"Property","value":9}}' | head -1
+corCurl --url /ngsi-ld/v1/snapshots -H 'NGSILD-Tenant: t1' --payload '{"id":"urn:T","type":"Snapshot","snapshotQueries":[{"type":"Query","entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload "$(sub urn:SubT)" | sed -n '1p;/^NGSILD-/p'
+corCurl --url /ngsi-ld/v1/entities/urn:V9/attrs -X PATCH -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"speed":{"type":"Property","value":19}}' | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "06b. Periodic subscription SubTP on T: NGSILD-Tenant t1 (not the snapshot tenant's own name) + NGSILD-Snapshot urn:T"
+echo "===================================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload "$(sub urn:SubTP '"timeInterval":3600,')" | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "06c. Throttled subscription SubTh on T: the coalesced flush (the tick) carries NGSILD-Tenant t1 + NGSILD-Snapshot urn:T"
+echo "======================================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"id":"urn:SubTh","type":"Subscription","entities":[{"type":"Bus"}],"throttling":1,"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"id":"urn:B1","type":"Bus","speed":{"type":"Property","value":1}}' | head -1
+for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+for v in 2 3; do
+  corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs -X PATCH -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"speed":{"type":"Property","value":'$v'}}' | head -1
+done
+for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "07. Periodic subscription SubP on S: its notification carries the snapshot's V1 (99) and NGSILD-Snapshot urn:S"
+echo "=============================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:S' --payload "$(sub urn:SubP '"timeInterval":3600,')" | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "08. Restart: SubS is still on S (and only there), and still notified by a write on S"
+echo "===================================================================================="
+coraineStop
+coraineStart
+ftClientWait 2          # SubP's and SubTP's first notifications of the new broker
+ftClientSettle 300
+ftClientDump > /dev/null
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:S' | subIds
+corCurl --url /ngsi-ld/v1/subscriptions | subIds
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH -H 'NGSILD-Snapshot: urn:S' --payload '{"speed":{"type":"Property","value":98}}' | head -1
+ftClientWait 1
+ftClientSettle 300
+ftClientDump | notifications
+echo
+echo
+
+
+echo "09. DELETE SubS on S - 204; a write on S notifies nobody"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:SubS -X DELETE -H 'NGSILD-Snapshot: urn:S' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH -H 'NGSILD-Snapshot: urn:S' --payload '{"speed":{"type":"Property","value":97}}' | head -1
+ftClientSettle 500
+ftClientDump | notifications
+echo
+echo
+
+
+echo "10. DELETE Snapshot S (SubP on it) - 204; the broker answers"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/snapshots/urn:S -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:S' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions | subIds
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1 (speed 42) live; Snapshot S captures the Vehicles
+=============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Subscription SubS on S (receiverInfo tries NGSILD-Snapshot + NGSILD-Tenant); SubL on the live tenant
+========================================================================================================
+HTTP/1.1 201 Created
+NGSILD-Snapshot: urn:S
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+03. GET /subscriptions on S: SubS only; live: SubL only; GET SubS live: 404
+===========================================================================
+['urn:SubS']
+['urn:SubL']
+HTTP/1.1 404 Not Found
+HTTP/1.1 200 OK
+
+
+04. PATCH V1 speed 99 on S: SubS notifies, with NGSILD-Snapshot urn:S - SubL does not
+=====================================================================================
+HTTP/1.1 204 No Content
+urn:SubS urn:V1:99 tenant=- snapshot=urn:S
+
+
+05. PATCH V1 speed 50 live: SubL notifies, no NGSILD-Snapshot - SubS does not
+=============================================================================
+HTTP/1.1 204 No Content
+urn:SubL urn:V1:50 tenant=- snapshot=-
+
+
+06. Tenant t1: Snapshot T, subscription SubT on it; a write on T: NGSILD-Tenant t1 + NGSILD-Snapshot urn:T
+==========================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+NGSILD-Tenant: t1
+NGSILD-Snapshot: urn:T
+HTTP/1.1 204 No Content
+urn:SubT urn:V9:19 tenant=t1 snapshot=urn:T
+
+
+06b. Periodic subscription SubTP on T: NGSILD-Tenant t1 (not the snapshot tenant's own name) + NGSILD-Snapshot urn:T
+====================================================================================================================
+HTTP/1.1 201 Created
+urn:SubTP urn:V9:19 tenant=t1 snapshot=urn:T
+
+
+06c. Throttled subscription SubTh on T: the coalesced flush (the tick) carries NGSILD-Tenant t1 + NGSILD-Snapshot urn:T
+=======================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+urn:SubTh urn:B1:1 tenant=t1 snapshot=urn:T
+urn:SubTh urn:B1:3 tenant=t1 snapshot=urn:T
+
+
+07. Periodic subscription SubP on S: its notification carries the snapshot's V1 (99) and NGSILD-Snapshot urn:S
+==============================================================================================================
+HTTP/1.1 201 Created
+urn:SubP urn:V1:99 tenant=- snapshot=urn:S
+
+
+08. Restart: SubS is still on S (and only there), and still notified by a write on S
+====================================================================================
+['urn:SubP', 'urn:SubS']
+['urn:SubL']
+HTTP/1.1 204 No Content
+urn:SubS urn:V1:98 tenant=- snapshot=urn:S
+
+
+09. DELETE SubS on S - 204; a write on S notifies nobody
+========================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+10. DELETE Snapshot S (SubP on it) - 204; the broker answers
+============================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+['urn:SubL']
+
+
+--TEARDOWN--
+coraineStop
+corSnapDrop
+corDbDrop
+ftClientStop

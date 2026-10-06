@@ -80,6 +80,17 @@ void tenantInit(const char* prefix)
 
 // -----------------------------------------------------------------------------
 //
+// tenantApiName -
+//
+const char* tenantApiName(Tenant* tP)
+{
+  return (tP->liveTenantP != NULL)? tP->liveTenantP->name : tP->name;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantDbPrefixSet - point the default tenant at the configured DB name
 //
 // main runs tenantInit() before any DB plugin starts, creating tenant0 and its
@@ -478,7 +489,7 @@ int tenantSubCacheItemStore(Tenant* tP, CorNode* subP, bool replace)
     if (replace && (subId != NULL))
       ldPernotCacheItemRemove((LdPernotCache*) tP->pernotCacheP, subId);
 
-    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP, tP->name);
+    ldPernotCacheItemAdd((LdPernotCache*) tP->pernotCacheP, subP, tP, tenantApiName(tP));
     return TENANT_SUB_KIND_PERNOT;
   }
 
@@ -829,7 +840,7 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
     }
 
     itemP->snapSeq     = snapSeq;
-    itemP->snapTenantP = snapshotTenantCreate(tP, snapSeq);
+    itemP->snapTenantP = snapshotTenantCreate(tP, itemP);
     if (itemP->snapTenantP == NULL)
     {
       COR_E("tenant '%s': snapshot '%s': failed to reconstruct snap-tenant",
@@ -838,6 +849,10 @@ static void tenantSnapshotCacheLoad(Tenant* tP)
       ldSnapshotCacheItemUnpin(itemP);          // Add returned it pinned
       continue;
     }
+
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+    tenantSubCacheLoad((Tenant*) itemP->snapTenantP);   // the subscriptions on the snapshot (§ 7.9.2)
+#endif
 
     ldSnapshotCacheItemUnpin(itemP);            // Add returned it pinned; the cache keeps its own reference
 

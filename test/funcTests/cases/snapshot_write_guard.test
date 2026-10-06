@@ -5,12 +5,12 @@
 #
 # Copyright 2026 Seamware
 #
-# § 7.9.2 — a Snapshot takes the operations on Entities and their Temporal Evolution
-# (snapshot_write.test); any other non-GET request that carries the NGSILD-Snapshot header
-# (subscription / registration creation, the snapshot itself) is a 422 OperationNotSupported.
-# GET paths pass through.
+# § 7.9.2 — a Snapshot takes the operations on Entities, their Temporal Evolution
+# (snapshot_write.test) and Subscriptions (snapshot_subscriptions.test); any other non-GET
+# request that carries the NGSILD-Snapshot header (CSR-subscription / registration creation,
+# the snapshot itself) is a 422 OperationNotSupported. GET paths pass through.
 #
-# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS SNAPSHOT_WRITE
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS
 --NAME--
 Snapshot NGSILD-Snapshot write guard - what a Snapshot does not take (§ 7.9.2)
 
@@ -44,9 +44,9 @@ echo
 echo
 
 
-echo "03. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)"
-echo "=================================================================================="
-corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
+echo "03. POST /csourceSubscriptions with NGSILD-Snapshot — 422 (no Context Source Registration on a snapshot)"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Frozen' --payload '{
   "type":"Subscription",
   "entities":[{"type":"Vehicle"}],
   "notification":{"endpoint":{"uri":"http://localhost:9999/x"}}
@@ -113,15 +113,15 @@ Content-Length: 136
 
 
 
-03. POST /subscriptions with NGSILD-Snapshot — 422 (no sub creation in a snapshot)
-==================================================================================
+03. POST /csourceSubscriptions with NGSILD-Snapshot — 422 (no Context Source Registration on a snapshot)
+========================================================================================================
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 232
+Content-Length: 247
 
 {
-  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
+  "detail": "a Snapshot takes the operations on Entities, their Temporal Evolution and Subscriptions - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
@@ -134,10 +134,10 @@ Content-Length: 232
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 232
+Content-Length: 247
 
 {
-  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
+  "detail": "a Snapshot takes the operations on Entities, their Temporal Evolution and Subscriptions - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
@@ -150,10 +150,10 @@ Content-Length: 232
 HTTP/1.1 422 Unprocessable Content
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 232
+Content-Length: 247
 
 {
-  "detail": "a Snapshot takes the operations on Entities and their Temporal Evolution - not this one",
+  "detail": "a Snapshot takes the operations on Entities, their Temporal Evolution and Subscriptions - not this one",
   "status": 422,
   "title": "Operation Not Supported",
   "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"

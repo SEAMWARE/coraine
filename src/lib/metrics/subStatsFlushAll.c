@@ -15,6 +15,7 @@
 
 #include "db/DbDriver.h"                              // db (DbDriver)
 #include "db/Tenant.h"                                // tenant0, tenantList
+#include "db/snapshotTenant.h"                        // snapshotTenantsVisit
 
 #include "metrics/subStatsFlushAll.h"                 // Own interface
 
@@ -44,21 +45,37 @@ static int dbFlushAdapter(void*        tenantP,
 
 // -----------------------------------------------------------------------------
 //
+// tenantStatsFlush - one tenant's caches
+//
+static void tenantStatsFlush(Tenant* tP, void* arg)
+{
+  (void) arg;
+
+  if (tP->subCacheP != NULL)
+    ldSubStatsFlush(tP, (LdSubCache*) tP->subCacheP, dbFlushAdapter);
+
+  if (tP->regSubCacheP != NULL)
+    ldSubStatsFlush(tP, (LdSubCache*) tP->regSubCacheP, dbFlushAdapter);
+
+  if (tP->pernotCacheP != NULL)
+    ldPernotStatsFlush(tP, (LdPernotCache*) tP->pernotCacheP, dbFlushAdapter);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // subStatsFlushAll -
 //
 void subStatsFlushAll(void)
 {
   for (Tenant* tP = &tenant0;
        tP != NULL;
-       tP = (tP == &tenant0) ? tenantList : tP->next)
+       tP = (tP == &tenant0) ? __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE) : tP->next)
   {
-    if (tP->subCacheP != NULL)
-      ldSubStatsFlush(tP, (LdSubCache*) tP->subCacheP, dbFlushAdapter);
-
-    if (tP->regSubCacheP != NULL)
-      ldSubStatsFlush(tP, (LdSubCache*) tP->regSubCacheP, dbFlushAdapter);
-
-    if (tP->pernotCacheP != NULL)
-      ldPernotStatsFlush(tP, (LdPernotCache*) tP->pernotCacheP, dbFlushAdapter);
+    tenantStatsFlush(tP, NULL);
+#if COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS
+    snapshotTenantsVisit(tP, tenantStatsFlush, NULL);   // the subscriptions on its Snapshots
+#endif
   }
 }
