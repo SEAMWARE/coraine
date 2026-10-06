@@ -54,14 +54,14 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **Array reduction in corJsonld** - done today in five places; once, term-aware, at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
--   **One system timestamp per entity in MongoDB** - as corDB has it: smaller documents, a smaller cache. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
 -   **The whole NGSI-LD API on corDB** - Snapshots first. ([more](ideas.md#the-whole-ngsi-ld-api-on-cordb---snapshots-first))
 -   **A memory budget and admission control** - refuse writes before the OOM killer. ([more](ideas.md#a-memory-budget-and-admission-control))
 -   **An ARM image, and a more diverse nightly** - ARM64; sanitizers, clang, musl. ([more](ideas.md#an-arm-image-and-a-more-diverse-nightly))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Authorisation** - inside the broker, and as an APISIX plugin; ODRL, verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker-and-as-an-apisix-plugin))
 -   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
+-   **Array reduction in corJsonld** - done today in five places; once, term-aware, at the input boundary. ([more](ideas.md#array-reduction-in-corjsonld))
+-   **One system timestamp per entity in MongoDB** - as corDB has it: smaller documents, a smaller cache. ([more](ideas.md#one-system-timestamp-per-entity---in-mongodb-too))
 -   **Service Execution through the DDS and Modbus bridges** - ROS 2 services and actions, Modbus writes, as services. ([more](ideas.md#service-execution))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
@@ -77,7 +77,8 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **A Grafana data source** - dashboards over the current state and the temporal API. ([more](ideas.md#a-grafana-data-source))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
--   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
+-   **cor-haaux** - high-availability cache sync for corDB. ([more](cordb.md#haaux))
+-   **haaux** - standalone high-availability cache sync. ([more](ideas.md#haaux))
 
 ## Long term
 
