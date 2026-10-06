@@ -15,7 +15,6 @@
 # Subscription's stored q changed each time it was read back - step 07 restarts the broker to show it
 # no longer does, which is why this runs on mongoc only.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 q values - %-decoded once in a URL, never in a JSON body; a stored q reads back unchanged

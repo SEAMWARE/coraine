@@ -5,7 +5,6 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_DB: mongoc
 #
 # Verify that registrations persist across broker restarts (mongoc DB)
 # and that the in-memory cache is rehydrated correctly at startup.

@@ -1,5 +1,5 @@
 #
-# FILE            build_endpoint.test
+# FILE            build_endpoint_corDB.test
 #
 # AUTHOR          Ken Zangelin
 #
@@ -50,10 +50,12 @@
 #     not DB-specific, so covering one of the two is covering the mechanism.
 #
 # REQUIRE_FEATURE: MONGOC ADMIN_API
-# REQUIRE_DB: mongoc
+# REQUIRE_DB: corDB
+#
+# The corDB copy of build_endpoint.test: the same report, with corDB as the loaded current-state plugin.
 #
 --NAME--
-GET /build reports features, plugins built vs loaded, and the runtime settings
+corDB: GET /build reports features, plugins built vs loaded, and the runtime settings
 
 --TAGS--
 version features admin
@@ -152,8 +154,8 @@ Content-Length: REGEX([0-9]+)
     "loaded": {
       "api": [],
       "currentState": {
-        "alias": "mongoc",
-        "version": "0.1.0"
+        "alias": "corDB",
+        "version": "0.2.0"
       },
       "temporal": {
         "alias": "none",
@@ -248,8 +250,8 @@ Content-Length: REGEX([0-9]+)
         }
       ],
       "currentState": {
-        "alias": "mongoc",
-        "version": "0.1.0"
+        "alias": "corDB",
+        "version": "0.2.0"
       },
       "temporal": {
         "alias": "none",

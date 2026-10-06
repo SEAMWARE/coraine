@@ -9,7 +9,6 @@
 # --status 503 makes every notification fail with a 5xx, so we can
 # verify timesFailed/lastFailure are counted AND survive restart.
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription timesFailed + lastFailure persist across broker restart

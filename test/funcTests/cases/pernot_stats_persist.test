@@ -14,7 +14,6 @@
 # flush path walks the pernot cache in addition to the entity/CSR
 # caches).
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Pernot subscription stats persist across broker restart (mongoc)

@@ -11,7 +11,6 @@
 #   - a urn:ngsi-ld:null value carrying a datasetId DELETES only that one instance.
 # Existing datasetId patch tests only cover updating an already-present instance.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Partial update datasetId: non-matching adds instance; null+datasetId deletes one

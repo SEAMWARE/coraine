@@ -595,10 +595,12 @@ static int streamRemoteEntitiesSplit(CorNode* arrayP, Tenant* snapTenantP)
 static int postFilterSnapshotTenant(Tenant* snapTenantP, CorNode* queryP)
 {
   DbQueryFilter filter = {0};
+  filter.unpaged = true;                               // every match - a zero limit is count-only (DbQueryFilter.h)
   queryToFilter(queryP, &filter);
 
   // Empty filter → fetch all.
   DbQueryFilter empty = {0};
+  empty.unpaged = true;                                // every entity - a zero limit is count-only (DbQueryFilter.h)
   CorNode* allP = NULL;
   int rc = db.entityQuery(snapTenantP, &empty, &allP);
   if (rc != DB_OK || allP == NULL || allP->type != CorArray)
@@ -746,6 +748,7 @@ static int runOneQuery(LdSnapshotCacheItem* itemP,
   //                this regime — every fragment must reach the snap-
   //                tenant before we can decide whether to keep it).
   DbQueryFilter filter = {0};
+  filter.unpaged = true;                               // every match - a zero limit is count-only (DbQueryFilter.h)
   queryToFilter(queryP, &filter);
 
   DbQueryFilter localFilter = filter;

@@ -33,6 +33,8 @@
 #
 # ⚠ Traces are narrowed to 402 (CtBridge) so the grep matches nothing else.
 #
+#
+# MongoDB-only: it needs MongoDB's geo-type conflict to make the bulk write refuse (see above)
 # REQUIRE_DB: mongoc
 #
 --NAME--

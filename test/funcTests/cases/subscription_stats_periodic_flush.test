@@ -11,7 +11,6 @@
 # we create a sub, fire 2 notifs, wait for the timer interval,
 # restart, and the stats survived.
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 --NAME--
 Subscription stats periodic-flush timer survives broker restart (mongoc)

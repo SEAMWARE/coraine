@@ -298,7 +298,7 @@ typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 //
 // DbTenantDropFunc - drop the entire per-tenant DB. Used by snapshot
 // cleanup (delete/purge) to reclaim the snap-tenant's storage. NULL
-// allowed for plugins that don't persist (corDB): caller treats a
+// allowed (a plugin that keeps nothing per tenant): the caller treats a
 // NULL function pointer as a no-op.
 //
 typedef int  (*DbTenantDropFunc)(Tenant* tenantP);

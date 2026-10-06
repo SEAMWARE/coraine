@@ -276,6 +276,7 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
   if (sourceSnapP != NULL && cloneSnapP != NULL)
   {
     DbQueryFilter all = {0};
+    all.unpaged = true;                                // every entity - a zero limit is count-only (DbQueryFilter.h)
     CorNode* arrayP = NULL;
     if (db.entityQuery(sourceSnapP, &all, &arrayP) == DB_OK &&
         arrayP != NULL && arrayP->type == CorArray)

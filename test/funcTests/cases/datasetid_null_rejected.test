@@ -12,7 +12,6 @@
 # A real (non-null) datasetId, and the null delete-marker on a *value*, are
 # unaffected.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 datasetId = urn:ngsi-ld:null rejected with 400 BadRequestData (§ 8.4.2)

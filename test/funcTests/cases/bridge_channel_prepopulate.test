@@ -37,7 +37,6 @@
 # be correct behaviour, and the case would be asserting the opposite of what it
 # was written to catch. The restriction is the backend's, not the bridge's.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Bridge channels: entities and attributes pre-populated from the config file, across restarts

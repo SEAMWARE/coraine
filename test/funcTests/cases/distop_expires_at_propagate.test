@@ -10,7 +10,6 @@
 # to each Attribute. Per-attribute expiresAt values further in the
 # future are shortened to the entity-level expiry.
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #

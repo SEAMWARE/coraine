@@ -12,7 +12,6 @@
 # omitted otherwise. They are read-only (server-owned) and modifiedAt advances
 # on every PATCH while createdAt is immutable.
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 --NAME--
 System createdAt/modifiedAt on subscriptions & registrations (§ 6.4.5)

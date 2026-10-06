@@ -118,14 +118,12 @@ coraineStart() {
     mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
     corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so"
             #
-            # COR_DB_PERSIST=1: every corDB broker persistent, each role in a directory of its own,
-            # emptied at its start - a start begins empty, as without it. A test that names its own
-            # --dbDir (a restart that must find its data) keeps it.
+            # Every corDB broker is persistent, each role in a directory of its own - as with MongoDB, a
+            # (re)start KEEPS what is there and corDbDrop empties it: a test that stops and starts its
+            # broker finds its data, on corDB as on mongoc. A test that names its own --dbDir keeps it.
             #
-            if [ "$COR_DB_PERSIST" == "1" ] && ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-dbDir'; then
-              local dbDir="${COR_DB_PERSIST_DIR:-/tmp/corTest-dbDir}/$role"
-              rm -rf "$dbDir"
-              cmd="$cmd --dbDir $dbDir"
+            if ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-dbDir'; then
+              cmd="$cmd --dbDir $(corDbDir "$role")"
             fi
             ;;
     ramDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/ramDB.so" ;;   # corDB in RAM only: no --dbDir, no history
@@ -420,10 +418,49 @@ corDbDrop() {
         fi
       fi
       ;;
-    corDB|NONE)
+    corDB)
+      #
+      # The role's directory (coraineStart) - every tenant; -tenant: that tenant's; -db coraine: the
+      # broker's own data (the @contexts) lives in the default tenant, so the role's directory with it
+      #
+      local dir
+      dir=$(corDbDir "$role")
+      if [ -n "$tenant" ]; then
+        rm -rf "$dir/$(corDbTenantDirName "$tenant")"
+      else
+        rm -rf "$dir"
+      fi
+      ;;
+    NONE)
       # No-op: broker restart clears the RAM store
       ;;
   esac
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
+# corDbDir <role> - a corDB broker's --dbDir in the functests: ${COR_DB_PERSIST_DIR:-/tmp/corTest-dbDir}/<role>
+#
+corDbDir() {
+  echo "${COR_DB_PERSIST_DIR:-/tmp/corTest-dbDir}/$1"
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
+# corDbTenantDirName <tenant> - the name corDB gives a tenant's directory: every byte outside [A-Za-z0-9-]
+# written %XX (corDB's corDbPersist.c, tenantDir)
+#
+corDbTenantDirName() {
+  local name="$1" out="" c i
+  for (( i=0; i<${#name}; i++ )); do
+    c="${name:$i:1}"
+    if [[ "$c" =~ [A-Za-z0-9-] ]]; then out+="$c"; else out+=$(printf '%%%02X' "'$c"); fi
+  done
+  echo "$out"
 }
 
 # corDbInit: drop + recreate
@@ -534,7 +571,11 @@ corSnapDrop() {
           .filter(n=>n.startsWith(\"$rolePrefix\")&&n.includes(\"-_snap_\")) \
           .forEach(n=>db.getSiblingDB(n).dropDatabase())" > /dev/null 2>&1
       ;;
-    corDB|NONE)
+    corDB)
+      # A snapshot's tenant is "<tenant>-_snap_<hex>"; corDB writes the '_' of a tenant's directory as %5F
+      rm -rf "$(corDbDir "$role")"/*%5Fsnap%5F*
+      ;;
+    NONE)
       ;;
   esac
 }

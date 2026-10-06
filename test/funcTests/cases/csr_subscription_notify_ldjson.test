@@ -12,7 +12,6 @@
 # the CSR) and NO Link header is emitted — the CSR-subscription parallel to
 # the entity-notification § 6.5.2 rule (subscription_notify_ldjson_inline_context).
 #
-# REQUIRE_DB: mongoc
 # REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
 --NAME--
 CSR Subscription notify — ld+json carries @context inline, no Link (§ 6.5.3)

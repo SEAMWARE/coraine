@@ -11,7 +11,6 @@
 #   - appending an instance whose datasetId already exists overwrites only that
 #     instance (default overwrite), or is rejected per-instance under noOverwrite.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Append Attributes datasetId isolation (new appends, existing overwrite/noOverwrite)

@@ -10,7 +10,6 @@
 # delete target, so a Property value / Relationship object set to the literal
 # "urn:ngsi-ld:null" is invalid content -> 400 BadRequestData.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 urn:ngsi-ld:null delete-marker misused on create/replace -> 400 BadRequestData

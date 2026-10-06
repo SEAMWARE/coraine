@@ -29,7 +29,6 @@
 # process. Under corDB they are gone for a reason that has nothing to do with
 # the catch-all.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Bridges: endpoints no Channel claims land in the catch-all entity, when one is configured

@@ -11,7 +11,6 @@
 # 204. observedAt accepts the marker (not run through the DateTime check) and
 # is removed rather than stored as epoch 0. A real observedAt still round-trips.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 NGSI-LD Null removes an optional sub-attribute on merge/partial-update (§ 5.4.1)

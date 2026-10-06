@@ -5,7 +5,6 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_DB: mongoc
 #
 # Lazy-reload from the persisted "coraine" DB on cache miss.
 #
@@ -14,6 +13,10 @@
 # through to db.contextGet, reconstruct, and return the body. Same for
 # DELETE — the row should be removable even if the broker has never
 # loaded it into the cache.
+#
+# MongoDB-only: it writes the @contexts straight into the database, behind the broker - for corDB that
+# needs corsh to write a record (not there yet)
+# REQUIRE_DB: mongoc
 #
 --NAME--
 GET / DELETE /jsonldContexts after LRU eviction (lazy reload)

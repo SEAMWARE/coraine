@@ -12,7 +12,6 @@
 # replace/append ops (Partial Attribute Update etc.) which replace the value
 # wholesale.
 #
-# REQUIRE_DB: mongoc
 #
 --NAME--
 Merge Entity (RFC 7396) surgically deep-merges json/languageMap values

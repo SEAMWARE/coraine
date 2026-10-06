@@ -17,7 +17,6 @@
 # A union that comes out as a single Scope renders as a bare String, an array
 # only when there is more than one Scope (§ 5.2.7).
 #
-# REQUIRE_DB: mongoc
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #

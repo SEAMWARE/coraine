@@ -1,5 +1,4 @@
 #
-# REQUIRE_DB: mongoc
 # FILE            tenant_geo_persistence.test
 #
 # AUTHOR          Ken Zangelin
