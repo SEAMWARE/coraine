@@ -47,7 +47,7 @@
 #include "corNgsild/LdVocab.h"                         // LD_VOCAB_*
 #include "corNgsild/ldSubCache.h"                      // ldSubCacheEmpty
 #include "corNgsild/LdSubCache.h"                      // LdSubCache
-#include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
+#include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate, ldSubscriptionUpdateMayMatch
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 
@@ -576,9 +576,23 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     {
       CorNode* mergedEntity = NULL;
 
-      // The entity read back only for a subscription to match it against - none, no read
-      if (ldSubCacheEmpty((LdSubCache*) tenantP->subCacheP) == false)
-        db.entityRetrieve(tenantP, entityId, &mergedEntity);
+      //
+      // The entity read back only for a subscription to match it against - and only when one may match
+      // it: the subscriptions are matched first on what the update itself tells - the entity's id, its
+      // type, the attributes it changed - and the entity is read for q, scopeQ, geoQ and the
+      // notification only when a subscription passes that. With a type in the update the type that
+      // matters is the new one, so then it is read back as it is.
+      //
+      LdSubCache* subCacheP = (LdSubCache*) tenantP->subCacheP;
+
+      if (ldSubCacheEmpty(subCacheP) == false)
+      {
+        CorNode* typeP    = ((existing != NULL) && (corTreeLookup(fragment, "type") == NULL)) ? corTreeLookup(existing, "type") : NULL;
+        bool     mayMatch = (typeP == NULL) || ldSubscriptionUpdateMayMatch(subCacheP, entityId, typeP, &report);
+
+        if (mayMatch == true)
+          db.entityRetrieve(tenantP, entityId, &mergedEntity);
+      }
 
       if (tenantP->subCacheP != NULL && mergedEntity != NULL)
         ldNotifyDefer((LdSubCache*) tenantP->subCacheP, mergedEntity, LdNotifyEntityUpdate, &report);
