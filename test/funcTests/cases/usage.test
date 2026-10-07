@@ -119,6 +119,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--dbSyncInterval/-dbSyncInterval <ms between two syncs of the log>]
                 [--dbSnapshotEvery/-dbSnapshotEvery <MiB of log after which a tenant is snapshotted>]
                 [--dbCompress/-dbCompress (compress the snapshots and the finished log segments (zstd, on the snapshot thread - the open segment never))]
+                [--dbLockPrefer/-dbLockPrefer <reads|writes - whom a tenant's store lock lets in first when both wait (doc/performance.md in coraine)>]
 
                 Plugins are loaded from /opt/seamware/plugins
 
@@ -276,6 +277,7 @@ Usage: coraine  [--usage/-u (usage)]
   --dbSyncInterval        (-dbSyncInterval)  CORAINE_DBSYNCINTERVAL        Optional   Int      Default Value  
   --dbSnapshotEvery       (-dbSnapshotEvery) CORAINE_DBSNAPSHOTEVERY       Optional   Int      Default Value  
   --dbCompress            (-dbCompress)      CORAINE_DBCOMPRESS            Optional   Bool     Default Value  
+  --dbLockPrefer          (-dbLockPrefer)    CORAINE_DBLOCKPREFER          Optional   String   Default Value  
 
 
 --TEARDOWN--
