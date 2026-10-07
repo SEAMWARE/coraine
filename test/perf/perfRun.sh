@@ -633,9 +633,36 @@ done
 scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchSubsC50 patchSubsC50P99 patchSubsC50P50 patchSubsC50P95 <<< "$SCEN"
 
 notified=$(curl -s "http://localhost:$RECEIVER_PORT/count")
-kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: killed - as meant
-[ "${notified:-0}" -gt 0 ] || { echo "perfRun.sh: patch_subs_c50 notified nobody" >&2; exit 1; }
+[ "${notified:-0}" -gt 0 ] || { kill "$receiverPid"; echo "perfRun.sh: patch_subs_c50 notified nobody" >&2; exit 1; }
 echo "perfRun.sh: patch_subs_c50: $notified notifications received" >&2
+
+#
+# PATCH AMONG MANY SUBSCRIPTIONS. The subscriptions of a deployment mostly select by TYPE, with a
+# simple q, and most of them concern other types than the one written. On top of patch_subs_c50's
+# one-subscription-per-entity: 100 subscriptions to 100 other types, each with q=temp>25 (the type
+# rejects them), and 10 to Vehicle with q=speed>200 (the type matches, the q - on the entity - does
+# not: patchAttr.lua writes 42). Each PATCH still notifies one subscriber, past ~200 that do not match.
+#
+for (( i=1; i<=100; i++ )); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+              -H 'Content-Type: application/json' \
+              --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-type-'"$i"'","type":"Subscription","entities":[{"type":"Sensor'"$i"'"}],"q":"temp>25","notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
+  [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: type subscription $i got HTTP $code" >&2; exit 1; }
+done
+for (( i=1; i<=10; i++ )); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+              -H 'Content-Type: application/json' \
+              --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-q-'"$i"'","type":"Subscription","entities":[{"type":"Vehicle"}],"q":"speed>200","notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
+  [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: q subscription $i got HTTP $code" >&2; exit 1; }
+done
+
+before=$(curl -s "http://localhost:$RECEIVER_PORT/count")
+scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchManySubsC50 patchManySubsC50P99 patchManySubsC50P50 patchManySubsC50P95 <<< "$SCEN"
+
+notified=$(( $(curl -s "http://localhost:$RECEIVER_PORT/count") - ${before:-0} ))
+kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: killed - as meant
+[ "${notified:-0}" -gt 0 ] || { echo "perfRun.sh: patch_manysubs_c50 notified nobody" >&2; exit 1; }
+echo "perfRun.sh: patch_manysubs_c50: $notified notifications received" >&2
 
 #
 # Every rate carries the tail it was measured with. A throughput number on its
@@ -658,4 +685,5 @@ printf ',"batch20create_c50":%s,"batch20create_c50_p50us":%s,"batch20create_c50_
 printf ',"merge_c50":%s,"merge_c50_p50us":%s,"merge_c50_p95us":%s,"merge_c50_p99us":%s' "$mergeC50" "$mergeC50P50" "$mergeC50P95" "$mergeC50P99"
 printf ',"delete_c50":%s,"delete_c50_p50us":%s,"delete_c50_p95us":%s,"delete_c50_p99us":%s' "$deleteC50" "$deleteC50P50" "$deleteC50P95" "$deleteC50P99"
 printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
-printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s,"patch_subs_c50_p99us":%s}\n' "$patchSubsC50" "$patchSubsC50P50" "$patchSubsC50P95" "$patchSubsC50P99"
+printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s,"patch_subs_c50_p99us":%s' "$patchSubsC50" "$patchSubsC50P50" "$patchSubsC50P95" "$patchSubsC50P99"
+printf ',"patch_manysubs_c50":%s,"patch_manysubs_c50_p50us":%s,"patch_manysubs_c50_p95us":%s,"patch_manysubs_c50_p99us":%s}\n' "$patchManySubsC50" "$patchManySubsC50P50" "$patchManySubsC50P95" "$patchManySubsC50P99"
