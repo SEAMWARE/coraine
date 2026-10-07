@@ -1,0 +1,121 @@
+#
+# FILE            service_description_sys_times.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A ServiceDescription in an entity is an attribute, and its inputSchema / outputSchema are JSON Schemas -
+# objects with a "type" of their own ("object", "integer"), and no attributes. A store that keeps the
+# system timestamps once per entity, or leaves "type": "Property" out (doc/cor-protocol-details.md
+# § 4.10a), puts back what it left out on the attributes only: the schemas come back exactly as they were
+# written - no createdAt / modifiedAt in them, no "type": "Property".
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+--NAME--
+A ServiceDescription's JSON Schemas come back as written - no system timestamps or attribute type in them
+
+--TAGS--
+service createdAt modifiedAt sysattrs
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Lamp urn:L1: on (a Property), setLight (a ServiceDescription with an inputSchema and an outputSchema)
+# 02. GET ?includeServices=true&serviceDetails=true&options=sysAttrs: where the system timestamps are, and
+#     every "type"
+# 03. PUT setLight (asynchronous, another inputSchema) - 204; the same GET
+#
+
+echo "01. Lamp urn:L1: on (a Property), setLight (a ServiceDescription with an inputSchema and an outputSchema)"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Lamp","on":{"type":"Property","value":true},
+  "setLight":{"type":"ServiceDescription","title":"Set light","mode":"synchronous","endpoint":"http://localhost:9/echo",
+  "inputSchema":{"type":"object","properties":{"brightness":{"type":"integer","maximum":255}}},"outputSchema":{"type":"object"}}}' | head -1
+echo
+echo
+
+
+echo "02. GET ?includeServices=true&serviceDetails=true&options=sysAttrs: where the system timestamps are, and every \"type\""
+echo "======================================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:L1?includeServices=true&serviceDetails=true&options=sysAttrs' | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+def walk(o, path):
+    for k, v in o.items():
+        p = (path + '.' if path else '') + k
+        if k in ('createdAt', 'modifiedAt'):
+            print('  ' + p)
+        elif k == 'type':
+            print('  ' + p, '=', v)
+        elif isinstance(v, dict):
+            walk(v, p)
+walk(json.load(sys.stdin), '')"
+echo
+echo
+
+
+echo "03. PUT setLight (asynchronous, another inputSchema) - 204; the same GET"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:L1/attrs/setLight -X PUT --payload '{"type":"ServiceDescription","mode":"asynchronous","endpoint":"http://localhost:9/async",
+  "inputSchema":{"type":"object","properties":{"level":{"type":"number"}}}}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:L1?includeServices=true&serviceDetails=true&options=sysAttrs' | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+def walk(o, path):
+    for k, v in o.items():
+        p = (path + '.' if path else '') + k
+        if k in ('createdAt', 'modifiedAt'):
+            print('  ' + p)
+        elif k == 'type':
+            print('  ' + p, '=', v)
+        elif isinstance(v, dict):
+            walk(v, p)
+walk(json.load(sys.stdin), '')"
+echo
+echo
+
+
+--EXPECT--
+01. Lamp urn:L1: on (a Property), setLight (a ServiceDescription with an inputSchema and an outputSchema)
+========================================================================================================
+HTTP/1.1 201 Created
+
+
+02. GET ?includeServices=true&serviceDetails=true&options=sysAttrs: where the system timestamps are, and every "type"
+======================================================================================================================
+  createdAt
+  modifiedAt
+  on.createdAt
+  on.modifiedAt
+  on.type = Property
+  setLight.createdAt
+  setLight.inputSchema.properties.brightness.type = integer
+  setLight.inputSchema.type = object
+  setLight.modifiedAt
+  setLight.outputSchema.type = object
+  setLight.type = ServiceDescription
+  type = Lamp
+
+
+03. PUT setLight (asynchronous, another inputSchema) - 204; the same GET
+========================================================================
+HTTP/1.1 204 No Content
+  createdAt
+  modifiedAt
+  on.createdAt
+  on.modifiedAt
+  on.type = Property
+  setLight.createdAt
+  setLight.inputSchema.properties.level.type = number
+  setLight.inputSchema.type = object
+  setLight.modifiedAt
+  setLight.type = ServiceDescription
+  type = Lamp
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

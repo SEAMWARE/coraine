@@ -97,6 +97,25 @@ echo
 echo
 
 
+echo "05b. The snapshot keeps each source's times - speed CP1's, color CP2's - one createdAt / modifiedAt per object"
+echo "=============================================================================================================="
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs' | sed -n '/^{/,$p' > /tmp/splitCp1.$$
+corCurl --port $CP2_PORT --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs' | sed -n '/^{/,$p' > /tmp/splitCp2.$$
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs' -H 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:Merged' | sed -n '/^{/,$p' > /tmp/splitSnap.$$
+python3 - /tmp/splitCp1.$$ /tmp/splitCp2.$$ /tmp/splitSnap.$$ <<'PYEOF'
+import json, sys
+cp1, cp2, snap = (json.load(open(f)) for f in sys.argv[1:4])
+for attr, src, name in (("speed", cp1, "CP1"), ("color", cp2, "CP2")):
+    for t in ("createdAt", "modifiedAt"):
+        print(attr, t, ("the same as " + name + "'s") if snap[attr][t] == src[attr][t] else ("DIFFERENT: %s against %s's %s" % (snap[attr][t], name, src[attr][t])))
+raw = open(sys.argv[3]).read()
+print("createdAt members:", raw.count('"createdAt"'), "- modifiedAt members:", raw.count('"modifiedAt"'))
+PYEOF
+rm -f /tmp/splitCp1.$$ /tmp/splitCp2.$$ /tmp/splitSnap.$$
+echo
+echo
+
+
 echo "06. Mutate live V1 on CP1 (speed → 999); delete on CP2"
 echo "======================================================"
 corCurl --port $CP1_PORT -X PATCH --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs --payload '{"speed":{"type":"Property","value":999}}'
@@ -192,6 +211,15 @@ Content-Length: REGEX(\d+)
   }
 ]
 
+
+
+05b. The snapshot keeps each source's times - speed CP1's, color CP2's - one createdAt / modifiedAt per object
+==============================================================================================================
+speed createdAt the same as CP1's
+speed modifiedAt the same as CP1's
+color createdAt the same as CP2's
+color modifiedAt the same as CP2's
+createdAt members: 3 - modifiedAt members: 3
 
 
 06. Mutate live V1 on CP1 (speed → 999); delete on CP2

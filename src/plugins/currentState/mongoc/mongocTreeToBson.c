@@ -17,6 +17,7 @@
 
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
 #include "corNgsild/ldTermId.h"                                   // ldTermId, CorTerm*
+#include "corNgsild/ldTypes.h"                                    // ldAttrTypeFromString, LdAttrNone
 #include "currentState/mongoc/mongocTreeToBson.h"                 // Own interface
 
 
@@ -25,11 +26,15 @@
 //
 // SysTimes - the entity's createdAt, for an entity's document: below the entity, a createdAt / modifiedAt
 // equal to it is left out - and the entity's modifiedAt while it is its createdAt (mongocBsonToTree puts
-// them back). 0: every time written (any other document, or an entity without a createdAt).
+// them back). So is an attribute's or a sub-attribute's "type": "Property" - the type of the vast majority
+// of them: a type that is not there is Property. 0: everything written (any other document, or an entity
+// without a createdAt - which is then read as it is).
 //
 // Timed objects: the entity (level 0) and the objects from level 2 on - an attribute instance below its
 // dataset wrapper (level 1), its sub-attributes below it - never inside a value: a Property's value is the
-// user's, a GeoJSON value has a "type" of its own.
+// user's, a GeoJSON value has a "type" of its own. Every object there is an attribute instance or a
+// sub-attribute: the members of an attribute that hold an object are its values (mongocSysTimesOpaque),
+// and no Entity member is an object.
 //
 
 
@@ -50,6 +55,37 @@ char mongocSysTimeName(CorNode* nodeP)
     return 'm';
 
   return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocPropertyType - the member "type": "Property"
+//
+bool mongocPropertyType(CorNode* nodeP)
+{
+  return (nodeP->type == CorString) && (nodeP->name != NULL) && (nodeP->name[0] == 't') && (strcmp(nodeP->name, "type") == 0) &&
+         (nodeP->value.s[0] == 'P') && (strcmp(nodeP->value.s, "Property") == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocAttrObject - an object below the dataset wrapper is an attribute instance or a sub-attribute: no
+// "type" (a Property's is left out), or one of the attribute types - and not, say, a ServiceDescription,
+// whose members are JSON Schemas with "type"s of their own
+//
+bool mongocAttrObject(CorNode* objP)
+{
+  for (CorNode* nP = objP->value.head; nP != NULL; nP = nP->next)
+  {
+    if ((nP->name != NULL) && (nP->name[0] == 't') && (strcmp(nP->name, "type") == 0))
+      return (nP->type == CorString) && (ldAttrTypeFromString(nP->value.s) != LdAttrNone);
+  }
+
+  return true;
 }
 
 
@@ -126,10 +162,23 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
       bool timed = (entityCreatedAt != 0) && (inValue == false) && (level >= 2);
       int  ix    = 0;
 
+      //
+      // An object with a type that is not an attribute type (a ServiceDescription and its JSON
+      // Schemas): not an attribute - itself and all it holds written as they are
+      //
+      if (timed && (mongocAttrObject(nodeP) == false))
+      {
+        timed   = false;
+        inValue = true;
+      }
+
       for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
       {
         if (timed && (childP->value.i == entityCreatedAt) && (mongocSysTimeName(childP) != 0))
           continue;                                   // inherited: the entity's createdAt
+
+        if (timed && mongocPropertyType(childP))
+          continue;                                   // a type that is not there is Property
 
         nodeToBson(childP, &child, false, ix++, entityCreatedAt, level + 1, inValue || mongocSysTimesOpaque(childP->name));
       }

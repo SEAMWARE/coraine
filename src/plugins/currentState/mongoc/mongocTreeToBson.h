@@ -50,6 +50,9 @@ extern void mongocNodeAppend(bson_t* parentP, const char* key, CorNode* nodeP);
 // createdAt - and, below the entity, only the times that differ from it. A time that is not there is the
 // entity's createdAt: mongocEntityBsonToTree puts it back. Never inside a value.
 //
+// The same for the attribute type: an attribute's or a sub-attribute's "type": "Property" is left out, and
+// a type that is not there is Property.
+//
 //   mongocEntityToBson      an entity's document (create, replace)
 //   mongocAttrAppend        one attribute in a $set (merge, attrs set)
 //   mongocEntityCreatedAt   the entity's createdAt, for mongocAttrAppend
@@ -60,6 +63,12 @@ extern int64_t mongocEntityCreatedAt(CorNode* entityP);
 
 // mongocSysTimeName - 'c' createdAt, 'm' modifiedAt (integers), 0 any other member
 extern char    mongocSysTimeName(CorNode* nodeP);
+
+// mongocPropertyType - the member "type": "Property" (left out below the entity, like the inherited times)
+extern bool    mongocPropertyType(CorNode* nodeP);
+
+// mongocAttrObject - an object below the dataset wrapper that is an attribute (no type, or an attribute type)
+extern bool    mongocAttrObject(CorNode* objP);
 
 // mongocSysTimesOpaque - a member whose content is the user's (value, object, json, languageMap, ...)
 extern bool    mongocSysTimesOpaque(const char* name);

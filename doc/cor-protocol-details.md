@@ -240,6 +240,18 @@ is. The conversion is at each store's edges - every tree that leaves the store h
 only when the request asked for them, as integers - no guard needed, § 4.10's "convert only if it
 re-renders exactly" is for the user's `observedAt`.
 
+- **mongoc, the attribute type**: the vast majority of attributes are Properties. An attribute's or a
+  sub-attribute's `"type": "Property"` is left out of the entity's document the same way, and a type
+  that is not there is `Property` - put back by the same read (first, where corNgsild keeps it). Every
+  other type is stored, and nothing inside a value is touched (a GeoJSON or a JSON value's own `type`).
+  The objects this applies to are found by their place, not by a `type`: below the dataset wrapper and
+  outside a value, every object is an attribute instance or a sub-attribute - an attribute's members
+  that hold an object are its values, and no Entity member is an object. `/attributes/{name}` and
+  `/types/{type}` read the documents as they are: an instance with a `value` and no `type` is detected
+  as a Property. On top of the times: ten Property attributes 1,193 -> 1,003 bytes (**-15.9 %**); with
+  two sub-attributes and an `observedAt` each 3,243 -> 2,673 bytes (**-17.6 %**); perfRun's fixture
+  entity (three of five attributes Properties) 948 -> 891 bytes (**-6.0 %**).
+
 ### 4.11 Compression of a whole frame - later, off by default
 
 A flag bit in the frame header for zstd. Pointless on a LAN after § 4.1-4.10; possibly worth it over
