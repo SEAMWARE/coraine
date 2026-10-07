@@ -607,6 +607,37 @@ measureConsuming "$SCRIPTDIR/deleteEntity.lua" 50 ; read -r deleteC50 deleteC50P
 PERF_BATCH=20 measureConsuming "$SCRIPTDIR/batchDelete.lua" 50 ; read -r batch20DeleteC50 batch20DeleteC50P99 batch20DeleteC50P50 batch20DeleteC50P95 <<< "$MEASURED"
 
 #
+# PATCH WITH SUBSCRIPTIONS. What a deployment that SUBSCRIBES does all day: devices report new values,
+# and every change is notified. One subscription per fixture entity (watchedAttributes speed), so each
+# PATCH of patchAttr.lua notifies exactly one subscriber: the write, the match and the notification's
+# HTTP POST, all in the number. The receiver is corTestClient --discard - it counts the notifications
+# and keeps none (a receiver that kept them would grow until it measured itself) - pinned with the load
+# generator. Unless notifications arrived, the scenario failed: a PATCH that notified nobody is the
+# number of patch_c50 under another name.
+#
+RECEIVER=${PERF_RECEIVER:-$(cd "$SCRIPTDIR/../../../corLibs/bin" 2>/dev/null && pwd)/corTestClient}
+RECEIVER_PORT=${PERF_RECEIVER_PORT:-7799}
+
+[ -x "$RECEIVER" ] || { echo "perfRun.sh: no notification receiver at $RECEIVER (PERF_RECEIVER)" >&2; exit 1; }
+"${loadPin[@]}" "$RECEIVER" --port "$RECEIVER_PORT" --discard --traceLevels "" --foreground > /dev/null 2>&1 &
+receiverPid=$!
+for _ in $(seq 1 50); do curl -s -o /dev/null "http://localhost:$RECEIVER_PORT/count" && break; sleep 0.1; done
+
+for (( i=1; i<=ENTITIES; i++ )); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+              -H 'Content-Type: application/json' \
+              --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-'"$i"'","type":"Subscription","entities":[{"id":"urn:ngsi-ld:Vehicle:'"$i"'","type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
+  [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: subscription $i got HTTP $code" >&2; exit 1; }
+done
+
+scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchSubsC50 patchSubsC50P99 patchSubsC50P50 patchSubsC50P95 <<< "$SCEN"
+
+notified=$(curl -s "http://localhost:$RECEIVER_PORT/count")
+kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: killed - as meant
+[ "${notified:-0}" -gt 0 ] || { echo "perfRun.sh: patch_subs_c50 notified nobody" >&2; exit 1; }
+echo "perfRun.sh: patch_subs_c50: $notified notifications received" >&2
+
+#
 # Every rate carries the tail it was measured with. A throughput number on its
 # own says nothing about whether the requests behind it were answered promptly
 # or queued: libmicrohttpd reaches a higher peak than corHttp and pays for it in
@@ -626,4 +657,5 @@ printf ',"create_c1":%s,"create_c1_p50us":%s,"create_c1_p95us":%s,"create_c1_p99
 printf ',"batch20create_c50":%s,"batch20create_c50_p50us":%s,"batch20create_c50_p95us":%s,"batch20create_c50_p99us":%s' "$batch20CreateC50" "$batch20CreateC50P50" "$batch20CreateC50P95" "$batch20CreateC50P99"
 printf ',"merge_c50":%s,"merge_c50_p50us":%s,"merge_c50_p95us":%s,"merge_c50_p99us":%s' "$mergeC50" "$mergeC50P50" "$mergeC50P95" "$mergeC50P99"
 printf ',"delete_c50":%s,"delete_c50_p50us":%s,"delete_c50_p95us":%s,"delete_c50_p99us":%s' "$deleteC50" "$deleteC50P50" "$deleteC50P95" "$deleteC50P99"
-printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s}\n' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
+printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
+printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s,"patch_subs_c50_p99us":%s}\n' "$patchSubsC50" "$patchSubsC50P50" "$patchSubsC50P95" "$patchSubsC50P99"

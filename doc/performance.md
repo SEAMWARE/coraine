@@ -563,6 +563,64 @@ What was tried on the way to these numbers, including what did not help, is in
 [the history](history/performance.md) and in corDB's
 [persistence history](https://github.com/SEAMWARE/corDB/blob/main/doc/history/persistence.md).
 
+### Writes that notify, and which writer the lock lets in first
+
+A deployment that **subscribes** writes far more than it reads: devices report values (`PATCH`) and
+every change goes out as a notification. `test/perf/perfRun.sh` measures it as `patch_subs_c50`:
+perfRun's 100-entity fixture, **one subscription per entity** (`watchedAttributes: speed`), so each
+`PATCH` of `patchAttr.lua` notifies exactly one subscriber - the write, the match and the
+notification's HTTP POST all in the number. The receiver is `corTestClient --discard` (counts, keeps
+nothing), pinned with the load generator.
+
+Release builds (not PGO), corDB with `--dbDir`, broker pinned to 8 cores of an AMD Ryzen 9 8940HX,
+`PATCH` at 50 connections, median of three 5 s runs, three runs per build, 2026-10-07 - requests/s:
+
+| build | `PATCH` | `PATCH`, 100 notifying subscriptions | notifications counted (2 s warm-up + 3 × 5 s) |
+|---|---:|---:|---:|
+| corDB's store lock as glibc makes it (readers first) | 152 743 | 83 445 | 1.45 M |
+| + an attribute's type kept in the node (`CorNode.kind`) | 152 279 | 83 830 | 1.46 M |
+| writers first (`PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP`) | 158 303 | 80 810 | 1.41 M |
+| writers first + the type in the node | 156 026 | 79 893 | 1.39 M |
+
+- **A notifying `PATCH` costs about half the throughput** of a bare one. With a subscription in the
+  tenant, the entity is read back after the write and matched, and the notification is sent - an HTTP
+  request of its own per `PATCH`.
+- **Which writer the store lock lets in first decides nothing alone.** Writers first: a bare `PATCH`
+  +2-4 %, a notifying one -3-4 % - the match and the notification read the entity, and a
+  writer-preferring lock is slower for readers.
+
+The whole of `perfRun` on the same four builds (the two lock policies two runs each, the default
+four) - requests/s, and each against its column's neighbour:
+
+| scenario | readers first | + type in the node | | writers first | + type in the node | |
+|---|---:|---:|---:|---:|---:|---:|
+| query, `limit=20`, c50 | 71 521 | 72 647 | +1.6 % | 68 940 | 71 660 | +3.9 % |
+| query, `limit=20`, c200 | 69 712 | 69 808 | +0.1 % | 66 394 | 68 868 | +3.7 % |
+| query, `limit=1`, c50 | 413 490 | 415 226 | +0.4 % | 394 222 | 406 893 | +3.2 % |
+| query, `limit=100`, c50 | 15 677 | 15 565 | -0.7 % | 15 470 | 15 388 | -0.5 % |
+| `GET /entities/{id}`, c50 | 464 742 | 463 201 | -0.3 % | 438 124 | 457 563 | +4.4 % |
+| `PATCH`, c50 | 154 582 | 157 579 | +1.9 % | 154 342 | 157 838 | +2.3 % |
+| `PATCH`, c1 | 38 372 | 38 098 | -0.7 % | 38 426 | 38 346 | -0.2 % |
+| batch update (20), c50 | 33 542 | 33 974 | +1.3 % | 33 517 | 34 624 | +3.3 % |
+| create, c50 | 125 216 | 115 573 | **-7.7 %** | 131 588 | 142 928 | **+8.6 %** |
+| create, c1 | 27 731 | 28 007 | +1.0 % | 27 513 | 27 700 | +0.7 % |
+| batch create (20), c50 | 15 572 | 16 189 | +4.0 % | 17 894 | 19 028 | +6.3 % |
+| merge, c50 | 101 830 | 104 852 | +3.0 % | 109 454 | 116 412 | +6.4 % |
+| `DELETE`, c50 | 213 926 | 223 656 | +4.5 % | 204 095 | 207 649 | +1.7 % |
+| batch delete (20), c50 | 71 361 | 74 339 | +4.2 % | 69 270 | 72 991 | +5.4 % |
+
+- **Writers first** against readers first (same type form): concurrent creates +5 %, batch creates
+  +15 %, merges +7.5 %; queries and retrieves -4-6 %, deletes -4.6 %.
+- **Concurrent creates on a durable store, the type in the node: -7.7 %** (readers first) - glibc's
+  allocator, not the work. With snapshots off (`--dbSnapshotEvery 65536`) the gap stays (-6.5 %);
+  the profile has it in malloc and free (`_int_free_merge_chunk` ×3.8, `_int_free_chunk` ×3): one
+  long-lived node less per attribute changes how the short-lived allocations of a request coalesce
+  among them. In RAM the two are within 1.5 %; under jemalloc they are equal (181 358 / 181 343), under
+  tcmalloc within 2.2 % - and both allocators are faster than glibc's on either form (`create`, c50,
+  `--dbDir`, snapshots off: glibc 163 160, jemalloc 181 358, tcmalloc 192 518 - `LD_PRELOAD`, no
+  rebuild; the other scenarios not yet measured).
+- So the right lock policy is the workload's. corDB keeps readers first by default.
+
 ### What the data takes on disk
 
 perfRun's fixture entity (five attributes, ~550 bytes of JSON), created with batch creates of 500;
