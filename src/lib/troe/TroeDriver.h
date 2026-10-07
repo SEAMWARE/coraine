@@ -124,7 +124,7 @@ typedef struct TroeQueryFilter
   // ?q= compiled to a SQL WHERE fragment (EXISTS-subqueries against
   // troe_attrs keyed on the outer entity_id $1). NULL = no q filter.
   // Service routine produces this via troeQTreeToSql(); plugin AND-
-  // merges it into its WHERE.
+  // merges it into its WHERE, with its window where each EXISTS has /*W*/.
   const char*  qSqlPredicate;
 
   // ?q= parsed (an LdQNode*), for a store that evaluates it itself rather than in SQL (--troe corDB).
@@ -180,6 +180,12 @@ typedef struct TroeQueryFilter
 
   // scopeQ — grows as the read path lands
   void*        opaque;
+
+  // ?q= as a predicate on one troe_attrs row (troeQTreeToRowSql): an entity's
+  // temporal representation holds only the instances that meet q (§ 11.3.3).
+  // Set together with qSqlPredicate. Last in the struct: a store built against
+  // an older header never reads it.
+  const char*  qRowPredicate;
 } TroeQueryFilter;
 
 

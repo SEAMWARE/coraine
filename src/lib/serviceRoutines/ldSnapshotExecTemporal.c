@@ -26,7 +26,7 @@
 #include "corNgsild/LdSnapshotCache.h"                    // LdSnapshotCache*
 
 #include "troe/TroeDriver.h"                             // troe, TroeQueryFilter, TroeRangeInfo, TROE_OK
-#include "troe/troeQTreeToSql.h"                         // troeQTreeToSql
+#include "troe/troeQTreeToSql.h"                         // troeQTreeToSql, troeQTreeToRowSql
 
 #include "db/Tenant.h"                                   // Tenant
 
@@ -142,6 +142,7 @@ static bool queryToTroeFilter(CorNode* queryP, TroeQueryFilter* fP)
     if (qExpr != NULL)
     {
       fP->qSqlPredicate = troeQTreeToSql(qExpr, &corRest.kalloc);
+      fP->qRowPredicate = troeQTreeToRowSql(qExpr, &corRest.kalloc);
       fP->qTree         = qExpr;
     }
   }

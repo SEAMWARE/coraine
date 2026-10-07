@@ -64,7 +64,7 @@
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
-#include "troe/troeQTreeToSql.h"                     // troeQTreeToSql
+#include "troe/troeQTreeToSql.h"                     // troeQTreeToSql, troeQTreeToRowSql
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/DbDriver.h"                             // db
@@ -599,6 +599,7 @@ bool getEntitiesTemporal(void)
   if (corNgsild.qExpr != NULL)
   {
     filter.qSqlPredicate = troeQTreeToSql(corNgsild.qExpr, &corRest.kalloc);
+    filter.qRowPredicate = troeQTreeToRowSql(corNgsild.qExpr, &corRest.kalloc);
     filter.qTree         = corNgsild.qExpr;
 
     //

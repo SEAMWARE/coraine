@@ -1,0 +1,146 @@
+#
+# FILE            troe_temporal_q_instances.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Query Temporal Evolution of Entities and q (TS 104-175 § 11.3.3):
+#   - an entity is selected by the attribute instances the temporal query lets through: an instance
+#     outside the timerel window that meets q does not select it
+#   - the last step: "include in their temporal representation only the Attribute instances ... which
+#     meet the temporal, query and geoquery restrictions" - of a selected entity, an instance that does
+#     not meet q is not returned. A term on another attribute does not restrict an instance: of
+#     q=speed>90;fuelLevel<35 a speed instance meets speed>90, a fuelLevel instance fuelLevel<35, and
+#     an OR with a term on another attribute keeps every instance
+#
+--NAME--
+TRoE - temporal q selects by the instances in the window, and returns only the instances that meet it
+
+--TAGS--
+troe temporal q query
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# 01. urn:V1: speed 50 (11:00), 95 (12:05), 80 (12:10), 120 (12:15); fuelLevel 40 (12:05), 30 (12:10)
+#     urn:V2: speed 95 (10:00), 60 (12:10); fuelLevel 20 (12:10)
+# 02. after 12:00, q=speed>90: urn:V1 only (urn:V2's 95 is before the window); speed 95 and 120, all fuelLevel
+# 03. after 12:00, q=speed>90;fuelLevel<35: urn:V1; speed 95 and 120, fuelLevel 30
+# 04. after 12:00, q=speed>90|fuelLevel<35: urn:V1 and urn:V2 - every instance in the window
+# 05. before 12:00, q=speed>90: urn:V2 only (95); urn:V1's speed before 12:00 is 50
+#
+
+#
+# summary - id: attribute values, per entity, the values in time order
+#
+summary() {
+  sed -n '/^\[/,$p' | python3 -c "
+import json, sys
+for e in sorted(json.load(sys.stdin), key=lambda e: e['id']):
+    attrs = []
+    for k in sorted(e):
+        if k in ('id', 'type'):
+            continue
+        v = e[k] if isinstance(e[k], list) else [e[k]]
+        attrs.append('%s %s' % (k, [i['value'] for i in sorted(v, key=lambda i: i['observedAt'])]))
+    print('  %s: %s' % (e['id'], ', '.join(attrs)))"
+}
+
+tq() {
+  corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle$1" | summary
+}
+
+echo "01. urn:V1 and urn:V2, their speed and fuelLevel instances"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+  "id": "urn:V1", "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 50,  "observedAt": "2020-07-01T11:00:00Z"},
+    {"type": "Property", "value": 95,  "observedAt": "2020-07-01T12:05:00Z"},
+    {"type": "Property", "value": 80,  "observedAt": "2020-07-01T12:10:00Z"},
+    {"type": "Property", "value": 120, "observedAt": "2020-07-01T12:15:00Z"}
+  ],
+  "fuelLevel": [
+    {"type": "Property", "value": 40, "observedAt": "2020-07-01T12:05:00Z"},
+    {"type": "Property", "value": 30, "observedAt": "2020-07-01T12:10:00Z"}
+  ]
+}' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+  "id": "urn:V2", "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 95, "observedAt": "2020-07-01T10:00:00Z"},
+    {"type": "Property", "value": 60, "observedAt": "2020-07-01T12:10:00Z"}
+  ],
+  "fuelLevel": [
+    {"type": "Property", "value": 20, "observedAt": "2020-07-01T12:10:00Z"}
+  ]
+}' | head -1
+echo
+echo
+
+
+echo "02. after 12:00, q=speed>90: urn:V1 only; speed 95 and 120, all fuelLevel"
+echo "=========================================================================="
+tq '&timerel=after&timeAt=2020-07-01T12:00:00Z&q=speed%3E90'
+echo
+echo
+
+
+echo "03. after 12:00, q=speed>90;fuelLevel<35: urn:V1; speed 95 and 120, fuelLevel 30"
+echo "================================================================================="
+tq '&timerel=after&timeAt=2020-07-01T12:00:00Z&q=speed%3E90;fuelLevel%3C35'
+echo
+echo
+
+
+echo "04. after 12:00, q=speed>90|fuelLevel<35: urn:V1 and urn:V2 - every instance in the window"
+echo "==========================================================================================="
+tq '&timerel=after&timeAt=2020-07-01T12:00:00Z&q=speed%3E90%7CfuelLevel%3C35'
+echo
+echo
+
+
+echo "05. before 12:00, q=speed>90: urn:V2 only (95); urn:V1's speed before 12:00 is 50"
+echo "=================================================================================="
+tq '&timerel=before&timeAt=2020-07-01T12:00:00Z&q=speed%3E90'
+echo
+echo
+
+
+--EXPECT--
+01. urn:V1 and urn:V2, their speed and fuelLevel instances
+==========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. after 12:00, q=speed>90: urn:V1 only; speed 95 and 120, all fuelLevel
+==========================================================================
+  urn:V1: fuelLevel [40, 30], speed [95, 120]
+
+
+03. after 12:00, q=speed>90;fuelLevel<35: urn:V1; speed 95 and 120, fuelLevel 30
+=================================================================================
+  urn:V1: fuelLevel [30], speed [95, 120]
+
+
+04. after 12:00, q=speed>90|fuelLevel<35: urn:V1 and urn:V2 - every instance in the window
+===========================================================================================
+  urn:V1: fuelLevel [40, 30], speed [95, 80, 120]
+  urn:V2: fuelLevel [20], speed [60]
+
+
+05. before 12:00, q=speed>90: urn:V2 only (95); urn:V1's speed before 12:00 is 50
+==================================================================================
+  urn:V2: speed [95]
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
