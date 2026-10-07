@@ -393,7 +393,10 @@ static bool handshake(const char* (*header)(const char* key), void (*respHeader)
   EVP_EncodeBlock(accept, sha, SHA_DIGEST_LENGTH);
 
   respHeader("Upgrade", "websocket");
-  respHeader("Connection", "Upgrade");
+  // The HTTP server owns the generic Connection: Upgrade response header.
+  // Adding it here as well makes libmicrohttpd merge the two values into
+  // "Upgrade, Upgrade", which strict browser clients reject as a bad
+  // WebSocket handshake.
   respHeader("Sec-WebSocket-Accept", (const char*) accept);
 
   return true;

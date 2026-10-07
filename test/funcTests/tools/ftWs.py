@@ -124,6 +124,13 @@ def connect(broker, protocol, first, tenant):
     if " 101 " not in status + " ":
         sys.exit("ftWs: no upgrade: " + status)
 
+    connection_tokens = []
+    for line in head.decode().split("\r\n")[1:]:
+        if line.lower().startswith("connection:"):
+            connection_tokens += [token.strip().lower() for token in line.split(":", 1)[1].split(",")]
+    if connection_tokens != ["upgrade"]:
+        sys.exit("ftWs: invalid Connection response header: " + ", ".join(connection_tokens))
+
     if protocol:                                    # what the server chose, as the first message recorded
         chosen = None
         for line in head.decode().split("\r\n")[1:]:
