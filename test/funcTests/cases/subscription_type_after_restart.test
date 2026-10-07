@@ -1,0 +1,130 @@
+#
+# FILE            subscription_type_after_restart.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription's entities[].type is a type selection (§ 4.17) - a type, or an expression of them
+# ("B|C", "(A;B)"). It is parsed as the subscription enters the subscription cache, its types expanded
+# with the @context in force: the request's, or after a restart the subscription's own.
+#
+# Two ways it went wrong:
+#   - an expression kept its types short ("B|C" -> B, C) - never an entity's (expanded) type: such a
+#     subscription notified nothing
+#   - a subscription loaded from the database at startup got no parsed type at all, and the selector's
+#     type was then not checked: after a restart it notified entities of every type
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription entity type selection - expressions match, and survive a restart
+
+--TAGS--
+subscription notification restart
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. S1 type A, S2 type B|C, S3 type (A;B)
+# 02. Create urn:E1 (X), urn:E2 (A), urn:E3 (C), urn:E4 ([A, B]) - S1: E2 E4; S2: E3 E4; S3: E4
+# 03. Restart the broker
+# 04. Create urn:E5 (X), urn:E6 (A), urn:E7 (C), urn:E8 ([A, B]) - the same, after the restart
+#
+
+ns() {
+  ftClientDump | python3 -c "
+import json, sys
+d = {}
+for n in json.load(sys.stdin):
+    for e in n['body']['data']:
+        d.setdefault(n['body']['subscriptionId'].split(':')[-1], []).append(e['id'])
+for k in sorted(d):
+    print('  %s: %s' % (k, ' '.join(sorted(d[k]))))"
+}
+
+entities() {
+  for e in "$@"; do
+    corCurl --url /ngsi-ld/v1/entities --payload '{"id": "'"${e%% *}"'", "type": '"${e#* }"', "x": {"type": "Property", "value": 1}}' | head -1
+  done
+}
+
+echo "01. S1 type A, S2 type B|C, S3 type (A;B)"
+echo "=========================================="
+for s in 'S1 A' 'S2 B|C' 'S3 (A;B)'; do
+  corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id": "urn:'"${s%% *}"'", "type": "Subscription", "entities": [{"type": "'"${s#* }"'"}], "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}}' | head -1
+done
+echo
+echo
+
+
+echo "02. Create urn:E1 (X), urn:E2 (A), urn:E3 (C), urn:E4 ([A, B])"
+echo "==============================================================="
+entities 'urn:E1 "X"' 'urn:E2 "A"' 'urn:E3 "C"' 'urn:E4 ["A", "B"]'
+ftClientSettle 1000
+ns
+echo
+echo
+
+
+echo "03. Restart the broker"
+echo "======================"
+coraineStop
+ftClientSettle
+ftClientDump > /dev/null      # what came before the restart must not answer for what comes after
+coraineStart
+echo "restarted"
+echo
+echo
+
+
+echo "04. Create urn:E5 (X), urn:E6 (A), urn:E7 (C), urn:E8 ([A, B]) - the same, after the restart"
+echo "============================================================================================="
+entities 'urn:E5 "X"' 'urn:E6 "A"' 'urn:E7 "C"' 'urn:E8 ["A", "B"]'
+ftClientSettle 1000
+ns
+echo
+
+
+--EXPECT--
+01. S1 type A, S2 type B|C, S3 type (A;B)
+==========================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Create urn:E1 (X), urn:E2 (A), urn:E3 (C), urn:E4 ([A, B])
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+  S1: urn:E2 urn:E4
+  S2: urn:E3 urn:E4
+  S3: urn:E4
+
+
+03. Restart the broker
+======================
+restarted
+
+
+04. Create urn:E5 (X), urn:E6 (A), urn:E7 (C), urn:E8 ([A, B]) - the same, after the restart
+=============================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+  S1: urn:E6 urn:E8
+  S2: urn:E7 urn:E8
+  S3: urn:E8
+
+--TEARDOWN--
+coraineStop
+corDbDrop

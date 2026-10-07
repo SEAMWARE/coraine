@@ -1,0 +1,151 @@
+#
+# FILE            subscription_index_candidates.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A change is matched only against the subscriptions that can match the entity: those under its id,
+# under one of its types, and those always a candidate (ldSubCacheCandidates - no selector, an
+# idPattern alone). Every subscription the full match accepts must be among them, each once:
+#   - a selector with an id: under the id
+#   - type "*" (with an idPattern): always a candidate
+#   - a type expression: under the first type of each OR group - "A|B" under A and B, "(A;B)" under A
+#     (an entity matching it has A); the full type check decides the rest
+#   - an entity with two types, both selected by one subscription: notified once
+#   - a subscription deleted, or changed by PATCH: out of the index, or under its new keys
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription candidate index - by id, by type expression, always; each subscription once, in order
+
+--TAGS--
+subscription notification
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. Subscriptions: S1 id urn:E1; S2 type A|B; S3 type (A;B); S4 type C; S5 no entities (watchedAttributes x);
+#     S6 type * with idPattern ^urn:E.*; S7 types A and B (two selectors); S8 type D, then deleted; S9 type C, then PATCHed to E
+# 02. Create urn:E1 type A            - S1, S2, S5, S6, S7
+# 03. Create urn:E2 types [A, B]      - S2, S3, S5, S6, S7 (S7 once)
+# 04. Create urn:E3 type B            - S2, S5, S6, S7 (not S3: needs A too)
+# 05. Create urn:E4 type D            - S5, S6 (S8 deleted)
+# 06. Create urn:E5 type E            - S5, S6, S9 (S9 now type E)
+# 07. Create urn:E6 type C            - S4, S5, S6 (S9 no longer type C)
+#
+
+ns() {
+  ftClientDump | python3 -c "
+import json, sys
+d = {}
+for n in json.load(sys.stdin):
+    for e in n['body']['data']:
+        d.setdefault(e['id'], []).append(n['body']['subscriptionId'].split(':')[-1])
+for k in sorted(d):
+    print('  %s: %s' % (k, ' '.join(sorted(d[k]))))"
+}
+
+sub() {
+  corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id": "urn:'$1'", "type": "Subscription", '"$2"', "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}}' | head -1
+}
+
+echo "01. The subscriptions"
+echo "====================="
+sub S1 '"entities": [{"id": "urn:E1", "type": "A"}]'
+sub S2 '"entities": [{"type": "A|B"}]'
+sub S3 '"entities": [{"type": "(A;B)"}]'
+sub S4 '"entities": [{"type": "C"}]'
+sub S5 '"watchedAttributes": ["x"]'
+sub S6 '"entities": [{"type": "*", "idPattern": "^urn:E.*"}]'
+sub S7 '"entities": [{"type": "A"}, {"type": "B"}]'
+sub S8 '"entities": [{"type": "D"}]'
+sub S9 '"entities": [{"type": "C"}]'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S8 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S9 -X PATCH --payload '{"entities": [{"type": "E"}]}' | head -1
+echo
+echo
+
+
+step=1
+for e in 'urn:E1 "A"' 'urn:E2 ["A", "B"]' 'urn:E3 "B"' 'urn:E4 "D"' 'urn:E5 "E"' 'urn:E6 "C"'; do
+  step=$((step + 1))
+  echo "0$step. Create ${e%% *}"
+  echo "=================="
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id": "'"${e%% *}"'", "type": '"${e#* }"', "x": {"type": "Property", "value": 1}}' | head -1
+  echo
+  echo
+done
+
+
+echo "08. Who notified about which entity"
+echo "==================================="
+ftClientSettle 1000
+ns
+echo
+
+
+--EXPECT--
+01. The subscriptions
+=====================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. Create urn:E1
+==================
+HTTP/1.1 201 Created
+
+
+03. Create urn:E2
+==================
+HTTP/1.1 201 Created
+
+
+04. Create urn:E3
+==================
+HTTP/1.1 201 Created
+
+
+05. Create urn:E4
+==================
+HTTP/1.1 201 Created
+
+
+06. Create urn:E5
+==================
+HTTP/1.1 201 Created
+
+
+07. Create urn:E6
+==================
+HTTP/1.1 201 Created
+
+
+08. Who notified about which entity
+===================================
+  urn:E1: S1 S2 S5 S6 S7
+  urn:E2: S2 S3 S5 S6 S7
+  urn:E3: S2 S5 S6 S7
+  urn:E4: S5 S6
+  urn:E5: S5 S6 S9
+  urn:E6: S4 S5 S6
+
+--TEARDOWN--
+coraineStop
+corDbDrop
