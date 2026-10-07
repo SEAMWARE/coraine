@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# coraine-start - the image's entry point: the broker in the foreground (a container's PID 1 must not
+# daemonize), with what `make tune` chose for it, if the image was built with a workload
+# (--build-arg WORKLOAD=..., doc/extreme-performance.md): /opt/seamware/etc/tune.env.
+#
+# What `docker run -e` sets wins: tune.env only fills what is not set - `-e CORAINE_DBLOCKPREFER=reads`,
+# `-e LD_PRELOAD=` (empty: glibc's allocator).
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+T=/opt/seamware/etc/tune.env
+
+if [ -f "$T" ]; then
+  . "$T"
+
+  : "${CORAINE_DBLOCKPREFER:=$TUNE_DBLOCKPREFER}"
+  export CORAINE_DBLOCKPREFER
+
+  # LD_PRELOAD set at all - even empty (`-e LD_PRELOAD=`: glibc's allocator) - is the run's choice
+  if [ -z "${LD_PRELOAD+set}" ] && [ -n "${TUNE_ALLOCATOR:-}" ] && [ "$TUNE_ALLOCATOR" != glibc ]; then
+    lib=$(ldconfig -p | awk -v l="lib${TUNE_ALLOCATOR}.so" 'index($1, l) == 1 { print $NF; exit }')
+    if [ -n "$lib" ]; then
+      export LD_PRELOAD="$lib"
+    else
+      echo "coraine-start: the allocator '$TUNE_ALLOCATOR' make tune chose is not installed - glibc's used" >&2
+    fi
+  fi
+fi
+
+exec coraine -fg "$@"

@@ -57,3 +57,4 @@ src/app/coraine/coraineBuild.h
 # deployment's, never ours - the example and the image's placeholder are what
 # the repo carries.
 docker/dds.json
+tune-result.json

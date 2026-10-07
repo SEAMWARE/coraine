@@ -34,6 +34,7 @@ nav:
   - Installation & Administration: installation.md
   - High Availability: high-availability.md
   - Performance and footprint: performance.md
+  - Extreme performance: extreme-performance.md
   - API walkthrough: api-walkthrough.md
   - Plugin architecture: plugin-architecture.md
   - Building from source: building.md
