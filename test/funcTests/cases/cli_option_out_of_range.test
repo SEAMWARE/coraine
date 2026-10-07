@@ -1,0 +1,76 @@
+#
+# FILE            cli_option_out_of_range.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A command-line value outside the range its option declares (corArgs min/max) is an error: the broker
+# says which option and which range, and does not start. The broker's own options and a plugin's alike.
+# Each run is under `timeout 10` - a broker that started anyway would be killed by it and show exit 124.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+--NAME--
+An option's value out of its range - the broker refuses to start
+
+--TAGS--
+cli config
+
+--INIT--
+
+--RUN--
+
+#
+# 01. --subStatsFlushInterval 999999 (0-86400) - exit 1, the range named
+# 02. --port 70000 (a 16-bit port) - exit 1
+# 03. --database corDB --dbSnapshotEvery 1000000 (corDB's option, 1-65536) - exit 1, the range named
+#
+
+run() {
+  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg "$@" > /tmp/cliRange.$$ 2>&1
+  echo "exit: $?"
+  grep -m1 "^coraine:" /tmp/cliRange.$$
+  rm -f /tmp/cliRange.$$
+}
+
+echo "01. --subStatsFlushInterval 999999 (0-86400) - exit 1, the range named"
+echo "======================================================================="
+run --port 9 --subStatsFlushInterval 999999
+echo
+echo
+
+
+echo "02. --port 70000 (a 16-bit port) - exit 1"
+echo "========================================="
+run --port 70000
+echo
+echo
+
+
+echo "03. --database corDB --dbSnapshotEvery 1000000 (corDB's option, 1-65536) - exit 1, the range named"
+echo "==================================================================================================="
+run --port 9 --database corDB --dbSnapshotEvery 1000000
+echo
+echo
+
+
+--EXPECT--
+01. --subStatsFlushInterval 999999 (0-86400) - exit 1, the range named
+=======================================================================
+exit: 1
+coraine: value 999999 for option '--subStatsFlushInterval' exceeds its upper limit. Allowed range: 0-86400
+
+
+02. --port 70000 (a 16-bit port) - exit 1
+=========================================
+exit: 1
+coraine: value 70000 out of range for a uint16 option (--port)
+
+
+03. --database corDB --dbSnapshotEvery 1000000 (corDB's option, 1-65536) - exit 1, the range named
+===================================================================================================
+exit: 1
+coraine: value 1000000 for option '--dbSnapshotEvery' exceeds its upper limit. Allowed range: 1-65536
+
+
+--TEARDOWN--
