@@ -252,6 +252,27 @@ re-renders exactly" is for the user's `observedAt`.
   two sub-attributes and an `observedAt` each 3,243 -> 2,673 bytes (**-17.6 %**); perfRun's fixture
   entity (three of five attributes Properties) 948 -> 891 bytes (**-6.0 %**).
 
+  Throughput (2026-10-07): as above - perfRun, release builds, one broker binary with the two `mongoc.so`
+  (one time per entity / + Property left out), broker on 8 cores, the mean of four runs each, in the order
+  M B M B B M B M; requests/s - every scenario inside the other side's range:
+
+  | scenario | one time per entity | + Property left out | | runs, one time per entity | runs, + Property left out |
+  |---|---:|---:|---:|---|---|
+  | query_c50 | 16,932 | 16,696 | **-1.4 %** | 16,557..17,175 | 15,892..17,131 |
+  | query_c200 | 16,422 | 16,274 | **-0.9 %** | 15,896..16,634 | 15,706..16,616 |
+  | query_l1_c50 | 27,680 | 27,664 | **-0.1 %** | 27,004..28,144 | 27,064..28,095 |
+  | query_l100_c50 | 6,204 | 6,170 | **-0.5 %** | 6,047..6,282 | 6,077..6,255 |
+  | retrieve_c50 | 69,946 | 69,818 | **-0.2 %** | 68,018..70,973 | 68,022..71,009 |
+  | patch_c50 | 20,158 | 20,076 | **-0.4 %** | 19,646..20,386 | 19,766..20,384 |
+  | patch_c1 | 3,503 | 3,500 | **-0.1 %** | 3,474..3,576 | 3,410..3,548 |
+  | batch20_c50 | 1,602 | 1,599 | **-0.2 %** | 1,579..1,619 | 1,577..1,619 |
+  | create_c50 | 55,617 | 55,607 | **-0.0 %** | 55,280..56,289 | 55,092..56,280 |
+  | create_c1 | 7,023 | 7,068 | **+0.6 %** | 6,991..7,054 | 6,903..7,321 |
+  | batch20create_c50 | 6,292 | 6,308 | **+0.3 %** | 6,262..6,308 | 6,261..6,345 |
+  | merge_c50 | 24,595 | 24,386 | **-0.8 %** | 24,066..24,942 | 23,840..24,689 |
+  | delete_c50 | 30,460 | 30,550 | **+0.3 %** | 30,219..30,571 | 30,157..30,772 |
+  | batch20delete_c50 | 3,203 | 3,207 | **+0.1 %** | 3,155..3,230 | 3,151..3,235 |
+
 ### 4.11 Compression of a whole frame - later, off by default
 
 A flag bit in the frame header for zstd. Pointless on a LAN after § 4.1-4.10; possibly worth it over
