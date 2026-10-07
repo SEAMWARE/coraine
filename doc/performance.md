@@ -611,11 +611,14 @@ four) - requests/s, and each against its column's neighbour:
 
 - **Writers first** against readers first (same type form): concurrent creates +5 %, batch creates
   +15 %, merges +7.5 %; queries and retrieves -4-6 %, deletes -4.6 %.
-- **Creates on a durable store, readers first**, are limited by the snapshot: it encodes the store in
-  slices under the store's read lock, and fifty writers queue behind it. Which of them the lock lets
-  in, and when, is a matter of timing - the type in the node changes the timing (-7.7 %), not the
-  work: with snapshots off, in RAM, with writers first, or with a profiler attached, the two forms
-  are within 1.5 % of each other or the type in the node is faster (+8.6 %).
+- **Concurrent creates on a durable store, the type in the node: -7.7 %** (readers first) - glibc's
+  allocator, not the work. With snapshots off (`--dbSnapshotEvery 65536`) the gap stays (-6.5 %);
+  the profile has it in malloc and free (`_int_free_merge_chunk` ×3.8, `_int_free_chunk` ×3): one
+  long-lived node less per attribute changes how the short-lived allocations of a request coalesce
+  among them. In RAM the two are within 1.5 %; under jemalloc they are equal (181 358 / 181 343), under
+  tcmalloc within 2.2 % - and both allocators are faster than glibc's on either form (`create`, c50,
+  `--dbDir`, snapshots off: glibc 163 160, jemalloc 181 358, tcmalloc 192 518 - `LD_PRELOAD`, no
+  rebuild; the other scenarios not yet measured).
 - So the right lock policy is the workload's. corDB keeps readers first by default.
 
 ### What the data takes on disk
