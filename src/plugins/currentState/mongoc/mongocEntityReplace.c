@@ -14,8 +14,8 @@
 #include "corRest/CorRestState.h"                       // corRest
 
 #include "db/DbDriver.h"                              // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocTreeToBson.h"     // mongocTreeToBson
-#include "currentState/mongoc/mongocBsonToTree.h"     // mongocBsonToTree
+#include "currentState/mongoc/mongocTreeToBson.h"     // mongocEntityToBson
+#include "currentState/mongoc/mongocBsonToTree.h"     // mongocEntityBsonToTree
 #include "corNgsild/CorNgsild.h"                      // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"       // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityReplace.h"  // Own interface
@@ -50,7 +50,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntit
   // Replacement document: the full new entity in BSON form
   //
   bson_t replacement;
-  mongocTreeToBson(newEntityP, &replacement);
+  mongocEntityToBson(newEntityP, &replacement);
 
   //
   // find_and_modify: atomic "find by _id, replace with new doc, return pre-image".
@@ -138,7 +138,7 @@ int mongocEntityReplace(Tenant* tenantP, const char* entityId, CorNode* newEntit
       if (bson_init_static(&oldDoc, data, len))
       {
         if (oldEntityPP != NULL)
-          *oldEntityPP = mongocBsonToTree(&corRest.kalloc, &oldDoc);
+          *oldEntityPP = mongocEntityBsonToTree(&corRest.kalloc, &oldDoc);
       }
       else if (oldEntityPP != NULL)
       {

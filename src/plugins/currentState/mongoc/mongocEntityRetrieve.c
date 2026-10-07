@@ -14,7 +14,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 
 #include "db/DbDriver.h"                             // DB_OK, DB_NOT_FOUND, DB_ERR
-#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocBsonToTree
+#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityRetrieve.h"             // Own interface
 
 
@@ -53,7 +53,7 @@ int mongocEntityRetrieve(Tenant* tenantP, const char* entityId, CorNode** entity
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    *entityPP = mongocBsonToTree(&corRest.kalloc, doc);
+    *entityPP = mongocEntityBsonToTree(&corRest.kalloc, doc);
     result = DB_OK;
   }
   else

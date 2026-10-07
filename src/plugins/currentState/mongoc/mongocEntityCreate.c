@@ -14,7 +14,7 @@
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ALREADY_EXISTS, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocTreeToBson.h"                 // mongocTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"                 // mongocEntityToBson
 #include "corNgsild/CorNgsild.h"                                  // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityCreate.h"               // Own interface
@@ -57,7 +57,7 @@ int mongocEntityCreate(Tenant* tenantP, const char* entityId, CorNode* entityP)
     return DB_GEO_TYPE_CONFLICT;
   }
 
-  mongocTreeToBson(entityP, &bson);
+  mongocEntityToBson(entityP, &bson);
 
   //
   // Insert

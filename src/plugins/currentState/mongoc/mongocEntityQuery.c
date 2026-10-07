@@ -26,7 +26,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
-#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocBsonToTree
+#include "currentState/mongoc/mongocBsonToTree.h"                 // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityQuery.h"                // Own interface
 
 
@@ -522,6 +522,40 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
 
 // -----------------------------------------------------------------------------
 //
+// timeCompareAppend - a timestamp (int64 ns) compared: { <path>: <ns> } or { <path>: { $op: <ns> } }
+// ($ne with $exists: true - a missing time is not "unequal")
+//
+static void timeCompareAppend(bson_t* docP, const char* path, LdQOperator op, int64_t ns)
+{
+  if (op == LdQEqual)
+  {
+    bson_append_int64(docP, path, -1, ns);
+    return;
+  }
+
+  const char* mongoOp = NULL;
+  switch (op)
+  {
+  case LdQUnequal:   mongoOp = "$ne";  break;
+  case LdQGreater:   mongoOp = "$gt";  break;
+  case LdQLess:      mongoOp = "$lt";  break;
+  case LdQGreaterEq: mongoOp = "$gte"; break;
+  case LdQLessEq:    mongoOp = "$lte"; break;
+  default:           mongoOp = "$eq";  break;
+  }
+
+  bson_t opDoc;
+  bson_append_document_begin(docP, path, -1, &opDoc);
+  bson_append_int64(&opDoc, mongoOp, -1, ns);
+  if (op == LdQUnequal)
+    bson_append_bool(&opDoc, "$exists", 7, true);
+  bson_append_document_end(docP, &opDoc);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bsonAppendQTerm - build BSON filter for a single Q term
 //
 static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
@@ -566,29 +600,60 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
           tp += snprintf(tsPath + tp, sizeof(tsPath) - tp, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
       }
 
-      if (term->op == LdQEqual)
+      //
+      // A createdAt / modifiedAt that is not there is the entity's createdAt (System timestamps,
+      // mongocTreeToBson.h) - all but the entity's own createdAt, which is always there. Such a term is
+      //   { $and: [ { $or: [ { <path>: <cmp> }, { <path>: absent, <its object>: there, createdAt: <cmp> } ] } ] }
+      // - wrapped in a $and of its own: a lone q term goes into the filter's top level, which may already
+      // hold a $or (a type expression) and has no $and.
+      //
+      bool inherits = (term->subPathN > 0) || (strcmp(term->attr, "createdAt") != 0);
+
+      if ((inherits == true) && (strcmp(leaf, "observedAt") != 0))
       {
-        bson_append_int64(docP, tsPath, -1, term->value.ns);
-      }
-      else
-      {
-        const char* mongoOp = NULL;
-        switch (term->op)
+        char objPath[1024];
+        int  op = snprintf(objPath, sizeof(objPath), "%s", tsPath);
+
+        while ((op > 0) && (objPath[op - 1] != '.'))   // the leaf's object: the path without its last segment
+          op--;
+        objPath[(op > 0)? op - 1 : 0] = 0;
+
+        bson_t andArray, andElem, orArray, orElem;
+
+        bson_append_array_begin(docP, "$and", 4, &andArray);
+        bson_append_document_begin(&andArray, "0", 1, &andElem);
+        bson_append_array_begin(&andElem, "$or", 3, &orArray);
+
+        bson_append_document_begin(&orArray, "0", 1, &orElem);
+        timeCompareAppend(&orElem, tsPath, term->op, term->value.ns);
+        bson_append_document_end(&orArray, &orElem);
+
+        bson_append_document_begin(&orArray, "1", 1, &orElem);
         {
-        case LdQUnequal:   mongoOp = "$ne";  break;
-        case LdQGreater:   mongoOp = "$gt";  break;
-        case LdQLess:      mongoOp = "$lt";  break;
-        case LdQGreaterEq: mongoOp = "$gte"; break;
-        case LdQLessEq:    mongoOp = "$lte"; break;
-        default:           mongoOp = "$eq";  break;
+          bson_t existsDoc;
+
+          bson_append_document_begin(&orElem, tsPath, -1, &existsDoc);
+          bson_append_bool(&existsDoc, "$exists", 7, false);
+          bson_append_document_end(&orElem, &existsDoc);
+
+          if (objPath[0] != 0)                        // an attribute's or sub-attribute's time: its object is there
+          {
+            bson_append_document_begin(&orElem, objPath, -1, &existsDoc);
+            bson_append_bool(&existsDoc, "$exists", 7, true);
+            bson_append_document_end(&orElem, &existsDoc);
+          }
+
+          timeCompareAppend(&orElem, "createdAt", term->op, term->value.ns);
         }
-        bson_t opDoc;
-        bson_append_document_begin(docP, tsPath, -1, &opDoc);
-        bson_append_int64(&opDoc, mongoOp, -1, term->value.ns);
-        if (term->op == LdQUnequal)
-        bson_append_bool(&opDoc, "$exists", 7, true);
-        bson_append_document_end(docP, &opDoc);
+        bson_append_document_end(&orArray, &orElem);
+
+        bson_append_array_end(&andElem, &orArray);
+        bson_append_document_end(&andArray, &andElem);
+        bson_append_array_end(docP, &andArray);
+        return;
       }
+
+      timeCompareAppend(docP, tsPath, term->op, term->value.ns);
       return;
     }
   }
@@ -1688,7 +1753,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
 
   while (mongoc_cursor_next(cursorP, &doc))
   {
-    CorNode* entityP = mongocBsonToTree(&corRest.kalloc, doc);
+    CorNode* entityP = mongocEntityBsonToTree(&corRest.kalloc, doc);
     corTreeChildAdd(arrayP, entityP);
   }
 

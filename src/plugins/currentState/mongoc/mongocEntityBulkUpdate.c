@@ -32,7 +32,7 @@
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
-#include "currentState/mongoc/mongocTreeToBson.h"        // mongocTreeToBson
+#include "currentState/mongoc/mongocTreeToBson.h"        // mongocEntityToBson
 #include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
 #include "currentState/mongoc/mongocEntityBulkUpdate.h"  // Own interface
@@ -285,7 +285,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     BSON_APPEND_UTF8(&selector, "_id", id);
 
     bson_t doc;
-    mongocTreeToBson(entityP, &doc);
+    mongocEntityToBson(entityP, &doc);
 
     mongoc_bulk_operation_replace_one(bulk, &selector, &doc, false);
 

@@ -188,8 +188,8 @@ them on write (`ldApiEntityToDbModel`, from the request's one time) and renders 
 `timeproperty=modifiedAt`). The broker owns the clock: one time per request, so the current state,
 TRoE and the notifications agree to the microsecond.
 
-An entity is created whole, with one time. corDB stores that one time - the entity's `createdAt` - and,
-below the entity, only the times that differ from it (corDB's README):
+An entity is created whole, with one time. corDB and mongoc store that one time - the entity's
+`createdAt` - and, below the entity, only the times that differ from it (corDB's README):
 
 | | stored |
 |---|---|
@@ -198,10 +198,45 @@ below the entity, only the times that differ from it (corDB's README):
 | an added attribute | its own `createdAt` and `modifiedAt` |
 
 A time that is not there is the entity's `createdAt`; a store with every time in place is read as it
-is. 100k entities of ten attributes take 21-30 % less memory (the figures, and what it does to
-throughput: corDB's README). The conversion is at corDB's edges - every tree that leaves the store has
-every timestamp - so mongoc and **cor://** are unchanged, and corNgsild knows one thing: its in-place
-attribute update (`ldEntityAttrsSet`) keeps an inherited `createdAt` inherited. cor:// carries the times
+is. The conversion is at each store's edges - every tree that leaves the store has every timestamp - so
+**cor://** is unchanged, and corNgsild knows one thing: its in-place attribute update
+(`ldEntityAttrsSet`) keeps an inherited `createdAt` inherited.
+
+- **corDB**: 100k entities of ten attributes take 21-30 % less memory (the figures, and what it does to
+  throughput: corDB's README).
+- **mongoc**: in the conversion that already walks the document (`mongocEntityToBson` /
+  `mongocAttrAppend` out, `mongocEntityBsonToTree` in - no extra copy). A `q` on an inherited time -
+  the entity's `modifiedAt`, an attribute's or a sub-attribute's `createdAt` / `modifiedAt` - is
+  `{ $or: [ { <time>: <cmp> }, { <time>: absent, <its object>: there, createdAt: <cmp> } ] }`; the
+  entity's `createdAt`, always there, keeps its plain compare and its `{createdAt, _id}` index. An
+  entity's document (`bsonsize`, ten Property attributes): 1,603 -> 1,193 bytes (**-25.6 %**); with
+  two sub-attributes and an `observedAt` per attribute: 4,433 -> 3,243 bytes (**-26.8 %**).
+
+  Throughput (2026-10-07): `test/perf/perfRun.sh`, release builds, one broker binary with the two
+  `mongoc.so` (main / one time per entity), broker on 8 cores; the mean of four runs each, run in the
+  order M B M B B M B M; requests/s:
+
+  | scenario | every time kept | one per entity | | runs, every time kept | runs, one per entity |
+  |---|---:|---:|---:|---|---|
+  | query_c50 | 17,384 | 16,300 | **-6.2 %** | 16,840..18,814 | 15,103..16,760 |
+  | query_c200 | 16,686 | 16,162 | **-3.1 %** | 16,208..17,815 | 16,025..16,255 |
+  | query_l1_c50 | 27,245 | 27,311 | **+0.2 %** | 26,505..27,822 | 27,123..27,418 |
+  | query_l100_c50 | 6,056 | 6,080 | **+0.4 %** | 5,934..6,150 | 6,035..6,105 |
+  | retrieve_c50 | 68,663 | 69,068 | **+0.6 %** | 66,021..70,506 | 68,558..69,436 |
+  | patch_c50 | 19,770 | 19,625 | **-0.7 %** | 19,340..20,180 | 19,015..19,920 |
+  | patch_c1 | 3,460 | 3,447 | **-0.4 %** | 3,414..3,516 | 3,415..3,496 |
+  | batch20_c50 | 1,568 | 1,589 | **+1.4 %** | 1,542..1,587 | 1,578..1,594 |
+  | create_c50 | 54,555 | 55,768 | **+2.2 %** | 52,205..55,682 | 55,459..56,105 |
+  | create_c1 | 7,011 | 7,035 | **+0.3 %** | 6,862..7,205 | 6,923..7,136 |
+  | batch20create_c50 | 6,212 | 6,376 | **+2.6 %** | 6,004..6,467 | 6,276..6,541 |
+  | merge_c50 | 24,369 | 24,424 | **+0.2 %** | 23,720..24,766 | 23,695..24,741 |
+  | delete_c50 | 29,926 | 30,231 | **+1.0 %** | 29,021..30,291 | 30,071..30,376 |
+  | batch20delete_c50 | 3,171 | 3,189 | **+0.6 %** | 3,122..3,202 | 3,179..3,198 |
+
+  query_c50 and query_c200 are the first two measurements after perfRun's fixture. The same request
+  (`limit=20`, 50 connections) measured alone - the same fixture, 10 s warm-up, 3 x 5 s, the two
+  alternated three times each: 16,018 against 15,975 requests/s (**-0.3 %**, inside the 16,298..15,851
+  drift of the whole series); limit=1 and limit=100 above, the same read path, are +0.2 % and +0.4 %. cor:// carries the times
 only when the request asked for them, as integers - no guard needed, § 4.10's "convert only if it
 re-renders exactly" is for the user's `observedAt`.
 

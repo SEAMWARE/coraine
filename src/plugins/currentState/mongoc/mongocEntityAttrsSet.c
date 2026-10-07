@@ -27,8 +27,8 @@
 #include "corNgsild/ldEntityAttrsSet.h"                 // ldEntityAttrsSet
 
 #include "db/DbDriver.h"                               // DB_OK, DB_NOT_FOUND, DB_ERR, DB_INVALID_GEOMETRY
-#include "currentState/mongoc/mongocBsonToTree.h"      // mongocBsonToTree
-#include "currentState/mongoc/mongocTreeToBson.h"      // mongocNodeAppend
+#include "currentState/mongoc/mongocBsonToTree.h"      // mongocEntityBsonToTree
+#include "currentState/mongoc/mongocTreeToBson.h"      // mongocNodeAppend, mongocAttrAppend, mongocEntityCreatedAt
 #include "currentState/mongoc/mongocDotEscape.h"       // mongocEscapeDotsInKey
 #include "corNgsild/CorNgsild.h"                       // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"        // mongocGeoIndexEnsure
@@ -68,7 +68,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
 
   if (mongoc_cursor_next(cursorP, &doc))
   {
-    target = mongocBsonToTree(&corRest.kalloc, doc);
+    target = mongocEntityBsonToTree(&corRest.kalloc, doc);
   }
   else
   {
@@ -159,7 +159,7 @@ int mongocEntityAttrsSet(Tenant*        tenantP,
       if (attrWrapper == NULL)
         continue;
 
-      mongocNodeAppend(&setDoc, escaped, attrWrapper);
+      mongocAttrAppend(&setDoc, escaped, attrWrapper, mongocEntityCreatedAt(target));
       hasSet = true;
     }
   }
