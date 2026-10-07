@@ -1,0 +1,140 @@
+#
+# FILE            distop_partial_update_missing_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Partial Attribute update (TS 104-175 § 10.2.5.4): the target instance must exist - the default
+# instance when the fragment has no datasetId. An entity whose speed has only a datasetId instance
+# has no default one: the update is a 404 when nothing else takes it. With an INCLUSIVE registration
+# the update is also forwarded; the source takes it (204), and the local entity is left as it was -
+# the update does not create the default instance here.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Partial attribute update of an instance the entity does not have - not created locally when a registration takes it
+
+--TAGS--
+csource registration distop inclusive patch datasetId
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+#
+# 01. CB: urn:V1 with speed 56 only as datasetId urn:ds2 (local); CP1: urn:V1 with a default speed 10
+# 02. PATCH /attrs/speed {"value": 99} on CB, no registration - 404, no default instance
+# 03. Register CB->CP1 inclusive (redirectionOps) for urn:V1
+# 04. PATCH /attrs/speed {"value": 99} on CB - forwarded, CP1 takes it: 204
+# 05. CB ?local=true: speed as it was - one instance, datasetId urn:ds2, 56
+# 06. CP1 ?local=true: the default speed is 99
+#
+
+echo "01. CB: urn:V1 with speed 56 only as datasetId urn:ds2 (local); CP1: urn:V1 with a default speed 10"
+echo "======================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id": "urn:V1", "type": "V", "speed": {"type": "Property", "value": 56, "datasetId": "urn:ds2"}}' | head -1
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities' --payload '{"id": "urn:V1", "type": "V", "speed": {"type": "Property", "value": 10}}' | head -1
+echo
+echo
+
+
+echo "02. PATCH /attrs/speed {\"value\": 99} on CB, no registration - 404, no default instance"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value": 99}' | sed -n '1p;/^{/,$p'
+echo
+
+
+echo "03. Register CB->CP1 inclusive (redirectionOps) for urn:V1"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R1", "type": "ContextSourceRegistration",
+  "information": [{"entities": [{"id": "urn:V1", "type": "V"}]}],
+  "endpoint": "http://localhost:'$CP1_PORT'", "mode": "inclusive", "operations": ["redirectionOps"]
+}' | head -1
+echo
+echo
+
+
+echo "04. PATCH /attrs/speed {\"value\": 99} on CB - forwarded, CP1 takes it: 204"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value": 99}' | head -1
+echo
+echo
+
+
+echo "05. CB ?local=true: speed as it was - one instance, datasetId urn:ds2, 56"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' | sed -n '/^{/,$p'
+echo
+
+
+echo "06. CP1 ?local=true: the default speed is 99"
+echo "============================================"
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities/urn:V1?local=true' | sed -n '/^{/,$p'
+echo
+
+
+--EXPECT--
+01. CB: urn:V1 with speed 56 only as datasetId urn:ds2 (local); CP1: urn:V1 with a default speed 10
+======================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. PATCH /attrs/speed {"value": 99} on CB, no registration - 404, no default instance
+========================================================================================
+HTTP/1.1 404 Not Found
+{
+  "detail": "no default instance of attribute 'speed' on entity 'urn:V1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+03. Register CB->CP1 inclusive (redirectionOps) for urn:V1
+==========================================================
+HTTP/1.1 201 Created
+
+
+04. PATCH /attrs/speed {"value": 99} on CB - forwarded, CP1 takes it: 204
+===========================================================================
+HTTP/1.1 204 No Content
+
+
+05. CB ?local=true: speed as it was - one instance, datasetId urn:ds2, 56
+=========================================================================
+{
+  "id": "urn:V1",
+  "speed": {
+    "datasetId": "urn:ds2",
+    "type": "Property",
+    "value": 56
+  },
+  "type": "V"
+}
+
+
+06. CP1 ?local=true: the default speed is 99
+============================================
+{
+  "id": "urn:V1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "V"
+}
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

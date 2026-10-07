@@ -349,116 +349,125 @@ bool patchEntityAttr(void)
           }
         }
 
-        // § 5.6.4: the target instance must already exist. Default
+        // § 10.2.5.4: the target instance must already exist. Default
         // instance (no datasetId in the fragment) requires "@none" in
         // storage; a fragment with datasetId X requires X as a key.
-        // Returning 204 in either no-match case would silently create
-        // a default — that's a merge of a non-existent attribute and
-        // is reported as 404 by 012_03_02 / 012_03_03.
+        // Applying the fragment anyway would create the instance - a 404
+        // (012_03_02 / 012_03_03) when nothing else took the update, and
+        // nothing to do locally when a registration did: the instance the
+        // update targets is not held here.
+        bool instanceHeld = true;
         if (existingAttr->type == CorObject)
         {
           CorNode* dsP = corTreeLookup(bodyP, "datasetId");
           const char* key = (dsP != NULL && dsP->type == CorString)
                               ? dsP->value.s : "@none";
-          if (corTreeLookup(existingAttr, key) == NULL && !anySucceeded)
+          if (corTreeLookup(existingAttr, key) == NULL)
           {
-            if (dsP != NULL && dsP->type == CorString)
-              ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-                      "no instance of attribute '%s' with datasetId '%s' on entity '%s'",
-                      attrWild, dsP->value.s, entityId);
-            else
-              ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
-                      "no default instance of attribute '%s' on entity '%s'",
-                      attrWild, entityId);
+            if (!anySucceeded)
+            {
+              if (dsP != NULL && dsP->type == CorString)
+                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                        "no instance of attribute '%s' with datasetId '%s' on entity '%s'",
+                        attrWild, dsP->value.s, entityId);
+              else
+                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                        "no default instance of attribute '%s' on entity '%s'",
+                        attrWild, entityId);
+              return true;
+            }
+            instanceHeld = false;
+          }
+        }
+
+        if (instanceHeld)
+        {
+          // The attribute already exists, so its type is fixed by the stored
+          // entity (a Partial Attribute Update must not change it, § 5.6.4.4). A
+          // bare value-only fragment carries no type, so the earlier ldCheckEntity
+          // validated it as a plain Property and skipped the type-specific value
+          // check (e.g. ldCheckGeo for a GeoProperty). Resolve the type from the
+          // DB and validate the value against it here — so a malformed geometry is
+          // a 400 in the broker, before it ever reaches the storage layer.
+          {
+            // Only when the fragment actually carries a value (ldAttrTypeDetect
+            // != None) — a sub-attribute-only update (e.g. just observedAt) has
+            // no value to validate and must not be forced through the type's
+            // value checks.
+            CorNode* dbInstP = (existingAttr->type == CorObject) ? existingAttr->value.head : NULL;
+            CorNode* dbTypeP = (dbInstP != NULL) ? corTreeLookup(dbInstP, "type") : NULL;
+            if (dbTypeP != NULL && dbTypeP->type == CorString &&
+                corTreeLookup(bodyP, "type") == NULL && ldAttrTypeDetect(bodyP) != LdAttrNone)
+            {
+              corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", dbTypeP->value.s));
+              if (ldCheckAttribute(bodyP, LdOpMergeEntity, LdAttrNone, &corRest.kalloc) == false)
+                return true;
+            }
+          }
+
+          ldApiEntityToDbModel(entityFrag, &corRest.kalloc, 0);
+
+          BridgeSyncDone syncDone = { { NULL }, 0 };
+
+          //
+          // Requests to the DDS side go FIRST: a service or an action this fragment
+          // writes is sent NOW, before anything is stored, and one that cannot be sent
+          // fails the request with nothing written. A service may be waited for, and
+          // its reply is then written with the value. See bridgeServiceSync.h.
+          //
+          if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
+            return true;  // ldError already set - nothing has been written
+
+          //
+          // Partial Attribute Update (§ 10.2.5) — replace/append semantics, the
+          // value is replaced wholesale, not deep-merged. Apply the fragment to
+          // the already-retrieved targetEntity here in the broker, then persist
+          // the resulting change report via the driver.
+          //
+          LdMergeReport report = { NULL };
+          if (ldEntityFragmentApply(targetEntity, entityFrag, &report,
+                                    corRest.requestStartTime, corRest.kallocP) == false)
+            return true;  // ldError already set
+
+          int car = db.entityChangesApply(tenantP, entityId, targetEntity, &report);
+
+          bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
+          ddsAccepted = syncDone.accepted;
+          if (car == DB_GEO_TYPE_CONFLICT)
+          {
+            ldGeoTypeConflict();
             return true;
           }
-        }
 
-        // The attribute already exists, so its type is fixed by the stored
-        // entity (a Partial Attribute Update must not change it, § 5.6.4.4). A
-        // bare value-only fragment carries no type, so the earlier ldCheckEntity
-        // validated it as a plain Property and skipped the type-specific value
-        // check (e.g. ldCheckGeo for a GeoProperty). Resolve the type from the
-        // DB and validate the value against it here — so a malformed geometry is
-        // a 400 in the broker, before it ever reaches the storage layer.
-        {
-          // Only when the fragment actually carries a value (ldAttrTypeDetect
-          // != None) — a sub-attribute-only update (e.g. just observedAt) has
-          // no value to validate and must not be forced through the type's
-          // value checks.
-          CorNode* dbInstP = (existingAttr->type == CorObject) ? existingAttr->value.head : NULL;
-          CorNode* dbTypeP = (dbInstP != NULL) ? corTreeLookup(dbInstP, "type") : NULL;
-          if (dbTypeP != NULL && dbTypeP->type == CorString &&
-              corTreeLookup(bodyP, "type") == NULL && ldAttrTypeDetect(bodyP) != LdAttrNone)
+          if (car == DB_INVALID_GEOMETRY)
           {
-            corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", dbTypeP->value.s));
-            if (ldCheckAttribute(bodyP, LdOpMergeEntity, LdAttrNone, &corRest.kalloc) == false)
-              return true;
+            ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
+                    "the updated attribute '%s' carries an invalid GeoProperty geometry", attrWild);
+            return true;
           }
-        }
+          if (car != DB_OK)
+          {
+            ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
+                    "database error updating attribute '%s' on entity '%s'",
+                    attrWild, entityId);
+            return true;
+          }
 
-        ldApiEntityToDbModel(entityFrag, &corRest.kalloc, 0);
+          anySucceeded = true;
 
-        BridgeSyncDone syncDone = { { NULL }, 0 };
+          // targetEntity is the post-merge tree — feed notifications + TRoE directly.
+          if (tenantP->subCacheP != NULL)
+            ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
+                          LdNotifyEntityUpdate, &report);
 
-        //
-        // Requests to the DDS side go FIRST: a service or an action this fragment
-        // writes is sent NOW, before anything is stored, and one that cannot be sent
-        // fails the request with nothing written. A service may be waited for, and
-        // its reply is then written with the value. See bridgeServiceSync.h.
-        //
-        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
-          return true;  // ldError already set - nothing has been written
-
-        //
-        // Partial Attribute Update (§ 10.2.5) — replace/append semantics, the
-        // value is replaced wholesale, not deep-merged. Apply the fragment to
-        // the already-retrieved targetEntity here in the broker, then persist
-        // the resulting change report via the driver.
-        //
-        LdMergeReport report = { NULL };
-        if (ldEntityFragmentApply(targetEntity, entityFrag, &report,
-                                  corRest.requestStartTime, corRest.kallocP) == false)
-          return true;  // ldError already set
-
-        int car = db.entityChangesApply(tenantP, entityId, targetEntity, &report);
-
-        bridgeRequestsWritten(&syncDone);   // late replies and goals: released after the notifications
-        ddsAccepted = syncDone.accepted;
-        if (car == DB_GEO_TYPE_CONFLICT)
-        {
-          ldGeoTypeConflict();
-          return true;
-        }
-
-        if (car == DB_INVALID_GEOMETRY)
-        {
-          ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid GeoProperty",
-                  "the updated attribute '%s' carries an invalid GeoProperty geometry", attrWild);
-          return true;
-        }
-        if (car != DB_OK)
-        {
-          ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
-                  "database error updating attribute '%s' on entity '%s'",
-                  attrWild, entityId);
-          return true;
-        }
-
-        anySucceeded = true;
-
-        // targetEntity is the post-merge tree — feed notifications + TRoE directly.
-        if (tenantP->subCacheP != NULL)
-          ldNotifyDefer((LdSubCache*) tenantP->subCacheP, targetEntity,
-                        LdNotifyEntityUpdate, &report);
-
-        // TRoE: defer one attr event per top-level attr in the merge report.
-        {
-          const char* etype = NULL;
-          CorNode* tn = corTreeLookup(targetEntity, "type");
-          if (tn != NULL && tn->type == CorString) etype = tn->value.s;
-          troeDeferAttrEventsFromMerge(tenantP, entityId, etype, targetEntity, &report,
-                                       corRest.requestStartTime);
+          // TRoE: defer one attr event per top-level attr in the merge report.
+          {
+            const char* etype = NULL;
+            CorNode* tn = corTreeLookup(targetEntity, "type");
+            if (tn != NULL && tn->type == CorString) etype = tn->value.s;
+            troeDeferAttrEventsFromMerge(tenantP, entityId, etype, targetEntity, &report,
+                                         corRest.requestStartTime);
+          }
         }
       }
     }
