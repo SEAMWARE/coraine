@@ -6,6 +6,9 @@
 # appear in -u (usage) and are parsed alongside built-in options.
 #
 
+# The broker under test - corTest's run header shows its --version (corTestFunctions.sh sets the same)
+export COR_BROKER="${COR_BROKER:-coraine}"
+
 corCliParamAdd "-db"     "COR_DB_TYPE"      "mongoc" "Current-state DB: corDB|mongoc|ramDB"    "DB"
 corCliParamAdd "-troeDb" "COR_TROE_DB_TYPE" "NONE" "TRoE store: corDB (the --troe timescale tests on --troe corDB)"       "TROEDB"
 
