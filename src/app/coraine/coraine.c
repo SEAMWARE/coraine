@@ -388,6 +388,23 @@ static void shutdownInOrder(void)
 
 // -----------------------------------------------------------------------------
 //
+// pluginArgsAdd - a plugin's options into the table - an error stops the broker
+//
+// corArgsAdd also applies their environment variables (CORAINE_DBDIR, ...): a value out of range or not
+// a number there is the same error as on the command line. Its result was not looked at.
+//
+static void pluginArgsAdd(CorArg* argV)
+{
+  CorArgsStatus ks = corArgsAdd(argV);
+
+  if (ks != CorArgsOk)
+    COR_X(1, "a plugin's options: %s", corArgsStatus(ks));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // pluginsLoad - load DB + API plugins, register their CLI args
 //
 // Called between corArgsInit and corArgsParse so that plugin-contributed args
@@ -455,8 +472,8 @@ static bool pluginsLoad(int argC, char* argV[])
 
       static CorArg dbSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
       dbSepArgV[0].description = dbSepText;
-      corArgsAdd(dbSepArgV);
-      corArgsAdd(db.args);
+      pluginArgsAdd(dbSepArgV);
+      pluginArgsAdd(db.args);
     }
   }
 
@@ -480,8 +497,8 @@ static bool pluginsLoad(int argC, char* argV[])
 
       static CorArg troeSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
       troeSepArgV[0].description = troeSepText;
-      corArgsAdd(troeSepArgV);
-      corArgsAdd(troe.args);
+      pluginArgsAdd(troeSepArgV);
+      pluginArgsAdd(troe.args);
     }
   }
 
@@ -501,7 +518,7 @@ static bool pluginsLoad(int argC, char* argV[])
       for (int i = 0; i < apiPluginCount; i++)
       {
         if (apiPlugins[i].args != NULL)
-          corArgsAdd(apiPlugins[i].args);
+          pluginArgsAdd(apiPlugins[i].args);
       }
     }
   }
@@ -538,8 +555,8 @@ static bool pluginsLoad(int argC, char* argV[])
           bridgeSepArgV[i][0] = (CorArg) CORARGS_SEPARATOR(NULL);
           bridgeSepArgV[i][1] = (CorArg) CORARGS_END;
           bridgeSepArgV[i][0].description = bridgeSepText[i];
-          corArgsAdd(bridgeSepArgV[i]);
-          corArgsAdd(bridges[i].args);
+          pluginArgsAdd(bridgeSepArgV[i]);
+          pluginArgsAdd(bridges[i].args);
         }
       }
     }
@@ -558,7 +575,7 @@ static bool pluginsLoad(int argC, char* argV[])
   snprintf(footerText, sizeof(footerText), "Plugins are loaded from %s", corPluginBaseDir());
   static CorArg footerArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
   footerArgV[0].description = footerText;
-  corArgsAdd(footerArgV);
+  pluginArgsAdd(footerArgV);
 
   return startupError;
 }
