@@ -19,6 +19,7 @@
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeNull, corTreeObject, corTreeArray, corTreeChildAdd
 
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocUnescapeDotsInKey
+#include "corNgsild/ldTypes.h"                                    // ldAttrTypeFromString, LdAttrNone
 #include "currentState/mongoc/mongocTreeToBson.h"                 // mongocSysTimeName, mongocSysTimesOpaque
 #include "currentState/mongoc/mongocBsonToTree.h"                 // Own interface
 
@@ -26,11 +27,11 @@
 
 // -----------------------------------------------------------------------------
 //
-// timesBack - an object of an entity's document (an attribute instance, a sub-attribute): the times it
-// inherits from the entity put back - a createdAt right before its modifiedAt, both last when neither is
-// there (where corNgsild puts them). Only an object with a "type" is one (mongocTreeToBson.h).
+// attrBack - an object of an entity's document below the dataset wrapper (an attribute instance, a
+// sub-attribute - mongocTreeToBson.h): what it left out put back - a "type": "Property" first, a createdAt
+// right before its modifiedAt, both times last when neither is there (where corNgsild puts them)
 //
-static void timesBack(CorAlloc* allocP, CorNode* objP, int64_t entityCreatedAt)
+static void attrBack(CorAlloc* allocP, CorNode* objP, int64_t entityCreatedAt)
 {
   bool     hasType = false;
   CorNode* cP      = NULL;
@@ -50,7 +51,19 @@ static void timesBack(CorAlloc* allocP, CorNode* objP, int64_t entityCreatedAt)
     prevP = nP;
   }
 
-  if ((hasType == false) || ((cP != NULL) && (mP != NULL)))
+  if (hasType == false)
+  {
+    CorNode* tP = corTreeString(allocP, "type", "Property");
+
+    tP->next          = objP->value.head;
+    objP->value.head  = tP;
+    if (objP->value.tail == NULL)
+      objP->value.tail = tP;
+    if (mPrevP == NULL && mP != NULL && mP == tP->next)
+      mPrevP = tP;
+  }
+
+  if ((cP != NULL) && (mP != NULL))
     return;
 
   if (cP == NULL)
@@ -137,12 +150,25 @@ static void bsonIterToNode(CorAlloc* allocP, CorAlloc* kaP, bson_iter_t* iterP, 
         bson_iter_t childIter;
         bool        childInValue = inValue || ((containerP->type != CorArray) && mongocSysTimesOpaque(key));
 
+        //
+        // Below the dataset wrapper, an object whose type is not an attribute type (a
+        // ServiceDescription, its JSON Schemas) is no attribute: itself and all it holds read as they are
+        //
+        if ((entityCreatedAt != 0) && (childInValue == false) && (level >= 2))
+        {
+          bson_iter_t typeIter;
+
+          if (bson_iter_recurse(iterP, &typeIter) && bson_iter_find(&typeIter, "type") &&
+              ((BSON_ITER_HOLDS_UTF8(&typeIter) == false) || (ldAttrTypeFromString(bson_iter_utf8(&typeIter, NULL)) == LdAttrNone)))
+            childInValue = true;
+        }
+
         bson_iter_recurse(iterP, &childIter);
         nodeP = corTreeObject(allocP, key);
         bsonIterToNode(allocP, kaP, &childIter, nodeP, entityCreatedAt, level + 1, childInValue);
 
         if ((entityCreatedAt != 0) && (childInValue == false) && (level >= 2))
-          timesBack(allocP, nodeP, entityCreatedAt);
+          attrBack(allocP, nodeP, entityCreatedAt);
       }
       break;
 
@@ -193,15 +219,27 @@ CorNode* mongocBsonToTree(CorAlloc* kaP, const bson_t* bsonP)
 
 // -----------------------------------------------------------------------------
 //
-// mongocEntityBsonToTree - an ENTITY's document to its tree, every time in place (mongocTreeToBson.h)
+// mongocEntityBsonToTree - an ENTITY's document to its tree, every time and every attribute type in place
+// (mongocTreeToBson.h)
 //
 CorNode* mongocEntityBsonToTree(CorAlloc* kaP, const bson_t* bsonP)
 {
   bson_iter_t iter;
   int64_t     createdAt = 0;
 
-  if (bson_iter_init_find(&iter, bsonP, "createdAt") && BSON_ITER_HOLDS_INT64(&iter))
-    createdAt = bson_iter_int64(&iter);
+  //
+  // The first INTEGER createdAt - the one mongocEntityCreatedAt gave the writer (a document with two
+  // createdAt members, one of them a DateTime string, had its types left out and was then read without
+  // them)
+  //
+  bson_iter_init(&iter, bsonP);
+  while ((createdAt == 0) && bson_iter_next(&iter))
+  {
+    const char* key = bson_iter_key(&iter);
+
+    if ((key[0] == 'c') && (strcmp(key, "createdAt") == 0) && BSON_ITER_HOLDS_INT64(&iter))
+      createdAt = bson_iter_int64(&iter);
+  }
 
   if (createdAt == 0)                                 // no createdAt (none to inherit): read as it is
     return mongocBsonToTree(kaP, bsonP);

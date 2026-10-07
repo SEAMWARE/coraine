@@ -1,0 +1,236 @@
+#
+# FILE            mongoc_property_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# mongoc: the vast majority of attributes are Properties - an attribute's or a sub-attribute's
+# "type": "Property" is left out of the entity's document, and a type that is not there is Property:
+# every read puts it back (doc/cor-protocol-details.md § 4.10a). The other types are stored, and so is
+# whatever a VALUE holds - a GeoJSON "type", a JSON object with a "type" of its own. A document with
+# every type in place is read as it is.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+mongoc - "type": "Property" left out of an entity's document, put back by every read
+
+--TAGS--
+mongoc attribute type
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. Create E1: speed (Property + sub-attribute unit), rel (Relationship), loc (GeoProperty), name (LanguageProperty),
+#     obj (Property whose value has a "type"), p2 (two Property instances)
+# 02. The document: every "type" in it - none is "Property" outside a value
+# 03. GET E1: every attribute and sub-attribute has its type, the values as they were
+# 04. GET /attributes/{name} and /types/T: the attribute types
+# 05. q over the attribute kinds
+# 06. A document with every type in place (written before): read as it is
+#
+
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+
+storedTypes() {
+  mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval 'print(EJSON.stringify(db.entities.findOne({_id: "'$1'"})))' | python3 -c "
+import json,sys
+def walk(o, path):
+    for k, v in o.items():
+        k = k.replace('．', '.').split('/')[-1]
+        p = (path + '.' if path else '') + k
+        if k == 'type':
+            print('  ' + p, '=', v)
+        elif isinstance(v, dict):
+            walk(v, p)
+walk(json.load(sys.stdin), '')"
+}
+
+q() {
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$1")" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print('  q=$1:', sorted(e['id'] for e in json.load(sys.stdin)))"
+}
+
+echo "01. Create E1: speed, rel, loc, name, obj (a value with a type), p2 (two instances)"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:E1", "type": "T",
+  "speed": {"type": "Property", "value": 1, "unit": {"type": "Property", "value": "KMH"}},
+  "rel": {"type": "Relationship", "object": "urn:E9"},
+  "loc": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [1, 2]}},
+  "name": {"type": "LanguageProperty", "languageMap": {"en": "car", "sv": "bil"}},
+  "obj": {"type": "Property", "value": {"type": "Property", "x": 1}},
+  "p2": [{"type": "Property", "value": 2}, {"type": "Property", "value": 3, "datasetId": "urn:ds1"}]
+}' | head -1
+echo
+echo
+
+
+echo "02. The document: every \"type\" in it - none is \"Property\" outside a value"
+echo "=========================================================================="
+storedTypes urn:E1
+echo
+echo
+
+
+echo "03. GET E1: every attribute and sub-attribute has its type, the values as they were"
+echo "==================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | sed -n '/^{/,$p'
+echo
+
+
+echo "04. GET /attributes/{name} and /types/T: the attribute types"
+echo "=============================================================="
+for a in loc name obj p2 rel speed; do
+  corCurl --url "/ngsi-ld/v1/attributes/$a" | sed -n '/^{/,$p' | python3 -c "import json,sys; a=json.load(sys.stdin); print(' ', a['attributeName'], a['attributeTypes'])"
+done
+corCurl --url '/ngsi-ld/v1/types/T' | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+for a in sorted(json.load(sys.stdin)['attributeDetails'], key=lambda a: a['attributeName']):
+    print('  T:', a['attributeName'], a['attributeTypes'])"
+echo
+echo
+
+
+echo "05. q over the attribute kinds"
+echo "=============================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T", "speed": {"type": "Property", "value": 5}, "rel": {"type": "Relationship", "object": "urn:E8"}}' | head -1
+q 'speed>0'
+q 'speed>2'
+q 'speed.unit=="KMH"'
+q 'rel=="urn:E9"'
+q 'p2==3'
+q 'obj[x]==1'
+echo
+echo
+
+
+echo "06. A document with every type in place (written before): read as it is"
+echo "========================================================================"
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval '
+db.entities.insertOne({
+  _id: "urn:E3", type: "https://uri.etsi.org/ngsi-ld/default-context/T",
+  ["https://uri．etsi．org/ngsi-ld/default-context/a"]: {"@none": {type: "Property", value: NumberLong("1"), createdAt: NumberLong("1700000000000000000"), modifiedAt: NumberLong("1700000000000000000")}},
+  createdAt: NumberLong("1700000000000000000"), modifiedAt: NumberLong("1700000000000000000")
+}); print("inserted")'
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | sed -n '/^{/,$p'
+echo
+
+
+--EXPECT--
+01. Create E1: speed, rel, loc, name, obj (a value with a type), p2 (two instances)
+====================================================================================
+HTTP/1.1 201 Created
+
+
+02. The document: every "type" in it - none is "Property" outside a value
+==========================================================================
+  type = https://uri.etsi.org/ngsi-ld/default-context/T
+  rel.@none.type = Relationship
+  loc.@none.type = GeoProperty
+  loc.@none.value.type = Point
+  name.@none.type = LanguageProperty
+  obj.@none.value.type = Property
+
+
+03. GET E1: every attribute and sub-attribute has its type, the values as they were
+===================================================================================
+{
+  "id": "urn:E1",
+  "loc": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        1,
+        2
+      ],
+      "type": "Point"
+    }
+  },
+  "name": {
+    "languageMap": {
+      "en": "car",
+      "sv": "bil"
+    },
+    "type": "LanguageProperty"
+  },
+  "obj": {
+    "type": "Property",
+    "value": {
+      "type": "Property",
+      "x": 1
+    }
+  },
+  "p2": [
+    {
+      "type": "Property",
+      "value": 2
+    },
+    {
+      "datasetId": "urn:ds1",
+      "type": "Property",
+      "value": 3
+    }
+  ],
+  "rel": {
+    "object": "urn:E9",
+    "type": "Relationship"
+  },
+  "speed": {
+    "type": "Property",
+    "unit": {
+      "type": "Property",
+      "value": "KMH"
+    },
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+04. GET /attributes/{name} and /types/T: the attribute types
+==============================================================
+  loc ['GeoProperty']
+  name ['LanguageProperty']
+  obj ['Property']
+  p2 ['Property']
+  rel ['Relationship']
+  speed ['Property']
+  T: loc ['GeoProperty']
+  T: name ['LanguageProperty']
+  T: obj ['Property']
+  T: p2 ['Property']
+  T: rel ['Relationship']
+  T: speed ['Property']
+
+
+05. q over the attribute kinds
+==============================
+HTTP/1.1 201 Created
+  q=speed>0: ['urn:E1', 'urn:E2']
+  q=speed>2: ['urn:E2']
+  q=speed.unit=="KMH": ['urn:E1']
+  q=rel=="urn:E9": ['urn:E1']
+  q=p2==3: ['urn:E1']
+  q=obj[x]==1: ['urn:E1']
+
+
+06. A document with every type in place (written before): read as it is
+========================================================================
+inserted
+{
+  "a": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:E3",
+  "type": "T"
+}
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

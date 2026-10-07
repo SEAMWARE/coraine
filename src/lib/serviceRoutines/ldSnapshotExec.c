@@ -26,6 +26,7 @@
 
 #include "corJsonld/corLdExpand.h"                         // corLdExpand, corLdAlreadyExpanded
 #include "corJsonld/corLdExpandTree.h"                     // corLdExpandTree
+#include "corNgsild/ldCheckDateTime.h"                    // ldIsoToNanoseconds
 #include "corNgsild/corNgsild.h"                           // corNgsild
 #include "corNgsild/ldInit.h"                             // ldSplitEntities (extern)
 #include "corNgsild/ldQParse.h"                           // ldQParse
@@ -539,6 +540,66 @@ static void mergeFragmentInto(CorNode* destDb, CorNode* srcDb, uint64_t nowNs)
 
 
 
+// -----------------------------------------------------------------------------
+//
+// sourceTimesKeep - a split-mode fragment, in the DB model: the source's own createdAt / modifiedAt kept
+//
+// The fragment was asked for with sysAttrs (buildSplitForwardQs - § 4.5.5.3 needs each source's
+// modifiedAt), so the entity and each of its attribute instances and sub-attributes arrive with their
+// times as DateTimes - and ldApiEntityToDbModel then appends a time of its own (the capture's) to each.
+// Two createdAt in one object: a store keeps both, and each reader reads one of them. As the local
+// capture does (the entities are copied with their times), the source's are kept - as integers - and
+// the appended ones dropped. Never inside a value.
+//
+static bool sourceTimesValue(const char* name)
+{
+  return (strcmp(name, "value") == 0) || (strcmp(name, "object") == 0) || (strcmp(name, "json") == 0) ||
+         (strcmp(name, "languageMap") == 0) || (strcmp(name, "vocab") == 0) || (strcmp(name, "valueList") == 0) ||
+         (strcmp(name, "objectList") == 0);
+}
+
+static void sourceTimesKeep(CorNode* objP)
+{
+  CorNode* cP    = NULL;
+  CorNode* mP    = NULL;
+  CorNode* prevP = NULL;
+  CorNode* nP    = objP->value.head;
+
+  while (nP != NULL)
+  {
+    CorNode* nextP = nP->next;
+    bool     isC   = (nP->name != NULL) && (strcmp(nP->name, "createdAt")  == 0);
+    bool     isM   = (nP->name != NULL) && (strcmp(nP->name, "modifiedAt") == 0);
+
+    if (isC || isM)
+    {
+      if ((isC && (cP != NULL)) || (isM && (mP != NULL)))   // a second one: the capture's - dropped
+      {
+        prevP->next = nextP;
+        if (objP->value.tail == nP)
+          objP->value.tail = prevP;
+        nP = nextP;
+        continue;
+      }
+
+      if (nP->type == CorString)
+      {
+        nP->value.i = ldIsoToNanoseconds(nP->value.s);
+        nP->type    = CorInt;
+      }
+
+      if (isC) cP = nP; else mP = nP;
+    }
+    else if ((nP->type == CorObject) && (nP->name != NULL) && (sourceTimesValue(nP->name) == false))
+      sourceTimesKeep(nP);
+
+    prevP = nP;
+    nP    = nextP;
+  }
+}
+
+
+
 //
 // streamRemoteEntitiesSplit - split-mode counterpart of
 // streamRemoteEntitiesIntoSnapshot. For each remote entity:
@@ -563,6 +624,7 @@ static int streamRemoteEntitiesSplit(CorNode* arrayP, Tenant* snapTenantP)
 
     corLdExpandTree(entityP, corNgsild.contextP, &corRest.kalloc);
     ldApiEntityToDbModel(entityP, &corRest.kalloc, 0);
+    sourceTimesKeep(entityP);
     snapshotExpiryApply(entityP, nowNs);
 
     CorNode* existing = NULL;
