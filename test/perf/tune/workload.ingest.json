@@ -1,0 +1,26 @@
+{
+  "store": { "database": "corDB", "persistent": true, "history": "none" },
+
+  "entities": {
+    "count": 10000,
+    "types": [
+      { "type": "Meter",
+        "attributes": [
+          { "name": "power",    "type": "Property", "value": 230, "observedAt": true },
+          { "name": "energy",   "type": "Property", "value": 1000, "observedAt": true },
+          { "name": "location", "type": "GeoProperty" },
+          { "name": "site",     "type": "Relationship" }
+        ] }
+    ]
+  },
+
+  "subscriptions": [],
+
+  "load": {
+    "concurrency": 50,
+    "mix": { "create": 0.70, "patch": 0.30 },
+    "patch": { "attributes": ["power"] }
+  },
+
+  "duration": "30s"
+}

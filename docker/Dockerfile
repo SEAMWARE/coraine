@@ -61,7 +61,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential cmake git pkg-config ca-certificates curl wrk \
+      build-essential cmake git pkg-config ca-certificates curl wrk python3 libjemalloc2 libtcmalloc-minimal4 \
       libssl-dev libgeos-dev libmosquitto-dev libpq-dev \
       libsasl2-dev libzstd-dev zlib1g-dev \
       nlohmann-json3-dev libyaml-cpp-dev \
@@ -157,7 +157,16 @@ WORKDIR /root/git/coraine
 # per core against the same build without it. `make di` is the Debug broker (-DCOR_T_ON) over
 # the debug libs built above.
 #
-RUN if [ "$BUILD" = debug ]; then make di; else make pgo PGO_RESTORE_DEBUG=0 && make install_pgo; fi
+#
+# WORKLOAD (a workload file in the build context - doc/extreme-performance.md): `make tune` instead -
+# the profile trained on that workload, the knobs measured on it (here, in the builder), the best kept as
+# /opt/seamware/etc/tune.env for the entry point (docker/coraine-start)
+#
+ARG WORKLOAD=
+RUN if [ "$BUILD" = debug ]; then make di; \
+    elif [ -n "$WORKLOAD" ]; then make tune WORKLOAD="$WORKLOAD" PGO_RESTORE_DEBUG=0 && make install_pgo \
+      && test/perf/tune/tuneEnv.py tune-result.json > /opt/seamware/etc/tune.env && cat /opt/seamware/etc/tune.env; \
+    else make pgo PGO_RESTORE_DEBUG=0 && make install_pgo; fi
 
 # Stamp real provenance. The makefile regenerates etc/contextSourceExtras.json on every
 # build, but .git is out of the build context, so its `git rev-parse` yields "unknown"
@@ -196,6 +205,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /usr/local/bin/coraine /usr/local/bin/coraine
 COPY --from=builder /opt/seamware/ /opt/seamware/
+COPY docker/coraine-start /usr/local/bin/coraine-start
+
+#
+# The allocator `make tune` chose (WORKLOAD), and only that one
+#
+RUN A=$(sed -n 's/^TUNE_ALLOCATOR=//p' /opt/seamware/etc/tune.env 2>/dev/null); \
+    case "$A" in \
+      jemalloc)         P=libjemalloc2 ;; \
+      tcmalloc_minimal) P=libtcmalloc-minimal4 ;; \
+      *)                P= ;; \
+    esac; \
+    if [ -n "$P" ]; then apt-get update && apt-get install -y --no-install-recommends $P && rm -rf /var/lib/apt/lists/*; fi
 COPY --from=builder /usr/local/lib/libmicrohttpd.so.12* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmongoc* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbson* /usr/local/lib/
@@ -253,8 +274,9 @@ EXPOSE 1026
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD curl -fsS http://localhost:1026/ngsi-ld/v1/types >/dev/null || exit 1
 
-# -fg is mandatory in a container: without it the broker daemonizes and PID 1 exits.
-ENTRYPOINT ["coraine", "-fg"]
+# coraine -fg (mandatory in a container: without it the broker daemonizes and PID 1 exits), with what
+# `make tune` chose if the image was built with a WORKLOAD (docker/coraine-start)
+ENTRYPOINT ["coraine-start"]
 
 # Overridable. Default is the Mongo backend, matching the dev/test default;
 # pass --database corDB to run with no external services.

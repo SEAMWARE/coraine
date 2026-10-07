@@ -4,6 +4,10 @@
 BUILD_RELEASE/
 BUILD_DEBUG/
 BUILD_COVERAGE/
+BUILD_PGO/
+BUILD_PGO_PROFILE/
+BUILD_TUNE_GEN/
+tune-result.json
 coverage/
 coverage-mongoc/
 coverage-etsi/

@@ -1,0 +1,36 @@
+{
+  "store": { "database": "corDB", "persistent": true, "history": "none" },
+
+  "entities": {
+    "count": 10000,
+    "types": [
+      { "type": "Vehicle", "share": 0.8,
+        "attributes": [
+          { "name": "speed",    "type": "Property", "value": 42, "observedAt": true, "subAttributes": 1 },
+          { "name": "location", "type": "GeoProperty" },
+          { "name": "isParked", "type": "Relationship" },
+          { "name": "brand",    "type": "Property", "value": "Mercedes" }
+        ] },
+      { "type": "Parking", "share": 0.2,
+        "attributes": [
+          { "name": "free",     "type": "Property", "value": 10 },
+          { "name": "name",     "type": "LanguageProperty" },
+          { "name": "location", "type": "GeoProperty" }
+        ] }
+    ]
+  },
+
+  "subscriptions": [
+    { "count": 100, "select": "perEntity", "watchedAttributes": ["speed"] },
+    { "count": 5,   "select": "byType", "type": "Parking", "q": "free<3" }
+  ],
+
+  "load": {
+    "concurrency": 50,
+    "mix": { "patch": 0.80, "query": 0.10, "retrieve": 0.05, "create": 0.05 },
+    "patch": { "attributes": ["speed"] },
+    "query": { "type": "Vehicle", "q": "speed>50", "limit": 20 }
+  },
+
+  "duration": "30s"
+}

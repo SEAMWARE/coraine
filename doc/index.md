@@ -24,6 +24,7 @@ published — never relaxations of what the broker must do. They are filed upstr
 | see the API in action | [API walkthrough](api-walkthrough.md) |
 | understand how it is put together, or write a plugin | [Plugin architecture](plugin-architecture.md) |
 | know what it costs to run, and how fast it is | [Performance and footprint](performance.md) |
+| build a broker for your own workload - the profile, the allocator, the lock | [Extreme performance](extreme-performance.md) |
 | judge how well it is tested | [Test coverage](coverage.md) |
 | know what is not built yet | [Roadmap](roadmap.md) |
 | see every idea, planned or only possible | [Ideas](ideas.md) |

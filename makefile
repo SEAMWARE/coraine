@@ -231,6 +231,25 @@ PGO_GEN       = -fprofile-generate=$(PGO_PROFILE) -fprofile-update=atomic
 PGO_USE       = -fprofile-use=$(PGO_PROFILE) -fprofile-partial-training -fprofile-correction -Wno-missing-profile
 # PGO_RESTORE_DEBUG=0 where nothing builds debug after it (the Docker image, CI) - saves the rebuild
 PGO_RESTORE_DEBUG ?= 1
+# PGO_TRAIN - what the instrumented broker is trained on: perfRun's shapes and more (pgoTrain.sh), or a
+# workload of your own (`make tune`)
+PGO_TRAIN ?= test/perf/pgoTrain.sh
+
+#
+# tune - the broker built for YOUR workload (doc/extreme-performance.md): `make tune WORKLOAD=<file.json>`
+#
+# 1. `make pgo`, trained on the workload (test/perf/tune/tuneTrain.sh) instead of pgoTrain.sh's shapes;
+# 2. the knobs measured on it with that build - --dbLockPrefer reads|writes x the allocator (glibc's,
+#    jemalloc, tcmalloc where installed) - test/perf/tune/tuneMeasure.sh;
+# 3. tune-result.json: every combination, the best, and how to run it. `make install_pgo` installs the build.
+#
+WORKLOAD ?=
+tune:
+	@[ -n "$(WORKLOAD)" ] && [ -f "$(WORKLOAD)" ] || { echo "make tune WORKLOAD=<workload.json> - doc/extreme-performance.md"; exit 1; }
+	python3 test/perf/tune/tuneGen.py $(WORKLOAD) $(CURDIR)/BUILD_TUNE_GEN > /dev/null
+	TUNE_WORKLOAD=$(abspath $(WORKLOAD)) $(MAKE) pgo PGO_TRAIN=test/perf/tune/tuneTrain.sh
+	test/perf/tune/tuneMeasure.sh $(WORKLOAD) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins > tune-result.json
+	@python3 -c "import json; r=json.load(open('tune-result.json')); b=r['best']; print('tune: best', b['brokerOptions'], ' '.join('%s=%s' % kv for kv in b['env'].items()), '-', b['rps'], 'requests/s,', b['vsDefault'], 'against the out-of-the-box settings - tune-result.json')"
 
 pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	rm -rf $(PGO_PROFILE) BUILD_PGO
@@ -240,7 +259,7 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
 	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
-	test/perf/pgoTrain.sh BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
+	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
@@ -257,7 +276,7 @@ debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
-	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) BUILD_PGO BUILD_PGO_PROFILE coverage coverage-* $(COV_ETSI_DIR)
+	rm -rf $(BUILD_RELEASE) $(BUILD_DEBUG) $(BUILD_COVERAGE) BUILD_PGO BUILD_PGO_PROFILE BUILD_TUNE_GEN coverage coverage-* $(COV_ETSI_DIR)
 
 #
 # The file is DATA, not source - nothing includes it and nothing compiles from
