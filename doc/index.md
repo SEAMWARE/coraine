@@ -13,7 +13,10 @@ exist, and how the broker talks to the world.
 
 <sup>\*</sup> The conformance runs use a corrected fork of the ETSI suite. The changes
 are test-side fixes — the suite has bugs of its own and parts of it do not run as
-published — never relaxations of what the broker must do. They are filed upstream.
+published — never relaxations of what the broker must do. They are filed upstream,
+as merge requests for the suite's maintainers to review; until they are merged, the
+result is against the corrected suite, not the published one: 1106 of 1106 test
+cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 
 ## Where to go
 
