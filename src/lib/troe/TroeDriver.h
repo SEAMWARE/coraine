@@ -325,6 +325,14 @@ typedef void (*TroeVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 //
 typedef void (*TroeDumpInfoFunc)(CorAlloc* allocP, CorNode* root);
 
+//
+// TroePingFunc - is the temporal store reachable? TROE_OK if it answered within timeoutMs, else TROE_ERR
+//
+// As DbPingFunc (db/DbDriver.h): for the health port, from a thread of its own, on a connection of its
+// own - never a pooled one. NULL: nothing to reach (none, corDB).
+//
+typedef int  (*TroePingFunc)(int timeoutMs);
+
 
 
 // -----------------------------------------------------------------------------
@@ -368,6 +376,7 @@ typedef struct TroeDriver
   // an older header never sets it.
   //
   TroeEventListFunc                 historyImport;
+  TroePingFunc                      ping;           // NULL-allowed - appended (pluginLoadTroe zeroes the driver)
 } TroeDriver;
 
 //

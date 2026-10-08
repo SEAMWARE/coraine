@@ -55,4 +55,17 @@ extern bool memoryBudgetAdmit(void);
 //
 extern void memoryBudgetValues(uint64_t* budgetP, uint64_t* usedP, uint64_t* residentP, uint64_t* refusedP);
 
+
+
+
+#if COR_FEATURE_HEALTH
+// -----------------------------------------------------------------------------
+//
+// memoryBudgetLevel - where the broker stands: 0 below the soft limit (or no budget), 1 over it, 2 over the budget
+//
+// The figure the sampler last stored - a load and two compares, no /proc read.
+//
+extern int memoryBudgetLevel(void);
+#endif
+
 #endif  // SRC_APP_CORAINE_MEMORYBUDGET_H_

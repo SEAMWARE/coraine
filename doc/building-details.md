@@ -156,7 +156,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These six remove code from the broker and are covered by the test suite:**
+**These seven remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -166,6 +166,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_SERVICE_EXECUTION=OFF` | 77,410 bytes | 17 routes answer 501 |
 | `COR_FEATURE_SNAPSHOT_WRITE=OFF` | 568 bytes | a write naming a Snapshot (`NGSILD-Snapshot`) answers 422 - snapshots are read-only |
 | `COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS=OFF` | 1,491 bytes | `/subscriptions` naming a Snapshot (`NGSILD-Snapshot`) answers 422 for a write; a read lists the live tenant's. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is |
+| `COR_FEATURE_HEALTH=OFF` | TODO-PHASE2 bytes | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

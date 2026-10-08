@@ -62,6 +62,10 @@ IF (COR_FEATURE_REGISTRATIONS)
   )
 ENDIF()
 
+IF (COR_FEATURE_HEALTH)
+  LIST(APPEND SOURCES mongocPing.c)
+ENDIF()
+
 #
 # The document store (DbDriver doc*) - Service Execution's registrations and executions
 #

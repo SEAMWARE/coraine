@@ -321,6 +321,16 @@ typedef void (*DbVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 //
 typedef int  (*DbHaWatchStartFunc)(HaApplyFunc applyF);
 
+//
+// DbPingFunc - is the store reachable? DB_OK if it answered within timeoutMs, else DB_ERR
+//
+// For the health port (src/app/coraine/health.h): called once a second from a thread of its own, never
+// from a request, so it must not use the request's allocator or its pooled connections - a pool that a
+// loaded broker has emptied would make the ping wait for a request to finish. It may block, but never
+// much past timeoutMs. NULL: there is nothing to reach (a store in the broker's own process, corDB).
+//
+typedef int  (*DbPingFunc)(int timeoutMs);
+
 
 
 // -----------------------------------------------------------------------------
@@ -404,6 +414,9 @@ typedef struct DbDriver
   DbDocQueryFunc          docQuery;
   DbDocReplaceFunc        docReplace;
   DbDocDeleteFunc         docDelete;
+
+  // Appended, as the documents: NULL-allowed (see the typedef)
+  DbPingFunc              ping;
 } DbDriver;
 
 

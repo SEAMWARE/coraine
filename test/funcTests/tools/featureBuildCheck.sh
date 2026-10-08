@@ -20,7 +20,7 @@
 # can compare it as expected output. Build logs go to files and only the tail of
 # one is printed, and only when it failed.
 #
-# Not run by the ordinary suite: seven cmake builds is minutes, against two
+# Not run by the ordinary suite: ten cmake builds is minutes, against two
 # seconds for every other case. `corTest -buildTests yes` opts in.
 #
 WORK=${COR_BUILD_TEST_DIR:-/tmp/coraine-featureBuild}
@@ -35,7 +35,7 @@ mkdir -p "$WORK"
 #
 # The configurations. Each is a label plus the cmake flags that define it.
 #
-# Only the flags that actually DO something are here. Nine of the fifteen
+# Only the flags that actually DO something are here. Nine of the twenty-one
 # features are declared and unread (see doc/building-details.md), so a case for one of
 # them would build a byte-identical binary and assert nothing; and three do not
 # link at all, which is a known state rather than something to pin.
@@ -51,6 +51,7 @@ CONFIGS=(
   "SNAPSHOT_WRITE=OFF|-DCOR_FEATURE_SNAPSHOT_WRITE=OFF"
   "SNAPSHOT_SUBSCRIPTIONS=OFF|-DCOR_FEATURE_SNAPSHOT_SUBSCRIPTIONS=OFF"
   "MIGRATE=OFF|-DCOR_FEATURE_MIGRATE=OFF"
+  "HEALTH=OFF|-DCOR_FEATURE_HEALTH=OFF"
 )
 
 rc=0

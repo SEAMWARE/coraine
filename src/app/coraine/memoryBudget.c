@@ -258,3 +258,21 @@ void memoryBudgetValues(uint64_t* budgetP, uint64_t* usedP, uint64_t* residentP,
   *residentP = residentRead();
   *refusedP  = atomic_load_explicit(&refused, memory_order_relaxed);
 }
+
+
+
+#if COR_FEATURE_HEALTH
+// -----------------------------------------------------------------------------
+//
+// memoryBudgetLevel -
+//
+int memoryBudgetLevel(void)
+{
+  if (budget == 0)
+    return 0;
+
+  uint64_t inUse = atomic_load_explicit(&used, memory_order_relaxed);
+
+  return (inUse >= budget) ? 2 : (inUse >= soft) ? 1 : 0;
+}
+#endif

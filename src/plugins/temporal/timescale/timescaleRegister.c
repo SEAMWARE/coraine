@@ -19,6 +19,9 @@
 #include "temporal/timescale/timescaleEvent.h"            // timescaleEventList
 #include "temporal/timescale/timescaleQuery.h"            // timescaleEntityTemporalRetrieve
 #include "temporal/timescale/timescaleHistoryWrite.h"     // timescaleEntityTemporalDelete, etc.
+#if COR_FEATURE_HEALTH
+#include "temporal/timescale/timescalePool.h"             // timescalePing
+#endif
 
 
 
@@ -52,4 +55,7 @@ void troeRegister(TroeDriver* driverP)
   driverP->entityTemporalInstanceDelete = timescaleEntityTemporalInstanceDelete;
   driverP->versionInfo  = NULL;
   driverP->dumpInfo     = NULL;
+#if COR_FEATURE_HEALTH
+  driverP->ping         = timescalePing;   // the health port's pinger (src/app/coraine/health.h)
+#endif
 }
