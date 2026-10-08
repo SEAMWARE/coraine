@@ -37,6 +37,7 @@
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "corNgsild/LdRegCache.h"                     // LdRegCache
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubInitialNotify
+#include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -50,10 +51,8 @@ bool patchCsourceSubscription(void)
   const char* subId    = corRest.in.wildcard[0];
   CorNode*    fragment = corRest.in.requestTree;
 
-  // Fragment validation only. The post-merge re-validation (and single-parse
-  // format capture) for the csource-sub PATCH path is part of the deferred
-  // registration/csource validation work — for now the format is re-derived
-  // from the tree at cache time (LdFormatUnset below).
+  // The fragment first; the complete result once applied (below). The format is re-derived from the
+  // tree at cache time (LdFormatUnset below).
   if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, /*merged*/false, NULL, &corRest.kalloc) == false)
     return true;
 
@@ -81,9 +80,8 @@ bool patchCsourceSubscription(void)
   Tenant*     tenantP = (Tenant*) corNgsild.tenantP;
   LdSubCache* cacheP  = (LdSubCache*) tenantP->regSubCacheP;
 
-  // The whole Lookup → in-place merge-patch → Remove + Add is one
-  // read-modify-write on the CSR-sub cache (the merge mutates the cached
-  // item's subTree in place), so hold the wrlock across all of it. The
+  // The whole Lookup → update → Remove + Add is one read-modify-write on the CSR-sub cache, so hold
+  // the wrlock across all of it. The
   // reg-touching notify runs AFTER we pin newItemP and drop the lock
   // (lock order reg-before-sub).
   ldSubCacheWrLock(cacheP);
@@ -99,41 +97,19 @@ bool patchCsourceSubscription(void)
   }
 
   //
-  // Apply JSON Merge Patch to itemP->subTree.
-  // Fragment field == null → remove; else replace/add (clone to detach).
+  // The partial update (TS 104-175 § 12.4.3.4 -> § 8.4.2): each first-level member of the fragment
+  // replaces, adds or deletes - on a copy, so the cached subscription is untouched until the complete
+  // result is known valid. A fragment's "notification" is the whole new notification: without an
+  // endpoint it is a 400, not a subscription stored without one.
   //
-  CorNode* subTree = itemP->subTree;
-  CorNode* next;
+  CorNode* subTree = corTreeClone(corRest.kallocP, itemP->subTree);
 
-  for (CorNode* fieldP = fragment->value.head; fieldP != NULL; fieldP = next)
+  ldRegSubMerge(subTree, fragment, corRest.kallocP);
+
+  if (ldCheckSubscription(subTree, LdOpCreateCsourceSubscription, /*merged*/true, NULL, &corRest.kalloc) == false)
   {
-    next = fieldP->next;
-
-    CorNode* existingP = corTreeLookup(subTree, fieldP->name);
-
-    if (fieldP->type == CorNull)
-    {
-      if (existingP != NULL)
-      {
-        // Unlink AND free — the cache subTree is a malloc-backed clone
-        // (corTreeClone), so a bare corTreeChildRemove would orphan the old field.
-        corTreeChildRemove(subTree, existingP);
-        corTreeFree(existingP);
-      }
-    }
-    else
-    {
-      if (existingP != NULL)
-      {
-        // Unlink AND free — the cache subTree is a malloc-backed clone
-        // (corTreeClone), so a bare corTreeChildRemove would orphan the old field.
-        corTreeChildRemove(subTree, existingP);
-        corTreeFree(existingP);
-      }
-
-      CorNode* cloneP = corTreeClone(NULL, fieldP);
-      corTreeChildAdd(subTree, cloneP);
-    }
+    ldSubCacheUnlock(cacheP);
+    return true;  // ldCheckSubscription already raised the 400
   }
 
   //
@@ -158,7 +134,7 @@ bool patchCsourceSubscription(void)
     if (statusP != NULL && statusP->type == CorString)
       statusP->value.s = (char*) newStatus;
     else
-      corTreeChildAdd(subTree, corTreeString(NULL, LD_VOCAB_STATUS, newStatus));
+      corTreeChildAdd(subTree, corTreeString(corRest.kallocP, LD_VOCAB_STATUS, newStatus));
   }
 
   // § 6.4.5 — bump modifiedAt to now (in-place on the existing integer node;

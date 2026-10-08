@@ -88,6 +88,7 @@ bool deleteEntity(void)
   // § 6.3.5 single-source error contract — see patchEntity for the full rationale.
   bool    singleAuthoritative = false;   // exactly one exclusive/redirect source, no inclusive
   int     forwardFailCount    = 0;       // forwarded entries that failed (non-2xx, non-404)
+  int     notFoundCount       = 0;       // forwarded entries a source answered 404
   bool    forwardTimedOut     = false;   // that failed forward was a broker per-CSR timeout
 
   bool dispatch = (corNgsild.local == false
@@ -145,7 +146,19 @@ bool deleteEntity(void)
       int sc = items[i].statusCode;
       if (sc >= 200 && sc < 300)
         anySucceeded = true;
-      else if (sc != 404)
+      else if (sc == 404)
+      {
+        //
+        // TS 104-176 § 6.3.5: a 404 is "not abnormal" for a distributed GET only. A source that a
+        // registration says holds the entity, and that answers a DELETE with 404, is an error of a
+        // registered source - reported (207 when something else succeeded). Nowhere to be found at all
+        // is still a 404, below.
+        //
+        ldDistOpBatchErrorAdd(errorsArrayP, entityId, 404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                              "the registered source does not hold the entity", items[i].csr->regId);
+        notFoundCount++;
+      }
+      else
       {
         bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
@@ -219,7 +232,7 @@ bool deleteEntity(void)
   int errorsCount = 0;
   for (CorNode* p = errorsArrayP->value.head; p != NULL; p = p->next) errorsCount++;
 
-  if (!anySucceeded && errorsCount == 0)
+  if (!anySucceeded && errorsCount == notFoundCount)    // held nowhere - locally nor by any source
   {
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;

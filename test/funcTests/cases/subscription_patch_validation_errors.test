@@ -180,8 +180,8 @@ echo
 echo
 
 
-echo "22. PATCH a partial 'notification' (only 'format') → 204 (a fragment need not re-send the endpoint)"
-echo "=================================================================================================="
+echo "22. PATCH a 'notification' of only 'format' → 400 (§ 8.4.2: it replaces the whole notification - no endpoint)"
+echo "============================================================================================================="
 corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"notification": {"format": "concise"}}' | grep HTTP
 echo
 echo
@@ -515,9 +515,9 @@ HTTP/1.1 204 No Content
     "temperature"
 
 
-22. PATCH a partial 'notification' (only 'format') → 204 (a fragment need not re-send the endpoint)
-==================================================================================================
-HTTP/1.1 204 No Content
+22. PATCH a 'notification' of only 'format' → 400 (§ 8.4.2: it replaces the whole notification - no endpoint)
+=============================================================================================================
+HTTP/1.1 400 Bad Request
 
 
 23. Create a periodic subscription (timeInterval) → 201
