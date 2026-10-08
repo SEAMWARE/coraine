@@ -1,0 +1,90 @@
+#
+# FILE            troe_entity_modifiedat_attr_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The temporal representation's entity-level modifiedAt (§ 4.5.2, with sysAttrs) is the entity's last
+# write - an update of one of its attributes included. An attribute update writes history for the
+# attribute and none for the entity itself, so a store that takes the entity's modifiedAt from its
+# entity-level events alone answers with the time of the create, after any number of PATCHes.
+#
+# The times are the broker's own, so they are compared with each other, not with literals: the
+# entity's modifiedAt against the newest instance's.
+#
+--NAME--
+TRoE: the entity's modifiedAt in the temporal representation includes its attributes' updates
+
+--TAGS--
+troe temporal sysattrs
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# newestEqualsEntity <json> - "yes" when the entity's modifiedAt is the newest modifiedAt of its instances
+#
+newestEqualsEntity() {
+  python3 -c '
+import json, sys
+e = json.loads(sys.stdin.read())
+if isinstance(e, list):
+    e = e[0]
+newest = max(i["modifiedAt"] for k, v in e.items() if isinstance(v, list) for i in v if isinstance(i, dict) and "modifiedAt" in i)
+print("entity modifiedAt is the newest instance'"'"'s: " + ("yes" if e.get("modifiedAt") == newest else "no (" + str(e.get("modifiedAt")) + " vs " + newest + ")"))
+'
+}
+
+
+echo "01. Create E1, and update its attribute 'a' twice, a second apart"
+echo "=================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":1}}' | head -1
+sleep 1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":2}' | head -1
+sleep 1
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":3}' | head -1
+echo
+echo
+
+
+echo "02. Retrieve the temporal entity with sysAttrs - modifiedAt is the last PATCH, not the create"
+echo "=============================================================================================="
+curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:E1?options=sysAttrs" | newestEqualsEntity
+echo
+echo
+
+
+echo "03. The same in a temporal query (the list)"
+echo "==========================================="
+curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities?type=T&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&options=sysAttrs" | newestEqualsEntity
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create E1, and update its attribute 'a' twice, a second apart
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. Retrieve the temporal entity with sysAttrs - modifiedAt is the last PATCH, not the create
+==============================================================================================
+entity modifiedAt is the newest instance's: yes
+
+
+03. The same in a temporal query (the list)
+===========================================
+entity modifiedAt is the newest instance's: yes
+
+
