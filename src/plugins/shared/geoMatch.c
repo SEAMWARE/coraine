@@ -154,6 +154,48 @@ void geoMatchClose(void)
 
 // -----------------------------------------------------------------------------
 //
+// positions2d - drop the third (and any further) number of every position, in place
+//
+// Longitude and latitude only. An altitude stays in the entity, but GEOS before 3.13 refuses it in
+// GeoJSON ("Expected two coordinates found more than two" - Ubuntu 24.04 has 3.12), and nothing done
+// with the geometry here (validity, the georel predicates, distance) uses it - as MongoDB's 2dsphere
+// index does not. The text only gets shorter, so it is rewritten where it is.
+//
+// A position is an array holding no array: '[' opens one, a ']' returns to a parent that is not one.
+//
+static void positions2d(char* s)
+{
+  char* out    = s;
+  bool  leaf   = false;
+  int   commas = 0;
+  bool  skip   = false;
+
+  for (char* in = s; *in != 0; in++)
+  {
+    if (*in == '[')
+    {
+      leaf   = true;
+      commas = 0;
+    }
+    else if (*in == ']')
+    {
+      leaf = false;
+      skip = false;
+    }
+    else if ((*in == ',') && (leaf == true) && (++commas >= 2))
+      skip = true;
+
+    if (skip == false)
+      *out++ = *in;
+  }
+
+  *out = 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // geojsonToGeos - build a GEOS geometry from geometry type + coordinates string
 //
 // geometry:    "Point", "Polygon", "LineString", "MultiPolygon", etc.
@@ -180,6 +222,8 @@ static GEOSGeometry* geojsonToGeos(GEOSContextHandle_t geosCtx, const char* geom
     snprintf(heap, n + 1, "{\"type\":\"%s\",\"coordinates\":%s}", geometry, coordinates);
     json = heap;
   }
+
+  positions2d(json);
 
   GEOSGeometry*      geom   = NULL;
   GEOSGeoJSONReader* reader = GEOSGeoJSONReader_create_r(geosCtx);
@@ -255,24 +299,15 @@ static int coordsPut(char* buf, int bufSize, int pos, const char* text, int len)
   return pos + len;
 }
 
-// A position renders its first two numbers only - longitude, latitude. A third (altitude) is kept in
-// the entity, but GEOS before 3.13 refuses it in GeoJSON ("Expected two coordinates found more than
-// two" - Ubuntu 24.04 has 3.12), and nothing done with the geometry here (validity, the georel
-// predicates, distance) uses it.
-//
 static int coordsRender(CorNode* nodeP, char* buf, int bufSize, int pos)
 {
   if (nodeP->type == CorArray)
   {
     bool first = true;
-    int  ix    = 0;
 
     pos = coordsPut(buf, bufSize, pos, "[", 1);
-    for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next, ix++)
+    for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
     {
-      if ((ix >= 2) && ((childP->type == CorFloat) || (childP->type == CorInt)))
-        break;
-
       if (first == false)
         pos = coordsPut(buf, bufSize, pos, ",", 1);
       first = false;
