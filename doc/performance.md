@@ -402,6 +402,223 @@ User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity 
 three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
 caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
 
+### The request arena's sizes
+
+Every request allocates in its own arena: it starts in an inline buffer inside the request state
+(`CorRestState.kallocBuffer`, 8 KiB) and grows in chunks (`allocSize`, 256 KiB, the 4th argument of
+`corAllocBufferInit` in corRest's `corRestStateInit.c`); everything is freed at once when the request
+ends. Swept on 2026-10-08: the chunk at 16, 32, 64, 128, 256 KiB and 1 MiB with the inline buffer at
+8 KiB, and the inline buffer at 4, 8, 16 and 32 KiB with the chunk at 256 KiB.
+
+Every configuration was measured the same way, only the two sizes in corRest's source differing:
+
+| | |
+|---|---|
+| Machine | AMD Ryzen 9 8940HX (16 cores / 32 threads), 60 GiB, Linux 7.0, glibc 2.43, gcc 15.2.0; governor `powersave`, idle states **deep** |
+| Build | `make i`: every library and the broker `-O2` release (the libraries under corRest included, rebuilt `BUILD=release`; `corDB.so` from `obj/release`), **no PGO**, libmicrohttpd, coraine `21b18c1c`, corRest `9e2dfac` + the two sizes |
+| Store | `--database corDB --dbDir` on the local NVMe disk (ext4), `--dbSync interval` (the default) - the durable configuration; `--troe none` |
+| Load | `test/perf/perfRun.sh corDB`, `PERF_BROKER_CORES=2` (the broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3` (the median), `PERF_ENTITIES=100` |
+| Counters | after each perfRun, a broker started the same way with perfRun's 100-entity fixture: `perf stat -e instructions,cycles -p` over a 4 s wrk run per scenario (c50), divided by the requests wrk counted - whole process, every thread; then a second broker started under `strace -f --seccomp-bpf` for `mmap`, `munmap`, `brk` and `mremap` per request over 2 s windows |
+| Noise | the default 256 KiB / 8 KiB measured three times: A before the sweep, B and C after it |
+
+The three default runs differ in one thing: perfRun's two delete scenarios give wrk `-d60s` as a
+ceiling and read `Consumed/sec` over the real span, and wrk sleeps the whole ceiling regardless - so
+for B, C and every other configuration a `wrk` wrapper on `PATH` cut that one argument to `-d3s`
+(the 40 000-entity pool is gone in under a second). A ran with 60 s; its delete rates are within the
+spread of B and C.
+
+Requests/s, the change against the mean of A, B and C; for the default, ± half the spread of the
+three runs:
+
+| chunk | 16 KiB | 32 KiB | 64 KiB | 128 KiB | **256 KiB** (A / B / C) | 1 MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| `GET /entities/{id}`, c50 | 161 349 (-4.3 %) | 164 620 (-2.3 %) | 170 187 (+1.0 %) | 166 705 (-1.1 %) | **168 512** (±0.6 %) | 167 426 (-0.6 %) |
+| query `limit=1`, c50 | 145 694 (-4.3 %) | 150 904 (-0.9 %) | 151 345 (-0.6 %) | 150 652 (-1.0 %) | **152 238** (±0.2 %) | 152 762 (+0.3 %) |
+| query `limit=20`, c50 | 21 786 (-3.1 %) | 21 795 (-3.0 %) | 22 198 (-1.2 %) | 21 772 (-3.1 %) | **22 476** (±1.7 %) | 22 009 (-2.1 %) |
+| query `limit=20`, c200 | 21 258 (-3.2 %) | 21 942 (-0.1 %) | 22 152 (+0.9 %) | 22 022 (+0.3 %) | **21 960** (±0.8 %) | 22 035 (+0.3 %) |
+| query `limit=100`, c50 | 4 340 (-13.3 %) | 4 578 (-8.5 %) | 5 007 (+0.0 %) | 4 998 (-0.2 %) | **5 006** (±0.3 %) | 5 009 (+0.1 %) |
+| `PATCH .../attrs`, c50 | 171 898 (-2.5 %) | 175 669 (-0.3 %) | 176 942 (+0.4 %) | 176 157 (-0.1 %) | **176 274** (±0.8 %) | 177 998 (+1.0 %) |
+| `PATCH .../attrs`, c1 | 39 809 (+5.0 %) | 45 362 (+19.7 %) | 45 010 (+18.8 %) | 43 350 (+14.4 %) | **37 899** (±0.3 %) | 44 415 (+17.2 %) |
+| merge, c50 | 122 721 (-3.6 %) | 125 831 (-1.1 %) | 127 716 (+0.3 %) | 126 234 (-0.8 %) | **127 275** (±0.9 %) | 130 518 (+2.5 %) |
+| batch update (20), c50 | 15 147 (-3.8 %) | 15 521 (-1.4 %) | 15 259 (-3.1 %) | 15 701 (-0.3 %) | **15 745** (±0.6 %) | 15 791 (+0.3 %) |
+| create, c50 | 85 573 (-2.5 %) | 89 462 (+1.9 %) | 88 097 (+0.3 %) | 89 027 (+1.4 %) | **87 800** (±1.1 %) | 88 663 (+1.0 %) |
+| create, c1 | 27 496 (-2.6 %) | 27 540 (-2.5 %) | 27 525 (-2.5 %) | 27 548 (-2.5 %) | **28 241** (±3.5 %) | 27 736 (-1.8 %) |
+| batch create (20), c50 | 9 108 (-9.2 %) | 9 710 (-3.3 %) | 9 830 (-2.1 %) | 9 713 (-3.2 %) | **10 036** (±0.7 %) | 10 122 (+0.9 %) |
+| `DELETE`, c50 | 201 699 (-2.9 %) | 210 871 (+1.5 %) | 206 300 (-0.7 %) | 204 922 (-1.3 %) | **207 661** (±3.3 %) | 209 816 (+1.0 %) |
+| batch delete (20), c50 | 36 110 (-3.2 %) | 37 943 (+1.7 %) | 38 686 (+3.7 %) | 38 126 (+2.2 %) | **37 311** (±0.8 %) | 36 795 (-1.4 %) |
+| `PATCH`, 1 subscriber, c50 | 40 585 (-2.4 %) | 41 210 (-0.9 %) | 40 952 (-1.5 %) | 40 881 (-1.6 %) | **41 564** (±2.0 %) | 40 634 (-2.2 %) |
+| `PATCH`, ~210 subscriptions, c50 | 37 878 (-2.2 %) | 38 628 (-0.2 %) | 38 429 (-0.7 %) | 38 292 (-1.1 %) | **38 711** (±2.1 %) | 37 932 (-2.0 %) |
+
+p99 (ms), the same runs:
+
+| chunk | 16 KiB | 32 KiB | 64 KiB | 128 KiB | **256 KiB** (A / B / C) | 1 MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| `GET /entities/{id}`, c50 | 0.42 | 0.35 | 0.32 | 0.35 | 0.34 / 0.36 / 0.38 | 0.34 |
+| query `limit=1`, c50 | 0.61 | 0.36 | 0.38 | 0.39 | 0.61 / 0.40 / 0.43 | 0.36 |
+| query `limit=20`, c50 | 2.64 | 2.65 | 2.41 | 3.44 | 2.54 / 3.86 / 2.67 | 2.35 |
+| query `limit=20`, c200 | 12.22 | 10.66 | 9.46 | 10.18 | 10.09 / 9.69 / 10.67 | 9.55 |
+| query `limit=100`, c50 | 11.76 | 11.49 | 11.49 | 11.80 | 10.79 / 9.75 / 11.17 | 10.06 |
+| `PATCH .../attrs`, c50 | 0.55 | 0.73 | 0.97 | 0.80 | 0.41 / 1.81 / 0.72 | 0.66 |
+| `PATCH .../attrs`, c1 | 0.03 | 0.04 | 0.03 | 0.04 | 0.04 / 0.03 / 0.03 | 0.03 |
+| merge, c50 | 1.93 | 0.89 | 1.01 | 0.94 | 0.88 / 0.81 / 0.51 | 1.12 |
+| batch update (20), c50 | 5.98 | 5.11 | 6.04 | 7.11 | 6.21 / 5.50 / 5.66 | 5.48 |
+| create, c50 | 5.00 | 4.75 | 4.44 | 4.04 | 4.04 / 3.67 / 4.06 | 4.11 |
+| create, c1 | 1.09 | 1.00 | 1.17 | 1.14 | 1.03 / 1.03 / 1.16 | 0.98 |
+| batch create (20), c50 | 12.09 | 12.25 | 12.48 | 13.22 | 12.29 / 12.01 / 11.69 | 11.03 |
+| `DELETE`, c50 | 0.29 | 0.32 | 0.32 | 0.33 | 0.32 / 0.29 / 0.32 | 0.28 |
+| batch delete (20), c50 | 1.87 | 3.87 | 2.15 | 2.58 | 3.41 / 2.02 / 3.08 | 5.61 |
+| `PATCH`, 1 subscriber, c50 | 1.77 | 1.54 | 1.59 | 1.58 | 1.61 / 1.81 / 1.54 | 1.53 |
+| `PATCH`, ~210 subscriptions, c50 | 2.00 | 1.51 | 1.63 | 1.85 | 1.73 / 1.49 / 1.71 | 1.58 |
+
+Per request (the counters below) and memory:
+
+| chunk | 16 KiB | 32 KiB | 64 KiB | 128 KiB | **256 KiB** (A / B / C) | 1 MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| retrieve, instructions | 108 628 | 108 866 | 108 492 | 108 566 | 108 767 / 108 501 / 108 976 | 108 574 |
+| retrieve, cycles | 57 721 | 57 485 | 57 864 | 57 901 | 57 802 / 57 458 / 58 083 | 57 727 |
+| query `limit=20`, instructions | 1 502 188 | 1 500 899 | 1 499 467 | 1 500 744 | 1 500 962 / 1 500 710 / 1 500 002 | 1 500 511 |
+| query `limit=20`, cycles | 447 945 | 445 174 | 448 050 | 449 382 | 448 803 / 451 230 / 449 843 | 452 306 |
+| query `limit=100`, instructions | 7 553 039 | 7 560 024 | 7 646 750 | 7 639 317 | 7 457 505 / 7 458 261 / 7 688 447 | 7 292 726 |
+| query `limit=100`, cycles | 2 376 829 | 2 388 772 | 2 496 427 | 2 502 009 | 2 277 955 / 2 289 715 / 2 548 295 | 2 074 937 |
+| `PATCH`, instructions | 81 185 | 81 353 | 80 940 | 81 328 | 81 020 / 81 133 / 81 319 | 81 210 |
+| `PATCH`, cycles | 54 691 | 54 468 | 54 182 | 55 162 | 54 894 / 55 157 / 54 733 | 55 729 |
+| batch update (20), instructions | 1 456 912 | 1 461 523 | 1 454 823 | 1 471 748 | 1 459 899 / 1 461 565 / 1 461 419 | 1 458 893 |
+| batch update (20), cycles | 613 331 | 616 309 | 608 025 | 634 713 | 614 476 / 619 026 / 611 005 | 616 403 |
+| RSS after the counters' load, MiB | 64 | 68 | 65 | 38 | 49 / 62 / 56 | 51 |
+| peak RSS during perfRun, MiB | 1911 | 2049 | 2064 | 2057 | 2073 / 2122 / 2141 | 2161 |
+
+
+| inline | 4 KiB | **8 KiB** (A / B / C) | 16 KiB | 32 KiB |
+|---|---:|---:|---:|---:|
+| `GET /entities/{id}`, c50 | 172 896 (+2.6 %) | **168 512** (±0.6 %) | 171 524 (+1.8 %) | 168 731 (+0.1 %) |
+| query `limit=1`, c50 | 154 464 (+1.5 %) | **152 238** (±0.2 %) | 153 346 (+0.7 %) | 153 531 (+0.8 %) |
+| query `limit=20`, c50 | 22 152 (-1.4 %) | **22 476** (±1.7 %) | 22 200 (-1.2 %) | 22 129 (-1.5 %) |
+| query `limit=20`, c200 | 22 077 (+0.5 %) | **21 960** (±0.8 %) | 21 850 (-0.5 %) | 22 185 (+1.0 %) |
+| query `limit=100`, c50 | 4 978 (-0.6 %) | **5 006** (±0.3 %) | 4 984 (-0.4 %) | 5 032 (+0.5 %) |
+| `PATCH .../attrs`, c50 | 176 369 (+0.1 %) | **176 274** (±0.8 %) | 176 126 (-0.1 %) | 176 095 (-0.1 %) |
+| `PATCH .../attrs`, c1 | 37 854 (-0.1 %) | **37 899** (±0.3 %) | 38 122 (+0.6 %) | 38 202 (+0.8 %) |
+| merge, c50 | 131 288 (+3.2 %) | **127 275** (±0.9 %) | 128 971 (+1.3 %) | 128 734 (+1.1 %) |
+| batch update (20), c50 | 15 968 (+1.4 %) | **15 745** (±0.6 %) | 15 649 (-0.6 %) | 15 920 (+1.1 %) |
+| create, c50 | 90 609 (+3.2 %) | **87 800** (±1.1 %) | 89 407 (+1.8 %) | 88 981 (+1.3 %) |
+| create, c1 | 28 212 (-0.1 %) | **28 241** (±3.5 %) | 27 676 (-2.0 %) | 27 595 (-2.3 %) |
+| batch create (20), c50 | 10 104 (+0.7 %) | **10 036** (±0.7 %) | 10 210 (+1.7 %) | 9 917 (-1.2 %) |
+| `DELETE`, c50 | 205 726 (-0.9 %) | **207 661** (±3.3 %) | 222 069 (+6.9 %) | 194 246 (-6.5 %) |
+| batch delete (20), c50 | 37 583 (+0.7 %) | **37 311** (±0.8 %) | 37 829 (+1.4 %) | 36 777 (-1.4 %) |
+| `PATCH`, 1 subscriber, c50 | 41 167 (-1.0 %) | **41 564** (±2.0 %) | 41 568 (+0.0 %) | 41 247 (-0.8 %) |
+| `PATCH`, ~210 subscriptions, c50 | 38 557 (-0.4 %) | **38 711** (±2.1 %) | 38 808 (+0.3 %) | 38 291 (-1.1 %) |
+
+p99 (ms), the same runs:
+
+| inline | 4 KiB | **8 KiB** (A / B / C) | 16 KiB | 32 KiB |
+|---|---:|---:|---:|---:|
+| `GET /entities/{id}`, c50 | 0.32 | 0.34 / 0.36 / 0.38 | 0.34 | 0.32 |
+| query `limit=1`, c50 | 0.41 | 0.61 / 0.40 / 0.43 | 0.36 | 0.42 |
+| query `limit=20`, c50 | 2.70 | 2.54 / 3.86 / 2.67 | 2.52 | 2.31 |
+| query `limit=20`, c200 | 9.56 | 10.09 / 9.69 / 10.67 | 9.43 | 9.36 |
+| query `limit=100`, c50 | 11.04 | 10.79 / 9.75 / 11.17 | 11.13 | 10.41 |
+| `PATCH .../attrs`, c50 | 0.39 | 0.41 / 1.81 / 0.72 | 0.77 | 0.51 |
+| `PATCH .../attrs`, c1 | 0.03 | 0.04 / 0.03 / 0.03 | 0.03 | 0.03 |
+| merge, c50 | 0.57 | 0.88 / 0.81 / 0.51 | 0.78 | 0.72 |
+| batch update (20), c50 | 5.82 | 6.21 / 5.50 / 5.66 | 6.44 | 4.85 |
+| create, c50 | 3.96 | 4.04 / 3.67 / 4.06 | 4.20 | 4.58 |
+| create, c1 | 1.00 | 1.03 / 1.03 / 1.16 | 1.07 | 1.05 |
+| batch create (20), c50 | 13.29 | 12.29 / 12.01 / 11.69 | 12.51 | 11.84 |
+| `DELETE`, c50 | 0.29 | 0.32 / 0.29 / 0.32 | 0.30 | 0.32 |
+| batch delete (20), c50 | 2.02 | 3.41 / 2.02 / 3.08 | 2.03 | 2.73 |
+| `PATCH`, 1 subscriber, c50 | 1.59 | 1.61 / 1.81 / 1.54 | 1.61 | 1.50 |
+| `PATCH`, ~210 subscriptions, c50 | 1.64 | 1.73 / 1.49 / 1.71 | 1.60 | 1.53 |
+
+Per request (the counters below) and memory:
+
+| inline | 4 KiB | **8 KiB** (A / B / C) | 16 KiB | 32 KiB |
+|---|---:|---:|---:|---:|
+| retrieve, instructions | 108 774 | 108 767 / 108 501 / 108 976 | 108 612 | 108 748 |
+| retrieve, cycles | 58 417 | 57 802 / 57 458 / 58 083 | 58 476 | 57 791 |
+| query `limit=20`, instructions | 1 500 893 | 1 500 962 / 1 500 710 / 1 500 002 | 1 499 687 | 1 500 072 |
+| query `limit=20`, cycles | 446 900 | 448 803 / 451 230 / 449 843 | 451 681 | 448 846 |
+| query `limit=100`, instructions | 7 667 982 | 7 457 505 / 7 458 261 / 7 688 447 | 7 677 462 | 7 460 278 |
+| query `limit=100`, cycles | 2 537 446 | 2 277 955 / 2 289 715 / 2 548 295 | 2 545 081 | 2 277 983 |
+| `PATCH`, instructions | 81 594 | 81 020 / 81 133 / 81 319 | 81 079 | 81 177 |
+| `PATCH`, cycles | 55 903 | 54 894 / 55 157 / 54 733 | 54 997 | 54 947 |
+| batch update (20), instructions | 1 455 258 | 1 459 899 / 1 461 565 / 1 461 419 | 1 452 539 | 1 455 459 |
+| batch update (20), cycles | 610 346 | 614 476 / 619 026 / 611 005 | 607 655 | 606 221 |
+| RSS after the counters' load, MiB | 42 | 49 / 62 / 56 | 53 | 44 |
+| peak RSS during perfRun, MiB | 2111 | 2073 / 2122 / 2141 | 2130 | 2075 |
+
+
+**What it shows:**
+
+- **A chunk below 64 KiB is slower.** 16 KiB: query `limit=100` −13 %, batch create −9 %, retrieve and
+  query `limit=1` −4 %, almost every scenario below the default. 32 KiB: query `limit=100` −8.5 %,
+  retrieve −2.3 %. A 100-entity response is ~55 KB, more than one chunk of either.
+- **64 KiB to 1 MiB: every c50 scenario within ~3 % of the default.** Query `limit=20` is below the
+  default's mean in every other configuration, the three inline sizes at 256 KiB included (−1.2 to
+  −1.5 %) - it does not follow the chunk.
+- **`PATCH` with one connection is the exception: 37 899 req/s at 256 KiB, 43 350-45 362 at 32, 64,
+  128 KiB and 1 MiB (+14 % to +20 %), 39 809 at 16 KiB.** The three default runs gave 37 764, 37 966
+  and 37 968 (±0.3 %), and the three inline sizes, all at a 256 KiB chunk, 37 854-38 202. The instructions are the same; the cycles are not. A broker on each size with
+  one wrk connection (`wrk -t1 -c1`, `patchAttr.lua`, 4 s, `perf stat -p`):
+
+  | `PATCH .../attrs`, c1, a request | 64 KiB | 256 KiB |
+  |---|---:|---:|
+  | instructions | 90 773 | 90 316 |
+  | cycles | 70 257 | 80 881 |
+  | cache misses (`cache-misses`) | 337 | 420 |
+  | L1d load misses | 2 471 | 2 508 |
+  | dTLB load misses | 4.0 | 3.4 |
+  | page faults | 0.006 | 0.008 |
+  | `mmap` / `munmap` / `brk` / `madvise` | 0 | 0 |
+
+  Single-connection create does not move with the chunk (27 496-28 241 for every size).
+- **The inline buffer: no clear winner.** 4 KiB is up to +3.2 % (retrieve +2.6 %, merge and create
+  +3.2 %) - above the default's spread for those three, measured once; 16 and 32 KiB within ~2 % but
+  for `DELETE` (+6.9 % at 16 KiB, −6.5 % at 32 KiB), the scenario whose three default runs spread 6.6 %.
+- **No size makes the allocator call the kernel.** `mmap`, `munmap`, `brk` and `mremap` per request in
+  the steady state: 0.0000 (four decimals) for every configuration and scenario, 1 MiB included -
+  glibc's mmap threshold is dynamic: the first freed mmapped block raises it to that block's size,
+  and from then on the chunks come from the heap.
+- **Memory does not follow the sizes.** RSS after the counters' load is 38-68 MiB for every
+  configuration, the three default runs alone 49-62; the peak during perfRun (1.9-2.2 GiB) is the
+  store - the 40 000-entity delete pool.
+- **The per-request counters of query `limit=100` vary from run to run**: 7.29-7.69 M instructions
+  and 2.07-2.55 M cycles across the configurations, 7.46-7.69 M and 2.28-2.55 M across the three runs
+  of the default alone - no size is told apart by them. For retrieve, query `limit=20`, `PATCH` and
+  batch update the configurations sit within 1-5 % of each other.
+
+**The confirmation** (the same day, 17:25-17:49): 256 KiB and 64 KiB twice each, interleaved, the
+conditions above unchanged (coraine `9849dfb6`; the build of run 4 also carried an uncommitted 14-line
+change to `haInit.c`, HA start-up, made in the checkout meanwhile). Requests/s, and per request for
+`PATCH` with one connection (`wrk -t1 -c1`, 4 s, `perf stat -p` on a broker of its own):
+
+| run | chunk | `PATCH` c1 (perfRun) | `PATCH` c1 (`perf stat` run) | cycles | instructions | cache misses |
+|---|---|---:|---:|---:|---:|---:|
+| 1 | 256 KiB | 38 210 | 35 230 | 80 962 | 89 931 | 302 |
+| 2 | 64 KiB | 39 587 | 35 011 | 81 814 | 90 095 | 319 |
+| 3 | 256 KiB | **47 158** | 35 114 | 81 712 | 90 348 | 407 |
+| 4 | 64 KiB | 37 563 | **40 903** | 71 680 | 90 005 | 321 |
+
+| run, chunk | retrieve | query `limit=1` | `limit=20` | `limit=20` c200 | `limit=100` | `PATCH` c50 | merge | batch update | create | create c1 | batch create | `DELETE` | batch delete | `PATCH` 1 sub | `PATCH` ~210 subs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1, 256 KiB | 161 620 | 146 583 | 21 488 | 21 398 | 4 912 | 171 879 | 124 263 | 15 348 | 87 367 | 32 721 | 9 757 | 185 118 | 35 972 | 38 864 | 37 092 |
+| 2, 64 KiB | 154 434 | 140 365 | 21 338 | 20 799 | 4 895 | 170 489 | 127 258 | 14 899 | 87 861 | 27 737 | 9 751 | 203 492 | 34 839 | 40 000 | 36 569 |
+| 3, 256 KiB | 158 022 | 139 949 | 21 558 | 21 441 | 4 730 | 166 078 | 125 331 | 15 494 | 86 784 | 27 415 | 9 826 | 196 201 | 36 363 | 38 848 | 36 116 |
+| 4, 64 KiB | 162 468 | 146 956 | 21 322 | 21 529 | 4 939 | 171 656 | 125 571 | 15 068 | 86 559 | 27 712 | 9 547 | 215 166 | 35 448 | 40 396 | 37 938 |
+
+- **Single-connection `PATCH` has two levels, ~38 000 and ~44 000-47 000 req/s (~81 000 and ~71 000
+  cycles a request, the instructions the same), and the chunk does not pick the level**: 256 KiB
+  reached the high one (run 3, 47 158), 64 KiB stayed on the low one in perfRun twice and reached the
+  high one in one `perf stat` run of four. The sweep's +14-20 % at 32, 64, 128 KiB and 1 MiB was that
+  level, not the chunk. Single-connection create shows the same: 32 721 in run 1, ~27 500 otherwise.
+- **Every other scenario: 64 KiB against 256 KiB within −2.8 % to +3.5 % on the means of two runs**, the
+  same order as the run-to-run spread of each size (`DELETE` +9.8 % against a spread of ~6 %). Every
+  rate here is a few percent below the sweep's: a different day's state of the machine; the runs are
+  compared only with each other.
+
+**Conclusion:** no size wins beyond the noise. 16 and 32 KiB chunks lose (query `limit=100` −13 % and
+−8.5 %); 64 KiB to 1 MiB and every inline size from 4 to 32 KiB are equal within it. **The defaults
+stay: chunk 256 KiB, inline 8 KiB.** The single-connection write's two levels are a property of the
+process or the machine, not of the arena, and are open.
+
 ### Measured and not used
 
 Link-time optimisation (`-flto`) is noise for the broker - three quarters of a small request's cycles
