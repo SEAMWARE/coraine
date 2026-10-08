@@ -745,7 +745,7 @@ laptop.
 
 Separating them is the work: a worker count that is its own option, sized per
 CPU the way `--httpLoops` is, and a connection capacity that stays a capacity.
-Tracked in [ToDo § 17](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
+Tracked in [the roadmap, § 17](roadmap.md#17-two-performance-questions-the-2026-09-16-numbers-raised).
 
 ## Reproducing this
 

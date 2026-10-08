@@ -199,7 +199,7 @@ presentation it wants drawing properly.
 | Automatic documentation generation configured | ✅ | `mkdocs.yml` + `.readthedocs.yaml`, with `fail_on_warning: true` so a dead cross-reference fails the build instead of shipping |
 | Analytics configured for the Read the Docs portal | ⚠️ | Not configured. Needs a Google Analytics property shared with the Foundation |
 | Docker image available in **FIWARE's** Docker Hub account | ⚠️ | Images are published to `quay.io/seamware/coraine` on every merge to main, one immutable tag per merge, never `latest`. The FIWARE-account image is a Foundation step |
-| Roadmap available and linked from the FIWARE roadmap | ✅ | [`doc/roadmap.md`](roadmap.md), with the detail in `ToDo.md` — the link into the FIWARE wiki is a Foundation step |
+| Roadmap available and linked from the FIWARE roadmap | ✅ | [`doc/roadmap.md`](roadmap.md), the backlog in detail on the same page — the link into the FIWARE wiki is a Foundation step |
 | Release schedule aligned with the FIWARE release schedule | ⛔ | once in the Catalogue |
 | Access provided for the FIWARE monitoring tool | ⛔ | Foundation |
 
@@ -287,7 +287,7 @@ that is the configuration the zero-dependency requirement rewards. Until corDB
 persists, the two requirements pull in opposite directions and we have to pick
 which one to lead with.
 
-Design and staging: [ToDo § 15](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
+Design and staging: [the roadmap, § 15](roadmap.md#15-persistence-one-log-and-history-as-a-retention-policy-on-it).
 
 Everything else on the ⛔ lines is an application to the FIWARE Foundation or a
 consequence of one.
