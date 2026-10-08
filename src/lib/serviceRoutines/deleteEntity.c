@@ -147,6 +147,12 @@ bool deleteEntity(void)
         anySucceeded = true;
       else if (sc != 404)
       {
+        //
+        // A source's 404 is not an error: a registration matched, the source does not hold the entity -
+        // the normal case of a wide registration (a type, no id: every source that does not hold this
+        // entity says so). TS 104-176 § 6.3.5 says it for GET; for the unsafe methods its text gives 207
+        // - spec-doubts #91, raised with ETSI. Held nowhere at all is still a 404, below.
+        //
         bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
                               LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",

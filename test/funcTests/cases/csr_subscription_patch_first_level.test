@@ -1,0 +1,107 @@
+#
+# FILE            csr_subscription_patch_first_level.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Update Context Source Registration Subscription (TS 104-175 § 12.4.3.4) modifies the subscription
+# "as mandated by clause 8.4.2": each first-level member of the fragment replaces the stored one whole.
+# A "notification" of only "format" is then a notification without its mandatory endpoint - BadRequestData
+# (400), and the stored subscription keeps what it had. (It was a 204 that stored the subscription
+# without an endpoint: the result of a PATCH was never validated.) A complete notification replaces it.
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+CSR subscription PATCH - a first-level member replaces the stored one whole, the result is validated
+
+--TAGS--
+csource subscription patch
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. CSR subscription urn:S (Vehicle), notification endpoint http://localhost:9/s
+# 02. PATCH {"notification": {"format": "keyValues"}} - 400, no endpoint
+# 03. GET urn:S - the notification as it was, endpoint and all (the members a client gives: endpoint,
+#     format, attributes - the broker's own, timesSent and the like, are not the point here)
+# 04. PATCH a complete notification (another endpoint, keyValues) - 204
+# 05. GET urn:S - the new notification
+#
+
+notification() {
+  corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:S | sed -n '/^{/,$p' | python3 -c "import json,sys; n = json.load(sys.stdin)['notification']; print('  ', json.dumps({k: n[k] for k in ('endpoint', 'format', 'attributes') if k in n}, sort_keys=True))"
+}
+
+echo "01. CSR subscription urn:S (Vehicle), notification endpoint http://localhost:9/s"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{"id": "urn:S", "type": "Subscription", "entities": [{"type": "Vehicle"}], "notification": {"endpoint": {"uri": "http://localhost:9/s"}}}' | head -1
+echo
+echo
+
+
+echo "02. PATCH {\"notification\": {\"format\": \"keyValues\"}} - 400, no endpoint"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:S -X PATCH --payload '{"notification": {"format": "keyValues"}}' | sed -n '1p;/^{/,$p'
+echo
+
+
+echo "03. GET urn:S - the notification as it was, endpoint and all"
+echo "============================================================="
+notification
+echo
+echo
+
+
+echo "04. PATCH a complete notification (another endpoint, keyValues) - 204"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:S -X PATCH --payload '{"notification": {"format": "keyValues", "endpoint": {"uri": "http://localhost:9/t"}}}' | head -1
+echo
+echo
+
+
+echo "05. GET urn:S - the new notification"
+echo "===================================="
+notification
+echo
+
+
+--EXPECT--
+01. CSR subscription urn:S (Vehicle), notification endpoint http://localhost:9/s
+=================================================================================
+HTTP/1.1 201 Created
+
+
+02. PATCH {"notification": {"format": "keyValues"}} - 400, no endpoint
+========================================================================
+HTTP/1.1 400 Bad Request
+{
+  "detail": "'notification.endpoint' is mandatory",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+03. GET urn:S - the notification as it was, endpoint and all
+=============================================================
+   {"endpoint": {"uri": "http://localhost:9/s"}}
+
+
+04. PATCH a complete notification (another endpoint, keyValues) - 204
+======================================================================
+HTTP/1.1 204 No Content
+
+
+05. GET urn:S - the new notification
+====================================
+   {"endpoint": {"uri": "http://localhost:9/t"}, "format": "keyValues"}
+
+--TEARDOWN--
+coraineStop
+corDbDrop

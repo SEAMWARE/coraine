@@ -5,17 +5,12 @@
 #
 # Copyright 2026 Seamware
 #
-# Update Subscription is JSON Merge Patch (RFC 7396), and geoQ is a nested object
-# that merges recursively — a fragment may touch a subset of geoQ (just georel,
-# or just coordinates) and the omitted members are taken from the stored geoQ.
-# The fragment-level validation must therefore NOT require all three of
-# geometry/coordinates/georel to be present; that completeness requirement
-# applies only to a complete document (Create, or the re-validated merged result
-# of the PATCH). A partial geoQ used to be wrongly rejected with 400.
-#
-# Still enforced: the merged result must be a complete, valid geoQ (so a partial
-# geoQ PATCH on a subscription that has no stored geoQ is 400), and any member
-# the fragment DOES carry is validated (an invalid georel is 400).
+# Update Subscription is the partial update of TS 104-175 § 8.4.2: each first-level member of the
+# fragment replaces the stored one WHOLE - a "geoQ" in a PATCH is the new geoQ, not merged into the
+# stored one (§ 8.4.3's merge "up to an arbitrary depth" is not this operation). A geoQ with only
+# georel, or only coordinates, is therefore an incomplete geoQ: 400, and the stored one is kept. A
+# complete geoQ replaces it. The fragment itself need not carry all of geometry/coordinates/georel -
+# the complete result is what is validated - and any member it does carry is (an invalid georel: 400).
 #
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
@@ -46,23 +41,23 @@ echo
 echo
 
 
-echo "03. PATCH S1 with a partial geoQ {georel:within} -> 204 (merges)"
-echo "==============================================================="
+echo "03. PATCH S1 with a geoQ of only {georel:within} -> 400 (replaces geoQ whole: incomplete)"
+echo "========================================================================================="
 corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"georel":"within"}}' | grep HTTP
 echo
 echo
 
 
-echo "04. GET S1 — georel updated, geometry/coordinates preserved"
-echo "==========================================================="
+echo "04. GET S1 — the stored geoQ unchanged"
+echo "======================================"
 corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
 echo
 echo
 
 
-echo "05. PATCH S1 with a partial geoQ {coordinates:[5,6]} -> 204 (merges)"
-echo "==================================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"coordinates":[5,6]}}' | grep HTTP
+echo "05. PATCH S1 with a complete geoQ (within a polygon) -> 204, it replaces the stored one"
+echo "======================================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1 --payload '{"geoQ":{"geometry":"Polygon","coordinates":[[[0,0],[0,9],[9,9],[0,0]]],"georel":"within"}}' | grep HTTP
 echo
 echo
 
@@ -74,8 +69,8 @@ echo
 echo
 
 
-echo "07. PATCH S2 (no stored geoQ) with a partial geoQ -> 400 (merged is incomplete)"
-echo "==============================================================================="
+echo "07. PATCH S2 (no stored geoQ) with a geoQ of only georel -> 400 (incomplete)"
+echo "============================================================================"
 corCurl -X PATCH --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S2 --payload '{"geoQ":{"georel":"within"}}'
 echo
 echo
@@ -92,18 +87,18 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-03. PATCH S1 with a partial geoQ {georel:within} -> 204 (merges)
-===============================================================
-HTTP/1.1 204 No Content
+03. PATCH S1 with a geoQ of only {georel:within} -> 400 (replaces geoQ whole: incomplete)
+=========================================================================================
+HTTP/1.1 400 Bad Request
 
 
-04. GET S1 — georel updated, geometry/coordinates preserved
-===========================================================
+04. GET S1 — the stored geoQ unchanged
+======================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 505
+Content-Length: 521
 
 {
   "entities": [
@@ -117,7 +112,7 @@ Content-Length: 505
       2
     ],
     "geometry": "Point",
-    "georel": "within"
+    "georel": "near;maxDistance==1000"
   },
   "id": "urn:ngsi-ld:Subscription:S1",
   "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
@@ -136,8 +131,8 @@ Content-Length: 505
 
 
 
-05. PATCH S1 with a partial geoQ {coordinates:[5,6]} -> 204 (merges)
-===================================================================
+05. PATCH S1 with a complete geoQ (within a polygon) -> 204, it replaces the stored one
+=======================================================================================
 HTTP/1.1 204 No Content
 
 
@@ -157,8 +152,8 @@ Content-Length: 192
 
 
 
-07. PATCH S2 (no stored geoQ) with a partial geoQ -> 400 (merged is incomplete)
-===============================================================================
+07. PATCH S2 (no stored geoQ) with a geoQ of only georel -> 400 (incomplete)
+============================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json

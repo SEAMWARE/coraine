@@ -5,11 +5,12 @@
 #
 # Copyright 2026 Seamware
 #
-# A CSourceRegistration PATCH re-validates the COMPLETE merged result (§ 5.9.3),
-# not just the fragment — so cross-member invariants that only become visible
-# after the merge (auxiliary mode vs write operations, exclusive mode vs the
-# information[] structure, a TimeInterval whose startAt/endAt straddle the
-# deep-merge) are caught with a 400 instead of persisting an inconsistent reg.
+# A CSourceRegistration PATCH re-validates the COMPLETE result (§ 5.9.3), not just the fragment - so
+# cross-member invariants that only become visible once the fragment is applied (auxiliary mode vs
+# write operations, exclusive mode vs the information[] structure) are caught with a 400 instead of
+# persisting an inconsistent reg. The fragment is applied as TS 104-175 § 8.4.2's partial update:
+# each first-level member replaces the stored one whole - an observationInterval of only endAt is an
+# interval without its mandatory startAt (400), not an endAt merged into the stored interval.
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
@@ -81,9 +82,9 @@ echo
 echo
 
 
-echo "06. PATCH startAt past the stored endAt (deep-merge) -> 400 (startAt must be < endAt)"
-echo "===================================================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-12-01T00:00:00Z"}}'
+echo "06. PATCH an observationInterval whose startAt is past its endAt -> 400 (startAt must be < endAt)"
+echo "================================================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-12-01T00:00:00Z","endAt":"2030-06-01T00:00:00Z"}}'
 echo
 echo
 
@@ -95,23 +96,23 @@ echo
 echo
 
 
-echo "08. PATCH only endAt (valid against the stored startAt) -> 204 (partial TimeInterval fragment)"
+echo "08. PATCH only endAt -> 400 (it replaces the whole observationInterval: startAt is mandatory)"
 echo "============================================================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2030-03-01T00:00:00Z"}}' | grep HTTP
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2030-03-01T00:00:00Z"}}'
 echo
 echo
 
 
-echo "09. GET the reg -> the stored startAt survives the partial merge, endAt updated"
-echo "==============================================================================="
+echo "09. GET the reg -> the stored observationInterval unchanged"
+echo "==========================================================="
 corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1
 echo
 echo
 
 
-echo "10. PATCH only endAt before the stored startAt -> 400 (merged ordering still enforced)"
-echo "====================================================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"endAt":"2029-01-01T00:00:00Z"}}'
+echo "10. PATCH a complete observationInterval -> 204, it replaces the stored one"
+echo "==========================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:IV1 --payload '{"observationInterval":{"startAt":"2030-02-01T00:00:00Z","endAt":"2030-03-01T00:00:00Z"}}' | grep HTTP
 echo
 echo
 
@@ -164,8 +165,8 @@ Content-Length: 274
 HTTP/1.1 201 Created
 
 
-06. PATCH startAt past the stored endAt (deep-merge) -> 400 (startAt must be < endAt)
-====================================================================================
+06. PATCH an observationInterval whose startAt is past its endAt -> 400 (startAt must be < endAt)
+=================================================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
@@ -185,13 +186,24 @@ Content-Length: 206
 HTTP/1.1 204 No Content
 
 
-08. PATCH only endAt (valid against the stored startAt) -> 204 (partial TimeInterval fragment)
+08. PATCH only endAt -> 400 (it replaces the whole observationInterval: startAt is mandatory)
 =============================================================================================
-HTTP/1.1 204 No Content
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "'observationInterval.startAt' is mandatory",
+  "status": 400,
+  "title": "Invalid Registration",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
 
 
-09. GET the reg -> the stored startAt survives the partial merge, endAt updated
-===============================================================================
+
+09. GET the reg -> the stored observationInterval unchanged
+===========================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -212,7 +224,7 @@ Content-Length: 359
     }
   ],
   "observationInterval": {
-    "endAt": "2030-03-01T00:00:00Z",
+    "endAt": "2030-06-01T00:00:00Z",
     "startAt": "2030-01-01T00:00:00Z"
   },
   "type": "ContextSourceRegistration"
@@ -220,20 +232,9 @@ Content-Length: 359
 
 
 
-10. PATCH only endAt before the stored startAt -> 400 (merged ordering still enforced)
-=====================================================================================
-HTTP/1.1 400 Bad Request
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 206
-
-{
-  "detail": "'observationInterval.endAt' must be after 'observationInterval.startAt'",
-  "status": 400,
-  "title": "Invalid Registration",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
-
+10. PATCH a complete observationInterval -> 204, it replaces the stored one
+===========================================================================
+HTTP/1.1 204 No Content
 
 
 --TEARDOWN--

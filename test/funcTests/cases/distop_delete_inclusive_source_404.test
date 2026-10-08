@@ -1,0 +1,108 @@
+#
+# FILE            distop_delete_inclusive_source_404.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Delete Entity with an inclusive registration on a TYPE: the delete is forwarded to the registered
+# source as well as done locally. The source does not hold the entity and answers 404 - the normal case
+# of a wide registration (a type, no id: every source not holding this entity says so) - which is not an
+# error: 204. TS 104-176 § 6.3.5 says "not abnormal" for a distributed GET only and gives 207 for the
+# unsafe methods; spec-doubts #91 (raised with ETSI) - coraine answers 204. An entity held nowhere - not
+# locally, and every source 404 - is ResourceNotFound.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Delete Entity, inclusive registration on a type - the source's 404 is no error: 204; 404 when held nowhere
+
+--TAGS--
+csource registration distop inclusive delete
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+#
+# 01. Register CB->CP1 inclusive (redirectionOps) for type V
+# 02. Create urn:V1 on CB only (?local=true)
+# 03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204
+# 04. GET urn:V1 ?local=true - gone
+# 05. DELETE urn:V2 - held nowhere (not locally, CP1 404): 404
+#
+
+echo "01. Register CB->CP1 inclusive (redirectionOps) for type V"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:R1", "type": "ContextSourceRegistration",
+  "information": [{"entities": [{"type": "V"}]}],
+  "endpoint": "http://localhost:'$CP1_PORT'", "mode": "inclusive", "operations": ["redirectionOps"]
+}' | head -1
+echo
+echo
+
+
+echo "02. Create urn:V1 on CB only (?local=true)"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities?local=true' --payload '{"id": "urn:V1", "type": "V", "p": {"type": "Property", "value": 1}}' | head -1
+echo
+echo
+
+
+echo "03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+echo
+echo
+
+
+echo "04. GET urn:V1 ?local=true - gone"
+echo "================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?local=true' | head -1
+echo
+echo
+
+
+echo "05. DELETE urn:V2 - held nowhere (not locally, CP1 404): 404"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:V2 -X DELETE | head -1
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 inclusive (redirectionOps) for type V
+==========================================================
+HTTP/1.1 201 Created
+
+
+02. Create urn:V1 on CB only (?local=true)
+==========================================
+HTTP/1.1 201 Created
+
+
+03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204
+==============================================================================
+HTTP/1.1 204 No Content
+
+
+04. GET urn:V1 ?local=true - gone
+=================================
+HTTP/1.1 404 Not Found
+
+
+05. DELETE urn:V2 - held nowhere (not locally, CP1 404): 404
+============================================================
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
