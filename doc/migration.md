@@ -34,6 +34,80 @@ same stores. The importer and a broker never share a store: the import runs befo
 
 `coraine-import` is built with `COR_FEATURE_MIGRATE` (on by default); off, it is not built.
 
+## Step by step
+
+1. **Stop the writes to the source.** What is written after the export is not in the stream. A
+   deployment that cannot stop can export once, import, and export + import again what changed -
+   but a record already imported is refused the second time (see 5), so a second pass is for new
+   entities, not for changed ones.
+2. **Export.** From a checkout of this repository, with the source's MongoDB (and its TRoE
+   PostgreSQL, for the history) reachable:
+
+   ```console
+   pip install pymongo psycopg            # psycopg only for the history
+   tools/migrate/orionldExport.py --mongo mongodb://orion-mongo:27017 --db orion \
+                                  --troe 'host=orion-pg user=postgres password=...' \
+                                  --out stream.ndjson
+   ```
+
+   | Option | Meaning | Default |
+   |---|---|---|
+   | `--mongo` | MongoDB URI of the current state | `mongodb://localhost:27017` |
+   | `--db` | the database-name prefix the deployment ran with (`-db`) | `orion` |
+   | `--troe` | libpq connection string of the TRoE server, without `dbname`; `none`: no history | none |
+   | `--troeDb` | the TRoE database-name prefix | the `--db` prefix |
+   | `--tenants` | comma-separated tenants (`default` or `''` for the default tenant) | all |
+   | `--noCurrent` | leave the current state out (history only) | |
+   | `--out` | the stream file | stdout |
+
+   What the exporter leaves out says so on stderr ([Reading an Orion-LD database](#reading-an-orion-ld-database)).
+3. **Import**, into the stores the broker will run on, with the broker NOT running on them:
+
+   ```console
+   coraine-import --database mongoc --dbHost mongo --troe timescale --troeHost pg --file stream.ndjson
+   coraine-import --database corDB  --dbDir /var/lib/coraine --troe corDB      --file stream.ndjson
+   ```
+
+   The report, on stderr:
+
+   ```
+   import of stream.ndjson:
+     entities                        3 imported,      0 refused
+     subscriptions                   3 imported,      0 refused
+     registrations                   1 imported,      0 refused
+     temporal entity events          4 imported,      0 refused
+     temporal instances              8 imported,      0 refused
+     created rows (history)          1 written,       0 failed
+   ```
+
+   Exit code 0: everything was imported. 1: something was refused - each refused record is named
+   above the report by its line in the stream and the reason:
+
+   ```
+   stream.ndjson:3: entity: entity type 'Room' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+   ```
+4. **Start the broker** on the same stores, the usual way, and compare: the number of entities per
+   type (`GET /ngsi-ld/v1/types?details=true`), the subscriptions, the registrations, and a few
+   entities' temporal evolution against the source.
+5. **A refused record** is not written, and the others are: the import does not stop at the first
+   one. Fix those lines of the stream (or the reader) and import a stream of just them. A record
+   that is already in the target store is refused too - an import never overwrites - so importing
+   the whole stream again refuses everything that went in the first time.
+
+### In a container
+
+`coraine-import` is in the image beside `coraine`:
+
+```console
+docker run --rm -v $PWD:/migrate --network <the stores' network> --entrypoint coraine-import \
+       quay.io/seamware/coraine:<tag> --database mongoc --dbHost mongo --file /migrate/stream.ndjson
+```
+
+On Kubernetes, a one-off **Job** before the broker starts, on the broker's stores - for a persistent
+corDB the same volume the broker's StatefulSet mounts (a ReadWriteOnce volume: run the Job with the
+StatefulSet at zero replicas, then scale it up). Not an initContainer: it would run again at every
+restart of the pod, and a second import refuses everything and exits 1.
+
 ## The stream
 
 One JSON object per line ([NDJSON](https://github.com/ndjson/ndjson-spec)), version 1:

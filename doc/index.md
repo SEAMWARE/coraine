@@ -24,6 +24,7 @@ cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 |----------------|------|
 | install, build and run it | [Installation & Administration](installation.md) |
 | run several instances behind a load balancer | [High Availability](high-availability.md) |
+| move another broker's data into it (Orion-LD today) | [Migrating a database to coraine](migration.md) |
 | see the API in action | [API walkthrough](api-walkthrough.md) |
 | understand how it is put together, or write a plugin | [Plugin architecture](plugin-architecture.md) |
 | know what it costs to run, and how fast it is | [Performance and footprint](performance.md) |

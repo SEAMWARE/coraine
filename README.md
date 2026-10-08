@@ -344,6 +344,7 @@ repository, which is where to read them offline or alongside a checkout:
 | **Running it** | |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [High Availability](doc/high-availability.md) | several instances behind a load balancer: requirements, MongoDB privileges, troubleshooting |
+| [Migrating a database to coraine](doc/migration.md) | another broker's data - entities, subscriptions, registrations, history - with its ids and timestamps; Orion-LD today |
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
 | [Coroutines](doc/coroutines.md) | how a request that waits runs without blocking the others |
 | **Quality** | |
