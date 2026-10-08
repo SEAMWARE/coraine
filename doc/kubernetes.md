@@ -31,6 +31,11 @@ kills it - with `corDB`, a kill takes the store's RAM with it, and a persistent 
 loaded again. What counts against the budget is the broker's anonymous and shared memory: not the
 `corDB` log, which is memory-mapped, file-backed page cache that the kernel reclaims.
 
+The memory is sampled every 100 ms, and a single entity query is bounded within that time by a byte
+budget of its own: the entities it fetches stop at `--maxResponseSize` (default 32 MiB, see
+[Response size](installation.md#response-size)), so one query no longer grows without limit between
+two samples.
+
 Sizing with `corDB`: about 3.5 KiB resident per entity of five attributes - 100 000 entities are about
 355 MiB, a million about 3.5 GiB ([Performance](performance.md)).
 

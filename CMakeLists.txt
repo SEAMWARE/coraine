@@ -37,6 +37,7 @@ option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot 
 option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (NGSILD-Snapshot on /subscriptions, notified by writes on the snapshot - § 7.9.2)" ON)
 option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
+option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -59,7 +60,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

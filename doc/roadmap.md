@@ -592,6 +592,12 @@ request. Automatic EntityMap creation bounds *how often* that pass happens (once
 per result set, not once per page); a byte budget is what would bound the pass
 itself.
 
+**Done** (`--maxResponseSize`, default 32 MiB, [Response size](installation.md#response-size)): both
+stores count each entity while fetching it (`DbQueryFilter.maxBytes`), a short page's `next` link starts
+where it stopped, and the unpaged pass (`orderBy`, an EntityMap, split entities) answers 403
+TooManyResults over the budget. **Open:** temporal queries, and the entities that Context Sources
+contribute to a distributed query (only the local part is counted).
+
 ---
 
 ### 13. EntityMaps nobody has to ask for

@@ -131,6 +131,9 @@
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
+#if COR_FEATURE_RESPONSE_BUDGET
+#include "serviceRoutines/responseBudget.h"                  // responseBudgetBytes
+#endif
 
 
 
@@ -199,6 +202,9 @@ unsigned short healthPort      = 0;         // 0: no health port (see health.h)
 int            healthStallTimeout = 30;     // seconds a request may be in flight with none finishing before /live answers 503
 #endif
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
+#if COR_FEATURE_RESPONSE_BUDGET
+int            maxResponseSize = 32;         // MiB; the byte budget of an entity query (0 = none - see responseBudget.h)
+#endif
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
 
@@ -234,6 +240,9 @@ static CorArg kargV[] =
   { "--high-precision",     "-hp",          CorArgBool,   _vp &highPrecision, CorArgOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
   { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
   { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
+#if COR_FEATURE_RESPONSE_BUDGET
+  { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp 32, _vp 0,    _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget)" },
+#endif
   { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
@@ -1547,6 +1556,11 @@ int main(int argC, char* argV[])
 
   // § 6.3.2 413 threshold. 0 in --maxRequestSize disables the cap.
   corRestSetMaxRequestSize(((unsigned long long) maxRequestSize) * 1024ULL * 1024ULL);
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  // The byte budget of an entity query (responseBudget.h). 0 in --maxResponseSize: none.
+  responseBudgetBytes = ((int64_t) maxResponseSize) * 1024 * 1024;
+#endif
 
   if (corsOrigin != NULL)
   {

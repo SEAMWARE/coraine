@@ -1,0 +1,190 @@
+#
+# FILE            query_response_budget_page.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize: the byte budget of an entity query. TS 104-175 § 7 (pagination):
+# an implementation should define a hard limit to the size of the response payload
+# body while paginating.
+#
+# The store stops fetching before the entity that would take the page past the
+# budget, so the page is SHORTER than limit - and the Link rel="next" says where it
+# actually stopped (offset + the entities returned), NGSILD-Results-Count is still
+# the size of the whole result set, and limit keeps its meaning: whichever of the
+# two binds first ends the page.
+#
+# Seven entities of ~300 000 bytes each against a 1 MiB budget: three fit on a page
+# (mongoc counts the BSON document, corDB the rendered size of the stored entity -
+# both land on three).
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+Byte budget of an entity query - a short page and where the next one starts
+
+--TAGS--
+query pagination count link-header
+
+--INIT--
+corDbDrop
+coraineStart --maxResponseSize 1
+
+--RUN--
+#
+# page - GET a page, show its status, count and Link headers and the ids it holds
+#
+page() {
+  corCurl --url "$1" > /tmp/budgetPage.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetPage.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  k = l.split(':', 1)[0].lower()
+  if k in ('ngsild-results-count', 'link'):
+    print(l)
+ids = [e['id'] for e in json.loads(body)] if body.strip().startswith('[') else []
+print('ids:', ' '.join(ids))
+EOF
+}
+
+echo "01. Create seven entities of ~300 000 bytes each"
+echo "================================================"
+for i in 1 2 3 4 5 6 7; do
+  python3 -c "import json; print(json.dumps({'id':'urn:B:$i','type':'Blob','n':{'type':'Property','value':$i},'blob':{'type':'Property','value':'A'*300000}}))" > /tmp/budgetEntity.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+done
+\rm -f /tmp/budgetEntity.json
+echo
+echo
+
+
+echo "02. GET type=Blob, limit=100, count=true - three fit in 1 MiB: next at offset 3, count 7"
+echo "========================================================================================"
+page '/ngsi-ld/v1/entities?type=Blob&limit=100&count=true'
+echo
+echo
+
+
+echo "03. The next link (offset 3) - three more, next at offset 6"
+echo "==========================================================="
+page '/ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=3'
+echo
+echo
+
+
+echo "04. The next link (offset 6) - the last entity, no next"
+echo "======================================================="
+page '/ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=6'
+echo
+echo
+
+
+echo "05. Following the next links from the start returns every entity exactly once"
+echo "============================================================================="
+url='/ngsi-ld/v1/entities?type=Blob&limit=100'
+all=""
+pages=0
+while [ -n "$url" ]; do
+  page "$url" > /tmp/budgetWalk.out
+  all="$all $(grep '^ids:' /tmp/budgetWalk.out | cut -c5-)"
+  url=$(grep -i '^link:' /tmp/budgetWalk.out | grep -o '<[^>]*>;rel="next"' | sed 's/^<//; s/>;rel="next"$//')
+  pages=$((pages + 1))
+  [ $pages -gt 10 ] && break
+done
+echo "pages: $pages"
+echo "ids:  $(echo $all | tr ' ' '\n' | sort | uniq -c | awk '{ print $2 "x" $1 }' | tr '\n' ' ')"
+\rm -f /tmp/budgetWalk.out
+echo
+echo
+
+
+echo "06. limit=2 binds before the budget - two entities, next at offset 2"
+echo "===================================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=2'
+echo
+echo
+
+
+echo "07. POST /entityOperations/query - the same short page"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entityOperations/query?limit=100' --payload '{"type":"Query","entities":[{"type":"Blob"}]}' > /tmp/budgetPage.out 2>&1
+python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetPage.out').read()
+head, _, body = txt.partition('\n\n')
+print(head.split('\n')[0])
+print('ids:', ' '.join(e['id'] for e in json.loads(body)))
+EOF
+\rm -f /tmp/budgetPage.out
+echo
+echo
+
+
+--EXPECT--
+01. Create seven entities of ~300 000 bytes each
+================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET type=Blob, limit=100, count=true - three fit in 1 MiB: next at offset 3, count 7
+========================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 7
+Link: </ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=3>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+ids: urn:B:1 urn:B:2 urn:B:3
+
+
+03. The next link (offset 3) - three more, next at offset 6
+===========================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 7
+Link: </ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=0>;rel="prev";type="application/json", </ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=6>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+ids: urn:B:4 urn:B:5 urn:B:6
+
+
+04. The next link (offset 6) - the last entity, no next
+=======================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 7
+Link: </ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=0>;rel="prev";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+ids: urn:B:7
+
+
+05. Following the next links from the start returns every entity exactly once
+=============================================================================
+pages: 3
+ids:  urn:B:1x1 urn:B:2x1 urn:B:3x1 urn:B:4x1 urn:B:5x1 urn:B:6x1 urn:B:7x1 
+
+
+06. limit=2 binds before the budget - two entities, next at offset 2
+====================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?type=Blob&limit=2&offset=2>;rel="next";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+ids: urn:B:1 urn:B:2
+
+
+07. POST /entityOperations/query - the same short page
+======================================================
+HTTP/1.1 200 OK
+ids: urn:B:1 urn:B:2 urn:B:3
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+\rm -f /tmp/budgetPage.out /tmp/budgetWalk.out /tmp/budgetEntity.json

@@ -103,6 +103,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--maxResponseSize/-maxResponseSize <byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget)>]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
@@ -160,6 +161,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--maxResponseSize/-maxResponseSize <byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget)>]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
@@ -220,6 +222,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing))]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
+                [--maxResponseSize/-maxResponseSize <byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget)>]
                 [--subStatsFlushInterval/-ssfi <sub-stats periodic flush interval (s; 0 = off)>]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
@@ -269,6 +272,7 @@ Usage: coraine  [--usage/-u (usage)]
   --high-precision        (-hp)                 CORAINE_HIGH_PRECISION        Optional   Bool     Default Value  
   --asyncSnapshot         (-asyncSnapshot)      CORAINE_ASYNCSNAPSHOT         Optional   Bool     Default Value  
   --maxRequestSize        (-mrs)                CORAINE_MAXREQUESTSIZE        Optional   Int      Default Value  
+  --maxResponseSize       (-maxResponseSize)    CORAINE_MAXRESPONSESIZE       Optional   Int      Default Value  
   --subStatsFlushInterval (-ssfi)               CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
   --distOpTimeout         (-dtmo)               CORAINE_DISTOPTIMEOUT         Optional   Int      Default Value  
   --cooldownMillis        (-cms)                CORAINE_COOLDOWNMILLIS        Optional   Int      Default Value  

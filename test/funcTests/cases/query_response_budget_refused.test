@@ -1,0 +1,153 @@
+#
+# FILE            query_response_budget_refused.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize: where a shorter page is no answer, the byte budget refuses the
+# query with 403 TooManyResults (TS 104-175 § 8: "a query operation is producing so
+# many results that can potentially exhaust client or server resources ... The
+# threshold ... is up to each implementation"):
+#
+#   - not even the first entity of the page fits in the budget;
+#   - the query needs every match at once - orderBy reads the whole matching set to
+#     order it before paginating (and an EntityMap freezes it), so a part of the set
+#     would be a wrong page, not a short one.
+#
+# A 1 MiB budget: one entity of ~1 200 000 bytes, and five of ~300 000 bytes.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+Byte budget of an entity query - 403 TooManyResults where a short page is no answer
+
+--TAGS--
+query pagination orderBy error
+
+--INIT--
+corDbDrop
+coraineStart --maxResponseSize 1
+
+--RUN--
+echo "01. Create one entity of ~1 200 000 bytes and five of ~300 000 bytes"
+echo "===================================================================="
+python3 -c "import json; print(json.dumps({'id':'urn:Huge:1','type':'Huge','blob':{'type':'Property','value':'A'*1200000}}))" > /tmp/budgetEntity.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+for i in 1 2 3 4 5; do
+  python3 -c "import json; print(json.dumps({'id':'urn:B:$i','type':'Blob','name':{'type':'Property','value':'n$((6 - i))'},'blob':{'type':'Property','value':'A'*300000}}))" > /tmp/budgetEntity.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+done
+\rm -f /tmp/budgetEntity.json
+echo
+echo
+
+
+echo "02. GET type=Huge - the only entity does not fit in 1 MiB: 403 TooManyResults"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Huge'
+echo
+echo
+
+
+echo "03. GET type=Blob&orderBy=name&limit=1 - orderBy needs all five (1.5 MB) at once: 403 TooManyResults"
+echo "====================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=1'
+echo
+echo
+
+
+echo "04. GET type=Blob&q=name<n3&orderBy=name - two matches fit: 200, ordered"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Blob&q=name%3C%22n3%22&orderBy=name&pick=id,name'
+echo
+echo
+
+
+echo "05. GET type=Blob&entityMap=true - the EntityMap needs all five at once: 403 TooManyResults"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Blob&entityMap=true' | grep -E '^HTTP/1.1|"type"'
+echo
+echo
+
+
+--EXPECT--
+01. Create one entity of ~1 200 000 bytes and five of ~300 000 bytes
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET type=Huge - the only entity does not fit in 1 MiB: 403 TooManyResults
+=============================================================================
+HTTP/1.1 403 Forbidden
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "the next entity alone exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query to leave it out",
+  "status": 403,
+  "title": "Too Many Results",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/TooManyResults"
+}
+
+
+
+03. GET type=Blob&orderBy=name&limit=1 - orderBy needs all five (1.5 MB) at once: 403 TooManyResults
+=====================================================================================================
+HTTP/1.1 403 Forbidden
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 298
+
+{
+  "detail": "this query needs every match at once (orderBy, an EntityMap or split entities) and they exceed the response size budget of 1 MiB (--maxResponseSize) - narrow the query",
+  "status": 403,
+  "title": "Too Many Results",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/TooManyResults"
+}
+
+
+
+04. GET type=Blob&q=name<n3&orderBy=name - two matches fit: 200, ordered
+=========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:B:5",
+    "name": {
+      "type": "Property",
+      "value": "n1"
+    }
+  },
+  {
+    "id": "urn:B:4",
+    "name": {
+      "type": "Property",
+      "value": "n2"
+    }
+  }
+]
+
+
+
+05. GET type=Blob&entityMap=true - the EntityMap needs all five at once: 403 TooManyResults
+===========================================================================================
+HTTP/1.1 403 Forbidden
+  "type": "https://uri.etsi.org/ngsi-ld/errors/TooManyResults"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+\rm -f /tmp/budgetEntity.json
