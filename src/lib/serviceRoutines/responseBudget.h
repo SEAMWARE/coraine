@@ -62,4 +62,49 @@ extern void responseBudgetLinkHeader(DbQueryFilter* filterP, CorNode* arrayP, bo
 //
 extern int responseBudgetFetched(CorNode* arrayP);
 
+
+
+
+// -----------------------------------------------------------------------------
+//
+// responseBudgetTooMany - 403 TooManyResults: `what` does not fit in the response size budget
+//
+// For the cases responseBudgetRefused does not see - a temporal query, a distributed one. `what`
+// names it ("the first entity's instances, one per attribute", ...); the detail adds the budget.
+//
+extern void responseBudgetTooMany(const char* what);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// responseBudgetDepth - how deep the parts of one page can go, all of them, within the budget
+//
+// A page assembled from several parts - the local store's page and each Context Source's, or the
+// instance arrays of one temporal entity - that are each a prefix of a sequence sharing one paging
+// parameter (offset; offsetN). Cutting every part at the same depth d keeps the page exact: positions
+// [0, d) of every part are in it, none after, and offset + d (offsetN + d) is where every part's next
+// page starts. Cutting one part alone would lose (or repeat) the others' elements on the next page.
+//
+// Returns the largest d at which every part cut to its first d elements is at most `budget` bytes
+// (an element measured as rendered, corJsonFastRenderSize) - or -1 when the parts fit whole and
+// nothing needs cutting. Further bounds on d, applied only when a cut is needed:
+//   maxCount  > 0: the elements of all parts together at most maxCount (limit) - so the page needs
+//                  no trim after the cut, and the cut is where it ends;
+//   maxDepth >= 0: d at most maxDepth - a part that already stopped there (a store's page that the
+//                  budget ended: its elements after maxDepth were never fetched). A part longer
+//                  than maxDepth is then a cut too, even within the budget - and so is a page of
+//                  more than maxCount elements.
+// 0: not even the first elements fit together - nothing can be returned.
+//
+extern int responseBudgetDepth(CorNode** partV, int parts, int64_t budget, int maxCount, int maxDepth);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// responseBudgetCut - cut every part (an array) to its first `depth` elements
+//
+extern void responseBudgetCut(CorNode** partV, int parts, int depth);
+
 #endif  // SRC_LIB_SERVICEROUTINES_RESPONSEBUDGET_H_

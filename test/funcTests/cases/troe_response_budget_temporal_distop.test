@@ -1,0 +1,197 @@
+#
+# FILE            troe_response_budget_temporal_distop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize on a distributed temporal query: what CP1 answers counts against the budget as
+# the local history does (TS 104-175 § 7.4.2.1 / § 7.4.2.2). The local page and CP1's - asked for
+# the same offset / offsetN - are cut at one depth, so one link continues both:
+#
+#   - the query: the most entities of each that fit together, rel="next" at offset + that depth;
+#   - one entity's history: the instance arrays of every attribute, here and at CP1, cut to the K
+#     instances of each that fit together, rel="intervalafter" at offsetN + K (TS 104-176 § 6.4.7.3).
+#
+# 1 MiB budget. urn:L:1..3 here and urn:R:1..3 at CP1, one ~300 000-byte instance each.
+# urn:S:1 with four ~150 000-byte instances here and four at CP1.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET REGISTRATIONS
+#
+--NAME--
+Byte budget of a distributed temporal query - the forwarded part counted
+
+--TAGS--
+troe timescale postgres temporal distops registration pagination link-header
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart            --troe timescale -dist --troeSync --maxResponseSize 1
+coraineStart -role CP1  --troe timescale --troeSync
+
+--RUN--
+#
+# show - GET a temporal URL on CB; its status, the pagination Link headers and, per entity, how many instances of each attribute
+#
+show() {
+  corCurl --url "$1" > /tmp/budgetTemporalDist.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetTemporalDist.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  k = l.split(':', 1)[0].lower()
+  if (k == 'link' and 'json-ld#context' not in l) or k == 'ngsild-warning':
+    print(l)
+b = body.strip()
+ents = json.loads(b) if b.startswith('[') else [json.loads(b)]
+for e in ents:
+  if 'id' not in e:
+    print('error:', e.get('type'), '-', e.get('detail'))
+    continue
+  attrs = sorted((k, len(v)) for k, v in e.items() if isinstance(v, list) and k != 'type')
+  print(e['id'], ' '.join('%s:%d' % a for a in attrs))
+EOF
+}
+
+#
+# seed <port> <id> <type> <bytes> <instances> <char> - an entity with <instances> instances of 'blob', <bytes> each
+#
+seed() {
+  python3 -c "import json; print(json.dumps({'id':'$2','type':'$3','blob':{'type':'Property','value':'$6'*$4}}))" > /tmp/budgetTemporalDistEntity.json
+  corCurl --port $1 --url /ngsi-ld/v1/entities --payload /tmp/budgetTemporalDistEntity.json | grep -c '^HTTP/1.1 201' > /dev/null
+  python3 -c "import json; print(json.dumps({'value':'$6'*$4}))" > /tmp/budgetTemporalDistEntity.json
+  for i in $(seq 2 $5); do
+    corCurl --port $1 --url /ngsi-ld/v1/entities/$2/attrs/blob -X PATCH --payload /tmp/budgetTemporalDistEntity.json | grep -c '^HTTP/1.1 204' > /dev/null
+  done
+  \rm -f /tmp/budgetTemporalDistEntity.json
+}
+
+echo "01. Register CB -> CP1 (inclusive, queryTemporal + retrieveTemporal) for types Blob and Hist"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"http://localhost:'"$CP1_PORT"'","mode":"inclusive","operations":["queryTemporal","retrieveTemporal"],"information":[{"entities":[{"type":"Blob"},{"type":"Hist"}]}]}' | head -1
+echo
+echo
+
+
+echo "02. urn:L:1..3 here, urn:R:1..3 at CP1 - one ~300 000-byte instance each"
+echo "========================================================================"
+for i in 1 2 3; do
+  seed $CB_PORT  urn:L:$i Blob 300000 1 L
+  seed $CP1_PORT urn:R:$i Blob 300000 1 R
+done
+echo done
+echo
+echo
+
+
+echo "03. GET /temporal/entities type=Blob - L1 and R1 fit together, L2 and R2 would not: next at offset 1"
+echo "===================================================================================================="
+show '/ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+echo
+echo
+
+
+echo "04. Following the next links returns every local and remote entity exactly once"
+echo "==============================================================================="
+url='/ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+pages=0
+while [ -n "$url" ]; do
+  show "$url" > /tmp/budgetTemporalDistWalk.out
+  grep '^urn:' /tmp/budgetTemporalDistWalk.out >> /tmp/budgetTemporalDistIds.out
+  url=$(grep -i '^link:' /tmp/budgetTemporalDistWalk.out | grep -o '<[^>]*>;rel="next"' | sed 's/^<//; s/>;rel="next"$//')
+  pages=$((pages + 1))
+  [ $pages -gt 10 ] && break
+done
+echo "pages: $pages"
+sort /tmp/budgetTemporalDistIds.out | uniq -c | awk '{ print $2, $3, "x" $1 }'
+\rm -f /tmp/budgetTemporalDistWalk.out /tmp/budgetTemporalDistIds.out
+echo
+echo
+
+
+echo "05. urn:S:1 - four ~150 000-byte instances here, four at CP1"
+echo "============================================================"
+seed $CB_PORT  urn:S:1 Hist 150000 4 S
+seed $CP1_PORT urn:S:1 Hist 150000 4 T
+echo done
+echo
+echo
+
+
+echo "06. GET /temporal/entities/urn:S:1 - three of each fit together: six instances, intervalafter at offsetN=3"
+echo "=========================================================================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:S:1'
+echo
+echo
+
+
+echo "07. The intervalafter link (offsetN=3) - the last one of each"
+echo "============================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:S:1?offsetN=3'
+\rm -f /tmp/budgetTemporalDist.out
+echo
+echo
+
+
+--EXPECT--
+01. Register CB -> CP1 (inclusive, queryTemporal + retrieveTemporal) for types Blob and Hist
+===========================================================================================
+HTTP/1.1 201 Created
+
+
+02. urn:L:1..3 here, urn:R:1..3 at CP1 - one ~300 000-byte instance each
+========================================================================
+done
+
+
+03. GET /temporal/entities type=Blob - L1 and R1 fit together, L2 and R2 would not: next at offset 1
+====================================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100&offset=1>;rel="next";type="application/json"
+urn:L:1 blob:1
+urn:R:1 blob:1
+
+
+04. Following the next links returns every local and remote entity exactly once
+===============================================================================
+pages: 3
+urn:L:1 blob:1 x1
+urn:L:2 blob:1 x1
+urn:L:3 blob:1 x1
+urn:R:1 blob:1 x1
+urn:R:2 blob:1 x1
+urn:R:3 blob:1 x1
+
+
+05. urn:S:1 - four ~150 000-byte instances here, four at CP1
+============================================================
+done
+
+
+06. GET /temporal/entities/urn:S:1 - three of each fit together: six instances, intervalafter at offsetN=3
+==========================================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities/urn:S:1?offsetN=3>;rel="intervalafter";type="application/json"
+urn:S:1 blob:6
+
+
+07. The intervalafter link (offsetN=3) - the last one of each
+=============================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities/urn:S:1?offsetN=0>;rel="intervalbefore";type="application/json"
+urn:S:1 blob:2
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

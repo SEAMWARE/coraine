@@ -1,0 +1,301 @@
+#
+# FILE            troe_response_budget_temporal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize on the temporal API. TS 104-175 § 7.4.2.1: an implementation should define a
+# hard limit to the size of the response payload body while paginating; § 7.4.2.2: under it, a page
+# can hold fewer Elements than the limit. TS 104-176 § 6.4.7.3: temporal pagination - the
+# instances per attribute on a page are at most firstN / lastN / the configured default, and
+# rel="intervalafter" / "intervalbefore" (offsetN) point at the rest.
+#
+#   - a query: the store's page ends before the entity whose instances do not fit; Link rel="next"
+#     starts where it stopped;
+#   - one entity whose instances do not fit (a retrieve, or the first entity of a query's page):
+#     fewer instances per attribute - the same K for each, the K that fit - and the temporal
+#     pagination Link to the rest (offsetN + K), as the instance cap does;
+#   - not even one instance per attribute fits: 403 TooManyResults.
+#
+# 1 MiB budget. Five entities of three ~150 000-byte instances (~450 KB each): two fit on a page.
+# One entity of ten such instances (~1.5 MB): six fit. One of a single 1 200 000-byte instance:
+# nothing fits.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+Byte budget of a temporal query - a short page, fewer instances, 403
+
+--TAGS--
+troe timescale postgres temporal pagination link-header
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync --maxResponseSize 1
+
+--RUN--
+#
+# show - GET a temporal URL; its status, the pagination Link header and, per entity, how many instances of each attribute
+#
+show() {
+  corCurl --url "$1" > /tmp/budgetTemporal.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetTemporal.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  if l.lower().startswith('link:') and 'json-ld#context' not in l:
+    print(l)
+b = body.strip()
+if b.startswith('['):
+  ents = json.loads(b)
+elif b.startswith('{') and '"id"' in b and '"type"' in b and 'title' not in b:
+  ents = [json.loads(b)]
+else:
+  ents = []
+  if b:
+    e = json.loads(b)
+    print('error:', e.get('type'), '-', e.get('detail'))
+for e in ents:
+  attrs = sorted((k, len(v)) for k, v in e.items() if isinstance(v, list) and k != 'type')
+  print(e['id'], ' '.join('%s:%d' % a for a in attrs))
+EOF
+}
+
+#
+# instance N - a PATCH payload (a file) with N bytes of value
+#
+instance() {
+  python3 -c "import json; print(json.dumps({'value':'$2'*$1}))" > /tmp/budgetInstance.json
+}
+
+echo "01. Five entities urn:T:1..5 of three ~150 000-byte instances of 'blob'"
+echo "======================================================================="
+instance 150000 A
+for i in 1 2 3 4 5; do
+  python3 -c "import json; print(json.dumps({'id':'urn:T:$i','type':'Blob','blob':{'type':'Property','value':'A'*150000}}))" > /tmp/budgetEntity.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+  corCurl --url /ngsi-ld/v1/entities/urn:T:$i/attrs/blob -X PATCH --payload /tmp/budgetInstance.json | grep '^HTTP/1.1 2'
+  corCurl --url /ngsi-ld/v1/entities/urn:T:$i/attrs/blob -X PATCH --payload /tmp/budgetInstance.json | grep '^HTTP/1.1 2'
+done
+echo
+echo
+
+
+echo "02. GET /temporal/entities type=Blob - two fit in 1 MiB: next at offset 2"
+echo "========================================================================="
+show '/ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+echo
+echo
+
+
+echo "03. Following the next links returns every entity exactly once, with all its instances"
+echo "======================================================================================"
+url='/ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+pages=0
+while [ -n "$url" ]; do
+  show "$url" > /tmp/budgetWalk.out
+  grep '^urn:' /tmp/budgetWalk.out >> /tmp/budgetWalkIds.out
+  url=$(grep -i '^link:' /tmp/budgetWalk.out | grep -o '<[^>]*>;rel="next"' | sed 's/^<//; s/>;rel="next"$//')
+  pages=$((pages + 1))
+  [ $pages -gt 10 ] && break
+done
+echo "pages: $pages"
+sort /tmp/budgetWalkIds.out | uniq -c | awk '{ print $2, $3, "x" $1 }'
+\rm -f /tmp/budgetWalk.out /tmp/budgetWalkIds.out
+echo
+echo
+
+
+echo "04. POST /temporal/entityOperations/query - the same short page"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?limit=100' --payload '{"type":"Query","entities":[{"type":"Blob"}],"temporalQ":{"timerel":"after","timeAt":"2000-01-01T00:00:00Z","timeproperty":"modifiedAt"}}' > /tmp/budgetTemporal.out 2>&1
+python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetTemporal.out').read()
+head, _, body = txt.partition('\n\n')
+print(head.split('\n')[0])
+for l in head.split('\n')[1:]:
+  if l.lower().startswith('link:') and 'json-ld#context' not in l:
+    print(l)
+print('ids:', ' '.join(e['id'] for e in json.loads(body)))
+EOF
+echo
+echo
+
+
+echo "05. One entity urn:Big:1 of ten ~150 000-byte instances"
+echo "======================================================="
+python3 -c "import json; print(json.dumps({'id':'urn:Big:1','type':'BigHistory','blob':{'type':'Property','value':'B'*150000}}))" > /tmp/budgetEntity.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+instance 150000 B
+for i in 2 3 4 5 6 7 8 9 10; do
+  corCurl --url /ngsi-ld/v1/entities/urn:Big:1/attrs/blob -X PATCH --payload /tmp/budgetInstance.json | grep -c '^HTTP/1.1 2' > /dev/null
+done
+echo "10 instances"
+echo
+echo
+
+
+echo "06. GET /temporal/entities/urn:Big:1 - six instances fit: 200, intervalafter at offsetN=6"
+echo "=========================================================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:Big:1'
+echo
+echo
+
+
+echo "07. The intervalafter link (offsetN=6) - the four left, intervalbefore back to offsetN=0"
+echo "========================================================================================"
+show '/ngsi-ld/v1/temporal/entities/urn:Big:1?offsetN=6'
+echo
+echo
+
+
+echo "08. lastN=8 - descending, six fit: intervalbefore (older) at offsetN=6"
+echo "======================================================================"
+show '/ngsi-ld/v1/temporal/entities/urn:Big:1?lastN=8'
+echo
+echo
+
+
+echo "09. A query whose first entity does not fit whole - that entity, six instances, both links"
+echo "=========================================================================================="
+python3 -c "import json; print(json.dumps({'id':'urn:Big:2','type':'BigHistory','blob':{'type':'Property','value':'C'*1000}}))" > /tmp/budgetEntity.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+show '/ngsi-ld/v1/temporal/entities?type=BigHistory&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+echo
+echo
+
+
+echo "10. One entity urn:Huge:1 with a single 1 200 000-byte instance - not even one fits: 403"
+echo "======================================================================================="
+python3 -c "import json; print(json.dumps({'id':'urn:Huge:1','type':'Huge','blob':{'type':'Property','value':'H'*1200000}}))" > /tmp/budgetEntity.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+show '/ngsi-ld/v1/temporal/entities/urn:Huge:1'
+echo
+echo
+
+
+echo "11. A query whose first entity has not even one instance that fits - 403"
+echo "========================================================================"
+show '/ngsi-ld/v1/temporal/entities?type=Huge&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt'
+echo
+echo
+
+
+echo "12. attrs=other - the huge instance is not asked for: 404 as without a budget, not 403"
+echo "====================================================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:Huge:1?attrs=other'
+\rm -f /tmp/budgetEntity.json /tmp/budgetInstance.json /tmp/budgetTemporal.out
+echo
+echo
+
+
+--EXPECT--
+01. Five entities urn:T:1..5 of three ~150 000-byte instances of 'blob'
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+02. GET /temporal/entities type=Blob - two fit in 1 MiB: next at offset 2
+=========================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100&offset=2>;rel="next";type="application/json"
+urn:T:1 blob:3
+urn:T:2 blob:3
+
+
+03. Following the next links returns every entity exactly once, with all its instances
+======================================================================================
+pages: 3
+urn:T:1 blob:3 x1
+urn:T:2 blob:3 x1
+urn:T:3 blob:3 x1
+urn:T:4 blob:3 x1
+urn:T:5 blob:3 x1
+
+
+04. POST /temporal/entityOperations/query - the same short page
+===============================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entityOperations/query?limit=100&offset=2>;rel="next";type="application/json"
+ids: urn:T:1 urn:T:2
+
+
+05. One entity urn:Big:1 of ten ~150 000-byte instances
+=======================================================
+HTTP/1.1 201 Created
+10 instances
+
+
+06. GET /temporal/entities/urn:Big:1 - six instances fit: 200, intervalafter at offsetN=6
+==========================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities/urn:Big:1?offsetN=6>;rel="intervalafter";type="application/json"
+urn:Big:1 blob:6
+
+
+07. The intervalafter link (offsetN=6) - the four left, intervalbefore back to offsetN=0
+========================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities/urn:Big:1?offsetN=0>;rel="intervalbefore";type="application/json"
+urn:Big:1 blob:4
+
+
+08. lastN=8 - descending, six fit: intervalbefore (older) at offsetN=6
+======================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities/urn:Big:1?lastN=8&offsetN=6>;rel="intervalbefore";type="application/json"
+urn:Big:1 blob:6
+
+
+09. A query whose first entity does not fit whole - that entity, six instances, both links
+==========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/temporal/entities?type=BigHistory&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100&offset=1>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/temporal/entities?type=BigHistory&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100&offsetN=6>;rel="intervalafter";type="application/json"
+urn:Big:1 blob:6
+
+
+10. One entity urn:Huge:1 with a single 1 200 000-byte instance - not even one fits: 403
+=======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 403 Forbidden
+error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - one instance of every attribute of this entity, together, exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
+
+
+11. A query whose first entity has not even one instance that fits - 403
+========================================================================
+HTTP/1.1 403 Forbidden
+error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the next entity's temporal representation, even with one instance per attribute, exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
+
+
+12. attrs=other - the huge instance is not asked for: 404 as without a budget, not 403
+=====================================================================================
+HTTP/1.1 404 Not Found
+error: https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound - no instances match the temporal query for entity 'urn:Huge:1'
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

@@ -58,6 +58,9 @@
 #include "troe/troeNotAvailable.h"                   // troeNotAvailable
 
 #include "db/Tenant.h"                               // Tenant
+#if COR_FEATURE_RESPONSE_BUDGET
+#include "serviceRoutines/responseBudget.h"          // responseBudgetBytes, responseBudgetTooMany, responseBudgetDepth, responseBudgetCut
+#endif
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader
 #include "serviceRoutines/getEntityTemporal.h"       // Own interface
@@ -166,13 +169,15 @@ static void mergeTemporalInto(CorNode* destP, CorNode* upP, bool keepOnlyMissing
 // buildTemporalForwardQuery - rebuild only the temporal-filter URL params,
 // skipping output-shaping params (pick/omit/lang/format/sysAttrs/...) since
 // the broker applies those on the merged result. Forwards: timerel, timeAt,
-// endTimeAt, timeproperty, attrs, lastN, datasetId.
+// endTimeAt, timeproperty, attrs, lastN, firstN, offsetN, datasetId - the
+// temporal pagination (§ 6.4.7.3) as well: a source asked without offsetN
+// answers every intervalafter page with its first instances again.
 //
 static const char* buildTemporalForwardQuery(CorAlloc* kaP)
 {
   static const char* forwardKeys[] = {
     "timerel", "timeAt", "endTimeAt", "timeproperty",
-    "attrs", "lastN", "datasetId",
+    "attrs", "lastN", "firstN", "offsetN", "datasetId",
     NULL
   };
 
@@ -360,6 +365,14 @@ bool getEntityTemporal(void)
   filter.firstN       = corNgsild.firstN;
   filter.offsetN      = corNgsild.offsetN;
   filter.datasetIdV   = corNgsild.datasetIdV;
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget (--maxResponseSize, TroeDriver.h): an entity whose instances do not fit comes
+  // with the K per attribute that do - a smaller instance limit, the rest behind the temporal
+  // pagination Link (offsetN + K), as the instance cap does
+  //
+  filter.maxBytes     = responseBudgetBytes;
+#endif
 
   Tenant* tenantP = (snapItem != NULL)
                       ? (Tenant*) snapItem->snapTenantP
@@ -421,6 +434,18 @@ bool getEntityTemporal(void)
             "temporal retrieve failed for entity '%s'", entityId);
     return true;
   }
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  if (filter.budgetHit && (result == NULL))
+  {
+    ldRegCacheMatchRelease(exclV,  exclN);
+    ldRegCacheMatchRelease(redirV, redirN);
+    ldRegCacheMatchRelease(inclV,  inclN);
+    ldRegCacheMatchRelease(auxV,   auxN);
+    responseBudgetTooMany("one instance of every attribute of this entity, together,");
+    return true;
+  }
+#endif
 
   bool haveDistop = (exclN > 0 || redirN > 0 || inclN > 0 || auxN > 0);
 
@@ -507,7 +532,80 @@ bool getEntityTemporal(void)
 
     if (itemCount > 0)
     {
+#if COR_FEATURE_RESPONSE_BUDGET
+      //
+      // The byte budget over the sources' answers: each read up to the budget and no further; then the
+      // instance arrays of every attribute - this broker's and each source's - cut at the same depth,
+      // the most instances of each that fit together, so offsetN + that depth is where all of them go
+      // on (responseBudget.h). A source whose answer could not be read leaves nothing to cut: refused.
+      //
+      ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, responseBudgetBytes);
+
+      if (responseBudgetBytes > 0)
+      {
+        int partSize = 0;
+        for (int i = 0; i <= itemCount; i++)
+        {
+          CorNode* eP = (i == itemCount) ? result : results[i].responseTree;
+          if ((eP != NULL) && (eP->type == CorObject))
+            for (CorNode* aP = eP->value.head; aP != NULL; aP = aP->next)
+              ++partSize;
+        }
+
+        CorNode** partV = (CorNode**) corAlloc(&corRest.kalloc, (partSize + 1) * sizeof(CorNode*));
+        int       parts = 0;
+
+        for (int i = 0; i <= itemCount; i++)
+        {
+          if ((i < itemCount) && results[i].tooLarge)
+          {
+            char what[512];
+            snprintf(what, sizeof(what), "the answer of Context Source '%s' (lower 'lastN' or 'firstN')",
+                     (items[i].csr->regId != NULL) ? items[i].csr->regId : "?");
+            ldRegCacheMatchRelease(exclV,  exclN);
+            ldRegCacheMatchRelease(redirV, redirN);
+            ldRegCacheMatchRelease(inclV,  inclN);
+            ldRegCacheMatchRelease(auxV,   auxN);
+            responseBudgetTooMany(what);
+            return true;
+          }
+
+          if ((i < itemCount) && ((results[i].statusCode < 200) || (results[i].statusCode >= 300)))
+            continue;
+
+          CorNode* eP = (i == itemCount) ? result : results[i].responseTree;
+          if ((eP == NULL) || (eP->type != CorObject))
+            continue;
+
+          for (CorNode* aP = eP->value.head; aP != NULL; aP = aP->next)
+          {
+            if (aP->type == CorArray)                    // an attribute: its instances
+              partV[parts++] = aP;
+          }
+        }
+
+        int depth = responseBudgetDepth(partV, parts, responseBudgetBytes, 0, filter.budgetHit ? rangeInfo.size : -1);
+
+        if (depth == 0)
+        {
+          ldRegCacheMatchRelease(exclV,  exclN);
+          ldRegCacheMatchRelease(redirV, redirN);
+          ldRegCacheMatchRelease(inclV,  inclN);
+          ldRegCacheMatchRelease(auxV,   auxN);
+          responseBudgetTooMany("one instance of every attribute of this entity, here and at its Context Sources together,");
+          return true;
+        }
+
+        if (depth > 0)
+        {
+          responseBudgetCut(partV, parts, depth);
+          rangeInfo.size    = depth;
+          rangeInfo.hasMore = true;
+        }
+      }
+#else
       ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
+#endif
 
       for (int i = 0; i < itemCount; i++)
       {

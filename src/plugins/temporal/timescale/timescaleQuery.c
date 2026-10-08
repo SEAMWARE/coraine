@@ -42,6 +42,7 @@
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corJson/corJsonParse.h"                         // corJsonParse
+#include "corJson/corJsonRenderSize.h"                    // corJsonFastRenderSize
 #include "corAlloc/corAlloc.h"                            // corAlloc
 #include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
 #include "corAlloc/CorAlloc.h"                            // CorAlloc
@@ -63,6 +64,13 @@
 // given (§ 6.4.7.3 "default maximum limit"). Configurable later via CLI;
 // hardcoded for now so tests get a stable knob.
 #define TROE_DEFAULT_INSTANCE_CAP 100
+
+//
+// What buildEntityTemporalDocLocked says when the byte budget decided (beside TROE_OK / TROE_ERR /
+// TROE_NOT_FOUND): the entity's instances cut to fit, or the entity not built at all
+//
+#define TROE_BUDGET_CUT     10
+#define TROE_BUDGET_NO_FIT  11
 
 
 
@@ -390,6 +398,11 @@ static const char* qWindowLiteral(const char* timerel, const char* timeAt, const
 //
 // buildEntityTemporalDocLocked - build the EntityTemporal tree for one entity.
 //
+// budget (bytes, 0 = none; TroeQueryFilter.maxBytes): the entity's page of instances is measured in SQL
+// before it is fetched. It fits: built as always, its size in *bytesP. It does not: with cutAllowed,
+// its instances are cut to the K per attribute that fit (TROE_BUDGET_CUT, rangeOut size K, hasMore);
+// without, or when not even K = 1 fits, nothing is built (TROE_BUDGET_NO_FIT).
+//
 // Mutex must be held. Returns:
 //   TROE_OK         — *treePP set to the built tree
 //   TROE_NOT_FOUND  — entity has no temporal data (or q didn't match)
@@ -400,9 +413,12 @@ static const char* qWindowLiteral(const char* timerel, const char* timeAt, const
 static int buildEntityTemporalDocLocked(const char* entityId,
                                         const char* entityTypeIn,
                                         TroeQueryFilter* fP, CorNode** treePP,
-                                        TroeRangeInfo* rangeOut)
+                                        TroeRangeInfo* rangeOut,
+                                        int64_t budget, bool cutAllowed, int64_t* bytesP)
 {
   *treePP = NULL;
+  if (bytesP != NULL)
+    *bytesP = 0;
 
   const char* timerel       = (fP != NULL) ? fP->timerel       : NULL;
   const char* timeAt        = (fP != NULL) ? fP->timeAtIso     : NULL;
@@ -561,6 +577,68 @@ static int buildEntityTemporalDocLocked(const char* entityId,
 
   if (groupN == 0 && entityType == NULL)
     return TROE_NOT_FOUND;
+
+  bool budgetCut = false;
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget, measured before anything is fetched: the page's instances ranked as the page
+  // query below ranks them (rn per attribute and datasetId), each counted as the text of its values
+  // plus 128 bytes for its type, timestamps and member names, and summed per rank. The largest K
+  // whose ranks 1..K fit in the budget is the cut - the same K for every attribute, so it is a
+  // smaller instance limit and offsetN + K is where the next temporal page starts (§ 6.4.7.3).
+  //
+  if (budget > 0)
+  {
+    const char* bytesExpr =
+      "128 + octet_length(instance_id) + octet_length(dataset_id)"
+      " + COALESCE(octet_length(v_text), 0) + COALESCE(octet_length(v_number::text), 0)"
+      " + COALESCE(octet_length(v_compound::text), 0) + COALESCE(octet_length(sub_attrs::text), 0)";
+
+    int   bSize = 8192 + (int) strlen(rowPred);
+    char* bSql  = (char*) corAlloc(&corRest.kalloc, bSize);
+
+    snprintf(bSql, bSize,
+      "SELECT COALESCE(SUM(rb), 0)::bigint, COALESCE(MAX(rn) FILTER (WHERE cum <= %lld), %d)::int FROM ("
+      "SELECT rn, rb, SUM(rb) OVER (ORDER BY rn) AS cum FROM ("
+      "SELECT rn, SUM(b) AS rb FROM ("
+      "SELECT ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s NULLS LAST, modified_at %s) AS rn, (%s) AS b "
+      "FROM troe_attrs WHERE entity_id = $1%s%s%s%s%s) s "
+      "WHERE rn > %d AND rn <= %d GROUP BY rn) g) c",
+      (long long) budget, offsetN,
+      tCol, orderDir, orderDir, bytesExpr, timePred, opPred, attrPred, dsPred, rowPred,
+      offsetN, offsetN + pageLimit);
+
+    PGresult* bRes = PQexecParams(timescaleConn, bSql, nParams, NULL, paramV, NULL, NULL, 0);
+
+    if ((PQresultStatus(bRes) != PGRES_TUPLES_OK) || (PQntuples(bRes) != 1))
+    {
+      COR_E("timescale: troe_attrs byte-budget pre-pass failed: %s", PQerrorMessage(timescaleConn));
+      PQclear(bRes);
+      return TROE_ERR;
+    }
+
+    int64_t total = strtoll(PQgetvalue(bRes, 0, 0), NULL, 10) + (int64_t) strlen(entityId) + 64;   // + id, type, timestamps
+    int     k     = (int) strtol(PQgetvalue(bRes, 0, 1), NULL, 10) - offsetN;                     // ranks that fit
+
+    PQclear(bRes);
+
+    if (total > budget)
+    {
+      if ((cutAllowed == false) || (k <= 0))
+        return TROE_BUDGET_NO_FIT;
+
+      pageLimit = k;                                     // the cut: K instances per attribute
+      hasMore   = true;                                  // the rest is on the next temporal page
+      budgetCut = true;
+    }
+    else if (bytesP != NULL)
+      *bytesP = total;
+  }
+#else
+  (void) budget;
+  (void) cutAllowed;
+#endif
 
   int   sqlSize = 8192 + (int) strlen(rowPred);
   char* sql     = (char*) corAlloc(&corRest.kalloc, sqlSize);
@@ -800,14 +878,17 @@ static int buildEntityTemporalDocLocked(const char* entityId,
         rangeOut->rangeEndIso = stripZeroMs(corAllocStrdup(&corRest.kalloc, maxIso));
     }
 
-    if (rangeOut->size == 0)
+    if ((rangeOut->size == 0) || budgetCut)            // cut: the page is the entity's K instances per attribute
       rangeOut->size = pageLimit;
   }
 
   PQclear(aRes);
 
+  if ((bytesP != NULL) && budgetCut)
+    *bytesP = budget;                                    // all of it, as far as the caller is concerned
+
   *treePP = root;
-  return TROE_OK;
+  return budgetCut ? TROE_BUDGET_CUT : TROE_OK;
 }
 
 
@@ -829,7 +910,18 @@ int timescaleEntityTemporalRetrieve(Tenant* tenantP, const char* entityId,
   if (cP == NULL) return TROE_ERR;
   timescaleConn = cP->conn;
 
-  int r = buildEntityTemporalDocLocked(entityId, NULL, fP, resultPP, rangeOut);
+  //
+  // The byte budget: the entity's instances cut to what fits (fewer per attribute, the temporal
+  // pagination Link to the rest), or - not even one per attribute fits - nothing and budgetHit
+  //
+  int64_t budget = (fP != NULL) ? fP->maxBytes : 0;
+  int     r      = buildEntityTemporalDocLocked(entityId, NULL, fP, resultPP, rangeOut, budget, true, NULL);
+
+  if ((r == TROE_BUDGET_CUT) || (r == TROE_BUDGET_NO_FIT))
+  {
+    fP->budgetHit = true;
+    r             = TROE_OK;                             // NO_FIT: *resultPP NULL - the caller refuses it
+  }
 
   timescaleConn = NULL;
   timescaleConnRelease(cP);
@@ -1721,15 +1813,74 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
       timescaleConnRelease(cP);
       return TROE_ERR;
     }
+
+#if COR_FEATURE_RESPONSE_BUDGET
+    //
+    // The byte budget over aggregated Entities: a bucket per period is no longer an instance that can
+    // be cut, so each Entity whole or not at all, measured as rendered - after the store's aggregation,
+    // which holds a few values per bucket rather than the instances. The page ends before the one
+    // that does not fit; a first one that does not is refused by the caller (budgetHit, nothing).
+    //
+    if ((aggrRc != AGGR_DECLINED) && (fP->maxBytes > 0))
+    {
+      int64_t sum = 0;
+      int     ix  = 0;
+
+      for (CorNode* docP = arrP->value.head; docP != NULL; docP = docP->next, ix++)
+      {
+        sum += corJsonFastRenderSize(docP);
+
+        if (sum > fP->maxBytes)
+        {
+          fP->budgetHit          = true;
+          // Where the page stops in the result set: this Entity's position (one without an Attribute in the window is not in arrP)
+          CorNode* idP  = corTreeLookup(docP, "id");
+          int      hint = 0;
+          int      pos  = ((idP != NULL) && (idP->type == CorString)) ? aggrPageIndex(eRes, pageN, idP->value.s, &hint) : -1;
+
+          fP->budgetFetched      = (pos >= 0) ? pos : ix;
+          rangeOut->moreEntities = true;
+
+          // Cut the array before docP
+          if (ix == 0)
+          {
+            arrP->value.head = NULL;
+            arrP->value.tail = NULL;
+          }
+          else
+          {
+            CorNode* prevP = arrP->value.head;
+            for (int j = 1; j < ix; j++)
+              prevP = prevP->next;
+            prevP->next = NULL;
+            arrP->value.tail = prevP;
+          }
+          break;
+        }
+      }
+    }
+#endif
   }
+
+  //
+  // The byte budget (TroeQueryFilter.maxBytes): each entity whole or not at all, in the page's order -
+  // the page ends before the one that does not fit. Only the first entity of the page may instead be
+  // cut to fewer instances per attribute (it then ends the page): a page of whole entities can always
+  // go on where it stopped, an entity on its own cannot be skipped.
+  //
+  int64_t budget    = fP->maxBytes;
+  int64_t budgetSum = 0;
 
   for (int r = 0; (aggrRc == AGGR_DECLINED) && (r < pageN); r++)
   {
     const char* entityId   = corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
 
-    CorNode* docP = NULL;
-    int rc = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut);
+    CorNode* docP       = NULL;
+    int64_t  docBytes   = 0;
+    bool     first      = (arrP->value.head == NULL);
+    int64_t  remaining  = (budget > 0) ? ((budget > budgetSum) ? budget - budgetSum : 1) : 0;
+    int      rc         = buildEntityTemporalDocLocked(entityId, entityType, fP, &docP, rangeOut, remaining, first, &docBytes);
 
     if (rc == TROE_ERR)
     {
@@ -1738,6 +1889,27 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
       timescaleConnRelease(cP);
       return TROE_ERR;
     }
+
+    if (rc == TROE_BUDGET_NO_FIT)                      // the page ends before this entity
+    {
+      fP->budgetHit          = true;
+      fP->budgetFetched      = r;
+      rangeOut->moreEntities = true;
+      break;
+    }
+
+    if (rc == TROE_BUDGET_CUT)                         // the first entity, cut - and the page ends with it
+    {
+      fP->budgetHit     = true;
+      fP->budgetFetched = r + 1;
+      if (r + 1 < pageN)
+        rangeOut->moreEntities = true;
+      corTreeChildAdd(arrP, docP);
+      break;
+    }
+
+    budgetSum += docBytes;
+
     if (rc != TROE_OK || docP == NULL)
       continue;
 

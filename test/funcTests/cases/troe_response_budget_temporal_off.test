@@ -1,0 +1,124 @@
+#
+# FILE            troe_response_budget_temporal_off.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize 0: no byte budget on the temporal API. The same data as
+# troe_response_budget_temporal.test - five entities of ~450 KB of history, one of ten
+# ~150 000-byte instances, one of a single 1 200 000-byte instance - all of it on one page,
+# as limit and the instance cap say, nothing cut and nothing refused.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+Byte budget of a temporal query - off: whole pages, every instance
+
+--TAGS--
+troe timescale postgres temporal pagination
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync --maxResponseSize 0
+
+--RUN--
+#
+# show - GET a temporal URL; its status, the pagination Link header and, per entity, how many instances of each attribute
+#
+show() {
+  corCurl --url "$1" > /tmp/budgetTemporalOff.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetTemporalOff.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  if l.lower().startswith('link:') and 'json-ld#context' not in l:
+    print(l)
+b = body.strip()
+ents = json.loads(b) if b.startswith('[') else [json.loads(b)]
+for e in ents:
+  attrs = sorted((k, len(v)) for k, v in e.items() if isinstance(v, list) and k != 'type')
+  print(e['id'], ' '.join('%s:%d' % a for a in attrs))
+EOF
+}
+
+echo "01. Five entities urn:T:1..5 of three ~150 000-byte instances, urn:Big:1 of ten, urn:Huge:1 of one 1 200 000-byte instance"
+echo "========================================================================================================================="
+python3 -c "import json; print(json.dumps({'value':'A'*150000}))" > /tmp/budgetInstanceOff.json
+for i in 1 2 3 4 5; do
+  python3 -c "import json; print(json.dumps({'id':'urn:T:$i','type':'Blob','blob':{'type':'Property','value':'A'*150000}}))" > /tmp/budgetEntityOff.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntityOff.json | grep -c '^HTTP/1.1 201' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:T:$i/attrs/blob -X PATCH --payload /tmp/budgetInstanceOff.json | grep -c '^HTTP/1.1 204' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:T:$i/attrs/blob -X PATCH --payload /tmp/budgetInstanceOff.json | grep -c '^HTTP/1.1 204' > /dev/null
+done
+python3 -c "import json; print(json.dumps({'id':'urn:Big:1','type':'BigHistory','blob':{'type':'Property','value':'B'*150000}}))" > /tmp/budgetEntityOff.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntityOff.json | grep -c '^HTTP/1.1 201' > /dev/null
+for i in 2 3 4 5 6 7 8 9 10; do
+  corCurl --url /ngsi-ld/v1/entities/urn:Big:1/attrs/blob -X PATCH --payload /tmp/budgetInstanceOff.json | grep -c '^HTTP/1.1 204' > /dev/null
+done
+python3 -c "import json; print(json.dumps({'id':'urn:Huge:1','type':'Huge','blob':{'type':'Property','value':'H'*1200000}}))" > /tmp/budgetEntityOff.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntityOff.json | grep -c '^HTTP/1.1 201' > /dev/null
+\rm -f /tmp/budgetEntityOff.json /tmp/budgetInstanceOff.json
+echo done
+echo
+echo
+
+
+echo "02. GET /temporal/entities type=Blob - all five on one page, no next link"
+echo "========================================================================="
+show '/ngsi-ld/v1/temporal/entities?type=Blob&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt&limit=100'
+echo
+echo
+
+
+echo "03. GET /temporal/entities/urn:Big:1 - all ten instances, no temporal pagination link"
+echo "====================================================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:Big:1'
+echo
+echo
+
+
+echo "04. GET /temporal/entities/urn:Huge:1 - its one instance, 200"
+echo "============================================================="
+show '/ngsi-ld/v1/temporal/entities/urn:Huge:1'
+\rm -f /tmp/budgetTemporalOff.out
+echo
+echo
+
+
+--EXPECT--
+01. Five entities urn:T:1..5 of three ~150 000-byte instances, urn:Big:1 of ten, urn:Huge:1 of one 1 200 000-byte instance
+=========================================================================================================================
+done
+
+
+02. GET /temporal/entities type=Blob - all five on one page, no next link
+=========================================================================
+HTTP/1.1 200 OK
+urn:T:1 blob:3
+urn:T:2 blob:3
+urn:T:3 blob:3
+urn:T:4 blob:3
+urn:T:5 blob:3
+
+
+03. GET /temporal/entities/urn:Big:1 - all ten instances, no temporal pagination link
+=====================================================================================
+HTTP/1.1 200 OK
+urn:Big:1 blob:10
+
+
+04. GET /temporal/entities/urn:Huge:1 - its one instance, 200
+=============================================================
+HTTP/1.1 200 OK
+urn:Huge:1 blob:1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

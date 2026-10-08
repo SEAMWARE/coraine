@@ -595,8 +595,15 @@ itself.
 **Done** (`--maxResponseSize`; without it 1/16 of the memory budget, none outside a limit; [Response size](installation.md#response-size)): both
 stores count each entity while fetching it (`DbQueryFilter.maxBytes`), a short page's `next` link starts
 where it stopped, and the unpaged pass (`orderBy`, an EntityMap, split entities) answers 403
-TooManyResults over the budget. **Open:** temporal queries, and the entities that Context Sources
-contribute to a distributed query (only the local part is counted).
+TooManyResults over the budget. Temporal queries too (`TroeQueryFilter.maxBytes`, timescale and
+corDB): a short page, or one entity's instances cut to the K per attribute that fit with the temporal
+pagination Link at `offsetN` + K, 403 when not even one instance per attribute fits. And the
+forwarded part of a distributed query: each source's answer read up to the budget and no further
+(`ldDistOpSendMultiMax`, corRest `corRestClientMultiMaxResponse`), the local and the forwarded pages
+cut at one depth so that one `next` (`offsetN`) continues them all, 403 for the whole-set cases
+(split entities, `orderBy`, an EntityMap) and for a source whose answer passes the budget.
+**Open:** a split-entity distributed query forwards no `offset` / `limit` and applies no `offset`
+itself, so it is refused over the budget rather than paged.
 
 ---
 

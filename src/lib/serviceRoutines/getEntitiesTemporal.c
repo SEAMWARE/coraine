@@ -71,6 +71,9 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader
+#if COR_FEATURE_RESPONSE_BUDGET
+#include "serviceRoutines/responseBudget.h"          // responseBudgetBytes, responseBudgetTooMany, responseBudgetDepth, responseBudgetCut
+#endif
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
 
 
@@ -643,6 +646,14 @@ bool getEntitiesTemporal(void)
     }
   }
 
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget (--maxResponseSize, TroeDriver.h): the store's page ends before the entity that
+  // does not fit, and a first entity that does not fit whole comes with fewer instances per attribute
+  //
+  filter.maxBytes = responseBudgetBytes;
+#endif
+
   TroeRangeInfo rangeInfo;
   memset(&rangeInfo, 0, sizeof(rangeInfo));
 
@@ -655,6 +666,16 @@ bool getEntitiesTemporal(void)
             "temporal query failed");
     return true;
   }
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  if (filter.budgetHit && ((result == NULL) || (result->value.head == NULL)))
+  {
+    responseBudgetTooMany("the next entity's temporal representation, even with one instance per attribute,");
+    return true;
+  }
+
+  int nextOffset = corNgsild.offset + filter.budgetFetched;   // where the page stopped - read only when the budget ended it
+#endif
 
   // No matches yet → start with empty array; distops may still contribute.
   if (result == NULL)
@@ -747,7 +768,67 @@ bool getEntitiesTemporal(void)
 
       if (itemCount > 0)
       {
+#if COR_FEATURE_RESPONSE_BUDGET
+        //
+        // The byte budget over the sources' answers. Each is read up to the budget and no further (a
+        // body past it is dropped unread, tooLarge); then the local page and every source's page are
+        // cut at the same depth - the most entities of each that fit in the budget together (and in
+        // limit) - so that offset + that depth is where every one of them continues
+        // (responseBudget.h). A source whose answer could not be read leaves nothing to cut: refused.
+        //
+        ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, responseBudgetBytes);
+
+        if (responseBudgetBytes > 0)
+        {
+          CorNode** partV = (CorNode**) corAlloc(&corRest.kalloc, (itemCount + 1) * sizeof(CorNode*));
+          int       parts = 0;
+
+          partV[parts++] = result;
+
+          for (int i = 0; i < itemCount; i++)
+          {
+            if (results[i].tooLarge)
+            {
+              char what[512];
+              snprintf(what, sizeof(what), "the page of Context Source '%s' (lower 'limit')",
+                       (items[i].csr->regId != NULL) ? items[i].csr->regId : "?");
+              responseBudgetTooMany(what);
+              for (int m = 0; m < 4; m++)
+                ldRegCacheMatchRelease(matchV[m], matchN[m]);
+              return true;
+            }
+
+            if ((results[i].statusCode >= 200) && (results[i].statusCode < 300) &&
+                (results[i].responseTree != NULL) && (results[i].responseTree->type == CorArray))
+              partV[parts++] = results[i].responseTree;
+          }
+
+          int localN = 0;
+          for (CorNode* eP = result->value.head; eP != NULL; eP = eP->next)
+            ++localN;
+
+          int pageLimit = limitGiven ? corNgsild.limit : 1000;   // as the store's page (no limit: 1000)
+          int depth     = responseBudgetDepth(partV, parts, responseBudgetBytes, pageLimit, filter.budgetHit ? localN : -1);
+
+          if (depth == 0)
+          {
+            responseBudgetTooMany("the next entity of this broker together with the next one of each Context Source");
+            for (int m = 0; m < 4; m++)
+              ldRegCacheMatchRelease(matchV[m], matchN[m]);
+            return true;
+          }
+
+          if (depth > 0)
+          {
+            responseBudgetCut(partV, parts, depth);
+            filter.budgetHit       = true;
+            rangeInfo.moreEntities = true;
+            nextOffset             = corNgsild.offset + depth;
+          }
+        }
+#else
         ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
+#endif
 
         for (int i = 0; i < itemCount; i++)
         {
@@ -833,8 +914,20 @@ bool getEntitiesTemporal(void)
   // more pending. When more entities remain (moreEntities) the next pointer is
   // kept even on an empty page (e.g. limit=0&count=true) so the client can
   // advance to the first data page.
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // A page the budget ended: the next one starts where it stopped, not `limit` further on. An entity
+  // cut to fewer instances ends its page too (the store took one position), and its instances go on
+  // in the temporal pagination Link below.
+  //
+  if (filter.budgetHit)
+    ldPaginationLinkHeaderAt(rangeInfo.moreEntities, nextOffset);
+  else if ((result != NULL && result->value.head != NULL) || rangeInfo.moreEntities)
+    ldPaginationLinkHeader(rangeInfo.moreEntities);
+#else
   if ((result != NULL && result->value.head != NULL) || rangeInfo.moreEntities)
     ldPaginationLinkHeader(rangeInfo.moreEntities);
+#endif
 
   // § 6.4.7.3: when any entity's instances remain beyond the returned
   // page, emit Link rel="intervalafter"/"intervalbefore" page pointers.

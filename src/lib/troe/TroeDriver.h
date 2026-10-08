@@ -195,7 +195,40 @@ typedef struct TroeQueryFilter
   // Set together with qSqlPredicate. Last in the struct: a store built against
   // an older header never reads it.
   const char*  qRowPredicate;
+
+  //
+  // maxBytes - the byte budget of the fetch (--maxResponseSize; 0 = none), as DbQueryFilter.maxBytes
+  //
+  // The plugin adds up the size of each instance AS IT FETCHES IT (timescale: the text of the row's
+  // values, corDB: the instance's stored record) and of an entity as the sum of its instances:
+  //
+  //   - a query: the entities in their order, each whole (every instance its page gives it) or not
+  //     at all - the page ends before the entity that does not fit. budgetFetched says how many of
+  //     the result set's positions the page took (offset + budgetFetched is where the next one starts);
+  //   - the FIRST entity of a query that does not fit whole, and the entity of a retrieve: its
+  //     instances cut to the K per attribute that fit - the same K for every attribute, in the
+  //     page's order, as a smaller instance limit. TroeRangeInfo.size = K and hasMore = true, so the
+  //     temporal pagination Link (§ 6.4.7.3) points at offsetN + K.
+  //
+  // budgetHit: either of the two happened. With nothing returned it means not even one instance of
+  // every attribute fits - for the caller to refuse (403 TooManyResults).
+  //
+  // Last in the struct: a store built against an older header never reads them.
+  //
+  int64_t      maxBytes;         // input: 0 = no budget
+  bool         budgetHit;        // OUTPUT: the budget ended the page or cut the entity's instances
+  int          budgetFetched;    // OUTPUT (query): result-set positions the page took - set when budgetHit
 } TroeQueryFilter;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// TROE_QUERY_FILTER_MAX_BYTES - this header has TroeQueryFilter.maxBytes, budgetHit and budgetFetched
+//
+// A plugin built outside this tree (corDB) tests it, so it builds against a coraine with and without them.
+//
+#define TROE_QUERY_FILTER_MAX_BYTES
 
 
 
