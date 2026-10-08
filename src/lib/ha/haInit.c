@@ -14,6 +14,7 @@
 #include "corLog/corLog.h"                               // KT_*
 
 #include "db/DbDriver.h"                                 // db
+#include "troe/TroeDriver.h"                             // troe
 #include "coraineTraceLevels.h"                         // CtHa
 #include "ha/haEventApply.h"                             // haEventApply
 #include "ha/haInit.h"                                   // Own interface
@@ -91,6 +92,19 @@ bool haInit(void)
       COR_X(1, "--ha mongo needs a database plugin that can report what another broker instance wrote; the '%s' plugin cannot. "
               "Point the broker at a shared database, or use '--ha <ip:port>' once the haaux server exists",
             (db.alias != NULL)? db.alias : "current");
+
+    //
+    // The history must be shared too. Every broker records the history of the writes it serves, so
+    // with a TRoE store inside the process (corDB, ramDB) each instance holds its own share of it,
+    // and a temporal query answers with whatever part the instance it reached happens to have.
+    // Accepted: the stores outside the process - and none.
+    //
+    const char* troeAlias = (troe.alias != NULL)? troe.alias : "none";
+
+    if ((strcmp(troeAlias, "timescale") != 0) && (strcmp(troeAlias, "none") != 0))
+      COR_X(1, "--ha mongo needs a temporal store shared by every broker instance; '--troe %s' keeps the history inside "
+              "each broker, so every instance would hold only the history of the writes it served. Use '--troe timescale'",
+            troeAlias);
 
     COR_T(CtHa, "HA: the database change feed is the channel");
 
