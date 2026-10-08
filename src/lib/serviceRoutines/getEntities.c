@@ -2087,7 +2087,91 @@ bool getEntities(void)
 
       if (itemCount > 0)
       {
+#if COR_FEATURE_RESPONSE_BUDGET
+        ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, responseBudgetBytes);   // read up to the budget, no further
+
+        //
+        // The byte budget over what the Context Sources answer (responseBudget.h). A source whose answer
+        // passed the budget was not read: nothing of it can be placed on a page - refused. Then:
+        //   - a query that needs every match at once (orderBy, an EntityMap, split entities): the local
+        //     matches and every source's together, or refused;
+        //   - a paged one: the local page and every source's page cut at the same depth - the most
+        //     entities of each that fit in the budget together and in limit - so offset + that depth
+        //     is where this page stops for every one of them (the sources were asked for the same
+        //     offset and limit), and the next link says so.
+        //
+        if (responseBudgetBytes > 0)
+        {
+          bool      wholeSet = brokerPaginates || corNgsild.entityMapCreate || splitMode;
+          CorNode** partV    = (CorNode**) corAlloc(&corRest.kalloc, (itemCount + 1) * sizeof(CorNode*));
+          int       parts    = 0;
+          int64_t   mapBytes = 0;
+
+          partV[parts++] = arrayP;
+
+          for (int i = 0; i < itemCount; i++)
+          {
+            if (results[i].tooLarge)
+            {
+              char what[512];
+              snprintf(what, sizeof(what), "the answer of Context Source '%s' (lower 'limit')",
+                       (items[i].csr->regId != NULL) ? items[i].csr->regId : "?");
+              for (int m = 0; m < 4; m++)
+                if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+              responseBudgetTooMany(what);
+              return true;
+            }
+
+            CorNode* treeP = results[i].responseTree;
+
+            if ((results[i].statusCode < 200) || (results[i].statusCode >= 300) || (treeP == NULL))
+              continue;
+
+            if ((treeP->type == CorObject) && (corNgsild.entityMapCreate == false))   // one entity, unwrapped (§ 6.3.16) - wrapped as the merge below does
+            {
+              CorNode* wrapP = corTreeArray(corRest.kallocP, NULL);
+              corTreeChildAdd(wrapP, treeP);
+              results[i].responseTree = wrapP;
+              treeP                   = wrapP;
+            }
+
+            if (treeP->type == CorArray)
+              partV[parts++] = treeP;
+            else
+              mapBytes += corJsonFastRenderSize(treeP);     // a source's EntityMap: counted whole
+          }
+
+          int depth = (mapBytes >= responseBudgetBytes) ? 0 :
+                      responseBudgetDepth(partV, parts, responseBudgetBytes - mapBytes,
+                                          wholeSet ? 0 : corNgsild.limit,
+                                          (wholeSet || (filter.budgetHit == false)) ? -1 : budgetFetched);
+
+          if ((depth >= 0) && wholeSet)
+          {
+            for (int m = 0; m < 4; m++)
+              if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+            responseBudgetTooMany("the set of matches of this broker and its Context Sources, which this query needs all at once (orderBy, an EntityMap or split entities),");
+            return true;
+          }
+
+          if (depth == 0)
+          {
+            for (int m = 0; m < 4; m++)
+              if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+            responseBudgetTooMany("the next entity of this broker together with the next one of each Context Source");
+            return true;
+          }
+
+          if (depth > 0)
+          {
+            responseBudgetCut(partV, parts, depth);
+            filter.budgetHit = true;
+            budgetFetched    = depth;                       // the next page: offset + depth, for every part
+          }
+        }
+#else
         ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
+#endif
 
         for (int i = 0; i < itemCount; i++)
         {

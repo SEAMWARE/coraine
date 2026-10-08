@@ -229,7 +229,8 @@ Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compa
 ## Response size
 
 **`--maxResponseSize <MiB>`** (0 = no budget, at most 4096) is the byte budget of an entity query: `GET /ngsi-ld/v1/entities` and `POST /ngsi-ld/v1/entityOperations/query`, on the live
-tenant and on a Snapshot. The store counts each entity as it fetches it and stops before the one that
+tenant and on a Snapshot - and of the [temporal queries](#temporal-queries) and the
+[forwarded part](#distributed-queries) of a distributed query. The store counts each entity as it fetches it and stops before the one that
 would take the sum past the budget, so the memory a query takes is bounded while it is fetched, not
 after it has been rendered. What is counted is the stored entity: with `mongoc` the length of its BSON
 document, with `corDB` the size of its JSON rendering. `pick`, `omit`, `attrs` and the output format
@@ -251,9 +252,45 @@ leaves the memory budget room for them. `-v` at startup says which budget is in 
 
 The end of a result set is the page without a `rel="next"` link, not a page shorter than `limit`.
 
-Not covered: temporal queries (`/ngsi-ld/v1/temporal/entities`), and the entities that Context
-Sources return to a distributed query - only the local part of the query is counted. In the build by
-default; `-DCOR_FEATURE_RESPONSE_BUDGET=OFF` leaves it out (no option, no budget).
+### Temporal queries
+
+The same budget bounds `GET /ngsi-ld/v1/temporal/entities`, `POST /ngsi-ld/v1/temporal/entityOperations/query`
+and `GET /ngsi-ld/v1/temporal/entities/{id}`. The store measures an entity's instances before it fetches
+them: with `timescale` the text of each instance's values plus 128 bytes for its type and timestamps,
+with `corDB` the stored record of each instance. The instances are taken by rank - the k-th instance
+of every attribute (and datasetId) of the page, in the page's order - so a cut leaves every attribute
+with the same number of instances, as a smaller `firstN` / `lastN` would.
+
+| Case | Answer |
+|---|---|
+| a query: the budget is reached before `limit` | 200 with a page shorter than `limit`, each entity on it with every instance its temporal page gives it. `Link` `rel="next"` points at `offset` + the entities returned |
+| one entity whose instances are larger than the budget - a retrieve, or the first entity of a query's page | 200 with the K instances per attribute that fit (K smaller than `firstN` / `lastN` / `--troeInstanceCap`). The temporal pagination `Link` (`rel="intervalafter"`, `rel="intervalbefore"` with `lastN`) points at `offsetN` + K, as for the instance cap (TS 104-176 § 6.4.7.3). On a query, that entity ends the page: `rel="next"` points at `offset` + 1 |
+| not even one instance of every attribute of the entity fits | 403 `TooManyResults` |
+| `format=aggregatedValues` computed by the store | each entity whole or not at all (a bucket is not an instance that can be left for the next page): a shorter page, or 403 when the first entity is larger than the budget |
+
+`--troe ramDB` answers no temporal query, so it has nothing to bound.
+
+### Distributed queries
+
+What the Context Sources answer to a forwarded query counts against the same budget, in
+`GET /ngsi-ld/v1/entities`, `POST /ngsi-ld/v1/entityOperations/query` and the temporal queries above.
+
+Each source's answer is read up to the budget and no further: an answer whose body is larger is
+dropped as it arrives, its connection closed, and the query is refused with 403 `TooManyResults`
+naming the registration - nothing of it can be placed on a page. Lowering `limit` makes the
+source's answer smaller. Over HTTP the read stops at the budget; an answer from a source this broker
+serves in process, or over `cor://`, is already in memory when it is measured, and is dropped the same.
+
+The answers that were read are then counted entity by entity, as rendered:
+
+| Case | Answer |
+|---|---|
+| a paged query (`splitEntities=false` or `--noSplitEntities`: every entity wholly at one source) | the local page and each source's page are cut at the same depth - the most entities of each that fit in the budget together, and in `limit`. 200, `Link` `rel="next"` at `offset` + that depth: the sources are asked for the same `offset` and `limit` as the local store, so the next page continues every one of them where this one stopped |
+| the depth is 0: the first entity of the local page and of each source's page together are larger than the budget | 403 `TooManyResults` |
+| a query that needs every match at once - split entities (the default: an entity is assembled from the parts the sources hold before the page is cut), `orderBy`, `entityMap=true` - and the local and forwarded matches together are larger than the budget | 403 `TooManyResults` |
+| one entity's history, `GET /temporal/entities/{id}`, with Context Sources | the instance arrays of every attribute - local and each source's - cut at the same depth (the K instances of each that fit together); `rel="intervalafter"` at `offsetN` + K |
+
+In the build by default; `-DCOR_FEATURE_RESPONSE_BUDGET=OFF` leaves it out (no option, no budget).
 
 ## Health port
 

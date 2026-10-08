@@ -1,0 +1,249 @@
+#
+# FILE            distop_query_response_budget.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize on a distributed query: what the Context Sources answer counts against the same
+# byte budget as the local entities (TS 104-175 § 7.4.2.1: a hard limit to the size of the response
+# payload body; § 7.4.2.2: under it a page can hold fewer Elements than limit).
+#
+# Paged (splitEntities=false - every entity wholly at one source): the sources are asked for the
+# same offset and limit as the local store, so one `next` link can
+# serve them all only if every part of the page - the local page and each source's - stops at the
+# same depth: the page is cut there, at the most entities of each that fit in the budget together,
+# and rel="next" says offset + that depth. Following it returns every entity exactly once.
+#
+# Refused (403 TooManyResults):
+#   - a query that needs all its matches at once - orderBy, and split entities (the default: every
+#     entity assembled from the parts the sources hold before the page is cut) - when the local and
+#     remote matches together do not fit;
+#   - a source whose answer is larger than the budget: it is not read further than the budget (the
+#     broker closes the connection), so there is nothing of it to place on a page.
+#
+# 1 MiB budget. Three local entities urn:L:1..3 and three at CP1 urn:R:1..3, ~300 000 bytes each.
+# ftClient answers for type Huge with a body of ~2 000 000 bytes.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET REGISTRATIONS
+#
+--NAME--
+Byte budget of a distributed query - the forwarded part counted, a short page, 403
+
+--TAGS--
+distop distops query pagination link-header registration forwarding
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist --maxResponseSize 1
+coraineStart -role CP1
+ftClientStart --port 7753
+
+--RUN--
+CP1="http://localhost:${CP1_PORT}"
+
+#
+# page - GET a page, show its status, its Link header and the ids it holds
+#
+page() {
+  corCurl --url "$1" > /tmp/budgetDist.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetDist.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  k = l.split(':', 1)[0].lower()
+  if (k == 'link' and 'json-ld#context' not in l) or k == 'ngsild-warning':
+    print(l)
+b = body.strip()
+if b.startswith('['):
+  print('ids:', ' '.join(e['id'] for e in json.loads(b)))
+elif b:
+  e = json.loads(b)
+  print('error:', e.get('type'), '-', e.get('detail'))
+EOF
+}
+
+echo "01. Three local entities urn:L:1..3 and three at CP1 urn:R:1..3, ~300 000 bytes each"
+echo "===================================================================================="
+for i in 1 2 3; do
+  python3 -c "import json; print(json.dumps({'id':'urn:L:$i','type':'Blob','blob':{'type':'Property','value':'L'*300000}}))" > /tmp/budgetDistEntity.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetDistEntity.json | grep '^HTTP/1.1 2'
+  python3 -c "import json; print(json.dumps({'id':'urn:R:$i','type':'Blob','blob':{'type':'Property','value':'R'*300000}}))" > /tmp/budgetDistEntity.json
+  corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload /tmp/budgetDistEntity.json | grep '^HTTP/1.1 2'
+done
+\rm -f /tmp/budgetDistEntity.json
+echo
+echo
+
+
+echo "02. Register CP1 for type Blob (inclusive)"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","information":[{"entities":[{"type":"Blob"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. GET type=Blob, splitEntities=false - L1 and R1 fit, L2 and R2 would not: page L1 R1, next at offset 1"
+echo "========================================================================================================"
+page '/ngsi-ld/v1/entities?type=Blob&limit=100&splitEntities=false'
+echo
+echo
+
+
+echo "04. Following the next links returns every local and remote entity exactly once"
+echo "==============================================================================="
+url='/ngsi-ld/v1/entities?type=Blob&limit=100&splitEntities=false'
+all=""
+pages=0
+while [ -n "$url" ]; do
+  page "$url" > /tmp/budgetDistWalk.out
+  all="$all $(grep '^ids:' /tmp/budgetDistWalk.out | cut -c5-)"
+  url=$(grep -i '^link:' /tmp/budgetDistWalk.out | grep -o '<[^>]*>;rel="next"' | sed 's/^<//; s/>;rel="next"$//')
+  pages=$((pages + 1))
+  [ $pages -gt 10 ] && break
+done
+echo "pages: $pages"
+echo "ids:  $(echo $all | tr ' ' '\n' | sort | uniq -c | awk '{ print $2 "x" $1 }' | tr '\n' ' ')"
+\rm -f /tmp/budgetDistWalk.out
+echo
+echo
+
+
+echo "05. limit=1 binds before the budget - the page as without a budget: one entity, next at offset 1"
+echo "================================================================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=1&splitEntities=false'
+echo
+echo
+
+
+echo "06. orderBy=id - all six at once (1.8 MB) do not fit: 403"
+echo "========================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=100&orderBy=id&splitEntities=false'
+echo
+echo
+
+
+echo "07. Split entities (the default) - every match assembled at once (1.8 MB): 403"
+echo "==============================================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=100'
+echo
+echo
+
+
+echo "08. local=true - the three local entities fit, no forward"
+echo "=========================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=100&local=true'
+echo
+echo
+
+
+echo "09. Register ftClient for type Huge and program it with a ~2 000 000-byte answer"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:Huge","type":"ContextSourceRegistration","endpoint":"http://localhost:7753","mode":"inclusive","operations":["queryEntity"],"information":[{"entities":[{"type":"Huge"}]}]}' | head -1
+python3 - <<'EOF' > /tmp/budgetDistMock.json
+import json
+ents = [{'id': 'urn:Huge:%d' % i, 'type': 'Huge', 'blob': {'type': 'Property', 'value': 'H' * 200000}} for i in range(1, 11)]
+print(json.dumps({'verb': 'GET', 'path': '/entities', 'status': 200, 'raw': json.dumps(ents)}))
+EOF
+corCurl --port 7753 --url /mock/reply --payload /tmp/budgetDistMock.json | head -1
+\rm -f /tmp/budgetDistMock.json
+echo
+echo
+
+
+echo "10. GET type=Huge - the source's answer is larger than the budget: 403, the source named"
+echo "======================================================================================="
+page '/ngsi-ld/v1/entities?type=Huge&limit=100&splitEntities=false'
+echo
+echo
+
+
+echo "11. The broker read no further than the budget - its log says so"
+echo "================================================================"
+grep -c "CSR urn:CSR:Huge answered with more than the 1048576 bytes the request can take - not read further" /tmp/coraine.CB.log
+\rm -f /tmp/budgetDist.out
+echo
+echo
+
+
+--EXPECT--
+01. Three local entities urn:L:1..3 and three at CP1 urn:R:1..3, ~300 000 bytes each
+====================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Register CP1 for type Blob (inclusive)
+==========================================
+HTTP/1.1 201 Created
+
+
+03. GET type=Blob, splitEntities=false - L1 and R1 fit, L2 and R2 would not: page L1 R1, next at offset 1
+========================================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?type=Blob&splitEntities=false&limit=100&offset=1>;rel="next";type="application/json"
+ids: urn:L:1 urn:R:1
+
+
+04. Following the next links returns every local and remote entity exactly once
+===============================================================================
+pages: 3
+ids:  urn:L:1x1 urn:L:2x1 urn:L:3x1 urn:R:1x1 urn:R:2x1 urn:R:3x1 
+
+
+05. limit=1 binds before the budget - the page as without a budget: one entity, next at offset 1
+=================================================================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?type=Blob&splitEntities=false&limit=1&offset=1>;rel="next";type="application/json"
+ids: urn:L:1
+
+
+06. orderBy=id - all six at once (1.8 MB) do not fit: 403
+=========================================================
+HTTP/1.1 403 Forbidden
+error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the set of matches of this broker and its Context Sources, which this query needs all at once (orderBy, an EntityMap or split entities), exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
+
+
+07. Split entities (the default) - every match assembled at once (1.8 MB): 403
+===============================================================================
+HTTP/1.1 403 Forbidden
+error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the set of matches of this broker and its Context Sources, which this query needs all at once (orderBy, an EntityMap or split entities), exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
+
+
+08. local=true - the three local entities fit, no forward
+==========================================================
+HTTP/1.1 200 OK
+ids: urn:L:1 urn:L:2 urn:L:3
+
+
+09. Register ftClient for type Huge and program it with a ~2 000 000-byte answer
+================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 100 Continue
+
+
+10. GET type=Huge - the source's answer is larger than the budget: 403, the source named
+=======================================================================================
+HTTP/1.1 403 Forbidden
+error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the answer of Context Source 'urn:CSR:Huge' (lower 'limit') exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
+
+
+11. The broker read no further than the budget - its log says so
+================================================================
+1
+
+
+--TEARDOWN--
+ftClientStop --port 7753
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
