@@ -665,6 +665,51 @@ kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: kil
 echo "perfRun.sh: patch_manysubs_c50: $notified notifications received" >&2
 
 #
+# A RARE TYPE IN A LARGE STORE. Every scenario above queries the fixture's one type, so the store's
+# order of entities and the type's share of them never mattered. A query by type in the default order
+# (createdAt, _id) is answered from an index - and which one decides how many documents are read for a
+# page: an order index walked and filtered by type reads (page / the type's share) documents. So: the
+# store emptied, then PERF_RARE_ENTITIES (default 100 000) of the same ~550-byte entity, one in a
+# hundred of type Rare (urn:ngsi-ld:Vehicle:rare-<n>, spread evenly through creation order) and the rest
+# of type Common - and the first page of Rare (limit=20, limit=100) and a deeper one (offset=500).
+# Last, so that nothing above runs on this store. Added 2026-10-08 with mongoc's {type, createdAt, _id}
+# index.
+#
+RARE_ENTITIES=${PERF_RARE_ENTITIES:-100000}
+
+rareFill() {
+  local code line from=1
+  while IFS= read -r line; do
+    code=$(printf '%s' "$line" | curl -s -o /dev/null -w '%{http_code}' -X POST \
+                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                -H 'Content-Type: application/json' --data-binary @-)
+    [ "$code" = 201 ] || { echo "perfRun.sh: the rare-type store got HTTP $code creating a batch from entity $from" >&2; exit 1; }
+    from=$(( from + FIXTURE_CHUNK ))
+  done < <(awk -v n="$RARE_ENTITIES" -v chunk="$FIXTURE_CHUNK" 'BEGIN {
+    for (from = 1; from <= n; from += chunk) {
+      to = from + chunk - 1; if (to > n) to = n
+      line = "["
+      for (i = from; i <= to; i++) {
+        if (i > from) line = line ","
+        if (i % 100 == 0) { id = "rare-" (i / 100); type = "Rare" } else { id = "common-" i; type = "Common" }
+        line = line sprintf("{\"id\":\"urn:ngsi-ld:Vehicle:%s\",\"type\":\"%s\",\"brand\":{\"type\":\"Property\",\"value\":\"Mercedes\"},\"speed\":{\"type\":\"Property\",\"value\":%d,\"observedAt\":\"2026-08-20T10:00:00Z\"},\"location\":{\"type\":\"GeoProperty\",\"value\":{\"type\":\"Point\",\"coordinates\":[13.4,52.5]}},\"isParked\":{\"type\":\"Relationship\",\"object\":\"urn:ngsi-ld:OffStreetParking:%d\"},\"description\":{\"type\":\"Property\",\"value\":\"a five-attribute vehicle used for throughput measurement, padded to roughly five hundred bytes so the numbers mean something ------------------------------------------------\"}}", id, type, i % 120, i)
+      }
+      print line "]"
+    }
+  }')
+}
+
+resetStore
+rareFill
+have=$(curl -s -D - -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=0&count=true" \
+       | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
+[ "${have:-0}" = "$(( RARE_ENTITIES / 100 ))" ] || { echo "perfRun.sh: the rare-type store holds ${have:-0} Rare entities, not $(( RARE_ENTITIES / 100 ))" >&2; exit 1; }
+
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=20" 50 ; read -r rareL20C50 rareL20C50P99 rareL20C50P50 rareL20C50P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=100" 50 ; read -r rareL100C50 rareL100C50P99 rareL100C50P50 rareL100C50P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=20&offset=500" 50 ; read -r rareO500C50 rareO500C50P99 rareO500C50P50 rareO500C50P95 <<< "$SCEN"
+
+#
 # Every rate carries the tail it was measured with. A throughput number on its
 # own says nothing about whether the requests behind it were answered promptly
 # or queued: libmicrohttpd reaches a higher peak than corHttp and pays for it in
@@ -686,4 +731,7 @@ printf ',"merge_c50":%s,"merge_c50_p50us":%s,"merge_c50_p95us":%s,"merge_c50_p99
 printf ',"delete_c50":%s,"delete_c50_p50us":%s,"delete_c50_p95us":%s,"delete_c50_p99us":%s' "$deleteC50" "$deleteC50P50" "$deleteC50P95" "$deleteC50P99"
 printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
 printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s,"patch_subs_c50_p99us":%s' "$patchSubsC50" "$patchSubsC50P50" "$patchSubsC50P95" "$patchSubsC50P99"
-printf ',"patch_manysubs_c50":%s,"patch_manysubs_c50_p50us":%s,"patch_manysubs_c50_p95us":%s,"patch_manysubs_c50_p99us":%s}\n' "$patchManySubsC50" "$patchManySubsC50P50" "$patchManySubsC50P95" "$patchManySubsC50P99"
+printf ',"patch_manysubs_c50":%s,"patch_manysubs_c50_p50us":%s,"patch_manysubs_c50_p95us":%s,"patch_manysubs_c50_p99us":%s' "$patchManySubsC50" "$patchManySubsC50P50" "$patchManySubsC50P95" "$patchManySubsC50P99"
+printf ',"rare_l20_c50":%s,"rare_l20_c50_p50us":%s,"rare_l20_c50_p95us":%s,"rare_l20_c50_p99us":%s' "$rareL20C50" "$rareL20C50P50" "$rareL20C50P95" "$rareL20C50P99"
+printf ',"rare_l100_c50":%s,"rare_l100_c50_p50us":%s,"rare_l100_c50_p95us":%s,"rare_l100_c50_p99us":%s' "$rareL100C50" "$rareL100C50P50" "$rareL100C50P95" "$rareL100C50P99"
+printf ',"rare_l20_o500_c50":%s,"rare_l20_o500_c50_p50us":%s,"rare_l20_o500_c50_p95us":%s,"rare_l20_o500_c50_p99us":%s}\n' "$rareO500C50" "$rareO500C50P50" "$rareO500C50P95" "$rareO500C50P99"

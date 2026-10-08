@@ -977,6 +977,76 @@ on both sides of zero.
   1 000, against its own run's `main`) and costs where every write notifies (-4 %) - unless the index makes the deciding cheap.
 - **mongoc does not move**: the database round trip is the cost there, not the matching.
 
+### The default order and its index on mongoc
+
+An entity query without `orderBy` returns its entities in creation order - `{createdAt: 1, _id: 1}` in
+mongoc, backed by the index `{createdAt, _id}`. Until 2026-10-08 a query by type had an index on
+`{type}` alone beside it; now it has `{type, createdAt, _id}`, and the broker drops the old `type_1`
+from an existing database at start.
+
+What MongoDB reads for one page of `type=X` in that order - `explain("executionStats")`, MongoDB 8.2.12,
+a scratch collection of 100 000 documents (~450 bytes) with types at 10 %, 1 % and 0.1 % of them:
+
+| type's share | page | `{type}` - documents read | plan | `{type, createdAt, _id}` - documents read (keys) |
+|---|---|---:|---|---:|
+| 10 % | `limit=20` | 191 | the `{createdAt,_id}` index, filtered by type | 20 (20) |
+| 10 % | `limit=100` | 991 | the same | 100 (100) |
+| 10 % | `limit=20`, skip 50 | 691 | the same | 20 (70) |
+| 1 % | any of the three | 1 000 | every entity of the type through `{type}`, sorted in memory | 20 / 100 / 20 (20 / 100 / 70) |
+| 0.1 % | any of the three | 100 | the same | 20 / 100 / 20 (20 / 100 / 70) |
+
+With `{type}` alone a page reads either (page / the type's share) documents or every entity of the type
+plus an in-memory sort - whichever the planner picks; a type of millions of entities on the second plan
+meets MongoDB's in-memory sort limit. With the type first in the order's index a page reads the page.
+
+**Measured** with `test/perf/perfRun.sh mongoc`, which has a scenario for it since this change: the store
+emptied, 100 000 of perfRun's ~550-byte entities created, one in a hundred of type `Rare` (1 000, spread
+evenly through creation order), the rest `Common`, plus the 100-entity fixture - then `type=Rare` with
+`limit=20`, `limit=100` and `limit=20&offset=500`, 50 connections. explain() on that store after each
+run: A read 1 000 documents (`type_1` and an in-memory sort) for each of the three; B read 20, 100 and
+20 (520 keys for the offset) through `type_1_createdAt_1__id_1`.
+
+| | |
+|---|---|
+| Builds | A = `main` `04785a2c`, B = `perf/mongoc-type-created-index` (the same plus this change); both `make release`, every library release (no `COR_T_ON` marker in the broker or `mongoc.so`), no PGO, libmicrohttpd |
+| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep; MongoDB 8.2.12 on the host, not pinned |
+| Load | `PERF_BROKER_CORES=2` (broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3`; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes"; interleaved A, B, A, B, 2026-10-08 22:18-22:43 |
+
+Requests/s; A-A and B-B are the run-to-run spread of the same build:
+
+| scenario | A1 | B1 | A2 | B2 | A-A | B-B | B vs A | p99 ms, A1 / B1 / A2 / B2 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Rare, `limit=20` | 558 | 11 126 | 589 | 11 422 | 5.4 % | 2.6 % | **×19.7** | 163.06 / 7.20 / 167.05 / 6.94 |
+| Rare, `limit=100` | 506 | 3 122 | 517 | 3 005 | 2.2 % | 3.8 % | **×6.0** | 125.08 / 29.06 / 131.95 / 38.52 |
+| Rare, `limit=20&offset=500` | 513 | 3 697 | 526 | 3 861 | 2.5 % | 4.3 % | **×7.3** | 119.77 / 20.41 / 117.61 / 20.06 |
+| query `limit=1`, c50 | 28 239 | 27 454 | 29 107 | 27 044 | 3.0 % | 1.5 % | -5.0 % | 3.93 / 3.82 / 3.72 / 3.82 |
+| query `limit=20`, c50 | 11 348 | 10 885 | 11 399 | 11 364 | 0.4 % | 4.3 % | -2.2 % | 7.00 / 7.29 / 7.21 / 7.04 |
+| query `limit=20`, c200 | 10 888 | 10 941 | 11 158 | 11 269 | 2.4 % | 3.0 % | +0.7 % | 21.66 / 22.25 / 23.09 / 20.80 |
+| query `limit=100`, c50 | 3 067 | 3 137 | 3 133 | 3 092 | 2.1 % | 1.4 % | +0.5 % | 30.47 / 30.68 / 30.15 / 31.29 |
+| `GET /entities/{id}`, c50 | 33 677 | 33 608 | 35 180 | 34 325 | 4.4 % | 2.1 % | -1.3 % | 3.20 / 3.52 / 3.40 / 3.69 |
+| `PATCH .../attrs`, c50 | 16 771 | 17 395 | 18 004 | 17 316 | 7.1 % | 0.5 % | -0.2 % | 4.31 / 4.29 / 3.96 / 4.11 |
+| `PATCH .../attrs`, c1 | 3 217 | 3 287 | 3 358 | 3 242 | 4.3 % | 1.4 % | -0.7 % | 0.43 / 0.98 / 0.40 / 2.67 |
+| merge, c50 | 21 813 | 21 909 | 22 862 | 23 138 | 4.7 % | 5.5 % | +0.8 % | 3.60 / 4.52 / 3.85 / 3.47 |
+| batch update (20), c50 | 1 545 | 1 634 | 1 648 | 1 618 | 6.5 % | 1.0 % | +1.8 % | 37.03 / 35.34 / 34.44 / 34.76 |
+| create, c50 | 31 105 | 31 603 | 32 300 | 32 552 | 3.8 % | 3.0 % | +1.2 % | 4.27 / 4.08 / 4.83 / 3.95 |
+| create, c1 | 6 886 | 7 029 | 7 177 | 7 321 | 4.1 % | 4.1 % | +2.0 % | 1.51 / 1.05 / 1.79 / 0.75 |
+| batch create (20), c50 | 7 176 | 6 822 | 6 967 | 7 295 | 3.0 % | 6.7 % | -0.2 % | 41.46 / 30.48 / 17.21 / 31.33 |
+| `DELETE`, c50 | 24 088 | 23 188 | 25 808 | 26 241 | 6.9 % | 12.4 % | -0.9 % | 6.15 / 6.59 / 4.81 / 4.26 |
+| batch delete (20), c50 | 3 245 | 3 210 | 3 347 | 3 150 | 3.1 % | 1.9 % | -3.5 % | 25.52 / 23.96 / 23.84 / 25.11 |
+| `PATCH`, 1 subscriber, c50 | 10 684 | 11 703 | 11 165 | 11 810 | 4.4 % | 0.9 % | +7.6 % | 8.80 / 7.74 / 8.73 / 8.03 |
+| `PATCH`, ~210 subscriptions, c50 | 10 588 | 11 299 | 11 064 | 11 308 | 4.4 % | 0.1 % | +4.4 % | 9.22 / 8.60 / 8.31 / 8.51 |
+
+- **A rare type's page: 19.7x the requests/s for `limit=20`** (573 -> 11 274), 6.0x for `limit=100`, 7.3x
+  for `offset=500`; p99 from 163-167 ms to 7 ms for `limit=20`.
+- **The writes do not pay for the wider index entry**: create, batch create, merge, `PATCH` within -0.2 %
+  to +2.0 %, inside their spreads (3-7 %); the old `{type}` index is gone, so a write still updates the
+  same number of indexes.
+- **The other queries** (perfRun's fixture, one type): `limit=20`, `limit=20` c200, `limit=100` within
+  -2.2 % to +0.7 %; `limit=1` -5.0 % against spreads of 3.0 % (A) and 1.5 % (B).
+
+**Conclusion:** the index is the change - a query by type reads only the page it returns, whatever the
+type's share of the store, at no measurable cost to writes.
+
 ### What the data takes on disk
 
 perfRun's fixture entity (five attributes, ~550 bytes of JSON), created with batch creates of 500;
