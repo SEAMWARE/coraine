@@ -1,0 +1,37 @@
+#
+# coraine.service - the coraine NGSI-LD context broker (package coraine)
+#
+# The options are in /etc/default/coraine (CORAINE_* environment variables - every command-line option
+# has one). To change something here, `systemctl edit coraine` (a drop-in), not this file.
+#
+# -fg: the broker stays in the foreground and logs to stdout - systemd supervises it and journald keeps
+# the log (journalctl -u coraine). SIGTERM is a clean stop: requests in flight finish, corDB's log is
+# synced and a snapshot written per tenant (corDB doc/persistence.md § 5a) - a stop that outlasts
+# TimeoutStopSec is still a stop that lost nothing (the log is synced before the snapshots).
+#
+[Unit]
+Description=coraine NGSI-LD context broker
+Documentation=https://github.com/SEAMWARE/coraine/blob/main/doc/installation.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=coraine
+Group=coraine
+EnvironmentFile=-/etc/default/coraine
+ExecStart=/usr/bin/coraine -fg
+KillSignal=SIGTERM
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=2
+StateDirectory=coraine
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/coraine
+LimitNOFILE=65536
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

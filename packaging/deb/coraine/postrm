@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# coraine postrm
+#
+# purge forgets the unit's enablement and removes /etc/default/coraine (a conffile - dpkg does that), but
+# NOT the data in /var/lib/coraine nor the user coraine: a store is not something a package removal
+# should take with it. `rm -rf /var/lib/coraine; deluser coraine` - by hand, when it really is to go.
+#
+set -e
+
+if [ -d /run/systemd/system ]; then
+  systemctl --system daemon-reload > /dev/null || true
+fi
+
+if [ "$1" = remove ] && command -v deb-systemd-helper > /dev/null; then
+  deb-systemd-helper mask coraine.service > /dev/null || true
+fi
+
+if [ "$1" = purge ] && command -v deb-systemd-helper > /dev/null; then
+  deb-systemd-helper purge coraine.service > /dev/null || true
+  deb-systemd-helper unmask coraine.service > /dev/null || true
+fi
+
+exit 0

@@ -48,6 +48,74 @@ Run with sufficient privileges, or pre-create those directories.
 targets; [its detail page](building-details.md) the source layout and how to
 compile features out. This page covers the common case only.
 
+## Install with apt
+
+Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 (trixie)**, on
+**amd64** and **arm64**:
+
+| Package | What it holds |
+|---------|---------------|
+| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine` |
+| `coraine-dev` | the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz`, the toolchain and libraries to build it (as dependencies), and `coraine-build` |
+
+The packages are built by the GitHub workflow `Packages` (`.github/workflows/packages.yml`) - for every
+release, and on demand - and kept as **artifacts of that run**, one per distribution and architecture
+(`debs-<dist>-<arch>`). A signed apt repository is **coming**; until then, install a downloaded file:
+
+```sh
+sudo apt install ./coraine_0.4.0+ubuntu24.04_amd64.deb      # apt resolves the dependencies
+```
+
+Versions: `0.4.0+<dist>` for a release, `0.4.0~git<YYYYMMDD>.<sha8>+<dist>` for a build of any other
+commit (it sorts before `0.4.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
+
+### The coraine package
+
+- **Dependencies** come from the distribution: OpenSSL, GEOS, libmicrohttpd, libmosquitto, libpq, zstd -
+  and, on Ubuntu 26.04, the MongoDB C driver v2 (`libmongoc2-2`). Ubuntu 24.04 and Debian 13 package
+  only v1 of that driver, so there the package carries v2 itself, privately, in `/opt/seamware/lib`: the
+  `mongoc` plugin finds it through its RUNPATH, and the system's `libmongoc-1.0` is not touched.
+- **The service** is installed but **not enabled and not started**: the broker listens on every
+  interface and has no authentication of its own. Start it when it is configured:
+
+  ```sh
+  sudoedit /etc/default/coraine
+  sudo systemctl enable --now coraine
+  journalctl -u coraine -f
+  ```
+
+  It runs `coraine -fg` as the system user `coraine`, with the options in `/etc/default/coraine`
+  ([Environment variables](#environment-variables)). Out of the box: `corDB` on disk in
+  `/var/lib/coraine/db`, no temporal history, port 1026. `systemctl stop` is a clean stop (SIGTERM -
+  corDB syncs its log and snapshots, [corDB on disk](#cordb-on-disk)). An upgrade restarts a running
+  broker.
+- **Removing** the package stops the broker; **purging** it removes `/etc/default/coraine`, but keeps the
+  data in `/var/lib/coraine` and the user `coraine`.
+
+### coraine-dev: build your own
+
+```sh
+coraine-build --list-features
+coraine-build --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF ~/coraine-small
+. ~/coraine-small/install/env
+coraine -fg --database corDB
+```
+
+`coraine-build [options] <dir>` unpacks the source into `<dir>` and builds there, as any user; nothing is
+written outside `<dir>`. The result is in `<dir>/install` (`bin/`, `plugins/`, `etc/`, and `env`, which
+points `PATH`, `SEAMWARE_PLUGIN_DIR` and `CORAINE_CONTEXTSOURCEEXTRAS` at it).
+
+| Option | Build |
+|--------|-------|
+| `--release` (default) | optimised, traces compiled out |
+| `--debug` | traces compiled in (`--traceLevels`) |
+| `--pgo` | profile-guided: trained on the measured request shapes, as the packages and the image ([Performance](performance.md)) |
+| `--tune <workload>` | profile-guided on your workload, the knobs measured on it ([Extreme performance](extreme-performance.md)) |
+| `--features NAME=ON\|OFF,...` | the `COR_FEATURE_*` switches ([Building - details](building-details.md)) |
+
+The packages are made by the scripts in `packaging/deb/` (`source.sh`, `build.sh`, `test-install.sh`,
+`test-dev.sh`, `publish.sh`), each of which runs by hand in a container of the target distribution.
+
 ## Install with Docker
 
 See [the docker README](https://github.com/SEAMWARE/coraine/blob/main/docker/README.md).
