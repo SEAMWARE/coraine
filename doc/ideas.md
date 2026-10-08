@@ -2,7 +2,7 @@
 
 Every idea for coraine in one place - what is planned and what is only possible. None of it is a
 commitment; [the roadmap](roadmap.md) says which of these are next. The day-to-day backlog is
-[`ToDo.md`](https://github.com/SEAMWARE/coraine/blob/main/ToDo.md).
+[the second half of it](roadmap.md#the-backlog-in-detail).
 
 Each idea: one line, then what there is to say about it, and where more lives.
 
@@ -16,14 +16,16 @@ writes that change the store, more while the store grows fast. Two ways to bring
 merge that logs only the attributes it touched (`ATTRS_PUT`, already in the record format) instead
 of the whole entity, and a cheaper encode of a record (the per-request cost is the encode).
 
-### Automatic TRoE in corDB
+### corDB history: retention and a selector
 
-Temporal history in the same process and the same tree, reached by a boolean rather than a second
-plugin with its own copy of the store - the persistence log *is* the history, kept by a retention
-policy. What history records is configurable, subscription-shaped (entities, attributes, include or
-exclude). In-process history costs nothing measured on eight shared cores; the same history in
-PostgreSQL costs corDB 91 % of its write rate. The hard part is the temporal index
-`(entity, attribute, time)`.
+`--troe corDB` keeps the temporal history in the corDB store itself - captured where corDB writes,
+on disk with the store, the whole temporal API on it, no second plugin and no PostgreSQL. In-process
+history costs nothing measured on eight shared cores; the same history in PostgreSQL costs corDB 91 % of
+its write rate. Two things it does not have yet: **retention** - history only grows; kept for a time or
+a size, whole old chunks dropped - and a **selector**: what history records, configurable and
+subscription-shaped (entities, attributes, include or exclude), where today every write to every
+attribute is recorded. Not built either, and not needed for those two: the persistence log as the
+history itself (history is segments of its own today).
 
 ### The Entity as it was at time T
 
@@ -31,7 +33,7 @@ A current-state Entity at an instant in the past - not the temporal representati
 its timestamps), the Entity as a retrieve would have answered at T. Discussed at ETSI, not in the
 specification yet; implemented when it is. With corDB's log it is nearly free by system time (the
 newest snapshot at or before T plus the log up to T); by `observedAt` it needs the temporal index per
-attribute - and a late sample can change the answer later. ToDo § 15.
+attribute - and a late sample can change the answer later. [The roadmap, § 15](roadmap.md#15-persistence-one-log-and-history-as-a-retention-policy-on-it).
 
 ### corsh - the corDB shell
 
@@ -50,9 +52,10 @@ declaration kept with the tenant's data, rebuilt at load, measured before it sta
 
 ### corDB standalone - and as haaux
 
-corDB in a repository of its own, with corsh. Then corDB as a process of its own, beside the brokers, for high availability: already connected to every
+corDB as a process of its own, beside the brokers, for high availability: already connected to every
 broker of the group, it is what haaux needs (below). One codebase, built as the in-broker plugin (the
-default) or the server; backups of current state and history. Its own repository, later.
+default) or the server, with a remote-corDB plugin as the broker's client of it; backups of current
+state and history. (corDB already is a repository of its own, SEAMWARE/corDB.)
 
 ### A smaller CorNode
 
@@ -147,13 +150,6 @@ The `;v1.9` parameter on the core context's Link header, and § 13.4's `?core=`.
 Machine-readable errors and per-item outcomes that NGSI-LD does not define yet - taken to the ETSI
 TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
-### An NGSI-LD-aware JSON parser
-
-The core terms are a closed set, so `type`, `value`, `observedAt`, `Property`, `Relationship` and the
-rest can be an enum rather than a string - smaller on the wire and on disk, a compare rather than a
-`strcmp` everywhere. The same decision as the [cor format](cor-protocol.md); one keyword enum in
-corNgsild.
-
 ### Our own string collation, replacing ICU
 
 § 7.6.2.1 makes ICU "root" collation the default order for `orderBy` on strings, and libicu costs
@@ -174,14 +170,23 @@ The media types parsed, negotiated and rendered in one place instead of several.
 
 ## Security
 
-### Authorisation - inside the broker, and as an APISIX plugin
+### Authorisation inside the broker
 
 NGSI-LD defines no authentication or authorisation. An optional layer inside coraine decides on the
 request it has already parsed: per entity in a batch, for entity types after `@context` expansion,
 by tenant - "may only read type X" becomes a condition on the query, not a filter on the response.
 ODRL policies, as in the FIWARE Data Space Connector; the identity is the verifier's token for a
-verifiable credential. The same decision engine in an [APISIX](https://apisix.apache.org/) plugin, in
-front of any NGSI-LD broker. [Authorization in the broker](authorization.md).
+verifiable credential. [Authorization in the broker](authorization.md).
+
+### An NGSI-LD plugin for APISIX
+
+A policy enforcement point that understands NGSI-LD, as a plugin for [APISIX](https://apisix.apache.org/)
+- the gateway that already is the enforcement point of every FIWARE Data Space Connector deployment.
+It decides on the NGSI-LD request itself: the operation, the entity type (from the request, the entity
+id, or the query), the attributes, the tenant - with the client's `@context`, as the broker would read
+it. It sits in front of **any** NGSI-LD broker - Scorpio, Stellio, Orion-LD, coraine - and belongs in
+APISIX's plugin hub; no such plugin exists today. The same decision rules as the authorisation inside
+the broker, for a deployment that keeps them at the gateway.
 
 ## Operations and availability
 

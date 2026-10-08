@@ -412,8 +412,8 @@ C style for the whole stack is one document:
 [`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md) in
 the `corLibs` umbrella.
 
-The backlog is [`ToDo.md`](ToDo.md): what is not built yet, and what is deferred by
-design.
+The roadmap and the backlog are one page, [`doc/roadmap.md`](doc/roadmap.md): what is next, what is not
+built yet, and what is deferred by design.
 
 ---
 

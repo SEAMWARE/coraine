@@ -65,8 +65,8 @@ Coverage of the suite is measured per DB and reported in
 
 ## Where the work is
 
-[`ToDo.md`](./ToDo.md) is the backlog and the public roadmap: what is not built yet,
-what is deferred by design, and why. It is the honest answer to "what needs doing".
+[`doc/roadmap.md`](./doc/roadmap.md) is the public roadmap and the backlog in one: what is next, what is
+not built yet, what is deferred by design, and why. It is the honest answer to "what needs doing".
 
 ## Reporting a bug
 
