@@ -27,7 +27,7 @@ on:
         options: [pgo, release]
         default: pgo
       publish:
-        description: "Publish to the apt repository (needs APT_DOMAIN + APT_GPG_PRIVATE_KEY)"
+        description: "Publish to the apt repository (needs APT_PAGES_REPO + APT_GPG_PRIVATE_KEY)"
         type: boolean
         default: false
   workflow_call:
@@ -217,19 +217,20 @@ jobs:
 
   #
   # The signed apt repository - reprepro (packaging/deb/publish.sh), served by GitHub Pages from the
-  # gh-pages branch of vars.APT_PAGES_REPO under vars.APT_DOMAIN. SKIPPED until both exist, and only when
-  # asked (a release; a run with publish ticked).
+  # gh-pages branch of vars.APT_PAGES_REPO - at Pages' own address (https://<owner>.github.io/<repo>, e.g.
+  # https://seamware.github.io/apt) or, when vars.APT_DOMAIN is set, at that custom domain. SKIPPED until
+  # APT_PAGES_REPO exists, and only when asked (a release; a run with publish ticked).
   #
   # What it takes, once (doc/installation.md, "Install with apt"):
-  #   - variable APT_DOMAIN        e.g. apt.example.org; a CNAME record to <owner>.github.io
-  #   - variable APT_PAGES_REPO    e.g. SEAMWARE/apt - a repository with a gh-pages branch, Pages on
-  #                                that branch, custom domain APT_DOMAIN, "Enforce HTTPS"
+  #   - variable APT_PAGES_REPO    e.g. SEAMWARE/apt - a public repository, Pages serving its gh-pages branch
+  #   - variable APT_DOMAIN        optional: a custom domain (a CNAME record to <owner>.github.io, set as the
+  #                                Pages custom domain, "Enforce HTTPS")
   #   - secret APT_GPG_PRIVATE_KEY the signing key, ASCII-armoured, no passphrase
   #   - secret APT_PAGES_TOKEN     a token that can push to APT_PAGES_REPO (contents: write)
   #
   publish:
     needs: [source, build, test]
-    if: ${{ inputs.publish && vars.APT_DOMAIN != '' && vars.APT_PAGES_REPO != '' }}
+    if: ${{ inputs.publish && vars.APT_PAGES_REPO != '' }}
     runs-on: ubuntu-latest
     concurrency:
       group: apt-repository        # one writer at a time: reprepro's db is in the branch
@@ -240,8 +241,8 @@ jobs:
           KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           TOKEN: ${{ secrets.APT_PAGES_TOKEN }}
         run: |
-          [ -n "$KEY" ]   || { echo "::error::APT_DOMAIN is set but the secret APT_GPG_PRIVATE_KEY is not"; exit 1; }
-          [ -n "$TOKEN" ] || { echo "::error::APT_DOMAIN is set but the secret APT_PAGES_TOKEN is not"; exit 1; }
+          [ -n "$KEY" ]   || { echo "::error::APT_PAGES_REPO is set but the secret APT_GPG_PRIVATE_KEY is not"; exit 1; }
+          [ -n "$TOKEN" ] || { echo "::error::APT_PAGES_REPO is set but the secret APT_PAGES_TOKEN is not"; exit 1; }
 
       - uses: actions/checkout@v4
         with:
@@ -277,4 +278,6 @@ jobs:
           git add -A
           git commit -qm "coraine ${{ needs.source.outputs.version }}"
           git push origin gh-pages
-          echo "### Published to https://${{ vars.APT_DOMAIN }}" >> "$GITHUB_STEP_SUMMARY"
+          repo="${{ vars.APT_PAGES_REPO }}"; owner="${repo%%/*}"
+          url="${{ vars.APT_DOMAIN }}"; url="${url:+https://$url}"; url="${url:-https://${owner,,}.github.io/${repo#*/}}"
+          echo "### Published to $url" >> "$GITHUB_STEP_SUMMARY"

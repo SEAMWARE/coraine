@@ -16,11 +16,13 @@
 # Environment:
 #   APT_GPG_PRIVATE_KEY  the signing key, ASCII-armoured, WITHOUT a passphrase - a key (or subkey) made
 #                        for this repository and nothing else
-#   APT_DOMAIN           the domain the repository is served on (CNAME, and the lines below)
+#   APT_DOMAIN           optional: a custom domain the repository is served on (a CNAME record to
+#                        <owner>.github.io); without it the repository is at Pages' own address,
+#                        https://<owner>.github.io/<repo> - e.g. https://seamware.github.io/apt
 #
-# What a user then does:
-#   curl -fsSL https://$APT_DOMAIN/coraine.gpg | sudo tee /usr/share/keyrings/coraine.gpg > /dev/null
-#   echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] https://$APT_DOMAIN $(. /etc/os-release; echo $VERSION_CODENAME) main" \
+# What a user then does (URL = the repository's address):
+#   curl -fsSL $URL/coraine.gpg | sudo tee /usr/share/keyrings/coraine.gpg > /dev/null
+#   echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] $URL $(. /etc/os-release; echo $VERSION_CODENAME) main" \
 #     | sudo tee /etc/apt/sources.list.d/coraine.list
 #   sudo apt update && sudo apt install coraine
 #
@@ -35,7 +37,6 @@ REPO=$(mkdir -p "${1:?usage: publish.sh <repo-dir> <deb>...}" && cd "$1" && pwd)
 shift
 [ $# -gt 0 ] || { echo "publish.sh: no .deb given" >&2; exit 1; }
 : "${APT_GPG_PRIVATE_KEY:?the signing key (ASCII-armoured)}"
-: "${APT_DOMAIN:?the domain the repository is served on}"
 
 export GNUPGHOME=$(mktemp -d)
 trap 'rm -rf "$GNUPGHOME"' EXIT
@@ -79,7 +80,7 @@ done
 # the public key, both ways (binary for signed-by=, armoured for reading), and the domain for Pages
 gpg --batch --export "$FPR" > "$REPO/coraine.gpg"
 gpg --batch --armor --export "$FPR" > "$REPO/coraine.asc"
-echo "$APT_DOMAIN" > "$REPO/CNAME"
+if [ -n "${APT_DOMAIN:-}" ]; then echo "$APT_DOMAIN" > "$REPO/CNAME"; else rm -f "$REPO/CNAME"; fi
 touch "$REPO/.nojekyll"      # Pages serves the tree as it is (no Jekyll: dists/, pool/ ... untouched)
 
 reprepro -b "$REPO" list resolute; reprepro -b "$REPO" list noble; reprepro -b "$REPO" list trixie
