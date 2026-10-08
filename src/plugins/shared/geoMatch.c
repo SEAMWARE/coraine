@@ -255,15 +255,24 @@ static int coordsPut(char* buf, int bufSize, int pos, const char* text, int len)
   return pos + len;
 }
 
+// A position renders its first two numbers only - longitude, latitude. A third (altitude) is kept in
+// the entity, but GEOS before 3.13 refuses it in GeoJSON ("Expected two coordinates found more than
+// two" - Ubuntu 24.04 has 3.12), and nothing done with the geometry here (validity, the georel
+// predicates, distance) uses it.
+//
 static int coordsRender(CorNode* nodeP, char* buf, int bufSize, int pos)
 {
   if (nodeP->type == CorArray)
   {
     bool first = true;
+    int  ix    = 0;
 
     pos = coordsPut(buf, bufSize, pos, "[", 1);
-    for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
+    for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next, ix++)
     {
+      if ((ix >= 2) && ((childP->type == CorFloat) || (childP->type == CorInt)))
+        break;
+
       if (first == false)
         pos = coordsPut(buf, bufSize, pos, ",", 1);
       first = false;
