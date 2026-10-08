@@ -29,7 +29,7 @@ OUT=$(mkdir -p "${2:?usage: build.sh <coraine-src.tar.xz> <out-dir>}" && cd "$2"
 HERE=$(cd "$(dirname "$0")" && pwd)
 BUILD_KIND=${BUILD_KIND:-pgo}
 MONGOC_VERSION=${MONGOC_VERSION:-2.2.2}
-MAINTAINER=${DEB_MAINTAINER:-Ken Zangelin <kzangeli@gmail.com>}
+MAINTAINER=${DEB_MAINTAINER:-Ken Zangelin <ken.zangelin@seamware.com>}
 
 die() { echo "build.sh: $*" >&2; exit 1; }
 
