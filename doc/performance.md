@@ -621,6 +621,53 @@ four) - requests/s, and each against its column's neighbour:
   rebuild; the other scenarios not yet measured).
 - So the right lock policy is the workload's. corDB keeps readers first by default.
 
+### Which subscriptions a write is matched against
+
+A write is matched only against the subscriptions that **can** match its entity: those that name
+its id, those that name one of its types (for a type expression, the first type of each of its OR
+groups), and those that select by neither (no `entities`, an `idPattern` alone, type `*`). The
+subscription cache keeps them in an index by id and by type (`ldSubCacheCandidates`, corNgsild); the
+full match - trigger, entities, watched attributes, scope, q, geoQ - runs on those alone. And an
+**Update Attributes** (`PATCH /entities/{id}/attrs`) reads the entity back for a notification only
+when a subscription may match it, judged on what the update itself tells: the entity's id, its type
+and the attributes it changed (`ldSubscriptionUpdateMayMatch`).
+
+`PATCH` at 50 connections, corDB, release builds, broker on 8 cores of an AMD Ryzen 9 8940HX, the
+same day. `make tune`'s runner (`test/perf/tune/tuneRun.sh`): 10 000 Vehicles, 30 s measured after
+5 s, median of three - requests/s:
+
+| subscriptions | no index (`main`) | the read-back only on a possible match, no index | **the index** | p99, `main` → index |
+|---|---:|---:|---:|---:|
+| none | 132 712 | 127 527 | 131 478 (-0.9 %) | 1.41 → 1.45 ms |
+| 100, one entity each (1 % of the writes notify) | 119 822 | 118 978 | **125 778 (+5.0 %)** | 1.44 → 1.44 ms |
+| 1 000, one entity each (10 % notify) | 91 957 | 104 202 | **121 005 (+31.6 %)** | 1.61 → 1.48 ms |
+| 100 entities, a subscription each (every write notifies) | 83 827 | 75 914 | **86 752 (+3.5 %)** | 1.24 → 1.15 ms |
+
+(The middle column was measured on another run of the same evening, its `main` at 127 330 / 115 023 /
+84 586 / 79 098: -4.0 % where every write notifies - the subscriptions walked twice, once to decide,
+once to match.)
+
+`perfRun.sh` - `patch_manysubs_c50` is new: on top of `patch_subs_c50`'s subscription per entity,
+100 subscriptions to 100 other types with `q=temp>25` (the type rejects them) and 10 to `Vehicle`
+with `q=speed>200` (the type matches, the q - on the entity - does not). Median of three 5 s runs:
+
+| scenario | corDB `main` | corDB index | | p99 | mongoc `main` | mongoc index | |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `PATCH`, no subscriptions | 196 746 | 199 412 | +1.4 % | 0.57 → 0.46 ms | 20 214 | 20 138 | -0.4 % |
+| `patch_subs_c50` | 90 124 | 93 571 | **+3.8 %** | 1.38 → **0.83** ms | 16 148 | 16 138 | -0.1 % |
+| `patch_manysubs_c50` | 83 234 | 89 084 | **+7.0 %** | 1.39 → **0.89** ms | 15 691 | 15 772 | +0.5 % |
+
+Every other scenario of `perfRun.sh` within -3.5 .. +3.2 % (corDB) and -2.1 .. +1.6 % (mongoc), each
+on both sides of zero.
+
+- **What the subscriptions cost is the walk over them, not their number.** Without the index a write
+  is matched against every subscription of the tenant; 1 000 of them cost 31 % of the throughput, 110
+  more on top of 100 cost 7.6 % (`patch_manysubs_c50` against `patch_subs_c50`, corDB `main`). With
+  it, 1 000 subscriptions leave 92 % of the no-subscription rate.
+- **Reading the entity back only on a possible match** pays where most writes notify nobody (+23 % at
+  1 000, against its own run's `main`) and costs where every write notifies (-4 %) - unless the index makes the deciding cheap.
+- **mongoc does not move**: the database round trip is the cost there, not the matching.
+
 ### What the data takes on disk
 
 perfRun's fixture entity (five attributes, ~550 bytes of JSON), created with batch creates of 500;

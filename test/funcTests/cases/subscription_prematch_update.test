@@ -1,0 +1,182 @@
+#
+# FILE            subscription_prematch_update.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Update Attributes (PATCH /entities/{id}/attrs) matches the subscriptions on what the update itself
+# tells - the entity's id, its type, the attributes it changed - before the entity is read back for
+# a notification (ldSubscriptionUpdateMayMatch). That pre-match may only skip what the full match
+# skips too. The cases where it cannot decide alone:
+#   - a watched INSTANCE (watchedAttributes "speed@urn:ds1"): it may match, the full match decides
+#   - a q on the subscription: it may match, the full match decides on the entity
+#   - a type in the update: the type that matters is the new one - the entity is read back
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Update Attributes - the subscriptions pre-matched on id, type and changed attributes notify as before
+
+--TAGS--
+subscription notification patch watchedAttributes
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# 01. urn:E1 (T: speed 1, a 1), urn:E2 (T: speed 1, speed@urn:ds1 1)
+# 02. S1 urn:E1 watching speed; S2 type T2; S3 urn:E2 watching speed@urn:ds1; S4 urn:E2 with q speed>100
+# 03. PATCH urn:E1 a                       - nobody (S1 watches speed)
+# 04. PATCH urn:E2 speed (default)         - nobody (S3 watches the urn:ds1 instance, S4's q fails)
+# 05. PATCH urn:E1 speed                   - S1
+# 06. PATCH urn:E2 speed@urn:ds1           - S3
+# 07. PATCH urn:E2 speed 200 (default)     - S4
+# 08. PATCH urn:E1 with type T2 and a      - S2 (the new type)
+# 09. The notifications: subscription - entity
+#
+
+notifications() {
+  ftClientDump | python3 -c "
+import json, sys
+for n in sorted('%s - %s' % (n['body']['subscriptionId'], ','.join(e['id'] for e in n['body']['data'])) for n in json.load(sys.stdin)):
+    print('  ' + n)"
+}
+
+echo "01. urn:E1 (T: speed, a), urn:E2 (T: speed, speed@urn:ds1)"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "speed": {"type": "Property", "value": 1}, "a": {"type": "Property", "value": 1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T", "speed": [{"type": "Property", "value": 1}, {"type": "Property", "value": 1, "datasetId": "urn:ds1"}]}' | head -1
+echo
+echo
+
+
+echo "02. S1 urn:E1 watching speed; S2 type T2; S3 urn:E2 watching speed@urn:ds1; S4 urn:E2 with q speed>100"
+echo "========================================================================================================"
+sub() {
+  corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id": "urn:'$1'", "type": "Subscription", '"$2"', "notification": {"endpoint": {"uri": "http://localhost:'$FT_CLIENT_PORT'/notify"}}}' > /dev/null
+}
+sub S1 '"entities": [{"id": "urn:E1", "type": "T"}], "watchedAttributes": ["speed"]'
+sub S2 '"entities": [{"type": "T2"}]'
+sub S3 '"entities": [{"id": "urn:E2", "type": "T"}], "watchedAttributes": ["speed@urn:ds1"]'
+sub S4 '"entities": [{"id": "urn:E2", "type": "T"}], "q": "speed>100"'
+corCurl --url /ngsi-ld/v1/subscriptions | sed -n '/^\[/,$p' | python3 -c "import json,sys; print('  ', sorted(s['id'] for s in json.load(sys.stdin)))"
+echo
+echo
+
+
+echo "03. PATCH urn:E1 a - nobody (S1 watches speed)"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"a": {"type": "Property", "value": 2}}' | head -1
+ftClientSettle
+echo "  notifications: $(ftClientCount)"
+echo
+echo
+
+
+echo "04. PATCH urn:E2 speed (default) - nobody (S3 watches the urn:ds1 instance, S4's q fails)"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2/attrs -X PATCH --payload '{"speed": {"type": "Property", "value": 2}}' | head -1
+ftClientSettle
+echo "  notifications: $(ftClientCount)"
+echo
+echo
+
+
+echo "05. PATCH urn:E1 speed - S1"
+echo "==========================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"speed": {"type": "Property", "value": 2}}' | head -1
+ftClientWait 1
+echo
+echo
+
+
+echo "06. PATCH urn:E2 speed@urn:ds1 - S3"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2/attrs -X PATCH --payload '{"speed": {"type": "Property", "value": 2, "datasetId": "urn:ds1"}}' | head -1
+ftClientWait 2
+echo
+echo
+
+
+echo "07. PATCH urn:E2 speed 200 (default) - S4"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2/attrs -X PATCH --payload '{"speed": {"type": "Property", "value": 200}}' | head -1
+ftClientWait 3
+echo
+echo
+
+
+echo "08. PATCH urn:E1 with type T2 and a - S2 (the new type)"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"type": "T2", "a": {"type": "Property", "value": 3}}' | head -1
+ftClientWait 4
+echo
+echo
+
+
+echo "09. The notifications: subscription - entity"
+echo "============================================"
+ftClientSettle
+notifications
+echo
+
+
+--EXPECT--
+01. urn:E1 (T: speed, a), urn:E2 (T: speed, speed@urn:ds1)
+===========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. S1 urn:E1 watching speed; S2 type T2; S3 urn:E2 watching speed@urn:ds1; S4 urn:E2 with q speed>100
+========================================================================================================
+   ['urn:S1', 'urn:S2', 'urn:S3', 'urn:S4']
+
+
+03. PATCH urn:E1 a - nobody (S1 watches speed)
+==============================================
+HTTP/1.1 204 No Content
+  notifications: 0
+
+
+04. PATCH urn:E2 speed (default) - nobody (S3 watches the urn:ds1 instance, S4's q fails)
+=========================================================================================
+HTTP/1.1 204 No Content
+  notifications: 0
+
+
+05. PATCH urn:E1 speed - S1
+===========================
+HTTP/1.1 204 No Content
+
+
+06. PATCH urn:E2 speed@urn:ds1 - S3
+===================================
+HTTP/1.1 204 No Content
+
+
+07. PATCH urn:E2 speed 200 (default) - S4
+=========================================
+HTTP/1.1 204 No Content
+
+
+08. PATCH urn:E1 with type T2 and a - S2 (the new type)
+=======================================================
+HTTP/1.1 204 No Content
+
+
+09. The notifications: subscription - entity
+============================================
+  urn:S1 - urn:E1
+  urn:S2 - urn:E1
+  urn:S3 - urn:E2
+  urn:S4 - urn:E2
+
+--TEARDOWN--
+coraineStop
+corDbDrop
