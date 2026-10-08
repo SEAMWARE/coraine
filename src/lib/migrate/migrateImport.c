@@ -184,7 +184,6 @@ static bool recordImport(MigrateState* msP, char* line)
 //
 int migrateImport(const char* path, const char* contextRef)
 {
-  static char  arenaBuffer[1024 * 1024];
   MigrateState ms;
 
   memset(&ms, 0, sizeof(ms));
@@ -209,9 +208,21 @@ int migrateImport(const char* path, const char* contextRef)
 
   //
   // One arena for the whole run, reset between records - except while history events are
-  // pending: they point into it until their batch is written.
+  // pending: they point into it until their batch is written. Allocated here, not static: a
+  // broker that never imports does not carry a megabyte for it.
   //
-  corAllocBufferInit(&corRest.kalloc, arenaBuffer, sizeof(arenaBuffer), 1024 * 1024, NULL, "import");
+  int   arenaSize   = 1024 * 1024;
+  char* arenaBuffer = (char*) malloc(arenaSize);
+
+  if (arenaBuffer == NULL)
+  {
+    fprintf(stderr, "--importFile: out of memory\n");
+    if (fP != stdin)
+      fclose(fP);
+    return -1;
+  }
+
+  corAllocBufferInit(&corRest.kalloc, arenaBuffer, arenaSize, arenaSize, NULL, "import");
   corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
   corRest.kallocP  = &corRest.kalloc;
 
@@ -274,16 +285,16 @@ int migrateImport(const char* path, const char* contextRef)
 
   int failed = badLines;
 
-  printf("import of %s:\n", path);
+  fprintf(stderr, "import of %s:\n", path);
   for (int kind = 0; kind < MigrateKinds; kind++)
   {
-    printf("  %-24s %8d imported, %6d refused\n", kindNameV[kind], ms.okV[kind], ms.failedV[kind]);
+    fprintf(stderr, "  %-24s %8d imported, %6d refused\n", kindNameV[kind], ms.okV[kind], ms.failedV[kind]);
     failed += ms.failedV[kind];
   }
   if (badLines > 0)
-    printf("  %-24s %8d\n", "unreadable lines", badLines);
+    fprintf(stderr, "  %-24s %8d\n", "unreadable lines", badLines);
 
-  fflush(stdout);
+  fflush(stderr);
 
   return failed;
 }

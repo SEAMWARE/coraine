@@ -19,7 +19,7 @@
 # start and describe itself. It is the cheapest possible check and it catches
 # the whole class.
 #
-# ⚠️ Minutes, not seconds - seven cmake builds. REQUIRE_BUILDTESTS keeps it out
+# ⚠️ Minutes, not seconds - ten cmake builds. REQUIRE_BUILDTESTS keeps it out
 # of the run set unless `corTest -buildTests yes` asks for it, which is a
 # separate CI job.
 #
@@ -64,6 +64,7 @@ TRANSPORTS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SERVICE_EXECUTION=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SNAPSHOT_WRITE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SNAPSHOT_SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+MIGRATE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 
 
 --TEARDOWN--

@@ -1,0 +1,5 @@
+{"kind":"header","format":"coraine-migration","version":1,"source":"hand-written, names not expanded"}
+{"kind":"entity","tenant":"","data":{"id":"urn:ngsi-ld:Room:R2","type":"Room","createdAt":"2025-03-01T10:00:00.000Z","modifiedAt":"2025-03-02T10:00:00.000Z","temperature":{"type":"Property","value":19.5,"createdAt":"2025-03-01T10:00:00.000Z","modifiedAt":"2025-03-02T10:00:00.000Z"},"ex:humidity":{"type":"Property","value":40,"createdAt":"2025-03-01T10:00:00.000Z","modifiedAt":"2025-03-01T10:00:00.000Z"}}}
+{"kind":"entity","tenant":"","data":{"id":"urn:ngsi-ld:Room:R3","type":"Room","pressure":{"type":"Property","value":1013}}}
+{"kind":"entity","tenant":"","data":{"id":"urn:ngsi-ld:Office:O1","type":"Office","temperature":{"type":"Property","value":21}}}
+{"kind":"entity","tenant":"","data":{"id":"urn:ngsi-ld:Room:R4","type":"Room","temperature":{"type":"Property","value":20,"ex:sensor":{"type":"Property","value":"s1"},"brand":{"type":"Property","value":"acme"}}}}

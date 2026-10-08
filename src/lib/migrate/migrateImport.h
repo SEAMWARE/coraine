@@ -21,7 +21,7 @@
 //              file holding {"@context": ...}. NULL: every name must be an IRI or a core term.
 //
 // Runs after the DB and TRoE plugins are up and before the broker serves anything; the broker
-// exits after it. Returns the number of records refused (each reported on stderr, path:line),
+// exits after it. Returns the number of records refused (each reported on stderr, path:line; the log is stdout),
 // -1 when the import could not start.
 //
 extern int migrateImport(const char* path, const char* contextRef);

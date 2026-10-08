@@ -66,7 +66,7 @@ typedef struct MigrateState
 
 // -----------------------------------------------------------------------------
 //
-// migrateFail - report a refused record on stderr (path:line: kind: what) and count it
+// migrateFail - report a refused record (stderr - the import's report; the log is stdout) and count it
 //
 // Returns false, so a caller can 'return migrateFail(...)'.
 //

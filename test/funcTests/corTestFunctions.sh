@@ -175,6 +175,18 @@ coraineStart() {
     cmd="$cmd --corPort $corPort"
   fi
 
+  #
+  # --importFile (doc/migration.md): the broker writes the stream into the stores this command line
+  # names and exits - there is no port to wait for. It runs in the foreground, its report (stderr:
+  # the refused records and the counts) is the test's output, its log (stdout) goes where a serving
+  # broker's does, and its exit code is the function's. The same command line as a serving start, so
+  # the import goes exactly where the next coraineStart reads.
+  #
+  if printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-importFile'; then
+    $cmd 2>&1 > "/tmp/coraine.${role}.log"
+    return $?
+  fi
+
   # Valgrind (--vt): only the main broker (CB) runs under valgrind — wrapping
   # every broker in a multi-broker test would interleave their reports and
   # destroy the CB result (and triple the wall-clock). Scope errors to

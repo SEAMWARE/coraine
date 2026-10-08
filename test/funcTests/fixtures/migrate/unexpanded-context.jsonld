@@ -1,0 +1,7 @@
+{
+  "@context": {
+    "ex":          "https://example.org/",
+    "Room":        "https://example.org/Room",
+    "temperature": "https://example.org/temperature"
+  }
+}

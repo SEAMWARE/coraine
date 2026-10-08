@@ -338,10 +338,14 @@ const char* migrateProblem(void)
 CorLdContext* migrateContextLoad(const char* ref)
 {
   static CorAlloc  contextAlloc;
-  static char      contextBuffer[64 * 1024];
   static CorJson   contextJson;
+  int              contextSize   = 64 * 1024;
+  char*            contextBuffer = (char*) malloc(contextSize);   // for the rest of the run - never freed
 
-  corAllocBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 64 * 1024, NULL, "importContext");
+  if (contextBuffer == NULL)
+    return NULL;
+
+  corAllocBufferInit(&contextAlloc, contextBuffer, contextSize, contextSize, NULL, "importContext");
 
   if ((strncmp(ref, "http://", 7) == 0) || (strncmp(ref, "https://", 8) == 0))
     return corLdContextFromUrl(ref, &contextAlloc);
