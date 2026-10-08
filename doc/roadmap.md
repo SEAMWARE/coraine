@@ -87,6 +87,7 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
 -   **One compound geo index** - one index for every GeoProperty, both variants prototyped and measured.
 -   **Hot and cold entity segments** - the entities written often apart from the rest (a design note first).
+-   **Our own @context server** - the JSON-LD context hosting API (`/jsonldContexts`) as a small C server on our own libraries, native on every architecture; it replaces the Java `wistefan/context-server` (amd64 only) in the tests and CI, and can host the contexts a deployment publishes.
 
 ## Long term
 
