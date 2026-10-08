@@ -166,7 +166,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_SERVICE_EXECUTION=OFF` | 77,410 bytes | 17 routes answer 501 |
 | `COR_FEATURE_SNAPSHOT_WRITE=OFF` | 568 bytes | a write naming a Snapshot (`NGSILD-Snapshot`) answers 422 - snapshots are read-only |
 | `COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS=OFF` | 1,491 bytes | `/subscriptions` naming a Snapshot (`NGSILD-Snapshot`) answers 422 for a write; a read lists the live tenant's. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is |
-| `COR_FEATURE_HEALTH=OFF` | TODO-PHASE2 bytes | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
+| `COR_FEATURE_HEALTH=OFF` | 5,312 bytes (and 432 from `mongoc.so`, 782 from `timescale.so`) | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

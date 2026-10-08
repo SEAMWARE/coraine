@@ -22,25 +22,13 @@
 
 #include "corLog/corLog.h"                             // COR_I, COR_W
 #include "corRest/CorRestState.h"                      // corRestP
-#include "corRest/corRestHooks.h"                      // CorRestHook, corRestSetPreDispatchHook
+#include "corRest/corRestHooks.h"                      // CorRestHook, corRestSetPreDispatchHook, corRestPreDispatchHookGet
 
 #include "db/DbDriver.h"                               // db
 #include "troe/TroeDriver.h"                           // troe
 
 #include "memoryBudget.h"                              // memoryBudgetValues, memoryBudgetLevel
 #include "health.h"                                    // Own interface
-
-
-
-// -----------------------------------------------------------------------------
-//
-// corRestPreDispatchHook - the pre-dispatch hook in place (corRestHooks.c): corNgsild's, called first
-//
-// corRest has one pre-dispatch hook, corNgsild's (it resets the request's NGSI-LD state), and no getter
-// for it. The requests in flight need a hook that runs once for every request that is dispatched - HTTP,
-// cor://, a self-forward - and that is the one, so it is chained here rather than given a second hook.
-//
-extern CorRestHook corRestPreDispatchHook;
 
 
 
@@ -547,7 +535,11 @@ bool healthStart(unsigned short port, int stallSecs)
   stallMs = stallSecs * 1000;
   startMs = monotonicUs() / 1000;
 
-  preDispatchNext = corRestPreDispatchHook;
+  //
+  // Chained on the pre-dispatch hook in place (corNgsild's - it resets the request's NGSI-LD state):
+  // the one moment every dispatched request passes - HTTP, cor://, a self-forward
+  //
+  preDispatchNext = corRestPreDispatchHookGet();
   corRestSetPreDispatchHook(healthPreDispatch);
   enabled = true;
 

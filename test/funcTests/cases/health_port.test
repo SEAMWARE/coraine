@@ -176,7 +176,7 @@ Connection: close
   "requests": {
     "inFlight": 0,
     "total": REGEX([0-9]+),
-    "lastFinishedAgoMs": REGEX([0-9]+|null)
+    "lastFinishedAgoMs": REGEX(([0-9]+|null))
   }
 }
 
