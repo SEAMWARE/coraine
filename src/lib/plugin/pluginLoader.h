@@ -9,6 +9,9 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <stdbool.h>                                  // bool
+
+#include "corArgs/corArgs.h"                          // CorArg
 
 
 
@@ -66,5 +69,27 @@ extern void pluginTroeArgUpdate(void);
 // On failure, writes error detail to errorBuf (if not NULL).
 //
 extern int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginArgsAdd - a plugin's options into the option table - an error stops the program
+//
+// corArgsAdd also applies their environment variables (CORAINE_DBDIR, ...): a value out of range or not
+// a number there is the same error as on the command line.
+//
+extern void pluginArgsAdd(CorArg* argV);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginStoresLoad - the DB and the TRoE plugin, their options added under a separator naming each
+//
+// Between corArgsInit and corArgsParse: the plugins bring options of their own. The broker and
+// coraine-import load their stores this way. Returns true on an error (said on stderr).
+//
+extern bool pluginStoresLoad(const char* dbName, const char* troeName);
 
 #endif  // PLUGIN_PLUGINLOADER_H_

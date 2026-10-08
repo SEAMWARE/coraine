@@ -8,7 +8,7 @@ ADD_EXECUTABLE(coraine-import coraineImport.c ../coraine/coraineFeatures.c)
 
 SET_TARGET_PROPERTIES(coraine-import PROPERTIES ENABLE_EXPORTS TRUE)
 
-SET(COR_IMPORT_LIBS migrate serviceRoutines linkedEntities db ha troe plugin bridge)
+SET(COR_IMPORT_LIBS migrate serviceRoutines linkedEntities db ha troe plugin startup bridge)
 IF (COR_FEATURE_METRICS)
   LIST(APPEND COR_IMPORT_LIBS metrics)
 ENDIF()

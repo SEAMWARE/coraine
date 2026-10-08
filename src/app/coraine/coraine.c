@@ -31,8 +31,8 @@
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
 #include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet
 #include "corRest/corRestStop.h"                     // corRestStop
-#include "corRest/corRestClient.h"                  // corRestClientInit, CorRestClientRequest/Response
-#include "corJsonld/corJsonld.h"                    // corLdInit, CORJSONLD_VERSION
+#include "corRest/corRestClient.h"                  // corRestClientInit, corRestClientTlsInsecureSet
+#include "corJsonld/corJsonld.h"                    // corLdConcurrencySet, CORJSONLD_VERSION
 #include "corJsonld/CorLdContext.h"                 // CorLdContext, CorLdContextKind
 #include "corJsonld/CorLdContextCache.h"            // CorLdContextCache
 #include "corJsonld/corLdCache.h"                   // corLdCacheInsert
@@ -50,7 +50,6 @@
 #include "corNgsild/ldEntityMap.h"                    // ldEntityMapRequestRelease
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
-#include "corNgsild/ldCoreTermIds.h"               // ldCoreTermIdsInit
 #include "corNgsild/ldHooks.h"                      // ldAcceptPrecondition
 #include "corNgsild/ldNotifyDefer.h"               // ldNotifyDispatchPending
 #include "corNgsild/ldRegCache.h"                  // ldRegCacheProbePending
@@ -70,7 +69,7 @@
 #include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
 #include "corNgsild/CorNgsild.h"                  // corNgsild, ldCsourceAliasBase
 #include "corNgsild/ldError.h"                     // ldError
-#include "corNgsild/LdProblem.h"                    // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
+#include "corNgsild/LdProblem.h"                    // LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
 #include "db/snapshotTenant.h"                     // snapshotItemDestroy, snapshotTenantsVisit
 #include "db/DbDriver.h"                          // db, DB_OK
@@ -88,7 +87,10 @@
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityDispatchPending
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
-#include "plugin/pluginLoader.h"                  // pluginLoadDb, pluginLoadApi, pluginLoadBridges
+#include "startup/startupCoreContext.h"            // startupCoreContext
+#include "startup/startupLog.h"                    // startupLog
+#include "startup/startupArena.h"                  // startupArena
+#include "plugin/pluginLoader.h"                  // pluginStoresLoad, pluginLoadApi, pluginLoadBridges, pluginArgsAdd
 #include "bridge/bridgeNotify.h"                  // bridgeNotifyInit
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
 #if COR_FEATURE_TRANSPORTS
@@ -96,14 +98,10 @@
 #endif
 
 #include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
-#include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #if COR_FEATURE_SERVICE_EXECUTION
-#include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
-#include "corNgsild/ldServiceDescription.h"          // ldServiceDescriptionAccepted
 #include "serviceExecution/seExecution.h"            // seExecutionTick, seExecutionRetentionNs
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
-#include "corNgsild/ldExtensionTerms.h"                // ldExtensionTermsAdd
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
@@ -151,74 +149,6 @@ static uintptr_t contextOwner(void)
 static void contextSleep(int ms)
 {
   corRestWaitFd(-1, 0, ms, NULL);
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// contextDownload - CorLdDownloadFunction callback for fetching remote @contexts
-//
-static char* contextDownload(const char* url, int* statusCodeP)
-{
-  CorRestClientRequest  req;
-  CorRestClientResponse resp;
-
-  corRestClientRequestInit(&req, CorVerbGet, url, NULL);
-  corRestClientRequestHeader(&req, "Accept", "application/ld+json, application/json");
-  corRestClientRequestTimeout(&req, 5000, 10000);
-
-  int r = corRestClientSend(&req, &resp);
-
-  if (r != CORR_OK || resp.statusCode != 200)
-  {
-    *statusCodeP = (resp.statusCode > 0) ? resp.statusCode : 500;
-    corRestClientResponseCleanup(&resp);
-    return NULL;
-  }
-
-  *statusCodeP = 200;
-
-  // Return a malloc'd copy of the body (corJsonld will free it)
-  char* copy = NULL;
-  if (resp.body != NULL && resp.bodyLen > 0)
-  {
-    copy = (char*) malloc(resp.bodyLen + 1);
-    memcpy(copy, resp.body, resp.bodyLen);
-    copy[resp.bodyLen] = 0;
-  }
-
-  corRestClientResponseCleanup(&resp);
-  return copy;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// contextError - CorLdErrorFunction callback: an @context the library can NAME
-//
-// corLdContextFromUrl answers NULL for everything, and its callers turn that into
-// "unable to retrieve @context" - true for a download that failed, wrong for one
-// that downloaded perfectly and is unusable. The library reports the ones it can
-// name here, and this turns them into the ProblemDetails the client sees.
-//
-// corNgsild.contextError is what stops the caller from then overwriting it with
-// its own generic answer.
-//
-static void contextError(int status, const char* title, const char* detail)
-{
-  //
-  // 501: a JSON-LD feature this broker does not implement (@import). TS 104-176 registers no error type
-  // for that - only NoMultiTenantSupport says "not implemented", for one feature (spec-doubts-2 #137) -
-  // so the type is ours, as for NotAvailableInThisDeployment.
-  //
-  const char* type = (status == 400) ? LD_ERROR_BAD_REQUEST_DATA
-                   : (status == 501) ? "https://coraine.readthedocs.io/errors/NotImplemented"
-                   :                   LD_ERROR_LD_CONTEXT_NOT_AVAILABLE;
-
-  ldError(status, type, title, "%s", detail);
-  corNgsild.contextError = true;
 }
 
 
@@ -388,23 +318,6 @@ static void shutdownInOrder(void)
 
 // -----------------------------------------------------------------------------
 //
-// pluginArgsAdd - a plugin's options into the table - an error stops the broker
-//
-// corArgsAdd also applies their environment variables (CORAINE_DBDIR, ...): a value out of range or not
-// a number there is the same error as on the command line. Its result was not looked at.
-//
-static void pluginArgsAdd(CorArg* argV)
-{
-  CorArgsStatus ks = corArgsAdd(argV);
-
-  if (ks != CorArgsOk)
-    COR_X(1, "a plugin's options: %s", corArgsStatus(ks));
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // pluginsLoad - load DB + API plugins, register their CLI args
 //
 // Called between corArgsInit and corArgsParse so that plugin-contributed args
@@ -452,55 +365,10 @@ static bool pluginsLoad(int argC, char* argV[])
     bridgePeek = bridgeNames;  // CORAINE_BRIDGES - and it needs this line for the same reason --apiPlugins did
 
   //
-  // Load DB plugin (dlopen + dbRegister, no DB connection yet)
+  // The DB and the TRoE plugin (dlopen + register, no connection yet) - as coraine-import loads them
   //
-  {
-    char errBuf[1024];
-    if (pluginLoadDb(dbPeek, errBuf, sizeof(errBuf)) != 0)
-    {
-      fprintf(stderr, "%s\n", errBuf);
-      startupError = true;
-    }
-    else if (db.args != NULL)
-    {
-      // Add separator + plugin args to usage
-      static char dbSepText[128];
-      if (db.alias != NULL)
-        snprintf(dbSepText, sizeof(dbSepText), "Database (%s) plugin options:", db.alias);
-      else
-        snprintf(dbSepText, sizeof(dbSepText), "Database plugin options:");
-
-      static CorArg dbSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
-      dbSepArgV[0].description = dbSepText;
-      pluginArgsAdd(dbSepArgV);
-      pluginArgsAdd(db.args);
-    }
-  }
-
-  //
-  // Load TRoE plugin (dlopen + troeRegister, no connection yet)
-  //
-  {
-    char errBuf[1024];
-    if (pluginLoadTroe(troePeek, errBuf, sizeof(errBuf)) != 0)
-    {
-      fprintf(stderr, "%s\n", errBuf);
-      startupError = true;
-    }
-    else if (troe.args != NULL)
-    {
-      static char troeSepText[128];
-      if (troe.alias != NULL)
-        snprintf(troeSepText, sizeof(troeSepText), "TRoE (%s) plugin options:", troe.alias);
-      else
-        snprintf(troeSepText, sizeof(troeSepText), "TRoE plugin options:");
-
-      static CorArg troeSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
-      troeSepArgV[0].description = troeSepText;
-      pluginArgsAdd(troeSepArgV);
-      pluginArgsAdd(troe.args);
-    }
-  }
+  if (pluginStoresLoad(dbPeek, troePeek) == true)
+    startupError = true;
 
   //
   // Load API plugins (dlopen + apiRegister for each)
@@ -565,8 +433,6 @@ static bool pluginsLoad(int argC, char* argV[])
   //
   // Add available-plugin info (shown in -u usage output)
   //
-  corPluginArgUpdate("--database", "db/currentState");
-  pluginTroeArgUpdate();
   corPluginArgUpdate("--apiPlugins", "api");
   corPluginArgUpdate("--bridges", "bridge");
 
@@ -1590,61 +1456,7 @@ int main(int argC, char* argV[])
   }
 
 
-  int r = corLogInit("coraine", NULL, true, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false);
-  if (r != 0)
-    COR_X(1, "corLogInit failed");
-
-#ifndef COR_T_ON
-  //
-  // A release build: its traces are compiled away (corLog.h), so a trace level turns on nothing -
-  // said once, rather than leaving an operator to wonder why the log stays quiet.
-  //
-  if ((traceLevels != NULL) && (traceLevels[0] != 0))
-    COR_W("--traceLevels %s: this broker is a release build, its traces are compiled out - nothing to turn on", traceLevels);
-#endif
-
-  //
-  // The libraries log through corBase's callback (COR_LIB_*), and until it is set
-  // they have no log to write to - their errors go to stderr, the rest nowhere.
-  // corLogOut has the callback's signature, so their lines land in OUR log file,
-  // with their own file, line and function, gated by the same -v/-t switches.
-  //
-  corBaseInit(corLogOut);
-
-  //
-  // ... and a library trace that is off is decided inline, on our own bitmask, instead of
-  // costing a call into corLogOut per trace line - most of them in per-node code.
-  //
-  corBaseTraceLevelsSet(corLogTraceLevels, sizeof(corLogTraceLevels) / sizeof(corLogTraceLevels[0]));
-
-  //
-  // Each switch steers its OWN class of output: -v drives COR_V, -d drives COR_D,
-  // and a trace level drives COR_T for that level. Nothing else.
-  //
-  // corLogInit does not do that. It derives corLogInfo/corLogVerbose/corLogDebug from a single
-  // CUMULATIVE level (CERO 0, ERR 1, WARN 2, INFO 3, VERBOSE 4, TRACE 5,
-  // DEBUG 6), and it sets that level to 5 as soon as ANY trace level is asked
-  // for - so `-t 235`, which asks for one line about one decision, silently
-  // turns on every COR_I and COR_V in the broker as well. That is how the admin
-  // test came to report three fields changed when one option was passed.
-  //
-  // We do not pass a logLevel at all (the NULL above), so without the bump the
-  // level would stay -1 and both would be off. Restoring that here is therefore
-  // not a policy of our own; it is what corLogInit computes for our own arguments,
-  // minus a bump we never asked for.
-  //
-  // Fixing it in corLog is the right place and NOT today's errand: the library
-  // is shared with consumers that pass a real logLevel and have a large user
-  // base, and there the same line silently DOWNGRADES an explicit
-  // `--logLevel DEBUG` to 5 and takes COR_D away. One thing at a time.
-  //
-  // ⚠️ corLogInfo follows -v because there is no -i: kargs has corArgsBuiltinVerbose and
-  // corArgsBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
-  // ladder. Give it its own option and this becomes that option.
-  //
-  corLogInfo    = corArgsBuiltinVerbose;
-  corLogVerbose = corArgsBuiltinVerbose;
-  corLogDebug   = corArgsBuiltinDebug;
+  startupLog("coraine", traceLevels);   // the log, and the libraries' log through it - as coraine-import's
 
   COR_V("coraine  %s", CORAINE_VERSION);
   COR_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
@@ -1688,41 +1500,13 @@ int main(int argC, char* argV[])
 
   corLdConcurrencySet(contextOwner, contextSleep);
 
-  if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
-    COR_X(1, "corLdInit failed");
-
   //
-  // The ContextBridge / Channel / Goal terms are core terms - with or without
-  // --bridges: whether a term expands must not depend on a startup flag.
+  // The core context with every term the broker adds to it, the CorTerm ids, the NGSI-LD library -
+  // as coraine-import sets them up
   //
-  if (bridgeCoreTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the ContextBridge/Channel terms could not be added to the core context");
-
-  //
-  // ... and so are the terms of coraine's NGSI-LD extensions (langProperties - spec-doubts #134):
-  // short names in a Query body, and in a Subscription that is stored.
-  //
-  if (ldExtensionTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the NGSI-LD extension terms could not be added to the core context");
-
-#if COR_FEATURE_SERVICE_EXECUTION
-  //
-  // ... and Service Execution's (doc/service-execution.md) - to enter the spec, core terms here already
-  //
-  if (seCoreTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the Service Execution terms could not be added to the core context");
-
-  ldServiceDescriptionAccepted = true;               // an entity may hold its services' descriptions (GR CIM-055 § 6.3.3)
-#endif
-
-  //
-  // Every core term gets its CorTerm id - after the Bridge/Channel terms, which are core terms too.
-  //
-  if (ldCoreTermIdsInit(&contextAlloc) != 0)
-    COR_X(1, "the core context terms could not be given their CorTerm ids");
-
-  if (ldInit() != 0)
-    COR_X(1, "ldInit failed");
+  const char* coreContextError = startupCoreContext(&contextAlloc);
+  if (coreContextError != NULL)
+    COR_X(1, "%s", coreContextError);
 
   ldDefaultCooldownNs = (uint64_t) cooldownMillis * 1000000ULL;
 
@@ -1792,10 +1576,7 @@ int main(int argC, char* argV[])
   // mongoc uses corRest.kalloc internally — set up a startup buffer for it.
   // Cache items get cloned into persistent (malloc) storage, so this is short-lived.
   //
-  static char startupKallocBuf[16384];
-  corAllocBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
-  corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
-  corRest.kallocP  = &corRest.kalloc;
+  startupArena();
 
   //
   // "Now", for anything written before the first request arrives.

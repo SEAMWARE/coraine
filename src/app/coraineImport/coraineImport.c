@@ -19,29 +19,19 @@
 //
 #include <stdbool.h>                                       // bool
 #include <stdio.h>                                         // printf, fprintf
-#include <stdlib.h>                                        // exit, malloc
-#include <string.h>                                        // strrchr, memcpy
+#include <stdlib.h>                                        // exit
+#include <string.h>                                        // strrchr
 #include <time.h>                                          // time
 
 #include "corAlloc/corAlloc.h"                             // CorAlloc
 #include "corAlloc/corAllocBufferInit.h"                   // corAllocBufferInit
 #include "corLog/corLog.h"                                 // COR_X
-#include "corLog/corLogGlobals.h"                          // corLogInfo, corLogVerbose, corLogDebug
-#include "corLog/corLogOut.h"                              // corLogOut
-#include "corBase/corBaseInit.h"                           // corBaseInit, corBaseTraceLevelsSet
 #include "corArgs/corArgs.h"                               // corArgsInit, corArgsParse, corArgsPeek, CorArg, CORARGS_END
-#include "corPlugin/corPlugin.h"                           // corPluginSetBaseDir, corPluginArgUpdate
-#include "corRest/corRestClient.h"                         // corRestClientInit, CorRestClientRequest/Response
+#include "corPlugin/corPlugin.h"                           // corPluginSetBaseDir
+#include "corRest/corRestClient.h"                         // corRestClientInit
 #include "corRest/CorRestState.h"                          // corRest
-#include "corJson/corJsonCreate.h"                         // corJsonCreate
-#include "corJsonld/corJsonld.h"                           // corLdInit
 
-#include "corNgsild/corNgsild.h"                           // ldInit
 #include "corNgsild/CorNgsild.h"                           // corNgsild, ldDistributed, ldBrokerStartTimeSec
-#include "corNgsild/ldCoreTermIds.h"                       // ldCoreTermIdsInit
-#include "corNgsild/ldExtensionTerms.h"                    // ldExtensionTermsAdd
-#include "corNgsild/ldError.h"                             // ldError
-#include "corNgsild/LdProblem.h"                           // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 
 #include "db/DbDriver.h"                                   // db
 #include "db/dbInit.h"                                     // dbStart
@@ -50,12 +40,10 @@
 #include "db/contextCache.h"                               // contextCacheReload
 #include "troe/TroeDriver.h"                               // troe
 #include "troe/troeInit.h"                                 // troeStart, troeStop
-#include "plugin/pluginLoader.h"                           // pluginLoadDb, pluginLoadTroe, pluginTroeArgUpdate
-#include "bridge/bridgeCoreTerms.h"                        // bridgeCoreTermsAdd
-#if COR_FEATURE_SERVICE_EXECUTION
-#include "serviceExecution/seCoreTerms.h"                  // seCoreTermsAdd
-#include "corNgsild/ldServiceDescription.h"                // ldServiceDescriptionAccepted
-#endif
+#include "plugin/pluginLoader.h"                           // pluginStoresLoad
+#include "startup/startupCoreContext.h"                    // startupCoreContext
+#include "startup/startupLog.h"                            // startupLog
+#include "startup/startupArena.h"                          // startupArena
 
 #include "migrate/migrateImport.h"                         // migrateImport
 
@@ -95,114 +83,6 @@ static CorArg kargV[] =
 
 // -----------------------------------------------------------------------------
 //
-// contextDownload - CorLdDownloadFunction: a subscription's jsonldContext is fetched when it is created
-//
-static char* contextDownload(const char* url, int* statusCodeP)
-{
-  CorRestClientRequest  req;
-  CorRestClientResponse resp;
-
-  corRestClientRequestInit(&req, CorVerbGet, url, NULL);
-  corRestClientRequestHeader(&req, "Accept", "application/ld+json, application/json");
-  corRestClientRequestTimeout(&req, 5000, 10000);
-
-  if ((corRestClientSend(&req, &resp) != CORR_OK) || (resp.statusCode != 200))
-  {
-    *statusCodeP = (resp.statusCode > 0) ? resp.statusCode : 500;
-    corRestClientResponseCleanup(&resp);
-    return NULL;
-  }
-
-  *statusCodeP = 200;
-
-  char* copy = NULL;                                       // malloc - corJsonld frees it
-  if ((resp.body != NULL) && (resp.bodyLen > 0) && ((copy = (char*) malloc(resp.bodyLen + 1)) != NULL))
-  {
-    memcpy(copy, resp.body, resp.bodyLen);
-    copy[resp.bodyLen] = 0;
-  }
-
-  corRestClientResponseCleanup(&resp);
-  return copy;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// contextError - CorLdErrorFunction: an @context the library can name - the record's refusal says it
-//
-static void contextError(int status, const char* title, const char* detail)
-{
-  ldError(status, (status == 400) ? LD_ERROR_BAD_REQUEST_DATA : LD_ERROR_LD_CONTEXT_NOT_AVAILABLE, title, "%s", detail);
-  corNgsild.contextError = true;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// pluginArgsAdd - a plugin's options into the table, under a separator naming the plugin
-//
-static void pluginArgsAdd(const char* kind, const char* alias, CorArg* argV)
-{
-  static char    sepText[2][128];
-  static CorArg  sepArgV[2][2];
-  static int     sepN = 0;
-
-  if ((argV == NULL) || (sepN >= 2))
-    return;
-
-  snprintf(sepText[sepN], sizeof(sepText[sepN]), "%s (%s) plugin options:", kind, (alias != NULL) ? alias : "?");
-  sepArgV[sepN][0]             = (CorArg) CORARGS_SEPARATOR(NULL);
-  sepArgV[sepN][1]             = (CorArg) CORARGS_END;
-  sepArgV[sepN][0].description = sepText[sepN];
-
-  if ((corArgsAdd(sepArgV[sepN]) != CorArgsOk) || (corArgsAdd(argV) != CorArgsOk))
-    COR_X(1, "the %s plugin's options could not be added", kind);
-
-  ++sepN;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// pluginsLoad - the store plugins, before the options are parsed: they bring options of their own
-//
-static bool pluginsLoad(int argC, char* argV[])
-{
-  char* dbPeek   = corArgsPeek(argC, argV, kargV, "--database");
-  char* troePeek = corArgsPeek(argC, argV, kargV, "--troe");
-  char  errBuf[1024];
-  bool  error    = false;
-
-  if (pluginLoadDb((dbPeek != NULL) ? dbPeek : dbName, errBuf, sizeof(errBuf)) != 0)
-  {
-    fprintf(stderr, "%s\n", errBuf);
-    error = true;
-  }
-  else
-    pluginArgsAdd("Database", db.alias, db.args);
-
-  if (pluginLoadTroe((troePeek != NULL) ? troePeek : troeName, errBuf, sizeof(errBuf)) != 0)
-  {
-    fprintf(stderr, "%s\n", errBuf);
-    error = true;
-  }
-  else
-    pluginArgsAdd("TRoE", troe.alias, troe.args);
-
-  corPluginArgUpdate("--database", "db/currentState");
-  pluginTroeArgUpdate();
-
-  return error;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // main -
 //
 int main(int argC, char* argV[])
@@ -221,7 +101,12 @@ int main(int argC, char* argV[])
 
   corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
 
-  bool startupError = pluginsLoad(argC, argV);
+  //
+  // The store plugins, before the options are parsed: they bring options of their own
+  //
+  char* dbPeek       = corArgsPeek(argC, argV, kargV, "--database");
+  char* troePeek     = corArgsPeek(argC, argV, kargV, "--troe");
+  bool  startupError = pluginStoresLoad((dbPeek != NULL) ? dbPeek : dbName, (troePeek != NULL) ? troePeek : troeName);
 
   CorArgsStatus ks = corArgsParse(argC, argV);
   if (ks != CorArgsOk)
@@ -236,14 +121,7 @@ int main(int argC, char* argV[])
   //
   // The log is stdout (traces, the plugins' lines); the import's report is stderr
   //
-  if (corLogInit(progName, NULL, true, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false) != 0)
-    COR_X(1, "corLogInit failed");
-
-  corBaseInit(corLogOut);
-  corBaseTraceLevelsSet(corLogTraceLevels, sizeof(corLogTraceLevels) / sizeof(corLogTraceLevels[0]));
-  corLogInfo    = corArgsBuiltinVerbose;
-  corLogVerbose = corArgsBuiltinVerbose;
-  corLogDebug   = corArgsBuiltinDebug;
+  startupLog(progName, traceLevels);
 
   //
   // An import stores, it never forwards nor notifies: no registration is asked, whatever is registered
@@ -262,27 +140,9 @@ int main(int argC, char* argV[])
 
   corAllocBufferInit(&contextAlloc, contextBuffer, sizeof(contextBuffer), 256 * 1024, NULL, "jsonld-context");
 
-  if (corLdInit(&contextAlloc, NULL, contextDownload, contextError) != 0)
-    COR_X(1, "corLdInit failed");
-
-  if (bridgeCoreTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the ContextBridge/Channel terms could not be added to the core context");
-
-  if (ldExtensionTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the NGSI-LD extension terms could not be added to the core context");
-
-#if COR_FEATURE_SERVICE_EXECUTION
-  if (seCoreTermsAdd(&contextAlloc) != 0)
-    COR_X(1, "the Service Execution terms could not be added to the core context");
-
-  ldServiceDescriptionAccepted = true;
-#endif
-
-  if (ldCoreTermIdsInit(&contextAlloc) != 0)
-    COR_X(1, "the core context terms could not be given their CorTerm ids");
-
-  if (ldInit() != 0)
-    COR_X(1, "ldInit failed");
+  const char* coreContextError = startupCoreContext(&contextAlloc);
+  if (coreContextError != NULL)
+    COR_X(1, "%s", coreContextError);
 
   tenantInit("cor");
 
@@ -295,10 +155,7 @@ int main(int argC, char* argV[])
   //
   // The caches the create routines consult (a subscription's, a registration's), as the broker loads them
   //
-  static char startupKallocBuf[16384];
-  corAllocBufferInit(&corRest.kalloc, startupKallocBuf, sizeof(startupKallocBuf), 4096, NULL, "startup");
-  corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
-  corRest.kallocP  = &corRest.kalloc;
+  startupArena();
 
   tenantSubCacheReload();
   tenantRegCacheReload();
