@@ -1,0 +1,142 @@
+#
+# FILE            mongoc_type_created_index.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# mongoc - a query by type in the default order (createdAt, _id) is served by the index
+# {type, createdAt, _id}: MongoDB examines exactly the documents it returns, however rare the type.
+# A database made before that index has an index on {type} alone (type_1): the broker drops it at start.
+#
+# REQUIRE_DB: mongoc
+--NAME--
+mongoc - the index {type, createdAt, _id}: a rare type's page examines only that page; the old type_1 is dropped
+
+--TAGS--
+mongoc query type pagination
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. The indexes of the entities collection: {type,createdAt,_id}, {createdAt,_id}, no type_1
+# 02. Create 300 entities of type Common and 6 of type Rare, between them, in batches
+# 03. GET /entities?type=Rare&limit=2 - the two oldest Rare, in creation order
+# 04. GET /entities?type=Rare&limit=2&offset=2 - the next two
+# 05. The plan of that query: documents examined = the documents returned
+# 06. A database with the old index type_1: stop the broker, create type_1, start - it is gone
+#
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+
+indexes() {
+  mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval \
+    'db.entities.getIndexes().map(i => i.name + " " + JSON.stringify(i.key)).sort().forEach(l => print("  " + l))'
+}
+
+batch() {   # batch <type> <from> <to>
+  python3 -c "
+import json,sys
+t,a,b = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+print(json.dumps([{'id': 'urn:%s:%d' % (t, i), 'type': t, 'n': {'type': 'Property', 'value': i}} for i in range(a, b + 1)]))" "$1" "$2" "$3" > /tmp/mongoc_type_created_index.json
+  corCurl --url /ngsi-ld/v1/entityOperations/create --payload /tmp/mongoc_type_created_index.json | head -1
+}
+
+ids() {
+  corCurl --url "$1" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print('  ', [e['id'] for e in json.load(sys.stdin)])"
+}
+
+echo "01. The indexes of the entities collection: {type,createdAt,_id}, {createdAt,_id}, no type_1"
+echo "=========================================================================================="
+indexes
+echo
+echo
+
+echo "02. Create 300 entities of type Common and 6 of type Rare, between them, in batches"
+echo "==================================================================================="
+batch Common 1 100
+batch Rare   1 2
+batch Common 101 200
+batch Rare   3 4
+batch Common 201 300
+batch Rare   5 6
+echo
+echo
+
+echo "03. GET /entities?type=Rare&limit=2 - the two oldest Rare, in creation order"
+echo "============================================================================"
+ids "/ngsi-ld/v1/entities?type=Rare&limit=2"
+echo
+echo
+
+echo "04. GET /entities?type=Rare&limit=2&offset=2 - the next two"
+echo "==========================================================="
+ids "/ngsi-ld/v1/entities?type=Rare&limit=2&offset=2"
+echo
+echo
+
+echo "05. The plan of that query: documents examined = the documents returned"
+echo "======================================================================="
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval '
+  const rare = db.entities.findOne({_id: "urn:Rare:1"}).type;
+  const e = db.entities.find({type: rare}).sort({createdAt: 1, _id: 1}).skip(2).limit(2).explain("executionStats");
+  print("  returned " + e.executionStats.nReturned + ", documents examined " + e.executionStats.totalDocsExamined);'
+echo
+echo
+
+echo "06. A database with the old index type_1: stop the broker, create type_1, start - it is gone"
+echo "============================================================================================"
+coraineStop
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX --eval 'print("  created " + db.entities.createIndex({type: 1}))'
+coraineStart
+indexes
+ids "/ngsi-ld/v1/entities?type=Rare&limit=2&offset=4"
+
+
+--EXPECT--
+01. The indexes of the entities collection: {type,createdAt,_id}, {createdAt,_id}, no type_1
+==========================================================================================
+  _id_ {"_id":1}
+  createdAt_1__id_1 {"createdAt":1,"_id":1}
+  type_1_createdAt_1__id_1 {"type":1,"createdAt":1,"_id":1}
+
+
+02. Create 300 entities of type Common and 6 of type Rare, between them, in batches
+===================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. GET /entities?type=Rare&limit=2 - the two oldest Rare, in creation order
+============================================================================
+   ['urn:Rare:1', 'urn:Rare:2']
+
+
+04. GET /entities?type=Rare&limit=2&offset=2 - the next two
+===========================================================
+   ['urn:Rare:3', 'urn:Rare:4']
+
+
+05. The plan of that query: documents examined = the documents returned
+=======================================================================
+  returned 2, documents examined 2
+
+
+06. A database with the old index type_1: stop the broker, create type_1, start - it is gone
+============================================================================================
+  created type_1
+  _id_ {"_id":1}
+  createdAt_1__id_1 {"createdAt":1,"_id":1}
+  type_1_createdAt_1__id_1 {"type":1,"createdAt":1,"_id":1}
+   ['urn:Rare:5', 'urn:Rare:6']
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -f /tmp/mongoc_type_created_index.json
