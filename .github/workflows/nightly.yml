@@ -22,7 +22,7 @@ on:
         description: 'Run just one of them - for trying a fix without paying for the rest'
         type: choice
         default: all
-        options: [all, coverage, valgrind, etsi, performance, dds]
+        options: [all, coverage, valgrind, etsi, performance, dds, arm64]
 
 defaults:
   run:
@@ -860,3 +860,97 @@ jobs:
       #
       - name: What the image weighs
         run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"
+
+  #
+  # The functional suite on ARM: linux/arm64, on GitHub's own ARM runners (free for public repositories) -
+  # real Arm hardware, not emulation, so a race that ARM's weaker memory ordering exposes and x86's
+  # stronger one hides shows up here, and nowhere else. The arm64 image (deploy.yml) is built and smoke-
+  # tested on the same kind of runner; this is the whole suite.
+  #
+  # No CI image: it is amd64 only. The runner is set up as the image is (.github/scripts/ci-env.sh, minus
+  # DDS), and the services run with `docker run` on localhost: the mongo replica set (mongo-rs is mongo:8.0
+  # with --replSet - and amd64 only), TimescaleDB (multi-arch), the @context server (amd64 only: under
+  # QEMU, a small HTTP store - its speed does not matter). The runner's own compiler - Ubuntu 24.04's gcc,
+  # not the image's - is a second difference worth having.
+  #
+  functests-arm64:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "arm64"]'), needs.gate.outputs.only)
+    runs-on: ubuntu-24.04-arm
+    name: functests arm64 ${{ matrix.db }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mongoc, corDB]
+    env:
+      COR_MONGO_HOST: localhost
+      COR_TROE_HOST: localhost
+      SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
+      CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
+    steps:
+      - name: Check out coraine
+        uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: Check out corLibs
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      - name: The build and test environment (what the CI image holds, minus DDS)
+        run: stack/coraine/.github/scripts/ci-env.sh
+
+      - name: QEMU, for the one amd64-only service
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64
+
+      - name: The services - mongo replica set, TimescaleDB, the @context server
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:8.0 mongod --replSet rs0 --bind_ip_all
+          docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust timescale/timescaledb-ha:pg16
+          docker run -d --name context-server --platform linux/amd64 -p 7080:8080 -e MEMORY_ENABLED=true wistefan/context-server:0.2.0
+          stack/coraine/.github/scripts/mongo-rs-init.sh
+          for i in $(seq 1 60); do
+            psql -h localhost -U postgres -c 'SELECT 1' >/dev/null 2>&1 && break
+            [ "$i" = 60 ] && { echo "timescale never became reachable"; docker logs timescale; exit 1; }
+            sleep 2
+          done
+          for i in $(seq 1 60); do
+            curl -s -o /dev/null --max-time 2 http://localhost:7080/jsonldContexts/_probe && break
+            [ "$i" = 60 ] && { echo "the context server never answered"; docker logs context-server; exit 1; }
+            sleep 2
+          done
+          echo "services up"
+
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+
+      - name: Build and install coraine
+        working-directory: stack/coraine
+        run: |
+          make di
+          coraine --version
+
+      - name: Functional tests - arm64 ${{ matrix.db }}
+        working-directory: stack/coraine
+        run: |
+          uname -m
+          ../corLibs/bin/corTest -db ${{ matrix.db }} --noColor
+
+      - name: Keep the output of anything that failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-arm64-${{ matrix.db }}
+          path: |
+            stack/coraine/test/funcTests/cases/*.out
+            stack/coraine/test/funcTests/cases/*.diff
+            stack/coraine/test/funcTests/cases/*.log
+            /tmp/coraine*.log
+            /tmp/corTestClient.*.log
+          retention-days: 7
