@@ -942,6 +942,15 @@ jobs:
           uname -m
           ../corLibs/bin/corTest -db ${{ matrix.db }} --noColor
 
+      #
+      # A test that fails on "stderr not empty" says WHY only in its .stderr - the most frequent lines
+      # here, so a run's log answers it without downloading anything
+      #
+      - name: What the failing tests wrote to stderr (the most frequent lines)
+        if: failure()
+        working-directory: stack/coraine/test/funcTests/cases
+        run: cat *.stderr 2>/dev/null | sort | uniq -c | sort -rn | head -30 || true
+
       - name: Keep the output of anything that failed
         if: failure()
         uses: actions/upload-artifact@v4
@@ -950,6 +959,7 @@ jobs:
           path: |
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.diff
+            stack/coraine/test/funcTests/cases/*.stderr
             stack/coraine/test/funcTests/cases/*.log
             /tmp/coraine*.log
             /tmp/corTestClient.*.log
