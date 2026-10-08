@@ -13,7 +13,7 @@
 #      PostgreSQL 'migtestorion' + 'migtestorion_t1' (history)        - orionldFabricate.{js,sql}
 #   2. read it with orionldExport.py, and compare the stream with the one the broker's functest
 #      imports (test/funcTests/fixtures/migrate/orionld-stream.ndjson) - the reader's test
-#   3. import the stream, twice: into corDB + timescale and into mongoc + timescale
+#   3. import the stream with coraine-import, twice: into corDB + timescale and into mongoc + timescale
 #   4. start coraine on each migrated store and GET everything back through the API; the two must
 #      answer the same, and as orionldE2E.expected says
 #
@@ -28,6 +28,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 PYTHON=${PYTHON:-python3}
 BROKER=${BROKER_BIN:-coraine}
+IMPORTER=${IMPORT_BIN:-coraine-import}
 PORT=${MIGTEST_PORT:-19830}
 PGHOST=${COR_TROE_HOST:-localhost}
 PGUSER=${COR_TROE_USER:-postgres}
@@ -104,7 +105,7 @@ for store in corDB mongoc; do
   esac
   TROEARGS="--troe timescale --troeHost $PGHOST --troeUser $PGUSER $PGPWD --troeName migtest_$store"
 
-  $BROKER -fg -p $PORT $DBARGS $TROEARGS --importFile "$W/stream.ndjson" > "$W/import-$store.out" 2>&1 || { cat "$W/import-$store.out"; fail "import into $store"; }
+  $IMPORTER $DBARGS $TROEARGS --file "$W/stream.ndjson" 2> "$W/import-$store.out" > "$W/import-$store.log" || { cat "$W/import-$store.out"; fail "import into $store"; }
   sed 's/^/   /' "$W/import-$store.out"
 
   $BROKER -fg -p $PORT -pp 2 $DBARGS $TROEARGS > "$W/broker-$store.log" 2>&1 &

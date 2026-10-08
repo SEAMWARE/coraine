@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# --importFile (doc/migration.md): a migration stream written into the stores the broker is started
+# coraine-import (doc/migration.md): a migration stream written into the stores the importer is started
 # with, and read back through the API by the broker started on them.
 #
 # The stream is fixtures/migrate/orionld-stream.ndjson - what tools/migrate/orionldExport.py reads out
@@ -13,11 +13,12 @@
 # type, a multi-instance attribute, Sub-Attributes, a name with dots in it, two tenants, subscriptions
 # with counters, a registration, and the history (a deleted entity's included). What has to come back
 # is what the source had: the ids, every createdAt/modifiedAt (entity, attribute instance, Sub-
-# Attribute, subscription, registration), the counters, the history's instanceIds.
+# Attribute, subscription, registration), the counters, the history's instanceIds. P1 has no history
+# in the stream: it gets the history a create writes - its created event at its createdAt, its
+# attribute as it is, at its own times.
 #
-# Then a stream whose names are NOT expanded, as an NGSIv2 source gives them: refused without the
-# @context that defines them (--importContext), and with it every name the context does not define is
-# an error - never left to the default @vocab.
+# Then a stream whose names are NOT expanded: every record holding a name that is neither an IRI nor a
+# core term is refused, the name said - the importer expands nothing.
 #
 # And an import into a store that already holds the data: everything refused, nothing overwritten.
 #
@@ -50,9 +51,9 @@ cp "$REPO_ROOT"/test/funcTests/fixtures/migrate/* /tmp/corTest-migrate/
 # 08. GET the history of V1 - the source's instanceIds and times
 # 09. GET the history of V9 - deleted, its history kept
 # 10. GET the history of R1 in tenant t1
-# 11. Import a stream whose names are not expanded, with no --importContext - all refused
-# 12. Import it with --importContext - a name the context does not define is an error
-# 13. GET R2 - its names expanded by the context, its times as they were
+# 11. GET the history of P1 - none in the stream: the created row
+# 12. Import a stream whose names are not expanded - each such record refused, the name said
+# 13. GET R6 - its record was expanded; its history record was not - no created row in its place
 # 14. Import the first stream again - everything is there already: refused, nothing overwritten
 #
 
@@ -60,7 +61,7 @@ D=/tmp/corTest-migrate
 
 echo "01. Import the stream - current state and history"
 echo "================================================="
-coraineStart --troe timescale --importFile $D/orionld-stream.ndjson
+coraineImport --troe timescale --file $D/orionld-stream.ndjson
 echo "exit code: $?"
 echo
 echo
@@ -130,33 +131,35 @@ echo
 echo
 
 
-echo "11. Import a stream whose names are not expanded, with no --importContext - all refused"
-echo "======================================================================================="
-coraineStart --troe timescale --importFile $D/unexpanded-stream.ndjson
+echo "11. GET the history of P1 - none in the stream: the created row"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Parking:P1?options=sysAttrs'
+echo
+echo
+
+
+echo "12. Import a stream whose names are not expanded - each such record refused, the name said"
+echo "=========================================================================================="
+coraineStop
+coraineImport --troe timescale --file $D/unexpanded-stream.ndjson
 echo "exit code: $?"
 echo
 echo
 
 
-echo "12. Import it with --importContext - a name the context does not define is an error"
-echo "==================================================================================="
-coraineStart --troe timescale --importFile $D/unexpanded-stream.ndjson --importContext $D/unexpanded-context.jsonld
-echo "exit code: $?"
-echo
-echo
-
-
-echo "13. GET R2 - its names expanded by the context, its times as they were"
-echo "======================================================================"
+echo "13. GET R6 - its record was expanded; its history record was not - no created row in its place"
+echo "=============================================================================================="
 coraineStart --troe timescale
-corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Room:R2?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Room:R6?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Room:R6'
 echo
 echo
 
 
 echo "14. Import the first stream again - everything is there already: refused, nothing overwritten"
 echo "============================================================================================="
-coraineStart --troe timescale --importFile $D/orionld-stream.ndjson
+coraineStop
+coraineImport --troe timescale --file $D/orionld-stream.ndjson
 echo "exit code: $?"
 echo
 echo
@@ -171,6 +174,7 @@ import of /tmp/corTest-migrate/orionld-stream.ndjson:
   registrations                   1 imported,      0 refused
   temporal entity events          4 imported,      0 refused
   temporal instances              8 imported,      0 refused
+  created rows (history)          1 written,       0 failed
 exit code: 0
 
 
@@ -647,60 +651,80 @@ Content-Length: 401
 
 
 
-11. Import a stream whose names are not expanded, with no --importContext - all refused
-=======================================================================================
-/tmp/corTest-migrate/unexpanded-stream.ndjson:2: entity: entity type 'Room' is not expanded - give the @context that defines it (--importContext)
-/tmp/corTest-migrate/unexpanded-stream.ndjson:3: entity: entity type 'Room' is not expanded - give the @context that defines it (--importContext)
-/tmp/corTest-migrate/unexpanded-stream.ndjson:4: entity: entity type 'Office' is not expanded - give the @context that defines it (--importContext)
-/tmp/corTest-migrate/unexpanded-stream.ndjson:5: entity: entity type 'Room' is not expanded - give the @context that defines it (--importContext)
-import of /tmp/corTest-migrate/unexpanded-stream.ndjson:
-  entities                        0 imported,      4 refused
-  subscriptions                   0 imported,      0 refused
-  registrations                   0 imported,      0 refused
-  temporal entity events          0 imported,      0 refused
-  temporal instances              0 imported,      0 refused
-exit code: 1
-
-
-12. Import it with --importContext - a name the context does not define is an error
-===================================================================================
-/tmp/corTest-migrate/unexpanded-stream.ndjson:3: entity: attribute name 'pressure' is not defined by the --importContext
-/tmp/corTest-migrate/unexpanded-stream.ndjson:4: entity: entity type 'Office' is not defined by the --importContext
-/tmp/corTest-migrate/unexpanded-stream.ndjson:5: entity: sub-attribute name 'brand' is not defined by the --importContext
-import of /tmp/corTest-migrate/unexpanded-stream.ndjson:
-  entities                        1 imported,      3 refused
-  subscriptions                   0 imported,      0 refused
-  registrations                   0 imported,      0 refused
-  temporal entity events          0 imported,      0 refused
-  temporal instances              0 imported,      0 refused
-exit code: 1
-
-
-13. GET R2 - its names expanded by the context, its times as they were
-======================================================================
+11. GET the history of P1 - none in the stream: the created row
+===============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 484
+Content-Length: 428
+
+{
+  "createdAt": "2024-01-05T00:00:00Z",
+  "https://example.org/v1.0/capacity": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "modifiedAt": "2024-01-06T00:00:00Z",
+      "type": "Property",
+      "value": 100
+    }
+  ],
+  "id": "urn:ngsi-ld:Parking:P1",
+  "modifiedAt": "2024-01-05T00:00:00Z",
+  "type": "https://example.org/Parking"
+}
+
+
+
+12. Import a stream whose names are not expanded - each such record refused, the name said
+==========================================================================================
+/tmp/corTest-migrate/unexpanded-stream.ndjson:2: entity: attribute name 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:3: entity: entity type 'Room' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:4: entity: sub-attribute name 'brand' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:5: entity: attribute name 'ex:humidity' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:6: subscription: watched attribute 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:7: temporalInstance: attribute name 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+import of /tmp/corTest-migrate/unexpanded-stream.ndjson:
+  entities                        1 imported,      4 refused
+  subscriptions                   0 imported,      1 refused
+  registrations                   0 imported,      0 refused
+  temporal entity events          0 imported,      0 refused
+  temporal instances              0 imported,      1 refused
+exit code: 1
+
+
+13. GET R6 - its record was expanded; its history record was not - no created row in its place
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 318
 
 {
   "createdAt": "2025-03-01T10:00:00Z",
-  "https://example.org/humidity": {
+  "https://example.org/temperature": {
     "createdAt": "2025-03-01T10:00:00Z",
     "modifiedAt": "2025-03-01T10:00:00Z",
     "type": "Property",
-    "value": 40
+    "value": 18
   },
-  "https://example.org/temperature": {
-    "createdAt": "2025-03-01T10:00:00Z",
-    "modifiedAt": "2025-03-02T10:00:00Z",
-    "type": "Property",
-    "value": 19.5
-  },
-  "id": "urn:ngsi-ld:Room:R2",
-  "modifiedAt": "2025-03-02T10:00:00Z",
+  "id": "urn:ngsi-ld:Room:R6",
+  "modifiedAt": "2025-03-01T10:00:00Z",
   "type": "https://example.org/Room"
+}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "no temporal data for entity 'urn:ngsi-ld:Room:R6'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 

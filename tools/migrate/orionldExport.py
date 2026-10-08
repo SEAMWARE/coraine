@@ -10,10 +10,10 @@
 # The READER half of a migration from an Orion-LD deployment to coraine (doc/migration.md):
 # reads an Orion-LD database - the current state in MongoDB, the temporal history (TRoE) in
 # PostgreSQL - and writes a coraine migration stream: one JSON record per line, expanded NGSI-LD,
-# system timestamps and ids as they were. The WRITER half is the broker itself:
+# system timestamps and ids as they were. The WRITER half is coraine-import:
 #
 #   orionldExport.py --mongo mongodb://localhost:27017 --troe 'host=localhost user=postgres' > stream.ndjson
-#   coraine -db corDB --dbDir /var/lib/coraine --troe timescale --importFile stream.ndjson
+#   coraine-import -db corDB --dbDir /var/lib/coraine --troe timescale --file stream.ndjson
 #
 # Needs pymongo (current state) and psycopg 3 or psycopg2 (history), imported only when used.
 #
@@ -627,7 +627,7 @@ def exportHistory(stream, dsn, prefix, wanted, entityTypes):
 #
 def main():
     ap = argparse.ArgumentParser(description='Read an Orion-LD database (current state in MongoDB, history in PostgreSQL) '
-                                             'and write a coraine migration stream (doc/migration.md) - import it with coraine --importFile')
+                                             'and write a coraine migration stream (doc/migration.md) - import it with coraine-import')
     ap.add_argument('--mongo',     default='mongodb://localhost:27017', help='MongoDB URI of the current state (default: %(default)s)')
     ap.add_argument('--db',        default='orion', help='the database name prefix the deployment ran with (-db; default: %(default)s)')
     ap.add_argument('--troe',      default=None, help="libpq connection string of the TRoE server, without dbname (e.g. 'host=localhost user=postgres password=...'); none: no history")
