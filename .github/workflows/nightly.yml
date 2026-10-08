@@ -916,12 +916,17 @@ jobs:
             'COPY --from=app /app /app' \
             'ENTRYPOINT ["java","-cp","/app/resources:/app/classes:/app/libs/*","org.fiware.context.Application"]' \
             | docker buildx build --load -t context-server-arm64 -
+      #
+      # Not named context-server: on a hosted runner the tests have docker, and contextServerStop
+      # (a TEARDOWN) kills a container of that name - every later test would find no server. Under
+      # another name it lives the whole job, as the service container of the x86 jobs does.
+      #
 
       - name: The services - mongo replica set, TimescaleDB, the @context server
         run: |
           docker run -d --name mongo -p 27017:27017 mongo:8.0 mongod --replSet rs0 --bind_ip_all
           docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust timescale/timescaledb-ha:pg16
-          docker run -d --name context-server -p 7080:8080 -e MEMORY_ENABLED=true context-server-arm64
+          docker run -d --name ctx-arm64 -p 7080:8080 -e MEMORY_ENABLED=true context-server-arm64
           stack/coraine/.github/scripts/mongo-rs-init.sh
           for i in $(seq 1 60); do
             psql -h localhost -U postgres -c 'SELECT 1' >/dev/null 2>&1 && break
@@ -930,7 +935,7 @@ jobs:
           done
           for i in $(seq 1 60); do
             curl -s -o /dev/null --max-time 2 http://localhost:7080/jsonldContexts/_probe && break
-            [ "$i" = 60 ] && { echo "the context server never answered"; docker logs context-server; exit 1; }
+            [ "$i" = 60 ] && { echo "the context server never answered"; docker logs ctx-arm64; exit 1; }
             sleep 2
           done
           echo "services up"
