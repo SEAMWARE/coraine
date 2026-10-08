@@ -341,6 +341,53 @@ static CorNode* typeNodeFromJson(const char* json, CorJson* corJsonP, CorAlloc* 
 
 // -----------------------------------------------------------------------------
 //
+// qWindowed - a compiled q-predicate with the window of the temporal query where
+// troeQTreeToSql left /*W*/ in each EXISTS (§ 11.3.3: q is checked against the
+// instances the temporal query lets through). NULL qPred → NULL.
+//
+static const char* qWindowed(const char* qPred, const char* window, CorAlloc* kaP)
+{
+  if (qPred == NULL)
+    return NULL;
+
+  int marks = 0;
+  for (const char* s = strstr(qPred, "/*W*/"); s != NULL; s = strstr(s + 5, "/*W*/"))
+    ++marks;
+
+  int   sz  = (int) strlen(qPred) + marks * (int) strlen(window) + 1;
+  char* buf = (char*) corAlloc(kaP, sz);
+  int   p   = 0;
+
+  for (const char* s = qPred; *s != 0; )
+  {
+    if (strncmp(s, "/*W*/", 5) == 0)
+    {
+      p += snprintf(buf + p, sz - p, "%s", window);
+      s += 5;
+    }
+    else
+      buf[p++] = *s++;
+  }
+  buf[p] = 0;
+
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// qWindowLiteral - the window of the temporal query (timerel on the time column,
+// the createdAt/deletedAt op restriction) with its times as literals - for the
+// q precondition, whose only bind parameter is the entity id
+//
+static const char* qWindowLiteral(const char* timerel, const char* timeAt, const char* endTimeAt,
+                                  const char* tCol, const char* opPred, CorAlloc* kaP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // buildEntityTemporalDocLocked - build the EntityTemporal tree for one entity.
 //
 // Mutex must be held. Returns:
@@ -383,10 +430,21 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   const char* attrPred      = attrsInClause(attrV, &corRest.kalloc);
   const char* dsPred        = datasetIdsInClause(datasetIdV, &corRest.kalloc);
 
-  // q precondition.
+  // q precondition - over the instances in the window.
   bool qErr = false;
-  if (!runQPreconditionLocked(qPred, entityId, &qErr))
+  const char* qWin = qWindowLiteral(timerel, timeAt, endTimeAt, tCol, opPred, &corRest.kalloc);
+  if (!runQPreconditionLocked(qWindowed(qPred, qWin, &corRest.kalloc), entityId, &qErr))
     return qErr ? TROE_ERR : TROE_NOT_FOUND;
+
+  // § 11.3.3, the last step: only the instances that meet q.
+  const char* rowPred = "";
+  if ((fP != NULL) && (fP->qRowPredicate != NULL))
+  {
+    int   sz = (int) strlen(fP->qRowPredicate) + 8;
+    char* b  = (char*) corAlloc(&corRest.kalloc, sz);
+    snprintf(b, sz, " AND %s", fP->qRowPredicate);
+    rowPred = b;
+  }
 
   // Entity type — caller may pass it in (multi-entity case fetches in one
   // go); single-entity look-up here.
@@ -475,12 +533,13 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   // window — used to detect whether instances remain beyond the current
   // page (hasMore → Link rel="intervalafter"/"intervalbefore" at the
   // API surface).
-  char groupSql[4096];
-  snprintf(groupSql, sizeof(groupSql),
+  int   groupSize = 4096 + (int) strlen(rowPred);
+  char* groupSql  = (char*) corAlloc(&corRest.kalloc, groupSize);
+  snprintf(groupSql, groupSize,
     "SELECT attr_name, dataset_id, COUNT(*)::int "
-    "FROM troe_attrs WHERE entity_id = $1%s%s%s%s "
+    "FROM troe_attrs WHERE entity_id = $1%s%s%s%s%s "
     "GROUP BY attr_name, dataset_id",
-    timePred, opPred, attrPred, dsPred);
+    timePred, opPred, attrPred, dsPred, rowPred);
 
   PGresult* gRes = PQexecParams(timescaleConn, groupSql, nParams, NULL, paramV, NULL, NULL, 0);
   if (PQresultStatus(gRes) != PGRES_TUPLES_OK)
@@ -503,7 +562,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   if (groupN == 0 && entityType == NULL)
     return TROE_NOT_FOUND;
 
-  int   sqlSize = 8192;
+  int   sqlSize = 8192 + (int) strlen(rowPred);
   char* sql     = (char*) corAlloc(&corRest.kalloc, sqlSize);
 
   // Per-partition page clip. The window function ORDER BY follows the
@@ -528,10 +587,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     "SELECT %s, "
     "       ROW_NUMBER() OVER (PARTITION BY attr_name, dataset_id ORDER BY %s %s NULLS LAST, modified_at %s) AS rn "
     "FROM troe_attrs "
-    "WHERE entity_id = $1%s%s%s%s) sub "
+    "WHERE entity_id = $1%s%s%s%s%s) sub "
     "WHERE %s "
     "ORDER BY attr_name, dataset_id, %s %s NULLS LAST, modified_at %s",
-    selectCols, tCol, orderDir, orderDir, timePred, opPred, attrPred, dsPred, rnClip, tCol, orderDir, orderDir);
+    selectCols, tCol, orderDir, orderDir, timePred, opPred, attrPred, dsPred, rowPred, rnClip, tCol, orderDir, orderDir);
 
   PGresult* aRes = PQexecParams(timescaleConn, sql, nParams, NULL, paramV, NULL, NULL, 0);
 
@@ -921,6 +980,46 @@ static int sqlQuote(char* buf, int bufSize, int p, const char* s)
     else            buf[p++] = *c;
   }
   return p;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// qWindowLiteral -
+//
+static const char* qWindowLiteral(const char* timerel, const char* timeAt, const char* endTimeAt,
+                                  const char* tCol, const char* opPred, CorAlloc* kaP)
+{
+  int   sz  = 256 + (int) strlen(opPred) + ((timeAt != NULL) ? 2 * (int) strlen(timeAt) : 0) +
+              ((endTimeAt != NULL) ? 2 * (int) strlen(endTimeAt) : 0);
+  char* buf = (char*) corAlloc(kaP, sz);
+  int   p   = 0;
+
+  buf[0] = 0;
+
+  if ((timerel != NULL) && (timeAt != NULL))
+  {
+    // § 4.11.4: before - timeAt exclusive; after - inclusive; between - [timeAt, endTimeAt)
+    if (strcmp(timerel, "before") == 0)
+      p += snprintf(buf + p, sz - p, " AND %s < '", tCol);
+    else
+      p += snprintf(buf + p, sz - p, " AND %s >= '", tCol);
+
+    p  = sqlQuote(buf, sz, p, timeAt);
+    p += snprintf(buf + p, sz - p, "'::timestamptz");
+
+    if ((strcmp(timerel, "between") == 0) && (endTimeAt != NULL))
+    {
+      p += snprintf(buf + p, sz - p, " AND %s < '", tCol);
+      p  = sqlQuote(buf, sz, p, endTimeAt);
+      p += snprintf(buf + p, sz - p, "'::timestamptz");
+    }
+  }
+
+  snprintf(buf + p, sz - p, "%s", opPred);
+
+  return buf;
 }
 
 
@@ -1536,11 +1635,18 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     }
   }
 
-  // Correlated q predicate (entity-level precondition).
+  // Correlated q predicate (entity-level precondition) - over the instances in
+  // the window: the window's own bind parameters, in the same statement.
   const char* qCorr = "";
   if (fP->qSqlPredicate != NULL)
   {
-    const char* c  = correlateQPred(fP->qSqlPredicate, &corRest.kalloc);
+    int         wsz = (int) (strlen(timePred) + strlen(opPred)) + 1;
+    char*       win = (char*) corAlloc(&corRest.kalloc, wsz);
+
+    snprintf(win, wsz, "%s%s", timePred, opPred);
+
+    // Correlate first: the window's own $1 is timeAt, not the entity id
+    const char* c  = qWindowed(correlateQPred(fP->qSqlPredicate, &corRest.kalloc), win, &corRest.kalloc);
     int         sz = (int) strlen(c) + 8;
     char*       b  = (char*) corAlloc(&corRest.kalloc, sz);
     snprintf(b, sz, " AND %s", c);
@@ -1551,7 +1657,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   const char* geoPred = geoPredicateCorrelated(fP, tCol, timePred, opPred, &corRest.kalloc);
 
   // WHERE body shared by the page query and the count query.
-  int   wSize = 16384;
+  int   wSize = 16384 + (int) (strlen(qCorr) + strlen(geoPred));
   char* where = (char*) corAlloc(&corRest.kalloc, wSize);
   snprintf(where, wSize,
     "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
@@ -1587,10 +1693,19 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
 
   if (aggrPushdownOk(fP))
   {
-    int   tailSize = (int) (strlen(timePred) + strlen(opPred) + strlen(attrPred) + strlen(dsPred)) + 1;
+    const char* rowPred  = "";
+    if (fP->qRowPredicate != NULL)                // § 11.3.3: only the instances that meet q are aggregated
+    {
+      int   sz = (int) strlen(fP->qRowPredicate) + 8;
+      char* b  = (char*) corAlloc(&corRest.kalloc, sz);
+      snprintf(b, sz, " AND %s", fP->qRowPredicate);
+      rowPred = b;
+    }
+
+    int   tailSize = (int) (strlen(timePred) + strlen(opPred) + strlen(attrPred) + strlen(dsPred) + strlen(rowPred)) + 1;
     char* tail     = (char*) corAlloc(&corRest.kalloc, tailSize);
 
-    snprintf(tail, tailSize, "%s%s%s%s", timePred, opPred, attrPred, dsPred);
+    snprintf(tail, tailSize, "%s%s%s%s%s", timePred, opPred, attrPred, dsPred, rowPred);
 
     aggrRc = aggregatedDocsLocked(eRes, pageN, fP, tail, nParams, paramV, arrP, rangeOut);
     if (aggrRc == TROE_ERR)

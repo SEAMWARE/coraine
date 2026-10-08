@@ -107,13 +107,22 @@ static int jsonbPath(LdQTerm* tP, char* dst, int max)
 // -----------------------------------------------------------------------------
 //
 // termToSql - one LdQTermNode → "EXISTS (SELECT 1 FROM troe_attrs WHERE
-// entity_id = $1 AND attr_name = '<iri>' AND <lhs> <op> <lit>)".
+// entity_id = $1 AND attr_name = '<iri>' AND <lhs> <op> <lit>/*W*/)".
+//
+// /*W*/ is where the store puts the window of the temporal query (§ 11.3.3: q
+// is checked against the instances the temporal query lets through); left as
+// it is, it is a comment.
+//
+// row: the term for ONE row of troe_attrs instead - "(attr_name <> '<iri>' OR
+// (<lhs> <op> <lit>))": a row of the term's attribute meets the term, a row of
+// another attribute is not restricted by it (§ 11.3.3, the last step: only the
+// instances that meet the query are returned).
 //
 // Returns NULL when the term cannot be expressed in SQL. The caller must then
 // refuse the query rather than run it unfiltered — an ignored filter answers
 // with entities that do not match, which is worse than an error.
 //
-static const char* termToSql(LdQTerm* tP, CorAlloc* allocP)
+static const char* termToSql(LdQTerm* tP, bool row, CorAlloc* allocP)
 {
   char attrEsc[1024];
   escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
@@ -143,19 +152,26 @@ static const char* termToSql(LdQTerm* tP, CorAlloc* allocP)
     int   sz  = (int) strlen(attrEsc) + (int) strlen(pathBuf) + 192;
     char* buf = (char*) corAlloc(allocP, sz);
 
-    if (observedAtPath)
+    if (row)
+    {
+      const char* exists = observedAtPath ? "observed_at IS NOT NULL" : (deep ? pathBuf : "TRUE");
+
+      snprintf(buf, sz, "(attr_name <> '%s' OR %s(%s%s))", attrEsc, (tP->op == LdQNotExists) ? "NOT " : "",
+               exists, (deep && !observedAtPath) ? " IS NOT NULL" : "");
+    }
+    else if (observedAtPath)
       snprintf(buf, sz,
                "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s'"
-               " AND observed_at IS NOT NULL)",
+               " AND observed_at IS NOT NULL/*W*/)",
                (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
     else if (deep)
       snprintf(buf, sz,
                "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s'"
-               " AND %s IS NOT NULL)",
+               " AND %s IS NOT NULL/*W*/)",
                (tP->op == LdQNotExists) ? "NOT " : "", attrEsc, pathBuf);
     else
       snprintf(buf, sz,
-               "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s')",
+               "%sEXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s'/*W*/)",
                (tP->op == LdQNotExists) ? "NOT " : "", attrEsc);
     return buf;
   }
@@ -357,9 +373,13 @@ static const char* termToSql(LdQTerm* tP, CorAlloc* allocP)
 
   int   sz  = (int) strlen(attrEsc) + (int) strlen(guard) + (int) strlen(cond) + 128;
   char* buf = (char*) corAlloc(allocP, sz);
-  snprintf(buf, sz,
-           "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s%s)",
-           attrEsc, guard, cond);
+
+  if (row)
+    snprintf(buf, sz, "(attr_name <> '%s' OR (%s%s))", attrEsc, guard, cond);
+  else
+    snprintf(buf, sz,
+             "EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = $1 AND attr_name = '%s' AND %s%s/*W*/)",
+             attrEsc, guard, cond);
   return buf;
 }
 
@@ -369,12 +389,12 @@ static const char* termToSql(LdQTerm* tP, CorAlloc* allocP)
 //
 // nodeToSql - recursive walker.
 //
-static const char* nodeToSql(LdQNode* qP, CorAlloc* allocP)
+static const char* nodeToSql(LdQNode* qP, bool row, CorAlloc* allocP)
 {
   if (qP == NULL) return NULL;
 
   if (qP->type == LdQTermNode)
-    return termToSql(&qP->term, allocP);
+    return termToSql(&qP->term, row, allocP);
 
   if (qP->type == LdQAndNode || qP->type == LdQOrNode)
   {
@@ -388,7 +408,7 @@ static const char* nodeToSql(LdQNode* qP, CorAlloc* allocP)
     int totalLen = 4;  // "(" + ")" + slack
     for (int i = 0; i < qP->group.count; i++)
     {
-      parts[i] = nodeToSql(qP->group.childV[i], allocP);
+      parts[i] = nodeToSql(qP->group.childV[i], row, allocP);
       if (parts[i] == NULL) return NULL;  // unsupported child → bail
       totalLen += (int) strlen(parts[i]) + (int) strlen(sep);
     }
@@ -424,5 +444,16 @@ static const char* nodeToSql(LdQNode* qP, CorAlloc* allocP)
 //
 const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP)
 {
-  return nodeToSql(qTree, allocP);
+  return nodeToSql(qTree, false, allocP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeQTreeToRowSql -
+//
+const char* troeQTreeToRowSql(LdQNode* qTree, CorAlloc* allocP)
+{
+  return nodeToSql(qTree, true, allocP);
 }

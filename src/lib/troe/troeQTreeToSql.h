@@ -31,6 +31,15 @@
 //
 // Compose for AND/OR via "( ... AND ... )" / "( ... OR ... )".
 //
+// Every EXISTS ends in "/*W*/": the place for the window of the temporal
+// query, which the store puts there (a comment if it does not).
+//
+// troeQTreeToRowSql: the same tree as a predicate on ONE row of troe_attrs -
+// the instances that meet q (§ 11.3.3). A term on another attribute than the
+// row's does not restrict it:
+//
+//   (attr_name <> '<iri>' OR (v_number > 10))
+//
 
 #include "corNgsild/LdQ.h"                                 // LdQNode
 #include "corAlloc/CorAlloc.h"                            // CorAlloc
@@ -41,5 +50,12 @@
 // an unsupported feature (caller falls back: skip the precondition).
 //
 extern const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP);
+
+
+
+//
+// Compile qTree → a predicate on one troe_attrs row. NULL as troeQTreeToSql.
+//
+extern const char* troeQTreeToRowSql(LdQNode* qTree, CorAlloc* allocP);
 
 #endif  // TROE_TROEQTREETOSQL_H_
