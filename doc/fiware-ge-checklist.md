@@ -86,7 +86,8 @@ Sent to FF Staff with the [application form](https://www.fiware.org/catalogue/su
 > coraine is a FIWARE Generic Enabler in the Core Context Management chapter: an
 > NGSI-LD context broker implementing ETSI GS CIM 009 v1.9.1 — entities,
 > subscriptions, registrations, distributed operations, temporal queries and
-> GeoJSON — and passing the ETSI conformance test suite. It is written in C and
+> GeoJSON — and passing the ETSI conformance test suite (with its test-side
+> corrections, filed upstream for review). It is written in C and
 > built as a plugin host: the current-state store, the temporal backend and
 > additional API surfaces are shared libraries loaded at start-up. Deployed with
 > its in-process store it is one executable and three shared libraries, 4.3 MiB

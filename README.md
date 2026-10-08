@@ -46,7 +46,10 @@ Overflow.
 > <sup>\*</sup> **On that 100%:** the conformance runs use a *corrected fork* of
 > the ETSI test suite. The changes are test-side fixes — the suite has bugs of its
 > own and parts of it simply don't run as published — never relaxations of what
-> the broker must do. The fixes are filed upstream with ETSI.
+> the broker must do. The fixes are filed upstream with ETSI, as merge requests for
+> the suite's maintainers to review. Until they are merged, the 100% is against the
+> corrected suite, not the published one: 1106 of 1106 test cases, on MongoDB +
+> TimescaleDB and on `corDB` (2026-10-07).
 
 ---
 
