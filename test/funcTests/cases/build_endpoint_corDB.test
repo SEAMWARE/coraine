@@ -175,7 +175,7 @@ Content-Length: REGEX([0-9]+)
     "httpEndpoint": "http://localhost:1026",
     "splitEntities": true
   },
-  "version": "0.4.0"
+  "version": "0.5.0"
 }
 
 
@@ -258,7 +258,7 @@ Content-Length: REGEX([0-9]+)
       "api": [
         {
           "alias": "admin",
-          "version": "0.4.0"
+          "version": "0.5.0"
         }
       ],
       "currentState": {
@@ -277,7 +277,7 @@ Content-Length: REGEX([0-9]+)
     "httpEndpoint": "http://localhost:1026",
     "splitEntities": true
   },
-  "version": "0.4.0"
+  "version": "0.5.0"
 }
 
 

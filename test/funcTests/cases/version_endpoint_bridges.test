@@ -80,7 +80,7 @@ Content-Length: REGEX([0-9]+)
     "corRest": "REGEX([0-9a-f]{40})",
     "corTree": "REGEX([0-9a-f]{40})"
   },
-  "version": "0.4.0"
+  "version": "0.5.0"
 }
 
 
