@@ -35,7 +35,7 @@ option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over anot
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
 option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
 option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (NGSILD-Snapshot on /subscriptions, notified by writes on the snapshot - § 7.9.2)" ON)
-option(COR_FEATURE_MIGRATE           "Enable --importFile - a migration stream (from another broker's database) written into the configured stores (doc/migration.md)" ON)
+option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -278,6 +278,9 @@ if (COR_FEATURE_TRANSPORTS)
 endif()
 
 ADD_SUBDIRECTORY(src/app/coraine)
+if (COR_FEATURE_MIGRATE)
+  ADD_SUBDIRECTORY(src/app/coraineImport)
+endif()
 
 #
 # The test tools - corTestClient (was ftClient) and corRequest - are corTools' (a sibling repo), built

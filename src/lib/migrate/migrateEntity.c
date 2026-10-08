@@ -31,6 +31,7 @@
 
 #include "migrate/MigrateState.h"                         // MigrateState
 #include "migrate/migrateUtil.h"                          // migrateTimeTake, migrateEntityTermsCheck, ...
+#include "migrate/migrateHistory.h"                       // migrateEntityImported
 #include "migrate/migrateEntity.h"                        // Own interface
 
 
@@ -244,7 +245,7 @@ bool migrateEntityToDbModel(MigrateState* msP, MigrateKind kind, CorNode* entity
   if (migrateEntityTermsCheck(msP, kind, entityP) == false)
     return false;
 
-  corLdExpandEntityTree(entityP, (msP->contextP != NULL) ? msP->contextP : corLdCoreContext(), &corRest.kalloc);
+  corLdExpandEntityTree(entityP, corLdCoreContext(), &corRest.kalloc);
 
   int64_t createdAt  = migrateTimeTake(entityP, CorTermCreatedAt,  LD_VOCAB_CREATED_AT);
   int64_t modifiedAt = migrateTimeTake(entityP, CorTermModifiedAt, LD_VOCAB_MODIFIED_AT);
@@ -318,5 +319,6 @@ bool migrateEntity(MigrateState* msP, Tenant* tenantP, CorNode* entityP)
     return migrateFail(msP, MigrateEntity, "'%s' was not stored (database error %d)", entityId, r);
 
   msP->okV[MigrateEntity] += 1;
+  migrateEntityImported(msP, tenantP, entityId);
   return true;
 }

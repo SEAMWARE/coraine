@@ -11,11 +11,15 @@
 // code lays out its storage. An imported instance carries its instanceId and createdAt along
 // (TroeEvent.instanceId / createdAtNs); modifiedAtNs is the instance's modifiedAt.
 //
-#include <stdio.h>                                        // fprintf
-#include <string.h>                                       // strcmp, memset
+#include <stdio.h>                                        // fprintf, snprintf
+#include <stdlib.h>                                       // malloc, free
+#include <string.h>                                       // strcmp, strcpy, strlen, memset
 #include <stdint.h>                                       // int64_t
 
 #include "corAlloc/corAlloc.h"                            // corAlloc
+#include "corAlloc/corAllocBufferInit.h"                  // corAllocBufferInit
+#include "corAlloc/corAllocBufferReset.h"                 // corAllocBufferReset
+#include "corHash/corHash.h"                              // corHashTableCreate, corHashItemAdd, corHashItemLookup
 #include "corTree/CorNode.h"                              // CorNode
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeChildAdd, corTreeString
@@ -29,6 +33,7 @@
 #include "corNgsild/ldIsEntityKeyword.h"                  // ldIsEntityMember
 
 #include "troe/TroeDriver.h"                              // troe, TroeEvent, TroeOp*
+#include "db/DbDriver.h"                                  // db, DB_OK
 #include "db/Tenant.h"                                    // Tenant
 
 #include "migrate/MigrateState.h"                         // MigrateState
@@ -48,18 +53,32 @@
 
 // -----------------------------------------------------------------------------
 //
-// troeCanImport - does the TRoE plugin take events at all?
+// troeOn - does the importer run with a TRoE store that takes imported history?
 //
-// --troe corDB records its history at its own write sites and takes no events: importing history
-// into it is not implemented yet (doc/migration.md).
+// TroeDriver.historyImport (--troe corDB: history written as it is, nothing else recorded for it), else
+// the live event entry points (timescale).
+//
+static bool troeOn(void)
+{
+  if ((troe.alias == NULL) || (strcmp(troe.alias, "none") == 0))
+    return false;
+
+  return (troe.historyImport != NULL) || (troe.eventList != NULL) || (troe.attrEvent != NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeCanImport - is there anywhere to put the stream's history?
 //
 static bool troeCanImport(MigrateState* msP, MigrateKind kind)
 {
   if ((troe.alias == NULL) || (strcmp(troe.alias, "none") == 0))
-    return migrateFail(msP, kind, "the broker runs without a TRoE plugin (--troe) - nowhere to put the history");
+    return migrateFail(msP, kind, "the importer runs without a TRoE store (--troe) - nowhere to put the history");
 
-  if ((troe.eventList == NULL) && (troe.attrEvent == NULL))
-    return migrateFail(msP, kind, "the TRoE plugin '%s' cannot import history yet", troe.alias);
+  if (troeOn() == false)
+    return migrateFail(msP, kind, "the TRoE store '%s' cannot import history", troe.alias);
 
   return true;
 }
@@ -77,7 +96,9 @@ bool migrateHistoryFlush(MigrateState* msP)
 
   int r = TROE_OK;
 
-  if (troe.eventList != NULL)
+  if (troe.historyImport != NULL)
+    r = troe.historyImport(msP->pendingHead, msP->pendingN);
+  else if (troe.eventList != NULL)
     r = troe.eventList(msP->pendingHead, msP->pendingN);
   else
   {
@@ -104,6 +125,12 @@ bool migrateHistoryFlush(MigrateState* msP)
     msP->pendingKindN[kind] = 0;
   }
 
+  if (ok == true)
+    msP->createdRowN += msP->pendingCreatedN;
+  else
+    msP->createdRowFailedN += msP->pendingCreatedN;
+  msP->pendingCreatedN = 0;
+
   if (ok == false)
     fprintf(stderr, "%s:%d-%d: history: the batch of %d events was not written by the TRoE plugin '%s' (see its log)\n",
             msP->path, msP->pendingFirstLine, msP->lineNo, msP->pendingN, troe.alias);
@@ -122,6 +149,8 @@ bool migrateHistoryFlush(MigrateState* msP)
 //
 // pendingAdd - queue an event; a batch is ONE tenant (one connection, one transaction)
 //
+// kind MigrateKinds: an event of no record of the stream - an entity's created row (the caller counts it)
+//
 static void pendingAdd(MigrateState* msP, MigrateKind kind, TroeEvent* evP)
 {
   if ((msP->pendingN > 0) && (msP->pendingTenantP != evP->tenantP))
@@ -138,7 +167,9 @@ static void pendingAdd(MigrateState* msP, MigrateKind kind, TroeEvent* evP)
 
   msP->pendingTail = evP;
   msP->pendingN   += 1;
-  msP->pendingKindN[kind] += 1;
+
+  if (kind < MigrateKinds)
+    msP->pendingKindN[kind] += 1;
 }
 
 
@@ -220,7 +251,7 @@ static CorNode* typeExpand(MigrateState* msP, MigrateKind kind, CorNode* typeP, 
 
   cloneP->name = (char*) "type";
   corTreeChildAdd(holderP, cloneP);
-  corLdExpandTree(holderP, (msP->contextP != NULL) ? msP->contextP : corLdCoreContext(), &corRest.kalloc);
+  corLdExpandTree(holderP, corLdCoreContext(), &corRest.kalloc);
 
   CorNode* expandedP = corTreeLookup(holderP, "type");
 
@@ -258,6 +289,9 @@ bool migrateTemporalEntity(MigrateState* msP, Tenant* tenantP, CorNode* dataP)
   int64_t     at  = migrateTimeOf(corTreeLookup(dataP, "at"));
 
   if ((idP == NULL) || (idP->type != CorString))  return migrateFail(msP, MigrateTemporalEntity, "no entity id");
+
+  migrateHistorySeen(msP, tenantP, idP->value.s);   // the stream has history for it - refused or not, no created row
+
   if (op < 0)                                      return migrateFail(msP, MigrateTemporalEntity, "'%s': op must be created, replaced or deleted", idP->value.s);
   if (at <= 0)                                     return migrateFail(msP, MigrateTemporalEntity, "'%s': 'at' is no DateTime", idP->value.s);
 
@@ -315,6 +349,9 @@ bool migrateTemporalInstance(MigrateState* msP, Tenant* tenantP, CorNode* dataP)
   int       op    = opFromString(((opP != NULL) && (opP->type == CorString)) ? opP->value.s : NULL, false);
 
   if ((idP == NULL)   || (idP->type   != CorString))  return migrateFail(msP, MigrateTemporalInstance, "no entity id");
+
+  migrateHistorySeen(msP, tenantP, idP->value.s);   // the stream has history for it - refused or not, no created row
+
   if ((attrP == NULL) || (attrP->type != CorString))  return migrateFail(msP, MigrateTemporalInstance, "'%s': no attr", idP->value.s);
   if (op < 0)                                         return migrateFail(msP, MigrateTemporalInstance, "'%s': op must be created, modified, replaced or deleted", idP->value.s);
   if ((instP == NULL) || (instP->type != CorObject))  return migrateFail(msP, MigrateTemporalInstance, "'%s': no instance", idP->value.s);
@@ -365,7 +402,7 @@ bool migrateTemporalInstance(MigrateState* msP, Tenant* tenantP, CorNode* dataP)
     CorNode*    emptyP  = corTreeObject(corRest.kallocP, attrP->value.s);
 
     corTreeChildAdd(holderP, emptyP);
-    corLdExpandTree(holderP, (msP->contextP != NULL) ? msP->contextP : corLdCoreContext(), &corRest.kalloc);
+    corLdExpandTree(holderP, corLdCoreContext(), &corRest.kalloc);
 
     datasetId = ((dsP != NULL) && (dsP->type == CorString)) ? dsP->value.s : "";
     wrapperP  = corTreeObject(corRest.kallocP, holderP->value.head->name);
@@ -434,4 +471,266 @@ bool migrateTemporalInstance(MigrateState* msP, Tenant* tenantP, CorNode* dataP)
 
   pendingAdd(msP, MigrateTemporalInstance, evP);
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// idKey - "<tenant>\n<entity id>", in the run's id arena
+//
+static char* idKey(MigrateState* msP, Tenant* tenantP, const char* entityId)
+{
+  int   len = (int) (strlen(tenantP->name) + 1 + strlen(entityId) + 1);
+  char* key = (char*) corAlloc(&msP->idAlloc, len);
+
+  if (key != NULL)
+    snprintf(key, len, "%s\n%s", tenantP->name, entityId);
+
+  return key;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// keyHash / keyCompare - the set of entities with history in the stream (corHash keeps the key as data)
+//
+static unsigned int keyHash(const char* key)
+{
+  unsigned int h = 5381;
+
+  for (const char* p = key; *p != 0; p++)
+    h = (h * 33) ^ (unsigned char) *p;
+
+  return h;
+}
+
+static int keyCompare(const char* key, void* itemP)
+{
+  return strcmp(key, (const char*) itemP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// idsInit - the arena and the set, the first time they are needed
+//
+static bool idsInit(MigrateState* msP)
+{
+  if (msP->historyIdsP != NULL)
+    return true;
+
+  int size = 64 * 1024;
+
+  msP->idBuffer = (char*) malloc(size);
+  if (msP->idBuffer == NULL)
+    return false;
+
+  corAllocBufferInit(&msP->idAlloc, msP->idBuffer, size, 1024 * 1024, NULL, "importIds");
+  msP->historyIdsP = corHashTableCreate(&msP->idAlloc, keyHash, keyCompare, 64 * 1024);
+
+  return (msP->historyIdsP != NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateHistorySeen -
+//
+void migrateHistorySeen(MigrateState* msP, Tenant* tenantP, const char* entityId)
+{
+  if (idsInit(msP) == false)
+    return;
+
+  char key[1024];
+
+  snprintf(key, sizeof(key), "%s\n%s", tenantP->name, entityId);
+  if (corHashItemLookup(msP->historyIdsP, key) != NULL)
+    return;
+
+  char* keyP = idKey(msP, tenantP, entityId);
+
+  if (keyP != NULL)
+    corHashItemAdd(msP->historyIdsP, keyP, keyP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateEntityImported -
+//
+void migrateEntityImported(MigrateState* msP, Tenant* tenantP, const char* entityId)
+{
+  if ((troeOn() == false) || (idsInit(msP) == false))
+    return;
+
+  MigrateImported* miP = (MigrateImported*) corAlloc(&msP->idAlloc, sizeof(MigrateImported));
+  char*            id  = (miP != NULL) ? (char*) corAlloc(&msP->idAlloc, strlen(entityId) + 1) : NULL;
+
+  if (id == NULL)
+  {
+    fprintf(stderr, "%s:%d: entity: out of memory - '%s' gets no created row in the history\n", msP->path, msP->lineNo, entityId);
+    msP->createdRowFailedN += 1;
+    return;
+  }
+
+  strcpy(id, entityId);
+  miP->tenantP  = tenantP;
+  miP->entityId = id;
+  miP->next     = NULL;
+
+  if (msP->importedTail != NULL)
+    msP->importedTail->next = miP;
+  else
+    msP->importedHead = miP;
+  msP->importedTail = miP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timeOf - an integer timestamp member of a stored object (0: none)
+//
+static uint64_t timeOf(CorNode* objP, const char* name)
+{
+  CorNode* tP = corTreeLookup(objP, name);
+
+  return ((tP != NULL) && (tP->type == CorInt) && (tP->value.i > 0)) ? (uint64_t) tP->value.i : 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// createdRowAdd - the history a create writes, for one entity as the store holds it
+//
+// The entity's "created" event at its createdAt, and an instance of every attribute as it is now, at
+// its own createdAt / modifiedAt - the value it holds is the one it has had since its modifiedAt.
+//
+static bool createdRowAdd(MigrateState* msP, Tenant* tenantP, CorNode* entityP)
+{
+  CorNode*    idP       = corTreeLookup(entityP, "id");
+  CorNode*    typeP     = corTreeLookup(entityP, "type");
+  uint64_t    createdAt = timeOf(entityP, LD_VOCAB_CREATED_AT);
+
+  if ((idP == NULL) || (idP->type != CorString) || (typeP == NULL) || (createdAt == 0))
+    return false;
+
+  CorNode*    holderP   = corTreeObject(corRest.kallocP, NULL);
+  CorNode*    typeCopyP = corTreeClone(corRest.kallocP, typeP);
+  const char* firstType = (typeP->type == CorString) ? typeP->value.s : (((typeP->type == CorArray) && (typeP->value.head != NULL) && (typeP->value.head->type == CorString)) ? typeP->value.head->value.s : NULL);
+
+  typeCopyP->name = (char*) "type";
+  corTreeChildAdd(holderP, typeCopyP);
+
+  TroeEvent* evP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
+  memset(evP, 0, sizeof(TroeEvent));
+
+  evP->op             = TroeOpEntityCreated;
+  evP->tenantP        = tenantP;
+  evP->entityId       = idP->value.s;
+  evP->entityType     = firstType;
+  evP->modifiedAtNs   = createdAt;
+  evP->entitySnapshot = holderP;     // the type list only: the attribute rows follow as events of their own
+
+  pendingAdd(msP, MigrateKinds, evP);
+
+  for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
+  {
+    if ((attrP->type != CorObject) || (attrP->name == NULL) || (ldIsEntityMember(attrP) == true))
+      continue;
+
+    CorNode* nextP;
+
+    for (CorNode* instP = attrP->value.head; instP != NULL; instP = nextP)
+    {
+      nextP = instP->next;
+
+      if ((instP->type != CorObject) || (instP->name == NULL))
+        continue;
+
+      uint64_t c = timeOf(instP, LD_VOCAB_CREATED_AT);
+      uint64_t m = timeOf(instP, LD_VOCAB_MODIFIED_AT);
+
+      if (c == 0) c = createdAt;
+      if (m == 0) m = c;
+
+      CorNode* wrapperP = corTreeObject(corRest.kallocP, attrP->name);
+
+      instP->next = NULL;
+      corTreeChildAdd(wrapperP, instP);
+
+      TroeEvent* aevP = (TroeEvent*) corAlloc(&corRest.kalloc, sizeof(TroeEvent));
+      memset(aevP, 0, sizeof(TroeEvent));
+
+      aevP->op           = TroeOpAttrCreated;
+      aevP->tenantP      = tenantP;
+      aevP->entityId     = idP->value.s;
+      aevP->entityType   = firstType;
+      aevP->attrName     = attrP->name;
+      aevP->datasetId    = (strcmp(instP->name, "@none") != 0) ? instP->name : "";
+      aevP->attrSnapshot = wrapperP;
+      aevP->modifiedAtNs = m;
+      aevP->createdAtNs  = c;
+
+      pendingAdd(msP, MigrateKinds, aevP);
+    }
+  }
+
+  msP->pendingCreatedN += 1;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateHistoryCreatedRows -
+//
+void migrateHistoryCreatedRows(MigrateState* msP)
+{
+  migrateHistoryFlush(msP);
+
+  for (MigrateImported* miP = msP->importedHead; miP != NULL; miP = miP->next)
+  {
+    char key[1024];
+
+    snprintf(key, sizeof(key), "%s\n%s", miP->tenantP->name, miP->entityId);
+    if (corHashItemLookup(msP->historyIdsP, key) != NULL)
+      continue;                                          // the stream has its history: that is all it gets
+
+    if (msP->pendingN == 0)
+      corAllocBufferReset(&corRest.kalloc, true);
+
+    CorNode* entityP = NULL;
+    int      r       = db.entityRetrieve(miP->tenantP, miP->entityId, &entityP);
+
+    if ((r != DB_OK) || (entityP == NULL) || (createdRowAdd(msP, miP->tenantP, entityP) == false))
+    {
+      fprintf(stderr, "%s: entity '%s': no created row in the history - %s\n", msP->path, miP->entityId,
+              (r != DB_OK) ? "not read back from the store" : "no type or no createdAt");
+      msP->createdRowFailedN += 1;
+      continue;
+    }
+
+    if (migrateHistoryBatchFull(msP) == true)
+      migrateHistoryFlush(msP);
+  }
+
+  migrateHistoryFlush(msP);
+
+  if (msP->historyIdsP != NULL)
+  {
+    corAllocBufferReset(&msP->idAlloc, false);
+    free(msP->idBuffer);
+    msP->historyIdsP  = NULL;
+    msP->idBuffer     = NULL;
+    msP->importedHead = NULL;
+    msP->importedTail = NULL;
+  }
 }

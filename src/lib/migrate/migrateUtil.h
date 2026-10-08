@@ -13,7 +13,6 @@
 #include <stdbool.h>                                      // bool
 
 #include "corTree/CorNode.h"                              // CorNode
-#include "corJsonld/CorLdContext.h"                       // CorLdContext
 
 #include "corNgsild/ldTermId.h"                           // CorTerm
 
@@ -23,11 +22,9 @@
 
 // -----------------------------------------------------------------------------
 //
-// migrateTermCheck - is 'term' an IRI, a core term, or a term the --importContext defines?
+// migrateTermCheck - is 'term' an IRI or an NGSI-LD core term?
 //
-// The rule for a stream whose names are not expanded (an NGSIv2 source): every name is expanded
-// with the @context the user gives, and a name that context does not define is an ERROR - it is
-// never left to fall back on the default @vocab, which would invent an IRI nobody chose.
+// The stream is expanded NGSI-LD, whatever its source: anything else is a stream that was not expanded.
 //
 // Reports the refusal (migrateFail) and returns false.
 //
@@ -79,13 +76,5 @@ extern const char* migrateStringTake(CorNode* objP, const char* name);
 // migrateProblem - the detail of the problem the broker's code reported, and reset it
 //
 extern const char* migrateProblem(void);
-
-
-
-// -----------------------------------------------------------------------------
-//
-// migrateContextLoad - the --importContext: a URL, or a file holding {"@context": ...}
-//
-extern CorLdContext* migrateContextLoad(const char* ref);
 
 #endif  // MIGRATE_MIGRATEUTIL_H_

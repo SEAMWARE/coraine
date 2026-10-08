@@ -16,9 +16,6 @@ ENDIF()
 IF (COR_FEATURE_SERVICE_EXECUTION)
   LIST(APPEND COR_BROKER_LIBS serviceExecution)
 ENDIF()
-IF (COR_FEATURE_MIGRATE)
-  LIST(APPEND COR_BROKER_LIBS migrate)
-ENDIF()
 
 # The broker's own component libs are whole-archived: many of their symbols are
 # referenced only via the dispatch table, constructor-registered hooks, or by

@@ -9,12 +9,13 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// The import of a migration stream (--importFile, doc/migration.md): one record per line, each
-// written through the broker's own code into the stores the broker was started with.
+// The import of a migration stream (coraine-import, doc/migration.md): one record per line, each
+// written through the broker's own code into the stores the importer was started with.
 //
 #include <stdint.h>                                       // uint64_t
 
-#include "corJsonld/CorLdContext.h"                       // CorLdContext
+#include "corAlloc/CorAlloc.h"                            // CorAlloc
+#include "corHash/corHash.h"                              // CorHashTable
 
 #include "db/Tenant.h"                                    // Tenant
 #include "troe/TroeDriver.h"                              // TroeEvent
@@ -39,11 +40,23 @@ typedef enum MigrateKind
 
 // -----------------------------------------------------------------------------
 //
+// MigrateImported - an entity imported as current state, for its "created" history row at the end
+//
+typedef struct MigrateImported
+{
+  Tenant*                  tenantP;
+  const char*              entityId;                  // in MigrateState.idAlloc
+  struct MigrateImported*  next;
+} MigrateImported;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // MigrateState - one import run
 //
 typedef struct MigrateState
 {
-  CorLdContext*  contextP;              // --importContext, NULL: the names must be IRIs or core terms
   const char*    path;                  // the stream, for the error lines
   int            lineNo;                // the record being imported
 
@@ -60,6 +73,20 @@ typedef struct MigrateState
   int            pendingFirstLine;      // the line of the first pending event, for the error report
   int            pendingKindN[MigrateKinds];
   Tenant*        pendingTenantP;
+
+  //
+  // With a TRoE store, an entity the stream gives no history gets the row a create writes, at its
+  // createdAt: which entities were imported, and which have history in the stream (keyed
+  // "<tenant>\n<entity id>"). Both live in idAlloc - malloc, for the whole run.
+  //
+  CorAlloc          idAlloc;
+  char*             idBuffer;
+  CorHashTable*     historyIdsP;
+  MigrateImported*  importedHead;
+  MigrateImported*  importedTail;
+  int               createdRowN;            // entities given their created row, for the report
+  int               createdRowFailedN;
+  int               pendingCreatedN;        // ... of the pending events: entities' created rows
 } MigrateState;
 
 

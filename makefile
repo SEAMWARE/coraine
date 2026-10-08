@@ -301,6 +301,7 @@ etc/contextSourceExtras.json: FORCE
 define install_from
 	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(ETC_DIR)
 	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
+	if [ -f $(1)/src/app/coraineImport/coraine-import ]; then cp -p $(1)/src/app/coraineImport/coraine-import $(PREFIX)/bin/; fi   # COR_FEATURE_MIGRATE
 	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
 	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
 	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/

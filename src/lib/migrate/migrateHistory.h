@@ -48,4 +48,31 @@ extern bool migrateHistoryBatchFull(MigrateState* msP);
 //
 extern bool migrateHistoryFlush(MigrateState* msP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateHistorySeen - the stream holds history for this entity
+//
+extern void migrateHistorySeen(MigrateState* msP, Tenant* tenantP, const char* entityId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateEntityImported - an entity imported as current state (remembered only with a TRoE store)
+//
+extern void migrateEntityImported(MigrateState* msP, Tenant* tenantP, const char* entityId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// migrateHistoryCreatedRows - at the end of the stream, with a TRoE store: an imported entity the
+// stream gave no history gets the history a create writes - its "created" event at its createdAt and
+// an instance of each attribute as it is, at its own times. An entity with history in the stream gets
+// what the stream holds, nothing more.
+//
+extern void migrateHistoryCreatedRows(MigrateState* msP);
+
 #endif  // MIGRATE_MIGRATEHISTORY_H_

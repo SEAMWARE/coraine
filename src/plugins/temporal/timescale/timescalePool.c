@@ -130,7 +130,7 @@ static void connStr(const char* dbName, char* buf, int bufSize)
 // broker's log, as info
 //
 // libpq's own processor writes it to stderr, raw, outside the log - where it ends up in front of
-// whatever else the process writes there (--importFile's report).
+// whatever else the process writes there (coraine-import's report).
 //
 static void noticeToLog(void* arg, const char* message)
 {

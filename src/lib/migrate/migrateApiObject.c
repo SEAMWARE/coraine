@@ -116,7 +116,7 @@ static int viaServiceRoutine(MigrateState* msP, Tenant* tenantP, CorNode* treeP,
 
   corNgsild.tenantP           = tenantP;
   corNgsild.tenantName        = tenantP->name;
-  corNgsild.contextP          = (msP->contextP != NULL) ? msP->contextP : corLdCoreContext();
+  corNgsild.contextP          = corLdCoreContext();
   corNgsild.userContextBody   = NULL;
   corNgsild.local             = false;
 
@@ -189,7 +189,7 @@ bool migrateSubscription(MigrateState* msP, Tenant* tenantP, CorNode* subP)
   if (modifiedAt == 0) modifiedAt = (createdAt != 0) ? createdAt : (int64_t) corRest.requestStartTime;
   if (createdAt  == 0) createdAt  = modifiedAt;
 
-  corLdExpandTree(subP, (msP->contextP != NULL) ? msP->contextP : corLdCoreContext(), &corRest.kalloc);
+  corLdExpandTree(subP, corLdCoreContext(), &corRest.kalloc);
 
   corRest.requestStartTime = (uint64_t) createdAt;
 
@@ -271,7 +271,7 @@ bool migrateRegistration(MigrateState* msP, Tenant* tenantP, CorNode* regP)
   if (modifiedAt == 0) modifiedAt = (createdAt != 0) ? createdAt : (int64_t) corRest.requestStartTime;
   if (createdAt  == 0) createdAt  = modifiedAt;
 
-  corLdExpandTree(regP, (msP->contextP != NULL) ? msP->contextP : corLdCoreContext(), &corRest.kalloc);
+  corLdExpandTree(regP, corLdCoreContext(), &corRest.kalloc);
 
   corRest.requestStartTime = (uint64_t) createdAt;
 

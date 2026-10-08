@@ -96,9 +96,6 @@
 #endif
 
 #include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
-#if COR_FEATURE_MIGRATE
-#include "migrate/migrateImport.h"                  // migrateImport
-#endif
 #include "bridge/bridgeCoreTerms.h"                   // bridgeCoreTermsAdd
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seCoreTerms.h"            // seCoreTermsAdd
@@ -267,8 +264,6 @@ int            memoryLimit     = 0;         // MiB; 0: 85% of the cgroup limit, 
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
-char*          importFile            = NULL;  // --importFile: import a migration stream, then exit (doc/migration.md)
-char*          importContext         = NULL;  // --importContext: the @context of a stream whose names are not expanded
 
 static CorArg kargV[] =
 {
@@ -311,10 +306,6 @@ static CorArg kargV[] =
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
   { "--memoryLimit",        "-memoryLimit", CorArgInt,   _vp &memoryLimit, CorArgOpt, _vp 0,     _vp 0,     _vp 1048576, "memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)" },
   { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
-#if COR_FEATURE_MIGRATE
-  { "--importFile",         "-importFile",  CorArgString, _vp &importFile,   CorArgOpt, _vp NULL,  NULL,  NULL,      "import a migration stream (one JSON record per line, '-' = stdin) into the configured stores - current state and history - then exit (doc/migration.md)" },
-  { "--importContext",      "-importContext", CorArgString, _vp &importContext, CorArgOpt, _vp NULL, NULL, NULL,    "with --importFile: the @context (URL, or a file holding {\"@context\": ...}) that expands the names of a stream that is not expanded; a name it does not define is an error" },
-#endif
   CORARGS_END
 };
 
@@ -1834,24 +1825,6 @@ int main(int argC, char* argV[])
   tenantRegCacheReload();
   tenantSnapshotCacheReload();
   contextCacheReload();
-
-#if COR_FEATURE_MIGRATE
-  //
-  // --importFile: the writer half of a migration (doc/migration.md). Everything a write uses is up -
-  // the stores, the caches the create routines consult - and nothing is served yet. The broker
-  // writes the stream and exits: a migration is a run of its own, not a mode of a serving broker.
-  //
-  if (importFile != NULL)
-  {
-    ldDistributed = false;   // an import stores, it never forwards: --distributed or not, no registration is asked
-
-    int refused = migrateImport(importFile, importContext);
-
-    troeStop();
-    dbClose();
-    exit((refused == 0) ? 0 : 1);
-  }
-#endif
 
   haApplyEnable();
 

@@ -491,7 +491,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
   //
-  // created_at is modified_at - unless the event is an imported instance (--importFile) that
+  // created_at is modified_at - unless the event is an imported instance (coraine-import) that
   // carries a creation time of its own, and an instance id of its own (TroeDriver.h).
   //
   char createdExpr[64];

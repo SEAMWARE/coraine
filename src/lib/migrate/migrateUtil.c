@@ -6,25 +6,16 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include <stdio.h>                                        // FILE, fopen, fread, vfprintf
+#include <stdio.h>                                        // fprintf, vfprintf, snprintf
 #include <stdarg.h>                                       // va_list
-#include <stdlib.h>                                       // malloc
-#include <string.h>                                       // strcmp, strchr, strncmp
+#include <string.h>                                       // strcmp, strncpy
 
-#include "corAlloc/CorAlloc.h"                            // CorAlloc
-#include "corAlloc/corAlloc.h"                            // corAlloc
-#include "corAlloc/corAllocBufferInit.h"                  // corAllocBufferInit
 #include "corTree/CorNode.h"                              // CorNode
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corTree/corTreeBuilder.h"                       // corTreeChildRemove
-#include "corJson/corJsonCreate.h"                        // corJsonCreate
-#include "corJson/corJsonParse.h"                         // corJsonParse
 #include "corRest/CorRestState.h"                         // corRest
-#include "corJsonld/corLdExpand.h"                        // corLdAlreadyExpanded, contextItemLookup
+#include "corJsonld/corLdExpand.h"                        // corLdAlreadyExpanded
 #include "corJsonld/corLdCoreLookup.h"                    // corLdCoreLookup
-#include "corJsonld/corLdPrefixExpand.h"                  // corLdPrefixExpand
-#include "corJsonld/corLdContextParse.h"                  // corLdContextFromTree
-#include "corJsonld/corLdDownload.h"                      // corLdContextFromUrl
 
 #include "corNgsild/ldTermId.h"                           // ldTermId, CorTerm*
 #include "corNgsild/ldIsEntityKeyword.h"                  // ldIsEntityMember
@@ -84,6 +75,10 @@ bool migrateFail(MigrateState* msP, MigrateKind kind, const char* format, ...)
 //
 // migrateTermCheck -
 //
+// The stream is expanded NGSI-LD whatever its source (doc/migration.md): the import expands nothing.
+// A name that is neither an IRI nor a core term is a stream that was not expanded - the record is
+// refused, the term named.
+//
 bool migrateTermCheck(MigrateState* msP, MigrateKind kind, const char* term, const char* what)
 {
   if ((term == NULL) || (term[0] == 0))
@@ -93,17 +88,7 @@ bool migrateTermCheck(MigrateState* msP, MigrateKind kind, const char* term, con
   if (corLdAlreadyExpanded(term) == true)                     return true;   // an IRI
   if (corLdCoreLookup(term) != NULL)                          return true;   // a core term
 
-  if (msP->contextP != NULL)
-  {
-    if (contextItemLookup(msP->contextP, term) != NULL)       return true;   // the user's term
-    if ((strchr(term, ':') != NULL) && (corLdPrefixExpand(msP->contextP, term, &corRest.kalloc) != NULL))
-      return true;                                                           // prefix:suffix, prefix defined
-  }
-
-  if (msP->contextP == NULL)
-    return migrateFail(msP, kind, "%s '%s' is not expanded - give the @context that defines it (--importContext)", what, term);
-
-  return migrateFail(msP, kind, "%s '%s' is not defined by the --importContext", what, term);
+  return migrateFail(msP, kind, "%s '%s' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)", what, term);
 }
 
 
@@ -325,67 +310,4 @@ const char* migrateProblem(void)
   corRest.out.problemExtras    = NULL;
 
   return detail;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// migrateContextLoad -
-//
-// The context lives as long as the import: its own arena, never reset.
-//
-CorLdContext* migrateContextLoad(const char* ref)
-{
-  static CorAlloc  contextAlloc;
-  static CorJson   contextJson;
-  int              contextSize   = 64 * 1024;
-  char*            contextBuffer = (char*) malloc(contextSize);   // for the rest of the run - never freed
-
-  if (contextBuffer == NULL)
-    return NULL;
-
-  corAllocBufferInit(&contextAlloc, contextBuffer, contextSize, contextSize, NULL, "importContext");
-
-  if ((strncmp(ref, "http://", 7) == 0) || (strncmp(ref, "https://", 8) == 0))
-    return corLdContextFromUrl(ref, &contextAlloc);
-
-  FILE* fP = fopen(ref, "r");
-  if (fP == NULL)
-  {
-    fprintf(stderr, "--importContext: cannot open '%s'\n", ref);
-    return NULL;
-  }
-
-  fseek(fP, 0, SEEK_END);
-  long size = ftell(fP);
-  fseek(fP, 0, SEEK_SET);
-
-  char* text = corAlloc(&contextAlloc, size + 1);
-  if ((text == NULL) || (fread(text, 1, size, fP) != (size_t) size))
-  {
-    fclose(fP);
-    fprintf(stderr, "--importContext: cannot read '%s'\n", ref);
-    return NULL;
-  }
-  fclose(fP);
-  text[size] = 0;
-
-  CorJson* jsonP = corJsonCreate(&contextJson, &contextAlloc);
-  CorNode* docP  = corJsonParse(jsonP, text);
-
-  if ((docP == NULL) || (docP->type != CorObject))
-  {
-    fprintf(stderr, "--importContext: '%s' is no JSON object\n", ref);
-    return NULL;
-  }
-
-  CorNode* ctxP = corTreeLookup(docP, "@context");
-  if (ctxP == NULL)
-  {
-    fprintf(stderr, "--importContext: '%s' has no @context member\n", ref);
-    return NULL;
-  }
-
-  return corLdContextFromTree(ctxP, &contextAlloc, NULL);
 }

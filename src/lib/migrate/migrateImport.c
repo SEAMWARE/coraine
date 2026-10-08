@@ -6,10 +6,10 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// coraine --importFile <stream> [--importContext <@context>] + the usual store options: the WRITER
-// half of a migration (doc/migration.md). The reader half - a tool per source - produces the stream;
-// this writes it into whatever stores the broker was started with (-db mongoc|corDB,
-// --troe timescale), through the broker's own code, and exits.
+// coraine-import --file <stream> + the broker's store options: the WRITER half of a migration
+// (doc/migration.md). The reader half - a tool per source - produces the stream; this writes it into
+// whatever stores the importer was started with (-db mongoc|corDB, --troe timescale|corDB), through
+// the broker's own code.
 //
 // The stream is one JSON object per line:
 //
@@ -38,10 +38,10 @@
 #include "troe/TroeDriver.h"                              // troe
 
 #include "migrate/MigrateState.h"                         // MigrateState
-#include "migrate/migrateUtil.h"                          // migrateFail, migrateContextLoad
+#include "migrate/migrateUtil.h"                          // migrateFail
 #include "migrate/migrateEntity.h"                        // migrateEntity
 #include "migrate/migrateApiObject.h"                     // migrateSubscription, migrateRegistration
-#include "migrate/migrateHistory.h"                       // migrateTemporal*, migrateHistoryFlush
+#include "migrate/migrateHistory.h"                       // migrateTemporal*, migrateHistoryFlush, migrateHistoryCreatedRows
 #include "migrate/migrateImport.h"                        // Own interface
 
 
@@ -182,27 +182,17 @@ static bool recordImport(MigrateState* msP, char* line)
 //
 // migrateImport -
 //
-int migrateImport(const char* path, const char* contextRef)
+int migrateImport(const char* path)
 {
   MigrateState ms;
 
   memset(&ms, 0, sizeof(ms));
   ms.path = path;
 
-  if (contextRef != NULL)
-  {
-    ms.contextP = migrateContextLoad(contextRef);
-    if (ms.contextP == NULL)
-    {
-      fprintf(stderr, "--importContext '%s': not a usable @context\n", contextRef);
-      return -1;
-    }
-  }
-
   FILE* fP = (strcmp(path, "-") == 0) ? stdin : fopen(path, "r");
   if (fP == NULL)
   {
-    fprintf(stderr, "--importFile: cannot open '%s'\n", path);
+    fprintf(stderr, "coraine-import: cannot open '%s'\n", path);
     return -1;
   }
 
@@ -216,7 +206,7 @@ int migrateImport(const char* path, const char* contextRef)
 
   if (arenaBuffer == NULL)
   {
-    fprintf(stderr, "--importFile: out of memory\n");
+    fprintf(stderr, "coraine-import: out of memory\n");
     if (fP != stdin)
       fclose(fP);
     return -1;
@@ -276,6 +266,7 @@ int migrateImport(const char* path, const char* contextRef)
   }
 
   migrateHistoryFlush(&ms);
+  migrateHistoryCreatedRows(&ms);
 
   free(line);
   if (fP != stdin)
@@ -290,6 +281,11 @@ int migrateImport(const char* path, const char* contextRef)
   {
     fprintf(stderr, "  %-24s %8d imported, %6d refused\n", kindNameV[kind], ms.okV[kind], ms.failedV[kind]);
     failed += ms.failedV[kind];
+  }
+  if ((ms.createdRowN > 0) || (ms.createdRowFailedN > 0))
+  {
+    fprintf(stderr, "  %-24s %8d written,  %6d failed\n", "created rows (history)", ms.createdRowN, ms.createdRowFailedN);
+    failed += ms.createdRowFailedN;
   }
   if (badLines > 0)
     fprintf(stderr, "  %-24s %8d\n", "unreadable lines", badLines);
