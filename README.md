@@ -109,6 +109,11 @@ expiring. There is deliberately **no `latest`**: a tag that moves under a runnin
 deployment is a version nobody can name afterwards. Pick the newest from the tag
 list, or pin the one you tested.
 
+The images are **multi-arch: linux/amd64 and linux/arm64** (from
+`0.4.0-2026-10-08-e8bd0edc` on) — the same tag pulls the image for the machine it
+runs on. `<tag>-amd64` and `<tag>-arm64` pin one architecture. The arm64 image is
+built without the DDS bridge.
+
 ---
 
 ## Footprint and speed
