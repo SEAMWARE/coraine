@@ -249,6 +249,8 @@ pinned to seven other cores. `corHttp` rows 2026-09-16, without PGO; its `mongoc
 MongoDB 4.4 through a port mapping (`docker run -p`), which costs a database round trip - a floor,
 not re-measured since.)*
 
+Every `perfRun.sh` scenario on `mongoc`, two cores, 2026-10-08: ["mongoc: every scenario"](#mongoc-every-scenario-2026-10-08).
+
 One core of a laptop CPU, going through MongoDB, still serves ~7 300 NGSI-LD
 queries a second, delivering 147 000 entities each second.
 
@@ -633,7 +635,7 @@ the budget of a pod of about 600 MiB), interleaved A, B, A, B.
 | Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep |
 | Load | `test/perf/perfRun.sh`, `PERF_BROKER_CORES=2` (broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3`, the flag through `PERF_BROKER_ARGS`; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes" |
 | corDB | `--dbDir` on the local NVMe disk (ext4), `--dbSync interval` - the durable configuration |
-| mongoc | MongoDB 8.2.12 on the host (not pinned), one pair A, B |
+| mongoc | MongoDB 8.2.12 in a container (`mongo:8.2`) through a port mapping (`-p 27017:27017`), not pinned; one pair A, B |
 | Counters | after each corDB run, a broker of its own with the same flag: `perf stat -e instructions,cycles -p` per request, wrk c50, 4 s per scenario |
 
 **corDB**, requests/s; A-A and B-B are the run-to-run spread of the same flag:
@@ -1009,7 +1011,7 @@ run: A read 1 000 documents (`type_1` and an in-memory sort) for each of the thr
 | | |
 |---|---|
 | Builds | A = `main` `04785a2c`, B = `perf/mongoc-type-created-index` (the same plus this change); both `make release`, every library release (no `COR_T_ON` marker in the broker or `mongoc.so`), no PGO, libmicrohttpd |
-| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep; MongoDB 8.2.12 on the host, not pinned |
+| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep; MongoDB 8.2.12 in a container (`mongo:8.2`) through a port mapping (`-p 27017:27017`), not pinned |
 | Load | `PERF_BROKER_CORES=2` (broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3`; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes"; interleaved A, B, A, B, 2026-10-08 22:18-22:43 |
 
 Requests/s; A-A and B-B are the run-to-run spread of the same build:
@@ -1046,6 +1048,113 @@ Requests/s; A-A and B-B are the run-to-run spread of the same build:
 
 **Conclusion:** the index is the change - a query by type reads only the page it returns, whatever the
 type's share of the store, at no measurable cost to writes.
+
+**In a larger store**, measured again on `main` after the merge (2026-10-08 23:21 - 2026-10-09 00:08).
+`perfRun.sh` has a second rare-type scenario since: the store emptied, 300 000 entities, one in a hundred
+of type R1 (3 000, 1 %) and one in a thousand of type R01 (300, 0.1 %), the rest `Common` - a first page
+and a deep page of each. explain() on that store after each run:
+
+| `type=`, page of 20 | before (`{type}`): documents read, plan | `main`: documents read (keys) |
+|---|---|---:|
+| R1 (1 %), first page | 2 100, the `{createdAt,_id}` index filtered by type | 20 (20) |
+| R1 (1 %), `offset=1000` | 3 000, every R1 through `type_1`, sorted in memory | 20 (1 020) |
+| R01 (0.1 %), first page | 300, every R01 through `type_1`, sorted in memory | 20 (20) |
+| R01 (0.1 %), `offset=200` | 300, the same | 20 (220) |
+
+The plan for a 1 % type is the order-index walk in this store and the whole-type sort in the 100 000-entity
+one: the planner picks by trial, and the store's size moves the trial's outcome.
+
+Before = `65be8c03` (the commit before the merge of this change, #292), `main` = `6493d6c2`; both `make
+release`, every library release, no `COR_T_ON` marker; the conditions of the table above (two broker
+cores, 4 s x 3, the delete cap) and the same `perfRun.sh` (`main`'s) for both. Run in the order main,
+before, main, before, main. Requests/s:
+
+| scenario | before #292, runs 1 / 2 | `main`, runs 1 / 2 / 3 | change of the means | p99 ms, before / main (means) |
+|---|---:|---:|---:|---:|
+| 100 000 entities, 1 % type: `limit=20` | 636 / 592 | 11 377 / 11 369 / 11 499 | **×18.6** | 150.15 / 6.98 |
+| 100 000, 1 %: `limit=100` | 526 / 523 | 3 157 / 3 177 / 3 200 | **×6.1** | 126.66 / 30.40 |
+| 100 000, 1 %: `limit=20&offset=500` | 526 / 526 | 3 653 / 3 928 / 3 910 | **×7.3** | 125.48 / 20.12 |
+| 300 000 entities, 1 % type: `limit=20` | 559 / 564 | 11 383 / 11 495 / 11 426 | **×20.4** | 111.03 / 7.25 |
+| 300 000, 1 %: `limit=20&offset=1000` | 170 / 171 | 1 953 / 1 960 / 1 750 | **×11.1** | 460.51 / 35.41 |
+| 300 000, 0.1 % type: `limit=20` | 1 685 / 1 686 | 11 219 / 11 491 / 11 265 | **×6.7** | 38.40 / 7.00 |
+| 300 000, 0.1 %: `limit=20&offset=200` | 1 653 / 1 653 | 6 649 / 7 022 / 6 801 | **×4.1** | 39.20 / 10.97 |
+
+- **Every rare-type page is 4-20x faster**: a first page of 20 is ~11 400 requests/s whatever the type's
+  share or the store's size (1 % or 0.1 %, 100 000 or 300 000 entities); before, 559-1 686.
+- **The deep page of the 1 % type in the larger store: 170 -> 1 956 requests/s (11x), p99 461 -> 35 ms.**
+  `main` still reads the keys before the page (1 020 for `offset=1000`) but not the documents.
+
+The rest of perfRun in the same session:
+
+| scenario | before #292, runs 1 / 2 | `main`, runs 1 / 2 / 3 | change of the means | p99 ms, before / main (means) |
+|---|---:|---:|---:|---:|
+| query `limit=1`, c50 | 29 423 / 29 272 | 27 106 / 28 446 / 29 033 | -3.9 % | 3.74 / 3.51 |
+| query `limit=20`, c50 | 11 707 / 11 720 | 11 264 / 11 416 / 11 438 | -2.9 % | 6.72 / 7.12 |
+| query `limit=20`, c200 | 11 225 / 11 610 | 10 822 / 11 353 / 11 405 | -2.0 % | 21.10 / 21.34 |
+| query `limit=100`, c50 | 3 135 / 3 176 | 3 088 / 3 193 / 3 230 | +0.5 % | 28.93 / 32.93 |
+| `GET /entities/{id}`, c50 | 36 188 / 34 880 | 33 741 / 35 531 / 35 721 | -1.5 % | 3.26 / 3.36 |
+| `PATCH .../attrs`, c50 | 17 896 / 18 274 | 17 266 / 18 335 / 18 199 | -0.8 % | 3.94 / 3.95 |
+| `PATCH .../attrs`, c1 | 3 192 / 3 348 | 3 178 / 3 182 / 3 468 | +0.2 % | 0.91 / 1.23 |
+| merge, c50 | 23 167 / 23 264 | 21 426 / 22 665 / 22 987 | -3.7 % | 3.72 / 3.79 |
+| batch update (20), c50 | 1 728 / 1 713 | 1 551 / 1 649 / 1 707 | -4.9 % | 32.60 / 37.12 |
+| create, c50 | 33 649 / 33 750 | 30 825 / 33 287 / 33 651 | -3.3 % | 3.88 / 3.98 |
+| create, c1 | 7 089 / 7 107 | 6 808 / 7 410 / 7 410 | +1.6 % | 0.78 / 1.04 |
+| batch create (20), c50 | 7 257 / 7 063 | 6 005 / 6 222 / 6 682 | -12.0 % | 32.01 / 40.14 |
+| `DELETE`, c50 | 25 809 / 26 003 | 23 421 / 25 563 / 26 005 | -3.5 % | 5.37 / 5.22 |
+| batch delete (20), c50 | 3 447 / 3 428 | 3 091 / 3 165 / 3 251 | -7.8 % | 23.94 / 25.44 |
+| `PATCH`, 1 subscriber, c50 | 11 725 / 11 652 | 11 051 / 11 721 / 11 873 | -1.2 % | 8.03 / 8.48 |
+| `PATCH`, ~210 subscriptions, c50 | 11 228 / 11 202 | 10 871 / 11 277 / 11 357 | -0.4 % | 8.43 / 8.30 |
+
+- **The batch writes are lower on `main` in this session**: batch create −12.0 %, batch delete −7.8 %, batch
+  update −4.9 % - each of the three `main` runs below both runs before. In the interleaved session above
+  (A, B, A, B) the same three were −0.2 %, −3.5 % and +1.8 %. The two sessions do not agree; a wider index
+  entry (type, createdAt, _id against type) is the candidate cost for a batch write, and it is not
+  settled by these runs. The other scenarios: −3.9 % to +1.6 %.
+
+### mongoc: every scenario, 2026-10-08
+
+`test/perf/perfRun.sh mongoc` on `main` `6493d6c2` (with the `{type, createdAt, _id}` index), three runs
+(2026-10-08 23:21 - 2026-10-09 00:08, between them the runs of the commit before - above):
+
+| | |
+|---|---|
+| Build | `make release`, every library release (no `COR_T_ON` marker in the broker or `mongoc.so`), no PGO, libmicrohttpd |
+| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep |
+| MongoDB | 8.2.12 in a container (`mongo:8.2`) through a port mapping (`-p 27017:27017`), not pinned |
+| Load | `PERF_BROKER_CORES=2` (broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3`; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes" |
+
+Requests/s; the spread is (largest - smallest) / mean of the three:
+
+| scenario | run 1 | run 2 | run 3 | spread | p99 ms, runs 1 / 2 / 3 |
+|---|---:|---:|---:|---:|---:|
+| query `limit=1`, c50 | 27 106 | 28 446 | 29 033 | 6.8 % | 3.75 / 3.62 / 3.18 |
+| query `limit=20`, c50 | 11 264 | 11 416 | 11 438 | 1.5 % | 7.33 / 7.17 / 6.86 |
+| query `limit=20`, c200 | 10 822 | 11 353 | 11 405 | 5.2 % | 21.96 / 20.81 / 21.25 |
+| query `limit=100`, c50 | 3 088 | 3 193 | 3 230 | 4.5 % | 35.28 / 27.17 / 36.34 |
+| `GET /entities/{id}`, c50 | 33 741 | 35 531 | 35 721 | 5.7 % | 3.62 / 3.25 / 3.21 |
+| `PATCH .../attrs`, c50 | 17 266 | 18 335 | 18 199 | 6.0 % | 4.14 / 3.83 / 3.88 |
+| `PATCH .../attrs`, c1 | 3 178 | 3 182 | 3 468 | 8.9 % | 2.03 / 0.99 / 0.67 |
+| merge, c50 | 21 426 | 22 665 | 22 987 | 7.0 % | 3.87 / 3.50 / 3.99 |
+| batch update (20), c50 | 1 551 | 1 649 | 1 707 | 9.5 % | 44.49 / 33.98 / 32.89 |
+| create, c50 | 30 825 | 33 287 | 33 651 | 8.7 % | 4.14 / 4.13 / 3.68 |
+| create, c1 | 6 808 | 7 410 | 7 410 | 8.4 % | 1.75 / 1.10 / 0.26 |
+| batch create (20), c50 | 6 005 | 6 222 | 6 682 | 10.7 % | 26.91 / 53.19 / 40.31 |
+| `DELETE`, c50 | 23 421 | 25 563 | 26 005 | 10.3 % | 6.50 / 4.64 / 4.52 |
+| batch delete (20), c50 | 3 091 | 3 165 | 3 251 | 5.0 % | 24.55 / 26.45 / 25.32 |
+| `PATCH`, 1 subscriber, c50 | 11 051 | 11 721 | 11 873 | 7.1 % | 9.28 / 9.07 / 7.10 |
+| `PATCH`, ~210 subscriptions, c50 | 10 871 | 11 277 | 11 357 | 4.4 % | 8.70 / 8.26 / 7.95 |
+| 100 000 entities, 1 % type: `limit=20` | 11 377 | 11 369 | 11 499 | 1.1 % | 7.06 / 6.95 / 6.92 |
+| 100 000, 1 %: `limit=100` | 3 157 | 3 177 | 3 200 | 1.4 % | 28.00 / 29.10 / 34.09 |
+| 100 000, 1 %: `limit=20&offset=500` | 3 653 | 3 928 | 3 910 | 7.2 % | 20.20 / 20.09 / 20.07 |
+| 300 000 entities, 1 % type: `limit=20` | 11 383 | 11 495 | 11 426 | 1.0 % | 6.93 / 7.07 / 7.76 |
+| 300 000, 1 %: `limit=20&offset=1000` | 1 953 | 1 960 | 1 750 | 11.1 % | 34.22 / 32.98 / 39.03 |
+| 300 000, 0.1 % type: `limit=20` | 11 219 | 11 491 | 11 265 | 2.4 % | 7.00 / 7.07 / 6.95 |
+| 300 000, 0.1 %: `limit=20&offset=200` | 6 649 | 7 022 | 6 801 | 5.5 % | 10.92 / 10.87 / 11.12 |
+
+Two broker cores and an unpinned MongoDB behind a port mapping: not the conditions of the per-core
+tables above (one core, PGO, MongoDB on the host network and pinned), and not to be compared with them.
+One run of the commit before, in this session, ended at the delete pool's fill (`curl` exit 52, an empty
+reply) and was run again; the runs of `main` did not.
 
 ### What the data takes on disk
 
