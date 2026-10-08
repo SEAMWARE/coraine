@@ -5,16 +5,17 @@
 #
 # Copyright 2026 Seamware
 #
-# Delete Entity with an inclusive registration: the delete is forwarded to the registered source as
-# well as done locally. TS 104-176 § 6.3.5: a source answering 404 is "not abnormal" for a distributed
-# GET only; for the unsafe methods, an inclusive registration whose source answers with an error gives
-# 207 Multi-Status, a BatchOperationResult with the source's error (§ 7.3.3.4). An entity held nowhere -
-# not locally, and every source 404 - is still ResourceNotFound.
+# Delete Entity with an inclusive registration on a TYPE: the delete is forwarded to the registered
+# source as well as done locally. The source does not hold the entity and answers 404 - the normal case
+# of a wide registration (a type, no id: every source not holding this entity says so) - which is not an
+# error: 204. TS 104-176 § 6.3.5 says "not abnormal" for a distributed GET only and gives 207 for the
+# unsafe methods; spec-doubts #91 (raised with ETSI) - coraine answers 204. An entity held nowhere - not
+# locally, and every source 404 - is ResourceNotFound.
 #
 # REQUIRE_FEATURE: REGISTRATIONS
 #
 --NAME--
-Delete Entity, inclusive registration - the source's 404 is reported: 207, or 404 when held nowhere
+Delete Entity, inclusive registration on a type - the source's 404 is no error: 204; 404 when held nowhere
 
 --TAGS--
 csource registration distop inclusive delete
@@ -30,7 +31,7 @@ coraineStart -role CP1 -dist
 #
 # 01. Register CB->CP1 inclusive (redirectionOps) for type V
 # 02. Create urn:V1 on CB only (?local=true)
-# 03. DELETE urn:V1 - deleted locally, CP1 answers 404: 207, CP1's error under the registration
+# 03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204
 # 04. GET urn:V1 ?local=true - gone
 # 05. DELETE urn:V2 - held nowhere (not locally, CP1 404): 404
 #
@@ -53,9 +54,10 @@ echo
 echo
 
 
-echo "03. DELETE urn:V1 - deleted locally, CP1 answers 404: 207, CP1's error under the registration"
-echo "============================================================================================="
-corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | sed -n '1p;/^{/,$p'
+echo "03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X DELETE | head -1
+echo
 echo
 
 
@@ -84,26 +86,9 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-03. DELETE urn:V1 - deleted locally, CP1 answers 404: 207, CP1's error under the registration
-=============================================================================================
-HTTP/1.1 207 Multi-Status
-{
-  "errors": [
-    {
-      "entityId": "urn:V1",
-      "error": {
-        "detail": "the registered source does not hold the entity",
-        "status": 404,
-        "title": "Not Found",
-        "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
-      },
-      "registrationId": "urn:R1"
-    }
-  ],
-  "success": [
-    "urn:V1"
-  ]
-}
+03. DELETE urn:V1 - deleted locally, CP1 answers 404 (does not hold it): 204
+==============================================================================
+HTTP/1.1 204 No Content
 
 
 04. GET urn:V1 ?local=true - gone
