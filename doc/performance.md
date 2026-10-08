@@ -578,12 +578,39 @@ Per request (the counters below) and memory:
   of the default alone - no size is told apart by them. For retrieve, query `limit=20`, `PATCH` and
   batch update the configurations sit within 1-5 % of each other.
 
-**Conclusion:** no size wins every scenario beyond the noise. 16 and 32 KiB chunks lose. The one
-difference larger than the noise in favour of a change is single-connection `PATCH` (+14-20 %) at
-any chunk other than 16 and 256 KiB; 64 KiB is the smallest chunk that loses nothing anywhere else.
-**Recommended: the chunk at 64 KiB, the inline buffer left at 8 KiB** - after a confirming run (64
-KiB twice beside 256 KiB) and the cause of the extra cycles at 256 KiB found. The defaults are
-unchanged.
+**The confirmation** (the same day, 17:25-17:49): 256 KiB and 64 KiB twice each, interleaved, the
+conditions above unchanged (coraine `9849dfb6`; the build of run 4 also carried an uncommitted 14-line
+change to `haInit.c`, HA start-up, made in the checkout meanwhile). Requests/s, and per request for
+`PATCH` with one connection (`wrk -t1 -c1`, 4 s, `perf stat -p` on a broker of its own):
+
+| run | chunk | `PATCH` c1 (perfRun) | `PATCH` c1 (`perf stat` run) | cycles | instructions | cache misses |
+|---|---|---:|---:|---:|---:|---:|
+| 1 | 256 KiB | 38 210 | 35 230 | 80 962 | 89 931 | 302 |
+| 2 | 64 KiB | 39 587 | 35 011 | 81 814 | 90 095 | 319 |
+| 3 | 256 KiB | **47 158** | 35 114 | 81 712 | 90 348 | 407 |
+| 4 | 64 KiB | 37 563 | **40 903** | 71 680 | 90 005 | 321 |
+
+| run, chunk | retrieve | query `limit=1` | `limit=20` | `limit=20` c200 | `limit=100` | `PATCH` c50 | merge | batch update | create | create c1 | batch create | `DELETE` | batch delete | `PATCH` 1 sub | `PATCH` ~210 subs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1, 256 KiB | 161 620 | 146 583 | 21 488 | 21 398 | 4 912 | 171 879 | 124 263 | 15 348 | 87 367 | 32 721 | 9 757 | 185 118 | 35 972 | 38 864 | 37 092 |
+| 2, 64 KiB | 154 434 | 140 365 | 21 338 | 20 799 | 4 895 | 170 489 | 127 258 | 14 899 | 87 861 | 27 737 | 9 751 | 203 492 | 34 839 | 40 000 | 36 569 |
+| 3, 256 KiB | 158 022 | 139 949 | 21 558 | 21 441 | 4 730 | 166 078 | 125 331 | 15 494 | 86 784 | 27 415 | 9 826 | 196 201 | 36 363 | 38 848 | 36 116 |
+| 4, 64 KiB | 162 468 | 146 956 | 21 322 | 21 529 | 4 939 | 171 656 | 125 571 | 15 068 | 86 559 | 27 712 | 9 547 | 215 166 | 35 448 | 40 396 | 37 938 |
+
+- **Single-connection `PATCH` has two levels, ~38 000 and ~44 000-47 000 req/s (~81 000 and ~71 000
+  cycles a request, the instructions the same), and the chunk does not pick the level**: 256 KiB
+  reached the high one (run 3, 47 158), 64 KiB stayed on the low one in perfRun twice and reached the
+  high one in one `perf stat` run of four. The sweep's +14-20 % at 32, 64, 128 KiB and 1 MiB was that
+  level, not the chunk. Single-connection create shows the same: 32 721 in run 1, ~27 500 otherwise.
+- **Every other scenario: 64 KiB against 256 KiB within −2.8 % to +3.5 % on the means of two runs**, the
+  same order as the run-to-run spread of each size (`DELETE` +9.8 % against a spread of ~6 %). Every
+  rate here is a few percent below the sweep's: a different day's state of the machine; the runs are
+  compared only with each other.
+
+**Conclusion:** no size wins beyond the noise. 16 and 32 KiB chunks lose (query `limit=100` −13 % and
+−8.5 %); 64 KiB to 1 MiB and every inline size from 4 to 32 KiB are equal within it. **The defaults
+stay: chunk 256 KiB, inline 8 KiB.** The single-connection write's two levels are a property of the
+process or the machine, not of the arena, and are open.
 
 ### Measured and not used
 
