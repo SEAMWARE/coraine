@@ -548,7 +548,7 @@ Content-Length: 1806
       }
     }
   ],
-  "modifiedAt": "2024-01-02T03:04:05.123000Z",
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
   "speed": [
     {
       "createdAt": "2024-01-02T03:04:05.123000Z",
@@ -671,7 +671,7 @@ Content-Length: 428
     }
   ],
   "id": "urn:ngsi-ld:Parking:P1",
-  "modifiedAt": "2024-01-05T00:00:00Z",
+  "modifiedAt": "2024-01-06T00:00:00Z",
   "type": "https://example.org/Parking"
 }
 
