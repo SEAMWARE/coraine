@@ -1843,6 +1843,8 @@ int main(int argC, char* argV[])
   //
   if (importFile != NULL)
   {
+    ldDistributed = false;   // an import stores, it never forwards: --distributed or not, no registration is asked
+
     int refused = migrateImport(importFile, importContext);
 
     troeStop();

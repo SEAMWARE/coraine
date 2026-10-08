@@ -32,6 +32,7 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Installation & Administration: installation.md
+  - Migrating a database to coraine: migration.md
   - High Availability: high-availability.md
   - Performance and footprint: performance.md
   - Extreme performance: extreme-performance.md

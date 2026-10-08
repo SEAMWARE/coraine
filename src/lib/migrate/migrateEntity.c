@@ -187,10 +187,10 @@ static void timesSet(CorNode* objP, int64_t c, int64_t m)
 // timesRestore - put the source's timestamps back, on the DB model
 //
 // The DB model is { attrName: { datasetId: instance } }, every instance and Sub-Attribute
-// stamped by ldApiEntityToDbModel with the conversion's clock - the entity's own modifiedAt, set
-// as corRest.requestStartTime by the caller. What the source did not have keeps that.
+// stamped by ldApiEntityToDbModel with the conversion's clock. What the source did not have gets
+// the level above's: an instance the entity's createdAt/modifiedAt, a Sub-Attribute its instance's.
 //
-static void timesRestore(CorNode* entityP, SysTimes* listP)
+static void timesRestore(CorNode* entityP, SysTimes* listP, int64_t entityCreatedAt, int64_t entityModifiedAt)
 {
   for (CorNode* wrapperP = entityP->value.head; wrapperP != NULL; wrapperP = wrapperP->next)
   {
@@ -203,9 +203,10 @@ static void timesRestore(CorNode* entityP, SysTimes* listP)
         continue;
 
       SysTimes* instTimesP = timesFind(listP, wrapperP->name, instP->name, NULL);
+      int64_t   c          = (instTimesP != NULL) ? instTimesP->createdAt  : entityCreatedAt;
+      int64_t   m          = (instTimesP != NULL) ? instTimesP->modifiedAt : entityModifiedAt;
 
-      if (instTimesP != NULL)
-        timesSet(instP, instTimesP->createdAt, instTimesP->modifiedAt);
+      timesSet(instP, c, m);
 
       for (CorNode* subP = instP->value.head; subP != NULL; subP = subP->next)
       {
@@ -216,8 +217,8 @@ static void timesRestore(CorNode* entityP, SysTimes* listP)
 
         if (subTimesP != NULL)
           timesSet(subP, subTimesP->createdAt, subTimesP->modifiedAt);
-        else if (instTimesP != NULL)
-          timesSet(subP, instTimesP->createdAt, instTimesP->modifiedAt);
+        else
+          timesSet(subP, c, m);
       }
     }
   }
@@ -279,9 +280,9 @@ bool migrateEntityToDbModel(MigrateState* msP, MigrateKind kind, CorNode* entity
       (ldCheckEntity(entityP, LdOpCreateEntity, NULL, &corRest.kalloc) == false))
     return migrateFail(msP, kind, "%s", migrateProblem());
 
-  corRest.requestStartTime = (uint64_t) modifiedAt;   // what the conversion stamps where the source had nothing
+  corRest.requestStartTime = (uint64_t) modifiedAt;   // the entity's own modifiedAt - the conversion stamps it
   ldApiEntityToDbModel(entityP, &corRest.kalloc, createdAt);
-  timesRestore(entityP, timesP);
+  timesRestore(entityP, timesP, createdAt, modifiedAt);
 
   *createdAtP  = createdAt;
   *modifiedAtP = modifiedAt;
