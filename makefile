@@ -71,7 +71,15 @@ all:        release
 # corDB is a plugin repo, not a lib the broker links: built here so its plugins (installed into
 # $(PLUGIN_DIR)) are always the flavour of the broker beside them. It keeps each flavour's .so apart.
 #
-SIBLING_LIBS = corRest corJsonld corNgsild corDB
+# EVERY library the broker links is here, the foundation ones too. Each builds per flavour
+# (obj/debug, obj/release) and stages the one just built to its repo root, where the broker's
+# CMakeLists links it - so `make release` links release archives throughout and `make di` puts the
+# debug ones back. corBridge and corPlugin have no flavours (one build, no debug-only code).
+# corHttp ($(HTTP_LIB)) only with the built-in server, after corAlloc and corBase, which its test
+# links, and before corRest, which links it.
+#
+FOUNDATION_LIBS = corBase corLog corAlloc corArgs corHash corTree corJson corProm
+SIBLING_LIBS    = $(FOUNDATION_LIBS) $(HTTP_LIB) corBridge corPlugin corRest corJsonld corNgsild corDB
 
 #
 # COR_HTTP_SERVER - mhd | builtin. Passed DOWN to the libs, not only to cmake.
@@ -112,29 +120,28 @@ CMAKE_ICU = -DCOR_FEATURE_ICU_COLLATION=OFF
 endif
 
 #
-# corHttp only exists in the link when it is the server in use, and it has to be
-# BUILT BEFORE corRest, which links it. Prepended rather than appended for that
-# reason - the loop below is ordered.
+# corHttp only exists in the link when it is the server in use (SIBLING_LIBS above places it).
 #
 ifeq ($(COR_HTTP_SERVER),builtin)
-SIBLING_LIBS := corHttp $(SIBLING_LIBS)
+HTTP_LIB = corHttp
 endif
 
+#
+# libs - the sibling libs as DEBUG builds (BUILD=debug: -DCOR_T_ON, -DDEBUG where a lib has it), for
+# `make debug` / `make di`. BUILD is passed rather than left to each lib's default, so a BUILD in the
+# environment cannot pick the flavour.
+#
 libs:
 	@for lib in $(SIBLING_LIBS); do \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) BUILD=debug di || exit 1; \
 	done
 
 #
 # libs-release - the sibling libs as RELEASE builds, for `make release` / `make i`
 #
-# `release` used to depend on `libs` above, which is every sibling lib's `di`: a DEBUG
-# build (-DDEBUG). So every release broker - the Docker image, the nightly perf job -
-# linked debug libraries. Harmless while no lib had DEBUG-dependent code; corNgsild's
-# ldTermId does (a full lookup + a stale check on every call in DEBUG), and a release
-# broker must not carry that. corRest, corJsonld and corNgsild build per flavour
-# (obj/debug, obj/release) and copy the one just built into place, so switching flavours
-# is safe for them; corHttp archives in place and has no DEBUG-dependent code.
+# A debug lib linked into a release broker carries its traces (COR_T_ON) and its DEBUG-only code
+# (corNgsild's ldTermId: a full lookup + a stale check on every call). `release` checks the result -
+# see no_debug_code below.
 #
 libs-release:
 	@for lib in $(SIBLING_LIBS); do \
@@ -156,8 +163,29 @@ libs-release:
 libs-rebuild:
 	@for lib in $(SIBLING_LIBS); do \
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib clean >/dev/null || exit 1; \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) BUILD=debug di || exit 1; \
 	done
+
+#
+# no_debug_code <files> - fail a RELEASE build that carries debug code
+#
+# Every object compiled with COR_T_ON (a debug build: corLog.h, corBase/corLibLog.h) holds the
+# string "COR_T_ON:traces-compiled-in". A release broker, its plugins and corDB's plugins must hold
+# none: one found means a library was linked - or a plugin built - in its debug flavour. A grep over
+# a few MiB, after the link.
+#
+define no_debug_code
+	@bad=$$(LC_ALL=C grep -l -a -F 'COR_T_ON:traces-compiled-in' $(1) 2>/dev/null); \
+	if [ -n "$$bad" ]; then \
+	  echo "ERROR: this RELEASE build carries debug code (compiled with COR_T_ON):"; \
+	  for f in $$bad; do echo "  $$f"; done; \
+	  echo "A library or plugin in it was built as debug. The libraries: $(MAKE) libs-release"; \
+	  exit 1; \
+	fi
+endef
+
+# What a release build in <build-dir> consists of: the broker, its plugins, corDB's release plugins
+RELEASE_FILES = $(1)/src/app/coraine/coraine $$(find $(1)/src/plugins $(SIBLING_DIR)/corDB/obj/release -name '*.so' 2>/dev/null)
 
 #
 # src/app/coraine/coraineStack.h - the resolved commit of every library linked in.
@@ -213,6 +241,7 @@ src/app/coraine/coraineBuild.h: FORCE
 release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
+	$(call no_debug_code,$(call RELEASE_FILES,$(BUILD_RELEASE)))
 
 #
 # pgo - a profile-guided RELEASE build in BUILD_PGO (doc/performance.md, "Profile-guided")
@@ -221,8 +250,8 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 #    multi-threaded); 2. test/perf/pgoTrain.sh runs it through the measured work - perfRun's request
 #    shapes, a write that notifies, the three-broker chain in all three modes; 3. all of it rebuilt with
 #    -fprofile-use, in the SAME object paths (the profile files are named after them).
-# The libraries under corRest keep one archive whatever the flavour, so they are rebuilt as debug at
-# the end: a `make di` after this must not link profile-guided release archives.
+# Every library stages the archive it built last at its repo root, here the profile-guided release
+# one, so they are rebuilt as debug at the end: a `make di` after this must not link them.
 # Against the same source without it: +1-10 % per core, +4-15 % on the chain (doc/performance.md).
 #
 PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild corDB
@@ -266,8 +295,9 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
 	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
+	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
 	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
-	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di > /dev/null || exit 1; \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=debug COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) di > /dev/null || exit 1; \
 	done; fi
 	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
 
