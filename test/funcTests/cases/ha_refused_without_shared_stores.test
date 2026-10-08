@@ -37,7 +37,16 @@ corDbDrop
 #
 run() {
   timeout 5 $COR_BROKER -fg --port $((CB_PORT + 3100)) "$@" > /tmp/haRefused.$$ 2>&1
-  echo "exit: $?"
+  local rc=$?
+  echo "exit: $rc"
+  #
+  # Still running at the timeout where a refusal was expected: what the broker said goes to stderr, so a
+  # failing run shows it (and a passing one, which never gets here unexpectedly, stays quiet)
+  #
+  if [ $rc == 124 ] && [ "$EXPECT_RUNNING" != 1 ]; then
+    echo "--- broker still running with: $*" >&2
+    grep -v '^ *\[' /tmp/haRefused.$$ | tail -8 >&2
+  fi
   grep -o -m1 -E "it needs --database corDB \\(not 'mongoc'\\)|needs a database plugin that can report what another broker instance wrote|needs a temporal store shared by every broker instance; '--troe [a-zA-Z]+' keeps the history inside each broker|an address means the haaux server, which is not implemented yet" /tmp/haRefused.$$
   rm -f /tmp/haRefused.$$
 }
