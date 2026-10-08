@@ -618,10 +618,12 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   if (typeNodeP != NULL)
     corTreeChildAdd(root, typeNodeP);
 
-  // § 4.5.2 / § 4.5.6 createdAt / modifiedAt at the entity level — derived
-  // from troe_entities. createdAt = the modified_at of the earliest 'created'
-  // row; modifiedAt = the most recent modified_at across all rows (which
-  // also covers append / replace updates). Attached unconditionally; the
+  // § 4.5.2 / § 4.5.6 createdAt / modifiedAt at the entity level. createdAt =
+  // the modified_at of the earliest 'created' row of troe_entities; modifiedAt =
+  // the most recent write to the entity, its attributes' included - an
+  // attribute update writes a troe_attrs row and no troe_entities row, so
+  // troe_entities alone would leave modifiedAt at the last entity-level event.
+  // Attached unconditionally; the
   // common renderHook strips them again when ?sysAttrs is not set, so only
   // sysAttrs-aware consumers (incl. ldOrderSort orderBy=createdAt /
   // modifiedAt) actually see them.
@@ -631,7 +633,9 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       "SELECT to_char(MIN(modified_at) FILTER (WHERE op = 'created') "
       "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
       "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
-      "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1] "
+      "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1], "
+      "       to_char(GREATEST(MAX(modified_at), (SELECT MAX(a.modified_at) FROM troe_attrs a WHERE a.entity_id = $1)) "
+      "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') "
       "FROM troe_entities WHERE entity_id = $1",
       1, NULL, idParam, NULL, NULL, 0);
     if (PQresultStatus(tRes) == PGRES_TUPLES_OK && PQntuples(tRes) > 0)
@@ -639,9 +643,9 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       if (!PQgetisnull(tRes, 0, 0))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "createdAt",
                                    stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
-      if (!PQgetisnull(tRes, 0, 1))
+      if (!PQgetisnull(tRes, 0, 3))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "modifiedAt",
-                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 3)))));
 
       //
       // § 5.2.6.2: an Entity's deletedAt is used "in the temporal
@@ -1462,14 +1466,16 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
   }
 
   // The Entities' system timestamps - see buildEntityTemporalDocLocked
-  int   tSize = (int) strlen(idPred) + 512;
+  int   tSize = (int) strlen(idPred) + 1024;
   char* tSql  = (char*) corAlloc(&corRest.kalloc, tSize);
 
   snprintf(tSql, tSize,
     "SELECT entity_id, "
     "       to_char(MIN(modified_at) FILTER (WHERE op = 'created') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
     "       to_char(MAX(modified_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"'), "
-    "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1] "
+    "       (ARRAY_AGG(op ORDER BY modified_at DESC))[1], "
+    "       to_char(GREATEST(MAX(modified_at), (SELECT MAX(a.modified_at) FROM troe_attrs a WHERE a.entity_id = troe_entities.entity_id)) "
+    "       AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') "
     "FROM troe_entities WHERE TRUE%s GROUP BY entity_id ORDER BY entity_id",
     idPred);
 
@@ -1510,8 +1516,8 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
 
     if (!PQgetisnull(tRes, r, 1))
       corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
-    if (!PQgetisnull(tRes, r, 2))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+    if (!PQgetisnull(tRes, r, 4))
+      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 4)))));
     if (!PQgetisnull(tRes, r, 2) && !PQgetisnull(tRes, r, 3) && (strcmp(PQgetvalue(tRes, r, 3), "deleted") == 0))
       corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
   }
