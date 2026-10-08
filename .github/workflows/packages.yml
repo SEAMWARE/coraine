@@ -16,8 +16,6 @@
 name: Packages
 
 on:
-  push:                          # TEMPORARY - the branch's own CI runs, until packages.yml is on main
-    branches: [feat/deb-packages]
   workflow_dispatch:
     inputs:
       libs_ref:
