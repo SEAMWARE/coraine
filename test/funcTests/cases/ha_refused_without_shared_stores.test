@@ -32,6 +32,10 @@ corDbDrop
 --RUN--
 
 #
+# The mongoc steps name the suite's MongoDB ($COR_MONGO_HOST, $COR_MONGO_PORT): in CI it is a service
+# container, not localhost, and a broker looking for it on localhost retries and never gets as far as
+# the check under test.
+#
 # run <args> - the broker started in the foreground for at most 5 s: its exit code (124 = still
 # running when the timeout ended it - it started) and the reason it gave, if it gave one
 #
@@ -61,21 +65,21 @@ echo
 
 echo "02. --high-availability mongo --troe ramDB - exit 1: the history would be split between the instances"
 echo "======================================================================================================"
-run --database mongoc --high-availability mongo --troe ramDB
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability mongo --troe ramDB
 echo
 echo
 
 
 echo "03. --high-availability mongo --troe corDB - exit 1: corDB's history needs corDB's store, refused in 01"
 echo "======================================================================================================="
-run --database mongoc --high-availability mongo --troe corDB
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability mongo --troe corDB
 echo
 echo
 
 
 echo "04. --high-availability 10.0.0.1:7000 - exit 1: the haaux server does not exist yet"
 echo "==================================================================================="
-run --database mongoc --high-availability 10.0.0.1:7000
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability 10.0.0.1:7000
 echo
 echo
 
