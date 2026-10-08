@@ -33,6 +33,7 @@ other: no peer list, no extra port.
 | MongoDB | A **replica set**. A single node is enough to run the mechanism (`mongod --replSet rs0`, then `rs.initiate()` once); real HA needs real redundancy in the database too. |
 | MongoDB version | 4.0 or later (a change stream over the whole deployment). |
 | MongoDB privileges | `find` and `changeStream` on **all** databases - see [below](#mongodb-privileges). |
+| Temporal history (TRoE) | `--troe timescale` (one PostgreSQL shared by every instance) or `--troe none`. A history kept inside the process (`ramDB`, `corDB`) would hold, in each instance, only the writes that instance served; the broker refuses it with `--high-availability mongo`. See [Temporal history](#temporal-history). |
 | Coraine | The same version on every instance. |
 
 The replica set, the credentials and the auth database are given in the connection URI:
@@ -109,6 +110,29 @@ Propagation is **eventual, but push-based** - typically milliseconds after the w
 is *not* instantaneous: a client that creates a subscription and immediately sends an entity update
 through the load balancer may have the update handled by an instance that has not applied the new
 subscription yet.
+
+## Temporal history
+
+With `--troe timescale` every instance writes the history of the requests it serves into the one
+shared PostgreSQL, and any instance answers a temporal query with all of it. Nothing about history is
+synchronised between the instances, so nothing is written twice and nothing is lost when an instance
+goes:
+
+- **Schema migrations** at startup hold a PostgreSQL advisory lock: instances that start together
+  upgrade the schema once.
+- **A tenant's database** created by two instances at the same moment is created once; the second
+  `CREATE DATABASE` is taken as done.
+- **Instance ids** are UUIDs, unique whichever instance creates them.
+
+Two things are each instance's own:
+
+- **The clock.** An instance stamps the history it writes (`modifiedAt`, `createdAt`) with its own
+  clock, and those stamps order the instances of an attribute and give the Entity its `modifiedAt`.
+  Keep the instances' clocks synchronised (NTP); a skew between two instances is a skew in the order
+  of the writes they served.
+- **When the history is written.** By default an instance writes a request's history right after
+  its response. An instance that dies between the two leaves that write in the current state and not
+  in the history. `--troeSync` writes it before the response, at the cost of that much latency.
 
 ## Troubleshooting: instances that disagree
 

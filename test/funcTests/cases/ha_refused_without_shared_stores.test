@@ -1,0 +1,114 @@
+#
+# FILE            ha_refused_without_shared_stores.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --high-availability mongo keeps several broker instances' caches in sync through the change feed of
+# the database they share. It only means something when everything they hold is shared: the
+# current state (mongoc, a replica set) AND the history. A broker that cannot be what HA promises does
+# not start:
+#
+#   - a current-state store inside the process (corDB): no other instance sees its writes
+#   - a temporal store inside the process (--troe ramDB): every instance would hold only the history of
+#     the writes it served, and a temporal query would answer with that share. (--troe corDB never gets
+#     that far: it needs --database corDB, which step 01 refuses.)
+#   - an address instead of 'mongo': the haaux server, not implemented yet
+#
+# A standalone mongod is refused too - mongocHaWatch.c asks it for its replica set. Not a step here: the
+# suite runs against a replica set in CI and often a standalone on a laptop, and each refusal above is
+# checked before the replica set is asked. That HA starts on a replica set is ha_cache_sync.test.
+#
+--NAME--
+HA: the broker refuses to start unless the current state AND the history are shared
+
+--TAGS--
+ha cli troe
+
+--INIT--
+corDbDrop
+
+--RUN--
+
+#
+# The mongoc steps name the suite's MongoDB ($COR_MONGO_HOST, $COR_MONGO_PORT): in CI it is a service
+# container, not localhost, and a broker looking for it on localhost retries and never gets as far as
+# the check under test.
+#
+# run <args> - the broker started in the foreground for at most 5 s: its exit code (124 = still
+# running when the timeout ended it - it started) and the reason it gave, if it gave one
+#
+run() {
+  timeout 5 $COR_BROKER -fg --port $((CB_PORT + 3100)) "$@" > /tmp/haRefused.$$ 2>&1
+  local rc=$?
+  echo "exit: $rc"
+  #
+  # Still running at the timeout where a refusal was expected: what the broker said goes to stderr, so a
+  # failing run shows it (and a passing one, which never gets here unexpectedly, stays quiet)
+  #
+  if [ $rc == 124 ] && [ "$EXPECT_RUNNING" != 1 ]; then
+    echo "--- broker still running with: $*" >&2
+    grep -v '^ *\[' /tmp/haRefused.$$ | tail -8 >&2
+  fi
+  grep -o -m1 -E "it needs --database corDB \\(not 'mongoc'\\)|needs a database plugin that can report what another broker instance wrote|needs a temporal store shared by every broker instance; '--troe [a-zA-Z]+' keeps the history inside each broker|an address means the haaux server, which is not implemented yet" /tmp/haRefused.$$
+  rm -f /tmp/haRefused.$$
+}
+
+
+echo "01. --database corDB --high-availability mongo - exit 1: corDB's store is nobody else's"
+echo "========================================================================================"
+run --database corDB --high-availability mongo
+echo
+echo
+
+
+echo "02. --high-availability mongo --troe ramDB - exit 1: the history would be split between the instances"
+echo "======================================================================================================"
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability mongo --troe ramDB
+echo
+echo
+
+
+echo "03. --high-availability mongo --troe corDB - exit 1: corDB's history needs corDB's store, refused in 01"
+echo "======================================================================================================="
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability mongo --troe corDB
+echo
+echo
+
+
+echo "04. --high-availability 10.0.0.1:7000 - exit 1: the haaux server does not exist yet"
+echo "==================================================================================="
+run --database mongoc --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --high-availability 10.0.0.1:7000
+echo
+echo
+
+
+--TEARDOWN--
+corDbDrop
+
+--EXPECT--
+01. --database corDB --high-availability mongo - exit 1: corDB's store is nobody else's
+========================================================================================
+exit: 1
+needs a database plugin that can report what another broker instance wrote
+
+
+02. --high-availability mongo --troe ramDB - exit 1: the history would be split between the instances
+======================================================================================================
+exit: 1
+needs a temporal store shared by every broker instance; '--troe ramDB' keeps the history inside each broker
+
+
+03. --high-availability mongo --troe corDB - exit 1: corDB's history needs corDB's store, refused in 01
+=======================================================================================================
+exit: 1
+it needs --database corDB (not 'mongoc')
+
+
+04. --high-availability 10.0.0.1:7000 - exit 1: the haaux server does not exist yet
+===================================================================================
+exit: 1
+an address means the haaux server, which is not implemented yet
+
+
