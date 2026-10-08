@@ -47,6 +47,7 @@
 
 
 
+#if COR_FEATURE_SUBSCRIPTIONS || COR_FEATURE_REGISTRATIONS
 // -----------------------------------------------------------------------------
 //
 // stringsTermsCheck - an array of names (watchedAttributes, propertyNames, ...)
@@ -124,6 +125,7 @@ static int viaServiceRoutine(MigrateState* msP, Tenant* tenantP, CorNode* treeP,
 
   return corRest.out.httpStatusCode;
 }
+#endif  // COR_FEATURE_SUBSCRIPTIONS || COR_FEATURE_REGISTRATIONS
 
 
 
