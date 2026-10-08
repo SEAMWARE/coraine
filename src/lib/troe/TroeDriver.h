@@ -370,6 +370,13 @@ typedef struct TroeDriver
   TroeEventListFunc                 historyImport;
 } TroeDriver;
 
+//
+// TROE_DRIVER_HISTORY_IMPORT - this header has TroeDriver.historyImport and TroeEvent.instanceId /
+// createdAtNs: a plugin in a repo of its own (corDB) builds its import against it and leaves the import
+// out against an older header
+//
+#define TROE_DRIVER_HISTORY_IMPORT
+
 
 
 // -----------------------------------------------------------------------------
