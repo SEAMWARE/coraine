@@ -125,6 +125,16 @@ beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
 
+### A smaller DDS stack for the DDS bridge
+
+The DDS bridge runs on a full DDS stack, the largest part of a coraine installation (about five times
+the broker) - so the arm64 image and the Debian packages ship without the bridge, and a device agent on
+a small board could not carry it. What the bridge needs is a subset: discovery (SPDP/SEDP), reliable
+and best-effort readers and writers, fragmentation and CDR serialisation - no content filters, no DDS
+Security. Two ways, the cheaper first: a DDS implementation written in C, built behind the same plugin;
+or that subset of the wire protocol (RTPS) on its own. Interoperability with DDS and ROS 2 nodes is a
+property of the wire protocol and stays as it is; the work is in testing it against each of them.
+
 ### Modbus - beyond v1
 
 Contiguous registers read together, RTU, read on demand through a registration, a way back for a
