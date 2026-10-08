@@ -29,6 +29,7 @@
 #include "corNgsild/CorNgsild.h"                          // corNgsild
 #include "corNgsild/LdVocab.h"                            // LD_VOCAB_*
 #include "corNgsild/ldTermId.h"                           // CorTerm*
+#include "corNgsild/ldSysTimestamp.h"                     // ldSysTimestampModify
 
 #include "db/DbDriver.h"                                  // db, DB_OK
 #include "db/Tenant.h"                                    // Tenant
@@ -277,13 +278,22 @@ bool migrateRegistration(MigrateState* msP, Tenant* tenantP, CorNode* regP)
   if (viaServiceRoutine(msP, tenantP, regP, postCsourceRegistration) != 201)
     return migrateFail(msP, MigrateRegistration, "'%s': %s", regId, migrateProblem());
 
+  //
+  // A registration update stores the WHOLE registration (the broker owns the merge - see
+  // patchCsourceRegistration), so modifiedAt is set the way a PATCH sets it: on the stored tree,
+  // with the request clock at the source's modifiedAt.
+  //
   if (modifiedAt != createdAt)
   {
-    CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
+    CorNode* storedP = NULL;
 
-    corTreeChildAdd(fragP, corTreeInteger(corRest.kallocP, LD_VOCAB_MODIFIED_AT, (long long) modifiedAt));
+    if ((db.registrationRetrieve == NULL) || (db.registrationRetrieve(tenantP, regId, &storedP) != DB_OK) || (storedP == NULL))
+      return migrateFail(msP, MigrateRegistration, "'%s': stored, but not found again to set its modifiedAt", regId);
 
-    if ((db.registrationUpdate == NULL) || (db.registrationUpdate(tenantP, regId, fragP) != DB_OK))
+    corRest.requestStartTime = (uint64_t) modifiedAt;
+    ldSysTimestampModify(storedP);
+
+    if ((db.registrationUpdate == NULL) || (db.registrationUpdate(tenantP, regId, storedP) != DB_OK))
       return migrateFail(msP, MigrateRegistration, "'%s': stored, but its modifiedAt could not be set", regId);
   }
 
