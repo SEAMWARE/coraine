@@ -39,16 +39,50 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
 
-  publish:
+  #
+  # The tag, once, for both architectures: it carries the date, and two jobs computing it on their own
+  # could straddle midnight.
+  #
+  # ONE immutable tag: <version>-<yyyy-mm-dd>-<sha>.
+  #
+  # The version comes out of the header the broker itself compiles in, so the
+  # tag cannot disagree with what /admin/version answers - CMakeLists reads the
+  # same file, after a build once announced 0.3 in its User-Agent while
+  # /admin/version said 0.2.0.
+  #
+  # There is deliberately no "latest", which is corLibs' rule for the CI images
+  # and is worth more here: an image that moves under a deployment is an outage
+  # nobody can bisect. The CI images carried a `latest` from before that rule;
+  # both have been deleted, and nothing here creates another.
+  #
+  # Not github.run_number either, which Orion-LD's deploy uses: it resets if the
+  # workflow is ever recreated, and it says how many times CI has run rather than
+  # what was built.
+  #
+  tag:
     needs: verify
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'SEAMWARE/coraine' }}
+    outputs:
+      value: ${{ steps.tag.outputs.value }}
+      sha:   ${{ steps.tag.outputs.sha }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           path: stack/coraine
           fetch-depth: 0          # the tag carries a short SHA
+
+      - name: Compute the tag
+        id: tag
+        working-directory: stack/coraine
+        run: |
+          version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
+                    src/app/coraine/coraineVersion.h)
+          [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
+          echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
 
       - uses: actions/checkout@v4
         with:
@@ -87,31 +121,43 @@ jobs:
           cat docker/vendor/MANIFEST.txt
 
       #
-      # ONE immutable tag: <version>-<yyyy-mm-dd>-<sha>.
+      # Once, here, and handed to both architectures: two jobs cloning the libs each would build from
+      # whatever main each found - a lib merged in between, and the two images would differ.
       #
-      # The version comes out of the header the broker itself compiles in, so the
-      # tag cannot disagree with what /admin/version answers - CMakeLists reads the
-      # same file, after a build once announced 0.3 in its User-Agent while
-      # /admin/version said 0.2.0.
-      #
-      # There is deliberately no "latest", which is corLibs' rule for the CI images
-      # and is worth more here: an image that moves under a deployment is an outage
-      # nobody can bisect. The CI images carried a `latest` from before that rule;
-      # both have been deleted, and nothing here creates another.
-      #
-      # Not github.run_number either, which Orion-LD's deploy uses: it resets if the
-      # workflow is ever recreated, and it says how many times CI has run rather than
-      # what was built.
-      #
-      - name: Compute the tag
-        id: tag
-        working-directory: stack/coraine
-        run: |
-          version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
-                    src/app/coraine/coraineVersion.h)
-          [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
-          echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Hand the vendored libs to the builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor
+          path: stack/coraine/docker/vendor
+          retention-days: 1
+
+  #
+  # Each architecture on a runner of its own - native, no emulation: amd64 with the DDS bridge, arm64
+  # without (the eProsima stack comes from the CI image, which is amd64 only - docker/Dockerfile, DDS=off).
+  # Each pushes <tag>-<arch> (and its debug twin) and has to start and answer before the manifest below
+  # puts it under <tag>.
+  #
+  publish:
+    needs: tag
+    if: ${{ github.repository == 'SEAMWARE/coraine' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest,    dds: "on"  }
+          - { arch: arm64, runner: ubuntu-24.04-arm, dds: "off" }
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: The vendored libs - the same for both architectures
+        uses: actions/download-artifact@v4
+        with:
+          name: vendor
+          path: stack/coraine/docker/vendor
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -131,11 +177,12 @@ jobs:
           push: true
           build-args: |
             BUILD=release
-            GIT_SHA=${{ steps.tag.outputs.sha }}
+            DDS=${{ matrix.dds }}
+            GIT_SHA=${{ needs.tag.outputs.sha }}
             BUILD_AT=${{ github.event.head_commit.timestamp }}
-          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
 
       #
       # The same commit as a DEBUG build: traces compiled in (a release image has
@@ -151,11 +198,12 @@ jobs:
           push: true
           build-args: |
             BUILD=debug
-            GIT_SHA=${{ steps.tag.outputs.sha }}
+            DDS=${{ matrix.dds }}
+            GIT_SHA=${{ needs.tag.outputs.sha }}
             BUILD_AT=${{ github.event.head_commit.timestamp }}
-          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug
-          cache-from: type=gha,scope=debug
-          cache-to: type=gha,mode=max,scope=debug
+          tags: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}-${{ matrix.arch }}-debug
+          cache-from: type=gha,scope=debug-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=debug-${{ matrix.arch }}
 
       #
       # The image has to actually run. A push that succeeds and an image that cannot
@@ -164,8 +212,8 @@ jobs:
       #
       - name: The published image must start and answer
         run: |
-          for img in quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }} \
-                     quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug; do
+          for img in quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}-${{ matrix.arch }} \
+                     quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}-${{ matrix.arch }}-debug; do
           #
           # --apiPlugins admin, because these arguments REPLACE the image's CMD,
           # and the CMD is where the admin plugin was selected. Without it the
@@ -184,10 +232,41 @@ jobs:
           docker rm -f coraine-smoke
           done
 
+  #
+  # <tag> (and <tag>-debug): one name for both architectures - a manifest list of the two images above,
+  # so `docker pull` takes the one for the machine it runs on. Only once both have been pushed and have
+  # answered.
+  #
+  manifest:
+    needs: [tag, publish]
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'SEAMWARE/coraine' }}
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: One name, both architectures
+        run: |
+          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}
+          for flavour in "" -debug; do
+            docker buildx imagetools create -t "$img$flavour" "$img-amd64$flavour" "$img-arm64$flavour"
+            docker buildx imagetools inspect "$img$flavour"
+          done
+
       - name: Say what was published
         run: |
-          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          img=quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ needs.tag.outputs.value }}
+          echo "### Published (linux/amd64 + linux/arm64)" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.tag.outputs.value }}-debug" >> "$GITHUB_STEP_SUMMARY"
+          echo "$img" >> "$GITHUB_STEP_SUMMARY"
+          echo "$img-debug" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Per architecture: $img-amd64, $img-arm64 (and -debug). arm64 has no DDS bridge." >> "$GITHUB_STEP_SUMMARY"

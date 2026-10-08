@@ -36,6 +36,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write          # gh release create, on THIS repository
+    outputs:                   # for the arm64 job below
+      version:  ${{ steps.v.outputs.version }}
+      date:     ${{ steps.v.outputs.date }}
+      shortSha: ${{ steps.v.outputs.shortSha }}
+      sha:      ${{ steps.v.outputs.sha }}
+      buildAt:  ${{ steps.v.outputs.buildAt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,6 +102,14 @@ jobs:
         env:
           BASE: ${{ github.workspace }}/stack
         run: ./docker/vendor-libs.sh
+
+      # The same sources for the arm64 image (job arm64): the libs of this release, not whatever main is then
+      - name: Hand the vendored libs to the arm64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor
+          path: stack/coraine/docker/vendor
+          retention-days: 1
 
       - name: Resolve the stack
         working-directory: stack/coraine
@@ -300,3 +314,79 @@ jobs:
             cat /tmp/stack.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  #
+  # The release for linux/arm64 too - on a native ARM runner, from the very sources of the job above
+  # (its vendored libs, the tag's commit), without the DDS bridge (the eProsima stack comes from the CI
+  # image, amd64 only - docker/Dockerfile, DDS=off). Each release tag (release and debug) is then made a
+  # manifest list of the amd64 image the job above pushed and the arm64 one here: `docker pull` takes
+  # the one for the machine it runs on. The release page is up before this joins in.
+  #
+  arm64:
+    needs: release
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+
+      - name: The vendored libs of the release
+        uses: actions/download-artifact@v4
+        with:
+          name: vendor
+          path: stack/coraine/docker/vendor
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push (arm64, release and debug)
+        env:
+          IMG: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine
+          VERSION: ${{ needs.release.outputs.version }}
+          LONG: ${{ needs.release.outputs.version }}-${{ needs.release.outputs.date }}-${{ needs.release.outputs.shortSha }}
+        run: |
+          for flavour in release debug; do
+            suffix=$( [ "$flavour" = debug ] && echo -debug || true )
+            docker buildx build --push --platform linux/arm64 \
+              -f stack/coraine/docker/Dockerfile \
+              --build-arg BUILD=$flavour --build-arg DDS=off \
+              --build-arg GIT_SHA=${{ needs.release.outputs.sha }} --build-arg BUILD_AT=${{ needs.release.outputs.buildAt }} \
+              -t "$IMG:$VERSION-arm64$suffix" -t "$IMG:$LONG-arm64$suffix" \
+              stack/coraine
+          done
+
+      - name: The arm64 images must start and answer
+        env:
+          IMG: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          for img in "$IMG:$VERSION-arm64" "$IMG:$VERSION-arm64-debug"; do
+            docker run --rm -d --name coraine-smoke -p 1026:1026 "$img" --database corDB --apiPlugins admin
+            for i in $(seq 1 20); do
+              curl -sf http://localhost:1026/ngsi-ld/v1/types >/dev/null && break
+              [ "$i" = 20 ] && { echo "::error::$img never answered"; docker logs coraine-smoke; exit 1; }
+              sleep 1
+            done
+            curl -sf http://localhost:1026/admin/version
+            docker rm -f coraine-smoke
+          done
+
+      - name: One name, both architectures
+        env:
+          IMG: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine
+          VERSION: ${{ needs.release.outputs.version }}
+          LONG: ${{ needs.release.outputs.version }}-${{ needs.release.outputs.date }}-${{ needs.release.outputs.shortSha }}
+        run: |
+          for tag in "$VERSION" "$LONG" "$VERSION-debug" "$LONG-debug"; do
+            case "$tag" in *-debug) base=${tag%-debug}; arm="$IMG:$base-arm64-debug" ;; *) arm="$IMG:$tag-arm64" ;; esac
+            docker buildx imagetools create -t "$IMG:$tag" "$IMG:$tag" "$arm"
+            docker buildx imagetools inspect "$IMG:$tag" | head -12
+          done
+          echo "### $VERSION: linux/amd64 + linux/arm64 (arm64 without the DDS bridge)" >> "$GITHUB_STEP_SUMMARY"

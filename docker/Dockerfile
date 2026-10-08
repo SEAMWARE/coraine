@@ -32,6 +32,13 @@
 #
 ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-09-22-f5a4eb4
 
+#
+# DDS=off - an image without the DDS bridge: the stack's stage below is then empty, nothing is taken
+# from the CI image (which is amd64 only), and the bridge is not built (COR_BRIDGE_DDS=auto finds no
+# headers). The arm64 image is built so.
+#
+ARG DDS=on
+
 # --------------------------------------------------------------------------- #
 # Stage 0 — where the DDS stack comes from
 #
@@ -44,7 +51,12 @@ ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-09-22-f5a4eb4
 # file does not have to know that there are nine libraries or what they are
 # called. See corLibs/docker/Dockerfile.ci, section 3a.
 # --------------------------------------------------------------------------- #
-FROM ${CI_IMAGE} AS ddsstack
+FROM ${CI_IMAGE} AS ddsstack-on
+
+FROM ubuntu:26.04 AS ddsstack-off
+RUN mkdir -p /opt/dds/lib /opt/dds/include
+
+FROM ddsstack-${DDS} AS ddsstack
 
 # --------------------------------------------------------------------------- #
 # Stage 1 — builder
