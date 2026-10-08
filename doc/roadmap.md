@@ -46,6 +46,14 @@ Recently built, and documented where it lives:
     with 1 000 subscriptions ([Performance](performance.md)).
 -   **An NGSI-LD-aware JSON parser** - the core terms are an enum, not strings: a compare instead of a
     `strcmp` wherever a member is recognised.
+-   **linux/arm64** - every image for amd64 and arm64 under one tag (arm64 without the DDS bridge), and
+    the whole functional suite on native ARM runners every night.
+-   **Migrating from Orion-LD** - `coraine-import`, a program of its own on the broker's libraries:
+    entities, subscriptions, registrations and the temporal history, with their ids and system
+    timestamps ([Migrating a database to coraine](migration.md)). Later, the ETSI neutral export format.
+-   **Running on Kubernetes** - a memory budget that refuses work instead of being killed for it, a
+    health port answering `/live` and `/ready` outside the HTTP queue, and a byte budget per query
+    response - entity, temporal and distributed queries ([Kubernetes](kubernetes.md)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
@@ -53,31 +61,30 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 
 ## In progress
 
--   **linux/arm64** - every image for amd64 and arm64 under one tag (arm64 without the DDS bridge), and
-    the whole functional suite on native ARM runners every night. The images are published for both
-    architectures; the nightly ARM job passes the whole suite on both stores and is being merged.
--   **Migrating from Orion-LD** - a converter for its database (`coraine-import`, its own executable on the broker's libraries); later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
--   **A memory budget and admission control** - a broker that refuses work instead of being killed for it
-    (Kubernetes' OOM killer).
+-   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
+    first page, freezes its set of matching entities on the first page and serves the pages from it
+    (the links carry the map's id); an entity that no longer matches is left out of its page.
+    ([§ 13](#13-entitymaps-nobody-has-to-ask-for))
 
 ## Short term
 
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
+-   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
+-   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
+-   **Build GUI** - Qt/GTK application/webpage? to configure the build, incl cond.comp, pgo training, HW, etc => docker image
+-   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
+    Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
+-   **Authorisation inside the broker** - per entity, per type after expansion, per tenant, per attribute; ODRL,
+    verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker))
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
 -   **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity. ([more](ideas.md#cordb-persistence---cheaper-writes))
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
     what it is told to (entities, attributes - subscription-shaped). ([more](ideas.md#cordb-history-retention-and-a-selector))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
--   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
--   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
--   **Authorisation inside the broker** - per entity, per type after expansion, per tenant; ODRL,
-    verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker))
--   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
-    Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
 
 ## Medium term
 
