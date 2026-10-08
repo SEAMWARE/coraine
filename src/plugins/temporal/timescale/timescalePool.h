@@ -111,4 +111,22 @@ extern int            timescalePoolDrop(Tenant* tenantP);
 //
 extern void           timescalePoolCloseAll(void);
 
+
+
+#if COR_FEATURE_HEALTH
+// -----------------------------------------------------------------------------
+//
+// timescalePing - TroeDriver.ping, for the health port: SELECT 1 on a connection of its own
+//
+extern int            timescalePing(int timeoutMs);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescalePingClose - drop the ping's connection
+//
+extern void           timescalePingClose(void);
+#endif
+
 #endif  // TIMESCALE_TIMESCALEPOOL_H_

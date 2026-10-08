@@ -1,0 +1,128 @@
+#
+# FILE            health_port_corDB.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --healthPort on corDB: the store is in the broker's process - no ping, so no lastPingAgoMs and
+# pingLatencyUs, reachable once loaded. health_port.test is the mongoc twin and covers the rest
+# (the bare TCP probe, the memory budget, no --healthPort).
+#
+# REQUIRE_FEATURE: HEALTH
+# REQUIRE_DB: corDB
+#
+--NAME--
+Health port on corDB - the in-process store has no ping: reachable once loaded; requests tracked
+
+--TAGS--
+health corDB
+
+--INIT--
+corDbDrop
+coraineStart --healthPort $((CB_PORT + 2000))
+
+--RUN--
+HP=$((CB_PORT + 2000))
+
+#
+# hp <path> - status line and headers as sent, the body through jq
+#
+hp() {
+  local out
+  out=$(curl -s -i "http://localhost:$HP$1" | tr -d '\r')
+  echo "$out" | sed -n '1,/^$/p'
+  echo "$out" | sed '1,/^$/d' | jq .
+}
+
+#
+# The API port opens a moment before the broker reports itself serving: wait for /ready
+#
+for _ in $(seq 1 50); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$HP/ready")" = 200 ] && break
+  sleep 0.1
+done
+
+
+echo "01. GET /live - 200 and the report"
+echo "=================================="
+hp /live
+echo
+echo
+
+
+echo "02. Five requests on the API port - five finished, none left in flight"
+echo "======================================================================="
+before=$(curl -s "http://localhost:$HP/" | jq .requests.total)
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:HP:E1","type":"T"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:HP:E1 | head -1
+corCurl --url /ngsi-ld/v1/nothingHere | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:HP:E1?unknownParam=1' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:HP:E1 -X DELETE | head -1
+#
+# A request leaves its slot in the post-response hook, after its response is sent
+#
+for _ in $(seq 1 20); do
+  after=$(curl -s "http://localhost:$HP/" | jq -c .requests)
+  [ "$(echo "$after" | jq .inFlight)" = 0 ] && break
+  sleep 0.1
+done
+echo "finished: $(( $(echo "$after" | jq .total) - before ))"
+echo "in flight: $(echo "$after" | jq .inFlight)"
+echo "last finished: $(echo "$after" | jq '.lastFinishedAgoMs | type')"
+echo
+echo
+
+
+
+--EXPECT--
+01. GET /live - 200 and the report
+==================================
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: REGEX([0-9]+)
+Connection: close
+
+{
+  "status": "ok",
+  "uptime": REGEX([0-9]+),
+  "store": {
+    "plugin": "corDB",
+    "loaded": true,
+    "reachable": true
+  },
+  "troe": {
+    "plugin": "none",
+    "loaded": true,
+    "reachable": true
+  },
+  "memory": {
+    "budget": REGEX([0-9]+),
+    "used": REGEX([0-9]+),
+    "resident": REGEX([0-9]+),
+    "level": "ok",
+    "refused": 0
+  },
+  "requests": {
+    "inFlight": 0,
+    "total": REGEX([0-9]+),
+    "lastFinishedAgoMs": REGEX(([0-9]+|null))
+  }
+}
+
+
+02. Five requests on the API port - five finished, none left in flight
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
+HTTP/1.1 400 Bad Request
+HTTP/1.1 204 No Content
+finished: 5
+in flight: 0
+last finished: "number"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

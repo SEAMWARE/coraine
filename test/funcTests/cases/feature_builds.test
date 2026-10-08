@@ -27,7 +27,7 @@
 # coraineStack.h and coraineBuild.h, which `make di` writes into the source
 # tree. Running the suite at all already implies that.
 #
-# Only the configurations that DO something are covered. Nine of the fifteen
+# Only the configurations that DO something are covered. Nine of the twenty-one
 # features are declared and unread, so a case for one would build a
 # byte-identical binary and assert nothing, and three do not link - both states
 # are documented in doc/building-details.md rather than pinned here, because a test
@@ -65,6 +65,7 @@ SERVICE_EXECUTION=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SNAPSHOT_WRITE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SNAPSHOT_SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 MIGRATE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+HEALTH=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 
 
 --TEARDOWN--

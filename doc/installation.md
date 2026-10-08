@@ -90,6 +90,8 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--connectionPoolSize` / `-cps` | 32 | HTTP server thread-pool size |
 | `--noInline` | off | hand every request to a worker thread. By default, with `corDB`, a request that waits on nothing runs on the thread that read it - about twice the throughput for retrieves and small queries. Metrics: `ngsild_requests_inline_total`, `ngsild_requests_worker_total` |
 | `--memoryLimit` | 85% of the container's limit | memory budget in MiB - see [Memory budget](#memory-budget) |
+| `--healthPort` | — (off) | TCP port for the health probes - see [Health port](#health-port) |
+| `--healthStallTimeout` | 30 | seconds a request may be in flight, with no request finishing, before `GET /live` answers 503 |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
@@ -198,7 +200,7 @@ process that goes over the limit is killed by the kernel - SIGKILL, exit code 13
 with the `corDB` store everything it held goes with it. coraine keeps a budget below the limit and
 turns requests away before it gets there:
 
-| Resident memory | What happens |
+| Memory used | What happens |
 |---|---|
 | below 90% of the budget | everything is served |
 | 90% - 100% | writes that grow memory (POST, PUT, PATCH) are refused |
@@ -209,11 +211,56 @@ A refused request gets **503**, a `Retry-After: 5` header and the error type
 
 The budget is `--memoryLimit` (MiB), or - without it - 85% of the smallest cgroup memory limit the
 process lives under (the container's, or a Kubernetes pod's above it). Outside a container, with no
-limit, there is no budget and nothing is checked. The memory measured is the process's resident set,
-every 100 ms, so it includes every library the broker links; a request pays one comparison for it.
+limit, there is no budget and nothing is checked.
 
-Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_resident_bytes`,
+The memory measured, every 100 ms, is the process's anonymous and shared memory (`RssAnon + RssShmem`
+in `/proc/self/status`), so it includes every library the broker links; a request pays one comparison
+for it. File-backed pages are not counted - the executable, the libraries and the `corDB` log, which is
+memory-mapped and grows to 1 GiB a segment: they are page cache the kernel writes back and reclaims
+before it kills a process, and counting them would refuse writes on a persistent `corDB` for the size
+of its log.
+
+Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compared with the budget),
+`ngsild_memory_resident_bytes` (the whole resident set, file-backed pages included),
 `ngsild_requests_refused_memory_total`.
+
+## Health port
+
+With **`--healthPort <port>`** the broker answers health probes on a port of its own, served by a
+thread of its own - not by the HTTP server, so a probe never waits in its queue behind the requests.
+Without the option nothing listens. It opens before the store is loaded.
+
+| Request | 200 | 503 |
+|---|---|---|
+| `GET /live` | the broker makes progress | a request has been in flight for longer than `--healthStallTimeout` seconds (default 30) and no request has finished in that time. Never for memory or a database |
+| `GET /ready` | the broker serves | the store is still loading; the current-state or the temporal store does not answer its ping; over the [memory budget](#memory-budget); stuck (as `/live`); stopping (from SIGTERM on) |
+| `GET <anything else>` | always | — |
+
+A connection that sends nothing (a TCP probe) is closed unanswered. Every answer has the same body,
+the report:
+
+```json
+{
+  "status": "ok",
+  "uptime": 3605,
+  "store": { "plugin": "mongoc", "loaded": true, "reachable": true, "lastPingAgoMs": 412, "pingLatencyUs": 310 },
+  "troe": { "plugin": "none", "loaded": true, "reachable": true },
+  "memory": { "budget": 912680550, "used": 61435904, "resident": 75988992, "level": "ok", "refused": 0 },
+  "requests": { "inFlight": 2, "total": 1288211, "lastFinishedAgoMs": 0 }
+}
+```
+
+| Member | |
+|---|---|
+| `status` | `starting` (the store loading), `ok`, `degraded` (the temporal store unreachable, or over 90% of the memory budget), `down` (the store unreachable, or stuck), `stopping` |
+| `uptime` | seconds since the health port opened |
+| `store`, `troe` | the current-state and the temporal plugin. `mongoc` and `timescale` are pinged once a second, on a connection of their own, with a 1 s timeout: `reachable` is an answer within the last 5 s, `lastPingAgoMs` and `pingLatencyUs` are the last ping's. `corDB` and `none` are in the broker's process: reachable once loaded |
+| `memory` | the [memory budget](#memory-budget) in bytes (0: none), what counts against it, the whole resident set, `level` (`ok`, `soft` - writes refused, `hard` - everything but deletes and monitoring refused) and the requests refused for it |
+| `requests` | the requests in flight, how many have finished, and how long ago the last one did (`null`: none yet) |
+
+Nothing is measured when a probe arrives: the figures are kept current in the background, and an
+answer formats them. In the build by default; `-DCOR_FEATURE_HEALTH=OFF` leaves it out.
+How the probes are set up on Kubernetes: [Kubernetes](kubernetes.md#probes).
 
 ## Sanity check procedures
 

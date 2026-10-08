@@ -59,6 +59,21 @@ echo
 echo
 
 
+echo "05. What the budget counts (anonymous + shared memory) is not the whole resident set"
+echo "======================================================================================"
+#
+# File-backed pages - the executable, the libraries, corDB's mapped log - are reclaimable page cache
+# and are left out: used (RssAnon + RssShmem) never exceeds resident, and both are reported.
+#
+M=$(corCurl --url /metrics --out raw)
+USED=$(echo "$M" | awk '/^ngsild_memory_used_bytes / { print $2 }')
+RES=$(echo "$M" | awk '/^ngsild_memory_resident_bytes / { print $2 }')
+echo "used reported: $([ -n "$USED" ] && echo yes || echo no)"
+echo "used <= resident: $(awk -v u="$USED" -v r="$RES" 'BEGIN { print (u + 0 > 0 && u + 0 <= r + 0) ? "yes" : "no" }')"
+echo
+echo
+
+
 --TEARDOWN--
 coraineStop
 corDbDrop
@@ -101,5 +116,11 @@ ngsild_requests_refused_memory_total 2
 HTTP/1.1 201 Created
 ngsild_memory_budget_bytes 104857600000
 ngsild_requests_refused_memory_total 0
+
+
+05. What the budget counts (anonymous + shared memory) is not the whole resident set
+======================================================================================
+used reported: yes
+used <= resident: yes
 
 

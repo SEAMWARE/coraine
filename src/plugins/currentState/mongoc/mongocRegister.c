@@ -34,6 +34,9 @@
 #include "currentState/mongoc/mongocHaWatch.h"                   // mongocHaWatchStart
 #include "currentState/mongoc/mongocTenantSetup.h"                  // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                     // mongocVersionInfo
+#if COR_FEATURE_HEALTH
+#include "currentState/mongoc/mongocPing.h"                        // mongocPing
+#endif
 #if COR_FEATURE_SUBSCRIPTIONS
 #include "currentState/mongoc/mongocSubscriptionCreate.h"           // mongocSubscriptionCreate
 #include "currentState/mongoc/mongocSubscriptionRetrieve.h"         // mongocSubscriptionRetrieve
@@ -157,4 +160,8 @@ void dbRegister(DbDriver* driverP)
   driverP->contextDelete         = mongocContextDelete;
   driverP->contextList           = mongocContextList;
   driverP->contextGet            = mongocContextGet;
+
+#if COR_FEATURE_HEALTH
+  driverP->ping                  = mongocPing;     // the health port's pinger (src/app/coraine/health.h)
+#endif
 }

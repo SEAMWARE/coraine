@@ -1,0 +1,227 @@
+#
+# FILE            health_port.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --healthPort: liveness and readiness on a port of their own, served outside the HTTP server
+# (src/app/coraine/health.h, doc/installation.md#health-port).
+#
+#   /live    200 while the broker makes progress - never 503 for memory or a database
+#   /ready   503 while loading, a store unreachable, over the hard memory budget, stuck, stopping
+#   other    200, the report
+#
+# Every answer carries the JSON report. A connection that sends nothing - a tcpSocket probe - is
+# closed unanswered and leaves the port working, as does one that sends something that is not HTTP.
+# Without --healthPort nothing listens.
+#
+# Step 04 is the request tracking: five requests on 1026 - created, read, an unknown path (404), an
+# unknown parameter (400), deleted - are five finished and none left in flight. A request that the
+# post-response hook sees but that was never dispatched would leave one there for good.
+#
+# mongoc only: the report names the store's plugin, and a mongoc store has a ping (lastPingAgoMs,
+# pingLatencyUs) that corDB, in the broker's process, has not.
+#
+# The health port is the API port + 2000 (cor:// is + 1000).
+#
+# REQUIRE_FEATURE: HEALTH
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Health port - /live, /ready and the report, outside the HTTP server; a bare TCP probe; over the hard memory budget not ready but alive
+
+--TAGS--
+health robustness memory
+
+--INIT--
+corDbDrop
+coraineStart --healthPort $((CB_PORT + 2000))
+
+--RUN--
+HP=$((CB_PORT + 2000))
+
+#
+# hp <path> - status line and headers as sent, the body through jq
+#
+hp() {
+  local out
+  out=$(curl -s -i "http://localhost:$HP$1" | tr -d '\r')
+  echo "$out" | sed -n '1,/^$/p'
+  echo "$out" | sed '1,/^$/d' | jq .
+}
+
+#
+# The API port opens a moment before the broker reports itself serving: wait for /ready
+#
+for _ in $(seq 1 50); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$HP/ready")" = 200 ] && break
+  sleep 0.1
+done
+
+
+echo "01. GET /live - 200 and the report"
+echo "=================================="
+hp /live
+echo
+echo
+
+
+echo "02. GET /ready - 200"
+echo "===================="
+curl -s -i "http://localhost:$HP/ready" | head -1 | tr -d '\r'
+echo
+echo
+
+
+echo "03. Any other path - 200, the same report"
+echo "========================================="
+curl -s -i "http://localhost:$HP/nothing/here" | head -1 | tr -d '\r'
+curl -s "http://localhost:$HP/nothing/here" | jq -r 'keys_unsorted | join(",")'
+echo
+echo
+
+
+echo "04. Five requests on the API port - five finished, none left in flight"
+echo "======================================================================="
+before=$(curl -s "http://localhost:$HP/" | jq .requests.total)
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:HP:E1","type":"T"}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:HP:E1 | head -1
+corCurl --url /ngsi-ld/v1/nothingHere | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:HP:E1?unknownParam=1' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:HP:E1 -X DELETE | head -1
+#
+# A request leaves its slot in the post-response hook, after its response is sent
+#
+for _ in $(seq 1 20); do
+  after=$(curl -s "http://localhost:$HP/" | jq -c .requests)
+  [ "$(echo "$after" | jq .inFlight)" = 0 ] && break
+  sleep 0.1
+done
+echo "finished: $(( $(echo "$after" | jq .total) - before ))"
+echo "in flight: $(echo "$after" | jq .inFlight)"
+echo "last finished: $(echo "$after" | jq '.lastFinishedAgoMs | type')"
+echo
+echo
+
+
+echo "05. A bare TCP connect + close, and a request that is not HTTP: closed unanswered - the port still works"
+echo "========================================================================================================"
+exec 3<>/dev/tcp/localhost/$HP
+exec 3>&-
+exec 3<>/dev/tcp/localhost/$HP
+printf 'hello\r\n\r\n' >&3
+echo "answer to 'hello': [$(timeout 3 cat <&3)]"
+exec 3>&-
+curl -s -i "http://localhost:$HP/live" | head -1 | tr -d '\r'
+echo
+echo
+
+
+echo "06. Over the hard memory budget (--memoryLimit 1) - not ready, still alive"
+echo "========================================================================="
+coraineStop
+coraineStart --healthPort $HP --memoryLimit 1
+for _ in $(seq 1 50); do
+  [ "$(curl -s "http://localhost:$HP/" | jq -r .status)" != starting ] && break
+  sleep 0.1
+done
+curl -s -i "http://localhost:$HP/live"  | head -1 | tr -d '\r'
+curl -s -i "http://localhost:$HP/ready" | head -1 | tr -d '\r'
+curl -s "http://localhost:$HP/ready" | jq -c '{ status, budget: .memory.budget, level: .memory.level }'
+echo
+echo
+
+
+echo "07. Without --healthPort nothing listens"
+echo "========================================"
+coraineStop
+coraineStart
+curl -s -o /dev/null -w '%{http_code}' "http://localhost:$HP/live"
+echo " (curl exit code $?)"
+echo
+echo
+
+
+--EXPECT--
+01. GET /live - 200 and the report
+==================================
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: REGEX([0-9]+)
+Connection: close
+
+{
+  "status": "ok",
+  "uptime": REGEX([0-9]+),
+  "store": {
+    "plugin": "mongoc",
+    "loaded": true,
+    "reachable": true,
+    "lastPingAgoMs": REGEX([0-9]+),
+    "pingLatencyUs": REGEX([0-9]+)
+  },
+  "troe": {
+    "plugin": "none",
+    "loaded": true,
+    "reachable": true
+  },
+  "memory": {
+    "budget": REGEX([0-9]+),
+    "used": REGEX([0-9]+),
+    "resident": REGEX([0-9]+),
+    "level": "ok",
+    "refused": 0
+  },
+  "requests": {
+    "inFlight": 0,
+    "total": REGEX([0-9]+),
+    "lastFinishedAgoMs": REGEX(([0-9]+|null))
+  }
+}
+
+
+02. GET /ready - 200
+====================
+HTTP/1.1 200 OK
+
+
+03. Any other path - 200, the same report
+=========================================
+HTTP/1.1 200 OK
+status,uptime,store,troe,memory,requests
+
+
+04. Five requests on the API port - five finished, none left in flight
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
+HTTP/1.1 400 Bad Request
+HTTP/1.1 204 No Content
+finished: 5
+in flight: 0
+last finished: "number"
+
+
+05. A bare TCP connect + close, and a request that is not HTTP: closed unanswered - the port still works
+========================================================================================================
+answer to 'hello': []
+HTTP/1.1 200 OK
+
+
+06. Over the hard memory budget (--memoryLimit 1) - not ready, still alive
+=========================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 503 Service Unavailable
+{"status":"degraded","budget":1048576,"level":"hard"}
+
+
+07. Without --healthPort nothing listens
+========================================
+000 (curl exit code 7)
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

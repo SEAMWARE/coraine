@@ -283,10 +283,12 @@ RUN ldconfig \
 
 EXPOSE 1026
 
-# /ngsi-ld/v1/types needs no parameters and no data to answer 200, which makes it
-# the cheapest honest liveness signal.
+# /version: answered without touching the store, and exempt from the memory budget - over the budget
+# everything else is refused with 503 by design, and a full broker is not an unhealthy one. (A broker
+# started with --healthPort has a better probe: GET /live on that port, outside the HTTP server's
+# queue - doc/kubernetes.md.)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -fsS http://localhost:1026/ngsi-ld/v1/types >/dev/null || exit 1
+  CMD curl -fsS http://localhost:1026/version >/dev/null || exit 1
 
 # coraine -fg (mandatory in a container: without it the broker daemonizes and PID 1 exits), with what
 # `make tune` chose if the image was built with a WORKLOAD (docker/coraine-start)

@@ -56,5 +56,8 @@ int timescaleInit(void)
 //
 void timescaleClose(void)
 {
+#if COR_FEATURE_HEALTH
+  timescalePingClose();
+#endif
   timescalePoolCloseAll();
 }

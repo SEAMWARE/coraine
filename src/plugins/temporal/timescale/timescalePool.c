@@ -17,6 +17,10 @@
 #include <pthread.h>                                      // pthread_mutex_t
 #include <semaphore.h>                                    // sem_*
 #include <libpq-fe.h>                                     // PG*
+#if COR_FEATURE_HEALTH
+#include <poll.h>                                         // poll
+#include <errno.h>                                        // errno, EINTR
+#endif
 
 #include "corLog/corLog.h"                                // COR_E, COR_I
 
@@ -503,3 +507,119 @@ void timescalePoolCloseAll(void)
 
   pthread_mutex_unlock(&poolCreateMutex);
 }
+
+
+
+#if COR_FEATURE_HEALTH
+// -----------------------------------------------------------------------------
+//
+// pingConn - the ping's own connection (the default tenant's database), used by the health port's pinger only
+//
+// Not a pooled one: under load every pooled connection can be busy, and the ping would wait for a
+// request instead of answering whether Postgres is there.
+//
+static PGconn* pingConn = NULL;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// monotonicMs -
+//
+static int64_t monotonicMs(void)
+{
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescalePing - TroeDriver.ping: SELECT 1 on the ping's connection, the answer awaited at most timeoutMs
+//
+// The connection is opened when there is none, with connect_timeout (whole seconds, and libpq takes
+// nothing under 2), and dropped after any failure, so the next ping connects afresh. The query is sent
+// and its answer polled for, so a server that accepted the connection and then stopped answering costs
+// timeoutMs, not the TCP timeout.
+//
+int timescalePing(int timeoutMs)
+{
+  int64_t   deadline;
+  bool      ok = false;
+  PGresult* r;
+
+  if ((pingConn != NULL) && (PQstatus(pingConn) != CONNECTION_OK))
+  {
+    PQfinish(pingConn);
+    pingConn = NULL;
+  }
+
+  if (pingConn == NULL)
+  {
+    char dbName[128];
+    char cs[1024];
+    char csTimeout[1100];
+    int  secs = (timeoutMs + 999) / 1000;
+
+    timescaleDbNameFor(NULL, dbName, sizeof(dbName));
+    connStr(dbName, cs, sizeof(cs));
+    snprintf(csTimeout, sizeof(csTimeout), "%s connect_timeout=%d", cs, (secs < 2) ? 2 : secs);
+
+    pingConn = PQconnectdb(csTimeout);
+    if (PQstatus(pingConn) != CONNECTION_OK)
+      goto failed;
+  }
+
+  deadline = monotonicMs() + timeoutMs;
+
+  if (PQsendQuery(pingConn, "SELECT 1") == 0)
+    goto failed;
+
+  while (PQisBusy(pingConn) != 0)
+  {
+    struct pollfd pfd  = { PQsocket(pingConn), POLLIN, 0 };
+    int64_t       left = deadline - monotonicMs();
+
+    if (left <= 0)
+      goto failed;
+
+    int n = poll(&pfd, 1, (int) left);
+    if ((n < 0) && (errno == EINTR))
+      continue;
+    if ((n <= 0) || (PQconsumeInput(pingConn) == 0))
+      goto failed;
+  }
+
+  while ((r = PQgetResult(pingConn)) != NULL)
+  {
+    if (PQresultStatus(r) == PGRES_TUPLES_OK)
+      ok = true;
+    PQclear(r);
+  }
+
+  if (ok == true)
+    return TROE_OK;
+
+failed:
+  PQfinish(pingConn);
+  pingConn = NULL;
+  return TROE_ERR;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescalePingClose - drop the ping's connection (timescaleClose, once nothing pings any more)
+//
+void timescalePingClose(void)
+{
+  if (pingConn != NULL)
+  {
+    PQfinish(pingConn);
+    pingConn = NULL;
+  }
+}
+#endif

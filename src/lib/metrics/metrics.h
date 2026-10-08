@@ -105,7 +105,7 @@ extern bool metricsRender(void);
 // budget (0 = none), the resident set and the number of requests refused for memory. The budget is
 // the app's (memoryBudget), so the app hands this in.
 //
-typedef void (*MetricsMemoryValuesFunc)(uint64_t* budgetP, uint64_t* residentP, uint64_t* refusedP);
+typedef void (*MetricsMemoryValuesFunc)(uint64_t* budgetP, uint64_t* usedP, uint64_t* residentP, uint64_t* refusedP);
 extern void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn);
 
 

@@ -27,9 +27,10 @@
 //   hard    the budget        - everything is refused except what frees memory or reports on the
 //                               broker: DELETE, batch delete, /version, /metrics, /admin/*
 //
-// Usage is the process's resident set, read from /proc/self/statm by a thread of its own every
-// 100 ms - so it counts every library (mongoc, MHD, OpenSSL ...) and costs a request one load and a
-// compare. Not a check in each malloc: a library handed NULL from malloc does not fail gracefully.
+// Usage is the process's anonymous and shared memory (RssAnon + RssShmem, /proc/self/status), read by
+// a thread of its own every 100 ms - so it counts every library (mongoc, MHD, OpenSSL ...) and costs a
+// request one load and a compare. Not the whole resident set: its file-backed pages (corDB's mapped
+// log among them) are reclaimable page cache, never what gets a process killed. Not a check in each malloc: a library handed NULL from malloc does not fail gracefully.
 //
 // Over the soft limit the same thread calls malloc_trim(0), at most every 2 s: glibc keeps freed memory
 // resident on its free lists, so without it the resident set stays at its high-water mark after the
@@ -49,8 +50,22 @@ extern bool memoryBudgetAdmit(void);
 
 // -----------------------------------------------------------------------------
 //
-// memoryBudgetValues - the budget (0: none), the resident set and how many requests were refused
+// memoryBudgetValues - the budget (0: none), the memory counted against it, the whole resident set and
+// how many requests were refused
 //
-extern void memoryBudgetValues(uint64_t* budgetP, uint64_t* residentP, uint64_t* refusedP);
+extern void memoryBudgetValues(uint64_t* budgetP, uint64_t* usedP, uint64_t* residentP, uint64_t* refusedP);
+
+
+
+
+#if COR_FEATURE_HEALTH
+// -----------------------------------------------------------------------------
+//
+// memoryBudgetLevel - where the broker stands: 0 below the soft limit (or no budget), 1 over it, 2 over the budget
+//
+// The figure the sampler last stored - a load and two compares, no /proc read.
+//
+extern int memoryBudgetLevel(void);
+#endif
 
 #endif  // SRC_APP_CORAINE_MEMORYBUDGET_H_
