@@ -203,7 +203,7 @@ int            healthStallTimeout = 30;     // seconds a request may be in fligh
 #endif
 int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 = no cap)
 #if COR_FEATURE_RESPONSE_BUDGET
-int            maxResponseSize = 32;         // MiB; the byte budget of an entity query (0 = none - see responseBudget.h)
+int            maxResponseSize = -1;         // MiB; the byte budget of an entity query (0 = none; -1 = 1/16 of the memory budget, none without one - see responseBudget.h)
 #endif
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
@@ -241,7 +241,7 @@ static CorArg kargV[] =
   { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
   { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
 #if COR_FEATURE_RESPONSE_BUDGET
-  { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp 32, _vp 0,    _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget)" },
+  { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp -1, _vp -1,   _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget; -1 = 1/16 of the memory budget, none without one)" },
 #endif
   { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
@@ -1557,11 +1557,6 @@ int main(int argC, char* argV[])
   // § 6.3.2 413 threshold. 0 in --maxRequestSize disables the cap.
   corRestSetMaxRequestSize(((unsigned long long) maxRequestSize) * 1024ULL * 1024ULL);
 
-#if COR_FEATURE_RESPONSE_BUDGET
-  // The byte budget of an entity query (responseBudget.h). 0 in --maxResponseSize: none.
-  responseBudgetBytes = ((int64_t) maxResponseSize) * 1024 * 1024;
-#endif
-
   if (corsOrigin != NULL)
   {
     const char* origin = (strcmp(corsOrigin, "__ALL") == 0) ? "*" : corsOrigin;
@@ -1600,6 +1595,30 @@ int main(int argC, char* argV[])
   inlineDispatchInit(dbName, troeName, noInline);
   memoryBudgetInit(memoryLimit);
   metricsMemoryValuesSet(memoryBudgetValues);
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget of an entity query (responseBudget.h): --maxResponseSize when given (0: none),
+  // else 1/16 of the memory budget - a container's limit or --memoryLimit - and none without one. A
+  // response holds more than its bytes (the fetched entities, the rendered body, its send buffer)
+  // and several run at once, so a sixteenth leaves the memory budget room for them.
+  //
+  if (maxResponseSize >= 0)
+    responseBudgetBytes = ((int64_t) maxResponseSize) * 1024 * 1024;
+  else
+  {
+    uint64_t budget, used, resident, refused;
+
+    memoryBudgetValues(&budget, &used, &resident, &refused);
+    responseBudgetBytes = (int64_t) (budget / 16);
+  }
+
+  if (responseBudgetBytes > 0)
+    COR_V("response size budget: %lld MiB (%s)", (long long) (responseBudgetBytes >> 20),
+          (maxResponseSize >= 0)? "--maxResponseSize" : "1/16 of the memory budget");
+  else
+    COR_V("response size budget: none");
+#endif
 
 #if COR_FEATURE_HEALTH
   //

@@ -621,11 +621,11 @@ process or the machine, not of the arena, and are open.
 
 ### What the response byte budget costs
 
-`--maxResponseSize` (default 32 MiB, 0 = none, [Response size](installation.md#response-size)) makes
+`--maxResponseSize` (0 = none; without it 1/16 of the memory budget, [Response size](installation.md#response-size)) makes
 an entity query count the size of each entity it fetches: corDB walks the stored entity
 (`corJsonFastRenderSize`), mongoc takes the BSON length. Measured 2026-10-08 with one release binary,
-only the flag differing: **A** `--maxResponseSize 0` (no budget), **B** `--maxResponseSize 32` (the
-default), interleaved A, B, A, B.
+only the flag differing: **A** `--maxResponseSize 0` (no budget), **B** `--maxResponseSize 32` (32 MiB:
+the budget of a pod of about 600 MiB), interleaved A, B, A, B.
 
 | | |
 |---|---|

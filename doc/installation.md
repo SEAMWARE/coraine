@@ -93,7 +93,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--healthPort` | — (off) | TCP port for the health probes - see [Health port](#health-port) |
 | `--healthStallTimeout` | 30 | seconds a request may be in flight, with no request finishing, before `GET /live` answers 503 |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
-| `--maxResponseSize` | 32 | byte budget of an entity query, MiB (0 = no budget) - see [Response size](#response-size) |
+| `--maxResponseSize` | 1/16 of the memory budget; none without one | byte budget of an entity query, MiB (0 = no budget) - see [Response size](#response-size) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
 | `--httpEndpoint` / `-he` | auto | externally reachable base URL |
@@ -228,13 +228,18 @@ Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compa
 
 ## Response size
 
-**`--maxResponseSize <MiB>`** (default 32, 0 = no budget, at most 4096) is the byte budget of an
-entity query: `GET /ngsi-ld/v1/entities` and `POST /ngsi-ld/v1/entityOperations/query`, on the live
+**`--maxResponseSize <MiB>`** (0 = no budget, at most 4096) is the byte budget of an entity query: `GET /ngsi-ld/v1/entities` and `POST /ngsi-ld/v1/entityOperations/query`, on the live
 tenant and on a Snapshot. The store counts each entity as it fetches it and stops before the one that
 would take the sum past the budget, so the memory a query takes is bounded while it is fetched, not
 after it has been rendered. What is counted is the stored entity: with `mongoc` the length of its BSON
 document, with `corDB` the size of its JSON rendering. `pick`, `omit`, `attrs` and the output format
 do not change it.
+
+Without the option, the budget is **1/16 of the [memory budget](#memory-budget)** - so it follows a
+container's memory limit (or `--memoryLimit`): 27 MiB in a 512 MiB pod, 108 MiB in a 2 GiB one - and
+a broker with no memory budget (no limit, no `--memoryLimit`) has none. A response holds more than its
+bytes (the entities fetched, the rendered body, its send buffer) and several run at once; a sixteenth
+leaves the memory budget room for them. `-v` at startup says which budget is in force and why.
 
 `limit` keeps its meaning. The two are independent bounds, and whichever binds first ends the page:
 

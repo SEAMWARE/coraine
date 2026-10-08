@@ -32,7 +32,7 @@ loaded again. What counts against the budget is the broker's anonymous and share
 `corDB` log, which is memory-mapped, file-backed page cache that the kernel reclaims.
 
 The memory is sampled every 100 ms, and a single entity query is bounded within that time by a byte
-budget of its own: the entities it fetches stop at `--maxResponseSize` (default 32 MiB, see
+budget of its own: the entities it fetches stop at `--maxResponseSize` (by default 1/16 of the memory budget, see
 [Response size](installation.md#response-size)), so one query no longer grows without limit between
 two samples.
 
