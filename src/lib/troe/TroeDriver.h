@@ -88,6 +88,15 @@ typedef struct TroeEvent
   CorNode*           entitySnapshot;
 
   struct TroeEvent*  next;
+
+  //
+  // An imported instance (src/lib/migrate, --importFile) keeps the identity and the creation time it
+  // had in the store it came from: instanceId and createdAtNs. NULL / 0 for every live write - the
+  // plugin then generates the id and takes createdAt from modifiedAtNs, as always. Last in the
+  // struct: a plugin built against an older header never reads them.
+  //
+  const char*        instanceId;
+  uint64_t           createdAtNs;
 } TroeEvent;
 
 
