@@ -192,7 +192,7 @@ process that goes over the limit is killed by the kernel - SIGKILL, exit code 13
 with the `corDB` store everything it held goes with it. coraine keeps a budget below the limit and
 turns requests away before it gets there:
 
-| Resident memory | What happens |
+| Memory used | What happens |
 |---|---|
 | below 90% of the budget | everything is served |
 | 90% - 100% | writes that grow memory (POST, PUT, PATCH) are refused |
@@ -203,10 +203,17 @@ A refused request gets **503**, a `Retry-After: 5` header and the error type
 
 The budget is `--memoryLimit` (MiB), or - without it - 85% of the smallest cgroup memory limit the
 process lives under (the container's, or a Kubernetes pod's above it). Outside a container, with no
-limit, there is no budget and nothing is checked. The memory measured is the process's resident set,
-every 100 ms, so it includes every library the broker links; a request pays one comparison for it.
+limit, there is no budget and nothing is checked.
 
-Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_resident_bytes`,
+The memory measured, every 100 ms, is the process's anonymous and shared memory (`RssAnon + RssShmem`
+in `/proc/self/status`), so it includes every library the broker links; a request pays one comparison
+for it. File-backed pages are not counted - the executable, the libraries and the `corDB` log, which is
+memory-mapped and grows to 1 GiB a segment: they are page cache the kernel writes back and reclaims
+before it kills a process, and counting them would refuse writes on a persistent `corDB` for the size
+of its log.
+
+Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compared with the budget),
+`ngsild_memory_resident_bytes` (the whole resident set, file-backed pages included),
 `ngsild_requests_refused_memory_total`.
 
 ## Sanity check procedures

@@ -181,7 +181,7 @@ operating system. `MALLOC_ARENA_MAX=2` (libmicrohttpd + `corDB`, 2026-10-01):
 Whether the fewer arenas cost throughput with 32 threads has not been measured
 yet, so it is not the default; in a container with a tight memory limit it is the
 first thing to set. The broker's [memory budget](installation.md#memory-budget)
-counts the resident set, arenas included.
+counts anonymous memory, the arenas included.
 
 > The entities are loaded in batches of 200 - 500 requests rather than 100 000
 > single POSTs. Loaded one at a time, the `mongoc` broker carries far more

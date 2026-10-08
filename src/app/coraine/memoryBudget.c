@@ -33,7 +33,7 @@
 //
 static uint64_t          budget    = 0;                // 0: no budget, nothing checked
 static uint64_t          soft      = 0;
-static _Atomic uint64_t  resident  = 0;
+static _Atomic uint64_t  used      = 0;                // RssAnon + RssShmem - what the budget is compared with
 static _Atomic uint64_t  refused   = 0;
 static long              pageSize  = 4096;
 
@@ -53,6 +53,43 @@ static uint64_t residentRead(void)
     return 0;
 
   return (uint64_t) pages * (uint64_t) pageSize;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// usedRead - what counts against the budget: anonymous and shared memory (RssAnon + RssShmem, in bytes)
+//
+// Not the whole resident set: its file-backed pages (RssFile - the executable, the libraries, corDB's
+// memory-mapped log, up to 1 GiB a segment) are page cache the kernel writes back and reclaims before
+// it kills anything. Counted, a persistent corDB under writes would be refused for its log while the
+// memory it actually holds is a fraction of the budget.
+//
+static uint64_t usedRead(void)
+{
+  char               buf[4096];
+  unsigned long long kib  = 0;
+  int                seen = 0;
+
+  if (corFileReadInto("/proc/self/status", buf, sizeof(buf)) <= 0)
+    return 0;
+
+  for (char* line = buf; (line != NULL) && (*line != 0) && (seen < 2); line = strchr(line, '\n'))
+  {
+    unsigned long long v;
+
+    if (*line == '\n')
+      line++;
+
+    if ((sscanf(line, "RssAnon: %llu", &v) == 1) || (sscanf(line, "RssShmem: %llu", &v) == 1))
+    {
+      kib += v;
+      seen++;
+    }
+  }
+
+  return (uint64_t) kib * 1024;
 }
 
 
@@ -84,7 +121,7 @@ static void* sampler(void* arg)
 
   while (true)
   {
-    uint64_t rss = residentRead();
+    uint64_t inUse = usedRead();
 
     //
     // Over the soft limit: give back what is freed but still held. glibc keeps freed memory on its free
@@ -93,14 +130,14 @@ static void* sampler(void* arg)
     // high-water mark and the broker refuse requests with little actually in use. At most every 2 s,
     // and never below the soft limit, where it would only cost time.
     //
-    if ((rss >= soft) && (monotonicMs() - lastTrimMs >= 2000))
+    if ((inUse >= soft) && (monotonicMs() - lastTrimMs >= 2000))
     {
       malloc_trim(0);
       lastTrimMs = monotonicMs();
-      rss        = residentRead();
+      inUse      = usedRead();
     }
 
-    atomic_store_explicit(&resident, rss, memory_order_relaxed);
+    atomic_store_explicit(&used, inUse, memory_order_relaxed);
     nanosleep(&period, NULL);
   }
 
@@ -135,7 +172,7 @@ void memoryBudgetInit(int limitMiB)
           (unsigned long long) (budget >> 20), (unsigned long long) (cgroup >> 20));
 
   soft = budget / 100 * 90;
-  atomic_store_explicit(&resident, residentRead(), memory_order_relaxed);
+  atomic_store_explicit(&used, usedRead(), memory_order_relaxed);
 
   pthread_t tid;
   if (pthread_create(&tid, NULL, sampler, NULL) == 0)
@@ -189,7 +226,7 @@ bool memoryBudgetAdmit(void)
   if (budget == 0)
     return true;
 
-  uint64_t    rss  = atomic_load_explicit(&resident, memory_order_relaxed);
+  uint64_t    rss  = atomic_load_explicit(&used, memory_order_relaxed);
   const char* path = (corRest.in.urlPath != NULL) ? corRest.in.urlPath : "";
 
   if (rss < soft)
@@ -214,9 +251,10 @@ bool memoryBudgetAdmit(void)
 //
 // memoryBudgetValues -
 //
-void memoryBudgetValues(uint64_t* budgetP, uint64_t* residentP, uint64_t* refusedP)
+void memoryBudgetValues(uint64_t* budgetP, uint64_t* usedP, uint64_t* residentP, uint64_t* refusedP)
 {
   *budgetP   = budget;
-  *residentP = (budget != 0) ? atomic_load_explicit(&resident, memory_order_relaxed) : residentRead();
+  *usedP     = (budget != 0) ? atomic_load_explicit(&used, memory_order_relaxed) : usedRead();
+  *residentP = residentRead();
   *refusedP  = atomic_load_explicit(&refused, memory_order_relaxed);
 }

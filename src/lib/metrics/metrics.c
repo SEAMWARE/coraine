@@ -85,6 +85,7 @@ static CorPromMetric*  dispatchWorker;
 // budget lives in the app, not in this lib.
 //
 static CorPromMetric*  memBudget;
+static CorPromMetric*  memUsed;
 static CorPromMetric*  memResident;
 static CorPromMetric*  memRefused;
 static MetricsMemoryValuesFunc memoryValuesFunc = NULL;
@@ -235,8 +236,10 @@ bool metricsInit(void)
 
   memBudget           = corPromGaugeCreate("ngsild_memory_budget_bytes",
                                          "Memory budget (--memoryLimit, else 85% of the container's limit); 0 = none");
+  memUsed             = corPromGaugeCreate("ngsild_memory_used_bytes",
+                                         "Memory counted against the budget: anonymous + shared (RssAnon + RssShmem)");
   memResident         = corPromGaugeCreate("ngsild_memory_resident_bytes",
-                                         "The broker's resident set");
+                                         "The broker's resident set, file-backed pages included");
   memRefused          = corPromCounterCreate("ngsild_requests_refused_memory_total",
                                            "Requests refused (503) for being over the memory budget");
 
@@ -464,14 +467,16 @@ static void memoryCounts(void)
   static pthread_mutex_t mtx         = PTHREAD_MUTEX_INITIALIZER;
   static uint64_t        refusedSeen = 0;
   uint64_t               budget;
+  uint64_t               used;
   uint64_t               resident;
   uint64_t               refused;
 
   if (memoryValuesFunc == NULL)
     return;
 
-  memoryValuesFunc(&budget, &resident, &refused);
+  memoryValuesFunc(&budget, &used, &resident, &refused);
   corPromGaugeSet(memBudget,   (double) budget);
+  corPromGaugeSet(memUsed,     (double) used);
   corPromGaugeSet(memResident, (double) resident);
 
   pthread_mutex_lock(&mtx);
