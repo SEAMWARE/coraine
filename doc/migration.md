@@ -9,24 +9,30 @@ It has two halves that meet in one intermediate representation, the **migration 
 ```
   source database            READER                     STREAM                 WRITER                       target stores
  ─────────────────     ──────────────────────     ───────────────────     ─────────────────────     ─────────────────────────
- Orion-LD  MongoDB ──▶ tools/migrate/           ──▶                   ──▶ coraine --importFile ──▶ current state: mongoc | corDB
- Orion-LD  TRoE    ──▶   orionldExport.py           one JSON record       (the broker's own code,   history:       timescale
- (later) NGSIv2 ...──▶ (one reader per source)      per line, expanded     then it exits)
+ Orion-LD  MongoDB ──▶ tools/migrate/           ──▶                   ──▶ coraine-import       ──▶ current state: mongoc | corDB
+ Orion-LD  TRoE    ──▶   orionldExport.py           one JSON record       (the broker's code    history:       timescale | corDB
+ (later) NGSIv2 ...──▶ (one reader per source)      per line, expanded     and store plugins)
                                                     NGSI-LD
 ```
 
-A reader knows its source and nothing about coraine's storage. The writer is the broker itself, so
-it knows nothing about any source, and what it stores is always what the current broker stores.
+A reader knows its source and nothing about coraine's storage. The writer, `coraine-import`, is a
+program of its own, linked against the broker's libraries and loading the broker's store plugins: it
+knows nothing about any source, and what it stores is always what the current broker stores. The
+broker itself carries no import code.
 
 ```console
 tools/migrate/orionldExport.py --mongo mongodb://localhost:27017 --db orion \
                                --troe 'host=localhost user=postgres password=...' --out stream.ndjson
-coraine -db corDB --dbDir /var/lib/coraine --troe timescale --troeName coraine --importFile stream.ndjson
+coraine-import -db corDB --dbDir /var/lib/coraine --troe corDB --file stream.ndjson
 ```
 
-`--importFile` takes the store options of a normal start (`-db`, `--dbDir`, `--dbName`, `--troe`,
-`--troeName`, ...), writes the stream, prints a report and exits: 0 when every record was imported, 1
-when any was refused. Then the broker is started the usual way on the same stores.
+`coraine-import` takes the broker's store options, by the broker's names (`--database`/`-db`,
+`--troe`, and each plugin's own: `--dbDir`, `--dbName`, `--dbHost`, `--troeName`, ...) and `--file`
+(`-` = stdin). It writes the stream, prints a report on stderr (its log is stdout) and exits: 0 when
+every record was imported, 1 when any was refused. Then the broker is started the usual way on the
+same stores. The importer and a broker never share a store: the import runs before the broker starts.
+
+`coraine-import` is built with `COR_FEATURE_MIGRATE` (on by default); off, it is not built.
 
 ## The stream
 
@@ -48,8 +54,8 @@ One JSON object per line ([NDJSON](https://github.com/ndjson/ndjson-spec)), vers
 | `data` | the record, in NGSI-LD's own representation - below |
 
 The data is **NGSI-LD as the API represents it, with every name expanded** (full IRIs; a core term
-such as `location` may stay short) - nothing of any broker's storage. That makes the stream readable
-without coraine and close to what an ETSI neutral export format will have to carry.
+such as `location` may stay short) - nothing of any broker's storage - whatever the source. That makes
+the stream readable without coraine and close to what an ETSI neutral export format will have to carry.
 
 - **entity** - an Entity, normalized, with its system attributes: `createdAt` / `modifiedAt` on the
   entity, on every attribute instance and on every Sub-Attribute. A multi-instance attribute is an
@@ -69,45 +75,51 @@ events, one transaction each. A reader therefore writes the registrations first 
 redirect registration is refused over local entities that hold what it claims), and the
 `temporalEntity` records before the `temporalInstance` records of the same entity.
 
-## Names that are not expanded: the @context
+## Names: expanded, always
 
-A source that does not expand names - NGSIv2 - is read as it is, and the import expands them with an
-@context given by the user:
+The importer expands nothing and takes no @context. Every name that NGSI-LD expands - an entity type,
+an attribute name, a Sub-Attribute name, a VocabProperty's vocab, the names in a subscription's
+`entities`, `watchedAttributes` and `notification.attributes`, in a registration's `information`, a
+history record's `type` and `attr` - must be an absolute IRI (`http://`, `https://`, `urn:`) or an
+NGSI-LD core term. Anything else - `Room`, `temperature`, a compact IRI such as `ex:humidity` - means
+the stream is not expanded: **the record is refused**, and the report names the term. The member names
+inside a compound value are the application's own JSON and are not checked.
 
-```console
-coraine ... --importFile stream.ndjson --importContext migration-context.jsonld
-```
-
-`--importContext` is a URL or a file holding `{"@context": ...}`. Every name that has to be expanded -
-an entity type, an attribute name, a Sub-Attribute name, a VocabProperty's vocab, the names in a
-subscription's `entities`, `watchedAttributes` and `notification.attributes`, in a registration's
-`information` - must be an IRI, a core term, a term the context defines, or a `prefix:suffix` whose
-prefix it defines. **Anything else is an error**: the record is refused and the report names the term.
-A name is never left to the default `@vocab` - that would invent an IRI nobody chose. The member names
-inside a compound value are the application's own JSON and are not checked (the broker expands them
-as it does those of any write).
-
-Without `--importContext` the same check runs with no user context: every name must be an IRI or a
-core term. That is how an Orion-LD stream is checked - Orion-LD stores names expanded.
+An Orion-LD database stores names expanded (core terms short), so the Orion-LD reader writes them as
+they are. A reader for a source that does not expand names expands them itself (below).
 
 ## How the writer writes
 
-`--importFile` runs after the broker has loaded its DB and TRoE plugins and before it serves anything,
-and writes every record through the code a live write goes through:
+`coraine-import` loads the DB and TRoE plugins, brings the stores and the caches the create routines
+consult up as the broker does, and writes every record through the code a live write goes through:
 
 | record | written by |
 |---|---|
 | entity | the conversion a create runs - JSON-LD expansion, `ldNormalizeInput`, `ldCheckEntity`, `ldApiEntityToDbModel` - then `db.entityCreate`. The system timestamps are taken out before the conversion and put back on the DB model after it, on the entity, every instance and every Sub-Attribute; the driver then stores them its own way (once per entity where an attribute's equal the entity's). |
 | subscription | the service routine of `POST /subscriptions`, `postSubscriptions`, in-process - its validation, the stored `q`, `status`, `jsonldContext` - with the request clock at the source's `createdAt`; then `db.subscriptionUpdate` for `modifiedAt` and `db.subscriptionStatsFlush` for the counters |
 | registration | `postCsourceRegistration` the same way; `modifiedAt` set on the stored registration as a PATCH sets it (`db.registrationUpdate`) |
-| temporalEntity, temporalInstance | the TRoE plugin's event entry points (`TroeDriver.eventList`), the instance converted like an entity's. The event carries the source's `instanceId` and `createdAt` (`TroeEvent.instanceId`, `createdAtNs`); for a live write both are unset and the plugin generates them as before |
+| temporalEntity, temporalInstance | the instance converted like an entity's, as an event of the TRoE plugin carrying the source's `instanceId` and `createdAt` (`TroeEvent.instanceId`, `createdAtNs`). A plugin with `TroeDriver.historyImport` takes them there (`--troe corDB`), any other through its live event entry points (`TroeDriver.eventList` - timescale), where a live write leaves both unset and the plugin generates them |
 
 So no storage format is written by anything but the plugin that owns it - mongoc's documents, corDB's
-log and snapshots, timescale's tables - and a change to one of them needs no change here. Nothing a
-live write does besides storing happens: no notification, no forwarding to a registration (the import
-runs local, `--distributed` or not), no history event from the broker for the current state - the
-history is what the stream's `temporal*` records say. (`--troe corDB` is the exception: corDB records
-history at its own write sites, so there the imported current state becomes history too - see below.)
+log, snapshots and history log, timescale's tables - and a change to one of them needs no change here.
+Nothing a live write does besides storing happens: no notification, no forwarding to a registration,
+no history for the current state - corDB, which records history at its own write sites, is told not
+to (`corNgsild.troeSkip`, as a Snapshot's capture tells it). The history is what the stream's
+`temporal*` records say:
+
+- **corDB** (`TroeDriver.historyImport`): the entity events at their time, every instance with the
+  source's instanceId, createdAt, modifiedAt and observedAt, into corDB's history index and history log
+  (`hist-N.cor`), as the temporal API's own writes are - not through them (they give an instance a new
+  id and the request's time). A deletion becomes the tombstone a live deletion writes: the attribute's
+  type (the record's, else the type of the attribute's last instance), `urn:ngsi-ld:null`, `deletedAt`.
+- **timescale**: one transaction per batch; an imported instance keeps its instanceId and createdAt.
+
+**An entity the stream gives no history.** With a TRoE store, an entity of the stream's current state
+that no `temporal*` record names gets the history a create writes: its `created` event at its
+createdAt, and an instance of each attribute as it is now, at the instance's own createdAt and
+modifiedAt (the value it holds is the one it has had since its modifiedAt), its instanceId generated
+by the store. The report counts them (`created rows`). An entity the stream has history for - even a
+history record that was refused - gets what the stream holds and nothing more.
 
 **Why not the API.** A create through the API cannot keep `createdAt`, `modifiedAt`, a subscription's
 counters or an instance's `instanceId` - the broker sets them, as it must. **Why not the files.**
@@ -127,13 +139,15 @@ run of its own, on stores nothing else is using yet.
 | subscription id, every member, createdAt, modifiedAt | yes | `status` is recomputed (it is computed, never stored); `isActive: false` is kept |
 | subscription counters - timesSent, timesFailed, lastNotification, lastSuccess, lastFailure | yes | |
 | registration id, every member, createdAt, modifiedAt | yes | |
-| history - instanceId, createdAt, modifiedAt, observedAt, deletions, deleted entities | yes | |
+| history - instanceId, createdAt, modifiedAt, observedAt, deletions, deleted entities | yes | timescale and corDB |
+| history of an entity the stream has none for | its created row | see above |
 | registration counters | no | the source keeps none in its database |
 | a subscription's subordinate subscriptions (distributed) | no | recreated by the broker from the registrations |
 | hosted / cached @contexts | no | not yet |
 
-An import goes into **empty** stores: a record whose id is already there is refused, never overwritten
-(and a history batch with an instanceId already there is refused as a whole).
+An import goes into **empty** stores: a record whose id is already there is refused, never overwritten,
+and a history batch with an instanceId already there is refused as a whole (corDB looks for the first
+instance of each attribute of the batch - the one a re-import repeats).
 
 ## Reading an Orion-LD database
 
@@ -164,10 +178,13 @@ attribute types that table does not record come back as Properties.
 
 A reader is a program that writes the stream; the writer does not change for a new source.
 
-- **Orion (NGSIv2).** The current state only: entities (attributes and their metadata - metadata
-  become Sub-Attributes, `dateCreated` / `dateModified` the system timestamps), subscriptions,
-  registrations. NGSIv2 expands nothing, so the reader writes names as they are and the import runs
-  with `--importContext`; a name the context does not define is refused, by the rule above.
+- **Orion (NGSIv2).** A script: the current state only - entities (attributes and their metadata -
+  metadata become Sub-Attributes, `dateCreated` / `dateModified` the system timestamps),
+  subscriptions, registrations. NGSIv2 expands nothing, so the reader takes the user's @context (a file
+  or a URL) and expands every name with it, before the stream is written: **a term the context does
+  not define is an error**. Whether a term may instead be expanded through the context's `@vocab` is
+  the end user's choice - an option of the reader, off by default. We do not recommend it: `@vocab`
+  gives any word an IRI, typos included, and the IRI it gives is one nobody chose.
 - **History kept outside the broker** - CrateDB or PostgreSQL tables written by a history service of
   an NGSIv2 deployment. A reader per layout, writing `temporalEntity` / `temporalInstance` records;
   where the source has no instance ids, the reader omits `instanceId` and the TRoE plugin generates them.
@@ -177,20 +194,19 @@ A reader is a program that writes the stream; the writer does not change for a n
 
 ## Not yet
 
-- History into `--troe corDB`. corDB records its history at its own write sites and takes no events
-  from the broker, so the import refuses `temporal*` records there. The design: corDB takes the import's
-  events (`TroeDriver.attrEvent` / `entityEvent`) and appends them to its history log with the
-  instanceId and times they carry - and does not record the current-state import as history of its
-  own, as it would today.
 - @contexts (hosted, cached) of the source.
 
 ## Testing
 
 - `test/funcTests/cases/migrate_import.test` imports `test/funcTests/fixtures/migrate/orionld-stream.ndjson`
-  into the suite's store (mongoc or corDB) and timescale and reads everything back through the API, then
-  checks the `--importContext` rule and a second import.
+  into the suite's store (mongoc or corDB) and timescale and reads everything back through the API - the
+  created row of the entity without history included - then a stream that is not expanded and a second
+  import.
+- `test/funcTests/cases/migrate_import_cordb_troe.test` imports the same stream into corDB with
+  `--troe corDB`: the history as the source had it, nothing on top, the created row, the same after a
+  restart (the history log), a second import refused.
 - `tools/migrate/test/orionldE2E.sh` is the whole chain: it fabricates an Orion-LD deployment (MongoDB
   and PostgreSQL databases named `migtest*`), reads it with `orionldExport.py`, checks the stream is the
-  functest's fixture, imports it into corDB + timescale and into mongoc + timescale, and checks both
+  functest's fixture, imports it with `coraine-import` into corDB + timescale and into mongoc + timescale, and checks both
   read back alike and as `orionldE2E.expected` says. It needs a python with `pymongo` and `psycopg`
   (`PYTHON=`), and drops only the `migtest*` databases it made.

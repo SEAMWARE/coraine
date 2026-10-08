@@ -156,7 +156,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These seven remove code from the broker and are covered by the test suite:**
+**These six remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -166,7 +166,6 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_SERVICE_EXECUTION=OFF` | 77,410 bytes | 17 routes answer 501 |
 | `COR_FEATURE_SNAPSHOT_WRITE=OFF` | 568 bytes | a write naming a Snapshot (`NGSILD-Snapshot`) answers 422 - snapshots are read-only |
 | `COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS=OFF` | 1,491 bytes | `/subscriptions` naming a Snapshot (`NGSILD-Snapshot`) answers 422 for a write; a read lists the live tenant's. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is |
-| `COR_FEATURE_MIGRATE=OFF` | 27,557 bytes | none - `--importFile` / `--importContext` are not options of the build ([migration.md](migration.md)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to
@@ -176,6 +175,12 @@ load:
 |---|---|
 | `COR_FEATURE_MONGOC=OFF` | `mongoc.so` is not built; run `--database corDB` |
 | `COR_FEATURE_ADMIN_API=OFF` | `admin.so` is not built |
+
+**This one leaves the broker unchanged and drops a program:**
+
+| flag | effect |
+|---|---|
+| `COR_FEATURE_MIGRATE=OFF` | `coraine-import` is not built ([migration.md](migration.md)) - the broker carries no import code either way |
 
 **⚠️ These nine are declared and do nothing at all:**
 
