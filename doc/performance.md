@@ -619,6 +619,91 @@ change to `haInit.c`, HA start-up, made in the checkout meanwhile). Requests/s, 
 stay: chunk 256 KiB, inline 8 KiB.** The single-connection write's two levels are a property of the
 process or the machine, not of the arena, and are open.
 
+### What the response byte budget costs
+
+`--maxResponseSize` (default 32 MiB, 0 = none, [Response size](installation.md#response-size)) makes
+an entity query count the size of each entity it fetches: corDB walks the stored entity
+(`corJsonFastRenderSize`), mongoc takes the BSON length. Measured 2026-10-08 with one release binary,
+only the flag differing: **A** `--maxResponseSize 0` (no budget), **B** `--maxResponseSize 32` (the
+default), interleaved A, B, A, B.
+
+| | |
+|---|---|
+| Build | `make i` in coraine `f8b27598` (`feat/response-byte-budget`) with corNgsild `8b0f6b5` and corDB `1c48987` (`feat/query-byte-budget`), corRest `f5164d4`; every library release (`-O2`, no `COR_T_ON` marker in the broker or its plugins), no PGO, libmicrohttpd |
+| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep |
+| Load | `test/perf/perfRun.sh`, `PERF_BROKER_CORES=2` (broker on CPUs 0-1, wrk on 2-15), `PERF_DURATION=4s`, `PERF_REPEATS=3`, the flag through `PERF_BROKER_ARGS`; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes" |
+| corDB | `--dbDir` on the local NVMe disk (ext4), `--dbSync interval` - the durable configuration |
+| mongoc | MongoDB 8.2.12 on the host (not pinned), one pair A, B |
+| Counters | after each corDB run, a broker of its own with the same flag: `perf stat -e instructions,cycles -p` per request, wrk c50, 4 s per scenario |
+
+**corDB**, requests/s; A-A and B-B are the run-to-run spread of the same flag:
+
+| scenario | A1 | B1 | A2 | B2 | A-A | B-B | B vs A | p99 A1 / B1 / A2 / B2 (ms) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| query `limit=1`, c50 | 148 831 | 149 434 | 153 935 | 152 897 | 3.4 % | 2.3 % | -0.1 % | 0.38 / 0.41 / 0.40 / 0.67 |
+| query `limit=20`, c50 | 22 351 | 21 874 | 22 056 | 22 582 | 1.3 % | 3.2 % | +0.1 % | 2.31 / 2.55 / 2.44 / 2.24 |
+| query `limit=20`, c200 | 22 068 | 21 925 | 22 199 | 22 308 | 0.6 % | 1.7 % | -0.1 % | 9.86 / 9.60 / 9.42 / 9.89 |
+| query `limit=100`, c50 | 4 993 | 4 954 | 4 622 | 5 039 | 7.7 % | 1.7 % | +3.9 % | 11.22 / 11.55 / 13.80 / 10.46 |
+| `GET /entities/{id}`, c50 | 165 729 | 166 874 | 167 418 | 169 679 | 1.0 % | 1.7 % | +1.0 % | 0.36 / 0.35 / 0.40 / 0.32 |
+| `PATCH .../attrs`, c50 | 173 487 | 170 906 | 179 849 | 177 305 | 3.6 % | 3.7 % | -1.5 % | 0.69 / 0.46 / 0.54 / 0.68 |
+| `PATCH .../attrs`, c1 | 38 148 | 37 791 | 43 335 | 38 043 | 12.7 % | 0.7 % | -6.9 % | 0.03 / 0.03 / 0.03 / 0.03 |
+| merge, c50 | 114 692 | 131 341 | 129 762 | 127 479 | 12.3 % | 3.0 % | +5.9 % | 3.98 / 0.76 / 1.00 / 0.54 |
+| batch update (20), c50 | 15 693 | 15 606 | 15 569 | 15 828 | 0.8 % | 1.4 % | +0.6 % | 5.38 / 5.25 / 6.75 / 5.29 |
+| create, c50 | 87 277 | 88 265 | 89 794 | 89 538 | 2.8 % | 1.4 % | +0.4 % | 4.21 / 4.73 / 4.54 / 3.82 |
+| create, c1 | 33 045 | 27 831 | 32 260 | 32 467 | 2.4 % | 15.4 % | -7.7 % | 0.97 / 0.99 / 0.99 / 0.96 |
+| batch create (20), c50 | 9 790 | 9 842 | 10 066 | 10 190 | 2.8 % | 3.5 % | +0.9 % | 13.69 / 12.16 / 13.32 / 12.68 |
+| `DELETE`, c50 | 201 881 | 204 728 | 203 394 | 206 958 | 0.7 % | 1.1 % | +1.6 % | 0.34 / 0.30 / 0.32 / 0.28 |
+| batch delete (20), c50 | 37 142 | 38 551 | 37 762 | 37 506 | 1.7 % | 2.7 % | +1.5 % | 3.29 / 3.21 / 1.87 / 2.00 |
+| `PATCH`, 1 subscriber, c50 | 40 973 | 41 088 | 41 184 | 41 047 | 0.5 % | 0.1 % | -0.0 % | 1.56 / 1.58 / 1.52 / 1.56 |
+| `PATCH`, ~210 subscriptions, c50 | 38 448 | 37 677 | 38 582 | 38 494 | 0.3 % | 2.1 % | -1.1 % | 1.85 / 1.64 / 1.70 / 1.71 |
+
+Per request (whole process):
+
+| per request | A1 | B1 | A2 | B2 |
+|---|---:|---:|---:|---:|
+| query `limit=20`, instructions | 1 481 287 | 1 482 443 | 1 481 469 | 1 481 100 |
+| query `limit=20`, cycles | 444 631 | 446 082 | 449 220 | 445 329 |
+| query `limit=100`, instructions | 7 198 444 | 7 363 566 | 7 586 171 | 7 585 977 |
+| query `limit=100`, cycles | 2 055 124 | 2 242 233 | 2 518 834 | 2 502 515 |
+| retrieve, instructions | 107 650 | 107 633 | 107 762 | 107 450 |
+| retrieve, cycles | 57 759 | 58 290 | 58 129 | 57 638 |
+| `PATCH`, instructions | 80 983 | 81 005 | 81 019 | 80 860 |
+| `PATCH`, cycles | 54 355 | 55 311 | 56 651 | 55 396 |
+
+**mongoc**, requests/s, one run each:
+
+| scenario | A | B | B vs A | p99 A / B (ms) |
+|---|---:|---:|---:|---:|
+| query `limit=1`, c50 | 30 375 | 29 566 | -2.7 % | 3.56 / 3.71 |
+| query `limit=20`, c50 | 11 440 | 11 574 | +1.2 % | 7.46 / 6.72 |
+| query `limit=20`, c200 | 11 643 | 11 289 | -3.0 % | 20.19 / 20.97 |
+| query `limit=100`, c50 | 3 212 | 3 231 | +0.6 % | 28.46 / 28.50 |
+| `GET /entities/{id}`, c50 | 36 969 | 36 356 | -1.7 % | 3.31 / 3.24 |
+| `PATCH .../attrs`, c50 | 18 505 | 18 261 | -1.3 % | 5.04 / 3.90 |
+| `PATCH .../attrs`, c1 | 3 421 | 3 350 | -2.1 % | 0.37 / 1.38 |
+| merge, c50 | 22 858 | 23 282 | +1.9 % | 4.66 / 3.43 |
+| batch update (20), c50 | 1 675 | 1 555 | -7.2 % | 33.69 / 36.71 |
+| create, c50 | 32 709 | 33 838 | +3.5 % | 4.39 / 3.64 |
+| create, c1 | 7 467 | 7 213 | -3.4 % | 0.62 / 0.18 |
+| batch create (20), c50 | 7 657 | 7 185 | -6.2 % | 25.63 / 23.79 |
+| `DELETE`, c50 | 26 122 | 26 323 | +0.8 % | 4.86 / 5.04 |
+| batch delete (20), c50 | 3 327 | 3 387 | +1.8 % | 23.47 / 23.78 |
+| `PATCH`, 1 subscriber, c50 | 11 723 | 12 076 | +3.0 % | 7.99 / 8.75 |
+| `PATCH`, ~210 subscriptions, c50 | 11 264 | 11 745 | +4.3 % | 7.88 / 7.51 |
+
+- **corDB, the queries: B against A −0.1 % (`limit=1`), +0.1 % (`limit=20`), −0.1 % (`limit=20`, c200),
+  +3.9 % (`limit=100`)** - each inside its own A-A or B-B spread (up to 7.7 %, `limit=100`). Retrieve +1.0 %.
+- **The per-request counters do not separate A from B**: query `limit=20` 1.481-1.482 M instructions in
+  all four runs; query `limit=100` 7.20 M (A1), 7.36 M (B1), 7.59 M (A2), 7.59 M (B2) - the second A
+  and the second B identical, the spread between runs of one flag larger than between the flags.
+- **The writes do not use the budget** and move within their spread; single-connection `PATCH` and create
+  show the two levels described in "The request arena's sizes" (38 000 / 43 000 and 28 000 / 33 000).
+- **mongoc: queries and retrieve within −3.0 % to +1.2 %**, one pair, no spread of its own; the largest
+  moves are writes (batch update −7.2 %, batch create −6.2 %), which do not use the budget.
+
+**Conclusion:** the budget's cost is not measurable - within the run-to-run noise on corDB and on
+mongoc, for every query page size. It stays on by default.
+
 ### Measured and not used
 
 Link-time optimisation (`-flto`) is noise for the broker - three quarters of a small request's cycles
