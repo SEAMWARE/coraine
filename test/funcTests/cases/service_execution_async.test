@@ -60,7 +60,19 @@ import json,sys
 e = json.load(sys.stdin)
 print(e['serviceName'], e['executionStatus'], 'progress', json.dumps(e.get('executionProgress')), 'output', json.dumps(e.get('executionOutput')), 'error', json.dumps((e.get('executionError') or {}).get('title')))"
 }
+#
+# notifs <id> - the notifications of execution <id>, once the one with its CURRENT status is there:
+# the broker sends a notification after it has changed the status, so awaitStatus seeing 'completed'
+# does not mean the 'completed' notification has reached the receiver yet
+#
 notifs() {
+  local status=$(corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+  for i in $(seq 1 50); do
+    ftExecNotifications | python3 -c "
+import json,sys
+sys.exit(0 if any(n['data'][0]['id'] == '$1' and n['data'][0]['executionStatus'] == '$status' for n in json.load(sys.stdin)) else 1)" && break
+    sleep 0.1
+  done
   ftExecNotifications | python3 -c "
 import json,sys
 for n in json.load(sys.stdin):
