@@ -390,3 +390,15 @@ jobs:
             docker buildx imagetools inspect "$IMG:$tag" | head -12
           done
           echo "### $VERSION: linux/amd64 + linux/arm64 (arm64 without the DDS bridge)" >> "$GITHUB_STEP_SUMMARY"
+
+  #
+  # The Debian packages of the release (packages.yml): every Cor-Lib at the tag the release job has just
+  # put on it - the same commits as the image - built, install-tested and, once the apt repository
+  # exists, published to it.
+  #
+  packages:
+    needs: release
+    uses: ./.github/workflows/packages.yml
+    with:
+      libs_ref: v${{ needs.release.outputs.version }}
+    secrets: inherit

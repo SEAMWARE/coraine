@@ -1,0 +1,282 @@
+#
+# Debian packages: coraine and coraine-dev, for Ubuntu 26.04, Ubuntu 24.04 and Debian 13, amd64 and arm64.
+#
+# Built, install-tested and kept as artifacts of the run; published to a signed apt repository once one
+# exists (the `publish` job below - skipped until the repository's domain and signing key are set up).
+# packaging/deb/ holds every script this runs, and each one can be run by hand in a container.
+#
+# When:
+#   - a release: release.yml calls this once it has tagged every Cor-Lib, with libs_ref = the tag, so the
+#     packages hold exactly the libraries the release image holds (version 0.4.0+<dist>)
+#   - by hand: Actions -> Packages -> Run workflow (or `gh workflow run packages.yml --ref <branch>`) - a
+#     build of that commit with each lib's main (version 0.4.0~git<date>.<sha>+<dist>)
+# Not on every merge: six native builds of the whole stack, profile-guided, then twelve install tests -
+# the price of one per merge is not worth paying until there is a repository to publish them to.
+#
+name: Packages
+
+on:
+  push:                          # TEMPORARY - the branch's own CI runs, until packages.yml is on main
+    branches: [feat/deb-packages]
+  workflow_dispatch:
+    inputs:
+      libs_ref:
+        description: "The Cor-Libs at: main, or a tag every lib has (v0.4.0)"
+        default: main
+      build_kind:
+        description: "pgo (profile-guided, as the image) or release (no training - quicker)"
+        type: choice
+        options: [pgo, release]
+        default: pgo
+      publish:
+        description: "Publish to the apt repository (needs APT_DOMAIN + APT_GPG_PRIVATE_KEY)"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      libs_ref:
+        type: string
+        default: main
+      build_kind:
+        type: string
+        default: pgo
+      publish:
+        type: boolean
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  #
+  # The source, ONCE: coraine and every Cor-Lib in one tarball (packaging/deb/source.sh) - what all six
+  # cells build from and what coraine-dev ships. Six jobs cloning the libs each could build six different
+  # mains.
+  #
+  source:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.src.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+          fetch-depth: 0              # version.sh: the release tag, or the commit date
+
+      - uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+          ref: ${{ inputs.libs_ref || 'main' }}
+
+      - name: Clone the Cor-Libs
+        working-directory: stack/corLibs
+        run: NOBUILD=1 ./bootstrap.sh
+
+      #
+      # A tag (a release): every lib AT it - a lib without it fails the run rather than ship its main
+      #
+      - name: The Cor-Libs at ${{ inputs.libs_ref || 'main' }}
+        if: ${{ (inputs.libs_ref || 'main') != 'main' }}
+        env:
+          REF: ${{ inputs.libs_ref }}
+        run: |
+          for d in stack/*/; do
+            lib=$(basename "$d")
+            [ "$lib" = coraine ] || [ "$lib" = corLibs ] && continue
+            git -C "$d" checkout -q "$REF" || { echo "::error::$lib has no $REF"; exit 1; }
+            echo "$lib: $(git -C "$d" rev-parse HEAD)"
+          done
+
+      - name: The source tarball
+        id: src
+        env:
+          BASE: ${{ github.workspace }}/stack
+          REF: HEAD
+        run: |
+          stack/coraine/packaging/deb/source.sh dist
+          cp -r stack/coraine/packaging/deb dist/deb          # the scripts, for the jobs below
+          echo "version=$(cat dist/version)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: dist
+          retention-days: 30
+
+  #
+  # Each cell natively, in a container of its distribution: amd64 on ubuntu-24.04, arm64 on GitHub's arm
+  # runners (as functests-arm64 and the arm64 image). No DDS bridge anywhere (the arm64 image's set).
+  #
+  build:
+    needs: source
+    name: build ${{ matrix.dist }} ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: [ubuntu26.04, ubuntu24.04, debian13]
+        arch: [amd64, arm64]
+        include:
+          - { dist: ubuntu26.04, image: "ubuntu:26.04" }
+          - { dist: ubuntu24.04, image: "ubuntu:24.04" }
+          - { dist: debian13,    image: "debian:trixie" }
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.image }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+          path: dist
+
+      - name: Build coraine + coraine-dev (packaging/deb/build.sh)
+        env:
+          BUILD_KIND: ${{ inputs.build_kind || 'pgo' }}
+        run: |
+          chmod +x dist/deb/*.sh dist/deb/coraine-build
+          dist/deb/build.sh dist/coraine-src.tar.xz out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs-${{ matrix.dist }}-${{ matrix.arch }}
+          path: |
+            out/*.deb
+            out/lintian-*.txt
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dbg-${{ matrix.dist }}-${{ matrix.arch }}
+          path: out/coraine-dbg_*.tar.xz
+          retention-days: 30
+
+  #
+  # Each package in a CLEAN container of its distribution - nothing but the image: apt resolves every
+  # dependency from the distribution, the broker runs as the service runs it, coraine-build builds a
+  # reduced broker as an ordinary user and that one runs too.
+  #
+  test:
+    needs: build
+    name: test ${{ matrix.test }} ${{ matrix.dist }} ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: [ubuntu26.04, ubuntu24.04, debian13]
+        arch: [amd64, arm64]
+        test: [install, dev]
+        include:
+          - { dist: ubuntu26.04, image: "ubuntu:26.04" }
+          - { dist: ubuntu24.04, image: "ubuntu:24.04" }
+          - { dist: debian13,    image: "debian:trixie" }
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.image }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-${{ matrix.dist }}-${{ matrix.arch }}
+          path: debs
+
+      - name: test-${{ matrix.test }}.sh
+        run: |
+          chmod +x dist/deb/*.sh
+          dist/deb/test-${{ matrix.test }}.sh debs
+
+  #
+  # Every cell's packages listed in the run summary, with lintian's findings
+  #
+  summary:
+    needs: [source, build, test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: debs-*
+          path: debs
+      - run: |
+          {
+            echo "### coraine ${{ needs.source.outputs.version }} - build ${{ needs.build.result }}, test ${{ needs.test.result }}"
+            echo '```'
+            find debs -name '*.deb' -printf '%f  %s bytes\n' | sort
+            echo '```'
+            for f in $(find debs -name 'lintian-*.txt' | sort); do
+              echo "<details><summary>$(basename "$f" .txt)</summary>"; echo; echo '```'; cat "$f"; echo '```'; echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  #
+  # The signed apt repository - reprepro (packaging/deb/publish.sh), served by GitHub Pages from the
+  # gh-pages branch of vars.APT_PAGES_REPO under vars.APT_DOMAIN. SKIPPED until both exist, and only when
+  # asked (a release; a run with publish ticked).
+  #
+  # What it takes, once (doc/installation.md, "Install with apt"):
+  #   - variable APT_DOMAIN        e.g. apt.example.org; a CNAME record to <owner>.github.io
+  #   - variable APT_PAGES_REPO    e.g. SEAMWARE/apt - a repository with a gh-pages branch, Pages on
+  #                                that branch, custom domain APT_DOMAIN, "Enforce HTTPS"
+  #   - secret APT_GPG_PRIVATE_KEY the signing key, ASCII-armoured, no passphrase
+  #   - secret APT_PAGES_TOKEN     a token that can push to APT_PAGES_REPO (contents: write)
+  #
+  publish:
+    needs: [source, build, test]
+    if: ${{ inputs.publish && vars.APT_DOMAIN != '' && vars.APT_PAGES_REPO != '' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: apt-repository        # one writer at a time: reprepro's db is in the branch
+      cancel-in-progress: false
+    steps:
+      - name: The secrets are there
+        env:
+          KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          TOKEN: ${{ secrets.APT_PAGES_TOKEN }}
+        run: |
+          [ -n "$KEY" ]   || { echo "::error::APT_DOMAIN is set but the secret APT_GPG_PRIVATE_KEY is not"; exit 1; }
+          [ -n "$TOKEN" ] || { echo "::error::APT_DOMAIN is set but the secret APT_PAGES_TOKEN is not"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.APT_PAGES_REPO }}
+          ref: gh-pages
+          token: ${{ secrets.APT_PAGES_TOKEN }}
+          path: repo
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: debs-*
+          path: debs
+          merge-multiple: true
+
+      - name: reprepro
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_DOMAIN: ${{ vars.APT_DOMAIN }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq reprepro gnupg > /dev/null
+          bash dist/deb/publish.sh repo debs/*.deb
+
+      - name: Push
+        working-directory: repo
+        run: |
+          git config user.name  "coraine packages"
+          git config user.email "noreply@github.com"
+          git add -A
+          git commit -qm "coraine ${{ needs.source.outputs.version }}"
+          git push origin gh-pages
+          echo "### Published to https://${{ vars.APT_DOMAIN }}" >> "$GITHUB_STEP_SUMMARY"

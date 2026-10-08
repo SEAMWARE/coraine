@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+#
+# coraine-build - build your own coraine from the exact source of the installed packages
+#
+# Usage: coraine-build [options] <dir>
+#
+#   <dir>              where the source is unpacked and built - a new or empty directory, or one an
+#                      earlier coraine-build unpacked into (the source is then reused, not unpacked again)
+#
+#   --release          optimised, traces compiled out (the default) - what the coraine package holds
+#                      before profile-guiding
+#   --debug            traces compiled in (--traceLevels works), for reproducing a crash report
+#   --pgo              profile-guided release: built instrumented, trained here on the measured request
+#                      shapes, rebuilt with the profile - what the coraine package and the image hold.
+#                      A few minutes more; needs curl and wrk
+#   --tune <workload>  --pgo trained on YOUR workload instead, and the knobs measured on it - the best
+#                      kept in <dir>/install/etc/tune.env (doc/extreme-performance.md)
+#   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
+#                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
+#   --list-features    print every feature switch, its default and what it is, and exit
+#   --source <file>    the source tarball (default /usr/share/coraine/src/coraine-src.tar.xz - coraine-dev)
+#   -h, --help
+#
+# The result, in <dir>/install - nothing is written outside <dir>, and root is not needed:
+#
+#   bin/coraine  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]  env
+#
+# `. <dir>/install/env` puts bin/ on PATH and points the broker at plugins/ and etc/ (SEAMWARE_PLUGIN_DIR,
+# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built.
+#
+# What the switches mean: doc/building-details.md (features), doc/performance.md (pgo),
+# doc/extreme-performance.md (tune) - in the source, <dir>/coraine/doc.
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+set -euo pipefail
+
+SOURCE=/usr/share/coraine/src/coraine-src.tar.xz
+MODE=release
+WORKLOAD=
+FEATURES=
+DIR=
+LIST=0
+
+die()   { echo "coraine-build: $*" >&2; exit 1; }
+usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --release)        MODE=release ;;
+    --debug)          MODE=debug ;;
+    --pgo)            MODE=pgo ;;
+    --tune)           MODE=tune; WORKLOAD=${2:?--tune needs a workload file}; shift ;;
+    --features)       FEATURES=${2:?--features needs a list}; shift ;;
+    --features=*)     FEATURES=${1#--features=} ;;
+    --list-features)  LIST=1 ;;
+    --source)         SOURCE=${2:?--source needs a file}; shift ;;
+    -h|--help)        usage; exit 0 ;;
+    -*)               die "unknown option '$1' (--help)" ;;
+    *)                [ -z "$DIR" ] || die "one directory, not '$DIR' and '$1'"; DIR=$1 ;;
+  esac
+  shift
+done
+
+[ -n "$DIR" ] || { [ "$LIST" = 1 ] || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
+
+#
+# The source: unpacked once
+#
+mkdir -p "$DIR"
+DIR=$(cd "$DIR" && pwd)
+if [ -f "$DIR/coraine/makefile" ] && [ -f "$DIR/SOURCE" ]; then
+  echo "coraine-build: reusing the source already in $DIR"
+elif [ -n "$(ls -A "$DIR")" ]; then
+  die "$DIR is neither empty nor a coraine-build directory"
+else
+  [ -f "$SOURCE" ] || die "no source tarball at $SOURCE (is coraine-dev installed? --source names another)"
+  tar -xJf "$SOURCE" -C "$DIR" --strip-components=1
+fi
+. "$DIR/SOURCE"      # version, gitSha, commitDate
+
+if [ "$LIST" = 1 ]; then
+  echo "coraine $version - feature switches (--features NAME=ON|OFF):"
+  sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
+    | while read -r name def desc; do printf '  %-24s %-4s %s\n' "$name" "$def" "$desc"; done
+  exit 0
+fi
+
+#
+# --features NAME=ON|OFF,... -> CMAKE_FEATURES -DCOR_FEATURE_NAME=ON|OFF
+#
+CMAKE_FEATURES=
+MONGOC=ON
+IFS=, read -r -a items <<< "$FEATURES"
+for item in "${items[@]}"; do
+  [ -n "$item" ] || continue
+  name=${item%%=*}; value=${item#*=}
+  name=${name#COR_FEATURE_}
+  [ "$name" != "$item" ] || die "--features: '$item' is not NAME=ON|OFF"
+  case "$value" in ON|on|1) value=ON ;; OFF|off|0) value=OFF ;; *) die "--features: $name=$value - ON or OFF" ;; esac
+  grep -q "^option(COR_FEATURE_$name " "$DIR/coraine/CMakeLists.txt" || die "--features: no feature '$name' (--list-features)"
+  CMAKE_FEATURES="$CMAKE_FEATURES -DCOR_FEATURE_$name=$value"
+  [ "$name" = MONGOC ] && MONGOC=$value
+done
+
+#
+# mongo-c driver v2, for the mongoc plugin: the distribution's (Ubuntu 26.04: libmongoc-dev), or the one
+# coraine-dev bundles in /opt/seamware where the distribution has only v1 (Ubuntu 24.04, Debian 13).
+# The bundled one is found through pkg-config and the linker search path here, and through a RUNPATH on
+# mongoc.so at run time (below).
+#
+BUNDLED=0
+if [ "$MONGOC" = ON ] && ! pkg-config --exists mongoc2; then
+  if [ -f /opt/seamware/lib/pkgconfig/mongoc2.pc ]; then
+    BUNDLED=1
+    export PKG_CONFIG_PATH=/opt/seamware/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}
+    export LIBRARY_PATH=/opt/seamware/lib${LIBRARY_PATH:+:$LIBRARY_PATH}
+    export LD_LIBRARY_PATH=/opt/seamware/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    command -v patchelf > /dev/null || die "patchelf is needed to point mongoc.so at /opt/seamware/lib"
+  else
+    die "no mongo-c driver v2 (pkg-config mongoc2) - install it, or build without: --features MONGOC=OFF"
+  fi
+fi
+
+if [ "$MODE" = pgo ] || [ "$MODE" = tune ]; then
+  for t in curl wrk python3; do command -v $t > /dev/null || die "--$MODE needs $t"; done
+fi
+if [ "$MODE" = tune ]; then
+  [ -f "$WORKLOAD" ] || die "--tune: no workload file '$WORKLOAD'"
+  WORKLOAD=$(cd "$(dirname "$WORKLOAD")" && pwd)/$(basename "$WORKLOAD")
+fi
+
+INST=$DIR/install
+rm -rf "$INST"
+mkdir -p "$INST/bin" "$INST/plugins" "$INST/etc"
+C=$DIR/coraine
+
+#
+# Every make below gets PLUGIN_DIR: corDB installs its plugins as it is built (the broker's makefile
+# builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
+# variable reaches every sub-make.
+#
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES")
+
+echo "coraine-build: coraine $version ($MODE${FEATURES:+, $FEATURES}) in $DIR"
+make -C "$C" clean > /dev/null
+
+case "$MODE" in
+  release) make -C "$C" "${MK[@]}" release;  B=$C/BUILD_RELEASE ;;
+  debug)   make -C "$C" "${MK[@]}" debug;    B=$C/BUILD_DEBUG ;;
+  pgo|tune)
+    # the tools the training drives (corTestClient, corRequest) - the Cor-Libs umbrella builds them into
+    # corLibs/bin; `all`, never `install`, which would write plugins to /opt/seamware
+    make -C "$DIR/corLibs" BUILD=release all
+    if [ "$MODE" = pgo ]; then
+      make -C "$C" "${MK[@]}" PGO_RESTORE_DEBUG=0 pgo
+    else
+      (cd "$C" && make "${MK[@]}" PGO_RESTORE_DEBUG=0 tune WORKLOAD="$WORKLOAD")
+      "$C/test/perf/tune/tuneEnv.py" "$C/tune-result.json" > "$INST/etc/tune.env"
+    fi
+    # corDB's plugins: installed into PLUGIN_DIR by the profile-use pass of `make pgo` itself
+    B=$C/BUILD_PGO ;;
+esac
+
+#
+# The broker's own install target copies a FIXED set of plugins, so a build with a plugin switched off
+# would fail it: the broker, coraine-import and whatever plugins this build produced, by kind -
+# src/plugins/<kind>/<name>/<name>.so -> plugins/<directory the broker loads <kind> from>/<name>.so
+#
+cp -p "$B/src/app/coraine/coraine" "$INST/bin/"
+[ ! -f "$B/src/app/coraineImport/coraine-import" ] || cp -p "$B/src/app/coraineImport/coraine-import" "$INST/bin/"
+find "$B/src/plugins" -name '*.so' | while read -r so; do
+  kind=$(basename "$(dirname "$(dirname "$so")")")
+  case "$kind" in
+    currentState) d=db/currentState ;;
+    temporal)     d=troe/temporal ;;
+    api|bridge|transport) d=$kind ;;
+    *) continue ;;
+  esac
+  mkdir -p "$INST/plugins/$d"
+  cp -p "$so" "$INST/plugins/$d/"
+done
+
+# the bridges that are not the broker's: MQTT and Modbus (DDS needs the eProsima stack - not here)
+for br in corMqttBridge corModbusBridge; do
+  flavour=release; [ "$MODE" = debug ] && flavour=debug
+  make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" install > /dev/null
+done
+
+cp -p "$C/etc/contextSourceExtras.json" "$INST/etc/"
+
+if [ "$BUNDLED" = 1 ] && [ -f "$INST/plugins/db/currentState/mongoc.so" ]; then
+  patchelf --set-rpath /opt/seamware/lib "$INST/plugins/db/currentState/mongoc.so"
+fi
+
+cat > "$INST/env" <<EOF
+# . this file: the coraine built in $DIR, first on PATH, with its own plugins and etc
+export PATH="$INST/bin:\$PATH"
+export SEAMWARE_PLUGIN_DIR="$INST/plugins"
+export CORAINE_CONTEXTSOURCEEXTRAS="$INST/etc/contextSourceExtras.json"
+EOF
+
+"$INST/bin/coraine" --version > /dev/null || die "the broker just built does not start: $INST/bin/coraine --version"
+
+echo
+echo "coraine-build: done - $INST"
+( cd "$INST" && find bin plugins etc -type f | sort | sed 's/^/  /' )
+echo
+echo "Run it:"
+echo "  . $INST/env"
+echo "  coraine -fg --database corDB"
+[ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - CORAINE_* and LD_PRELOAD, see doc/extreme-performance.md)"

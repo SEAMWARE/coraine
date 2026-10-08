@@ -1,0 +1,27 @@
+# /etc/default/coraine - the options of the coraine service
+#
+# Every command-line option of the broker is also an environment variable: CORAINE_ + the long option in
+# upper case, '-' becoming '_' (`coraine -U` lists them all, with the plugins' own). After a change:
+#
+#   systemctl restart coraine
+#
+# The service runs `/usr/bin/coraine -fg` as the user coraine - the foreground is not an option here.
+
+# The store: corDB, on disk, in the service's state directory - no external service needed.
+# A clean stop (systemctl stop) and a crash both lose nothing (doc/installation.md, "corDB on disk").
+CORAINE_DATABASE=corDB
+CORAINE_DBDIR=/var/lib/coraine/db
+
+# Temporal history: none | corDB (inside corDB's store, on disk) | timescale (PostgreSQL)
+CORAINE_TROE=none
+
+# The port (the broker listens on every interface)
+#CORAINE_PORT=1026
+
+# API plugins - admin: /admin/version, /admin/metrics ...
+#CORAINE_APIPLUGINS=admin
+
+# MongoDB instead of corDB (comment out CORAINE_DBDIR above - a corDB option):
+#CORAINE_DATABASE=mongoc
+#CORAINE_DBHOST=localhost
+#CORAINE_DBPORT=27017

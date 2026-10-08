@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# coraine prerm - stop the broker when the package goes (SIGTERM: a clean stop, corDB loses nothing).
+# Not on an upgrade: postinst restarts it with the new binary.
+#
+set -e
+
+if [ -d /run/systemd/system ] && [ "$1" = remove ]; then
+  deb-systemd-invoke stop coraine.service > /dev/null || true
+fi
+
+exit 0
