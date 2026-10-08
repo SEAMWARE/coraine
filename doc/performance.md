@@ -391,6 +391,13 @@ profile (2026-10-02, one core, `corDB`, built-in server):
 
 The Docker image and the nightly performance job are built this way.
 
+Every library the broker links is built in the broker's flavour: `make release`, `make pgo` and
+`make tune` build all of them as release (the foundation libraries corBase, corLog, corAlloc,
+corArgs, corHash, corTree, corJson, corProm and corHttp included), `make di` as debug, and a release
+build fails if the broker or a plugin carries code compiled with `COR_T_ON` (traces). The nightly
+performance job has linked release foundation libraries since 2026-10-03 (`make pgo`); before that
+(`make i`) they were the debug ones `bootstrap.sh` builds, traces compiled in.
+
 User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
 three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
 caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
