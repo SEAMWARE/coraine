@@ -169,6 +169,12 @@ arguments are parsed:
 |----------|---------|---------|
 | `SEAMWARE_PLUGIN_DIR` | `/opt/seamware/plugins` | base directory plugin short names resolve against |
 
+## Migrating from another broker
+
+Another broker's data - entities, subscriptions, registrations and temporal history, with their ids
+and system timestamps - is moved into coraine's stores with `coraine-import`, before the broker is
+started on them: [Migrating a database to coraine](migration.md). Orion-LD's databases are read today.
+
 ## Administration
 
 Load the `admin` API plugin (`--apiPlugins admin`) to get:
