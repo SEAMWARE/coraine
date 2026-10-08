@@ -1,0 +1,393 @@
+== GET /ngsi-ld/v1/entities?type=Vehicle,https://example.org/Parking&options=sysAttrs 
+[
+  {
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "type": "Vehicle",
+    "speed": {
+      "type": "Property",
+      "value": 42,
+      "observedAt": "2024-02-02T03:03:20Z",
+      "unitCode": "KMH",
+      "source": {
+        "type": "Property",
+        "value": "radar",
+        "createdAt": "2024-01-05T00:00:00Z",
+        "modifiedAt": "2024-01-06T00:00:00Z"
+      },
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-02-02T03:04:05.456Z"
+    },
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          13.4,
+          52.5
+        ]
+      },
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z"
+    },
+    "isParked": {
+      "type": "Relationship",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z"
+    },
+    "name": {
+      "type": "LanguageProperty",
+      "languageMap": {
+        "en": "car",
+        "es": "coche"
+      },
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z"
+    },
+    "category": {
+      "type": "VocabProperty",
+      "vocab": "sedan",
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z"
+    },
+    "config": {
+      "type": "Property",
+      "value": {
+        "mode": "eco",
+        "levels": [
+          1,
+          2
+        ]
+      },
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z"
+    },
+    "temperature": [
+      {
+        "type": "Property",
+        "value": 20,
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z"
+      },
+      {
+        "type": "Property",
+        "value": 21,
+        "createdAt": "2024-01-05T00:00:00Z",
+        "modifiedAt": "2024-01-06T00:00:00Z",
+        "datasetId": "urn:ngsi-ld:dataset:engine"
+      },
+      {
+        "type": "Property",
+        "value": 22,
+        "createdAt": "2024-01-05T00:00:00Z",
+        "modifiedAt": "2024-01-05T00:00:00Z",
+        "datasetId": "urn:ngsi-ld:dataset:cabin"
+      }
+    ],
+    "createdAt": "2024-01-02T03:04:05.123Z",
+    "modifiedAt": "2024-02-02T03:04:05.456Z"
+  },
+  {
+    "id": "urn:ngsi-ld:Parking:P1",
+    "type": "https://example.org/Parking",
+    "https://example.org/v1.0/capacity": {
+      "type": "Property",
+      "value": 100,
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-06T00:00:00Z"
+    },
+    "createdAt": "2024-01-05T00:00:00Z",
+    "modifiedAt": "2024-01-06T00:00:00Z"
+  }
+]
+
+== GET /ngsi-ld/v1/entities?type=https://example.org/Room&options=sysAttrs (t1)
+[
+  {
+    "id": "urn:ngsi-ld:Room:R1",
+    "type": "https://example.org/Room",
+    "https://example.org/temperature": {
+      "type": "Property",
+      "value": 21.5,
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-05T00:00:00Z"
+    },
+    "createdAt": "2024-01-05T00:00:00Z",
+    "modifiedAt": "2024-01-05T00:00:00Z"
+  }
+]
+
+== GET /ngsi-ld/v1/subscriptions?options=sysAttrs 
+[
+  {
+    "id": "urn:ngsi-ld:Subscription:S1",
+    "type": "Subscription",
+    "subscriptionName": "S1",
+    "description": "speeding",
+    "entities": [
+      {
+        "id": "urn:ngsi-ld:Vehicle:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "watchedAttributes": [
+      "speed"
+    ],
+    "q": "speed>40",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:9997/notify",
+        "accept": "application/json"
+      },
+      "format": "normalized",
+      "attributes": [
+        "speed"
+      ],
+      "timesSent": 5,
+      "timesFailed": 1,
+      "lastNotification": "2024-01-23T08:53:20Z",
+      "lastSuccess": "2024-01-23T06:06:40Z",
+      "lastFailure": "2024-01-23T08:53:20Z",
+      "status": "failed"
+    },
+    "status": "active",
+    "createdAt": "2024-01-01T00:00:00.5Z",
+    "modifiedAt": "2024-01-11T19:06:40.25Z",
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ]
+  },
+  {
+    "id": "urn:ngsi-ld:Subscription:S2",
+    "type": "Subscription",
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "geoQ": {
+      "geometry": "Point",
+      "coordinates": [
+        13.4,
+        52.5
+      ],
+      "georel": "near;maxDistance==2000",
+      "geoproperty": "location"
+    },
+    "expiresAt": "2030-01-01T00:00:00.000Z",
+    "isActive": false,
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:9997/notify2",
+        "accept": "application/json",
+        "receiverInfo": [
+          {
+            "key": "X-Auth-Token",
+            "value": "abc"
+          }
+        ]
+      },
+      "format": "keyValues"
+    },
+    "status": "paused",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "modifiedAt": "2024-01-01T00:00:00Z",
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ]
+  }
+]
+
+== GET /ngsi-ld/v1/subscriptions?options=sysAttrs (t1)
+[
+  {
+    "id": "urn:ngsi-ld:Subscription:S3",
+    "type": "Subscription",
+    "entities": [
+      {
+        "type": "https://example.org/Room"
+      }
+    ],
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:9997/notify3",
+        "accept": "application/json"
+      },
+      "format": "normalized"
+    },
+    "status": "active",
+    "createdAt": "2024-01-05T00:00:00Z",
+    "modifiedAt": "2024-01-05T00:00:00Z",
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ]
+  }
+]
+
+== GET /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:R1?options=sysAttrs 
+{
+  "id": "urn:ngsi-ld:ContextSourceRegistration:R1",
+  "type": "ContextSourceRegistration",
+  "registrationName": "R1",
+  "description": "remote vehicles",
+  "information": [
+    {
+      "entities": [
+        {
+          "idPattern": "urn:ngsi-ld:Vehicle:A.*",
+          "type": "Vehicle"
+        }
+      ],
+      "attributeNames": [
+        "speed",
+        "isParked"
+      ]
+    }
+  ],
+  "endpoint": "http://my.csource.org:1026",
+  "observationInterval": {
+    "startAt": "2018-12-31T10:00:00.123Z",
+    "endAt": "2028-12-31T10:00:00.456Z"
+  },
+  "expiresAt": "2028-12-31T10:00:01.234Z",
+  "contextSourceInfo": [
+    {
+      "key": "H1",
+      "value": "H1 value"
+    }
+  ],
+  "scope": [
+    "/s1",
+    "/s2"
+  ],
+  "mode": "inclusive",
+  "operations": [
+    "retrieveEntity",
+    "queryEntity"
+  ],
+  "management": {
+    "localOnly": true,
+    "timeout": 5000,
+    "cooldown": 60000
+  },
+  "P1": 1,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "modifiedAt": "2024-01-02T00:00:00Z"
+}
+
+== GET /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs 
+{
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "type": "Vehicle",
+  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "modifiedAt": "2024-01-02T03:04:05.123000Z",
+  "isParked": [
+    {
+      "type": "Relationship",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0004"
+    }
+  ],
+  "speed": [
+    {
+      "type": "Property",
+      "value": 40,
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "observedAt": "2024-01-02T03:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
+      "unitCode": "KMH",
+      "source": {
+        "type": "Property",
+        "value": "radar",
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z"
+      }
+    },
+    {
+      "type": "Property",
+      "value": 42,
+      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
+      "unitCode": "KMH"
+    }
+  ],
+  "temperature": [
+    {
+      "type": "Property",
+      "value": 21,
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "datasetId": "urn:ngsi-ld:dataset:engine",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0005"
+    }
+  ],
+  "location": [
+    {
+      "type": "GeoProperty",
+      "value": {
+        "type": "Point",
+        "coordinates": [
+          13.4,
+          52.5
+        ]
+      },
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0003"
+    }
+  ]
+}
+
+== GET /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V9?options=sysAttrs 
+{
+  "id": "urn:ngsi-ld:Vehicle:V9",
+  "createdAt": "2024-01-02T03:04:06Z",
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "deletedAt": "2024-02-02T03:04:05.456000Z",
+  "name": [
+    {
+      "type": "Property",
+      "value": "it's gone",
+      "createdAt": "2024-01-02T03:04:06Z",
+      "modifiedAt": "2024-01-02T03:04:06Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0006"
+    },
+    {
+      "type": "Property",
+      "value": "urn:ngsi-ld:null",
+      "createdAt": "2024-01-20T00:00:00Z",
+      "modifiedAt": "2024-01-20T00:00:00Z",
+      "deletedAt": "2024-01-20T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0007"
+    }
+  ]
+}
+
+== GET /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Room:R1?options=sysAttrs (t1)
+{
+  "id": "urn:ngsi-ld:Room:R1",
+  "type": "https://example.org/Room",
+  "createdAt": "2024-01-05T00:00:00Z",
+  "modifiedAt": "2024-01-05T00:00:00Z",
+  "https://example.org/temperature": [
+    {
+      "type": "Property",
+      "value": 21.5,
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0101"
+    }
+  ]
+}
+

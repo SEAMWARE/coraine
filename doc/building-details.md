@@ -176,6 +176,12 @@ load:
 | `COR_FEATURE_MONGOC=OFF` | `mongoc.so` is not built; run `--database corDB` |
 | `COR_FEATURE_ADMIN_API=OFF` | `admin.so` is not built |
 
+**This one leaves the broker unchanged and drops a program:**
+
+| flag | effect |
+|---|---|
+| `COR_FEATURE_MIGRATE=OFF` | `coraine-import` is not built ([migration.md](migration.md)) - the broker carries no import code either way |
+
 **⚠️ These nine are declared and do nothing at all:**
 
 `GEOQ`, `SCOPES`, `DATASETID`, `MULTI_TYPE`, `CONTEXT_DL`, `TENANTS`,

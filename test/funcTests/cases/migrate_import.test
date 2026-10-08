@@ -1,0 +1,756 @@
+#
+# FILE            migrate_import.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraine-import (doc/migration.md): a migration stream written into the stores the importer is started
+# with, and read back through the API by the broker started on them.
+#
+# The stream is fixtures/migrate/orionld-stream.ndjson - what tools/migrate/orionldExport.py reads out
+# of the made-up Orion-LD deployment of tools/migrate/test/orionldE2E.sh: entities of every attribute
+# type, a multi-instance attribute, Sub-Attributes, a name with dots in it, two tenants, subscriptions
+# with counters, a registration, and the history (a deleted entity's included). What has to come back
+# is what the source had: the ids, every createdAt/modifiedAt (entity, attribute instance, Sub-
+# Attribute, subscription, registration), the counters, the history's instanceIds. P1 has no history
+# in the stream: it gets the history a create writes - its created event at its createdAt, its
+# attribute as it is, at its own times.
+#
+# Then a stream whose names are NOT expanded: every record holding a name that is neither an IRI nor a
+# core term is refused, the name said - the importer expands nothing.
+#
+# And an import into a store that already holds the data: everything refused, nothing overwritten.
+#
+# REQUIRE_DB: mongoc corDB
+# REQUIRE_TROEDB: timescale
+#
+--NAME--
+Migration import - a stream written into the stores, ids and system timestamps as they were
+
+--TAGS--
+migrate troe subscription registration
+
+--INIT--
+corDbDrop
+corTroeInit
+rm -rf /tmp/corTest-migrate
+mkdir -p /tmp/corTest-migrate
+cp "$REPO_ROOT"/test/funcTests/fixtures/migrate/* /tmp/corTest-migrate/
+
+--RUN--
+
+#
+# 01. Import the stream - current state and history
+# 02. Start the broker on the migrated stores
+# 03. GET the entities of the default tenant, with their system attributes
+# 04. GET the entities of tenant t1
+# 05. GET the subscriptions - counters, createdAt, modifiedAt; S2 paused, with a geoQ
+# 06. GET the subscription of tenant t1
+# 07. GET the registration
+# 08. GET the history of V1 - the source's instanceIds and times
+# 09. GET the history of V9 - deleted, its history kept
+# 10. GET the history of R1 in tenant t1
+# 11. GET the history of P1 - none in the stream: the created row
+# 12. Import a stream whose names are not expanded - each such record refused, the name said
+# 13. GET R6 - its record was expanded; its history record was not - no created row in its place
+# 14. Import the first stream again - everything is there already: refused, nothing overwritten
+#
+
+D=/tmp/corTest-migrate
+
+echo "01. Import the stream - current state and history"
+echo "================================================="
+coraineImport --troe timescale --file $D/orionld-stream.ndjson
+echo "exit code: $?"
+echo
+echo
+
+
+echo "02. Start the broker on the migrated stores"
+echo "==========================================="
+coraineStart --troe timescale
+echo "started"
+echo
+echo
+
+
+echo "03. GET the entities of the default tenant, with their system attributes"
+echo "========================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,https://example.org/Parking&options=sysAttrs'
+echo
+echo
+
+
+echo "04. GET the entities of tenant t1"
+echo "================================="
+corCurl --url '/ngsi-ld/v1/entities?type=https://example.org/Room&options=sysAttrs' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "05. GET the subscriptions - counters, createdAt, modifiedAt; S2 paused, with a geoQ"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/subscriptions?options=sysAttrs'
+echo
+echo
+
+
+echo "06. GET the subscription of tenant t1"
+echo "====================================="
+corCurl --url '/ngsi-ld/v1/subscriptions?options=sysAttrs' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "07. GET the registration"
+echo "========================"
+corCurl --url '/ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:ContextSourceRegistration:R1?options=sysAttrs'
+echo
+echo
+
+
+echo "08. GET the history of V1 - the source's instanceIds and times"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs'
+echo
+echo
+
+
+echo "09. GET the history of V9 - deleted, its history kept"
+echo "====================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V9?options=sysAttrs'
+echo
+echo
+
+
+echo "10. GET the history of R1 in tenant t1"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Room:R1?options=sysAttrs' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "11. GET the history of P1 - none in the stream: the created row"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Parking:P1?options=sysAttrs'
+echo
+echo
+
+
+echo "12. Import a stream whose names are not expanded - each such record refused, the name said"
+echo "=========================================================================================="
+coraineStop
+coraineImport --troe timescale --file $D/unexpanded-stream.ndjson
+echo "exit code: $?"
+echo
+echo
+
+
+echo "13. GET R6 - its record was expanded; its history record was not - no created row in its place"
+echo "=============================================================================================="
+coraineStart --troe timescale
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Room:R6?options=sysAttrs'
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Room:R6'
+echo
+echo
+
+
+echo "14. Import the first stream again - everything is there already: refused, nothing overwritten"
+echo "============================================================================================="
+coraineStop
+coraineImport --troe timescale --file $D/orionld-stream.ndjson
+echo "exit code: $?"
+echo
+echo
+
+
+--EXPECT--
+01. Import the stream - current state and history
+=================================================
+import of /tmp/corTest-migrate/orionld-stream.ndjson:
+  entities                        3 imported,      0 refused
+  subscriptions                   3 imported,      0 refused
+  registrations                   1 imported,      0 refused
+  temporal entity events          4 imported,      0 refused
+  temporal instances              8 imported,      0 refused
+  created rows (history)          1 written,       0 failed
+exit code: 0
+
+
+02. Start the broker on the migrated stores
+===========================================
+started
+
+
+03. GET the entities of the default tenant, with their system attributes
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 2619
+
+[
+  {
+    "category": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
+      "type": "VocabProperty",
+      "vocab": "sedan"
+    },
+    "config": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
+      "type": "Property",
+      "value": {
+        "levels": [
+          1,
+          2
+        ],
+        "mode": "eco"
+      }
+    },
+    "createdAt": "2024-01-02T03:04:05.123Z",
+    "id": "urn:ngsi-ld:Vehicle:V1",
+    "isParked": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "type": "Relationship"
+    },
+    "location": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    },
+    "modifiedAt": "2024-02-02T03:04:05.456Z",
+    "name": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "languageMap": {
+        "en": "car",
+        "es": "coche"
+      },
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
+      "type": "LanguageProperty"
+    },
+    "speed": {
+      "createdAt": "2024-01-02T03:04:05.123Z",
+      "modifiedAt": "2024-02-02T03:04:05.456Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "source": {
+        "createdAt": "2024-01-05T00:00:00Z",
+        "modifiedAt": "2024-01-06T00:00:00Z",
+        "type": "Property",
+        "value": "radar"
+      },
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 42
+    },
+    "temperature": [
+      {
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z",
+        "type": "Property",
+        "value": 20
+      },
+      {
+        "createdAt": "2024-01-05T00:00:00Z",
+        "datasetId": "urn:ngsi-ld:dataset:engine",
+        "modifiedAt": "2024-01-06T00:00:00Z",
+        "type": "Property",
+        "value": 21
+      },
+      {
+        "createdAt": "2024-01-05T00:00:00Z",
+        "datasetId": "urn:ngsi-ld:dataset:cabin",
+        "modifiedAt": "2024-01-05T00:00:00Z",
+        "type": "Property",
+        "value": 22
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "createdAt": "2024-01-05T00:00:00Z",
+    "https://example.org/v1.0/capacity": {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-06T00:00:00Z",
+      "type": "Property",
+      "value": 100
+    },
+    "id": "urn:ngsi-ld:Parking:P1",
+    "modifiedAt": "2024-01-06T00:00:00Z",
+    "type": "https://example.org/Parking"
+  }
+]
+
+
+
+04. GET the entities of tenant t1
+=================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 348
+
+[
+  {
+    "createdAt": "2024-01-05T00:00:00Z",
+    "https://example.org/temperature": {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21.5
+    },
+    "id": "urn:ngsi-ld:Room:R1",
+    "modifiedAt": "2024-01-05T00:00:00Z",
+    "type": "https://example.org/Room"
+  }
+]
+
+
+
+05. GET the subscriptions - counters, createdAt, modifiedAt; S2 paused, with a geoQ
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 2005
+
+[
+  {
+    "createdAt": "2024-01-01T00:00:00.5Z",
+    "description": "speeding",
+    "entities": [
+      {
+        "id": "urn:ngsi-ld:Vehicle:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:S1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "modifiedAt": "2024-01-11T19:06:40.25Z",
+    "notification": {
+      "attributes": [
+        "speed"
+      ],
+      "endpoint": {
+        "accept": "application/json",
+        "uri": "http://localhost:9997/notify"
+      },
+      "format": "normalized",
+      "lastFailure": "2024-01-23T08:53:20Z",
+      "lastNotification": "2024-01-23T08:53:20Z",
+      "lastSuccess": "2024-01-23T06:06:40Z",
+      "status": "failed",
+      "timesFailed": 1,
+      "timesSent": 5
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "q": "speed>40",
+    "status": "active",
+    "subscriptionName": "S1",
+    "type": "Subscription",
+    "watchedAttributes": [
+      "speed"
+    ]
+  },
+  {
+    "createdAt": "2024-01-01T00:00:00Z",
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "expiresAt": "2030-01-01T00:00:00.000Z",
+    "geoQ": {
+      "coordinates": [
+        13.4,
+        52.5
+      ],
+      "geometry": "Point",
+      "geoproperty": "location",
+      "georel": "near;maxDistance==2000"
+    },
+    "id": "urn:ngsi-ld:Subscription:S2",
+    "isActive": false,
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "modifiedAt": "2024-01-01T00:00:00Z",
+    "notification": {
+      "endpoint": {
+        "accept": "application/json",
+        "receiverInfo": [
+          {
+            "key": "X-Auth-Token",
+            "value": "abc"
+          }
+        ],
+        "uri": "http://localhost:9997/notify2"
+      },
+      "format": "keyValues"
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "paused",
+    "type": "Subscription"
+  }
+]
+
+
+
+06. GET the subscription of tenant t1
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 619
+
+[
+  {
+    "createdAt": "2024-01-05T00:00:00Z",
+    "entities": [
+      {
+        "type": "https://example.org/Room"
+      }
+    ],
+    "id": "urn:ngsi-ld:Subscription:S3",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "modifiedAt": "2024-01-05T00:00:00Z",
+    "notification": {
+      "endpoint": {
+        "accept": "application/json",
+        "uri": "http://localhost:9997/notify3"
+      },
+      "format": "normalized"
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+07. GET the registration
+========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 984
+
+{
+  "P1": 1,
+  "contextSourceInfo": [
+    {
+      "key": "H1",
+      "value": "H1 value"
+    }
+  ],
+  "createdAt": "2024-01-01T00:00:00Z",
+  "description": "remote vehicles",
+  "endpoint": "http://my.csource.org:1026",
+  "expiresAt": "2028-12-31T10:00:01.234Z",
+  "id": "urn:ngsi-ld:ContextSourceRegistration:R1",
+  "information": [
+    {
+      "attributeNames": [
+        "speed",
+        "isParked"
+      ],
+      "entities": [
+        {
+          "idPattern": "urn:ngsi-ld:Vehicle:A.*",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ],
+  "management": {
+    "cooldown": 60000,
+    "localOnly": true,
+    "timeout": 5000
+  },
+  "mode": "inclusive",
+  "modifiedAt": "2024-01-02T00:00:00Z",
+  "observationInterval": {
+    "endAt": "2028-12-31T10:00:00.456Z",
+    "startAt": "2018-12-31T10:00:00.123Z"
+  },
+  "operations": [
+    "retrieveEntity",
+    "queryEntity"
+  ],
+  "registrationName": "R1",
+  "scope": [
+    "/s1",
+    "/s2"
+  ],
+  "type": "ContextSourceRegistration"
+}
+
+
+
+08. GET the history of V1 - the source's instanceIds and times
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1806
+
+{
+  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "isParked": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0004",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "type": "Relationship"
+    }
+  ],
+  "location": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0003",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "speed": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "observedAt": "2024-01-02T03:00:00Z",
+      "source": {
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z",
+        "type": "Property",
+        "value": "radar"
+      },
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 40
+    },
+    {
+      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
+      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 42
+    }
+  ],
+  "temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "datasetId": "urn:ngsi-ld:dataset:engine",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0005",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+09. GET the history of V9 - deleted, its history kept
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 663
+
+{
+  "createdAt": "2024-01-02T03:04:06Z",
+  "deletedAt": "2024-02-02T03:04:05.456000Z",
+  "id": "urn:ngsi-ld:Vehicle:V9",
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "name": [
+    {
+      "createdAt": "2024-01-02T03:04:06Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0006",
+      "modifiedAt": "2024-01-02T03:04:06Z",
+      "type": "Property",
+      "value": "it's gone"
+    },
+    {
+      "createdAt": "2024-01-20T00:00:00Z",
+      "deletedAt": "2024-01-20T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0007",
+      "modifiedAt": "2024-01-20T00:00:00Z",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ]
+}
+
+
+
+10. GET the history of R1 in tenant t1
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 401
+
+{
+  "createdAt": "2024-01-05T00:00:00Z",
+  "https://example.org/temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0101",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21.5
+    }
+  ],
+  "id": "urn:ngsi-ld:Room:R1",
+  "modifiedAt": "2024-01-05T00:00:00Z",
+  "type": "https://example.org/Room"
+}
+
+
+
+11. GET the history of P1 - none in the stream: the created row
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 428
+
+{
+  "createdAt": "2024-01-05T00:00:00Z",
+  "https://example.org/v1.0/capacity": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f-]{36})",
+      "modifiedAt": "2024-01-06T00:00:00Z",
+      "type": "Property",
+      "value": 100
+    }
+  ],
+  "id": "urn:ngsi-ld:Parking:P1",
+  "modifiedAt": "2024-01-06T00:00:00Z",
+  "type": "https://example.org/Parking"
+}
+
+
+
+12. Import a stream whose names are not expanded - each such record refused, the name said
+==========================================================================================
+/tmp/corTest-migrate/unexpanded-stream.ndjson:2: entity: attribute name 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:3: entity: entity type 'Room' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:4: entity: sub-attribute name 'brand' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:5: entity: attribute name 'ex:humidity' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:6: subscription: watched attribute 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+/tmp/corTest-migrate/unexpanded-stream.ndjson:7: temporalInstance: attribute name 'temperature' is not expanded - the stream must hold expanded NGSI-LD (full IRIs, core terms short)
+import of /tmp/corTest-migrate/unexpanded-stream.ndjson:
+  entities                        1 imported,      4 refused
+  subscriptions                   0 imported,      1 refused
+  registrations                   0 imported,      0 refused
+  temporal entity events          0 imported,      0 refused
+  temporal instances              0 imported,      1 refused
+exit code: 1
+
+
+13. GET R6 - its record was expanded; its history record was not - no created row in its place
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 318
+
+{
+  "createdAt": "2025-03-01T10:00:00Z",
+  "https://example.org/temperature": {
+    "createdAt": "2025-03-01T10:00:00Z",
+    "modifiedAt": "2025-03-01T10:00:00Z",
+    "type": "Property",
+    "value": 18
+  },
+  "id": "urn:ngsi-ld:Room:R6",
+  "modifiedAt": "2025-03-01T10:00:00Z",
+  "type": "https://example.org/Room"
+}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "no temporal data for entity 'urn:ngsi-ld:Room:R6'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+14. Import the first stream again - everything is there already: refused, nothing overwritten
+=============================================================================================
+/tmp/corTest-migrate/orionld-stream.ndjson:1: registration: 'urn:ngsi-ld:ContextSourceRegistration:R1': registration 'urn:ngsi-ld:ContextSourceRegistration:R1' already exists
+/tmp/corTest-migrate/orionld-stream.ndjson:2: subscription: 'urn:ngsi-ld:Subscription:S1': subscription 'urn:ngsi-ld:Subscription:S1' already exists
+/tmp/corTest-migrate/orionld-stream.ndjson:3: subscription: 'urn:ngsi-ld:Subscription:S2': subscription 'urn:ngsi-ld:Subscription:S2' already exists
+/tmp/corTest-migrate/orionld-stream.ndjson:4: entity: 'urn:ngsi-ld:Vehicle:V1' already exists in the target
+/tmp/corTest-migrate/orionld-stream.ndjson:5: entity: 'urn:ngsi-ld:Parking:P1' already exists in the target
+/tmp/corTest-migrate/orionld-stream.ndjson:6: subscription: 'urn:ngsi-ld:Subscription:S3': subscription 'urn:ngsi-ld:Subscription:S3' already exists
+/tmp/corTest-migrate/orionld-stream.ndjson:7: entity: 'urn:ngsi-ld:Room:R1' already exists in the target
+/tmp/corTest-migrate/orionld-stream.ndjson:8-18: history: the batch of 10 events was not written by the TRoE plugin 'timescale' (see its log)
+/tmp/corTest-migrate/orionld-stream.ndjson:18-19: history: the batch of 2 events was not written by the TRoE plugin 'timescale' (see its log)
+import of /tmp/corTest-migrate/orionld-stream.ndjson:
+  entities                        0 imported,      3 refused
+  subscriptions                   0 imported,      3 refused
+  registrations                   0 imported,      1 refused
+  temporal entity events          0 imported,      4 refused
+  temporal instances              0 imported,      8 refused
+exit code: 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
+rm -rf /tmp/corTest-migrate

@@ -35,6 +35,7 @@ option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over anot
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
 option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
 option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (NGSILD-Snapshot on /subscriptions, notified by writes on the snapshot - § 7.9.2)" ON)
+option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -57,7 +58,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -232,6 +233,7 @@ ADD_SUBDIRECTORY(src/lib/db)
 ADD_SUBDIRECTORY(src/lib/ha)
 ADD_SUBDIRECTORY(src/lib/troe)
 ADD_SUBDIRECTORY(src/lib/plugin)
+ADD_SUBDIRECTORY(src/lib/startup)
 ADD_SUBDIRECTORY(src/lib/bridge)
 if (COR_FEATURE_TRANSPORTS)
   ADD_SUBDIRECTORY(src/lib/transport)
@@ -243,6 +245,9 @@ if (COR_FEATURE_SERVICE_EXECUTION)
   ADD_SUBDIRECTORY(src/lib/serviceExecution)
 endif()
 ADD_SUBDIRECTORY(src/lib/serviceRoutines)
+if (COR_FEATURE_MIGRATE)
+  ADD_SUBDIRECTORY(src/lib/migrate)
+endif()
 ADD_SUBDIRECTORY(src/lib/linkedEntities)
 if (COR_FEATURE_REGISTRATIONS)
   ADD_SUBDIRECTORY(src/lib/forwarding)
@@ -274,6 +279,9 @@ if (COR_FEATURE_TRANSPORTS)
 endif()
 
 ADD_SUBDIRECTORY(src/app/coraine)
+if (COR_FEATURE_MIGRATE)
+  ADD_SUBDIRECTORY(src/app/coraineImport)
+endif()
 
 #
 # The test tools - corTestClient (was ftClient) and corRequest - are corTools' (a sibling repo), built

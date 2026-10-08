@@ -126,6 +126,28 @@ static void connStr(const char* dbName, char* buf, int bufSize)
 
 // -----------------------------------------------------------------------------
 //
+// noticeToLog - a server NOTICE ("extension postgis already exists, skipping", every boot) into the
+// broker's log, as info
+//
+// libpq's own processor writes it to stderr, raw, outside the log - where it ends up in front of
+// whatever else the process writes there (coraine-import's report).
+//
+static void noticeToLog(void* arg, const char* message)
+{
+  (void) arg;
+
+  int len = (int) strlen(message);
+
+  while ((len > 0) && (message[len - 1] == '\n'))
+    len--;
+
+  COR_I("timescale: %.*s", len, message);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // connectTo - open a fresh connection to one database, or NULL on failure.
 //
 static PGconn* connectTo(const char* dbName)
@@ -140,6 +162,8 @@ static PGconn* connectTo(const char* dbName)
     PQfinish(conn);
     return NULL;
   }
+
+  PQsetNoticeProcessor(conn, noticeToLog, NULL);
   return conn;
 }
 

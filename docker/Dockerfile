@@ -216,6 +216,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/bin/coraine /usr/local/bin/coraine
+# coraine-import - the writer half of a migration (doc/migration.md): every build path above installs it
+COPY --from=builder /usr/local/bin/coraine-import /usr/local/bin/coraine-import
 COPY --from=builder /opt/seamware/ /opt/seamware/
 COPY docker/coraine-start /usr/local/bin/coraine-start
 

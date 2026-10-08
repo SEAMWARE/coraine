@@ -13,8 +13,9 @@
 #include <unistd.h>                                   // access
 
 #include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
+#include "corArgs/corArgs.h"                          // corArgsAdd, corArgsStatus, CorArg, CORARGS_SEPARATOR, CORARGS_END
 #include "corArgs/corArgsInit.h"                      // corArgInfoV
-#include "corLog/corLog.h"                            // COR_I
+#include "corLog/corLog.h"                            // COR_I, COR_X
 
 #include "db/DbDriver.h"                              // DbDriver, DbRegisterFunc, db
 #include "troe/TroeDriver.h"                          // TroeDriver, TroeRegisterFunc, troe
@@ -360,4 +361,82 @@ int pluginLoadBridges(const char* commaList, char* errorBuf, int errorBufSize)
   }
 
   return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginArgsAdd -
+//
+void pluginArgsAdd(CorArg* argV)
+{
+  CorArgsStatus ks = corArgsAdd(argV);
+
+  if (ks != CorArgsOk)
+    COR_X(1, "a plugin's options: %s", corArgsStatus(ks));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginSeparatedArgsAdd - a plugin's options under a separator line: "<kind> (<alias>) plugin options:"
+//
+static void pluginSeparatedArgsAdd(const char* kind, const char* alias, CorArg* argV, char* sepText, int sepTextSize, CorArg* sepArgV)
+{
+  if (alias != NULL)
+    snprintf(sepText, sepTextSize, "%s (%s) plugin options:", kind, alias);
+  else
+    snprintf(sepText, sepTextSize, "%s plugin options:", kind);
+
+  sepArgV[0]             = (CorArg) CORARGS_SEPARATOR(NULL);
+  sepArgV[1]             = (CorArg) CORARGS_END;
+  sepArgV[0].description = sepText;
+
+  pluginArgsAdd(sepArgV);
+  pluginArgsAdd(argV);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginStoresLoad -
+//
+bool pluginStoresLoad(const char* dbName, const char* troeName)
+{
+  static char    dbSepText[128];
+  static char    troeSepText[128];
+  static CorArg  dbSepArgV[2];
+  static CorArg  troeSepArgV[2];
+  char           errBuf[1024];
+  bool           error = false;
+
+  //
+  // DB plugin (dlopen + dbRegister, no DB connection yet)
+  //
+  if (pluginLoadDb(dbName, errBuf, sizeof(errBuf)) != 0)
+  {
+    fprintf(stderr, "%s\n", errBuf);
+    error = true;
+  }
+  else if (db.args != NULL)
+    pluginSeparatedArgsAdd("Database", db.alias, db.args, dbSepText, sizeof(dbSepText), dbSepArgV);
+
+  //
+  // TRoE plugin (dlopen + troeRegister, no connection yet)
+  //
+  if (pluginLoadTroe(troeName, errBuf, sizeof(errBuf)) != 0)
+  {
+    fprintf(stderr, "%s\n", errBuf);
+    error = true;
+  }
+  else if (troe.args != NULL)
+    pluginSeparatedArgsAdd("TRoE", troe.alias, troe.args, troeSepText, sizeof(troeSepText), troeSepArgV);
+
+  corPluginArgUpdate("--database", "db/currentState");
+  pluginTroeArgUpdate();
+
+  return error;
 }

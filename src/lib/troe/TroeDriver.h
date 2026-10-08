@@ -88,6 +88,15 @@ typedef struct TroeEvent
   CorNode*           entitySnapshot;
 
   struct TroeEvent*  next;
+
+  //
+  // An imported instance (src/lib/migrate, coraine-import) keeps the identity and the creation time it
+  // had in the store it came from: instanceId and createdAtNs. NULL / 0 for every live write - the
+  // plugin then generates the id and takes createdAt from modifiedAtNs, as always. Last in the
+  // struct: a plugin built against an older header never reads them.
+  //
+  const char*        instanceId;
+  uint64_t           createdAtNs;
 } TroeEvent;
 
 
@@ -349,7 +358,24 @@ typedef struct TroeDriver
 
   TroeVersionInfoFunc               versionInfo;
   TroeDumpInfoFunc                  dumpInfo;       // dev/test only — NULL for prod plugins
+
+  //
+  // historyImport - history that comes from another store (coraine-import, doc/migration.md): the
+  // events written AS THEY ARE - the instanceId, createdAtNs and modifiedAtNs they carry, the times
+  // in their snapshots - and nothing else recorded for them. For a plugin that takes no live events
+  // (--troe corDB records history at its own write sites); a plugin without it is given the import's
+  // events through eventList / entityEvent / attrEvent. Last in the struct: a plugin built against
+  // an older header never sets it.
+  //
+  TroeEventListFunc                 historyImport;
 } TroeDriver;
+
+//
+// TROE_DRIVER_HISTORY_IMPORT - this header has TroeDriver.historyImport and TroeEvent.instanceId /
+// createdAtNs: a plugin in a repo of its own (corDB) builds its import against it and leaves the import
+// out against an older header
+//
+#define TROE_DRIVER_HISTORY_IMPORT
 
 
 

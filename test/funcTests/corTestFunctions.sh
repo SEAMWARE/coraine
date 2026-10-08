@@ -8,6 +8,7 @@
 # to wait on instead (doc/testing.md, "Functional tests never read the log").
 #
 export COR_BROKER="${COR_BROKER:-coraine}"        # broker from PATH (installed via make di)
+export COR_IMPORT="${COR_IMPORT:-coraine-import}" # the migration importer, ditto (doc/migration.md)
 export COR_DB_NAME="${COR_DB_NAME:-corTest}"
 #
 # Where MongoDB is. The port has always been overridable; the HOST was assumed to
@@ -80,6 +81,106 @@ corRoleLookup() {
 
 # -----------------------------------------------------------------------------
 #
+# corStoreArgs <role> [params...] - the store options of a role (the DB plugin, the TRoE plugin and
+# their options) followed by the params - what coraineStart and coraineImport put on a command line,
+# so an import goes exactly where the next coraineStart reads. Printed; 1 on an unknown store.
+#
+corStoreArgs() {
+  local role="$1"
+  shift
+  local -a extraParams=("$@")
+  local args=""
+
+  # Current-state DB plugin
+  case "$COR_DB_TYPE" in
+    mongoc) args="$args --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
+    corDB)  args="$args --database $COR_PLUGIN_DIR/db/currentState/corDB.so"
+            #
+            # Every corDB broker is persistent, each role in a directory of its own - as with MongoDB, a
+            # (re)start KEEPS what is there and corDbDrop empties it: a test that stops and starts its
+            # broker finds its data, on corDB as on mongoc. A test that names its own --dbDir keeps it.
+            #
+            if ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-dbDir'; then
+              args="$args --dbDir $(corDbDir "$role")"
+            fi
+            ;;
+    ramDB)  args="$args --database $COR_PLUGIN_DIR/db/currentState/ramDB.so" ;;   # corDB in RAM only: no --dbDir, no history
+    NONE)   ;;  # compiled-in default
+    *)      echo "corStoreArgs: unknown -db type: $COR_DB_TYPE"; return 1 ;;
+  esac
+
+  #
+  # TRoE store. -troeDb corDB: a test's "--troe timescale" runs as "--troe corDB" - the history
+  # inside the corDB store, so the temporal tests written against timescale check corDB's history
+  # with the same expectations. Needs -db corDB (--troe corDB is the corDB store's own) - checked
+  # only where a rewrite happens: a test that starts on its own database (the ring tests: ramDB,
+  # --troe ramDB) is left as it is.
+  #
+  case "$COR_TROE_DB_TYPE" in
+    NONE|"") ;;  # compiled-in default or unset
+    corDB)   local i
+             for i in "${!extraParams[@]}"; do
+               if [ "${extraParams[$i]}" == "timescale" ] && [ "$i" -gt 0 ] && [[ "${extraParams[$((i-1))]}" =~ ^-?-troe$ ]]; then
+                 if [ "$COR_DB_TYPE" != "corDB" ]; then echo "corStoreArgs: -troeDb corDB needs -db corDB"; return 1; fi
+                 extraParams[$i]="corDB"
+               fi
+             done
+             ;;
+    *)       echo "corStoreArgs: unknown -troeDb type: $COR_TROE_DB_TYPE"; return 1 ;;
+  esac
+
+  # Timescale TRoE convenience: when a test asks for "--troe timescale" without
+  # naming the DB, derive the role-keyed name (corh_<role>) — the same name
+  # corTroeInit/corTroeDrop create/drop — and add --troeUser. Tests that pass an
+  # explicit --troeName keep full control.
+  if printf '%s\n' "${extraParams[@]}" | grep -qx 'timescale' && \
+     ! printf '%s\n' "${extraParams[@]}" | grep -qx -- '--troeName'; then
+    extraParams+=(--troeName "$(corTroeDbName "$role")" --troeUser "$COR_TROE_USER" --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT")
+  fi
+
+  if [ ${#extraParams[@]} -gt 0 ]; then
+    args="$args ${extraParams[*]}"
+  fi
+
+  echo "$args"
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
+# coraineImport [-role <role>] --file <stream> [params...] - coraine-import (doc/migration.md) into the
+# stores of a role, as coraineStart would start the broker on them
+#
+# It runs in the foreground: its report (stderr - the refused records and the counts) is the test's
+# output, its log (stdout) goes to the role's log file, and its exit code is the function's.
+#
+coraineImport() {
+  local role="CB"
+  local -a extraParams
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" == "-role" ]; then role="$2"; shift
+    else extraParams+=("$1")
+    fi
+    shift
+  done
+
+  corRoleLookup "$role" || return 1
+
+  local cmd="$COR_IMPORT"
+  [ -n "$COR_TRACE_LEVELS" ] && cmd="$cmd --traceLevels $COR_TRACE_LEVELS"
+
+  local storeArgs
+  storeArgs=$(corStoreArgs "$role" "${extraParams[@]}") || { echo "$storeArgs"; return 1; }
+
+  $cmd $storeArgs 2>&1 > "/tmp/coraine-import.${role}.log"
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
 # coraineStart [-role <role>] [extra-broker-params...]
 #
 # Usage:  coraineStart
@@ -113,57 +214,12 @@ coraineStart() {
   #
   [ -n "$COR_TRACE_LEVELS" ] && cmd="$cmd --traceLevels $COR_TRACE_LEVELS"
 
-  # Current-state DB plugin
-  case "$COR_DB_TYPE" in
-    mongoc) cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbName $COR_ROLE_DB_PREFIX --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT" ;;
-    corDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/corDB.so"
-            #
-            # Every corDB broker is persistent, each role in a directory of its own - as with MongoDB, a
-            # (re)start KEEPS what is there and corDbDrop empties it: a test that stops and starts its
-            # broker finds its data, on corDB as on mongoc. A test that names its own --dbDir keeps it.
-            #
-            if ! printf '%s\n' "${extraParams[@]}" | grep -qxE -- '-?-dbDir'; then
-              cmd="$cmd --dbDir $(corDbDir "$role")"
-            fi
-            ;;
-    ramDB)  cmd="$cmd --database $COR_PLUGIN_DIR/db/currentState/ramDB.so" ;;   # corDB in RAM only: no --dbDir, no history
-    NONE)   ;;  # compiled-in default
-    *)      echo "coraineStart: unknown -db type: $COR_DB_TYPE"; return 1 ;;
-  esac
-
   #
-  # TRoE store. -troeDb corDB: a test's "--troe timescale" runs as "--troe corDB" - the history
-  # inside the corDB store, so the temporal tests written against timescale check corDB's history
-  # with the same expectations. Needs -db corDB (--troe corDB is the corDB store's own) - checked
-  # only where a rewrite happens: a test that starts on its own database (the ring tests: ramDB,
-  # --troe ramDB) is left as it is.
+  # The stores - the DB and TRoE plugins and their options - and the test's own parameters
   #
-  case "$COR_TROE_DB_TYPE" in
-    NONE|"") ;;  # compiled-in default or unset
-    corDB)   local i
-             for i in "${!extraParams[@]}"; do
-               if [ "${extraParams[$i]}" == "timescale" ] && [ "$i" -gt 0 ] && [[ "${extraParams[$((i-1))]}" =~ ^-?-troe$ ]]; then
-                 if [ "$COR_DB_TYPE" != "corDB" ]; then echo "coraineStart: -troeDb corDB needs -db corDB"; return 1; fi
-                 extraParams[$i]="corDB"
-               fi
-             done
-             ;;
-    *)       echo "coraineStart: unknown -troeDb type: $COR_TROE_DB_TYPE"; return 1 ;;
-  esac
-
-  # Timescale TRoE convenience: when a test asks for "--troe timescale" without
-  # naming the DB, derive the role-keyed name (corh_<role>) — the same name
-  # corTroeInit/corTroeDrop create/drop — and add --troeUser. Tests that pass an
-  # explicit --troeName keep full control.
-  if printf '%s\n' "${extraParams[@]}" | grep -qx 'timescale' && \
-     ! printf '%s\n' "${extraParams[@]}" | grep -qx -- '--troeName'; then
-    extraParams+=(--troeName "$(corTroeDbName "$role")" --troeUser "$COR_TROE_USER" --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT")
-  fi
-
-  # Append test-specific extra params
-  if [ ${#extraParams[@]} -gt 0 ]; then
-    cmd="$cmd ${extraParams[*]}"
-  fi
+  local storeArgs
+  storeArgs=$(corStoreArgs "$role" "${extraParams[@]}") || { echo "$storeArgs"; return 1; }
+  cmd="$cmd $storeArgs"
 
   #
   # COR_TRANSPORT=cor: every broker also serves cor://, on its HTTP port + 1000 - where corCurl looks

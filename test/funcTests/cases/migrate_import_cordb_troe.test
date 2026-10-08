@@ -1,0 +1,492 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# FILE            migrate_import_cordb_troe.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraine-import (doc/migration.md) into corDB with its history inside it (--troe corDB): the stream's
+# history written as it is - the source's instanceIds, createdAt, modifiedAt and observedAt - and
+# nothing recorded on top of it for the current state the import writes (corDB records history at its
+# own write sites; the import's are not). P1 has no history in the stream: it gets the history a create
+# writes - its created event at its createdAt, its attribute as it is, at its own times, an instanceId
+# generated.
+#
+# The history is in corDB's history log: a restarted broker reads it back the same. A second import of
+# the stream is refused - the entities are there, and a history batch would repeat instanceIds.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+Migration import into corDB with --troe corDB - the source's history as it was, nothing on top
+
+--TAGS--
+migrate troe
+
+--INIT--
+corDbDrop
+rm -rf /tmp/corTest-migrate-cordb
+mkdir -p /tmp/corTest-migrate-cordb
+cp "$REPO_ROOT"/test/funcTests/fixtures/migrate/orionld-stream.ndjson /tmp/corTest-migrate-cordb/
+
+--RUN--
+
+#
+# 01. Import the stream into corDB, history and all (--troe corDB)
+# 02. Start the broker on the migrated store
+# 03. GET the history of V1 - the source's instanceIds and times, nothing more
+# 04. GET the history of V9 - deleted, its history kept
+# 05. GET the history of R1 in tenant t1
+# 06. GET the history of P1 - none in the stream: the created row
+# 07. Restart the broker - the history comes back from corDB's history log
+# 08. GET the history of V1 again - the same
+# 09. Import the stream again - the entities are there, the history batches would repeat instanceIds: all refused
+# 10. GET the history of V1 - unchanged
+#
+
+D=/tmp/corTest-migrate-cordb
+
+echo "01. Import the stream into corDB, history and all (--troe corDB)"
+echo "================================================================"
+coraineImport --troe corDB --file $D/orionld-stream.ndjson
+echo "exit code: $?"
+echo
+echo
+
+
+echo "02. Start the broker on the migrated store"
+echo "=========================================="
+coraineStart --troe corDB
+echo "started"
+echo
+echo
+
+
+echo "03. GET the history of V1 - the source's instanceIds and times, nothing more"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs'
+echo
+echo
+
+
+echo "04. GET the history of V9 - deleted, its history kept"
+echo "====================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V9?options=sysAttrs'
+echo
+echo
+
+
+echo "05. GET the history of R1 in tenant t1"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Room:R1?options=sysAttrs' -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "06. GET the history of P1 - none in the stream: the created row"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Parking:P1?options=sysAttrs'
+echo
+echo
+
+
+echo "07. Restart the broker - the history comes back from corDB's history log"
+echo "========================================================================"
+coraineStop
+coraineStart --troe corDB
+echo "restarted"
+echo
+echo
+
+
+echo "08. GET the history of V1 again - the same"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs'
+echo
+echo
+
+
+echo "09. Import the stream again - the entities are there, the history batches would repeat instanceIds: all refused"
+echo "==============================================================================================================="
+coraineStop
+coraineImport --troe corDB --file $D/orionld-stream.ndjson
+echo "exit code: $?"
+echo
+echo
+
+
+echo "10. GET the history of V1 - unchanged"
+echo "====================================="
+coraineStart --troe corDB
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Vehicle:V1?options=sysAttrs'
+echo
+echo
+
+
+--EXPECT--
+01. Import the stream into corDB, history and all (--troe corDB)
+================================================================
+import of /tmp/corTest-migrate-cordb/orionld-stream.ndjson:
+  entities                        3 imported,      0 refused
+  subscriptions                   3 imported,      0 refused
+  registrations                   1 imported,      0 refused
+  temporal entity events          4 imported,      0 refused
+  temporal instances              8 imported,      0 refused
+  created rows (history)          1 written,       0 failed
+exit code: 0
+
+
+02. Start the broker on the migrated store
+==========================================
+started
+
+
+03. GET the history of V1 - the source's instanceIds and times, nothing more
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1806
+
+{
+  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "isParked": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0004",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "type": "Relationship"
+    }
+  ],
+  "location": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0003",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "speed": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "observedAt": "2024-01-02T03:00:00Z",
+      "source": {
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z",
+        "type": "Property",
+        "value": "radar"
+      },
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 40
+    },
+    {
+      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
+      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 42
+    }
+  ],
+  "temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "datasetId": "urn:ngsi-ld:dataset:engine",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0005",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. GET the history of V9 - deleted, its history kept
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 684
+
+{
+  "createdAt": "2024-01-02T03:04:06Z",
+  "deletedAt": "2024-02-02T03:04:05.456000Z",
+  "id": "urn:ngsi-ld:Vehicle:V9",
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "name": [
+    {
+      "createdAt": "2024-01-02T03:04:06Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0006",
+      "modifiedAt": "2024-01-02T03:04:06Z",
+      "type": "Property",
+      "value": "it's gone"
+    },
+    {
+      "createdAt": "2024-01-20T00:00:00Z",
+      "deletedAt": "2024-01-20T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0007",
+      "modifiedAt": "2024-01-20T00:00:00Z",
+      "type": "Property",
+      "value": "urn:ngsi-ld:null"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. GET the history of R1 in tenant t1
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 401
+
+{
+  "createdAt": "2024-01-05T00:00:00Z",
+  "https://example.org/temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0101",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21.5
+    }
+  ],
+  "id": "urn:ngsi-ld:Room:R1",
+  "modifiedAt": "2024-01-05T00:00:00Z",
+  "type": "https://example.org/Room"
+}
+
+
+
+06. GET the history of P1 - none in the stream: the created row
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX([0-9]+)
+
+{
+  "createdAt": "2024-01-05T00:00:00Z",
+  "https://example.org/v1.0/capacity": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "instanceId": "REGEX(urn:ngsi-ld:Instance:[0-9a-f]+:[0-9a-f]{4,})",
+      "modifiedAt": "2024-01-06T00:00:00Z",
+      "type": "Property",
+      "value": 100
+    }
+  ],
+  "id": "urn:ngsi-ld:Parking:P1",
+  "modifiedAt": "2024-01-06T00:00:00Z",
+  "type": "https://example.org/Parking"
+}
+
+
+
+07. Restart the broker - the history comes back from corDB's history log
+========================================================================
+restarted
+
+
+08. GET the history of V1 again - the same
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1806
+
+{
+  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "isParked": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0004",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "type": "Relationship"
+    }
+  ],
+  "location": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0003",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "speed": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "observedAt": "2024-01-02T03:00:00Z",
+      "source": {
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z",
+        "type": "Property",
+        "value": "radar"
+      },
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 40
+    },
+    {
+      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
+      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 42
+    }
+  ],
+  "temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "datasetId": "urn:ngsi-ld:dataset:engine",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0005",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+09. Import the stream again - the entities are there, the history batches would repeat instanceIds: all refused
+===============================================================================================================
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:1: registration: 'urn:ngsi-ld:ContextSourceRegistration:R1': registration 'urn:ngsi-ld:ContextSourceRegistration:R1' already exists
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:2: subscription: 'urn:ngsi-ld:Subscription:S1': subscription 'urn:ngsi-ld:Subscription:S1' already exists
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:3: subscription: 'urn:ngsi-ld:Subscription:S2': subscription 'urn:ngsi-ld:Subscription:S2' already exists
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:4: entity: 'urn:ngsi-ld:Vehicle:V1' already exists in the target
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:5: entity: 'urn:ngsi-ld:Parking:P1' already exists in the target
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:6: subscription: 'urn:ngsi-ld:Subscription:S3': subscription 'urn:ngsi-ld:Subscription:S3' already exists
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:7: entity: 'urn:ngsi-ld:Room:R1' already exists in the target
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:8-18: history: the batch of 10 events was not written by the TRoE plugin 'corDB' (see its log)
+/tmp/corTest-migrate-cordb/orionld-stream.ndjson:18-19: history: the batch of 2 events was not written by the TRoE plugin 'corDB' (see its log)
+import of /tmp/corTest-migrate-cordb/orionld-stream.ndjson:
+  entities                        0 imported,      3 refused
+  subscriptions                   0 imported,      3 refused
+  registrations                   0 imported,      1 refused
+  temporal entity events          0 imported,      4 refused
+  temporal instances              0 imported,      8 refused
+exit code: 1
+
+
+10. GET the history of V1 - unchanged
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1806
+
+{
+  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "id": "urn:ngsi-ld:Vehicle:V1",
+  "isParked": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0004",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "object": "urn:ngsi-ld:Parking:P1",
+      "type": "Relationship"
+    }
+  ],
+  "location": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0003",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          13.4,
+          52.5
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "speed": [
+    {
+      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
+      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "observedAt": "2024-01-02T03:00:00Z",
+      "source": {
+        "createdAt": "2024-01-02T03:04:05.123Z",
+        "modifiedAt": "2024-01-02T03:04:05.123Z",
+        "type": "Property",
+        "value": "radar"
+      },
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 40
+    },
+    {
+      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
+      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "observedAt": "2024-02-02T03:03:20Z",
+      "type": "Property",
+      "unitCode": "KMH",
+      "value": 42
+    }
+  ],
+  "temperature": [
+    {
+      "createdAt": "2024-01-05T00:00:00Z",
+      "datasetId": "urn:ngsi-ld:dataset:engine",
+      "instanceId": "urn:ngsi-ld:attribute:instance:a-0005",
+      "modifiedAt": "2024-01-05T00:00:00Z",
+      "type": "Property",
+      "value": 21
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf /tmp/corTest-migrate-cordb
