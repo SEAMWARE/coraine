@@ -1,0 +1,118 @@
+#
+# FILE            query_response_budget_off.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --maxResponseSize 0: no byte budget. Seven entities of ~300 000 bytes (2.1 MB) come
+# back on one page, an entity of ~1 200 000 bytes comes back, and orderBy reads the
+# whole set - none of which the default 32 MiB budget would stop either; with
+# --maxResponseSize 1 each of them is a short page or a 403
+# (query_response_budget_page.test, query_response_budget_refused.test).
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+Byte budget of an entity query - --maxResponseSize 0 is no budget
+
+--TAGS--
+query pagination orderBy
+
+--INIT--
+corDbDrop
+coraineStart --maxResponseSize 0
+
+--RUN--
+#
+# page - GET a page, show its status, count and pagination Link headers and the ids it holds
+#
+page() {
+  corCurl --url "$1" > /tmp/budgetPage.out 2>&1
+  python3 - <<'EOF'
+import json
+txt = open('/tmp/budgetPage.out').read()
+head, _, body = txt.partition('\n\n')
+lines = head.split('\n')
+print(lines[0])
+for l in lines[1:]:
+  k = l.split(':', 1)[0].lower()
+  if k == 'ngsild-results-count' or (k == 'link' and 'rel="next"' in l):
+    print(l)
+ids = [e['id'] for e in json.loads(body)] if body.strip().startswith('[') else []
+print('ids:', ' '.join(ids))
+EOF
+}
+
+echo "01. Create seven entities of ~300 000 bytes each, and one of ~1 200 000 bytes"
+echo "============================================================================="
+for i in 1 2 3 4 5 6 7; do
+  python3 -c "import json; print(json.dumps({'id':'urn:B:$i','type':'Blob','name':{'type':'Property','value':'n$((8 - i))'},'blob':{'type':'Property','value':'A'*300000}}))" > /tmp/budgetEntity.json
+  corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+done
+python3 -c "import json; print(json.dumps({'id':'urn:Huge:1','type':'Huge','blob':{'type':'Property','value':'A'*1200000}}))" > /tmp/budgetEntity.json
+corCurl --url /ngsi-ld/v1/entities --payload /tmp/budgetEntity.json | grep '^HTTP/1.1 2'
+\rm -f /tmp/budgetEntity.json
+echo
+echo
+
+
+echo "02. GET type=Blob, limit=100, count=true - all seven, no next link"
+echo "=================================================================="
+page '/ngsi-ld/v1/entities?type=Blob&limit=100&count=true'
+echo
+echo
+
+
+echo "03. GET type=Huge - the entity of ~1 200 000 bytes"
+echo "=================================================="
+page '/ngsi-ld/v1/entities?type=Huge'
+echo
+echo
+
+
+echo "04. GET type=Blob&orderBy=name&limit=3 - ordered over all seven"
+echo "==============================================================="
+page '/ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=3'
+\rm -f /tmp/budgetPage.out
+echo
+echo
+
+
+--EXPECT--
+01. Create seven entities of ~300 000 bytes each, and one of ~1 200 000 bytes
+=============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET type=Blob, limit=100, count=true - all seven, no next link
+==================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 7
+ids: urn:B:1 urn:B:2 urn:B:3 urn:B:4 urn:B:5 urn:B:6 urn:B:7
+
+
+03. GET type=Huge - the entity of ~1 200 000 bytes
+==================================================
+HTTP/1.1 200 OK
+ids: urn:Huge:1
+
+
+04. GET type=Blob&orderBy=name&limit=3 - ordered over all seven
+===============================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=3&offset=3>;rel="next";type="application/json"
+ids: urn:B:7 urn:B:6 urn:B:5
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+\rm -f /tmp/budgetPage.out /tmp/budgetEntity.json

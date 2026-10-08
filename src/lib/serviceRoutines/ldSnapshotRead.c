@@ -32,6 +32,9 @@
 
 #include "db/DbDriver.h"                                 // db, DB_OK, DB_NOT_FOUND
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
+#if COR_FEATURE_RESPONSE_BUDGET
+#include "serviceRoutines/responseBudget.h"               // responseBudgetBytes, responseBudgetRefused, responseBudgetFetched, responseBudgetLinkHeader
+#endif
 #include "db/Tenant.h"                                   // Tenant
 
 #include "serviceRoutines/ldSnapshotRead.h"              // Own interface
@@ -155,6 +158,9 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
   filter.limit  = (corNgsild.limit > 0) ? corNgsild.limit + 1 : 0;
   filter.offset = corNgsild.offset;
   filter.count  = corNgsild.count;
+#if COR_FEATURE_RESPONSE_BUDGET
+  filter.maxBytes = responseBudgetBytes;   // the byte budget, as on the live tenant (getEntities.c)
+#endif
 
   CorNode* arrayP = NULL;
   int rc = db.entityQuery(snapTenantP, &filter, &arrayP);
@@ -164,14 +170,25 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
     return true;
   }
 
+#if COR_FEATURE_RESPONSE_BUDGET
+  if (responseBudgetRefused(&filter, arrayP, false))
+    return true;
+
+  int budgetFetched = filter.budgetHit ? responseBudgetFetched(arrayP) : 0;   // where the store stopped
+#endif
+
   if (corNgsild.orderByV != NULL && corNgsild.orderByCount > 0)
     ldOrderSort(arrayP, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
+#if COR_FEATURE_RESPONSE_BUDGET
+  responseBudgetLinkHeader(&filter, arrayP, hasMore, budgetFetched);   // a page the budget ended: next where it stopped
+#else
   if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
+#endif
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {

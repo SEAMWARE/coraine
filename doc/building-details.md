@@ -156,7 +156,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These seven remove code from the broker and are covered by the test suite:**
+**These eight remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -167,6 +167,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_SNAPSHOT_WRITE=OFF` | 568 bytes | a write naming a Snapshot (`NGSILD-Snapshot`) answers 422 - snapshots are read-only |
 | `COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS=OFF` | 1,491 bytes | `/subscriptions` naming a Snapshot (`NGSILD-Snapshot`) answers 422 for a write; a read lists the live tenant's. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is |
 | `COR_FEATURE_HEALTH=OFF` | 5,312 bytes (and 432 from `mongoc.so`, 782 from `timescale.so`) | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
+| `COR_FEATURE_RESPONSE_BUDGET=OFF` | 2,035 bytes (and 138 from `mongoc.so`; `corDB.so`, built in its own repository, keeps its count, which nothing then turns on) | no `--maxResponseSize` - an entity query has no byte budget ([Response size](installation.md#response-size)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

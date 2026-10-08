@@ -68,6 +68,9 @@
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
 #endif
+#if COR_FEATURE_RESPONSE_BUDGET
+#include "serviceRoutines/responseBudget.h"           // responseBudgetBytes, responseBudgetRefused, responseBudgetFetched, responseBudgetLinkHeader
+#endif
 #include "serviceRoutines/getEntities.h"             // Own interface
 
 
@@ -1709,6 +1712,14 @@ bool getEntities(void)
   filter.offset   = brokerPaginates ? 0 : corNgsild.offset;
   filter.count    = brokerPaginates ? false : corNgsild.count;
 
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget (--maxResponseSize): the store stops fetching before the
+  // entity that would pass it. A second bound beside limit, not a value of it.
+  //
+  filter.maxBytes = responseBudgetBytes;
+#endif
+
   //
   // § 7.6.2.2 sort-by-distance: an orderBy "<geoprop>;dist-asc|dist-desc" term
   // ranks entities by distance from ?orderFrom to <geoprop>. It needs orderFrom
@@ -1762,6 +1773,20 @@ bool getEntities(void)
       ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error querying entities");
     return true;
   }
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The budget spent: a shorter page (the Link header below says where it
+  // stopped) - unless not even the first entity fitted, or this query needs the
+  // whole matching set (orderBy orders it before paginating, an EntityMap
+  // freezes it), where a part of it would be a wrong answer.
+  //
+  if (responseBudgetRefused(&filter, arrayP, brokerPaginates || corNgsild.entityMapCreate))
+    return true;
+
+  // Where the store stopped, before anything is filtered out of the page (only read when the budget ended it)
+  int budgetFetched = filter.budgetHit ? responseBudgetFetched(arrayP) : 0;
+#endif
 
   //
   // § 5.2.4 transient Entities: drop any whose entity-level expiresAt has
@@ -1869,8 +1894,17 @@ bool getEntities(void)
         splitFilter.idV       = filter.idV;
         splitFilter.idPattern = filter.idPattern;
         splitFilter.limit     = 1000000;
+#if COR_FEATURE_RESPONSE_BUDGET
+        splitFilter.maxBytes  = responseBudgetBytes;
+#endif
         arrayP = NULL;
         db.entityQuery((Tenant*) corNgsild.tenantP, &splitFilter, &arrayP);
+#if COR_FEATURE_RESPONSE_BUDGET
+        // Every local entity with these ids, assembled with the sources' parts - a part of it is a wrong answer
+        if (responseBudgetRefused(&splitFilter, arrayP, true))
+          return true;
+        filter.budgetHit = false;   // the page is cut from all of them now, by limit alone
+#endif
         srcMapStampLocalFrom(srcMap, arrayP);
       }
 
@@ -2401,6 +2435,11 @@ bool getEntities(void)
       lastFilter.count  = false;
       arrayP = NULL;
       db.entityQuery((Tenant*) corNgsild.tenantP, &lastFilter, &arrayP);
+#if COR_FEATURE_RESPONSE_BUDGET
+      // The last entity alone does not fit
+      if (responseBudgetRefused(&lastFilter, arrayP, false))
+        return true;
+#endif
     }
   }
 
@@ -2434,8 +2473,12 @@ bool getEntities(void)
     orderBySkip(arrayP, corNgsild.offset);
 
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
+#if COR_FEATURE_RESPONSE_BUDGET
+  responseBudgetLinkHeader(&filter, arrayP, hasMore, budgetFetched);   // a page the budget ended: next where it stopped
+#else
   if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
     ldPaginationLinkHeader(hasMore);
+#endif
 
   //
   // Apply pick/omit attribute projection (or the legacy attrs alias)

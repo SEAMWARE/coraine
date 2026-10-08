@@ -82,6 +82,33 @@ typedef struct DbQueryFilter
   char          errDetail[512];  // human-readable detail from the storage layer
                                  // (sized to fit mongo's bson_error_t.message,
                                  // which is 504 bytes)
+
+  //
+  // maxBytes - the byte budget of the fetch (--maxResponseSize; 0 = none)
+  //
+  // The plugin adds up an estimate of each entity's size AS IT FETCHES IT
+  // (mongoc: the BSON document's length, corDB: the rendered size of the stored
+  // entity) and stops before the entity that would take the sum past maxBytes.
+  // It never skips one to take a smaller one after it - the page stays a prefix
+  // of the result set, so the next page can start where this one stopped.
+  //
+  // A second, independent bound beside `limit`, not a value of it: whichever
+  // binds first ends the page. totalCount is unaffected - it counts every match.
+  //
+  int64_t maxBytes;   // input: 0 = no budget
+  bool    budgetHit;  // OUTPUT: the fetch stopped because the next entity did not fit
+                      //         (the entities returned are the array's length)
 } DbQueryFilter;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// DB_QUERY_FILTER_MAX_BYTES - this header has DbQueryFilter.maxBytes and DbQueryFilter.budgetHit
+//
+// A plugin built outside this tree (corDB) tests it, so it builds against a coraine
+// with and without them.
+//
+#define DB_QUERY_FILTER_MAX_BYTES
 
 #endif  // DB_DBQUERYFILTER_H_

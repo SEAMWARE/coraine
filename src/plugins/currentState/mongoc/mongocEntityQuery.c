@@ -1751,8 +1751,32 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
   CorNode*      arrayP = corTreeArray(corRest.kallocP, NULL);
   const bson_t* doc;
 
+#if COR_FEATURE_RESPONSE_BUDGET
+  //
+  // The byte budget (DbQueryFilter.maxBytes): each document's BSON length, counted
+  // BEFORE it is turned into a tree - the tree is the memory the budget is there
+  // to bound. The page ends before the document that does not fit, so it stays a
+  // prefix of the result set, and the cursor is read no further.
+  //
+  int64_t maxBytes = (filterP != NULL) ? filterP->maxBytes : 0;
+  int64_t bytes    = 0;
+#endif
+
   while (mongoc_cursor_next(cursorP, &doc))
   {
+#if COR_FEATURE_RESPONSE_BUDGET
+    if (maxBytes > 0)
+    {
+      if (bytes + doc->len > maxBytes)
+      {
+        filterP->budgetHit = true;
+        break;
+      }
+
+      bytes += doc->len;
+    }
+#endif
+
     CorNode* entityP = mongocEntityBsonToTree(&corRest.kalloc, doc);
     corTreeChildAdd(arrayP, entityP);
   }
