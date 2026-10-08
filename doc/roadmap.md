@@ -51,19 +51,22 @@ Bridges and Channels are coraine's own mechanism, not a standard: the concept go
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
 coraine implements its own objects now and adapts to whatever TC DATA settles on.
 
+## In progress
+
+-   **linux/arm64** - every image for amd64 and arm64 under one tag (arm64 without the DDS bridge), and
+    the whole functional suite on native ARM runners every night. The images are published for both
+    architectures; the nightly ARM job passes the whole suite on both stores and is being merged.
+-   **Migrating from Orion-LD** - a converter for its database (`coraine-import`, its own executable on the broker's libraries); later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
+-   **A memory budget and admission control** - a broker that refuses work instead of being killed for it
+    (Kubernetes' OOM killer).
+
 ## Short term
 
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **linux/arm64** - every image for amd64 and arm64 under one tag (arm64 without the DDS bridge), and
-    the whole functional suite on native ARM runners every night. Underway: the images are built and
-    published from the next merge on, the nightly job is being brought up.
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
--   **Migrating from Orion-LD** - a converter for its database; later, the ETSI neutral export format. ([more](ideas.md#migrating-from-orion-ld))
--   **A memory budget and admission control** - a broker that refuses work instead of being killed for it
-    (Kubernetes' OOM killer).
 -   **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity. ([more](ideas.md#cordb-persistence---cheaper-writes))
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
     what it is told to (entities, attributes - subscription-shaped). ([more](ideas.md#cordb-history-retention-and-a-selector))
