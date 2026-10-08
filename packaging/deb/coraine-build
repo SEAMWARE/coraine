@@ -150,14 +150,26 @@ case "$MODE" in
   release) make -C "$C" "${MK[@]}" release;  B=$C/BUILD_RELEASE ;;
   debug)   make -C "$C" "${MK[@]}" debug;    B=$C/BUILD_DEBUG ;;
   pgo|tune)
-    # the tools the training drives (corTestClient, corRequest) - the Cor-Libs umbrella builds them into
-    # corLibs/bin; `all`, never `install`, which would write plugins to /opt/seamware
+    # the tools the training drives (corTestClient, corRequest; corJson) into corLibs/bin, where
+    # pgoTrain.sh and perfRun.sh look: the umbrella's `all` builds them, corTools' and corJson's own
+    # `install` copies them into their bin/ (nothing else), install-local gathers them. Never the
+    # umbrella's `install`: it would write plugins to /opt/seamware
     make -C "$DIR/corLibs" BUILD=release all
+    make -C "$DIR/corTools" BUILD=release install
+    make -C "$DIR/corJson" BUILD=release install
+    make -C "$DIR/corLibs" install-local
+    for t in corTestClient corRequest; do
+      [ -x "$DIR/corLibs/bin/$t" ] || die "--$MODE: $t was not built - the training needs it"
+    done
     if [ "$MODE" = pgo ]; then
-      make -C "$C" "${MK[@]}" PGO_RESTORE_DEBUG=0 pgo
+      make -C "$C" "${MK[@]}" PGO_RESTORE_DEBUG=0 pgo 2>&1 | tee "$DIR/pgo.log"
     else
-      (cd "$C" && make "${MK[@]}" PGO_RESTORE_DEBUG=0 tune WORKLOAD="$WORKLOAD")
+      (cd "$C" && make "${MK[@]}" PGO_RESTORE_DEBUG=0 tune WORKLOAD="$WORKLOAD") 2>&1 | tee "$DIR/pgo.log"
       "$C/test/perf/tune/tuneEnv.py" "$C/tune-result.json" > "$INST/etc/tune.env"
+    fi
+    # pgoTrain.sh goes on after a part of the training fails (the profile is then partial) - not here
+    if grep 'pgoTrain: .*failed' "$DIR/pgo.log"; then
+      die "a part of the training failed - the profile would lack it (the output above, $DIR/pgo.log)"
     fi
     # corDB's plugins: installed into PLUGIN_DIR by the profile-use pass of `make pgo` itself
     B=$C/BUILD_PGO ;;
