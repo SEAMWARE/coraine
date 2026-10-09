@@ -89,7 +89,7 @@ broker: gone
 reports: 1
 === coraine crashed: SIGSEGV (11) ===
 version:      REGEX(\d+\.\d+\.\d+\S* \((Debug|Release|Coverage)\))
-command line: coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026REGEX(( --[a-zA-Z]+ \S+)+)
+command line: REGEX((\S*/)?coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026( --[a-zA-Z]+ \S+)+)
 request:      (none - the crash was not in a request)
 stack:
 build id: the binary's own
