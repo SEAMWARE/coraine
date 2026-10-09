@@ -38,7 +38,7 @@ option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (N
 option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
 option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
-option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query paginated past its first page - local or distributed - freezes its set of matches and serves its pages from it (--entityMapMemory)" ON)
+option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query of more than one page - distributed by default, local too with --autoEntityMaps all - freezes its set of matches and serves its pages from it (--entityMapMemory)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for

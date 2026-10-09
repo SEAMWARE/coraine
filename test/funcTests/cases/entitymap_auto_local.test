@@ -21,6 +21,9 @@
 # and orderBy on an attribute's value - ordering by values needs the values frozen, which is a
 # Snapshot, not an EntityMap.
 #
+# Automatic maps for local queries are --autoEntityMaps all - the default (distributed) leaves a
+# local query to offset/limit paging (entitymap_auto_local_default).
+#
 # The number of maps the broker holds is read from /admin/metrics: following the links does not
 # create a second map (roadmap § 13.2).
 #
@@ -34,7 +37,7 @@ entity entitymap entityMap pagination query
 
 --INIT--
 corDbDrop
-coraineStart --apiPlugins admin
+coraineStart --apiPlugins admin --autoEntityMaps all
 
 --RUN--
 

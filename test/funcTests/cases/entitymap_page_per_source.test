@@ -1,0 +1,183 @@
+#
+# FILE            entitymap_page_per_source.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A page of an EntityMap fetches its entities ONE request per source: the local ones in one call to the
+# store, and those of each Context Source the map recorded in one GET /entities?type=..&id=a,b,c to
+# that source - all sources in parallel - not one GET /entities/{id} per entity. The answers go back
+# in the map's order; an entity a source no longer has is not on the page.
+#
+# Counted on the sources: their GET /entities and GET /entities/{id} requests (/admin/metrics,
+# ngsild_entity_query_total and ngsild_entity_retrieve_total) before and after each page.
+#
+# REQUIRE_FEATURE: REGISTRATIONS METRICS ADMIN_API
+#
+--NAME--
+A page of an EntityMap: one request per Context Source, not one per entity
+
+--TAGS--
+entity entitymap entityMap pagination query distop
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities --apiPlugins admin
+coraineStart -role CP2 --noSplitEntities --apiPlugins admin
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
+
+#
+# counters <port> - a source's entity queries and retrieves so far
+#
+counters()
+{
+  corCurl --port $1 --url /admin/metrics --out raw | grep -a -E '^ngsild_entity_(query|retrieve)_total' | awk '{ printf "%s=%s ", $1, $2 }'
+}
+
+#
+# delta <before> <after> - "<n> queries, <m> retrieves" between two counters() readings
+#
+delta()
+{
+  python3 -c '
+import sys
+def p(s): return dict(kv.split("=") for kv in s.split())
+a, b = p(sys.argv[1]), p(sys.argv[2])
+q = float(b.get("ngsild_entity_query_total", 0)) - float(a.get("ngsild_entity_query_total", 0))
+r = float(b.get("ngsild_entity_retrieve_total", 0)) - float(a.get("ngsild_entity_retrieve_total", 0))
+print("%d entity queries, %d entity retrieves" % (q, r))' "$1" "$2"
+}
+
+ids()
+{
+  tr -d '\r' | sed -n '/^\[/,$p' | python3 -c 'import sys, json; print(" ".join([e["id"] for e in json.load(sys.stdin)]))'
+}
+
+
+echo "01. Vehicles: L1..L4 on the broker, A1..A6 on CP1, B1..B6 on CP2"
+echo "================================================================="
+for i in 1 2 3 4; do corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L'$i'","type":"Vehicle","n":{"type":"Property","value":'$i'}}' | head -1; done
+for i in 1 2 3 4 5 6; do corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:A'$i'","type":"Vehicle","n":{"type":"Property","value":'$i'}}' | head -1; done
+for i in 1 2 3 4 5 6; do corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:B'$i'","type":"Vehicle","n":{"type":"Property","value":'$i'}}' | head -1; done
+echo
+echo
+
+
+echo "02. Two inclusive registrations, CP1 and CP2, for Vehicle"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. The map: type=Vehicle, entityMap=true - 16 entities"
+echo "======================================================="
+MAP_ID=$(corCurl --url "/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&count=true&limit=2" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|')
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&count=true&limit=1" | tr -d '\r' | grep -i '^NGSILD-Results-Count'
+echo "the map's order: $(corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=16&options=keyValues" | ids)"
+echo
+echo
+
+
+echo "04. A page of 10 across all three (offset 3): one entity query to each source, no retrieves"
+echo "==========================================================================================="
+C1=$(counters $CP1_PORT); C2=$(counters $CP2_PORT)
+echo "page: $(corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=10&offset=3&options=keyValues" | ids)"
+echo "CP1: $(delta "$C1" "$(counters $CP1_PORT)")"
+echo "CP2: $(delta "$C2" "$(counters $CP2_PORT)")"
+echo
+echo
+
+
+echo "05. A2 is deleted on CP1 - the same page: A2 is not on it, the others in the map's order"
+echo "========================================================================================"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:A2 -X DELETE | head -1
+C1=$(counters $CP1_PORT); C2=$(counters $CP2_PORT)
+echo "page: $(corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=10&offset=3&options=keyValues" | ids)"
+echo "CP1: $(delta "$C1" "$(counters $CP1_PORT)")"
+echo "CP2: $(delta "$C2" "$(counters $CP2_PORT)")"
+echo
+echo
+
+
+echo "06. A page of local entities only: no request to any source"
+echo "==========================================================="
+C1=$(counters $CP1_PORT); C2=$(counters $CP2_PORT)
+echo "page: $(corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=2&offset=0&options=keyValues" | ids)"
+echo "CP1: $(delta "$C1" "$(counters $CP1_PORT)")"
+echo "CP2: $(delta "$C2" "$(counters $CP2_PORT)")"
+echo
+echo
+
+
+--EXPECT--
+01. Vehicles: L1..L4 on the broker, A1..A6 on CP1, B1..B6 on CP2
+=================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Two inclusive registrations, CP1 and CP2, for Vehicle
+=========================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. The map: type=Vehicle, entityMap=true - 16 entities
+=======================================================
+NGSILD-Results-Count: 16
+the map's order: urn:L1 urn:L2 urn:L3 urn:L4 urn:A1 urn:A2 urn:A3 urn:A4 urn:A5 urn:A6 urn:B1 urn:B2 urn:B3 urn:B4 urn:B5 urn:B6
+
+
+04. A page of 10 across all three (offset 3): one entity query to each source, no retrieves
+===========================================================================================
+page: urn:L4 urn:A1 urn:A2 urn:A3 urn:A4 urn:A5 urn:A6 urn:B1 urn:B2 urn:B3
+CP1: 1 entity queries, 0 entity retrieves
+CP2: 1 entity queries, 0 entity retrieves
+
+
+05. A2 is deleted on CP1 - the same page: A2 is not on it, the others in the map's order
+========================================================================================
+HTTP/1.1 204 No Content
+page: urn:L4 urn:A1 urn:A3 urn:A4 urn:A5 urn:A6 urn:B1 urn:B2 urn:B3
+CP1: 1 entity queries, 0 entity retrieves
+CP2: 1 entity queries, 0 entity retrieves
+
+
+06. A page of local entities only: no request to any source
+===========================================================
+page: urn:L1 urn:L2
+CP1: 0 entity queries, 0 entity retrieves
+CP2: 0 entity queries, 0 entity retrieves
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

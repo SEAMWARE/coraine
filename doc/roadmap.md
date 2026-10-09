@@ -705,6 +705,20 @@ used automatic ones giving way. A split-entity distributed query over the byte b
 a map instead of refused. `COR_FEATURE_AUTO_ENTITY_MAP` (ON). Tests: entitymap_auto_local,
 entitymap_auto_distributed, entitymap_requested_pages.
 
+**Changed** (2026-10-09, before 0.5.0): automatic maps for LOCAL queries are off by default -
+`--autoEntityMaps none|distributed|all`, default `distributed`. Measured
+([performance.md](performance.md#what-automatic-entitymaps-cost)): an automatic local map cost the
+first page of a query with more than `limit` matches 75-95 % of its requests/s on MongoDB and 82-99.6 %
+on corDB (the ids-only query walks every match - corDB has no type index), and filled the 64 MiB of
+the maps with maps nobody paged. A distributed query keeps its map: there is no other correct second
+page. A local client that wants a frozen set asks for it (`?entityMap=true`). The pages of a map fetch
+their local entities in one call to the store (`db.entityBulkRetrieve`) instead of one retrieve each.
+A local query's links page by POSITION (`pageAfter` / `pageBefore` = `<createdAt>,<id>` of the page's
+last / first entity, [Pagination](installation.md#pagination)): no skip and no repeat when entities are
+deleted or stop matching between pages, and a deep page as cheap as the first (an index range on
+MongoDB, the id index on corDB) - what a frozen set gave a local query, without its cost. A client's
+own `offset` pages as before.
+
 ---
 
 ### 14. Functests that FOLLOW the pagination links

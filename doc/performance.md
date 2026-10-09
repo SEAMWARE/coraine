@@ -1322,6 +1322,217 @@ tables above (one core, PGO, MongoDB on the host network and pinned), and not to
 One run of the commit before, in this session, ended at the delete pool's fill (`curl` exit 52, an empty
 reply) and was run again; the runs of `main` did not.
 
+### What automatic EntityMaps cost
+
+Since #298 (roadmap § 13) a local `GET /ngsi-ld/v1/entities` whose first page (`offset` 0, no `orderBy`) has more
+matches than `limit` also scans the ids of every match and stores them as an EntityMap (`--entityMapMemory`,
+default 64 MiB, least recently used first out); the pages after it are served from the map
+([EntityMaps](installation.md#entitymaps)). Measured 2026-10-09 12:09-13:21.
+
+| | |
+|---|---|
+| Builds | A = `2fcadbb3` (`main` before #298) with corNgsild `078215d`, corDB `41e9232`; B = `f73ee184` (#298) with corNgsild `e86fb5b`, corDB `51d0cd3`; every other library at its `main`. Release, every library release, no `COR_T_ON` marker; the release `admin.so` loaded in both (for `/metrics`) |
+| Machine | AMD Ryzen 9 8940HX, governor `powersave`, idle states deep |
+| Placement | broker on CPUs 0-1, wrk on 2-7, MongoDB 8.2.12 (container, port mapping) pinned to 8-15 and their siblings - the broker-isolated view of "The new index and writes" |
+| Stores | perfRun's: the 100-entity fixture; 100 000 entities, 1 % type `Rare`; 300 000 entities, 1 % type R1 and 0.1 % type R01. A fresh database per store, a fresh broker before every scenario (no map carried over). corDB with `--dbDir` on the local NVMe disk |
+| Load | perfRun's request shapes, 50 connections unless noted, 10 s x 5 per scenario, a run's figure the median of its repeats |
+| Runs | mongoc A, mongoc B, corDB A, corDB B, mongoc A (stopped there: the differences are many times the spread) |
+
+wrk asks every request at `offset` 0 again - the first page, many times, which is what an application polling
+a query does. Nothing asks for page two, so on B every one of those requests made a map that nobody used.
+
+**mongoc**, requests/s (A: mean of two runs ± their sd; B: one run), p99, CPU per request:
+
+| requests/s | A (before #298) | B (`main`, automatic EntityMaps) | B vs A | p99 ms, A / B | broker CPU µs/request, A / B | MongoDB CPU µs/request, A / B |
+|---|---:|---:|---:|---:|---:|---:|
+| query `limit=1` | 33 882 ± 3.2 % | 3 152 | -90.7 % | 2.98 / 42.03 | 59 / 413 | 148 / 287 |
+| query `limit=20` | 11 652 ± 0.3 % | 2 954 | -74.6 % | 6.85 / 46.58 | 171 / 519 | 142 / 303 |
+| query `limit=20`, c200 | 11 754 ± 2.5 % | 2 921 | -75.1 % | 19.98 / 98.56 | 170 / 529 | 143 / 304 |
+| query `limit=100` (one page: no map) | 3 194 ± 3.9 % | 3 239 | +1.4 % | 32.47 / 29.59 | 626 / 617 | 256 / 255 |
+| `GET /entities/{id}` | 39 610 ± 2.8 % | 40 247 | +1.6 % | 2.95 / 2.86 | 51 / 49 | 61 / 61 |
+| `PATCH`, c50 (control) | 21 400 ± 1.9 % | 21 536 | +0.6 % | 3.24 / 3.19 | 94 / 93 | 258 / 252 |
+| 100 000, 1 % type: `limit=20` | 11 695 ± 1.2 % | 2 225 | -81.0 % | 6.75 / 28.01 | 171 / 378 | 148 / 3531 |
+| 100 000, 1 %: `limit=100` | 3 292 ± 1.8 % | 2 099 | -36.2 % | 30.08 / 29.22 | 608 / 889 | 276 / 3726 |
+| 100 000, 1 %: `offset=500` (no map) | 7 328 ± 5.5 % | 7 601 | +3.7 % | 9.88 / 9.55 | 197 / 190 | 1157 / 1053 |
+| 100 000, 1 %: `offset=500` - B through the first page's map | 7 326 ± 5.6 % | 3 843 | -47.5 % | 9.89 / 16.65 | 192 / 521 | 1160 / 1350 |
+| 300 000, 1 % type: `limit=20` | 11 894 ± 2.0 % | 574 | -95.2 % | 6.68 / 106.07 | 168 / 580 | 148 / 22590 |
+| 300 000, 1 %: `offset=1000` (no map) | 3 964 ± 0.4 % | 3 123 | -21.2 % | 17.73 / 20.09 | 186 / 181 | 2135 / 5097 |
+| 300 000, 0.1 % type: `limit=20` | 11 908 ± 2.2 % | 5 113 | -57.1 % | 6.70 / 14.88 | 168 / 376 | 151 / 1892 |
+| 300 000, 0.1 %: `offset=200` (no map) | 11 396 ± 0.9 % | 11 460 | +0.6 % | 6.84 / 6.75 | 175 / 174 | 346 / 343 |
+
+**corDB** (`--dbDir`), one run each:
+
+| requests/s | A (before #298) | B (`main`, automatic EntityMaps) | B vs A | p99 ms, A / B | broker CPU µs/request, A / B |
+|---|---:|---:|---:|---:|---:|
+| query `limit=1` | 153 855 | 9 070 | -94.1 % | 0.38 / 6.51 | 13 / 138 |
+| query `limit=20` | 22 656 | 4 001 | -82.3 % | 2.53 / 14.48 | 88 / 348 |
+| query `limit=20`, c200 | 22 498 | 4 067 | -81.9 % | 9.42 / 55.74 | 89 / 345 |
+| query `limit=100` (one page: no map) | 5 075 | 5 102 | +0.5 % | 10.36 / 11.06 | 394 / 392 |
+| `GET /entities/{id}` | 169 745 | 173 549 | +2.2 % | 0.32 / 0.31 | 12 / 12 |
+| `PATCH`, c50 (control) | 182 338 | 180 195 | -1.2 % | 0.47 / 0.44 | 11 / 11 |
+| 100 000, 1 % type: `limit=20` | 16 181 | 232 | -98.6 % | 3.31 / 284.44 | 123 / 8541 |
+| 100 000, 1 %: `limit=100` | 3 617 | 221 | -93.9 % | 14.49 / 299.00 | 553 / 8977 |
+| 100 000, 1 %: `offset=500` (no map) | 932 | 920 | -1.3 % | 62.48 / 67.42 | 2139 / 2253 |
+| 100 000, 1 %: `offset=500` - B through the first page's map | 869 | 21 832 | +2412.3 % | 65.70 / 2.59 | 2308 / 91 |
+| 300 000, 1 % type: `limit=20` | 16 372 | 66 | -99.6 % | 3.25 / 1298.46 | 122 / 30082 |
+| 300 000, 1 %: `offset=1000` (no map) | 236 | 241 | +2.1 % | 287.12 / 268.39 | 8530 / 8306 |
+| 300 000, 0.1 % type: `limit=20` | 4 975 | 66 | -98.7 % | 10.64 / 1299.22 | 402 / 30360 |
+| 300 000, 0.1 %: `offset=200` (no map) | 107 | 108 | +0.9 % | 739.82 / 735.77 | 18585 / 18535 |
+
+The deep page "through the first page's map": on B, the first page's `Link: rel="next"` (`?entityMap=<id>&...`) with
+its `offset` set to 500, asked repeatedly - a page served from the map; on A (no map) the plain `offset=500` query.
+
+**The EntityMap store after each scenario** (B; `ngsild_entity_map_store_size` and `ngsild_entity_map_bytes` from
+`/metrics`) and the broker's RSS, mongoc:
+
+| after | ngsild_entity_map_store_size | ngsild_entity_map_bytes | RSS A, MiB | RSS B, MiB |
+|---|---:|---:|---:|---:|
+| query `limit=1` | 8 995 | 67 102 700 | 49 | 114 |
+| query `limit=20` | 8 993 | 67 087 780 | 54 | 128 |
+| query `limit=20`, c200 | 8 994 | 67 100 511 | 78 | 134 |
+| query `limit=100` (one page: no map) | 0 | 0 | 77 | 71 |
+| `GET /entities/{id}` | 0 | 0 | 49 | 48 |
+| 100 000, 1 % type: `limit=20` | 903 | 67 052 265 | 56 | 142 |
+| 100 000, 1 %: `limit=100` | 903 | 67 052 516 | 89 | 175 |
+| 100 000, 1 %: `offset=500` (no map) | 0 | 0 | 55 | 55 |
+| 100 000, 1 %: `offset=500` - B through the first page's map | 1 | 74 255 | 55 | 52 |
+| 300 000, 1 % type: `limit=20` | 299 | 67 051 049 | 60 | 162 |
+| 300 000, 1 %: `offset=1000` (no map) | 0 | 0 | 53 | 52 |
+| 300 000, 0.1 % type: `limit=20` | 2 950 | 67 106 600 | 57 | 147 |
+| 300 000, 0.1 %: `offset=200` (no map) | 0 | 0 | 57 | 57 |
+
+corDB:
+
+| after | ngsild_entity_map_store_size | ngsild_entity_map_bytes | RSS A, MiB | RSS B, MiB |
+|---|---:|---:|---:|---:|
+| query `limit=1` | 8 995 | 67 102 700 | 17 | 77 |
+| query `limit=20` | 8 995 | 67 102 700 | 18 | 76 |
+| query `limit=20`, c200 | 8 995 | 67 102 700 | 22 | 81 |
+| query `limit=100` (one page: no map) | 0 | 0 | 18 | 18 |
+| `GET /entities/{id}` | 0 | 0 | 17 | 17 |
+| 100 000, 1 % type: `limit=20` | 902 | 66 978 010 | 208 | 284 |
+| 100 000, 1 %: `limit=100` | 903 | 67 052 265 | 209 | 284 |
+| 100 000, 1 %: `offset=500` (no map) | 0 | 0 | 209 | 209 |
+| 100 000, 1 %: `offset=500` - B through the first page's map | 1 | 74 255 | 209 | 208 |
+| 300 000, 1 % type: `limit=20` | 299 | 67 051 049 | 590 | 670 |
+| 300 000, 1 %: `offset=1000` (no map) | 0 | 0 | 591 | 591 |
+| 300 000, 0.1 % type: `limit=20` | 2 949 | 67 083 852 | 590 | 677 |
+| 300 000, 0.1 %: `offset=200` (no map) | 0 | 0 | 591 | 591 |
+
+- **Every first page with more matches than `limit` costs 36-99.6 %** of its throughput: mongoc `limit=1` 33 882 ->
+  3 152, `limit=20` 11 652 -> 2 954; the 1 % type of the 300 000-entity store 11 894 -> 574; corDB `limit=1` 153 855
+  -> 9 070, `limit=20` 22 656 -> 4 001, the 1 % type of 300 000 16 372 -> 66 (p99 3.3 ms -> 1.3 s, 30 ms of broker
+  CPU per request). The scan of every match is paid on every first page; the map store stays at its 64 MiB cap
+  (~9 000 maps of ~7.5 KB for 100 matches, ~900 of ~74 KB for 1 000, ~300 of ~224 KB for 3 000), and the broker's RSS
+  grows by 60-90 MiB.
+- **Unchanged** where no map is made: a query of one page (`limit=100` over 100 matches), retrieve, `PATCH` (the
+  control), and a query starting at another `offset` - within ±4 % on both stores, but one: mongoc, the 1 % type of
+  300 000 at `offset=1000`, −21.2 % (3 964 -> 3 123), MongoDB CPU per request 2 135 -> 5 097 µs. Not B's: A and B send
+  MongoDB the same command for it, and on one store they answer it at the same rate - each run here built its own
+  store, and the same query's cost differs from one such store to the next by that much (see the next section).
+- **A page through the map**: corDB ×25 (869 -> 21 832 requests/s for `offset=500` of the 1 % type) - corDB's own
+  deep `offset` is a scan, the map is a slice; mongoc −47.5 % (7 326 -> 3 843) - the page fetched its 20 entities
+  with 20 queries, one after the other (broker CPU 192 -> 521 µs, MongoDB CPU 1 160 -> 1 350 µs per request).
+
+**Conclusion:** as merged, automatic EntityMaps cost every first page of a query with more matches than `limit`
+36-99.6 % of its throughput, on both stores, and pay off only for a client that pages deep on corDB.
+
+### What automatic EntityMaps cost - and the fix
+
+The fix (branch `fix/entitymap-cost`):
+
+- **No automatic map for a local query** by default: `--autoEntityMaps none|distributed|all` (default
+  `distributed` - a distributed query has no correct second page without one); `entityMap=true` and
+  `/entityMaps` as before ([EntityMaps](installation.md#entitymaps)).
+- **A page of a map fetches its entities one call per source**: the local ones in one call to the store
+  (`db.entityBulkRetrieve` - MongoDB one `{_id: {$in: [...]}}` query, corDB the id index under one read lock), each
+  Context Source's in one `GET /entities?type=..&id=a,b,c` (all sources in parallel) - not one fetch per entity.
+- **A local query pages by position** ([Pagination](installation.md#pagination)): its links name the page's last /
+  first entity (`pageAfter` / `pageBefore` = `<createdAt>,<id>`), and the store reads from there - MongoDB an index
+  range on `{type, createdAt, _id}` (`explain()`: no `SKIP`, no `SORT`, 22 keys and 22 documents for a page of 20 at
+  depth 1 000 of the 1 % type of 300 000), corDB the walk from that entity (the id index).
+
+Measured 2026-10-09 15:26-16:40.
+
+| | |
+|---|---|
+| Builds | A = `2fcadbb3` and B = `f73ee184` as above; C = `fix/entitymap-cost` `260e3e27` with corNgsild `72b8894`, corDB `cb3a3e1`, every other library as B. Release, every library release; the release `admin.so` loaded (for `/metrics`) |
+| Machine, placement | as above: broker on CPUs 0-1, wrk on 2-7, MongoDB 8.2.12 pinned to 8-15 and their siblings |
+| Stores | the same three, corDB with `--dbDir` on the local NVMe disk - but **each store created once** (by A) and every variant measured on it, scenario by scenario, the order of A / B / C rotating from one scenario to the next. The runs above built a store per variant, and the cost of the same MongoDB query differs from one freshly built store to the next by more than the differences looked for here (below) |
+| Load | 10 s x 5 per scenario and variant, a fresh broker before each, a run's figure the median of its repeats; 50 connections |
+| Runs | mongoc twice (the mean, ± half the spread of the two), corDB once |
+| Deep pages | by `offset` (A, B, C - C pages a client's own `offset` as A does); through a map the client asked for (`entityMap=true`, then the map's page at `offset=500` - not A: its requested map froze `limit` + 1 ids); by position (C: the first page's `next` followed 25 / 50 times, then that page asked repeatedly) |
+
+**mongoc**
+
+| requests/s | A (before #298) | B (#298) | C (the fix) | C vs A | p99 ms A / B / C | broker CPU µs/request A / B / C | MongoDB CPU µs/request A / B / C |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| query `limit=1` (100 entities) | 30 920 ± 2.2 % | 3 042 ± 2.3 % | 30 164 ± 3.1 % | -2.4 % | 3.51 / 42.51 / 3.31 | 65 / 430 / 66 | 216 / 353 / 211 |
+| query `limit=20` (100 entities) | 11 354 ± 2.0 % | 2 802 ± 1.0 % | 11 192 ± 3.1 % | -1.4 % | 7.06 / 49.23 / 7.23 | 176 / 537 / 179 | 185 / 372 / 184 |
+| 100 000, 1 % type: first page `limit=20` | 11 440 ± 1.7 % | 2 032 ± 4.8 % | 11 381 ± 1.6 % | -0.5 % | 7.09 / 30.55 / 6.92 | 175 / 395 / 176 | 192 / 4269 / 191 |
+| 100 000, 1 %: `offset=500` | 6 914 ± 4.5 % | 6 498 ± 5.0 % | 6 143 ± 10.8 % | -11.2 % | 10.39 / 10.98 / 11.81 | 199 / 203 / 205 | 1284 / 1509 / 1852 |
+| 100 000, 1 %: depth 500 through a requested map (`entityMap=true`, then its page at `offset=500`) | - | 3 098 ± 1.9 % | 11 056 ± 1.2 % | +59.9 % vs A at `offset` | - / 20.22 / 7.43 | - / 646 / 181 | - / 2630 / 213 |
+| 100 000, 1 %: depth 500 by position (`next` followed 25 times: `pageAfter`) | - | - | 10 972 ± 0.4 % | ×1.6 vs A at `offset` | - / - / 7.31 | - / - / 182 | - / - / 251 |
+| 300 000, 1 % type: first page `limit=20` | 11 340 ± 0.4 % | 558 ± 0.6 % | 11 393 ± 1.0 % | +0.5 % | 7.14 / 109.59 / 6.99 | 176 / 594 / 176 | 195 / 28458 / 190 |
+| 300 000, 1 %: `offset=1000` | 3 396 ± 0.1 % | 3 546 ± 0.8 % | 3 485 ± 2.8 % | +2.6 % | 20.27 / 19.51 / 19.85 | 192 / 194 / 194 | 3178 / 2783 / 2965 |
+| 300 000, 1 %: depth 1 000 by position (`pageAfter`) | - | - | 11 301 ± 0.2 % | ×3.3 vs A at `offset` | - / - / 7.02 | - / - / 177 | - / - / 250 |
+
+**corDB**
+
+| requests/s | A (before #298) | B (#298) | C (the fix) | C vs A | p99 ms A / B / C | broker CPU µs/request A / B / C |
+|---|---:|---:|---:|---:|---:|---:|
+| query `limit=1` (100 entities) | 149 804 | 8 854 | 142 819 | -4.7 % | 0.39 / 7.26 / 0.39 | 13 / 140 / 14 |
+| query `limit=20` (100 entities) | 21 776 | 3 992 | 21 582 | -0.9 % | 2.28 / 16.54 / 2.37 | 92 / 352 / 93 |
+| 100 000, 1 % type: first page `limit=20` | 15 498 | 226 | 15 562 | +0.4 % | 3.70 / 288.38 / 3.44 | 129 / 8752 / 129 |
+| 100 000, 1 %: `offset=500` | 837 | 907 | 921 | +10.0 % | 73.75 / 64.53 / 65.92 | 2390 / 2207 / 2172 |
+| 100 000, 1 %: depth 500 through a requested map (`entityMap=true`, then its page at `offset=500`) | - | 21 576 | 21 380 | +2454.4 % vs A at `offset` | - / 2.46 / 2.48 | - / 92 / 93 |
+| 100 000, 1 %: depth 500 by position (`next` followed 25 times: `pageAfter`) | - | - | 15 549 | ×18.6 vs A at `offset` | - / - / 3.33 | - / - / 129 |
+| 300 000, 1 % type: first page `limit=20` | 16 222 | 69 | 16 018 | -1.3 % | 3.52 / 1242.84 / 3.31 | 123 / 29116 / 125 |
+| 300 000, 1 %: `offset=1000` | 247 | 240 | 243 | -1.6 % | 256.63 / 274.23 / 269.83 | 8099 / 8349 / 8236 |
+| 300 000, 1 %: depth 1 000 by position (`pageAfter`) | - | - | 15 958 | ×64.6 vs A at `offset` | - / - / 3.45 | - / - / 125 |
+
+The 100-entity first pages again (17:00-17:15), after the links stopped copying a value that has nothing to encode
+(corNgsild `605255d`; C = coraine `ba00921a`, which also fetches a map page's remote entities per source), two runs
+of each store, the store again shared by A, B and C:
+
+| requests/s | A | B | C | C vs A | broker CPU µs/request A / B / C |
+|---|---:|---:|---:|---:|---:|
+| mongoc, query `limit=1` | 31 808 ± 0.8 % | 3 098 ± 0.6 % | 31 058 ± 0.6 % | -2.4 % | 63 / 423 / 64 |
+| mongoc, query `limit=20` | 11 538 ± 0.0 % | 2 840 ± 0.5 % | 11 406 ± 0.6 % | -1.1 % | 173 / 531 / 175 |
+| corDB, query `limit=1` | 154 156 ± 0.9 % | 8 470 ± 29.2 % | 151 214 ± 1.1 % | -1.9 % | 13 / 156 / 13 |
+| corDB, query `limit=20` | 22 636 ± 0.1 % | 4 263 ± 10.8 % | 22 497 ± 0.0 % | -0.6 % | 88 / 336 / 89 |
+
+What is left on `limit=1` (-2 %, ~0.3 µs of a 13 µs request on corDB) is the position link: the page's last
+entity's `createdAt` and id, and the link built from them.
+
+The maps: B holds 64 MiB of them after every first-page scenario (~9 000, ~900 and ~300 maps) and its RSS is
+60-105 MiB above A's; C makes none (`ngsild_entity_map_store_size` 0, RSS as A's), but the one a client asks for.
+
+- **Every first page is back at A**: mongoc within -2.4 % ... +0.5 % (the spread of the two runs is 1-3 %), corDB
+  within -1.9 % ... +0.4 % (`limit=1` -4.7 % in the one full run, -1.9 % in the two runs after it).
+  B: -75 % to -95 % on mongoc, -82 % to -99.6 % on corDB.
+- **A deep page by position costs what the first page costs**: mongoc 10 972 (depth 500) and 11 301 requests/s
+  (depth 1 000) against 6 914 and 3 396 by `offset` (×1.6, ×3.3; MongoDB CPU 250 µs per request against 1 284 and
+  3 178); corDB 15 549 and 15 958 against 837 and 247 (×18.6, ×64.6) - corDB's `offset` walks every match before
+  the page, the position starts at the page.
+- **A page through a requested map**: mongoc 3 098 -> 11 056 requests/s (MongoDB CPU 2 630 -> 213 µs per request:
+  one query for the page's 20 entities instead of 20) - now faster than the same page by `offset` (6 914); corDB
+  unchanged (21 576 / 21 380 - its retrieves by id were already one hash each).
+- **`offset` itself is unchanged**: C sends MongoDB the same command for an `offset` page as A. The 100 000 store's
+  `offset=500` on mongoc reads -11.2 % ± 10.8 % for C - MongoDB's CPU per request for it ranged over 1 284-1 852 µs
+  across the runs and variants here, all sending that one command. That is the variance behind the "-21 %" above:
+  with the profiler on (level 2) A and B send the identical `find` for the 300 000 store's `offset=1000` (filter
+  `{type: {$in: [R1]}}`, sort `{createdAt: 1, _id: 1}`, skip 1 000, limit 21; plan `IXSCAN {type, createdAt, _id}`,
+  1 021 keys, 21 documents, ~0.95 ms of CPU), and on ONE store they ran it at 3 644 and 3 645 requests/s (MongoDB CPU
+  2 702 / 2 695 µs per request) - while across three stores built the same way the same query ran at 3 100-3 650.
+- **The ids-only scan** (an automatic map with `--autoEntityMaps all`, or `entityMap=true`) reads the index alone:
+  `explain()` of the 1 % type of 300 000 - `PROJECTION_COVERED` over `IXSCAN {type, createdAt, _id}`, 3 000 keys, 0
+  documents. What it costs is the scan of every match, on every first page; an entity whose `type` is an array makes
+  the index multikey, and then every match is read whole.
+- **A map page's remote entities**, one request per Context Source: not measured (perfRun has no distributed
+  scenario); `entitymap_page_per_source` counts the sources' requests - one entity query per source per page, where
+  a page of 10 cost 6 + 3 entity retrieves before.
+
 ### What the data takes on disk
 
 perfRun's fixture entity (five attributes, ~550 bytes of JSON), created with batch creates of 500;

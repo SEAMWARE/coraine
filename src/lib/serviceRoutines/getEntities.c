@@ -6,10 +6,11 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <errno.h>                                   // errno
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
-#include <stdlib.h>                                  // free
-#include <string.h>                                  // strcmp, strlen, strcpy
+#include <stdlib.h>                                  // free, strtoll
+#include <string.h>                                  // strcmp, strlen, strcpy, memset
 
 #include "corLog/corLog.h"                           // COR_T
 #include "corAlloc/corAlloc.h"                       // corAlloc
@@ -72,7 +73,19 @@
 #if COR_FEATURE_RESPONSE_BUDGET
 #include "serviceRoutines/responseBudget.h"           // responseBudgetBytes, responseBudgetRefused, responseBudgetFetched, responseBudgetLinkHeader
 #endif
-#include "serviceRoutines/getEntities.h"             // Own interface
+#include "corNgsild/ldPagination.h"                  // ldPaginationSeekLinkHeader, ldPaginationTrim
+#include "corNgsild/ldParams.h"                      // LD_PARAM_OFFSET
+#include "serviceRoutines/getEntities.h"             // Own interface, GET_ENTITIES_PARAM_PAGE
+
+
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// autoEntityMaps - which queries get an automatic EntityMap (--autoEntityMaps, getEntities.h)
+//
+AutoEntityMaps autoEntityMaps = AutoEntityMapsDistributed;
+#endif
 
 
 
@@ -1321,7 +1334,121 @@ static void orderBySkip(CorNode* arrayP, int offset)
 
 
 
-static bool queryEntities(void);
+// -----------------------------------------------------------------------------
+//
+// PagePosition - ?pageAfter / ?pageBefore: a page that starts at a position in the default order
+//
+// The links of a local query (no orderBy) name the position of the page's last entity (next,
+// pageAfter) and of its first (prev, pageBefore) - "<createdAt>,<id>", the entity's createdAt as the
+// store holds it (an integer) and its id - instead of an offset. The next page is then the first
+// `limit` matches AFTER that entity, wherever it is by now: an entity deleted, or one that no longer
+// matches, moves no other one from its page, as it does with offset. See doc/installation.md#pagination.
+//
+typedef struct PagePosition
+{
+  int64_t     createdAt;
+  char*       id;
+  bool        before;      // pageBefore: the `limit` matches before the position
+} PagePosition;
+
+static bool queryEntities(PagePosition* posP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pageParam - the value of a URL parameter of this request, or NULL
+//
+static const char* pageParam(const char* name)
+{
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
+  {
+    if (strcmp(corRest.in.uriParamV[i].key, name) == 0)
+      return corRest.in.uriParamV[i].value;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pagePositionGet - ?pageAfter / ?pageBefore into *posP; false: none given. A malformed one, or one with
+// what it cannot go with, is 400 (*errorP true)
+//
+static bool pagePositionGet(PagePosition* posP, bool* errorP)
+{
+  *errorP = false;
+
+  if ((corRest.in.uriParamMask & GET_ENTITIES_PARAM_PAGE) == 0)
+    return false;
+
+  const char* after  = pageParam("pageAfter");
+  const char* before = pageParam("pageBefore");
+  const char* value  = (after != NULL) ? after : before;
+  const char* name   = (after != NULL) ? "pageAfter" : "pageBefore";
+  const char* why    = NULL;
+
+  if ((after != NULL) && (before != NULL))                  why = "pageAfter and pageBefore together";
+  else if (value == NULL)                                   return false;
+  else if (corRest.in.uriParamMask & LD_PARAM_OFFSET)       why = "a position and an offset together - a page starts at one or the other";
+  else if (corNgsild.orderByV != NULL)                      why = "a position with orderBy - a position is one in the default order (createdAt); an orderBy query pages by offset";
+  else if ((corNgsild.entityMapId != NULL) || corNgsild.entityMapCreate || corNgsild.entityMapOnly)
+                                                            why = "a position with an EntityMap - the pages of a map are offsets in it";
+  else if ((corNgsild.geoRel != NULL) && (corNgsild.geoRel->rel == LdGeoNear))
+                                                            why = "a position with georel=near - near orders by distance; it pages by offset";
+
+  if (why == NULL)
+  {
+    //
+    // "<createdAt>,<id>" - the digits up to the first comma, the id after it (an id may hold commas)
+    //
+    char* end = NULL;
+
+    errno         = 0;
+    posP->createdAt = strtoll(value, &end, 10);
+    posP->before  = (before != NULL);
+
+    if ((end == value) || (*end != ',') || (end[1] == 0) || (errno != 0))
+      why = "not a position given by this broker's pagination links (<createdAt>,<id>)";
+    else
+      posP->id = end + 1;
+  }
+
+  if (why != NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Page Position", "%s: %s", name, why);
+    *errorP = true;
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pageCursor - an entity's position as a pagination link names it: "<createdAt>,<id>" (NULL: it has none)
+//
+static const char* pageCursor(CorNode* entityP)
+{
+  if (entityP == NULL)
+    return NULL;
+
+  CorNode* idP = corTreeLookup(entityP, "id");
+  CorNode* cP  = corTreeLookup(entityP, "createdAt");
+
+  if ((idP == NULL) || (idP->type != CorString) || (cP == NULL) || (cP->type != CorInt))
+    return NULL;
+
+  int   size = strlen(idP->value.s) + 24;
+  char* buf  = (char*) corAlloc(&corRest.kalloc, size);
+
+  snprintf(buf, size, "%lld,%s", (long long) cP->value.i, idP->value.s);
+  return buf;
+}
 
 
 
@@ -1339,6 +1466,264 @@ static void entityMapHeader(LdEntityMap* mapP)
 
   snprintf(mapUrl, size, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
   corRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
+}
+
+
+
+static CorHashTable* idHashCreate(CorNode* arrayP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// MapSource - a Context Source of an EntityMap's page, and its entities of the page (mapSourcesFetch)
+//
+typedef struct MapSource
+{
+  const char*      regId;      // the registration the map recorded for the entities
+  LdRegCacheItem*  csr;        // pinned while the page is built; NULL: the registration is gone
+  CorNode*         arrayP;     // the entities it answered with, storage shape
+  CorHashTable*    idHashP;    // ... by id
+} MapSource;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapSourcesFetch - the page's entities of each Context Source, in ONE request per source
+//
+// A page of a map fetched its remote entities one GET /entities/{id} each - a page of 20 from one
+// source was 20 requests, one after the other. Now: the slice's entities grouped by the source the map
+// recorded for them, and each source asked for its group at once - GET /entities?type=<the map's
+// type>&id=<a,b,c>&sysAttrs=true&limit=<n>, every source in parallel (ldDistOpSendMultiMax). A group
+// that would make a long URL goes in more than one request (100 ids, or ~8 KiB of them, a request).
+//
+// The type is the map's (the selector § 10.4.3.4 asks of a query - ids alone are not one), as the
+// query that made the map asked the source; the filters are applied to the assembled entities, as
+// before. No NGSILD-EntityMap to the source: the ids ARE the frozen set, and a source asked for a page
+// of its own map pages the map. An entity a source does not answer with: not on the page, as a local
+// one that is gone.
+//
+// Returns the sources (NULL: not done - a map without a plain type list; the caller then retrieves
+// entity by entity), *nP their number. The caller unpins each csr.
+//
+static MapSource* mapSourcesFetch(LdEntityMapEntry** sliceV, int sliceN, const char* ownAlias, int* nP)
+{
+  Tenant*     tP       = (Tenant*) corNgsild.tenantP;
+  LdRegCache* rcP      = (tP != NULL) ? (LdRegCache*) tP->regCacheP : NULL;
+  int         maxSrc   = 0;
+
+  *nP = 0;
+
+  //
+  // The map's types, expanded: the request's own (typeV), or - a page that leaves the type out - the
+  // map's, as bindEntityMapFilters put it back (typeExpr). Only a plain list of types (OR): an AND of
+  // types, or a map with none, is fetched entity by entity.
+  //
+  char**    typeV = corNgsild.typeV;
+  LdTypeExpr* teP = corNgsild.typeExpr;
+
+  if ((typeV == NULL) && (teP != NULL) && teP->isSimple && (teP->groupCount > 0))
+  {
+    typeV = (char**) corAlloc(&corRest.kalloc, sizeof(char*) * (teP->groupCount + 1));
+    for (int g = 0; g < teP->groupCount; g++)
+      typeV[g] = teP->groupV[g].typeV[0];
+    typeV[teP->groupCount] = NULL;
+  }
+
+  if ((rcP == NULL) || (typeV == NULL) || (typeV[0] == NULL))
+    return NULL;
+
+  for (int i = 0; i < sliceN; i++)
+    maxSrc += sliceV[i]->sourceCount;
+
+  MapSource* srcV = (MapSource*) corAlloc(&corRest.kalloc, sizeof(MapSource) * (maxSrc + 1));
+  int        srcN = 0;
+
+  for (int i = 0; i < sliceN; i++)
+  {
+    for (int s = 0; s < sliceV[i]->sourceCount; s++)
+    {
+      const char* regId = sliceV[i]->sourceIdV[s];
+      int         ix    = 0;
+
+      if (strcmp(regId, "@none") == 0)
+        continue;
+
+      while ((ix < srcN) && (strcmp(srcV[ix].regId, regId) != 0))
+        ix++;
+
+      if (ix == srcN)
+      {
+        memset(&srcV[srcN], 0, sizeof(MapSource));
+        srcV[srcN].regId = regId;
+        srcN++;
+      }
+    }
+  }
+
+  // The registrations, pinned for the page (a DELETE during the forward frees what is not pinned)
+  ldRegCacheRdLock(rcP);
+  for (int ix = 0; ix < srcN; ix++)
+  {
+    srcV[ix].csr = ldRegCacheItemLookup(rcP, srcV[ix].regId);
+    if (srcV[ix].csr != NULL)
+      ldRegCacheItemPin(srcV[ix].csr);
+  }
+  ldRegCacheUnlock(rcP);
+
+  //
+  // The type list of the query string, once
+  //
+  int typesLen = 1;
+  for (int t = 0; typeV[t] != NULL; t++)
+    typesLen += 3 * strlen(typeV[t]) + 1;
+
+  char* types = (char*) corAlloc(&corRest.kalloc, typesLen);
+  int   tPos  = 0;
+
+  types[0] = 0;
+  for (int t = 0; typeV[t] != NULL; t++)
+    tPos += snprintf(types + tPos, typesLen - tPos, "%s%s", (t > 0) ? "," : "", corRestUrlValueEncode(typeV[t], &corRest.kalloc));
+
+  //
+  // The requests: per source, its entities of the slice in map order, 100 ids or ~8 KiB of them each
+  //
+  LdDistOpBatchItem* itemV = (LdDistOpBatchItem*) corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchItem) * (sliceN + srcN + 1));
+  int*               ownerV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * (sliceN + srcN + 1));     // item -> source
+  int                itemN = 0;
+
+  for (int ix = 0; ix < srcN; ix++)
+  {
+    if ((srcV[ix].csr == NULL) || (srcV[ix].csr->endpoint == NULL))
+      continue;
+
+    const char* endpoint = srcV[ix].csr->endpoint;
+    int         i        = 0;
+
+    while (i < sliceN)
+    {
+      int   urlSize = strlen(endpoint) + tPos + 8192 + 256;
+      char* url     = (char*) corAlloc(&corRest.kalloc, urlSize);
+      int   pos     = snprintf(url, urlSize, "%s/ngsi-ld/v1/entities?type=%s&sysAttrs=true&id=", endpoint, types);
+      int   ids     = 0;
+
+      for (; i < sliceN; i++)
+      {
+        bool fromHere = false;
+
+        for (int s = 0; s < sliceV[i]->sourceCount; s++)
+        {
+          if (strcmp(sliceV[i]->sourceIdV[s], srcV[ix].regId) == 0)
+          {
+            fromHere = true;
+            break;
+          }
+        }
+
+        if (fromHere == false)
+          continue;
+
+        const char* id  = corRestUrlValueEncode(sliceV[i]->entityId, &corRest.kalloc);
+        int         len = strlen(id);
+
+        if ((ids > 0) && ((ids == 100) || (pos + len + 32 > urlSize - 64)))
+          break;
+
+        if (pos + len + 32 > urlSize - 64)       // one id longer than the whole budget: its own request
+        {
+          int   bigSize = pos + len + 64;
+          char* bigUrl  = (char*) corAlloc(&corRest.kalloc, bigSize);
+
+          memcpy(bigUrl, url, pos + 1);
+          url     = bigUrl;
+          urlSize = bigSize;
+        }
+
+        pos += snprintf(url + pos, urlSize - pos, "%s%s", (ids > 0) ? "," : "", id);
+        ids++;
+      }
+
+      if (ids == 0)
+        break;
+
+      snprintf(url + pos, urlSize - pos, "&limit=%d", ids);
+
+      memset(&itemV[itemN], 0, sizeof(LdDistOpBatchItem));
+      itemV[itemN].csr = srcV[ix].csr;
+      itemV[itemN].url = url;
+      ownerV[itemN]    = ix;
+      itemN++;
+
+      COR_T(CtDistOpRequest, "entity map page: GET %s (%d entities)", url, ids);
+    }
+  }
+
+  if (itemN > 0)
+  {
+    LdDistOpBatchResult* resultV = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchResult) * itemN);
+
+    memset(resultV, 0, sizeof(LdDistOpBatchResult) * itemN);
+    ldDistOpSendMultiMax(itemV, itemN, CorVerbGet, ownAlias, resultV, 0);
+
+    for (int it = 0; it < itemN; it++)
+    {
+      CorNode* treeP = resultV[it].responseTree;
+
+      if ((resultV[it].statusCode < 200) || (resultV[it].statusCode >= 300) || (treeP == NULL) || (treeP->type != CorArray))
+        continue;
+
+      // The context that travels with the answer (its json-ld#context Link), else core - as the query's forwards
+      CorLdContext* respCtxP = (resultV[it].responseContextUrl != NULL) ? corLdContextFromUrl(resultV[it].responseContextUrl, &corRest.kalloc) : NULL;
+
+      if (respCtxP == NULL)
+        respCtxP = corLdCoreContext();
+
+      MapSource* msP = &srcV[ownerV[it]];
+
+      if (msP->arrayP == NULL)
+        msP->arrayP = corTreeArray(corRest.kallocP, NULL);
+
+      for (CorNode* eP = treeP->value.head; eP != NULL; )
+      {
+        CorNode* nextP = eP->next;
+
+        eP->next = NULL;
+        corLdExpandTree(eP, respCtxP, &corRest.kalloc);
+        ldStripAtContext(eP);
+        apiAttrToStorageWrap(eP);
+        ldExpiresAtPropagate(eP, corRest.kallocP);   // § 4.5.5.2, as the retrieve of one did
+        corTreeChildAdd(msP->arrayP, eP);
+
+        eP = nextP;
+      }
+    }
+
+    for (int ix = 0; ix < srcN; ix++)
+    {
+      if (srcV[ix].arrayP != NULL)
+        srcV[ix].idHashP = idHashCreate(srcV[ix].arrayP);
+    }
+  }
+
+  *nP = srcN;
+  return srcV;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapSourcesUnpin - the registrations mapSourcesFetch pinned
+//
+static void mapSourcesUnpin(MapSource* srcV, int srcN)
+{
+  for (int ix = 0; (srcV != NULL) && (ix < srcN); ix++)
+  {
+    if (srcV[ix].csr != NULL)
+      ldRegCacheItemUnpin(srcV[ix].csr);
+    srcV[ix].csr = NULL;
+  }
 }
 
 
@@ -1389,9 +1774,85 @@ static bool entityMapServe(LdEntityMap* mapP)
   //
   const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
 
-  for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
+  //
+  // The slice: the entries [offset, offset + limit) of the frozen set
+  //
+  LdEntityMapEntry*  entryP = mapP->head;
+
+  while ((entryP != NULL) && (ix < offset))
   {
-    if (ix < offset) { ix++; continue; }
+    entryP = entryP->next;
+    ix++;
+  }
+
+  LdEntityMapEntry** sliceV = (LdEntityMapEntry**) corAlloc(&corRest.kalloc, sizeof(LdEntityMapEntry*) * (limit + 1));
+  int                sliceN = 0;
+
+  for (; (entryP != NULL) && (sliceN < limit); entryP = entryP->next)
+    sliceV[sliceN++] = entryP;
+
+  //
+  // The slice's local entities, fetched in ONE call to the store (db.entityBulkRetrieve - mongoc: one
+  // query, {_id: {$in: [...]}}; corDB: one id-index lookup each, under one read lock) instead of one
+  // retrieve per entity: on mongoc a page of 20 from a map was 20 round trips to the database, slower
+  // than the same page by offset. localV[i] is the entity of sliceV[i] (NULL: not local, or gone). A
+  // store without the bulk retrieve: one retrieve per entity, below.
+  //
+  // The byte budget still ends the page as it did, entity by entity (below) - the bulk fetch has
+  // fetched the slice whole first, at most `limit` entities, as any page of a store query does.
+  //
+  CorNode** localV = NULL;
+
+  if ((db.entityBulkRetrieve != NULL) && (sliceN > 0))
+  {
+    CorNode* fragmentsP = corTreeArray(corRest.kallocP, NULL);
+    int*     fragIxV    = (int*) corAlloc(&corRest.kalloc, sizeof(int) * sliceN);    // fragment -> slice index
+    int      fragN      = 0;
+
+    for (int i = 0; i < sliceN; i++)
+    {
+      for (int s = 0; s < sliceV[i]->sourceCount; s++)
+      {
+        if (strcmp(sliceV[i]->sourceIdV[s], "@none") == 0)
+        {
+          CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
+
+          corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "id", sliceV[i]->entityId));
+          corTreeChildAdd(fragmentsP, fragP);
+          fragIxV[fragN++] = i;
+          break;
+        }
+      }
+    }
+
+    localV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * sliceN);
+    memset(localV, 0, sizeof(CorNode*) * sliceN);
+
+    if (fragN > 0)
+    {
+      CorNode** targetsV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * fragN);
+      memset(targetsV, 0, sizeof(CorNode*) * fragN);
+
+      if (db.entityBulkRetrieve(tP, fragmentsP, targetsV) == DB_OK)
+      {
+        for (int f = 0; f < fragN; f++)
+          localV[fragIxV[f]] = targetsV[f];
+      }
+      else
+        localV = NULL;     // one retrieve per entity, below
+    }
+  }
+
+  //
+  // The slice's entities of each Context Source: one request per source (mapSourcesFetch). NULL: the
+  // map has no plain type list to ask with - one retrieve per entity, below.
+  //
+  int        mapSrcN = 0;
+  MapSource* mapSrcV = (sliceN > 0) ? mapSourcesFetch(sliceV, sliceN, ownAlias, &mapSrcN) : NULL;
+
+  for (int sliceIx = 0; (sliceIx < sliceN) && (added < limit); sliceIx++)
+  {
+    entryP = sliceV[sliceIx];
 
     CorNode* mergedEntity = NULL;
 
@@ -1402,11 +1863,25 @@ static bool entityMapServe(LdEntityMap* mapP)
 
       if (strcmp(src, "@none") == 0)
       {
-        db.entityRetrieve(tP, entryP->entityId, &partialP);
+        if (localV != NULL)
+          partialP = localV[sliceIx];
+        else
+          db.entityRetrieve(tP, entryP->entityId, &partialP);
 
         // § 5.2.4: an Entity whose expiresAt has passed is gone (and deleted after the response)
         if ((partialP != NULL) && dbExpiredEntityIs(tP, partialP))
           partialP = NULL;
+      }
+      else if (mapSrcV != NULL)
+      {
+        for (int ix = 0; ix < mapSrcN; ix++)
+        {
+          if ((strcmp(mapSrcV[ix].regId, src) == 0) && (mapSrcV[ix].idHashP != NULL))
+          {
+            partialP = (CorNode*) corHashItemLookup(mapSrcV[ix].idHashP, entryP->entityId);
+            break;
+          }
+        }
       }
       else if (tP->regCacheP != NULL)
       {
@@ -1468,6 +1943,7 @@ static bool entityMapServe(LdEntityMap* mapP)
       {
         if (added == 0)
         {
+          mapSourcesUnpin(mapSrcV, mapSrcN);
           responseBudgetTooMany("the next entity of the EntityMap");
           return true;
         }
@@ -1484,9 +1960,10 @@ static bool entityMapServe(LdEntityMap* mapP)
     // else: all recorded sources failed — skip, client gets fewer
     // results than requested (§ 5.5.9 allows this).
 
-    ix++;
     added++;
   }
+
+  mapSourcesUnpin(mapSrcV, mapSrcN);
 
   // Filters on the assembled entities — § 5.7.2.4.
   applyResultFilters(arrayP);
@@ -1627,7 +2104,7 @@ static bool entityMapPaginate(void)
     corNgsild.entityMapCreate = true;
     corNgsild.entityMapAuto   = true;                // 201 only for a map the client asked to create
 
-    return queryEntities();
+    return queryEntities(NULL);
   }
 
   ldEntityMapRequestPin(mapP);     // unpinned post-response
@@ -1949,6 +2426,7 @@ static bool autoEntityMapEligible(bool brokerPaginates)
 {
   Tenant* tP = (Tenant*) corNgsild.tenantP;
 
+  if (autoEntityMaps == AutoEntityMapsNone)                           return false;
   if (ldEntityMapMaxBytes <= 0)                                       return false;
   if (corRest.in.verb != CorVerbGet)                                  return false;
   if ((tP == NULL) || (tP->entityMapStoreP == NULL))                  return false;
@@ -1978,7 +2456,7 @@ static bool autoEntityMapRound2(int headerCount)
   corNgsild.entityMapCreate = true;
   corNgsild.entityMapAuto   = true;
 
-  return queryEntities();
+  return queryEntities(NULL);
 }
 
 
@@ -2054,6 +2532,14 @@ bool getEntities(void)
   if (ldParamsValidate())
     return true;
 
+  // ?pageAfter / ?pageBefore - a page from a position (PagePosition)
+  PagePosition pos      = { 0, NULL, false };
+  bool         posError = false;
+  bool         posGiven = pagePositionGet(&pos, &posError);
+
+  if (posError)
+    return true;
+
   // geo+json: protect the geometry GeoProperty through the member projection.
   geoJsonGeomProtectSetup();
 
@@ -2068,6 +2554,13 @@ bool getEntities(void)
     if (seen)
     {
       if (snapItem == NULL) return true;            // 404 raised by helper
+
+      if (posGiven)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Page Position", "%s: a position with NGSILD-Snapshot - a Snapshot pages by offset", pos.before ? "pageBefore" : "pageAfter");
+        return true;
+      }
+
       return snapshotGetEntities(snapItem);
     }
   }
@@ -2124,7 +2617,7 @@ bool getEntities(void)
     }
   }
 
-  return queryEntities();
+  return queryEntities(posGiven ? &pos : NULL);
 }
 
 
@@ -2136,7 +2629,7 @@ bool getEntities(void)
 // Runs a second time for an AUTOMATIC EntityMap of a distributed query (autoEntityMapRound2): the
 // first run found the answer to be more than one page, the second freezes it.
 //
-static bool queryEntities(void)
+static bool queryEntities(PagePosition* posP)
 {
   //
   // Geo-query inter-parameter validation lives in ldParamsValidate now —
@@ -2203,6 +2696,19 @@ static bool queryEntities(void)
   filter.count    = filter.unpaged ? false : corNgsild.count;
   filter.idsOnly  = idsOnly;
 
+  //
+  // A page from a position (?pageAfter / ?pageBefore - PagePosition): the store reads from it, no
+  // offset. The count of the query (count=true) is the whole query's, not what follows the position:
+  // counted on its own, below.
+  //
+  if ((posP != NULL) && (corNgsild.limit > 0))
+  {
+    filter.seekId        = posP->id;
+    filter.seekCreatedAt = posP->createdAt;
+    filter.seekBefore    = posP->before;
+    filter.count         = false;
+  }
+
 #if COR_FEATURE_RESPONSE_BUDGET
   //
   // The byte budget (--maxResponseSize): the store stops fetching before the
@@ -2217,7 +2723,7 @@ static bool queryEntities(void)
   // Whether this query may get an EntityMap the client did not ask for (roadmap § 13) - decided
   // once the first page shows there is more than one (autoEntityMapLocal, autoEntityMapRound2).
   //
-  bool autoEligible = autoEntityMapEligible(brokerPaginates);
+  bool autoEligible = (posP == NULL) && autoEntityMapEligible(brokerPaginates);
   int  headerCount  = corRest.out.headerCount;    // what a second round (autoEntityMapRound2) starts over from
 #endif
 
@@ -2288,6 +2794,99 @@ static bool queryEntities(void)
   // Where the store stopped, before anything is filtered out of the page (only read when the budget ended it)
   int budgetFetched = filter.budgetHit ? responseBudgetFetched(arrayP) : 0;
 #endif
+
+  //
+  // Position links (?pageAfter / ?pageBefore, PagePosition) - for a query in the default order that
+  // the store can page by position and that the client does not page by offset itself. Whether they
+  // are used is decided at the links (a local query only); what they need is taken here, from the
+  // entities AS FETCHED - before anything is filtered out of the page, or a position would point at
+  // an entity that is not where the next page starts:
+  //
+  //   pageFirstP / pageLastP   the first and the last entity of the page
+  //   pageExtraP               the one fetched past `limit` (the store is asked for limit + 1): it
+  //                            says there is more, and is not on the page
+  //   pageMore                 more after the page (pageAfter, or a first page) / before it (pageBefore)
+  //
+  // pageBefore: the store gives the `limit` + 1 nearest the position first - turned around here.
+  //
+  bool     seekable   = filter.seekable && !brokerPaginates && !idsOnly && (corNgsild.limit > 0) &&
+                        ((corRest.in.uriParamMask & LD_PARAM_OFFSET) == 0) && (filter.distGeoproperty == NULL) &&
+                        ((filter.geoRel == NULL) || (filter.geoRel->rel != LdGeoNear));
+  CorNode* pageFirstP = NULL;
+  CorNode* pageLastP  = NULL;
+  CorNode* pageExtraP = NULL;
+  bool     pageMore   = false;
+
+  if ((posP != NULL) && (filter.seekable == false))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Page Position", "%s: the database plugin does not page by position",
+            posP->before ? "pageBefore" : "pageAfter");
+    return true;
+  }
+
+  if (seekable && (arrayP != NULL))
+  {
+    int n = arrayLength(arrayP);
+
+    if ((posP != NULL) && posP->before)
+    {
+      CorNode* prevP = NULL;
+      CorNode* eP    = arrayP->value.head;
+
+      arrayP->value.tail = eP;                     // a singly linked list, turned around in place
+
+      while (eP != NULL)
+      {
+        CorNode* nextP = eP->next;
+
+        eP->next = prevP;
+        prevP    = eP;
+        eP       = nextP;
+      }
+
+      arrayP->value.head = prevP;
+
+      if (n > corNgsild.limit)
+        pageExtraP = arrayP->value.head;           // the farthest from the position
+    }
+    else if (n > corNgsild.limit)
+    {
+      int ix = 0;
+      for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next, ix++)
+      {
+        if (ix == corNgsild.limit)
+          pageExtraP = eP;
+      }
+    }
+
+    pageMore = (pageExtraP != NULL) || filter.budgetHit;
+
+    for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
+    {
+      if (eP == pageExtraP)
+        continue;
+
+      if (pageFirstP == NULL)
+        pageFirstP = eP;
+      pageLastP = eP;
+    }
+
+    //
+    // count=true: the count of the whole query, not of what follows the position
+    //
+    if ((posP != NULL) && corNgsild.count)
+    {
+      DbQueryFilter countFilter = filter;
+      CorNode*      dummyP      = NULL;
+
+      countFilter.seekId = NULL;
+      countFilter.count  = true;
+      countFilter.limit  = 0;
+      countFilter.offset = 0;
+      db.entityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
+      filter.totalCount = countFilter.totalCount;
+    }
+  }
 
   //
   // § 5.2.4 transient Entities: drop any whose entity-level expiresAt has
@@ -2414,6 +3013,21 @@ static bool queryEntities(void)
       // so the offset-past-end clamp below does not apply (it has no single
       // result-set size N to clamp against).
       distForwarded = (totalMatch > 0);
+
+      //
+      // A position (?pageAfter / ?pageBefore) is one in THIS broker's store: the links of a query that
+      // Context Sources answer too do not give one. A query that got registrations since its first page:
+      // its pages start over.
+      //
+      if (distForwarded && (posP != NULL))
+      {
+        for (int m = 0; m < 4; m++)
+          if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Page Position",
+                "%s: a position pages a local query, and this one is distributed (registrations match) - start over from its first page",
+                posP->before ? "pageBefore" : "pageAfter");
+        return true;
+      }
 
       if (totalMatch > 0 && splitModeSetting)
       {
@@ -3081,7 +3695,7 @@ static bool queryEntities(void)
           corNgsild.entityMapCreate   = false;
           corNgsild.entityMapAuto     = false;
           corNgsild.entityMapAutoOff  = true;
-          return queryEntities();
+          return queryEntities(NULL);
         }
 #endif
         ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
@@ -3171,7 +3785,7 @@ static bool queryEntities(void)
   //
   LdEntityMap* autoMapP = NULL;
 
-  if ((autoEligible == true) && (forwardedN == 0) && (localMore == true))
+  if ((autoEligible == true) && (autoEntityMaps == AutoEntityMapsAll) && (forwardedN == 0) && (localMore == true))
   {
     autoMapP = autoEntityMapLocal(&filter);
 
@@ -3206,8 +3820,56 @@ static bool queryEntities(void)
   if (brokerPaginates)
     orderBySkip(arrayP, corNgsild.offset);
 
+  //
+  // Position links for a LOCAL query (PagePosition): the page without the entity fetched past it
+  //
+  bool seekLinks = seekable && (distForwarded == false);
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  if (autoMapP != NULL)
+    seekLinks = false;
+#endif
+
+  if (seekLinks && (pageExtraP != NULL))
+  {
+    for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
+    {
+      if (eP == pageExtraP)
+      {
+        corTreeChildRemove(arrayP, eP);
+        break;
+      }
+    }
+  }
+
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
   bool linked  = false;
+
+  if (seekLinks)
+  {
+    //
+    // next: after the page's last entity, when there is more after it (pageBefore: the page came from
+    //       before a position, so something follows - the page is never the last);
+    // prev: before the page's first entity, unless this is the first page (no position), or a
+    //       pageBefore page with nothing before it.
+    // An empty page (every entity after a position gone): no links - nothing to name a position by.
+    //
+    const char* nextCursor = NULL;
+    const char* prevCursor = NULL;
+
+    if (pageLastP != NULL)
+    {
+      bool before = (posP != NULL) && posP->before;
+
+      if (before || pageMore)
+        nextCursor = pageCursor(pageLastP);
+
+      if ((posP != NULL) && ((before == false) || pageMore))
+        prevCursor = pageCursor(pageFirstP);
+    }
+
+    ldPaginationSeekLinkHeader(GET_ENTITIES_PARAM_PAGE, "pageAfter", nextCursor, "pageBefore", prevCursor);
+    linked = true;
+  }
 
 #if COR_FEATURE_AUTO_ENTITY_MAP
   if (autoMapP != NULL)

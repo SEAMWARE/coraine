@@ -1315,6 +1315,9 @@ static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
 //
 int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP)
 {
+  if (filterP != NULL)
+    filterP->seekable = true;          // a page from a position (DbQueryFilter.seekId) - see the find below
+
   //
   // A geoquery on a GeoProperty that has no 2dsphere index matches NOTHING - the indexes are
   // driven entirely by the data (mongocGeoIndex.c), so no index means no Entity here has ever
@@ -1451,10 +1454,15 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
   // queries would overlap and skip rows. _id (the entity id) is unique, making
   // the order total and pagination deterministic.
   //
+  // A page before a position (DbQueryFilter.seekBefore) reads the order backwards, nearest first
+  //
+  bool seek       = (filterP != NULL) && (filterP->seekId != NULL);
+  int  sortDir    = (seek && filterP->seekBefore) ? -1 : 1;
+
   bson_t sort;
   bson_init(&sort);
-  BSON_APPEND_INT32(&sort, "createdAt", 1);
-  BSON_APPEND_INT32(&sort, "_id", 1);
+  BSON_APPEND_INT32(&sort, "createdAt", sortDir);
+  BSON_APPEND_INT32(&sort, "_id", sortDir);
   BSON_APPEND_DOCUMENT(&opts, "sort", &sort);
   bson_destroy(&sort);
 
@@ -1767,6 +1775,49 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
 
     cursorP = mongoc_collection_aggregate(collP, MONGOC_QUERY_NONE, &pipeline, NULL, NULL);
     bson_destroy(&pipeline);
+  }
+  else if (seek)
+  {
+    //
+    // A page from a position (DbQueryFilter.seekId): the query's filter AND the position -
+    //
+    //   after:  createdAt >= c, and not (createdAt == c and _id <= id)
+    //   before: createdAt <= c, and not (createdAt == c and _id >= id)
+    //
+    // The range on createdAt is what bounds the index scan ({type, createdAt, _id} after an equality
+    // on the type, else {createdAt, _id}); the $nor only takes out the entities that share the
+    // position's createdAt (one batch) up to the position itself. No $or at the top: an $or is
+    // planned branch by branch, and the sort then needs a merge. The filter goes in whole, as the
+    // first member of an $and - it may hold its own $or / $and / $nor.
+    //
+    bson_t seekFilter, andArray, filterDoc, posDoc, rangeDoc, norArray, norDoc, idDoc;
+
+    bson_init(&seekFilter);
+    bson_append_array_begin(&seekFilter, "$and", 4, &andArray);
+
+    bson_append_document_begin(&andArray, "0", 1, &filterDoc);
+    bson_concat(&filterDoc, &filter);
+    bson_append_document_end(&andArray, &filterDoc);
+
+    bson_append_document_begin(&andArray, "1", 1, &posDoc);
+    bson_append_document_begin(&posDoc, "createdAt", 9, &rangeDoc);
+    BSON_APPEND_INT64(&rangeDoc, filterP->seekBefore ? "$lte" : "$gte", filterP->seekCreatedAt);
+    bson_append_document_end(&posDoc, &rangeDoc);
+
+    bson_append_array_begin(&posDoc, "$nor", 4, &norArray);
+    bson_append_document_begin(&norArray, "0", 1, &norDoc);
+    BSON_APPEND_INT64(&norDoc, "createdAt", filterP->seekCreatedAt);
+    bson_append_document_begin(&norDoc, "_id", 3, &idDoc);
+    BSON_APPEND_UTF8(&idDoc, filterP->seekBefore ? "$gte" : "$lte", filterP->seekId);
+    bson_append_document_end(&norDoc, &idDoc);
+    bson_append_document_end(&norArray, &norDoc);
+    bson_append_array_end(&posDoc, &norArray);
+    bson_append_document_end(&andArray, &posDoc);
+
+    bson_append_array_end(&seekFilter, &andArray);
+
+    cursorP = mongoc_collection_find_with_opts(collP, &seekFilter, &opts, NULL);
+    bson_destroy(&seekFilter);
   }
   else
   {
