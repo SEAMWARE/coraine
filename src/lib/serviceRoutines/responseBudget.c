@@ -46,7 +46,7 @@ bool responseBudgetRefused(DbQueryFilter* filterP, CorNode* arrayP, bool wholeSe
 
   if (wholeSet)
     ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
-            "this query needs every match at once (orderBy, an EntityMap or split entities) and they exceed the response size budget of %lld MiB (--maxResponseSize) - narrow the query",
+            "this query needs every match at once (orderBy, or split entities without an EntityMap) and they exceed the response size budget of %lld MiB (--maxResponseSize) - narrow the query",
             mib);
   else
     ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",

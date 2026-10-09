@@ -141,7 +141,7 @@ Content-Length: 0
 ===================================================================
      Response is page 1 of the filtered set; the map being created
      is the filtered set, NOT the universe of Vehicles.
-HTTP/1.1 200 OK
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-EntityMap: REGEX(.*)
@@ -206,6 +206,7 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 245
 

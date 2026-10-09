@@ -1,0 +1,279 @@
+#
+# FILE            entitymap_requested_pages.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An EntityMap the client asks for (?entityMap=true), its pages, and the NGSILD-EntityMap header
+# both ways (TS 104-176 clause 7, Query Entities):
+#
+#   - 201 Created for the request that created the map ("201 Created (in case an EntityMap has been
+#     (re)created)"), 200 for every page served from it;
+#   - the response header NGSILD-EntityMap - the map's resource URI - on the creating answer and on
+#     every page served from the map;
+#   - the links of the creating answer carry the NEW map's id, not `entityMap=true`: following them
+#     used to create a second map, a page taken from a different snapshot (roadmap § 13.2);
+#   - the map holds the WHOLE matching set, not the first page of it (limit + 1 entities, before);
+#   - the request header NGSILD-EntityMap is the alternative to ?entityMap=<id>: a page needs no
+#     selector of its own either way; both naming different maps is 400 BadRequestData;
+#   - a link repeats the query of the map (TS 104-175 § 9.6: "the same parameters as in the original
+#     request"); a page that sends a selecting parameter with a different value, or one the
+#     creating query did not have, is 400; one that leaves it out is served by the map's query;
+#   - an expired map: the link is a complete query, so a new map is made from it and the page served
+#     from that one (§ 9.6: "a new one shall be created"), 200; with no selector to make one from - an
+#     unknown map named by the header alone - 404.
+#
+# REQUIRE_FEATURE: METRICS ADMIN_API
+#
+--NAME--
+EntityMap asked for: 201, NGSILD-EntityMap both ways, links that keep the map (roadmap § 13.2)
+
+--TAGS--
+entity entitymap entityMap pagination query
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+PYSUM='
+import sys, re, json
+raw = sys.stdin.read().replace("\r", "")
+head, _, body = raw.partition("\n\n")
+lines = head.splitlines()
+print(lines[0])
+hdr = {}
+links = []
+for l in lines[1:]:
+  k, _, v = l.partition(":")
+  k = k.strip().lower()
+  v = v.strip()
+  if k == "link":
+    if "json-ld#context" not in v:
+      links.append(v)
+  else:
+    hdr[k] = v
+mapHdr = hdr.get("ngsild-entitymap")
+if mapHdr is not None:
+  mapHdr = re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", mapHdr)
+print("NGSILD-EntityMap: %s" % (mapHdr if mapHdr is not None else "(none)"))
+for l in links:
+  for m in re.finditer(r"<([^>]*)>;rel=\"([a-z]+)\"", l):
+    print("  rel=%-5s %s" % (m.group(2), re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", m.group(1))))
+try:
+  print("ids: %s" % " ".join([e["id"] for e in json.loads(body)]))
+except Exception:
+  try:
+    d = json.loads(body)
+    print(re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", "%s: %s" % (d.get("type", "?"), d.get("detail", d.get("title", "")))))
+  except Exception:
+    print("body: %s" % body.strip())
+'
+
+page()
+{
+  RESP=$(corCurl --url "$1" "${@:2}")
+  echo "$RESP" | python3 -c "$PYSUM"
+  NEXT=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+  MAP=$(echo "$RESP" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|^[^:]*: *||')
+}
+
+
+echo "01. Twenty-five rooms R01..R25 - more than the default page of 20, created in that order"
+echo "========================================================================================"
+for i in $(seq -w 1 25); do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R'$i'","type":"Room","t":{"type":"Property","value":'$((10#$i))'}}' | head -1
+done | sort | uniq -c
+echo
+echo
+
+
+echo "02. ?entityMap=true&limit=10 - 201, the map's URI, links naming the new map"
+echo "==========================================================================="
+page '/ngsi-ld/v1/entities?type=Room&entityMap=true&limit=10&options=keyValues'
+MAP1=$MAP
+P1NEXT=$NEXT
+echo
+echo
+
+
+echo "03. GET /entityMaps/{id} - the WHOLE matching set: 25 entities"
+echo "=============================================================="
+corCurl --url "$MAP1" | tr -d '\r' | sed -n '/^{/,$p' | python3 -c 'import sys, json; d = json.load(sys.stdin); print("entities in the map: %d" % len(d["entityMap"]))'
+echo
+echo
+
+
+echo "04. Follow next twice - 200, the same map, R11..R20 then R21..R25, no next on the last"
+echo "======================================================================================"
+page "$NEXT"
+[ "$MAP" == "$MAP1" ] && echo "same map" || echo "ANOTHER MAP: $MAP"
+page "$NEXT"
+[ "$MAP" == "$MAP1" ] && echo "same map" || echo "ANOTHER MAP: $MAP"
+echo
+echo
+
+
+echo "05. One map in the broker - following the links created none"
+echo "============================================================"
+corCurl --url /admin/metrics --out raw | grep -a '^ngsild_entity_map_store_size'
+echo
+echo
+
+
+echo "06. The request header NGSILD-EntityMap instead of ?entityMap=<id> - no selector needed: R16..R20"
+echo "=================================================================================================="
+page '/ngsi-ld/v1/entities?limit=5&offset=15&options=keyValues' -H "NGSILD-EntityMap: $MAP1"
+echo
+echo
+
+
+echo "07. The header and ?entityMap=<id> naming different maps - 400"
+echo "=============================================================="
+page '/ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:other&limit=5' -H "NGSILD-EntityMap: $MAP1"
+echo
+echo
+
+
+echo "08. The same map both ways - fine: R01..R05"
+echo "==========================================="
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&limit=5&options=keyValues" -H "NGSILD-EntityMap: $MAP1"
+echo
+echo
+
+
+echo "09. An unknown map - 404"
+echo "========================"
+page '/ngsi-ld/v1/entities?limit=5' -H 'NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:nosuchmap'
+echo
+echo
+
+
+echo "10. Same parameters (§ 9.6): repeated - served, R01..R05; a different type - 400; attrs the map's query did not have - 400"
+echo "========================================================================================================================"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Room&limit=5&options=keyValues"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Car&limit=5&options=keyValues"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Room&attrs=t&limit=5"
+echo
+echo
+
+
+echo "11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200"
+echo "=================================================================================="
+corCurl --url "$MAP1" -X PATCH --payload '{"expiresAt":"2020-01-01T00:00:00.000Z"}' | head -1
+page "$P1NEXT"
+[ "$MAP" != "$MAP1" ] && [ -n "$MAP" ] && echo "a new map" || echo "NOT A NEW MAP: $MAP"
+echo
+echo
+
+
+--EXPECT--
+01. Twenty-five rooms R01..R25 - more than the default page of 20, created in that order
+========================================================================================
+     25 HTTP/1.1 201 Created
+
+
+02. ?entityMap=true&limit=10 - 201, the map's URI, links naming the new map
+===========================================================================
+HTTP/1.1 201 Created
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=10
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05 urn:R06 urn:R07 urn:R08 urn:R09 urn:R10
+
+
+03. GET /entityMaps/{id} - the WHOLE matching set: 25 entities
+==============================================================
+entities in the map: 25
+
+
+04. Follow next twice - 200, the same map, R11..R20 then R21..R25, no next on the last
+======================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+ids: urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
+same map
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=10
+ids: urn:R21 urn:R22 urn:R23 urn:R24 urn:R25
+same map
+
+
+05. One map in the broker - following the links created none
+============================================================
+ngsild_entity_map_store_size 1
+
+
+06. The request header NGSILD-EntityMap instead of ?entityMap=<id> - no selector needed: R16..R20
+==================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=10
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+ids: urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
+
+
+07. The header and ?entityMap=<id> naming different maps - 400
+==============================================================
+HTTP/1.1 400 Bad Request
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/BadRequestData: the NGSILD-EntityMap header names EntityMap 'urn:ngsi-ld:EntityMap:MAPID', the URL parameter 'entityMap' names 'urn:ngsi-ld:EntityMap:other'
+
+
+08. The same map both ways - fine: R01..R05
+===========================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=5
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05
+
+
+09. An unknown map - 404
+========================
+HTTP/1.1 404 Not Found
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound: entity map 'urn:ngsi-ld:EntityMap:nosuchmap' not found or expired
+
+
+10. Same parameters (§ 9.6): repeated - served, R01..R05; a different type - 400; attrs the map's query did not have - 400
+========================================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=5
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05
+HTTP/1.1 400 Bad Request
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/BadRequestData: URL parameter 'type' differs from the query that created entity map 'urn:ngsi-ld:EntityMap:MAPID'
+HTTP/1.1 400 Bad Request
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/BadRequestData: URL parameter 'attrs' was not part of the query that created entity map 'urn:ngsi-ld:EntityMap:MAPID'
+
+
+11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200
+==================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+ids: urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
+a new map
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

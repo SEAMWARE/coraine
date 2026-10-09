@@ -27,7 +27,7 @@
 #include "corNgsild/ldSubCache.h"                   // ldSubCacheRdLock, ldSubCacheUnlock
 #include "corNgsild/ldRegCache.h"                   // ldRegCacheRdLock, ldRegCacheUnlock
 #include "corNgsild/ldPernotCache.h"                // ldPernotCacheRdLock, ldPernotCacheUnlock
-#include "corNgsild/ldEntityMap.h"                  // ldEntityMapStoreRdLock, ldEntityMapStoreUnlock
+#include "corNgsild/ldEntityMap.h"                  // ldEntityMapStoreRdLock, ldEntityMapStoreUnlock, ldEntityMapBytesTotal
 #include "corNgsild/LdPernotCache.h"                // LdPernotCache, LdPernotItem
 #include "corNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
 
@@ -71,6 +71,7 @@ static CorPromMetric* gRegSubCacheSize;
 static CorPromMetric* gRegCacheSize;
 static CorPromMetric* gPernotCacheSize;
 static CorPromMetric* gEntityMapStoreSize;
+static CorPromMetric* gEntityMapBytes;
 
 //
 // Where requests were processed - on the I/O thread that read them (inline) or handed to a worker.
@@ -228,6 +229,8 @@ bool metricsInit(void)
                                          "Periodic-notification subscriptions cached (sum across tenants)");
   gEntityMapStoreSize = corPromGaugeCreate("ngsild_entity_map_store_size",
                                          "EntityMap store entries (sum across tenants)");
+  gEntityMapBytes     = corPromGaugeCreate("ngsild_entity_map_bytes",
+                                         "Memory the EntityMaps hold, automatic and requested (an estimate; the cap is --entityMapMemory)");
 
   dispatchInline      = corPromCounterCreate("ngsild_requests_inline_total",
                                            "Requests processed on the I/O thread that read them (see --noInline)");
@@ -314,6 +317,7 @@ static void tenantCounts(void)
   corPromGaugeSet(gRegCacheSize,     (double) regs);
   corPromGaugeSet(gPernotCacheSize,  (double) pernots);
   corPromGaugeSet(gEntityMapStoreSize, (double) maps);
+  corPromGaugeSet(gEntityMapBytes,     (double) ldEntityMapBytesTotal());
 }
 
 

@@ -1,0 +1,211 @@
+#
+# FILE            entitymap_auto_distributed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Roadmap § 13 - EntityMaps nobody has to ask for, the DISTRIBUTED query.
+#
+# A distributed query cannot be paginated without a map: offset and limit mean nothing across
+# sources. When the first answer shows more than one page, the broker creates an EntityMap - its
+# own ids and each Context Source's own EntityMap (GET /entityMaps on the source) - and serves the
+# pages from it: a page is a slice of the frozen ids, each entity fetched from where the map says
+# it lives (TS 104-175 § 9.6). An answer of one page gets no map: the sources are asked exactly
+# what they were asked before.
+#
+# Split entities (the default) and splitEntities=false both: the pages, followed by their next
+# links, return every local and remote entity exactly once and in the map's order (local first,
+# then the source's, each in creation order); a split entity's local and remote parts come back
+# merged; an entity created at the source between two pages is not in the set.
+#
+# REQUIRE_FEATURE: AUTO_ENTITY_MAP REGISTRATIONS
+#
+--NAME--
+Automatic EntityMap of a distributed query, split and not (roadmap § 13)
+
+--TAGS--
+entity entitymap entityMap pagination query distop
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+PYSUM='
+import sys, re, json
+raw = sys.stdin.read().replace("\r", "")
+head, _, body = raw.partition("\n\n")
+lines = head.splitlines()
+print("  " + lines[0])
+hdr = {}
+links = []
+for l in lines[1:]:
+  k, _, v = l.partition(":")
+  k = k.strip().lower()
+  v = v.strip()
+  if k == "link":
+    if "json-ld#context" not in v:
+      links.append(v)
+  else:
+    hdr[k] = v
+mapHdr = hdr.get("ngsild-entitymap")
+print("  NGSILD-EntityMap: %s" % ("yes" if mapHdr is not None else "(none)"))
+rels = []
+for l in links:
+  rels += re.findall(r"rel=\"([a-z]+)\"", l)
+print("  links: %s" % " ".join(rels))
+try:
+  ents = json.loads(body)
+  print("  " + " ".join(["%s(%s)" % (e["id"], ",".join(sorted([k for k in e if k not in ("id", "type")]))) for e in ents]))
+except Exception:
+  print("  body: %s" % body.strip())
+'
+
+#
+# walk <url> - follow the next links from <url> to the end, a summary per page, and say how many
+# different maps the pages named
+#
+walk()
+{
+  local url="$1"
+  local n=1
+  local maps=""
+
+  while [ -n "$url" ] && [ $n -le 10 ]; do
+    echo "page $n:"
+    RESP=$(corCurl --url "$url")
+    echo "$RESP" | python3 -c "$PYSUM"
+    maps="$maps $(echo "$RESP" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|^[^:]*: *||')"
+    url=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+    [ "$n" == 1 ] && [ -n "$AFTER_PAGE_1" ] && eval "$AFTER_PAGE_1"
+    n=$((n + 1))
+  done
+  echo "maps named: $(echo $maps | tr ' ' '\n' | grep -c . ) pages, $(echo $maps | tr ' ' '\n' | sort -u | grep -c .) different"
+}
+
+
+echo "01. Local L1..L4 (speed), CP1 R1..R3 (speed), and S1 split: speed here, name at CP1"
+echo "===================================================================================="
+for i in 1 2 3 4; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L'$i'","type":"Car","speed":{"type":"Property","value":'$i'}}' | head -1
+done
+for i in 1 2 3; do
+  corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:R'$i'","type":"Car","speed":{"type":"Property","value":'$((i + 10))'}}' | head -1
+done
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Car","speed":{"type":"Property","value":99}}' | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Car","name":{"type":"Property","value":"split"}}' | head -1
+echo
+echo
+
+
+echo "02. Register CP1 for Car (inclusive)"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Car"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. Split entities, limit=3 - every entity once, S1 merged; R4 (created at CP1 after page 1) never"
+echo "=================================================================================================="
+AFTER_PAGE_1='corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:R4\",\"type\":\"Car\",\"speed\":{\"type\":\"Property\",\"value\":14}}" | head -1'
+walk '/ngsi-ld/v1/entities?type=Car&limit=3&options=keyValues'
+AFTER_PAGE_1=""
+echo
+echo
+
+
+echo "04. splitEntities=false, limit=4 - every entity once, R4 too (S1 from here: the first source to answer it)"
+echo "================================================================================================="
+walk '/ngsi-ld/v1/entities?type=Car&limit=4&splitEntities=false&options=keyValues'
+echo
+echo
+
+
+echo "05. limit=20 - one page: no map, no links"
+echo "========================================="
+walk '/ngsi-ld/v1/entities?type=Car&limit=20&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Local L1..L4 (speed), CP1 R1..R3 (speed), and S1 split: speed here, name at CP1
+====================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Register CP1 for Car (inclusive)
+====================================
+HTTP/1.1 201 Created
+
+
+03. Split entities, limit=3 - every entity once, S1 merged; R4 (created at CP1 after page 1) never
+==================================================================================================
+page 1:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: next last
+  urn:L1(speed) urn:L2(speed) urn:L3(speed)
+HTTP/1.1 201 Created
+page 2:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: first prev next last
+  urn:L4(speed) urn:S1(name,speed) urn:R1(speed)
+page 3:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: first prev
+  urn:R2(speed) urn:R3(speed)
+maps named: 3 pages, 1 different
+
+
+04. splitEntities=false, limit=4 - every entity once, R4 too (S1 from here: the first source to answer it)
+=================================================================================================
+page 1:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: next last
+  urn:L1(speed) urn:L2(speed) urn:L3(speed) urn:L4(speed)
+page 2:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: first prev next last
+  urn:S1(speed) urn:R1(speed) urn:R2(speed) urn:R3(speed)
+page 3:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: yes
+  links: first prev
+  urn:R4(speed)
+maps named: 3 pages, 1 different
+
+
+05. limit=20 - one page: no map, no links
+=========================================
+page 1:
+  HTTP/1.1 200 OK
+  NGSILD-EntityMap: (none)
+  links: 
+  urn:L1(speed) urn:L2(speed) urn:L3(speed) urn:L4(speed) urn:S1(name,speed) urn:R1(speed) urn:R2(speed) urn:R3(speed) urn:R4(speed)
+maps named: 0 pages, 0 different
+
+
+--TEARDOWN--
+coraineStop -role CP1
+coraineStop
+corDbDrop -role CP1
+corDbDrop

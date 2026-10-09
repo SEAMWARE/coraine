@@ -12,8 +12,11 @@
 #
 #   - not even the first entity of the page fits in the budget;
 #   - the query needs every match at once - orderBy reads the whole matching set to
-#     order it before paginating (and an EntityMap freezes it), so a part of the set
-#     would be a wrong page, not a short one.
+#     order it before paginating, so a part of the set would be a wrong page, not a
+#     short one.
+#
+# An EntityMap (?entityMap=true) is not refused: it freezes the ids of the set, and its
+# pages are slices of it - the budget only shortens a page (step 05: three of the five).
 #
 # A 1 MiB budget: one entity of ~1 200 000 bytes, and five of ~300 000 bytes.
 #
@@ -64,8 +67,8 @@ echo
 echo
 
 
-echo "05. GET type=Blob&entityMap=true - the EntityMap needs all five at once: 403 TooManyResults"
-echo "==========================================================================================="
+echo "05. GET type=Blob&entityMap=true - the EntityMap holds ids, not entities: 201, a first page of what fits"
+echo "========================================================================================================"
 corCurl --url '/ngsi-ld/v1/entities?type=Blob&entityMap=true' | grep -E '^HTTP/1.1|"type"'
 echo
 echo
@@ -103,10 +106,10 @@ Content-Length: 249
 HTTP/1.1 403 Forbidden
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 298
+Content-Length: 306
 
 {
-  "detail": "this query needs every match at once (orderBy, an EntityMap or split entities) and they exceed the response size budget of 1 MiB (--maxResponseSize) - narrow the query",
+  "detail": "this query needs every match at once (orderBy, or split entities without an EntityMap) and they exceed the response size budget of 1 MiB (--maxResponseSize) - narrow the query",
   "status": 403,
   "title": "Too Many Results",
   "type": "https://uri.etsi.org/ngsi-ld/errors/TooManyResults"
@@ -141,10 +144,18 @@ Content-Length: 195
 
 
 
-05. GET type=Blob&entityMap=true - the EntityMap needs all five at once: 403 TooManyResults
-===========================================================================================
-HTTP/1.1 403 Forbidden
-  "type": "https://uri.etsi.org/ngsi-ld/errors/TooManyResults"
+05. GET type=Blob&entityMap=true - the EntityMap holds ids, not entities: 201, a first page of what fits
+========================================================================================================
+HTTP/1.1 201 Created
+      "type": "Property",
+      "type": "Property",
+    "type": "Blob"
+      "type": "Property",
+      "type": "Property",
+    "type": "Blob"
+      "type": "Property",
+      "type": "Property",
+    "type": "Blob"
 
 
 --TEARDOWN--

@@ -54,6 +54,7 @@
 #include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
+#include "corHash/corHash.h"                          // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
@@ -962,6 +963,14 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     if (strcmp(key, "orderBy")          == 0) continue;
     if (strcmp(key, "collation")        == 0) continue;
     if (strcmp(key, "entityMap")        == 0) continue;
+
+    //
+    // A source asked for its EntityMap (/entityMaps) is asked for the whole matching set: a map is
+    // never a page. Its own limit / offset applied there froze a page of the source's matches.
+    //
+    if ((corNgsild.entityMapCreate == true) &&
+        ((strcmp(key, "limit") == 0) || (strcmp(key, "offset") == 0) || (strcmp(key, "count") == 0)))
+      continue;
     if (strcmp(key, "pick")             == 0) continue;
     if (strcmp(key, "omit")             == 0) continue;
     if (strcmp(key, "type")             == 0) continue;  // handled above
@@ -1150,6 +1159,10 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
 //
 // bindEntityMapFilters - § 9 "same parameters" enforcement on EntityMap reuse.
 //
+// TS 104-175 § 9.6: "Subsequent requests referencing an Entity Map shall use the same parameters as in
+// the original request that created the Entity Map". The links of a map's pages repeat that query
+// (ldPaginationEntityMapLinkHeader), so a client following them sends the same parameters.
+//
 // A filter param present at map creation may be re-sent with the SAME value or
 // omitted; a DIFFERENT value, or a filter NOT used at creation, is rejected
 // with 400 BadRequestData. (Modify / introduce are spec-clear violations of
@@ -1190,6 +1203,45 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "URL parameter '%s' differs from the query that created entity map '%s'",
               f[i].name, corNgsild.entityMapId);
+      return true;
+    }
+  }
+
+  //
+  // The rest of the parameters that SELECT, compared with the creating request's (LdEntityMap.queryParamV)
+  // the same way. Not id / idPattern: § 9.6 excepts "the specification of Entity identifiers".
+  //
+  static const char* selectingV[] =
+  {
+    "attrs", "csf", "local", "splitEntities", "orderBy", "orderFrom", "orderGeometry", "collation", NULL
+  };
+
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
+  {
+    const char* key = corRest.in.uriParamV[i].key;
+    bool        sel = false;
+
+    for (int s = 0; selectingV[s] != NULL; s++)
+    {
+      if (strcmp(key, selectingV[s]) == 0) { sel = true; break; }
+    }
+
+    if (sel == false)
+      continue;
+
+    const char* bound = ldEntityMapQueryParam(mapP, key);
+    const char* value = (corRest.in.uriParamV[i].value != NULL) ? corRest.in.uriParamV[i].value : "";
+
+    if (bound == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' was not part of the query that created entity map '%s'", key, corNgsild.entityMapId);
+      return true;
+    }
+    if (strcmp(bound, value) != 0)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' differs from the query that created entity map '%s'", key, corNgsild.entityMapId);
       return true;
     }
   }
@@ -1269,41 +1321,52 @@ static void orderBySkip(CorNode* arrayP, int offset)
 
 
 
+static bool queryEntities(void);
+
+
+
 // -----------------------------------------------------------------------------
 //
-// entityMapPaginate - GET /entities?entityMap=<mapId> (§ 5.2.39 / § 5.7.2.4)
+// entityMapHeader - NGSILD-EntityMap: the resource URI of the EntityMap used (TS 104-176 clause 7)
 //
-// Frozen-snapshot pagination: the map fixes "where each entity is" at
-// map-creation time; filters on the current request still re-evaluate
-// against the current data, but the candidate set is locked.
+// On every answer an EntityMap took part in: a map the client asked for, one the broker created by
+// itself, and every page served from an existing one.
 //
-static bool entityMapPaginate(void)
+static void entityMapHeader(LdEntityMap* mapP)
+{
+  int   size   = strlen(mapP->mapId) + 32;
+  char* mapUrl = (char*) corAlloc(&corRest.kalloc, size);
+
+  snprintf(mapUrl, size, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
+  corRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityMapServe - one page of an EntityMap: the slice [offset, offset + limit) of its frozen set
+//
+// The map freezes WHICH entities the query has (§ 7.4.2.4), not their values: each entity of the
+// slice is fetched now, from where the map says it lives - local "@none" via db.entityRetrieve, a
+// Context Source via GET /entities/{id} on the registration the map recorded (§ 9.6; never the
+// registration cache's current matching: the map is a stable snapshot, immune to later registration
+// changes) - and the query's filters are applied to it again. An entity that no longer matches is
+// dropped from the page and the page is SHORTER than limit: limit=20 with 3 that no longer match is a
+// page of 17, and the next page still starts at offset + 20 (decided in ETSI - the positions in the
+// frozen set never move, so prev/next are stable).
+//
+// The byte budget (--maxResponseSize) can only shorten the slice: the page ends before the entity that
+// would pass it and the next one starts there - a page of a map is never refused unless its FIRST
+// entity alone does not fit.
+//
+// NGSILD-Results-Count is the size of the frozen set.
+//
+static bool entityMapServe(LdEntityMap* mapP)
 {
   Tenant* tP = (Tenant*) corNgsild.tenantP;
-  if (tP == NULL || tP->entityMapStoreP == NULL)
-  {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
-    return true;
-  }
 
-  //
-  // PINNED for the request: the page is built across local and REMOTE retrieves, and
-  // bindEntityMapFilters points the request's query parameters at the map's own strings. A
-  // DELETE - or the expiry purge of another request - freed the map under all of that.
-  //
-  LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
-  if (mapP == NULL)
-  {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
-    return true;
-  }
-
-  ldEntityMapRequestPin(mapP);     // unpinned post-response
-
-  // § 9 same-parameters: reject a modified / newly-introduced filter; default
-  // an omitted bound filter so it is re-applied live (see bindEntityMapFilters).
-  if (bindEntityMapFilters(mapP))
-    return true;
+  entityMapHeader(mapP);
 
   // Build result array from map entries at [offset..offset+limit]
   CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
@@ -1311,6 +1374,10 @@ static bool entityMapPaginate(void)
   int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
   int ix     = 0;
   int added  = 0;
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  int64_t budgetBytes = 0;
+#endif
 
   //
   // Each map entry records a list of sources that contribute to the
@@ -1336,6 +1403,10 @@ static bool entityMapPaginate(void)
       if (strcmp(src, "@none") == 0)
       {
         db.entityRetrieve(tP, entryP->entityId, &partialP);
+
+        // § 5.2.4: an Entity whose expiresAt has passed is gone (and deleted after the response)
+        if ((partialP != NULL) && dbExpiredEntityIs(tP, partialP))
+          partialP = NULL;
       }
       else if (tP->regCacheP != NULL)
       {
@@ -1384,6 +1455,30 @@ static bool entityMapPaginate(void)
       }
     }
 
+#if COR_FEATURE_RESPONSE_BUDGET
+    //
+    // The byte budget: the page ends before the entity that would pass it, the next page starts at it.
+    // The first entity of a page not fitting on its own is the one thing that cannot be paged.
+    //
+    if ((mergedEntity != NULL) && (responseBudgetBytes > 0))
+    {
+      int64_t size = corJsonFastRenderSize(mergedEntity);
+
+      if (budgetBytes + size > responseBudgetBytes)
+      {
+        if (added == 0)
+        {
+          responseBudgetTooMany("the next entity of the EntityMap");
+          return true;
+        }
+
+        break;
+      }
+
+      budgetBytes += size;
+    }
+#endif
+
     if (mergedEntity != NULL)
       corTreeChildAdd(arrayP, mergedEntity);
     // else: all recorded sources failed — skip, client gets fewer
@@ -1403,38 +1498,13 @@ static bool entityMapPaginate(void)
     corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
   }
 
-  // § 5.5.9.1: emit prev/first for any non-first page; next/last when more remain.
-  bool hasMore = (offset + added < mapP->entryCount);
-  bool hasPrev = (offset > 0);
-  if (hasMore || hasPrev)
-  {
-    char* link = (char*) corAlloc(&corRest.kalloc, 1024);
-    int   pos  = 0;
-    // § 6.4.7.2: the Link "type" attribute mirrors the original request's
-    // media type, not a fixed value (same rule as ldPaginationLinkHeader).
-    const char* mt = ldPaginationMediaType();
-    if (hasPrev)
-    {
-      int prevOff = offset - limit;
-      if (prevOff < 0) prevOff = 0;
-      pos += snprintf(link + pos, 1024 - pos,
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=0&limit=%d>; rel=\"first\"; type=\"%s\", "
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"prev\"; type=\"%s\"",
-                      corNgsild.entityMapId, limit, mt,
-                      corNgsild.entityMapId, prevOff, limit, mt);
-    }
-    if (hasMore)
-    {
-      if (pos > 0) pos += snprintf(link + pos, 1024 - pos, ", ");
-      int lastOff = ((mapP->entryCount - 1) / limit) * limit;
-      pos += snprintf(link + pos, 1024 - pos,
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"next\"; type=\"%s\", "
-                      "</ngsi-ld/v1/entities?entityMap=%s&offset=%d&limit=%d>; rel=\"last\"; type=\"%s\"",
-                      corNgsild.entityMapId, offset + limit, limit, mt,
-                      corNgsild.entityMapId, lastOff, limit, mt);
-    }
-    corRestOutHeaderAdd("Link", link);
-  }
+  //
+  // § 7.4.2.2: prev/first on any page but the first, next/last while the map holds more. Every link
+  // names the map - none repeats the query that created it (roadmap § 13.2).
+  //
+  int nextOffset = offset + added;
+
+  ldPaginationEntityMapLinkHeader(mapP, offset, limit, nextOffset, mapP->entryCount, nextOffset < mapP->entryCount);
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
@@ -1511,6 +1581,71 @@ static bool entityMapPaginate(void)
 
 // -----------------------------------------------------------------------------
 //
+// entityMapPaginate - GET /entities?entityMap=<mapId>, or the NGSILD-EntityMap request header (§ 9.6 / § 7.4.2.4)
+//
+// A page of an existing map: 200, the map's URI in NGSILD-EntityMap. An automatic map lives on while
+// it is paged (ldEntityMapTouch). An expired or unknown map is 404: the link carries nothing else to
+// re-query from.
+//
+static bool entityMapPaginate(void)
+{
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
+  if (tP == NULL || tP->entityMapStoreP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
+    return true;
+  }
+
+  //
+  // PINNED for the request: the page is built across local and REMOTE retrieves, and
+  // bindEntityMapFilters points the request's query parameters at the map's own strings. A
+  // DELETE - or the expiry purge of another request - freed the map under all of that.
+  //
+  LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
+  if (mapP == NULL)
+  {
+    //
+    // § 9.6: "If an Entity Map has expired, or cannot be accessed, no inference can be made as to which
+    // entities are held within the Context Sources and a new one shall be created." The request is a
+    // complete query (its links repeat the creating request's parameters): a new map is made from it
+    // and the page served from the new one, at the requested offset - 200, the new map in
+    // NGSILD-EntityMap. A request with no selector at all (a link of a map without its query) has
+    // nothing to make one from: 404.
+    //
+    bool hasSelector = (corNgsild.typeV != NULL) || (corNgsild.typeExpr != NULL) || (corNgsild.attrsV != NULL) ||
+                       (corNgsild.qExpr != NULL) || (corNgsild.georel != NULL) || (corNgsild.local == true);
+
+    if (hasSelector == false)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
+      return true;
+    }
+
+    COR_T(CtDistOpRequest, "entity map '%s' not found or expired - a new one, from the request", corNgsild.entityMapId);
+
+    corNgsild.entityMapId     = NULL;
+    corNgsild.entityMapCreate = true;
+    corNgsild.entityMapAuto   = true;                // 201 only for a map the client asked to create
+
+    return queryEntities();
+  }
+
+  ldEntityMapRequestPin(mapP);     // unpinned post-response
+
+  // § 9.6 same-parameters: reject a modified / newly-introduced filter; default
+  // an omitted bound filter so it is re-applied live (see bindEntityMapFilters).
+  if (bindEntityMapFilters(mapP))
+    return true;
+
+  ldEntityMapTouch(mapP);
+
+  return entityMapServe(mapP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // geoJsonGeomProtectSetup - for a geo+json response, mark the selected geometry
 // GeoProperty (geometryProperty, default "location", as an expanded IRI) so the
 // pick/omit/attrs projection keeps it — ldToGeoJson needs it to build the
@@ -1558,6 +1693,356 @@ static void geoJsonGeomProtectSetup(void)
 
 // -----------------------------------------------------------------------------
 //
+// arrayLength - the number of members of an array (0 for NULL)
+//
+static int arrayLength(CorNode* arrayP)
+{
+  int n = 0;
+
+  if (arrayP != NULL)
+  {
+    for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
+      ++n;
+  }
+
+  return n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// idHash / idCompare - a request-arena hash of entities by id (corHash keeps no key: idCompare reads
+// the entity's)
+//
+static unsigned int idHash(const char* name)
+{
+  unsigned int h = 5381;
+
+  while (*name != 0)
+    h = (h * 33) ^ (unsigned char) *name++;
+
+  return h;
+}
+
+static int idCompare(const char* name, void* itemP)
+{
+  CorNode* idP = corTreeLookup((CorNode*) itemP, "id");
+
+  return ((idP != NULL) && (idP->type == CorString)) ? strcmp(name, idP->value.s) : 1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// idHashCreate - the entities of arrayP, hashed by id
+//
+static CorHashTable* idHashCreate(CorNode* arrayP)
+{
+  int           n     = arrayLength(arrayP);
+  int           slots = 1024;
+
+  while ((slots < n) && (slots < (1 << 20)))
+    slots *= 2;
+
+  CorHashTable* hashP = corHashTableCreate(&corRest.kalloc, idHash, idCompare, slots);
+
+  if ((hashP == NULL) || (arrayP == NULL))
+    return hashP;
+
+  for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
+  {
+    CorNode* idP = corTreeLookup(eP, "id");
+
+    if ((idP != NULL) && (idP->type == CorString))
+      corHashItemAdd(hashP, idP->value.s, eP);
+  }
+
+  return hashP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// isEntityMapTree - is this a source's answer with an EntityMap (an object with "entityMap")?
+//
+static bool isEntityMapTree(CorNode* treeP)
+{
+  return (treeP != NULL) && (treeP->type == CorObject) && (corTreeLookup(treeP, "entityMap") != NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityMapSourceFallback - a source that does not answer with an EntityMap is asked for its entities
+//
+// § 9.6: "Context Sources should indicate that they do not support Entity Maps, through declining to
+// return the location of an Entity Map when requested to do so". Such a source - an error status, or
+// an answer that is not an EntityMap - is asked the query itself (GET /entities, the same parameters,
+// limit=1000): its matches go into the map by id, and the pages retrieve them from it one by one.
+//
+static void entityMapSourceFallback(LdDistOpBatchItem* items, LdDistOpBatchResult* results, int itemCount, const char* ownAlias)
+{
+  const char* mapPath = "/ngsi-ld/v1/entityMaps?";
+  int         n       = 0;
+  int*        ixV     = (int*) corAlloc(&corRest.kalloc, (itemCount + 1) * sizeof(int));
+
+  for (int i = 0; i < itemCount; i++)
+  {
+    if (results[i].tooLarge)
+      continue;
+
+    bool ok = (results[i].statusCode >= 200) && (results[i].statusCode < 300) && isEntityMapTree(results[i].responseTree);
+
+    if ((ok == true) || (items[i].hasVerb == true) || (items[i].url == NULL))
+      continue;
+
+    const char* at = strstr(items[i].url, mapPath);
+
+    if (at == NULL)
+      continue;
+
+    int   size = strlen(items[i].url) + 32;
+    char* url  = (char*) corAlloc(&corRest.kalloc, size);
+
+    snprintf(url, size, "%.*s/ngsi-ld/v1/entities?%s&limit=1000", (int) (at - items[i].url), items[i].url, at + strlen(mapPath));
+    COR_T(CtDistOpRequest, "%s: no EntityMap from the source - asked for its entities: GET %s",
+          (items[i].csr->regId != NULL) ? items[i].csr->regId : "?", url);
+
+    items[i].url = url;
+    ixV[n++]     = i;
+  }
+
+  if (n == 0)
+    return;
+
+  LdDistOpBatchItem*   againV  = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, n * sizeof(LdDistOpBatchItem));
+  LdDistOpBatchResult* resultV = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, n * sizeof(LdDistOpBatchResult));
+
+  memset(resultV, 0, n * sizeof(LdDistOpBatchResult));
+
+  for (int j = 0; j < n; j++)
+    againV[j] = items[ixV[j]];
+
+  ldDistOpSendMultiMax(againV, n, CorVerbGet, ownAlias, resultV, ldEntityMapMaxBytes);
+
+  for (int j = 0; j < n; j++)
+    results[ixV[j]] = resultV[j];
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// srcMapAddLocalToRemote - "@none" as one more source of every candidate a Context Source holds
+//
+// Split mode, an EntityMap being created: the local candidates were asked for by type, and the local
+// part of a split entity need not carry the queried type (a multi-type entity's parts). The pages
+// look for it locally too - a retrieve of an id the local store does not have finds nothing.
+//
+static void srcMapAddLocalToRemote(CorNode* srcMap)
+{
+  if (srcMap == NULL)
+    return;
+
+  for (CorNode* arrP = srcMap->value.head; arrP != NULL; arrP = arrP->next)
+    srcMapAdd(srcMap, arrP->name, "@none");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityMapFill - the matching set into the new map: its query's filters, and each entity's id with
+// the sources that hold it, in the order of arrayP (creation order - sorted under orderBy)
+//
+static void entityMapFill(LdEntityMap* mapP, CorNode* arrayP, CorNode* srcMap, CorNode* linkedMapsTracker)
+{
+  // Bind the query's filter params to the map (§ 9 same-parameters): a
+  // later paginated reuse may re-send these with the same value or omit
+  // them, but not modify or introduce one.
+  ldEntityMapSetFilters(mapP, corNgsild.type, corNgsild.q, corNgsild.scopeQ,
+                        corNgsild.georel, corNgsild.geometry, corNgsild.coordinates,
+                        corNgsild.geoproperty);
+
+  //
+  // And q as a subscription stores it - resolved, with this request's @context, expandValues,
+  // jsonKeys and langProperties applied - for a later page that omits q (LdEntityMap.boundQStored).
+  //
+  if (corNgsild.qExpr != NULL)
+    ldEntityMapSetStoredQ(mapP, ldQRenderStored(corNgsild.qExpr, &corRest.kalloc));
+
+  // And every URL parameter of the request but pagination - for the links and the same-parameters check (§ 9.6)
+  ldEntityMapSetQueryParams(mapP);
+
+  if (arrayP == NULL)
+    return;
+
+  //
+  // Walk the array, add each entity ID to the map along with
+  // its provenance: look up the entity in srcMap and flatten the
+  // CorArray of source strings into a char** for ldEntityMapAddEntry.
+  //
+  for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
+  {
+    CorNode* idP = corTreeLookup(entityP, "id");
+    if (idP == NULL || idP->type != CorString)
+      continue;
+
+    CorNode* srcArr = (srcMap != NULL) ? corTreeLookup(srcMap, idP->value.s) : NULL;
+
+    int n = 0;
+    if (srcArr != NULL && srcArr->type == CorArray)
+      for (CorNode* s = srcArr->value.head; s != NULL; s = s->next) n++;
+
+    if (n == 0)
+    {
+      // Shouldn't happen for an entity that made it into arrayP, but
+      // stay safe — fall back to "@none".
+      const char* lone = "@none";
+      ldEntityMapAddEntry(mapP, idP->value.s, &lone, 1);
+    }
+    else
+    {
+      const char** srcV = (const char**) corAlloc(&corRest.kalloc, n * sizeof(char*));
+      int i = 0;
+      for (CorNode* s = srcArr->value.head; s != NULL; s = s->next)
+        if (s->type == CorString)
+          srcV[i++] = s->value.s;
+      ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
+    }
+  }
+
+  // Flush per-CSR linkedMaps tracker (§ 5.14.4.4) into the map.
+  if (linkedMapsTracker != NULL)
+  {
+    for (CorNode* p = linkedMapsTracker->value.head; p != NULL; p = p->next)
+    {
+      if (p->name == NULL || p->type != CorString)
+        continue;
+      ldEntityMapAddLinkedMap(mapP, p->name, p->value.s);
+    }
+  }
+}
+
+
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// autoEntityMapEligible - may this query get an EntityMap the client did not ask for? (roadmap § 13)
+//
+// EntityMaps exist to make pagination possible: a page is a slice of the frozen set of matching
+// entities, each fetched from where the map says it lives - in a distributed query the only way to
+// paginate at all (no offset/limit forwarded to the sources), and locally the only way a query on
+// changing values (q=speed>20 over moving vehicles) keeps its pages consistent.
+//
+// So: a GET /entities whose first page (offset 0) is about to be answered - not count-only, not on
+// a map already, and not under orderBy: ordering by attribute VALUES needs the values frozen, which
+// is a Snapshot, not an EntityMap. Nor when the maps' memory is off (--entityMapMemory 0), or an
+// automatic map of this very request did not fit in it (entityMapAutoOff).
+//
+static bool autoEntityMapEligible(bool brokerPaginates)
+{
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
+
+  if (ldEntityMapMaxBytes <= 0)                                       return false;
+  if (corRest.in.verb != CorVerbGet)                                  return false;
+  if ((tP == NULL) || (tP->entityMapStoreP == NULL))                  return false;
+  if (corNgsild.entityMapCreate || corNgsild.entityMapOnly)           return false;
+  if (corNgsild.entityMapId != NULL)                                  return false;
+  if (corNgsild.entityMapAutoOff)                                     return false;
+  if (brokerPaginates)                                                return false;
+  if ((corNgsild.limit <= 0) || (corNgsild.offset != 0))              return false;
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// autoEntityMapRound2 - a distributed query found to be more than one page: create its EntityMap
+//
+// The query runs again as ?entityMap=true would run it - the local ids and each source's own
+// EntityMap (GET /entityMaps), the map made of them, the first page served from it - except that it
+// answers 200 and the map is the broker's own (LdEntityMap.automatic). What the first round put in
+// the response headers (an NGSILD-Warning) is not this answer's: the second round says it again.
+//
+static bool autoEntityMapRound2(int headerCount)
+{
+  corRest.out.headerCount   = headerCount;
+  corNgsild.entityMapCreate = true;
+  corNgsild.entityMapAuto   = true;
+
+  return queryEntities();
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// autoEntityMapLocal - a local query whose first page has more after it: freeze its set of matches
+//
+// The page itself is the one already fetched - the store's order (creation order) is the map's
+// order, so it is the map's first slice. The map is only the ids of every match (the same filter,
+// DbQueryFilter.idsOnly), all of them "@none". NULL when it was not made - the store failed, or the
+// map does not fit in the maps' memory: the query then pages as it would without automatic maps.
+//
+static LdEntityMap* autoEntityMapLocal(DbQueryFilter* pageFilterP)
+{
+  Tenant*           tP     = (Tenant*) corNgsild.tenantP;
+  LdEntityMapStore* storeP = (LdEntityMapStore*) tP->entityMapStoreP;
+  DbQueryFilter     f      = *pageFilterP;
+  CorNode*          idsP   = NULL;
+
+  f.idsOnly    = true;
+  f.unpaged    = true;
+  f.limit      = 0;
+  f.offset     = 0;
+  f.count      = false;
+  f.totalCount = 0;
+  f.maxBytes   = 0;
+  f.budgetHit  = false;
+
+  if ((db.entityQuery(tP, &f, &idsP) != DB_OK) || (idsP == NULL))
+  {
+    COR_W("automatic EntityMap: the query for the ids of the matching entities failed - the query pages without one");
+    return NULL;
+  }
+
+  //
+  // No purge of the expired maps here - it walks the store under its write lock, and this runs on
+  // every query of more than one page. An expired map is not found (ldEntityMapLookup) and its
+  // memory goes when the maps' memory is needed (ldEntityMapAdmit purges then).
+  //
+  LdEntityMap* mapP = ldEntityMapCreate(storeP, 5ULL * 60 * 1000000000ULL, tP);
+
+  if (mapP == NULL)
+    return NULL;
+
+  mapP->automatic = true;
+
+  entityMapFill(mapP, idsP, NULL, NULL);
+
+  if (ldEntityMapAdmit(storeP, mapP) == false)
+  {
+    ldEntityMapUnpin(mapP);         // the caller's pin - the last reference: it is freed
+    return NULL;
+  }
+
+  ldEntityMapRequestPin(mapP);      // held till the request ends
+  return mapP;
+}
+#endif
+
+
+
+// -----------------------------------------------------------------------------
+//
 // getEntities -
 //
 bool getEntities(void)
@@ -1588,27 +2073,10 @@ bool getEntities(void)
   }
 
   //
-  // § 6.4.3.2 Table 6.4.3.2-2: NGSILD-EntityMap request header is an
-  // alternative to ?entityMap=<id>. Value is the EntityMap URI; extract
-  // the id (last URL segment). URL param takes precedence if both present.
+  // The NGSILD-EntityMap request header - the alternative to ?entityMap=<id> - is read before the
+  // parameters are validated (tenantPreServiceHook, ldEntityMapRequestHeader): corNgsild.entityMapId
+  // holds whichever form named the map.
   //
-  if (corNgsild.entityMapId == NULL)
-  {
-    for (int i = 0; i < corRest.in.httpHeaderCount; i++)
-    {
-      if (strcasecmp(corRest.in.httpHeaderV[i].key, "NGSILD-EntityMap") == 0)
-      {
-        const char* val = corRest.in.httpHeaderV[i].value;
-        if (val != NULL && val[0] != 0)
-        {
-          const char* slash = strrchr(val, '/');
-          corNgsild.entityMapId = (char*) ((slash != NULL && slash[1] != 0) ? slash + 1 : val);
-        }
-        break;
-      }
-    }
-  }
-
   //
   // EntityMap-based pagination — separate flow, dedicated helper.
   //
@@ -1656,6 +2124,20 @@ bool getEntities(void)
     }
   }
 
+  return queryEntities();
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// queryEntities - the query itself, once the request is known to be one (getEntities)
+//
+// Runs a second time for an AUTOMATIC EntityMap of a distributed query (autoEntityMapRound2): the
+// first run found the answer to be more than one page, the second freezes it.
+//
+static bool queryEntities(void)
+{
   //
   // Geo-query inter-parameter validation lives in ldParamsValidate now —
   // hoisted so /csourceRegistrations (and every other query route) shares
@@ -1707,17 +2189,36 @@ bool getEntities(void)
   //
   bool brokerPaginates = (corNgsild.orderByV != NULL) && (corNgsild.orderByCount > 0);
 
-  filter.unpaged  = brokerPaginates;
-  filter.limit    = brokerPaginates ? 0 : ((corNgsild.limit > 0) ? corNgsild.limit + 1 : 0);
-  filter.offset   = brokerPaginates ? 0 : corNgsild.offset;
-  filter.count    = brokerPaginates ? false : corNgsild.count;
+  //
+  // An EntityMap is being created (?entityMap=true, /entityMaps, or the broker's own - autoEntityMap*):
+  // it freezes the whole matching SET, so the store is asked for every match - and for nothing but
+  // their ids (DbQueryFilter.idsOnly): the map holds ids, the pages fetch the entities. Except under
+  // orderBy, where the broker orders the full entities before it freezes their order.
+  //
+  bool idsOnly = corNgsild.entityMapCreate && !brokerPaginates;
+
+  filter.unpaged  = brokerPaginates || idsOnly;
+  filter.limit    = filter.unpaged ? 0 : ((corNgsild.limit > 0) ? corNgsild.limit + 1 : 0);
+  filter.offset   = filter.unpaged ? 0 : corNgsild.offset;
+  filter.count    = filter.unpaged ? false : corNgsild.count;
+  filter.idsOnly  = idsOnly;
 
 #if COR_FEATURE_RESPONSE_BUDGET
   //
   // The byte budget (--maxResponseSize): the store stops fetching before the
   // entity that would pass it. A second bound beside limit, not a value of it.
+  // Not for the ids of an EntityMap: what bounds those is the maps' memory (--entityMapMemory).
   //
-  filter.maxBytes = responseBudgetBytes;
+  filter.maxBytes = idsOnly ? 0 : responseBudgetBytes;
+#endif
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  //
+  // Whether this query may get an EntityMap the client did not ask for (roadmap § 13) - decided
+  // once the first page shows there is more than one (autoEntityMapLocal, autoEntityMapRound2).
+  //
+  bool autoEligible = autoEntityMapEligible(brokerPaginates);
+  int  headerCount  = corRest.out.headerCount;    // what a second round (autoEntityMapRound2) starts over from
 #endif
 
   //
@@ -1781,7 +2282,7 @@ bool getEntities(void)
   // whole matching set (orderBy orders it before paginating, an EntityMap
   // freezes it), where a part of it would be a wrong answer.
   //
-  if (responseBudgetRefused(&filter, arrayP, brokerPaginates || corNgsild.entityMapCreate))
+  if (responseBudgetRefused(&filter, arrayP, brokerPaginates))
     return true;
 
   // Where the store stopped, before anything is filtered out of the page (only read when the budget ended it)
@@ -1795,13 +2296,27 @@ bool getEntities(void)
   // Entity is invisible to every one of them. The DB query deliberately does
   // not filter on expiresAt — the rows have to reach RAM to be noticed.
   //
-  dbExpiredEntityFilter((Tenant*) corNgsild.tenantP, arrayP);
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  // Whether the store had more than a page of local matches (it was asked for limit + 1) - before anything leaves the page
+  bool localMore = (autoEligible == true) && ((arrayLength(arrayP) > corNgsild.limit) || (filter.budgetHit == true));
+#endif
+
+  //
+  // An id is all the store returned for an EntityMap (idsOnly) - nothing an expiresAt could be read
+  // from. The pages fetch the entities, and drop an expired one (entityMapServe).
+  //
+  if (idsOnly == false)
+    dbExpiredEntityFilter((Tenant*) corNgsild.tenantP, arrayP);
 
   // § 6.4.7.2: whether the LOCAL query came back empty (before any
   // distributed merge / post-filter touches arrayP). An empty local page
   // with a positive offset is the offset-past-the-end case handled below.
   bool localQueryEmpty = (arrayP == NULL || arrayP->value.head == NULL);
   bool distForwarded   = false;
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  int  forwardedN      = 0;        // the Context Sources the query was forwarded to
+  bool sourceMore      = false;    // one of them may have more than the page it answered
+#endif
 
   //
   // Source-provenance map (§ 5.2.39) — built only when an EntityMap is
@@ -1811,7 +2326,20 @@ bool getEntities(void)
   // source for a given entity.
   //
   CorNode* srcMap = corNgsild.entityMapCreate ? corTreeObject(corRest.kallocP, NULL) : NULL;
-  srcMapStampLocalFrom(srcMap, arrayP);
+
+  //
+  // The local entities of an id-only fetch are NOT stamped: an entity absent from srcMap is "@none"
+  // (entityMapFill), and stamping every local id - each a linear srcMap lookup - was quadratic in
+  // the size of the set, which for a map is the whole matching set.
+  //
+  if (idsOnly == false)
+    srcMapStampLocalFrom(srcMap, arrayP);
+
+  //
+  // The same reason for the dedup of the sources' candidates against the local ones: by id, hashed
+  // (idHashGet), not a walk of the array per candidate.
+  //
+  CorHashTable* idHashP = NULL;
 
   // Linked-maps tracker (§ 5.14.4.4) — CorObject keyed by CSR regId, value =
   // remote EntityMap id. Populated as each per-CSR forward returns its
@@ -1894,18 +2422,48 @@ bool getEntities(void)
         splitFilter.idV       = filter.idV;
         splitFilter.idPattern = filter.idPattern;
         splitFilter.limit     = 1000000;
+
+        if (idsOnly)
+        {
+          //
+          // The candidates of an EntityMap (§ 9.6: "in the case of split Entities, Entity Maps initially
+          // only store candidate Entities"): the local entities of the queried type - as the split
+          // forward asks the sources for theirs - their ids only, every one of them. A local part of an
+          // entity of another type is not lost: every candidate a source holds is looked for here too
+          // (srcMapAddLocalToRemote, after the forwards).
+          //
+          splitFilter.typeV    = filter.typeV;
+          splitFilter.typeExpr = filter.typeExpr;
+          splitFilter.limit    = 0;
+          splitFilter.unpaged  = true;
+          splitFilter.idsOnly  = true;
+        }
 #if COR_FEATURE_RESPONSE_BUDGET
-        splitFilter.maxBytes  = responseBudgetBytes;
+        else
+          splitFilter.maxBytes = responseBudgetBytes;
 #endif
         arrayP = NULL;
         db.entityQuery((Tenant*) corNgsild.tenantP, &splitFilter, &arrayP);
 #if COR_FEATURE_RESPONSE_BUDGET
+#if COR_FEATURE_AUTO_ENTITY_MAP
+        //
+        // More local entities than the budget holds at once: not a refusal when the query can have an
+        // EntityMap - the pages then fetch them a slice at a time.
+        //
+        if ((autoEligible == true) && (splitFilter.budgetHit == true))
+        {
+          for (int m = 0; m < 4; m++)
+            if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+          return autoEntityMapRound2(headerCount);
+        }
+#endif
         // Every local entity with these ids, assembled with the sources' parts - a part of it is a wrong answer
         if (responseBudgetRefused(&splitFilter, arrayP, true))
           return true;
         filter.budgetHit = false;   // the page is cut from all of them now, by limit alone
 #endif
-        srcMapStampLocalFrom(srcMap, arrayP);
+        if (idsOnly == false)
+          srcMapStampLocalFrom(srcMap, arrayP);
       }
 
       // baseQs is per-CSR (alias-bearing params are compacted via ldDistOpForwardContext)
@@ -2085,7 +2643,35 @@ bool getEntities(void)
         }
       }
 
-      if (itemCount > 0)
+#if COR_FEATURE_AUTO_ENTITY_MAP
+      forwardedN = itemCount;
+#endif
+
+      if ((itemCount > 0) && (idsOnly == true))
+      {
+        //
+        // The sources answer with their EntityMaps - ids, not entities. What bounds them is the maps'
+        // memory, not the byte budget of a response: a source's map that would not fit in it is not
+        // read, and the map cannot be made.
+        //
+        ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, ldEntityMapMaxBytes);
+
+        entityMapSourceFallback(items, results, itemCount, ownAlias);
+
+        for (int i = 0; i < itemCount; i++)
+        {
+          if (results[i].tooLarge)
+          {
+            for (int m = 0; m < 4; m++)
+              if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+            ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
+                    "the EntityMap of Context Source '%s' does not fit in the memory of the EntityMaps (--entityMapMemory %lld MiB) - narrow the query",
+                    (items[i].csr->regId != NULL) ? items[i].csr->regId : "?", (long long) (ldEntityMapMaxBytes >> 20));
+            return true;
+          }
+        }
+      }
+      else if (itemCount > 0)
       {
 #if COR_FEATURE_RESPONSE_BUDGET
         ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, responseBudgetBytes);   // read up to the budget, no further
@@ -2102,7 +2688,7 @@ bool getEntities(void)
         //
         if (responseBudgetBytes > 0)
         {
-          bool      wholeSet = brokerPaginates || corNgsild.entityMapCreate || splitMode;
+          bool      wholeSet = brokerPaginates || splitMode;     // an EntityMap being created never gets here: its sources answer ids (idsOnly, above)
           CorNode** partV    = (CorNode**) corAlloc(&corRest.kalloc, (itemCount + 1) * sizeof(CorNode*));
           int       parts    = 0;
           int64_t   mapBytes = 0;
@@ -2113,6 +2699,14 @@ bool getEntities(void)
           {
             if (results[i].tooLarge)
             {
+#if COR_FEATURE_AUTO_ENTITY_MAP
+              if (autoEligible == true)     // more than a response holds: with a map, a slice at a time
+              {
+                for (int m = 0; m < 4; m++)
+                  if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+                return autoEntityMapRound2(headerCount);
+              }
+#endif
               char what[512];
               snprintf(what, sizeof(what), "the answer of Context Source '%s' (lower 'limit')",
                        (items[i].csr->regId != NULL) ? items[i].csr->regId : "?");
@@ -2146,11 +2740,24 @@ bool getEntities(void)
                                           wholeSet ? 0 : corNgsild.limit,
                                           (wholeSet || (filter.budgetHit == false)) ? -1 : budgetFetched);
 
+#if COR_FEATURE_AUTO_ENTITY_MAP
+          //
+          // Split entities: every match assembled at once, more than the budget holds. Not a refusal
+          // when the query can have an EntityMap - its pages assemble a slice at a time.
+          //
+          if ((depth >= 0) && wholeSet && (autoEligible == true))
+          {
+            for (int m = 0; m < 4; m++)
+              if (modeMatchV[m] != NULL) free(modeMatchV[m]);
+            return autoEntityMapRound2(headerCount);
+          }
+#endif
+
           if ((depth >= 0) && wholeSet)
           {
             for (int m = 0; m < 4; m++)
               if (modeMatchV[m] != NULL) free(modeMatchV[m]);
-            responseBudgetTooMany("the set of matches of this broker and its Context Sources, which this query needs all at once (orderBy, an EntityMap or split entities),");
+            responseBudgetTooMany("the set of matches of this broker and its Context Sources, which this query needs all at once (orderBy, or split entities without an EntityMap),");
             return true;
           }
 
@@ -2172,7 +2779,10 @@ bool getEntities(void)
 #else
         ldDistOpSendMulti(items, itemCount, CorVerbGet, ownAlias, results);
 #endif
+      }
 
+      if (itemCount > 0)
+      {
         for (int i = 0; i < itemCount; i++)
         {
           LdRegCacheItem* csr    = items[i].csr;
@@ -2199,7 +2809,7 @@ bool getEntities(void)
 
           CorNode* remoteArray;
 
-          if (corNgsild.entityMapCreate)
+          if (corNgsild.entityMapCreate && isEntityMapTree(results[i].responseTree))
           {
             // § 5.14.4.4: response is a single EntityMap object. Pull out
             // remote map id + synthesise an array of { "id": <entityId> }
@@ -2244,6 +2854,20 @@ bool getEntities(void)
 
           if (remoteArray == NULL || remoteArray->type != CorArray) continue;
 
+#if COR_FEATURE_AUTO_ENTITY_MAP
+          //
+          // A source that answered a whole page may have more after it: the answer is more than one
+          // page. Its page is the limit forwarded to it. Split mode forwards no limit: an answer of
+          // exactly 20 - the default page of a source asked without one (ours, and Orion-LD's) - may
+          // be a cut one when the client's page is bigger.
+          //
+          int remoteN = arrayLength(remoteArray);
+
+          if ((autoEligible == true) &&
+              ((remoteN >= corNgsild.limit) || (splitMode && (remoteN == 20) && (corNgsild.limit > 20))))
+            sourceMore = true;
+#endif
+
           // Expand each forwarded entity via the context that travels WITH the
           // response — the URL in its json-ld#context Link header, else core.
           // corLdExpandTree additionally applies any embedded @context (ld+json)
@@ -2266,13 +2890,22 @@ bool getEntities(void)
             }
 
             CorNode* existingP = NULL;
-            for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
+            if (idsOnly == true)
             {
-              CorNode* eidP = corTreeLookup(ep, "id");
-              if (eidP != NULL && eidP->type == CorString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
+              if (idHashP == NULL)
+                idHashP = idHashCreate(arrayP);
+              existingP = (CorNode*) corHashItemLookup(idHashP, remoteIdP->value.s);
+            }
+            else
+            {
+              for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
               {
-                existingP = ep;
-                break;
+                CorNode* eidP = corTreeLookup(ep, "id");
+                if (eidP != NULL && eidP->type == CorString && strcmp(eidP->value.s, remoteIdP->value.s) == 0)
+                {
+                  existingP = ep;
+                  break;
+                }
               }
             }
 
@@ -2313,6 +2946,8 @@ bool getEntities(void)
             {
               corTreeChildAdd(arrayP, remoteEntity);
               srcMapAdd(srcMap, remoteIdP->value.s, csr->regId);
+              if (idHashP != NULL)
+                corHashItemAdd(idHashP, remoteIdP->value.s, remoteEntity);
             }
             else if (splitMode)
             {
@@ -2348,10 +2983,32 @@ bool getEntities(void)
         corRestOutHeaderAdd("NGSILD-Warning", warn);
     }
 
-    // Split mode post-assembly filters (§ 5.7.2.4).
-    if (splitMode)
+    //
+    // Split mode post-assembly filters (§ 5.7.2.4). Not on the candidates of an EntityMap: they are
+    // ids, and the filters run on each page, on the entities assembled for it (entityMapServe).
+    //
+    if (splitMode && (idsOnly == false))
       applyResultFilters(arrayP);
+
+    //
+    // A split entity's local part need not carry the queried type: every candidate a source holds
+    // is looked for locally too, on each page (a local part that is not there is simply not found).
+    //
+    if (splitMode && idsOnly)
+      srcMapAddLocalToRemote(srcMap);
   }
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  //
+  // A distributed answer of more than one page: the broker creates an EntityMap - a second round,
+  // the sources asked for their maps (autoEntityMapRound2) - and serves the first page from it.
+  // An answer of one page is final as it is: nothing to paginate, so no map (and the sources were
+  // asked exactly what a query without automatic maps asks them).
+  //
+  if ((autoEligible == true) && (forwardedN > 0) &&
+      ((localMore == true) || (sourceMore == true) || (filter.budgetHit == true) || (arrayLength(arrayP) > corNgsild.limit)))
+    return autoEntityMapRound2(headerCount);
+#endif
 
   //
   // Sort by orderBy before pagination (§ 4.23)
@@ -2378,9 +3035,10 @@ bool getEntities(void)
   }
 
   //
-  // Entity map: if entityMap=true, freeze the sorted entity IDs into a map
-  // for consistent pagination. The map is stored per-tenant and its location
-  // is returned via the NGSILD-EntityMap response header.
+  // EntityMap creation: ?entityMap=true, GET|POST /entityMaps, or the broker's own (a distributed
+  // query of more than one page - autoEntityMapRound2). The matching set - its ids, sorted under
+  // orderBy - is frozen into a map for consistent pagination, the first page is served from it
+  // (entityMapServe) and its location goes back in NGSILD-EntityMap.
   //
   if (corNgsild.entityMapCreate)
   {
@@ -2388,12 +3046,13 @@ bool getEntities(void)
 
     if (tP != NULL && tP->entityMapStoreP != NULL)
     {
+      LdEntityMapStore* storeP = (LdEntityMapStore*) tP->entityMapStoreP;
+
       // Purge expired maps first
-      ldEntityMapPurgeExpired((LdEntityMapStore*) tP->entityMapStoreP);
+      ldEntityMapPurgeExpired(storeP);
 
       // Default lifetime: 5 minutes
-      LdEntityMap* mapP = ldEntityMapCreate((LdEntityMapStore*) tP->entityMapStoreP,
-                                             5ULL * 60 * 1000000000ULL, tP);
+      LdEntityMap* mapP = ldEntityMapCreate(storeP, 5ULL * 60 * 1000000000ULL, tP);
 
       if (mapP == NULL)
       {
@@ -2401,73 +3060,35 @@ bool getEntities(void)
         return true;
       }
 
+      mapP->automatic = corNgsild.entityMapAuto;
+
       ldEntityMapRequestPin(mapP);   // created pinned; held (and filled, rendered) till the request ends
 
-      // Bind the query's filter params to the map (§ 9 same-parameters): a
-      // later paginated reuse may re-send these with the same value or omit
-      // them, but not modify or introduce one.
-      ldEntityMapSetFilters(mapP, corNgsild.type, corNgsild.q, corNgsild.scopeQ,
-                            corNgsild.georel, corNgsild.geometry, corNgsild.coordinates,
-                            corNgsild.geoproperty);
+      entityMapFill(mapP, arrayP, srcMap, linkedMapsTracker);
 
       //
-      // And q as a subscription stores it - resolved, with this request's @context, expandValues,
-      // jsonKeys and langProperties applied - for a later page that omits q (LdEntityMap.boundQStored).
+      // The maps' memory (--entityMapMemory): a map that does not fit, once the expired and the
+      // least recently used automatic maps have gone, is not kept. The broker's own map is then
+      // given up - the query pages as it would without automatic maps (a third round, the last);
+      // one the client asked for is refused.
       //
-      if (corNgsild.qExpr != NULL)
-        ldEntityMapSetStoredQ(mapP, ldQRenderStored(corNgsild.qExpr, &corRest.kalloc));
-
-      //
-      // Walk the sorted array, add each entity ID to the map along with
-      // its provenance: look up the entity in srcMap and flatten the
-      // CorArray of source strings into a char** for ldEntityMapAddEntry.
-      //
-      for (CorNode* entityP = arrayP->value.head; entityP != NULL; entityP = entityP->next)
+      if (ldEntityMapAdmit(storeP, mapP) == false)
       {
-        CorNode* idP = corTreeLookup(entityP, "id");
-        if (idP == NULL || idP->type != CorString)
-          continue;
-
-        CorNode* srcArr = (srcMap != NULL) ? corTreeLookup(srcMap, idP->value.s) : NULL;
-
-        int n = 0;
-        if (srcArr != NULL && srcArr->type == CorArray)
-          for (CorNode* s = srcArr->value.head; s != NULL; s = s->next) n++;
-
-        if (n == 0)
+#if COR_FEATURE_AUTO_ENTITY_MAP
+        if (corNgsild.entityMapAuto == true)
         {
-          // Shouldn't happen for an entity that made it into arrayP, but
-          // stay safe — fall back to "@none".
-          const char* lone = "@none";
-          ldEntityMapAddEntry(mapP, idP->value.s, &lone, 1);
+          corRest.out.headerCount     = headerCount;
+          corNgsild.entityMapCreate   = false;
+          corNgsild.entityMapAuto     = false;
+          corNgsild.entityMapAutoOff  = true;
+          return queryEntities();
         }
-        else
-        {
-          const char** srcV = (const char**) corAlloc(&corRest.kalloc, n * sizeof(char*));
-          int i = 0;
-          for (CorNode* s = srcArr->value.head; s != NULL; s = s->next)
-            if (s->type == CorString)
-              srcV[i++] = s->value.s;
-          ldEntityMapAddEntry(mapP, idP->value.s, srcV, i);
-        }
+#endif
+        ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
+                "the %d matching entities do not fit in the memory of the EntityMaps (--entityMapMemory %lld MiB) - narrow the query",
+                mapP->entryCount, (long long) (ldEntityMapMaxBytes >> 20));
+        return true;
       }
-
-      // Flush per-CSR linkedMaps tracker (§ 5.14.4.4) into the map.
-      if (linkedMapsTracker != NULL)
-      {
-        for (CorNode* p = linkedMapsTracker->value.head; p != NULL; p = p->next)
-        {
-          if (p->name == NULL || p->type != CorString)
-            continue;
-          ldEntityMapAddLinkedMap(mapP, p->name, p->value.s);
-        }
-      }
-
-      // Add NGSILD-EntityMap header with the map's URL
-      char* mapUrl = (char*) corAlloc(&corRest.kalloc, 128);
-      snprintf(mapUrl, 128, "/ngsi-ld/v1/entityMaps/%s", mapP->mapId);
-
-      corRestOutHeaderAdd("NGSILD-EntityMap", mapUrl);
 
       //
       // GET / POST /entityMaps (§ 6.34.3): return the EntityMap itself
@@ -2476,11 +3097,23 @@ bool getEntities(void)
       //
       if (corNgsild.entityMapOnly)
       {
+        entityMapHeader(mapP);
         corRest.out.responseTree   = ldEntityMapToTree(mapP);
         corRest.out.httpStatusCode = 201;
         corNgsild.rawResponse      = true;
         return true;
       }
+
+      //
+      // TS 104-176 clause 7: "201 Created (in case an EntityMap has been (re)created)" - for the map
+      // the client asked for. The broker's own map answers 200: the answer is the result of a query,
+      // the map a by-product of paginating it - a plain query does not change its success code
+      // because its result is more than one page (KZ, 2026-10-08).
+      //
+      if (corNgsild.entityMapAuto == false)
+        corRest.out.httpStatusCode = 201;
+
+      return entityMapServe(mapP);
     }
   }
 
@@ -2530,6 +3163,23 @@ bool getEntities(void)
   //
   // Add NGSILD-Results-Count header if count was requested
   //
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  //
+  // A local query whose first page has more after it: the broker freezes its set of matches in an
+  // EntityMap of its own (roadmap § 13) - the next page, and every one after it, is a slice of that
+  // set, not of whatever matches by then. This page is the one already fetched: its first slice.
+  //
+  LdEntityMap* autoMapP = NULL;
+
+  if ((autoEligible == true) && (forwardedN == 0) && (localMore == true))
+  {
+    autoMapP = autoEntityMapLocal(&filter);
+
+    if ((autoMapP != NULL) && corNgsild.count)
+      filter.totalCount = autoMapP->entryCount;     // the frozen set, as every page of the map says
+  }
+#endif
+
   if (corNgsild.count)
   {
     char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
@@ -2557,12 +3207,35 @@ bool getEntities(void)
     orderBySkip(arrayP, corNgsild.offset);
 
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
+  bool linked  = false;
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  if (autoMapP != NULL)
+  {
+    //
+    // The links name the map. The next page starts after this one - where the store stopped, when
+    // the byte budget ended this page before limit did.
+    //
+    int nextOffset = corNgsild.limit;
 #if COR_FEATURE_RESPONSE_BUDGET
-  responseBudgetLinkHeader(&filter, arrayP, hasMore, budgetFetched);   // a page the budget ended: next where it stopped
-#else
-  if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
-    ldPaginationLinkHeader(hasMore);
+    if (filter.budgetHit)
+      nextOffset = budgetFetched;
 #endif
+    entityMapHeader(autoMapP);
+    ldPaginationEntityMapLinkHeader(autoMapP, 0, corNgsild.limit, nextOffset, autoMapP->entryCount, nextOffset < autoMapP->entryCount);
+    linked = true;
+  }
+#endif
+
+  if (linked == false)
+  {
+#if COR_FEATURE_RESPONSE_BUDGET
+    responseBudgetLinkHeader(&filter, arrayP, hasMore, budgetFetched);   // a page the budget ended: next where it stopped
+#else
+    if ((arrayP != NULL && arrayP->value.head != NULL) || hasMore)
+      ldPaginationLinkHeader(hasMore);
+#endif
+  }
 
   //
   // Apply pick/omit attribute projection (or the legacy attrs alias)

@@ -47,6 +47,7 @@ const CoraineFeature coraineFeatures[] =
   { "MIGRATE",           COR_FEATURE_MIGRATE           },
   { "HEALTH",            COR_FEATURE_HEALTH            },
   { "RESPONSE_BUDGET",   COR_FEATURE_RESPONSE_BUDGET   },
+  { "AUTO_ENTITY_MAP",   COR_FEATURE_AUTO_ENTITY_MAP   },
   { "ICU_COLLATION",     COR_FEATURE_ICU_COLLATION     },
   { "LOCATION",          COR_FEATURE_LOCATION          },
   { "OBSERVATION_SPACE", COR_FEATURE_OBSERVATION_SPACE },

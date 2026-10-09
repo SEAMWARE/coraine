@@ -24,7 +24,7 @@
 #include "corNgsild/LdPernotCache.h"                      // LdPernotCache
 #include "corNgsild/ldPernotCache.h"                      // ldPernotCacheCreate
 #include "corNgsild/LdEntityMap.h"                         // LdEntityMapStore
-#include "corNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate
+#include "corNgsild/ldEntityMap.h"                         // ldEntityMapStoreCreate, ldEntityMapRequestHeader
 #include "corNgsild/LdSnapshotCache.h"                     // ldSnapshotCacheCreate, ldSnapshotCacheItemAdd, ldSnapshotCacheItemDelete
 #include "db/snapshotTenant.h"                            // snapshotTenantCreate, snapshotTenantDestroy
 #include "corNgsild/LdRegCache.h"                          // LdRegCache
@@ -389,6 +389,14 @@ bool tenantPreServiceHook(void)
   // csourceRegistrations / csourceSubscriptions): a malformed Polygon
   // on those endpoints is now caught up front instead of sliding
   // through to the geo matcher.
+  //
+  // The NGSILD-EntityMap request header - the EntityMap to use, the alternative to ?entityMap=<id> -
+  // before the validation: a page served from a map needs no selector of its own, whichever form
+  // named the map. A header and a URL parameter naming different maps: 400.
+  //
+  if (ldEntityMapRequestHeader() == false)
+    return false;
+
   if (ldParamsValidate())
     return false;
 

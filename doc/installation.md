@@ -162,6 +162,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--healthStallTimeout` | 30 | seconds a request may be in flight, with no request finishing, before `GET /live` answers 503 |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
 | `--maxResponseSize` | 1/16 of the memory budget; none without one | byte budget of an entity query, MiB (0 = no budget) - see [Response size](#response-size) |
+| `--entityMapMemory` | 64 | memory all EntityMaps may hold together, MiB (0 = no cap, and no automatic EntityMaps) - see [EntityMaps](#entitymaps) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
 | `--httpEndpoint` / `-he` | auto | externally reachable base URL |
@@ -316,7 +317,8 @@ leaves the memory budget room for them. `-v` at startup says which budget is in 
 |---|---|
 | the budget is reached before `limit` | 200 with a page shorter than `limit`. `Link` `rel="next"` points at `offset` + the entities returned, with the same `limit`; `NGSILD-Results-Count` (`count=true`) is the size of the whole result set |
 | the first entity of the page alone is larger than the budget | 403, error type `https://uri.etsi.org/ngsi-ld/errors/TooManyResults` |
-| the query needs every match at once - `orderBy` (the matches are ordered before they are paginated), `entityMap=true`, split entities in a distributed query - and they are larger than the budget | 403 `TooManyResults` |
+| the query needs every match at once - `orderBy` (the matches are ordered before they are paginated) - and they are larger than the budget | 403 `TooManyResults` |
+| a page served from an [EntityMap](#entitymaps) | the page ends before the entity that would pass the budget, `rel="next"` points at the map position after the last one on it; 403 only when the first entity alone is larger |
 
 The end of a result set is the page without a `rel="next"` link, not a page shorter than `limit`.
 
@@ -355,10 +357,78 @@ The answers that were read are then counted entity by entity, as rendered:
 |---|---|
 | a paged query (`splitEntities=false` or `--noSplitEntities`: every entity wholly at one source) | the local page and each source's page are cut at the same depth - the most entities of each that fit in the budget together, and in `limit`. 200, `Link` `rel="next"` at `offset` + that depth: the sources are asked for the same `offset` and `limit` as the local store, so the next page continues every one of them where this one stopped |
 | the depth is 0: the first entity of the local page and of each source's page together are larger than the budget | 403 `TooManyResults` |
-| a query that needs every match at once - split entities (the default: an entity is assembled from the parts the sources hold before the page is cut), `orderBy`, `entityMap=true` - and the local and forwarded matches together are larger than the budget | 403 `TooManyResults` |
+| a query that needs every match at once - `orderBy`, and split entities (the default: an entity is assembled from the parts the sources hold before the page is cut) without an [EntityMap](#entitymaps) - and the local and forwarded matches together are larger than the budget | 403 `TooManyResults`. With automatic EntityMaps (the default) a split-entity query over the budget is paged through a map instead |
 | one entity's history, `GET /temporal/entities/{id}`, with Context Sources | the instance arrays of every attribute - local and each source's - cut at the same depth (the K instances of each that fit together); `rel="intervalafter"` at `offsetN` + K |
 
 In the build by default; `-DCOR_FEATURE_RESPONSE_BUDGET=OFF` leaves it out (no option, no budget).
+
+## EntityMaps
+
+An EntityMap (TS 104-175 § 9.6) freezes the **set** of entities a query matches - their ids, in the
+query's order, each with the sources that hold it - and a paginated query is served from it: a page
+is a slice of the frozen ids, each entity fetched from where the map says it lives. It freezes the
+set, not the values. Every page applies the query's filters (`type`, `q`, `scopeQ`, the GeoQuery)
+again, and an entity that no longer matches is left out: `limit=20` with 3 that no longer match is a
+page of 17, and the next page still starts 20 further on (see below). An entity created after the map
+is not in it.
+
+**Automatic EntityMaps.** A `GET /ngsi-ld/v1/entities` whose first page (`offset` 0) has more after it
+gets a map without asking for one:
+
+- a local query, when the store holds more than `limit` matches;
+- a distributed query (registrations matched, `--distributed`), when its answer is more than a page -
+  more than `limit` local matches, a source that answered a whole page, or more than `limit` together.
+  The broker then asks each source for its own EntityMap (`GET /ngsi-ld/v1/entityMaps` on the source)
+  and records it (`linkedMaps`); the pages fetch each entity from its sources, asking a source that
+  answered with a map for its entity from that map. With split entities (the default) the map holds
+  candidates and the filters are applied to the entities assembled for each page.
+
+Not for: a query of one page (nothing to paginate - no map, and the sources are asked exactly what a
+query without maps asks them), a query that starts at another `offset`, `limit=0`, `POST
+/entityOperations/query`, and `orderBy`: ordering by attribute values needs the values frozen, which
+is a Snapshot (`NGSILD-Snapshot`), not an EntityMap.
+
+| | Status | `NGSILD-EntityMap` response header | `Link` |
+|---|---|---|---|
+| a query that gets an automatic map | 200 - the answer is the result of the query; the map is a by-product of paginating it | the map's URI | `next` / `last` name the map |
+| a page of an expired or unknown map, with the query's parameters | 200 - a new map is made from them | the new map's URI | name the new map |
+| `?entityMap=true`, or `GET`/`POST /ngsi-ld/v1/entityMaps` | 201 Created (TS 104-176 clause 7: "in case an EntityMap has been (re)created") | the map's URI | the first page's `next` / `last` name the new map |
+| a page of an existing map: `?entityMap=<id>`, or the request header `NGSILD-EntityMap: <URI>` | 200 | the map's URI | `first` / `prev` / `next` / `last` name the map |
+
+Every link names the map - `entityMap=<id>` with `limit` and `offset` - and repeats the whole query
+that created it: the selecting parameters (`type`, `q`, `scopeQ`, the GeoQuery, `attrs`, `id`, `csf`,
+`local`, ...) and the ones that shape the answer (`options`, `format`, `pick`, `lang`, `count`, ...).
+TS 104-175 § 9.6: "Subsequent requests referencing an Entity Map shall use the same parameters as in
+the original request that created the Entity Map, except for the specification of Entity identifiers
+or parameters related to pagination". So a followed link is a complete query by itself. A page that
+sends a selecting parameter with a different value than the map's query, or one that query did not
+have, is 400 `BadRequestData` naming the parameter; one that leaves a selecting parameter out is served
+by the map's query. The request header `NGSILD-EntityMap` and `?entityMap=<id>` naming different maps
+is 400. `NGSILD-Results-Count` (`count=true`) on a page of a map is the size of the frozen set.
+
+An entity that no longer matches is left out of its page, and stays in the map. § 9.6 says such
+entities "shall be removed from the Entity Map"; the pages are the same either way, except that a
+removal would shift every later position, and the next page, at `offset` + `limit`, would skip as many
+entities as were removed. So the positions of the frozen set never move, a page can be shorter than
+`limit`, and `NGSILD-Results-Count` stays the size of the frozen set.
+
+A map lives 5 minutes. An automatic map's lifetime slides: each page served from it gives it another
+5 minutes. A page of a map that has expired, or is unknown: "a new one shall be created" (§ 9.6) - from
+the request's own parameters (a link carries the whole query), and the requested page is served from
+the new map, named in `NGSILD-EntityMap` (200). A request with no selector at all - nothing to make a
+map from - gets 404.
+
+**`--entityMapMemory <MiB>`** (default 64) is the memory all EntityMaps may hold together: an entity
+id and its sources, about 70 bytes plus the id for an entity of this broker. When a new map does not
+fit, the expired maps go, then the automatic maps used longest ago; a map a client asked for is never
+evicted. An automatic map that still does not fit is not made - the query is paginated as it would be
+without one (`offset` / `limit`, local and forwarded); a map the client asked for is refused with 403
+`TooManyResults`, as is a source's EntityMap larger than the whole cap. `0` removes the cap and turns
+automatic maps off. `ngsild_entity_map_bytes` and `ngsild_entity_map_store_size` (`/admin/metrics`)
+show what the maps hold.
+
+In the build by default; `-DCOR_FEATURE_AUTO_ENTITY_MAP=OFF` leaves the automatic maps out (a map is
+then only made when a client asks for one).
 
 ## Health port
 

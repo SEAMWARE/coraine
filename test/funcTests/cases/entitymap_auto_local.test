@@ -1,0 +1,262 @@
+#
+# FILE            entitymap_auto_local.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Roadmap § 13 - EntityMaps nobody has to ask for, the LOCAL query.
+#
+# A query whose first page has more after it freezes its SET of matching entities in an
+# EntityMap of the broker's own, and every page is a slice of that set (TS 104-175 § 7.4.2.4,
+# § 9.6). The set is frozen, the values are not: each page applies the query's filters again,
+# and an entity that no longer matches is dropped - the page is then SHORTER than limit, and the
+# next one still starts limit further on (decided in ETSI). An entity created after the first
+# page is not in the set and never appears.
+#
+# The answer is 200 - the map is a by-product of paginating a query (KZ, 2026-10-08) - and it
+# carries NGSILD-EntityMap; every link names the map and nothing a server could re-query from.
+#
+# Not for: a query of one page (nothing to paginate), a query that does not start at offset 0,
+# and orderBy on an attribute's value - ordering by values needs the values frozen, which is a
+# Snapshot, not an EntityMap.
+#
+# The number of maps the broker holds is read from /admin/metrics: following the links does not
+# create a second map (roadmap § 13.2).
+#
+# REQUIRE_FEATURE: AUTO_ENTITY_MAP METRICS ADMIN_API
+#
+--NAME--
+Automatic EntityMap of a local query paginated past its first page (roadmap § 13)
+
+--TAGS--
+entity entitymap entityMap pagination query
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+#
+# summary - a page as: status line, NGSILD-EntityMap, NGSILD-Results-Count, each pagination link
+#           (the map's id as MAPID), and the ids of the entities. The map id it saw is appended to
+#           $MAPS, so the test can say how many different maps the walk named.
+#
+MAPS=/tmp/entitymap_auto_local.maps.$$
+rm -f $MAPS
+PYSUM='
+import sys, re, json
+raw = sys.stdin.read().replace("\r", "")
+head, _, body = raw.partition("\n\n")
+lines = head.splitlines()
+print(lines[0])
+hdr = {}
+links = []
+for l in lines[1:]:
+  k, _, v = l.partition(":")
+  k = k.strip().lower()
+  v = v.strip()
+  if k == "link":
+    if "json-ld#context" not in v:
+      links.append(v)
+  else:
+    hdr[k] = v
+mapHdr = hdr.get("ngsild-entitymap")
+if mapHdr is not None:
+  open(sys.argv[1], "a").write(mapHdr + "\n")
+  mapHdr = re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", mapHdr)
+print("NGSILD-EntityMap: %s" % (mapHdr if mapHdr is not None else "(none)"))
+if "ngsild-results-count" in hdr:
+  print("NGSILD-Results-Count: %s" % hdr["ngsild-results-count"])
+for l in links:
+  for m in re.finditer(r"<([^>]*)>;rel=\"([a-z]+)\"", l):
+    print("  rel=%-5s %s" % (m.group(2), re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", m.group(1))))
+try:
+  print("ids: %s" % " ".join([e["id"] for e in json.loads(body)]))
+except Exception:
+  print("body: %s" % body.strip())
+'
+
+page()
+{
+  RESP=$(corCurl --url "$1")
+  echo "$RESP" | python3 -c "$PYSUM" $MAPS
+  NEXT=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+}
+
+
+echo "01. Seven vehicles V1..V7, created in that order, speed 10 * i"
+echo "==============================================================="
+for i in 1 2 3 4 5 6 7; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V'$i'","type":"Vehicle","speed":{"type":"Property","value":'$((i * 10))'}}' | head -1
+done
+echo
+echo
+
+
+echo "02. q=speed>20, limit=2, count=true - 5 matches: page 1 is V3 V4, a map, 200, the links name the map"
+echo "====================================================================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20&limit=2&count=true&options=keyValues'
+P1NEXT=$NEXT
+echo
+echo
+
+
+echo "03. V8 (speed 80) is created - it matches, but after the set was frozen"
+echo "======================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V8","type":"Vehicle","speed":{"type":"Property","value":80}}' | head -1
+echo
+echo
+
+
+echo "04. V5 slows down to 5 - it no longer matches"
+echo "============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V5/attrs -X PATCH --payload '{"speed":{"type":"Property","value":5}}' | head -1
+echo
+echo
+
+
+echo "05. Page 2 (the next link of page 1): V5 dropped - a page of ONE, the next one still at offset 4"
+echo "================================================================================================"
+page "$P1NEXT"
+echo
+echo
+
+
+echo "06. Page 3: V7 - the last page, no next; V8 is not in the set"
+echo "============================================================="
+page "$NEXT"
+echo
+echo
+
+
+echo "07. The walk named one map, and the broker holds one"
+echo "===================================================="
+echo "maps named: $(sort -u $MAPS | wc -l)"
+corCurl --url /admin/metrics --out raw | grep -a '^ngsild_entity_map_store_size'
+echo
+echo
+
+
+echo "08. q=speed>60 - one page (V7, V8): no map, no links"
+echo "===================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E60&limit=5&options=keyValues'
+echo
+echo
+
+
+echo "09. orderBy=speed - ordering by value is a Snapshot's job: no map, the links as without maps"
+echo "============================================================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=3&options=keyValues'
+echo
+echo
+
+
+echo "10. offset=2 without a map - the client paginates by itself: no map"
+echo "==================================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&limit=2&offset=2&options=keyValues'
+echo
+echo
+
+
+echo "11. Still one map"
+echo "================="
+corCurl --url /admin/metrics --out raw | grep -a '^ngsild_entity_map_store_size'
+rm -f $MAPS
+echo
+echo
+
+
+--EXPECT--
+01. Seven vehicles V1..V7, created in that order, speed 10 * i
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=speed>20, limit=2, count=true - 5 matches: page 1 is V3 V4, a map, 200, the links name the map
+=====================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+NGSILD-Results-Count: 5
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=2
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
+ids: urn:V3 urn:V4
+
+
+03. V8 (speed 80) is created - it matches, but after the set was frozen
+=======================================================================
+HTTP/1.1 201 Created
+
+
+04. V5 slows down to 5 - it no longer matches
+=============================================
+HTTP/1.1 204 No Content
+
+
+05. Page 2 (the next link of page 1): V5 dropped - a page of ONE, the next one still at offset 4
+================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+NGSILD-Results-Count: 5
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
+ids: urn:V6
+
+
+06. Page 3: V7 - the last page, no next; V8 is not in the set
+=============================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+NGSILD-Results-Count: 5
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=2
+ids: urn:V7
+
+
+07. The walk named one map, and the broker holds one
+====================================================
+maps named: 1
+ngsild_entity_map_store_size 1
+
+
+08. q=speed>60 - one page (V7, V8): no map, no links
+====================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: (none)
+ids: urn:V7 urn:V8
+
+
+09. orderBy=speed - ordering by value is a Snapshot's job: no map, the links as without maps
+=============================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: (none)
+  rel=next  /ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues&limit=3&offset=3
+ids: urn:V5 urn:V1 urn:V2
+
+
+10. offset=2 without a map - the client paginates by itself: no map
+===================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: (none)
+  rel=prev  /ngsi-ld/v1/entities?type=Vehicle&options=keyValues&limit=2&offset=0
+  rel=next  /ngsi-ld/v1/entities?type=Vehicle&options=keyValues&limit=2&offset=4
+ids: urn:V3 urn:V4
+
+
+11. Still one map
+=================
+ngsild_entity_map_store_size 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

@@ -54,17 +54,16 @@ Recently built, and documented where it lives:
 -   **Running on Kubernetes** - a memory budget that refuses work instead of being killed for it, a
     health port answering `/live` and `/ready` outside the HTTP queue, and a byte budget per query
     response - entity, temporal and distributed queries ([Kubernetes](kubernetes.md)).
+-   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
+    first page, freezes its set of matching entities on the first page and serves the pages from it
+    (the links carry the map's id); an entity that no longer matches is left out of its page
+    ([EntityMaps](installation.md#entitymaps)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
 coraine implements its own objects now and adapts to whatever TC DATA settles on.
 
 ## In progress
-
--   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
-    first page, freezes its set of matching entities on the first page and serves the pages from it
-    (the links carry the map's id); an entity that no longer matches is left out of its page.
-    ([§ 13](#13-entitymaps-nobody-has-to-ask-for))
 
 ## Short term
 
@@ -637,8 +636,9 @@ forwarded part of a distributed query: each source's answer read up to the budge
 (`ldDistOpSendMultiMax`, corRest `corRestClientMultiMaxResponse`), the local and the forwarded pages
 cut at one depth so that one `next` (`offsetN`) continues them all, 403 for the whole-set cases
 (split entities, `orderBy`, an EntityMap) and for a source whose answer passes the budget.
-**Open:** a split-entity distributed query forwards no `offset` / `limit` and applies no `offset`
-itself, so it is refused over the budget rather than paged.
+~~**Open:** a split-entity distributed query forwards no `offset` / `limit` and applies no `offset`
+itself, so it is refused over the budget rather than paged.~~ Paged through an automatic EntityMap
+([§ 13](#13-entitymaps-nobody-has-to-ask-for)).
 
 ---
 
@@ -686,6 +686,20 @@ Link: <...&orderBy=name&entityMap=true&limit=2&offset=2>;rel="next"
 The map has an id and the `next` link does not use it. 13.2 wants a functest
 that walks `next` from a map-creating request and asserts the map id never
 changes - see 14.
+
+**Done** ([EntityMaps](installation.md#entitymaps)): 13.2 - every link of a page that has a map names
+the map (`entityMap=<id>`) and repeats the whole query that created it (§ 9.6: "the same parameters
+as in the original request"); a page with a different selecting parameter is 400, and a page of an
+expired or unknown map creates a new one from its parameters (§ 9.6) - 404 only without a selector. 13.1 - a `GET /entities`
+whose first page has more after it gets a map of the broker's own: locally when the store holds more
+than `limit` matches, distributed when the answer is more than a page (a second round asks the sources
+for their EntityMaps). Not under `orderBy`: ordering by values is a Snapshot's. A map holds ids only
+(`DbQueryFilter.idsOnly`) and the whole matching set - `?entityMap=true` froze `limit` + 1 before.
+200 for an automatic map, 201 for a requested one; `NGSILD-EntityMap` on every answer a map took part
+in, and honoured as a request header. `--entityMapMemory` (64 MiB) caps all maps, the least recently
+used automatic ones giving way. A split-entity distributed query over the byte budget is paged through
+a map instead of refused. `COR_FEATURE_AUTO_ENTITY_MAP` (ON). Tests: entitymap_auto_local,
+entitymap_auto_distributed, entitymap_requested_pages.
 
 ---
 
