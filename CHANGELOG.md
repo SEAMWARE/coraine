@@ -89,6 +89,11 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **Delete Entity** with an inclusive registration: a source answering 404 is not an error
   (204).
 - **mongoc** drops its old `type_1` index at startup (replaced by `{type, createdAt, _id}`).
+- **Service Execution**: a service name is unique within an entity - a registration that would
+  give an entity the same name twice is refused (409), and an invocation by a name two older
+  registrations share answers 409 instead of picking one. `scopeQ` selects by the entity's scope
+  on registrations and grouped executions. Grouped and combined executions and Combined Service
+  Templates refuse a member they do not know (400) instead of ignoring it.
 - **Paged queries**: a local query's `next`/`prev` links carry `pageAfter` / `pageBefore`
   instead of `offset` (a client's own `offset` works as before). A distributed query with more
   than one page is served from an automatic EntityMap: its links carry `entityMap=<id>` with
@@ -100,6 +105,8 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 
 ### Fixed (a selection)
 
+- A grouped Service Execution ignored `scopeQ` and ran the service on entities outside the
+  scope.
 - A GeoProperty with an altitude was refused (400) by corDB built against GEOS < 3.13
   (Ubuntu 24.04); the altitude is kept.
 - A request arriving in the first milliseconds after start ran outside the worker pool.
