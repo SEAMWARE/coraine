@@ -38,7 +38,8 @@ Recently built, and documented where it lives:
     executions, synchronous and asynchronous, combined (GR CIM-055). `scopeQ` - a subscription's scope
     query, on the target entity's scope - selects the entities of a grouped execution (alone or with the
     other selectors) and narrows the entities a Service Registration offers its service on. A grouped or
-    combined execution refuses a member it does not know, at every level (400, naming it). A service
+    combined execution, and a Combined Service Template (created or PATCHed), refuses a member it does
+    not know, at every level (400, naming it). A service
     name is unique within an entity: a registration (created or PATCHed) whose `serviceName` another registration of the tenant
     has, for entities both could select, is refused - 409 naming that registration. Two selectors are
     taken as disjoint only when that is certain: different types, different ids, an id the other's

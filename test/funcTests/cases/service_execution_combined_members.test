@@ -10,11 +10,13 @@
 # Service Execution of its serviceExecutions, a nested Combined Service Execution (which has no
 # notification of its own), one made of a template, and an entry of its 'services' (no more entries than
 # the template has services; at the place of a nested template, an empty object). Nothing is created.
+# A Combined Service Template too - created, or PATCHed (the stored one checked whole, its timestamps
+# the broker's own): its object, a service of it, a nested template.
 #
 # REQUIRE_FEATURE: SERVICE_EXECUTION
 #
 --NAME--
-Service Execution - Combined Service Executions refuse unknown members
+Service Execution - Combined Service Executions and Templates refuse unknown members
 
 --TAGS--
 service execution
@@ -36,6 +38,8 @@ ftExecStart
 # 07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400
 # 08. Nothing created by 03-07: still 2 executions
 # 09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed
+# 10. Templates refused: 'foo' - 400; a service with 'input' - 400; a service with a 'type' - 400; a nested template with a 'templateName' - 400
+# 11. PATCH urn:T1: a service with 'input' - 400; 'foo' - 400; its templateName - 204 (the stored one, its timestamps, checked whole); GET it
 #
 
 create() {
@@ -58,6 +62,8 @@ def p(e, d):
 p(json.load(sys.stdin), 0)"
 }
 count() { corCurl --url /ngsi-ld/v1/services | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'executions')"; }
+tpost() { corCurl --url /ngsi-ld/v1/combinedServiceTemplate --payload "$1" | sed -n '1p;/"detail"/p'; }
+tpatch() { corCurl --url /ngsi-ld/v1/combinedServiceTemplate/urn:T1 -X PATCH --payload "$1" | sed -n '1p;/"detail"/p'; }
 se() { echo "{\"type\":\"ServiceExecution\",\"entityId\":\"urn:R1\",\"serviceName\":\"echo\"$1}"; }
 
 echo "01. Robot urn:R1; echo on every Robot (/echo); template urn:T1: sequential [echo on a Robot, parallel [echo on urn:R1]]"
@@ -134,6 +140,26 @@ echo
 echo
 
 
+echo "10. Templates refused: 'foo' - 400; a service with 'input' - 400; a service with a 'type' - 400; a nested template with a 'templateName' - 400"
+echo "=============================================================================================================================================="
+tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot"}],"foo":1}'
+tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot","input":{}}]}'
+tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"type":"ServiceExecution","serviceName":"echo","entityType":"Robot"}]}'
+tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"type":"CombinedServiceTemplate","templateName":"n","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot"}]}]}'
+echo
+echo
+
+
+echo "11. PATCH urn:T1: a service with 'input' - 400; 'foo' - 400; its templateName - 204 (the stored one, its timestamps, checked whole); GET it"
+echo "==========================================================================================================================================="
+tpatch '{"services":[{"serviceName":"echo","entityType":"Robot","input":{}}]}'
+tpatch '{"foo":1}'
+tpatch '{"templateName":"thrice"}'
+corCurl --url /ngsi-ld/v1/combinedServiceTemplate/urn:T1 | sed -n '/^{/,$p' | python3 -c "import json,sys; t=json.load(sys.stdin); print(t['templateName'], len(t['services']), 'services')"
+echo
+echo
+
+
 --EXPECT--
 01. Robot urn:R1; echo on every Robot (/echo); template urn:T1: sequential [echo on a Robot, parallel [echo on urn:R1]]
 =======================================================================================================================
@@ -203,6 +229,28 @@ CombinedServiceExecution sequential  completed
   ServiceExecution echo urn:R1 completed
   CombinedServiceExecution parallel  completed
     ServiceExecution echo urn:R1 completed
+
+
+10. Templates refused: 'foo' - 400; a service with 'input' - 400; a service with a 'type' - 400; a nested template with a 'templateName' - 400
+==============================================================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a Combined Service Template",
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of a service of a Combined Service Template - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'type' is not a member of a service of a Combined Service Template",
+HTTP/1.1 400 Bad Request
+  "detail": "'templateName' is not a member of a nested Combined Service Template",
+
+
+11. PATCH urn:T1: a service with 'input' - 400; 'foo' - 400; its templateName - 204 (the stored one, its timestamps, checked whole); GET it
+===========================================================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of a service of a Combined Service Template - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a Combined Service Template",
+HTTP/1.1 204 No Content
+thrice 2 services
 
 
 --TEARDOWN--

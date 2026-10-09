@@ -265,6 +265,9 @@ static const char* nestedMemberV[]   = { "type", "id", "combinationMethod", "ser
 static const char* fromTemplateV[]   = { "type", "id", "serviceTemplateId", "combinationMethod", "services", "notification", NULL };
 static const char* simpleMemberV[]   = { "type", "entityId", "serviceName", "executionInput", NULL };
 static const char* overrideMemberV[] = { "entityId", "serviceName", "executionInput", NULL };
+static const char* templateMemberV[] = { "type", "id", "templateName", "combinationMethod", "services", "createdAt", "modifiedAt", NULL };  // the timestamps: the broker's own, on a stored one (PATCH)
+static const char* nestedTmplV[]     = { "type", "combinationMethod", "services", NULL };
+static const char* tmplServiceV[]    = { "serviceName", "entityType", "entityId", "executionInput", NULL };
 
 
 
@@ -1008,6 +1011,9 @@ static bool templateCheck(CorNode* templateP, bool top)
 {
   CorNode* methodP = corTreeLookup(templateP, "combinationMethod");
 
+  if (membersCheck(templateP, (top == true) ? templateMemberV : nestedTmplV, (top == true) ? "a Combined Service Template" : "a nested Combined Service Template") == false)
+    return false;
+
   if ((top == true) && (str(templateP, "templateName") == NULL))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Combined Service Template needs a 'templateName'");
@@ -1042,6 +1048,9 @@ static bool templateServicesCheck(CorNode* servicesP)
         return false;
       continue;
     }
+
+    if (membersCheck(sP, tmplServiceV, "a service of a Combined Service Template") == false)
+      return false;
 
     if ((str(sP, "serviceName") == NULL) || (str(sP, "entityType") == NULL))
     {
