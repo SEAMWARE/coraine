@@ -244,7 +244,7 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/result
-          n=$(head -1 /tmp/san-report.md 2>/dev/null | grep -oE '^\*\*[0-9]+' | tr -d '*')
+          n=$(head -1 /tmp/san-report.md 2>/dev/null | grep -oE '^\*\*[0-9]+' | tr -d '*' || true)
           echo "| sanitizers ${{ matrix.httpServer }} ${{ matrix.db }} | suite ${{ steps.suite.outcome }}, ${n:-0} distinct sanitizer finding(s) (reports: ${{ steps.reports.outcome }}) |" \
             > "/tmp/result/sanitizers-${{ matrix.httpServer }}-${{ matrix.db }}.md"
       - uses: actions/upload-artifact@v4
@@ -346,7 +346,7 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/result
-          last=$(grep -E '^upgradeCheck ' /tmp/upgrade.log | tail -1)
+          last=$(grep -E '^upgradeCheck ' /tmp/upgrade.log | tail -1 || true)
           {
             echo "### Upgrade: ${{ needs.resolve.outputs.previous }} -> ${{ inputs.ref }}"
             echo '```'
@@ -431,7 +431,7 @@ jobs:
           mkdir -p /tmp/result
           { echo "### Soak: ${{ matrix.db }}"; cat /tmp/soak/summary.md 2>/dev/null || echo "no summary - the soak did not finish"; } >> "$GITHUB_STEP_SUMMARY"
           fails=$(grep -c '❌' /tmp/soak/summary.md 2>/dev/null || true)
-          mem=$(grep '^| memory ' /tmp/soak/summary.md 2>/dev/null | cut -d'|' -f4)
+          mem=$(grep '^| memory ' /tmp/soak/summary.md 2>/dev/null | cut -d'|' -f4 || true)
           echo "| soak ${{ matrix.db }} | ${fails:-?} failed check(s);${mem:- no memory verdict} |" > "/tmp/result/soak-${{ matrix.db }}.md"
       - uses: actions/upload-artifact@v4
         if: always()
