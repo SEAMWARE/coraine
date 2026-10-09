@@ -9,7 +9,7 @@
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // free
-#include <string.h>                                  // strcmp, strlen, strcpy
+#include <string.h>                                  // strcmp, strlen, strcpy, memset
 
 #include "corLog/corLog.h"                           // COR_T
 #include "corAlloc/corAlloc.h"                       // corAlloc
@@ -73,6 +73,16 @@
 #include "serviceRoutines/responseBudget.h"           // responseBudgetBytes, responseBudgetRefused, responseBudgetFetched, responseBudgetLinkHeader
 #endif
 #include "serviceRoutines/getEntities.h"             // Own interface
+
+
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// autoEntityMaps - which queries get an automatic EntityMap (--autoEntityMaps, getEntities.h)
+//
+AutoEntityMaps autoEntityMaps = AutoEntityMapsDistributed;
+#endif
 
 
 
@@ -1389,9 +1399,78 @@ static bool entityMapServe(LdEntityMap* mapP)
   //
   const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
 
-  for (LdEntityMapEntry* entryP = mapP->head; entryP != NULL && added < limit; entryP = entryP->next)
+  //
+  // The slice: the entries [offset, offset + limit) of the frozen set
+  //
+  LdEntityMapEntry*  entryP = mapP->head;
+
+  while ((entryP != NULL) && (ix < offset))
   {
-    if (ix < offset) { ix++; continue; }
+    entryP = entryP->next;
+    ix++;
+  }
+
+  LdEntityMapEntry** sliceV = (LdEntityMapEntry**) corAlloc(&corRest.kalloc, sizeof(LdEntityMapEntry*) * (limit + 1));
+  int                sliceN = 0;
+
+  for (; (entryP != NULL) && (sliceN < limit); entryP = entryP->next)
+    sliceV[sliceN++] = entryP;
+
+  //
+  // The slice's local entities, fetched in ONE call to the store (db.entityBulkRetrieve - mongoc: one
+  // query, {_id: {$in: [...]}}; corDB: one id-index lookup each, under one read lock) instead of one
+  // retrieve per entity: on mongoc a page of 20 from a map was 20 round trips to the database, slower
+  // than the same page by offset. localV[i] is the entity of sliceV[i] (NULL: not local, or gone). A
+  // store without the bulk retrieve: one retrieve per entity, below.
+  //
+  // The byte budget still ends the page as it did, entity by entity (below) - the bulk fetch has
+  // fetched the slice whole first, at most `limit` entities, as any page of a store query does.
+  //
+  CorNode** localV = NULL;
+
+  if ((db.entityBulkRetrieve != NULL) && (sliceN > 0))
+  {
+    CorNode* fragmentsP = corTreeArray(corRest.kallocP, NULL);
+    int*     fragIxV    = (int*) corAlloc(&corRest.kalloc, sizeof(int) * sliceN);    // fragment -> slice index
+    int      fragN      = 0;
+
+    for (int i = 0; i < sliceN; i++)
+    {
+      for (int s = 0; s < sliceV[i]->sourceCount; s++)
+      {
+        if (strcmp(sliceV[i]->sourceIdV[s], "@none") == 0)
+        {
+          CorNode* fragP = corTreeObject(corRest.kallocP, NULL);
+
+          corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "id", sliceV[i]->entityId));
+          corTreeChildAdd(fragmentsP, fragP);
+          fragIxV[fragN++] = i;
+          break;
+        }
+      }
+    }
+
+    localV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * sliceN);
+    memset(localV, 0, sizeof(CorNode*) * sliceN);
+
+    if (fragN > 0)
+    {
+      CorNode** targetsV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * fragN);
+      memset(targetsV, 0, sizeof(CorNode*) * fragN);
+
+      if (db.entityBulkRetrieve(tP, fragmentsP, targetsV) == DB_OK)
+      {
+        for (int f = 0; f < fragN; f++)
+          localV[fragIxV[f]] = targetsV[f];
+      }
+      else
+        localV = NULL;     // one retrieve per entity, below
+    }
+  }
+
+  for (int sliceIx = 0; (sliceIx < sliceN) && (added < limit); sliceIx++)
+  {
+    entryP = sliceV[sliceIx];
 
     CorNode* mergedEntity = NULL;
 
@@ -1402,7 +1481,10 @@ static bool entityMapServe(LdEntityMap* mapP)
 
       if (strcmp(src, "@none") == 0)
       {
-        db.entityRetrieve(tP, entryP->entityId, &partialP);
+        if (localV != NULL)
+          partialP = localV[sliceIx];
+        else
+          db.entityRetrieve(tP, entryP->entityId, &partialP);
 
         // § 5.2.4: an Entity whose expiresAt has passed is gone (and deleted after the response)
         if ((partialP != NULL) && dbExpiredEntityIs(tP, partialP))
@@ -1484,7 +1566,6 @@ static bool entityMapServe(LdEntityMap* mapP)
     // else: all recorded sources failed — skip, client gets fewer
     // results than requested (§ 5.5.9 allows this).
 
-    ix++;
     added++;
   }
 
@@ -1949,6 +2030,7 @@ static bool autoEntityMapEligible(bool brokerPaginates)
 {
   Tenant* tP = (Tenant*) corNgsild.tenantP;
 
+  if (autoEntityMaps == AutoEntityMapsNone)                           return false;
   if (ldEntityMapMaxBytes <= 0)                                       return false;
   if (corRest.in.verb != CorVerbGet)                                  return false;
   if ((tP == NULL) || (tP->entityMapStoreP == NULL))                  return false;
@@ -3171,7 +3253,7 @@ static bool queryEntities(void)
   //
   LdEntityMap* autoMapP = NULL;
 
-  if ((autoEligible == true) && (forwardedN == 0) && (localMore == true))
+  if ((autoEligible == true) && (autoEntityMaps == AutoEntityMapsAll) && (forwardedN == 0) && (localMore == true))
   {
     autoMapP = autoEntityMapLocal(&filter);
 

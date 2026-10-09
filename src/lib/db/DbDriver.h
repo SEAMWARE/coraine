@@ -132,6 +132,8 @@ typedef int  (*DbEntityBulkUpdateFunc)(Tenant* tenantP, CorNode* entitiesArr, in
 //
 // DbEntityBulkRetrieveFunc - fetch the current DB-form trees for a batch of
 // fragments in one round-trip where the driver supports it (mongoc: one $in).
+// Also the fetch of a page of an EntityMap (getEntities.c, entityMapServe): the
+// fragments are { "id" } only, and each tree is what entityRetrieve returns.
 // targetsV is a caller-allocated, zeroed CorNode*[N] parallel to fragmentsArr;
 // each slot receives the request-arena tree of the current entity, or stays
 // NULL when the id does not exist. Fragments that share an id share ONE target

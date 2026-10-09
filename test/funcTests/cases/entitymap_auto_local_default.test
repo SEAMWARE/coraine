@@ -1,0 +1,192 @@
+#
+# FILE            entitymap_auto_local_default.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --autoEntityMaps (default: distributed) - a LOCAL query of more than one page gets NO automatic
+# EntityMap by default: it pages by offset/limit in the store, its links carry offset, not a map.
+# An automatic local map costs the first page a query for the ids of every match (doc/performance.md,
+# "What automatic EntityMaps cost"). A client that wants the set frozen asks for it: ?entityMap=true.
+# --autoEntityMaps all is entitymap_auto_local.
+#
+# REQUIRE_FEATURE: AUTO_ENTITY_MAP METRICS ADMIN_API
+#
+--NAME--
+Default --autoEntityMaps (distributed): a local query of more than one page pages by offset, no map
+
+--TAGS--
+entity entitymap entityMap pagination query
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+
+#
+# summary - a page as: status line, NGSILD-EntityMap, NGSILD-Results-Count, each pagination link
+#           (the map's id as MAPID), and the ids of the entities. The map id it saw is appended to
+#           $MAPS, so the test can say how many different maps the walk named.
+#
+MAPS=/tmp/entitymap_auto_local_default.maps.$$
+rm -f $MAPS
+PYSUM='
+import sys, re, json
+raw = sys.stdin.read().replace("\r", "")
+head, _, body = raw.partition("\n\n")
+lines = head.splitlines()
+print(lines[0])
+hdr = {}
+links = []
+for l in lines[1:]:
+  k, _, v = l.partition(":")
+  k = k.strip().lower()
+  v = v.strip()
+  if k == "link":
+    if "json-ld#context" not in v:
+      links.append(v)
+  else:
+    hdr[k] = v
+mapHdr = hdr.get("ngsild-entitymap")
+if mapHdr is not None:
+  open(sys.argv[1], "a").write(mapHdr + "\n")
+  mapHdr = re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", mapHdr)
+print("NGSILD-EntityMap: %s" % (mapHdr if mapHdr is not None else "(none)"))
+if "ngsild-results-count" in hdr:
+  print("NGSILD-Results-Count: %s" % hdr["ngsild-results-count"])
+for l in links:
+  for m in re.finditer(r"<([^>]*)>;rel=\"([a-z]+)\"", l):
+    print("  rel=%-5s %s" % (m.group(2), re.sub(r"EntityMap:[0-9a-f]+", "EntityMap:MAPID", m.group(1))))
+try:
+  print("ids: %s" % " ".join([e["id"] for e in json.loads(body)]))
+except Exception:
+  print("body: %s" % body.strip())
+'
+
+page()
+{
+  RESP=$(corCurl --url "$1")
+  echo "$RESP" | python3 -c "$PYSUM" $MAPS
+  NEXT=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+}
+
+
+echo "01. Seven vehicles V1..V7, created in that order, speed 10 * i"
+echo "==============================================================="
+for i in 1 2 3 4 5 6 7; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V'$i'","type":"Vehicle","speed":{"type":"Property","value":'$((i * 10))'}}' | head -1
+done
+echo
+echo
+
+
+echo "02. q=speed>20, limit=2, count=true - 5 matches: page 1 is V3 V4, no map, the next link by offset"
+echo "================================================================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20&limit=2&count=true&options=keyValues'
+echo
+echo
+
+
+echo "03. V5 slows down to 5 - it no longer matches"
+echo "============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V5/attrs -X PATCH --payload '{"speed":{"type":"Property","value":5}}' | head -1
+echo
+echo
+
+
+echo "04. Page 2 (the next link of page 1): the query run again at offset 2 - V6 V7, 4 matches now"
+echo "============================================================================================"
+page "$NEXT"
+echo
+echo
+
+
+echo "05. The broker holds no map"
+echo "==========================="
+echo "maps named: $(sort -u $MAPS 2>/dev/null | wc -l)"
+corCurl --url /admin/metrics --out raw | grep -a '^ngsild_entity_map_store_size'
+echo
+echo
+
+
+echo "06. entityMap=true - a map when the client asks for one: 201, the links name it"
+echo "==============================================================================="
+page '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20&limit=2&options=keyValues&entityMap=true'
+echo
+echo
+
+
+echo "07. Its next page, from the map"
+echo "==============================="
+page "$NEXT"
+echo "maps named: $(sort -u $MAPS | wc -l)"
+rm -f $MAPS
+echo
+echo
+
+
+--EXPECT--
+01. Seven vehicles V1..V7, created in that order, speed 10 * i
+===============================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=speed>20, limit=2, count=true - 5 matches: page 1 is V3 V4, no map, the next link by offset
+=================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: (none)
+NGSILD-Results-Count: 5
+  rel=next  /ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=2
+ids: urn:V3 urn:V4
+
+
+03. V5 slows down to 5 - it no longer matches
+=============================================
+HTTP/1.1 204 No Content
+
+
+04. Page 2 (the next link of page 1): the query run again at offset 2 - V6 V7, 4 matches now
+============================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: (none)
+NGSILD-Results-Count: 4
+  rel=prev  /ngsi-ld/v1/entities?type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+ids: urn:V6 urn:V7
+
+
+05. The broker holds no map
+===========================
+maps named: 0
+ngsild_entity_map_store_size 0
+
+
+06. entityMap=true - a map when the client asks for one: 201, the links name it
+===============================================================================
+HTTP/1.1 201 Created
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&options=keyValues&limit=2&offset=2
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&options=keyValues&limit=2&offset=2
+ids: urn:V3 urn:V4
+
+
+07. Its next page, from the map
+===============================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&options=keyValues&limit=2&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&options=keyValues&limit=2&offset=0
+ids: urn:V6 urn:V7
+maps named: 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

@@ -131,6 +131,9 @@
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
+#if COR_FEATURE_AUTO_ENTITY_MAP
+#include "serviceRoutines/getEntities.h"                     // autoEntityMaps, AutoEntityMaps
+#endif
 #if COR_FEATURE_RESPONSE_BUDGET
 #include "serviceRoutines/responseBudget.h"                  // responseBudgetBytes
 #endif
@@ -205,6 +208,9 @@ int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 =
 #if COR_FEATURE_RESPONSE_BUDGET
 int            maxResponseSize = -1;         // MiB; the byte budget of an entity query (0 = none; -1 = 1/16 of the memory budget, none without one - see responseBudget.h)
 #endif
+#if COR_FEATURE_AUTO_ENTITY_MAP
+char*          autoEntityMapsArg = (char*) "distributed";   // --autoEntityMaps: none | distributed | all (getEntities.h)
+#endif
 int            entityMapMemory = 64;         // MiB; the memory all EntityMaps may hold together (0 = no cap, and no automatic maps - see ldEntityMap.h)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
@@ -243,6 +249,9 @@ static CorArg kargV[] =
   { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
 #if COR_FEATURE_RESPONSE_BUDGET
   { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp -1, _vp -1,   _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget; -1 = 1/16 of the memory budget, none without one)" },
+#endif
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  { "--autoEntityMaps",     "-autoEntityMaps", CorArgString, _vp &autoEntityMapsArg, CorArgOpt, _vp "distributed", NULL, NULL, "which queries of more than one page get an EntityMap the client did not ask for: none, distributed (the queries forwarded to Context Sources - the default) or all (local ones too)" },
 #endif
   { "--entityMapMemory",    "-entityMapMemory", CorArgInt, _vp &entityMapMemory, CorArgOpt, _vp 64, _vp 0,    _vp 65536, "memory all EntityMaps may hold together, in MiB - an automatic map that does not fit is not made (the least recently used ones give way first), a requested one gets 403 TooManyResults (0 = no cap, and no automatic EntityMaps)" },
   { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
@@ -1603,6 +1612,20 @@ int main(int argC, char* argV[])
   //
   ldEntityMapMaxBytes = ((int64_t) entityMapMemory) * 1024 * 1024;
   COR_V("EntityMap memory: %d MiB%s", entityMapMemory, (entityMapMemory == 0)? " (no cap, no automatic EntityMaps)" : "");
+
+#if COR_FEATURE_AUTO_ENTITY_MAP
+  //
+  // Which queries get an automatic EntityMap (getEntities.h): the distributed ones by default - a local
+  // one pages by offset/limit in the store, cheaper than a map (doc/installation.md#entitymaps)
+  //
+  if      (strcmp(autoEntityMapsArg, "none")        == 0) autoEntityMaps = AutoEntityMapsNone;
+  else if (strcmp(autoEntityMapsArg, "distributed") == 0) autoEntityMaps = AutoEntityMapsDistributed;
+  else if (strcmp(autoEntityMapsArg, "all")         == 0) autoEntityMaps = AutoEntityMapsAll;
+  else
+    COR_X(1, "--autoEntityMaps: '%s' is none of none, distributed, all", autoEntityMapsArg);
+
+  COR_V("automatic EntityMaps: %s", autoEntityMapsArg);
+#endif
 
 #if COR_FEATURE_RESPONSE_BUDGET
   //

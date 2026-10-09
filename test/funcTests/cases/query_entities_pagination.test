@@ -244,8 +244,7 @@ Content-Length: 0
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-REGEX(NGSILD\-EntityMap:\ /ngsi\-ld/v1/entityMaps/urn:ngsi\-ld:EntityMap:[0-9a-f]+)
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=T\&limit=2\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=T\&limit=2\&offset=4>;rel="last";type="application/json")
+Link: </ngsi-ld/v1/entities?type=T&limit=2&offset=2>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 215
 
@@ -382,8 +381,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Results-Count: 5
-REGEX(NGSILD\-EntityMap:\ /ngsi\-ld/v1/entityMaps/urn:ngsi\-ld:EntityMap:[0-9a-f]+)
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&count=true\&type=T\&limit=2\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&count=true\&type=T\&limit=2\&offset=4>;rel="last";type="application/json")
+Link: </ngsi-ld/v1/entities?count=true&type=T&limit=2&offset=2>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 215
 

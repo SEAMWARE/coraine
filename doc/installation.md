@@ -373,10 +373,23 @@ page of 17, and the next page still starts 20 further on (see below). An entity 
 is not in it.
 
 **Automatic EntityMaps.** A `GET /ngsi-ld/v1/entities` whose first page (`offset` 0) has more after it
-gets a map without asking for one:
+gets a map without asking for one, as `--autoEntityMaps` says:
 
-- a local query, when the store holds more than `limit` matches;
-- a distributed query (registrations matched, `--distributed`), when its answer is more than a page -
+| `--autoEntityMaps` | |
+|---|---|
+| `distributed` (the default) | a distributed query - the sources are not asked for `offset` / `limit`, so without a map there is no correct second page |
+| `all` | a local query too, when the store holds more than `limit` matches |
+| `none` | none - a map only when a client asks for one |
+
+A local query pages by `offset` / `limit` in the store, and an automatic map makes its first page
+cost more: a second query for the ids of every match, and the memory of the map
+([performance.md](performance.md#what-automatic-entitymaps-cost) has the numbers - a first page of
+20 of a 1 % type in 300 000 entities: from 11 725 to 574 requests/s on MongoDB, from 16 372 to 66 on
+corDB). What it buys is pages that are slices of the set as it was at the first page. A client that
+wants that for a local query asks for it: `?entityMap=true`.
+
+- a local query (`all`), when the store holds more than `limit` matches;
+- a distributed query (`distributed`, `all`) (registrations matched, `--distributed`), when its answer is more than a page -
   more than `limit` local matches, a source that answered a whole page, or more than `limit` together.
   The broker then asks each source for its own EntityMap (`GET /ngsi-ld/v1/entityMaps` on the source)
   and records it (`linkedMaps`); the pages fetch each entity from its sources, asking a source that
@@ -427,8 +440,11 @@ without one (`offset` / `limit`, local and forwarded); a map the client asked fo
 automatic maps off. `ngsild_entity_map_bytes` and `ngsild_entity_map_store_size` (`/admin/metrics`)
 show what the maps hold.
 
-In the build by default; `-DCOR_FEATURE_AUTO_ENTITY_MAP=OFF` leaves the automatic maps out (a map is
-then only made when a client asks for one).
+A page of a map fetches the page's entities of this broker in one call to the store (MongoDB: one
+query, `{_id: {$in: [...]}}`; corDB: the id index), and the ones of each Context Source from it.
+
+In the build by default; `-DCOR_FEATURE_AUTO_ENTITY_MAP=OFF` leaves the automatic maps and
+`--autoEntityMaps` out (a map is then only made when a client asks for one).
 
 ## Health port
 
