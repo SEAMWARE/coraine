@@ -106,6 +106,7 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
 
   CorRestClientRequest  req;
   CorRestClientResponse resp;
+  char                  linkBuf[512];   // the Link header - req keeps a pointer to it until the send
 
   corRestClientRequestInit(&req, CorVerbPost, itemP->endpointUri, NULL);
   corRestClientRequestHeader(&req, "Content-Type", "application/json");
@@ -119,7 +120,6 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
   }
   if (ctxUrl != NULL)
   {
-    char linkBuf[512];
     snprintf(linkBuf, sizeof(linkBuf),
              "<%s>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
              ctxUrl);
