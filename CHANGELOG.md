@@ -32,6 +32,8 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   synchronous and asynchronous (GR CIM-055).
 - **Snapshots** — § 5.16 complete, writes and subscriptions on a Snapshot, on both stores.
 - **The WebSocket transport** — subscriptions and notifications over a WebSocket.
+- **Array reduction of entity data** — one-element arrays reduced at the input, as the
+  @context says (`@set` / `@list`).
 - **linux/arm64** — every image for amd64 and arm64 under one tag (arm64 without the DDS
   bridge); the whole functional suite runs on ARM every night.
 - **Migrating from Orion-LD** — `coraine-import`, a program of its own: entities,
@@ -62,9 +64,11 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 
 ### Changed behaviour
 
-- **`--maxResponseSize`** (new): a query stops fetching at a byte budget - a page shorter
-  than `limit` with a correct `next` link, or 403 TooManyResults where a partial answer is
-  impossible. By default 1/16 of the memory budget; **no budget outside a container with a
+- **`--maxResponseSize`** (new): a query stops fetching at a byte budget - entity, temporal
+  and distributed queries alike: a page shorter than `limit` with a correct `next` link, a
+  temporal history cut as the instance cap cuts it (TS 104-176 § 6.4.7.3 pagination), a
+  Context Source's answer read only up to the budget, or 403 TooManyResults where a partial
+  answer is impossible. By default 1/16 of the memory budget; **no budget outside a container with a
   memory limit**, so nothing changes there.
 - **The memory budget** counts anonymous memory (RssAnon + RssShmem), not the whole resident
   set: a persistent corDB is no longer refused for the size of its memory-mapped log. New
