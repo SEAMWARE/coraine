@@ -176,6 +176,7 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
             BUILD=release
             DDS=${{ matrix.dds }}
             GIT_SHA=${{ needs.tag.outputs.sha }}
@@ -197,6 +198,7 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
             BUILD=debug
             DDS=${{ matrix.dds }}
             GIT_SHA=${{ needs.tag.outputs.sha }}
