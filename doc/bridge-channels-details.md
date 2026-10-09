@@ -1188,8 +1188,11 @@ The contract as built is `corBridge/BridgeDriver.h` - an append-only struct
 with a version handshake, whose transport calls speak `(endpoint, json)`
 (`init`, `close`, `channelAdd`, `channelDel`, `publish`, `serviceInvoke`,
 `serviceInvokeTracked`, `actionGoalSend`, `actionGoalCancel`,
-`channelAddInfo`, `notify`, …). The struct below is the design it grew from,
-with the NGSI-LD-peer and pull members not yet built.
+`channelAddInfo`, `notify`, …; the broker does not call `channelDel` today, as
+no Channel is removed while it runs). Its full slot list, per ABI revision, is in
+[Plugin architecture](plugin-architecture.md#the-driver-interfaces). The struct
+below is the design it grew from, with the NGSI-LD-peer and pull members not yet
+built.
 
 ```c
 // corBridge/BridgeDriver.h

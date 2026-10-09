@@ -33,10 +33,17 @@ battery level that polling would drain) stays a registration.
 coraine --bridges mqtt --bridgeConfig /etc/coraine/bridges.json
 ```
 
-Without `--bridgeConfig` the broker reads `/opt/seamware/etc/bridges.json` if that file exists
-(`$SEAMWARE_ETC_DIR/bridges.json` when that variable is set). If it does not exist, the broker
-creates no Channels from a file. Each bridge's `init()` is given the file the Channels came from,
-whether named or found by default.
+Where the file comes from:
+
+| | File read | When it is missing or unreadable |
+|---|---|---|
+| `--bridgeConfig <file>` (env `CORAINE_BRIDGECONFIG`) | `<file>` | the broker exits |
+| no `--bridgeConfig` | `/opt/seamware/etc/bridges.json` - `$SEAMWARE_ETC_DIR/bridges.json` when `SEAMWARE_ETC_DIR` is set and not empty | no Channels from a file; not an error |
+
+`SEAMWARE_ETC_DIR` moves the default file as `SEAMWARE_PLUGIN_DIR` moves the plugins
+([Installation - environment variables](installation.md#environment-variables)). Neither the `coraine`
+package nor `make install` installs a `bridges.json`. Each bridge's `init()` is given the file the
+Channels came from, whether named or found by default, and NULL when there is none.
 
 `--bridgeConfig` is one JSON file: per plugin, the transport's own settings and
 an `ngsild` section mapping endpoints to `(entityId, entityType, attribute)`.
@@ -56,9 +63,11 @@ Anything the file does not say defaults to Orion-LD's behaviour: direction
 configured attribute exists from startup, with the value `"uninitialized"`
 until the first sample.
 
-Today Bridges and Channels come **only** from this file and are read-only over
-the API. Creating and changing them at runtime (`POST` / `PATCH` / `DELETE`,
-stored in the database, 409 on a duplicate id) is the design, not yet built.
+Today Bridges and Channels come **only** from this file - plus the Channels the broker makes on a
+bridge's catch-all entity (`ngsild.defaultEntity`) for endpoints its transport discovers - and are
+read-only over the API. No Channel is removed while the broker runs, so the broker never calls a
+plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` / `PATCH` /
+`DELETE`, stored in the database, 409 on a duplicate id) is the design, not yet built.
 
 ## What `GET` shows
 

@@ -56,7 +56,7 @@ Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 
 | Package | What it holds |
 |---------|---------------|
 | `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine` |
-| `coraine-dev` | the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz`, the toolchain and libraries to build it (as dependencies), and `coraine-build` |
+| `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
 The packages are built by the GitHub workflow `Packages` (`.github/workflows/packages.yml`) - for every
 release, and on demand - and kept as **artifacts of that run**, one per distribution and architecture
@@ -101,9 +101,34 @@ coraine-build --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF ~/coraine-small
 coraine -fg --database corDB
 ```
 
-`coraine-build [options] <dir>` unpacks the source into `<dir>` and builds there, as any user; nothing is
-written outside `<dir>`. The result is in `<dir>/install` (`bin/`, `plugins/`, `etc/`, and `env`, which
-points `PATH`, `SEAMWARE_PLUGIN_DIR` and `CORAINE_CONTEXTSOURCEEXTRAS` at it).
+What the package installs, and nothing else:
+
+| Path | What |
+|------|------|
+| `/usr/bin/coraine-build` | the build script (`coraine-build --help`) |
+| `/usr/share/coraine/src/coraine-src.tar.xz` | the source the `coraine` package of the same version was built from |
+| `/usr/share/doc/coraine-dev/MANIFEST.txt` | every repository in the tarball and the commit it was taken at |
+| `/opt/seamware/include`, `/opt/seamware/lib/{libmongoc2.so,libbson2.so,pkgconfig,cmake}` | Ubuntu 24.04 and Debian 13 only: the development files of the MongoDB C driver v2 the `coraine` package bundles |
+
+It installs **no coraine or Cor-Lib headers and no libraries** (no `/usr/include/cor*`, no `libcor*.a`).
+The headers are in the tarball. Its layout is the one the build expects - coraine and the Cor-Libs as
+sibling directories:
+
+```
+coraine-<version>/
+├── SOURCE          version, gitSha, commitDate
+├── MANIFEST.txt
+├── coraine/
+├── corBase/  corLog/  corAlloc/  corArgs/  corHash/  corTree/  corJson/  corProm/
+├── corPlugin/  corBridge/  corHttp/  corRest/  corJsonld/  corNgsild/  corDB/
+├── corDdsBridge/  corModbusBridge/  corMqttBridge/
+└── corTools/  corTest/  corLibs/
+```
+
+`coraine-build [options] <dir>` unpacks it into `<dir>` (without the `coraine-<version>/` level) and builds
+there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/install` (`bin/`,
+`plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR` and
+`CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
 
 | Option | Build |
 |--------|-------|
@@ -112,6 +137,31 @@ points `PATH`, `SEAMWARE_PLUGIN_DIR` and `CORAINE_CONTEXTSOURCEEXTRAS` at it).
 | `--pgo` | profile-guided: trained on the measured request shapes, as the packages and the image ([Performance](performance.md)) |
 | `--tune <workload>` | profile-guided on your workload, the knobs measured on it ([Extreme performance](extreme-performance.md)) |
 | `--features NAME=ON\|OFF,...` | the `COR_FEATURE_*` switches ([Building - details](building-details.md)) |
+
+#### Building a plugin against it
+
+A plugin is compiled against the headers in that tree and links none of the broker's libraries: the
+broker exports its symbols and resolves the plugin's at `dlopen`
+([Plugin architecture](plugin-architecture.md#how-loading-works-the-mechanism)). The headers are
+included by repository, `#include "corBridge/BridgeDriver.h"`, `#include "corLog/corLog.h"`, so the
+include path is the directory that holds the siblings:
+
+```sh
+mkdir ~/coraine-src
+tar -xJf /usr/share/coraine/src/coraine-src.tar.xz -C ~/coraine-src --strip-components=1
+cc -std=gnu11 -O2 -Wall -fPIC -I ~/coraine-src -c myBridge.c -o myBridge.o
+cc -shared myBridge.o -o myBridge.so                 # + the transport's own libraries, nothing of coraine's
+sudo install -m 0644 myBridge.so /opt/seamware/plugins/bridge/
+coraine -fg --bridges myBridge                        # the name of the .so, without .so
+```
+
+The MQTT and Modbus bridges in the tarball (`corMqttBridge/`, `corModbusBridge/`) are built exactly this
+way - `coraine-build` runs `make -C <dir>/corMqttBridge` with `COR_LIBS ?= ..`, the parent directory as
+include path - and are the templates for a bridge built outside coraine; `coraine/src/plugins/bridge/loopback`
+is the reference for every entry point. A plugin built from the tarball of version X matches the
+`coraine` package of version X, which was built from that same tarball. A plugin that calls Cor-Lib
+functions (`COR_E`, corJson, corTree, ...) depends on that match; one that uses only the slots of its
+contract struct depends on the contract's ABI version alone.
 
 The packages are made by the scripts in `packaging/deb/` (`source.sh`, `build.sh`, `test-install.sh`,
 `test-dev.sh`, `publish.sh`), each of which runs by hand in a container of the target distribution.
@@ -177,6 +227,8 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--asyncSnapshot` | off | run snapshot queries in the background |
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
 | `--contextSourceExtras` / `-csx` | `/opt/seamware/etc/contextSourceExtras.json` | JSON rendered verbatim on `/info/sourceIdentity` |
+| `--bridges` / `-br` | — | bridge plugins to load, comma-separated (`/opt/seamware/plugins/bridge/<name>.so`) - see [Bridges and Channels](bridge-channels.md) |
+| `--bridgeConfig` / `-brc` | `/opt/seamware/etc/bridges.json` if it exists | the bridge configuration file. A file named here and missing stops the broker; the default file missing means no Channels from a file. `SEAMWARE_ETC_DIR` moves the default |
 | `--high-availability` / `-ha` | — | keep the caches in step with the other instances (`mongo` = change streams; needs the `mongoc` DB **and** a replica set) - see [High Availability](high-availability.md) |
 | `--version` / `-V` | — | print the version and exit |
 | `--traceLevels` / `-t` | — | trace levels for debugging |
