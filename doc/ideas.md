@@ -127,8 +127,9 @@ deployments ask, not to complete a matrix. [Speaking to devices directly](device
 
 ### CKAN and CSV as cor-agent plugins
 
-CKAN is the data portal behind many city and government open-data sites; FIWARE already has agents
-for CKAN and for CSV. As plugins on the bridge contract:
+CKAN is the data portal behind many city and government open-data sites. FIWARE has no agent that
+ingests from CKAN or from CSV files: its IoT Agents are device protocols, and its CKAN extensions go
+the other way - they publish and show a broker's data in CKAN. As plugins on the bridge contract:
 
 - **CKAN** reads a dataset through CKAN's API (`datastore_search`, rows as JSON) and ingests its rows
   as NGSI-LD entities.
