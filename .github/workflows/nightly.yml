@@ -565,8 +565,8 @@ jobs:
           #
           set +e
           .venv/bin/robot --outputdir /tmp/etsi-out \
-            --variable url:"http://localhost:1026/ngsi-ld/v1" \
-            --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable url:"http://localhost:1026" \
+            --variable temporal_api_url:"http://localhost:1026" \
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
             --variable ngsild_test_suite_context:http://localhost:7080/jsonldContexts/ngsi-ld-test-suite-compound.jsonld \
@@ -586,8 +586,8 @@ jobs:
           set +e
           .venv/bin/robot --outputdir /tmp/etsi-out --output rerun.xml \
             --log NONE --report NONE \
-            --variable url:"http://localhost:1026/ngsi-ld/v1" \
-            --variable temporal_api_url:"http://localhost:1026/ngsi-ld/v1" \
+            --variable url:"http://localhost:1026" \
+            --variable temporal_api_url:"http://localhost:1026" \
             --variable notification_server_port:8085 \
             --variable context_server_port:8087 \
             --variable ngsild_test_suite_context:http://localhost:7080/jsonldContexts/ngsi-ld-test-suite-compound.jsonld \
