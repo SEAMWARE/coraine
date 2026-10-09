@@ -155,10 +155,24 @@ about entities; it speaks `(endpoint, json, time)`:
 
 - **CKAN** - the endpoint is a dataset's resource; each row read through CKAN's API
   (`datastore_search`, rows as JSON) is one message, timed by a column of the row or by when it was
-  read. CKAN pushes nothing, so the bridge reads the whole resource once and then polls for what
-  changed.
+  read.
 - **CSV** - the same for a CSV file: a local one, one at a URL, or a CKAN dataset whose data is an
   uploaded CSV file rather than a DataStore table.
+
+CKAN pushes nothing - no event stream, no change feed for rows - so how a Channel follows its
+resource is a **mode**, set per Channel:
+
+- **once** - read the resource at start-up, then stop. Most open data, and the c³ demo.
+- **poll** - watch the dataset's activity stream (`package_activity_list`, "resource updated"); on a
+  change, read only the new rows (`_id` above the last one seen - DataStore rows get increasing
+  integer ids) when the table only grows, or the whole resource again when it was replaced. A row
+  changed in place keeps its `_id`; it is seen only through a timestamp column. The broker's upsert
+  writes only what changed.
+- **push** - where the portal has a webhooks extension installed (`ckanext-webhooks`): a dataset
+  change is pushed, then read as in poll.
+
+Most open data is not an append stream: a dataset is replaced whole, often nightly - a fresh CSV or a
+rewritten table. Poll treats that as a re-read, not a tail.
 
 The **Channel** does the NGSI-LD side, as for every bridge: which column is the entity id, a column
 holding a place becomes the `location` GeoProperty, a column naming another row becomes a
