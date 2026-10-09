@@ -247,6 +247,20 @@ One application for everything around a broker, in three parts:
 - **Connect** - a live connection to a running broker: its entities, their relationships drawn as a
   graph, their values as they change.
 
+**A web application**, not a native one: the build often runs on a server without a screen, reached
+from a laptop, a Mac or a tablet; the best graph libraries are web libraries; and the broker already
+speaks HTTP and WebSocket. A small backend in C on the build machine serves the pages and runs what
+Compile and Configure need (`coraine-build`, the mapping files). Connect can also come with the
+broker itself, as an API plugin serving the page: connecting to a broker is then opening its URL.
+
+**Connect over the WebSocket transport** ([WebSocket](websocket.md)): the initial state by queries,
+then a subscription on the same socket and the notifications it pushes - no polling. A browser cannot
+set HTTP headers on a WebSocket, which the transport already allows for: every message carries its
+headers (`NGSILD-Tenant`, `Link`) in its own `metadata`. Two things to settle with the broker's
+authorisation, not after it: how a browser presents a token on the socket (in a message's metadata,
+or a cookie), and an `Origin` check for a page not served by the broker itself (as `--corsOrigin`
+does for HTTP).
+
 ### Packages
 
 A Debian repository and `apt-get install coraine`, with a `coraine-dev` that pulls the whole

@@ -85,7 +85,7 @@ incorporated in the next release of the product, in roughly this order:
     discovery parameters.
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
--   **c³, the coraine Control Center - Compile** - an application (Qt/GTK or a web page) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
+-   **c³, the coraine Control Center - Compile** - a web application (a small C backend on the build machine) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
 -   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
     Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
 -   **Authorisation inside the broker** - per entity, per type after expansion, per tenant, per attribute; ODRL,
@@ -126,7 +126,7 @@ product is heading and may wish to get involved.
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
--   **c³ - Connect** - the Control Center connected live to a running broker: its entities, their relationships as a graph, their values as they change. ([more](ideas.md#c-the-coraine-control-center))
+-   **c³ - Connect** - the Control Center connected live to a running broker over its WebSocket transport (queries, then a subscription's notifications): its entities, their relationships as a graph, their values as they change; also as an API plugin of the broker itself. ([more](ideas.md#c-the-coraine-control-center))
 -   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
