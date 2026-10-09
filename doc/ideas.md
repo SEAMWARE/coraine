@@ -125,14 +125,21 @@ beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
 
-### CKAN as a cor-agent plugin
+### CKAN and CSV as cor-agent plugins
 
-CKAN is the data portal behind many city and government open-data sites; FIWARE already has a CKAN
-agent. As a plugin on the bridge contract it reads a dataset through CKAN's API and writes its rows as
-NGSI-LD entities: a column holding a place becomes the `location` GeoProperty, a column naming
-another row becomes a Relationship. The column-to-attribute mapping is made in c³ Configure, beside
-DDS and OPC UA. It gives real data to play with - for c³ Connect, the graph and the map, and for
-demos.
+CKAN is the data portal behind many city and government open-data sites; FIWARE already has agents
+for CKAN and for CSV. As plugins on the bridge contract:
+
+- **CKAN** reads a dataset through CKAN's API (`datastore_search`, rows as JSON) and writes its rows
+  as NGSI-LD entities.
+- **CSV** does the same for a CSV file - a local one, one at a URL, or a CKAN dataset whose data is
+  an uploaded CSV file rather than a DataStore table.
+
+In both, a column holding a place becomes the `location` GeoProperty, and a column naming another row
+becomes a Relationship. The column-to-attribute mapping is made in c³ Configure, beside DDS and OPC
+UA. As a demo in c³: a dropdown of datasets from a portal, a preview of the first rows, the mapping,
+then the import - and the entities are on the map and in the graph in Connect. It gives real data to
+play with.
 
 ### A smaller DDS stack for the DDS bridge
 
