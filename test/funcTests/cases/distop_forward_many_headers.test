@@ -1,0 +1,62 @@
+#
+# A registration whose contextSourceInfo makes a forwarded request carry more headers than the
+# request's inline header array (10) and its first growth (15): 16 of them, and the request's own.
+# The forward went through the allocator the distributed operation uses, and the second growth
+# free()d the allocator's chunk - an invalid free, and the broker died on the query. Every header
+# reaches the Context Source, and the broker is still there to answer.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+DistOps forward - a request with more than 15 headers (contextSourceInfo)
+--TAGS--
+distops registration
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7711 --status 200
+--RUN--
+CSI=$(python3 -c 'import json; print(json.dumps([{"key": "X-H%02d" % i, "value": "v%02d" % i} for i in range(1, 17)]))')
+echo "01. Register a CSR with 16 contextSourceInfo entries"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:many","type":"ContextSourceRegistration","endpoint":"http://localhost:7711","operations":["retrieveOps"],"contextSourceInfo":'"$CSI"',"information":[{"entities":[{"type":"ManyH"}]}]}' | grep HTTP
+echo
+echo
+echo "02. GET ?type=ManyH - forwarded with all 16 headers"
+echo "===================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=ManyH' | grep HTTP
+ftClientWait 1 --port 7711
+ftClientDump --port 7711 | python3 -c "
+import sys, json
+for e in json.load(sys.stdin):
+    h = e['headers']
+    print('X-H headers:', ' '.join(k + '=' + h[k] for k in sorted(h) if k.startswith('X-H')))
+"
+echo
+echo
+echo "03. The broker is still there"
+echo "============================="
+corCurl --url /version | grep HTTP
+echo
+echo
+
+--EXPECT--
+01. Register a CSR with 16 contextSourceInfo entries
+====================================================
+HTTP/1.1 201 Created
+
+
+02. GET ?type=ManyH - forwarded with all 16 headers
+====================================================
+HTTP/1.1 200 OK
+X-H headers: X-H01=v01 X-H02=v02 X-H03=v03 X-H04=v04 X-H05=v05 X-H06=v06 X-H07=v07 X-H08=v08 X-H09=v09 X-H10=v10 X-H11=v11 X-H12=v12 X-H13=v13 X-H14=v14 X-H15=v15 X-H16=v16
+
+
+03. The broker is still there
+=============================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+ftClientStop --port 7711
+coraineStop
