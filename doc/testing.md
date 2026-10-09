@@ -128,8 +128,8 @@ both, discovery gets confused and the topics never surface either.
 ## Coverage
 
 ```sh
-make coverage                # corDB   → coverage-corDB/index.html
-make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
+make coverage                # mongoc  → coverage-mongoc/index.html
+make coverage DB=corDB       # corDB   → coverage-corDB/index.html
 make coverage-etsi           # ETSI TP suite → coverage-etsi/index.html
 ```
 

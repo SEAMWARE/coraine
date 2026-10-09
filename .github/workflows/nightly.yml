@@ -148,7 +148,7 @@ jobs:
       - name: Coverage - corDB
         working-directory: stack/coraine
         run: |
-          make coverage GCOVR=gcovr CORTEST=../corLibs/bin/corTest 2>&1 | tee /tmp/cov-corDB.txt
+          make coverage DB=corDB GCOVR=gcovr CORTEST=../corLibs/bin/corTest 2>&1 | tee /tmp/cov-corDB.txt
       - name: Summarise
         if: always()
         working-directory: stack/coraine
