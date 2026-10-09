@@ -22,6 +22,14 @@
 #
 # REQUIRE: Linux (/proc, tgkill)
 #
+# Not under valgrind (-vt): the process at the pid is memcheck, not the broker,
+# and valgrind runs the broker's threads one at a time on a lock of its own -
+# a thread's wait channel no longer says which one holds the request, and that
+# is how this test finds it. And a crash on purpose is not a memory check (see
+# crash_report_idle.test).
+#
+# SKIP_VALGRIND: on
+#
 --NAME--
 Crash report: a fatal signal on a request's thread reports that request - path as sent, headers, payload, credentials left out
 
