@@ -49,9 +49,17 @@ while [ $i -le 30 ]; do
   i=$((i+1))
 done
 
-# Wait for the hung notification sockets to time out (1s) and be reclaimed.
-sleep 8
-fd2=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+#
+# Wait for the hung notification sockets to time out (1s each) and be reclaimed - polled, up to 60 s.
+# A fixed sleep (8 s) was not enough under valgrind, where 30 timed-out notifications take longer to
+# work through (delta 39 in a nightly whose next run passed): a leak never comes back down, a slow
+# broker does.
+#
+for i in $(seq 1 60); do
+  sleep 1
+  fd2=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+  [ $((fd2 - fd1)) -lt 10 ] && break
+done
 
 echo "01. No file-descriptor leak after 30 unresponsive notifications"
 echo "=============================================================="
