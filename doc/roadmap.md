@@ -94,6 +94,7 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
+-   **HA peer push** - with a shared database, the broker that changes a subscription, registration or @context pushes the change to the other brokers itself (cor://) and answers the client once they have it - the window in which an update reaching another broker misses a notification shrinks from the change stream's ~50 ms to a LAN round trip. The cluster's members in a collection of the shared database. ([more](ideas.md#ha-peer-push-over-a-shared-database))
 -   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
 -   **One compound geo index** - one index for every GeoProperty, both variants prototyped and measured.
 -   **Hot and cold entity segments** - the entities written often apart from the rest (a design note first).
@@ -400,6 +401,31 @@ maintained**; **no polling, interrupt driven**; REST endpoints
 ⭐ **It is a helper executable OF THE BROKER, and its notes live here** (KZ,
 2026-09-22) - not a project of its own with a repository and a README of its
 own. There was a `~/git/haaux` holding one; it is superseded by this section.
+
+#### 5.1 Peer push over a shared database (KZ, 2026-10-09)
+
+haaux's push, without haaux, where there IS a shared database. The window it closes: a client
+creates a subscription on broker A and then updates an entity; the load balancer sends the update to
+broker B, which has not yet received the subscription through the change stream (~50 ms) - and the
+notification is never sent.
+
+- **Membership**: a collection of the shared database, outside every tenant (as the @contexts are),
+  holds the cluster: each broker's endpoint and a lease it renews; a TTL index removes dead members.
+  A starting broker reads it, connects to the others (cor://, persistent), then loads its caches - in
+  that order, as `haInit` does with the change stream, so nothing falls between the two.
+- **Push**: the broker that makes a change writes it to the database, pushes it to every peer in
+  parallel, and answers the client when they have acknowledged it (one LAN round trip). After the
+  201, every broker knows the subscription: an update that comes causally after it (the same client,
+  or one told of the subscription) cannot miss it, wherever it lands. Between independent clients
+  there is no before and after - an update a few microseconds earlier would not have matched
+  either - so there the gain is the size of the window: the change stream's ~50 ms down to the push.
+  A peer that does not acknowledge within a short timeout does not hold up the client.
+- **The change stream stays**, as the safety net for a lost push (a peer restarting, a partition);
+  a version per object (`modifiedAt`) makes applying a change twice harmless.
+- **Scale**: every broker connects to every other - right for the 3-10 brokers of an HA deployment;
+  beyond that, haaux as a hub.
+
+It does not replace the standalone haaux: that one is for deployments with **no** shared database.
 
 ⏳ **Not this year, and not next in line either.** haaux is not needed until
 **corDB is a real persisting database** (item 15), because until then the

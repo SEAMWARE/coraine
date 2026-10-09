@@ -215,6 +215,17 @@ High-availability cache synchronisation without a shared database: brokers regis
 at startup, keep the connection, and sync subscriptions, registrations and contexts interrupt-driven
 in single-digit milliseconds. No polling. [High availability](high-availability.md).
 
+### HA peer push over a shared database
+
+Where the brokers share a database, the one that changes a subscription, registration or @context
+pushes the change to the others itself - over cor://, in parallel with nothing in between - and
+answers the client once they have acknowledged it. The change stream (~50 ms: majority commit, then a
+re-read) stays as the safety net. The cluster's members live in a collection of the shared database
+with a lease each, so a restarted broker finds and reconnects to the others. It narrows the window in
+which an entity update reaching another broker misses a notification - closes it for an update that
+comes causally after the subscription, and shrinks it from ~50 ms to a LAN round trip between
+independent clients, whose order is undefined anyway. [Roadmap](roadmap.md), § 5.1.
+
 ### A memory budget and admission control
 
 A broker that knows its memory budget (a container's limit) and refuses writes before the OOM killer
