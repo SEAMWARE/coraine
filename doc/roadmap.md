@@ -70,6 +70,10 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
+-   **Service Execution, following GR CIM-055 as it settles** - the status names, `scopeQ` on the
+    entity's scope for registrations and grouped executions (a grouped execution ignores it today),
+    the query and discovery parameters, and a service name unique within an entity - enforced when a
+    registration is made, so a new registration can never make an invocation by name ambiguous.
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Build GUI** - Qt/GTK application/webpage? to configure the build, incl cond.comp, pgo training, HW, etc => docker image
