@@ -16,8 +16,8 @@ the broker's: all four repositories.
 
 | Run | Tests | Lines | Functions | Branches |
 |-----|-------|-------|-----------|----------|
-| `make coverage DB=mongoc` | 634 / 634 pass | 83.8% (26347/31448) | 97.7% (1324/1355) | **65.5%** (18318/27984) |
-| `make coverage` (corDB) | 584 / 584 pass | 80.1% (23664/29552) | 93.5% (1229/1314) | **62.8%** (16908/26936) |
+| `make coverage` (mongoc) | 634 / 634 pass | 83.8% (26347/31448) | 97.7% (1324/1355) | **65.5%** (18318/27984) |
+| `make coverage DB=corDB` | 584 / 584 pass | 80.1% (23664/29552) | 93.5% (1229/1314) | **62.8%** (16908/26936) |
 
 ...and per repository, in the mongoc run, which is where it gets interesting:
 
@@ -212,8 +212,8 @@ source rather than re-scaled.
 ## Reproducing it
 
 ```sh
-make coverage                # corDB   → coverage-corDB/index.html
-make coverage DB=mongoc      # mongoc  → coverage-mongoc/index.html
+make coverage                # mongoc  → coverage-mongoc/index.html
+make coverage DB=corDB       # corDB   → coverage-corDB/index.html
 make coverage-etsi           # ETSI TP suite, instrumenting the libs too
 ```
 
