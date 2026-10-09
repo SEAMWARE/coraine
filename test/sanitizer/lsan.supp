@@ -1,0 +1,5 @@
+# LeakSanitizer suppressions for a sanitizer run (test/sanitizer/sanSetup.sh).
+#
+# Empty on purpose. An entry goes here only for a leak whose stack is entirely in a third-party
+# library and not reachable from a broker allocation - the rule of test/funcTests/valgrind.supp.
+# Syntax: one "leak:<function or library>" per line.
