@@ -1,0 +1,123 @@
+#
+# FILE            storage_format_cordb.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The storage format of a corDB --dbDir (doc/installation.md, "Storage format"; corDB's
+# doc/persistence.md § 4a): one integer, as text, in <--dbDir>/_storageFormat. A new --dbDir gets this
+# build's (1); a --dbDir with files and no version (written before the version was recorded) is read as
+# it is and gets it too; a --dbDir in a NEWER format than this build knows is refused - the broker exits
+# 1 and names the directory, the version found and the newest it knows, with every file as it was. The
+# version file is not a tenant.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB - the storage format of a --dbDir: recorded, carried over from before, a newer one refused
+
+--TAGS--
+corDB persistence storage upgrade cli
+
+--INIT--
+rm -rf /tmp/corTest-storage_format_cordb
+coraineStart --dbDir /tmp/corTest-storage_format_cordb
+
+--RUN--
+
+#
+# 01. A new --dbDir: storage format 1 recorded
+# 02. --dbDir in format 999: exit 1, the directory, 999 and 1 named; the files as they were
+# 03. Files and no version (written before the version was recorded): the broker starts, reads them, records 1
+# 04. The version file is not a tenant: --dbDir holds the default tenant's directory, 't1's and the version
+#
+
+D=/tmp/corTest-storage_format_cordb
+
+# run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
+run() {
+  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --dbDir $D) > /tmp/storageFormat.$$ 2>&1
+  echo "exit: $?"
+  grep -o "corDB: --dbDir '[^']*' is in storage format [0-9]* - this build of corDB knows formats up to [0-9]*" /tmp/storageFormat.$$
+  rm -f /tmp/storageFormat.$$
+}
+
+
+echo "01. A new --dbDir: storage format 1 recorded"
+echo "============================================"
+echo "_storageFormat: $(cat $D/_storageFormat)"
+echo
+echo
+
+
+echo "02. --dbDir in format 999: exit 1, the directory, 999 and 1 named; the files as they were"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E0", "type": "T", "p": {"type": "Property", "value": 0}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}' -H "NGSILD-Tenant: t1" | head -1
+coraineStop
+echo 999 > $D/_storageFormat
+before=$(cd $D && find . -type f -exec md5sum {} + | sort)
+run
+after=$(cd $D && find . -type f -exec md5sum {} + | sort)
+echo "_storageFormat: $(cat $D/_storageFormat)"
+[ "$before" == "$after" ] && echo "every file as it was" || echo "FILES CHANGED"
+echo
+echo
+
+
+echo "03. Files and no version (written before the version was recorded): the broker starts, reads them, records 1"
+echo "============================================================================================================="
+rm $D/_storageFormat
+coraineStart --dbDir $D -v      # -v: the info line - the store read as it is
+corCurl --url /ngsi-ld/v1/entities/urn:E0 | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "NGSILD-Tenant: t1" | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("t1:      E1 p =", e["p"]["value"])'
+echo "_storageFormat: $(cat $D/_storageFormat)"
+grep -o "corDB: --dbDir '[^']*' has no storage format recorded (written before formats were) - read as it is, now storage format 1" /tmp/coraine.CB.log
+echo
+echo
+
+
+echo "04. The version file is not a tenant: --dbDir holds the default tenant's directory, 't1's and the version"
+echo "========================================================================================================"
+coraineStop
+coraineStart --dbDir $D
+ls $D
+echo
+echo
+
+
+--EXPECT--
+01. A new --dbDir: storage format 1 recorded
+============================================
+_storageFormat: 1
+
+
+02. --dbDir in format 999: exit 1, the directory, 999 and 1 named; the files as they were
+=========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+exit: 1
+corDB: --dbDir '/tmp/corTest-storage_format_cordb' is in storage format 999 - this build of corDB knows formats up to 1
+_storageFormat: 999
+every file as it was
+
+
+03. Files and no version (written before the version was recorded): the broker starts, reads them, records 1
+=============================================================================================================
+default: E0 p = 0
+t1:      E1 p = 1
+_storageFormat: 1
+corDB: --dbDir '/tmp/corTest-storage_format_cordb' has no storage format recorded (written before formats were) - read as it is, now storage format 1
+
+
+04. The version file is not a tenant: --dbDir holds the default tenant's directory, 't1's and the version
+========================================================================================================
+_
+_storageFormat
+t1
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-storage_format_cordb

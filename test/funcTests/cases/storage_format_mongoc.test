@@ -1,0 +1,188 @@
+#
+# FILE            storage_format_mongoc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The storage format of a mongoc database (doc/installation.md, "Storage format"): one integer per
+# database - the default tenant's and each tenant's - in <db>.metadata, { _id: "storageFormat", version }.
+# A new database gets this build's (1); a database with data and no version (coraine 0.4.x) is read as
+# it is and gets it too; a database in a NEWER format than this build knows is refused - at start the
+# broker exits 1 and names the database, the version found and the newest it knows, with every database
+# as it was; a tenant created later on a database in a newer format is not created (500).
+#
+# The direct starts name the suite's MongoDB ($COR_MONGO_HOST, $COR_MONGO_PORT, via corStoreArgs).
+#
+# REQUIRE_DB: mongoc
+--NAME--
+mongoc - the storage format of each database: recorded, carried over from 0.4.x, a newer one refused
+
+--TAGS--
+mongoc storage upgrade cli
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. A new database: storage format 1 recorded
+# 02. A tenant's database gets its own: storage format 1
+# 03. Databases with data and no version (coraine 0.4.x): the broker starts, reads them, records 1 in each
+# 04. The default tenant's database in format 999: exit 1, the database, 999 and 1 named; nothing changed
+# 05. A tenant's database in format 999: exit 1, the tenant's database named; nothing changed
+# 06. A tenant created while running, its database in format 999: 500, the tenant not created
+#
+
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+
+# fmt <db> - the version recorded in the database's metadata, or 'none'
+fmt() {
+  mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet "$1" --eval 'const d = db.metadata.findOne({_id: "storageFormat"}); print(d ? "version " + d.version : "none")'
+}
+
+# fmtSet <db> <version> - the version of a database set by hand ('none': the document removed)
+fmtSet() {
+  if [ "$2" == "none" ]
+  then
+    mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet "$1" --eval 'db.metadata.deleteOne({_id: "storageFormat"})' > /dev/null
+  else
+    mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet "$1" --eval 'db.metadata.updateOne({_id: "storageFormat"}, {$set: {version: '$2'}}, {upsert: true})' > /dev/null
+  fi
+}
+
+# run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
+run() {
+  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) > /tmp/storageFormat.$$ 2>&1
+  echo "exit: $?"
+  grep -o "mongoc: database '[^']*' is in storage format [0-9]* - this build of coraine knows formats up to [0-9]*" /tmp/storageFormat.$$ | sed "s/'$COR_ROLE_DB_PREFIX/'<db>/"
+  rm -f /tmp/storageFormat.$$
+}
+
+
+echo "01. A new database: storage format 1 recorded"
+echo "============================================="
+echo "default: $(fmt $COR_ROLE_DB_PREFIX)"
+echo
+echo
+
+
+echo "02. A tenant's database gets its own: storage format 1"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}' -H "NGSILD-Tenant: sf1" | head -1
+echo "sf1:     $(fmt $COR_ROLE_DB_PREFIX-sf1)"
+echo
+echo
+
+
+echo "03. Databases with data and no version (coraine 0.4.x): the broker starts, reads them, records 1 in each"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E0", "type": "T", "p": {"type": "Property", "value": 0}}' | head -1
+coraineStop
+fmtSet $COR_ROLE_DB_PREFIX none
+fmtSet $COR_ROLE_DB_PREFIX-sf1 none
+echo "before:  default $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
+coraineStart -v           # -v: the info lines - each database read as it is
+corCurl --url /ngsi-ld/v1/entities/urn:E0 | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "NGSILD-Tenant: sf1" | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("sf1:     E1 p =", e["p"]["value"])'
+echo "after:   default $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
+grep -o "database '[^']*' has no storage format recorded (coraine 0.4.x or earlier) - read as it is, now storage format 1" /tmp/coraine.CB.log | sed "s/'$COR_ROLE_DB_PREFIX/'<db>/" | sort
+echo
+echo
+
+
+echo "04. The default tenant's database in format 999: exit 1, the database, 999 and 1 named; nothing changed"
+echo "======================================================================================================="
+coraineStop
+fmtSet $COR_ROLE_DB_PREFIX 999
+run
+echo "default: $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
+echo
+echo
+
+
+echo "05. A tenant's database in format 999: exit 1, the tenant's database named; nothing changed"
+echo "==========================================================================================="
+fmtSet $COR_ROLE_DB_PREFIX 1
+fmtSet $COR_ROLE_DB_PREFIX-sf1 999
+run
+echo "default: $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
+echo
+echo
+
+
+echo "06. A tenant created while running, its database in format 999: 500, the tenant not created"
+echo "============================================================================================"
+fmtSet $COR_ROLE_DB_PREFIX-sf1 1
+coraineStart
+fmtSet $COR_ROLE_DB_PREFIX-sf2 999
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T"}' -H "NGSILD-Tenant: sf2" | sed -n '1p;/^{/,$p'
+corCurl --url /ngsi-ld/v1/entities?type=T -H "NGSILD-Tenant: sf2" | sed -n '1p;/^{/,$p'
+echo "sf2:     $(fmt $COR_ROLE_DB_PREFIX-sf2), entities: $(mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX-sf2 --eval 'print(db.entities.countDocuments())')"
+echo
+echo
+
+
+--EXPECT--
+01. A new database: storage format 1 recorded
+=============================================
+default: version 1
+
+
+02. A tenant's database gets its own: storage format 1
+======================================================
+HTTP/1.1 201 Created
+sf1:     version 1
+
+
+03. Databases with data and no version (coraine 0.4.x): the broker starts, reads them, records 1 in each
+========================================================================================================
+HTTP/1.1 201 Created
+before:  default none, sf1 none
+default: E0 p = 0
+sf1:     E1 p = 1
+after:   default version 1, sf1 version 1
+database '<db>' has no storage format recorded (coraine 0.4.x or earlier) - read as it is, now storage format 1
+database '<db>-sf1' has no storage format recorded (coraine 0.4.x or earlier) - read as it is, now storage format 1
+
+
+04. The default tenant's database in format 999: exit 1, the database, 999 and 1 named; nothing changed
+=======================================================================================================
+exit: 1
+mongoc: database '<db>' is in storage format 999 - this build of coraine knows formats up to 1
+default: version 999, sf1 version 1
+
+
+05. A tenant's database in format 999: exit 1, the tenant's database named; nothing changed
+===========================================================================================
+exit: 1
+mongoc: database '<db>-sf1' is in storage format 999 - this build of coraine knows formats up to 1
+default: version 1, sf1 version 999
+
+
+06. A tenant created while running, its database in format 999: 500, the tenant not created
+============================================================================================
+HTTP/1.1 500 Internal Server Error
+{
+  "detail": "the database of tenant 'sf2' could not be set up (the broker's log says why)",
+  "status": 500,
+  "title": "Internal Error",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+HTTP/1.1 404 Not Found
+{
+  "detail": "tenant 'sf2' does not exist",
+  "status": 404,
+  "title": "NonexistentTenant",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
+}
+
+sf2:     version 999, entities: 0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

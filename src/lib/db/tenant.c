@@ -194,6 +194,27 @@ Tenant* tenantGetOrCreate(const char* name)
   strcat(tP->dbName, tP->name);
 
   tP->initialized = false;
+
+  //
+  // Set up BEFORE it is published. This used to happen in tenantGet, after the tenant was
+  // already in the list, as `if (!initialized) { setup; initialized = true; }` outside any lock:
+  // two first writers both ran the setup, a reader could use the tenant before it had run,
+  // and tenants created by the HA thread or at mongoc startup never got it at all. Under
+  // tenantMutex, and before anyone can see the tenant, it runs exactly once, for every tenant.
+  // (corDB's setup creates the tenant's store; mongoc's checks the database's storage format and
+  // creates indexes, idempotently.)
+  //
+  // Before the caches: a setup that fails - a database in a newer storage format than this build
+  // knows - leaves no tenant, and nothing to free but the struct.
+  //
+  if ((db.tenantSetup != NULL) && (db.tenantSetup(tP) != DB_OK))
+  {
+    COR_E("tenant: the tenant '%s' (db: '%s') could not be set up - not created", tP->name, tP->dbName);
+    free(tP);
+    pthread_mutex_unlock(&tenantMutex);
+    return NULL;
+  }
+
   tP->subCacheP    = ldSubCacheCreate();
   if (tP->subCacheP != NULL && db.geoMatchFunc != NULL)
     ((LdSubCache*) tP->subCacheP)->geoMatchFunc = db.geoMatchFunc;
@@ -204,18 +225,7 @@ Tenant* tenantGetOrCreate(const char* name)
   tP->regSubCacheP    = ldSubCacheCreate();
   tP->entityMapStoreP = ldEntityMapStoreCreate();
   tP->snapshotCacheP  = ldSnapshotCacheCreate();
-
-  //
-  // Set up BEFORE it is published. This used to happen in tenantGet, after the tenant was
-  // already in the list, as `if (!initialized) { setup; initialized = true; }` outside any lock:
-  // two first writers both ran the setup, a reader could use the tenant before it had run,
-  // and tenants created by the HA thread or at mongoc startup never got it at all. Under
-  // tenantMutex, and before anyone can see the tenant, it runs exactly once, for every tenant.
-  // (corDB's setup creates the tenant's store; mongoc's creates indexes, idempotently.)
-  //
-  if (db.tenantSetup != NULL)
-    db.tenantSetup(tP);
-  tP->initialized = true;
+  tP->initialized     = true;
 
   //
   // Prepend to linked list - published with a RELEASE store: tenantLookup walks the list
@@ -290,7 +300,10 @@ Tenant* tenantFromRequest(bool autoCreate)
   tP = tenantGetOrCreate(tenantName);
   if (tP == NULL)
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "tenant name too long: '%s'", tenantName);
+    if ((strlen(tenantName) >= sizeof(tenant0.name)) || (strlen(dbPrefix) + 1 + strlen(tenantName) >= sizeof(tenant0.dbName)))
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "tenant name too long: '%s'", tenantName);
+    else
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "the database of tenant '%s' could not be set up (the broker's log says why)", tenantName);
     return NULL;
   }
 

@@ -460,7 +460,7 @@ corDbDrop() {
         else
           corRoleLookup "$role" || return 1
           if [ -n "$tenant" ]; then
-            "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --db "${COR_ROLE_DB_PREFIX}-${tenant}" --collections entities,subscriptions,registrations,snapshots > /dev/null 2>&1
+            "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --db "${COR_ROLE_DB_PREFIX}-${tenant}" --collections entities,subscriptions,registrations,snapshots,metadata > /dev/null 2>&1
           else
             "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --prefix "$COR_ROLE_DB_PREFIX" > /dev/null 2>&1
           fi
@@ -472,7 +472,7 @@ corDbDrop() {
         local db="$COR_ROLE_DB_PREFIX"
         if [ -n "$tenant" ]; then
           db="${db}-${tenant}"
-          mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop(); db.snapshots.drop()' "$db" > /dev/null 2>&1
+          mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.entities.drop(); db.subscriptions.drop(); db.registrations.drop(); db.snapshots.drop(); db.metadata.drop()' "$db" > /dev/null 2>&1
         else
           # No tenant specified → drop default + all tenant-suffixed dbs.
           # Tests that leave tenant state behind shouldn't bleed into later
