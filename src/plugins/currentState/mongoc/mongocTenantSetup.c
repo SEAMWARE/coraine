@@ -12,6 +12,7 @@
 
 #include "db/Tenant.h"                               // Tenant
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
+#include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
 #include "currentState/mongoc/mongocTenantSetup.h"                // Own interface
 
 
@@ -26,10 +27,17 @@ extern mongoc_client_pool_t*  poolP;
 
 // -----------------------------------------------------------------------------
 //
-// mongocTenantSetup - create indexes ({type,createdAt,_id}, {createdAt,_id}, geo) for a tenant's database
+// mongocTenantSetup - the storage format of a tenant's database checked and recorded, then its indexes
+// ({type,createdAt,_id}, {createdAt,_id}, geo) created
+//
+// -1: the database is in a newer storage format than this build knows, or its format could not be
+// read - nothing in it is touched, and the tenant is not to be used.
 //
 int mongocTenantSetup(Tenant* tenantP)
 {
+  if (mongocStorageFormat(tenantP->dbName, true) != 0)
+    return -1;
+
   mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
   mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, tenantP->dbName, "entities");
 

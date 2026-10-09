@@ -15,7 +15,8 @@
 
 // -----------------------------------------------------------------------------
 //
-// mongocTenantSetup - create indexes (type + geo) for a tenant's database
+// mongocTenantSetup - the storage format checked and recorded, the indexes created; -1: the database is
+// in a newer storage format than this build knows - the tenant is not to be used
 //
 extern int mongocTenantSetup(Tenant* tenantP);
 

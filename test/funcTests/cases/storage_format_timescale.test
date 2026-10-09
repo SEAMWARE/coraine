@@ -1,0 +1,80 @@
+#
+# FILE            storage_format_timescale.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The storage format of a timescale TRoE database (doc/installation.md, "Storage format"): its schema
+# version, max(version) of troe_schema_version - the migrations it has had. A database whose schema is
+# NEWER than this build's newest migration was written by a newer release: the broker exits 1 and names
+# the database, the version found and the newest it knows, and the database is left as it was.
+#
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
+--NAME--
+timescale - a TRoE database with a schema newer than this build's migrations is refused
+
+--TAGS--
+troe timescale postgres storage upgrade cli
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
+
+--RUN--
+
+#
+# 01. A new database: every migration of this build applied
+# 02. Schema version 999: exit 1, the database, 999 and this build's newest named; the database as it was
+#
+
+schema() {
+  psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -d "$COR_TROE_DB" -tAc "SELECT max(version) FROM troe_schema_version"
+}
+
+# run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
+run() {
+  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) > /tmp/storageFormat.$$ 2>&1
+  echo "exit: $?"
+  grep -o "timescale: database '[^']*' is in schema version [0-9]* - this build of coraine knows versions up to [0-9]*" /tmp/storageFormat.$$ | sed "s/'$COR_TROE_DB'/'<db>'/"
+  rm -f /tmp/storageFormat.$$
+}
+
+
+echo "01. A new database: every migration of this build applied"
+echo "========================================================="
+echo "schema version: $(schema)"
+echo
+echo
+
+
+echo "02. Schema version 999: exit 1, the database, 999 and this build's newest named; the database as it was"
+echo "======================================================================================================="
+coraineStop
+psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -d "$COR_TROE_DB" -tAc "INSERT INTO troe_schema_version (version) VALUES (999)" > /dev/null
+run
+echo "schema version: $(schema)"
+echo
+echo
+
+
+--EXPECT--
+01. A new database: every migration of this build applied
+=========================================================
+schema version: 3
+
+
+02. Schema version 999: exit 1, the database, 999 and this build's newest named; the database as it was
+=======================================================================================================
+exit: 1
+timescale: database '<db>' is in schema version 999 - this build of coraine knows versions up to 3
+schema version: 999
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

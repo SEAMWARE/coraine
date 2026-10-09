@@ -192,7 +192,7 @@ interval.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `--dbDir` | none: in RAM only | the directory - one subdirectory per tenant |
+| `--dbDir` | none: in RAM only | the directory - one subdirectory per tenant, and the [storage format](#storage-format) |
 | `--dbSync` | `interval` | `interval`: synced every `--dbSyncInterval` ms; `request`: a write answers once its record is on the disk; `none`: written, never synced |
 | `--dbSyncInterval` | 100 | ms between two syncs |
 | `--dbSnapshotEvery` | 64 | MiB of log after which a tenant is snapshotted (and at least as much as its last snapshot) |
@@ -242,6 +242,36 @@ name no file:
 |----------|---------|---------|
 | `SEAMWARE_PLUGIN_DIR` | `/opt/seamware/plugins` | base directory plugin short names resolve against (read by the plugin loader, before the arguments are parsed) |
 | `SEAMWARE_ETC_DIR` | `/opt/seamware/etc` | where the broker looks for `bridges.json` when `--bridgeConfig` is not given, and for `contextSourceExtras.json` when `--contextSourceExtras` is not given. A file missing from there is not an error |
+
+## Storage format
+
+Every store records the version of the format its data is written in. At start, a broker checks
+it in every store it opens:
+
+| Store | Where the version is | 0.5.0 writes |
+|-------|----------------------|------------|
+| `mongoc` | `<database>.metadata`, document `{ _id: "storageFormat", version: <n> }` - in the default tenant's database and in every tenant's | 1 |
+| `corDB` with `--dbDir` | `<--dbDir>/_storageFormat`: the number, as text | 1 |
+| `timescale` (TRoE) | the schema version: `max(version)` of `troe_schema_version`, in every tenant's database | 3 |
+
+- **No version recorded, no data**: a new store - this build's version is written.
+- **No version recorded, data**: a store written before the version was recorded (`mongoc`:
+  coraine 0.4.x or earlier). It is read as it is, and this build's version is written.
+- **A version up to this build's**: the store is used. A lower version is upgraded and this build's
+  is written.
+- **A version above this build's**: the store was written by a newer release. **The broker does not
+  start**: it exits with 1, and the error names the store, the version found and the newest this
+  build knows. Run the release that wrote it, or a newer one. A tenant's `mongoc` database in a newer
+  format that appears while the broker runs is not used: the request that would create the tenant is
+  answered 500.
+
+`mongoc` version 1 is the format of coraine 0.5.0: system timestamps once per entity and attribute
+types once per entity. coraine 0.4.x reads that format wrong - attributes that 0.5.0 has written
+come back without `type` and `createdAt` - and 0.4.x predates the check, so it cannot refuse it.
+**Downgrading to 0.4.x is not supported once 0.5.0 has written to a database: do not run 0.4.x on
+data 0.5.0 has written.** From 0.5.0 on, a release refuses data written by a newer one.
+
+The check runs in `coraine-import` too: it opens the stores the way the broker does.
 
 ## Migrating from another broker
 
