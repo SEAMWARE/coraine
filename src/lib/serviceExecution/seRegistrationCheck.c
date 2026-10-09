@@ -17,6 +17,7 @@
 #include "corNgsild/ldCheckUri.h"                     // ldUriValid
 #include "corNgsild/ldCheckGeo.h"                     // ldCheckGeoQuery
 #include "corNgsild/ldQParse.h"                       // ldQParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
 #include "corNgsild/ldIso8601Duration.h"              // ldIso8601DurationParseNs
 #include "corNgsild/CorNgsild.h"                      // corNgsild
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
@@ -183,6 +184,19 @@ bool seRegistrationCheck(CorNode* regP)
       if ((isString(mP) == false) || (ldQParse(mP->value.s, &corRest.kalloc) == NULL))
         return bad("'q' must be a valid NGSI-LD query");
     }
+    else if (strcmp(mP->name, "scopeQ") == 0)
+    {
+      //
+      // A filter on the target entity's scope - the subscription's scopeQ: the same syntax, the same matching
+      //
+      if (isString(mP) == false)
+        return bad("'scopeQ' must be a non-empty string: a scope query");
+
+      if (ldScopeExprParse(mP->value.s, &corRest.kalloc) == NULL)
+        return false;                                 // ldScopeExprParse has raised the 400
+    }
+    else if (strcmp(mP->name, "scope") == 0)
+      return bad("'scope' is not a member of a Service Registration - 'scopeQ' selects the entities by their scope");
     else if (strcmp(mP->name, "geoQ") == 0)
     {
       CorNode* geometryP    = (mP->type == CorObject) ? corTreeLookup(mP, "geometry")    : NULL;

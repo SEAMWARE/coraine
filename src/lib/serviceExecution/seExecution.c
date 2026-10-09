@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stdio.h>                                    // snprintf
+#include <stdlib.h>                                   // qsort
 #include <pthread.h>                                  // pthread_mutex_*
 #include <string.h>                                   // strcmp, strlen, strncmp
 #include <time.h>                                     // clock_gettime
@@ -356,9 +357,25 @@ static void finish(CorNode* execP, const char* status, CorNode* outputP, CorNode
 
 // -----------------------------------------------------------------------------
 //
-// serviceFind - the Service Registration offering 'serviceName' for the entity; NULL: none
+// idCompare - qsort of registration ids
 //
-static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* entityP, const char* serviceName)
+static int idCompare(const void* a, const void* b)
+{
+  return strcmp(*(const char* const*) a, *(const char* const*) b);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// serviceFind - the Service Registration offering 'serviceName' for the entity; NULL: none (*statusP 404),
+// or more than one (*statusP 409, why naming them)
+//
+// A service name is unique within an entity - a registration that would break that is refused (409), but
+// registrations made before that rule, or an entity of two types each with a registration of the name, can
+// still offer one name twice. Which one would run is then not the broker's to guess.
+//
+static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* entityP, const char* serviceName, int* statusP, char* why, int whySize)
 {
   CorNode* regsP = NULL;
 
@@ -413,16 +430,46 @@ static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* enti
   }
   typeV[typeN] = NULL;
 
+  CorNode*    foundP = NULL;
+  const char* idV[8];
+  int         found  = 0;
+
   for (CorNode* regP = regsP->value.head; regP != NULL; regP = regP->next)
   {
     CorNode*    siP  = corTreeLookup(regP, "serviceInformation");
     const char* name = (siP != NULL) ? str(siP, "serviceName") : NULL;
 
-    if ((name != NULL) && (strcmp(name, serviceName) == 0) && seRegistrationMatches(regP, entityId, typeV, entityP))
-      return regP;
+    if ((name == NULL) || (strcmp(name, serviceName) != 0) || (seRegistrationMatches(regP, entityId, typeV, entityP) == false))
+      continue;
+
+    if (found == 0)
+      foundP = regP;
+
+    if (found < 8)
+      idV[found] = (str(regP, "id") != NULL) ? str(regP, "id") : "";
+
+    found++;
   }
 
-  return NULL;
+  if (found > 1)
+  {
+    int  idN    = (found < 8) ? found : 8;
+    char ids[512];
+    int  idsLen = 0;
+
+    qsort(idV, idN, sizeof(idV[0]), idCompare);       // named in one order whatever the database's
+
+    ids[0] = 0;
+    for (int ix = 0; (ix < idN) && (idsLen < (int) sizeof(ids) - 1); ix++)
+      idsLen += snprintf(&ids[idsLen], sizeof(ids) - idsLen, "%s'%s'", (ix == 0) ? "" : ", ", idV[ix]);
+
+    *statusP = 409;
+    snprintf(why, whySize, "the service '%s' of entity '%s' is offered by %d Service Registrations: %s - a service name is unique within an entity",
+             corLdCompact(corNgsild.contextP, serviceName), entityId, found, ids);
+    return NULL;
+  }
+
+  return foundP;
 }
 
 
@@ -845,12 +892,14 @@ static void answerError(int status, CorNode* errorP, const char* execId)
 //
 // seExecutionBuild - a simple execution, pending, not stored: the entity, its service, the input checked
 //
-// NULL: refused - *statusP and why say how (404 entity / service, 400 input).
+// NULL: refused - *statusP and why say how (404 entity / service, 409 a service offered twice, 400 input).
 //
 CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP, int* statusP, char* why, int whySize)
 {
   Tenant*  tenantP = (Tenant*) corNgsild.tenantP;
   CorNode* entityP = NULL;
+
+  *statusP = 0;
 
   if (db.entityRetrieve(tenantP, entityId, &entityP) != DB_OK)
   {
@@ -859,7 +908,10 @@ CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode
     return NULL;
   }
 
-  CorNode* regP = serviceFind(tenantP, entityId, entityP, serviceName);
+  CorNode* regP = serviceFind(tenantP, entityId, entityP, serviceName, statusP, why, whySize);
+
+  if ((regP == NULL) && (*statusP == 409))
+    return NULL;                                      // offered twice - why says by which registrations
 
   if (regP == NULL)
   {
@@ -989,6 +1041,8 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
   {
     if (status == 404)
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+    else if (status == 409)
+      ldError(409, LD_ERROR_CONFLICT, "Conflict", "%s", why);
     else
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
     return true;

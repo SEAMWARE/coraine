@@ -28,6 +28,9 @@
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate, ldSysTimestampToIso
 #include "corNgsild/ldQParse.h"                       // ldQParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
+#include "corJsonld/corLdExpand.h"                    // corLdExpand
 
 #include "db/DbDriver.h"                              // db, DB_*
 #include "db/DbQueryFilter.h"                         // DbQueryFilter
@@ -157,6 +160,8 @@ static CorNode* buildRefused(int status, const char* why)
 {
   if (status == 404)
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+  else if (status == 409)
+    ldError(409, LD_ERROR_CONFLICT, "Conflict", "%s", why);
   else
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
 
@@ -252,12 +257,67 @@ static void childAdd(CorNode* parentP, CorNode* childP)
 
 // -----------------------------------------------------------------------------
 //
+// The members of each object a creation is made of; any other is refused (400, naming it)
+//
+static const char* groupedMemberV[]  = { "type", "id", "combinationMethod", "serviceName", "entityType", "idPattern", "q", "geoQ", "scopeQ", "executionInput", "notification", NULL };
+static const char* combinedMemberV[] = { "type", "id", "combinationMethod", "serviceExecutions", "notification", NULL };
+static const char* nestedMemberV[]   = { "type", "id", "combinationMethod", "serviceExecutions", NULL };
+static const char* fromTemplateV[]   = { "type", "id", "serviceTemplateId", "combinationMethod", "services", "notification", NULL };
+static const char* simpleMemberV[]   = { "type", "entityId", "serviceName", "executionInput", NULL };
+static const char* overrideMemberV[] = { "entityId", "serviceName", "executionInput", NULL };
+static const char* templateMemberV[] = { "type", "id", "templateName", "combinationMethod", "services", "createdAt", "modifiedAt", NULL };  // the timestamps: the broker's own, on a stored one (PATCH)
+static const char* nestedTmplV[]     = { "type", "combinationMethod", "services", NULL };
+static const char* tmplServiceV[]    = { "serviceName", "entityType", "entityId", "executionInput", NULL };
+
+
+
+// -----------------------------------------------------------------------------
+//
+// membersCheck - every member of objectP one of memberV; false: a 400 naming the first that is not
+//
+// 'what' names the object in the error ("a Grouped Service Execution", ...).
+//
+static bool membersCheck(CorNode* objectP, const char** memberV, const char* what)
+{
+  for (CorNode* mP = objectP->value.head; mP != NULL; mP = mP->next)
+  {
+    bool known = false;
+
+    for (int ix = 0; (memberV[ix] != NULL) && (known == false); ix++)
+      known = (strcmp(mP->name, memberV[ix]) == 0);
+
+    if (known == true)
+      continue;
+
+    const char* name = corLdCompact(corNgsild.contextP, mP->name);
+
+    if (strcmp(name, "input") == 0)
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'input' is not a member of %s - the service's input is 'executionInput'", what);
+    else
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'%s' is not a member of %s", name, what);
+
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // buildCombined - a CombinedServiceExecution and its serviceExecutions (nested ones included)
 //
 static CorNode* buildCombined(Built* bP, CorNode* nodeP, const char* parentId)
 {
   CorNode* methodP = corTreeLookup(nodeP, "combinationMethod");
   CorNode* listP   = corTreeLookup(nodeP, "serviceExecutions");
+
+  //
+  // A nested one: no notification of its own - only the request's top object has one
+  //
+  if (membersCheck(nodeP, (parentId == NULL) ? combinedMemberV : nestedMemberV, (parentId == NULL) ? "a Combined Service Execution" : "a nested Combined Service Execution") == false)
+    return NULL;
 
   if (methodOk(methodP) == false)
     return NULL;
@@ -291,6 +351,10 @@ static CorNode* buildCombined(Built* bP, CorNode* nodeP, const char* parentId)
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'executionStatus' is the broker's to set");
         return NULL;
       }
+
+      if (membersCheck(itemP, simpleMemberV, "a Service Execution of 'serviceExecutions'") == false)
+        return NULL;
+
       childP = buildSimple(bP, str(itemP, "entityId"), str(itemP, "serviceName"), corTreeLookup(itemP, "executionInput"), NULL, str(execP, "id"));
     }
     else if (strcmp(type, "CombinedServiceExecution") == 0)
@@ -318,13 +382,51 @@ static CorNode* buildCombined(Built* bP, CorNode* nodeP, const char* parentId)
 //
 // A member of the request's "services" (if there is one at that place) gives the entityId, and may give
 // an executionInput that replaces the template's; its serviceName, if given, must be the template's.
-// A nested template is taken as it is.
+// A nested template is taken as it is: 'services' has no entry for its place (an entry there is refused).
+// A member of "services" is an object of entityId, serviceName, executionInput; no more of them than the
+// template has services.
 //
 static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overridesP, const char* method, const char* id, const char* parentId)
 {
   CorNode* servicesP = corTreeLookup(templateP, "services");
-  CorNode* execP     = parentBuild(bP, "CombinedServiceExecution", id, method, parentId);
-  CorNode* overP     = ((overridesP != NULL) && (overridesP->type == CorArray)) ? overridesP->value.head : NULL;
+
+  if (overridesP != NULL)
+  {
+    int templateN = 0;
+    int requestN  = 0;
+
+    if (overridesP->type != CorArray)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'services' is an array: the template's services, by place");
+      return NULL;
+    }
+
+    for (CorNode* sP = servicesP->value.head; sP != NULL; sP = sP->next)
+      templateN++;
+
+    for (CorNode* oP = overridesP->value.head; oP != NULL; oP = oP->next)
+    {
+      if (oP->type != CorObject)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "an entry of 'services' is an object: entityId, serviceName, executionInput");
+        return NULL;
+      }
+
+      if (membersCheck(oP, overrideMemberV, "an entry of 'services'") == false)
+        return NULL;
+
+      requestN++;
+    }
+
+    if (requestN > templateN)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'services' has %d entries - the template has %d services", requestN, templateN);
+      return NULL;
+    }
+  }
+
+  CorNode* execP = parentBuild(bP, "CombinedServiceExecution", id, method, parentId);
+  CorNode* overP = (overridesP != NULL) ? overridesP->value.head : NULL;
 
   if (execP == NULL)
     return NULL;
@@ -334,7 +436,15 @@ static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overri
     CorNode* childP = NULL;
 
     if ((str(sP, "type") != NULL) && (strcmp(str(sP, "type"), "CombinedServiceTemplate") == 0))
+    {
+      if (overP != NULL)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's member at that place is a Combined Service Template - it is taken as it is: 'services' has no entry for it");
+        return NULL;
+      }
+
       childP = buildFromTemplate(bP, sP, NULL, str(sP, "combinationMethod"), NULL, str(execP, "id"));
+    }
     else
     {
       const char* serviceName = str(sP, "serviceName");
@@ -372,6 +482,9 @@ static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overri
 //
 // buildGrouped - a GroupedServiceExecution: the service on every matching entity that offers it
 //
+// The selection: entityType, idPattern, q, geoQ and scopeQ (on the entity's scope, as a subscription's
+// scopeQ) - any one of them, or several (all must hold).
+//
 static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 {
   CorNode*    methodP     = corTreeLookup(bodyP, "combinationMethod");
@@ -380,7 +493,11 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
   const char* idPattern   = str(bodyP, "idPattern");
   const char* q           = str(bodyP, "q");
   CorNode*    geoQP       = corTreeLookup(bodyP, "geoQ");
+  CorNode*    scopeQP     = corTreeLookup(bodyP, "scopeQ");
   CorNode*    inputP      = corTreeLookup(bodyP, "executionInput");
+
+  if (membersCheck(bodyP, groupedMemberV, "a Grouped Service Execution") == false)
+    return NULL;
 
   if (methodOk(methodP) == false)
     return NULL;
@@ -391,9 +508,15 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
     return NULL;
   }
 
-  if ((entityType == NULL) && (idPattern == NULL) && (q == NULL) && (geoQP == NULL))
+  if ((entityType == NULL) && (idPattern == NULL) && (q == NULL) && (geoQP == NULL) && (scopeQP == NULL))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Grouped Service Execution selects its entities: entityType, idPattern, q or geoQ");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Grouped Service Execution selects its entities: entityType, idPattern, q, geoQ or scopeQ");
+    return NULL;
+  }
+
+  if ((inputP != NULL) && (inputP->type != CorObject))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'executionInput' is a JSON object");
     return NULL;
   }
 
@@ -439,7 +562,24 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
       corJsonFastRender(coordsP, filter.coordinates);
     }
 
-    filter.geoproperty = (char*) "location";
+    const char* geoproperty = (str(geoQP, "geoproperty") != NULL) ? str(geoQP, "geoproperty") : "location";
+
+    filter.geoproperty = (char*) corLdExpand(corNgsild.contextP, geoproperty, &corRest.kalloc, NULL, NULL);
+  }
+
+  //
+  // scopeQ - given to the query (a database that filters on it does), and checked on every entity it returns
+  //
+  if (scopeQP != NULL)
+  {
+    if ((scopeQP->type != CorString) || (scopeQP->value.s[0] == 0))
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'scopeQ' is a non-empty string: a scope query");
+      return NULL;
+    }
+
+    if ((filter.scopeExpr = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc)) == NULL)
+      return NULL;                                    // ldScopeExprParse has raised the 400
   }
 
   CorNode* entitiesP = NULL;
@@ -458,7 +598,7 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
   //
   // The selection, as given (the report's Retrieve shows it)
   //
-  const char* kept[] = { "serviceName", "entityType", "idPattern", "q", "geoQ", "executionInput", NULL };
+  const char* kept[] = { "serviceName", "entityType", "idPattern", "q", "geoQ", "scopeQ", "executionInput", NULL };
 
   for (int ix = 0; kept[ix] != NULL; ix++)
   {
@@ -476,6 +616,9 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 
     if (entityId == NULL)
       continue;
+
+    if ((filter.scopeExpr != NULL) && (ldEntityMatchScope(corTreeLookup(eP, "scope"), filter.scopeExpr) == false))
+      continue;                                       // out of the scope: not one of the group
 
     CorNode* childP = seExecutionBuild(entityId, serviceName, inputP, NULL, &status, why, sizeof(why));
 
@@ -665,6 +808,9 @@ bool seCombinedCreate(CorNode* bodyP)
   {
     const char* templateId = str(bodyP, "serviceTemplateId");
     CorNode*    templateP  = NULL;
+
+    if (membersCheck(bodyP, fromTemplateV, "a Combined Service Execution of a template") == false)
+      return true;
 
     if ((templateId == NULL) || (db.docRetrieve(tenantP, "serviceTemplates", templateId, &templateP) != DB_OK))
     {
@@ -865,6 +1011,9 @@ static bool templateCheck(CorNode* templateP, bool top)
 {
   CorNode* methodP = corTreeLookup(templateP, "combinationMethod");
 
+  if (membersCheck(templateP, (top == true) ? templateMemberV : nestedTmplV, (top == true) ? "a Combined Service Template" : "a nested Combined Service Template") == false)
+    return false;
+
   if ((top == true) && (str(templateP, "templateName") == NULL))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Combined Service Template needs a 'templateName'");
@@ -899,6 +1048,9 @@ static bool templateServicesCheck(CorNode* servicesP)
         return false;
       continue;
     }
+
+    if (membersCheck(sP, tmplServiceV, "a service of a Combined Service Template") == false)
+      return false;
 
     if ((str(sP, "serviceName") == NULL) || (str(sP, "entityType") == NULL))
     {

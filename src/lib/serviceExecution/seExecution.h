@@ -85,7 +85,7 @@ extern bool seExecute(SeOrigin origin, const char* entityId, const char* service
 
 // -----------------------------------------------------------------------------
 //
-// seExecutionBuild - a simple execution, pending, not stored; NULL: refused (*statusP 404 / 400, why)
+// seExecutionBuild - a simple execution, pending, not stored; NULL: refused (*statusP 404 / 409 / 400, why)
 //
 extern CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP, int* statusP, char* why, int whySize);
 
