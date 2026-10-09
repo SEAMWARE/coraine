@@ -28,8 +28,6 @@
 name: Pre-release
 
 on:
-  push:                                   # TEMPORARY - registers the workflow for dispatch from this branch
-    branches: [ci/prerelease-campaign]
   workflow_dispatch:
     inputs:
       ref:
