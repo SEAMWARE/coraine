@@ -52,4 +52,16 @@
 //
 extern int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// channelConfigPath - the bridge configuration file the broker reads: path, or the default location
+//                     when path is NULL and a file is there; NULL when there is none
+//
+// What each bridge's init() is given, so that a plugin reads its own settings from the same file the
+// Channels came from.
+//
+extern const char* channelConfigPath(const char* path);
+
 #endif  // BRIDGE_CHANNELCONFIGLOAD_H_
