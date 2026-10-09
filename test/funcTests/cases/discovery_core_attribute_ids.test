@@ -1,0 +1,458 @@
+#
+# FILE            discovery_core_attribute_ids.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The `id` of an Attribute (§ 5.2.6.10.1) is the "Full URI of attribute name" - for an
+# Attribute named by a CORE term too: "location" and "status" are ngsi-ld:location and
+# ngsi-ld:status in the core @context, so their id is https://uri.etsi.org/ngsi-ld/location
+# and https://uri.etsi.org/ngsi-ld/status. attributeName, attributeNames and attributeList
+# are names, compacted with the request's @context: "location" there.
+#
+# The broker holds a core term by its short name, so the id used to come out as "location".
+#
+# Also over forwarding: a Context Source that answers with the Full URI of a core Attribute
+# (step 08 on, CP1 is a coraine) is merged with the broker's own Attribute of that name -
+# one entry, not two.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Discovery: the id of an Attribute named by a core term is its full URI (§ 5.2.6.10.1)
+
+--TAGS--
+query discovery
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+
+echo "01. Seed CB: a Robot with location, status (core terms) and speed"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:R1","type":"Robot","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"status":{"type":"Property","value":"ok"},"speed":{"type":"Property","value":3}}' | head -1
+echo
+echo
+
+
+echo "02. GET /attributes?details=true&local=true - location and status by their full URIs"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/attributes --urlParams 'details=true&local=true'
+echo
+echo
+
+
+echo "03. GET /attributes?local=true - the AttributeList holds names: location, status"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/attributes --urlParams 'local=true'
+echo
+echo
+
+
+echo "04. GET /attributes/location?local=true - id the full URI, attributeName location"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/attributes/location --urlParams 'local=true'
+echo
+echo
+
+
+echo "05. GET /attributes/{the full URI of status}?local=true - the same Attribute"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/attributes/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fstatus --urlParams 'local=true'
+echo
+echo
+
+
+echo "06. GET /types/Robot?local=true - attributeDetails: location and status by their full URIs"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/types/Robot --urlParams 'local=true'
+echo
+echo
+
+
+echo "07. GET /types?details=true&local=true - attributeNames are names: location, status"
+echo "==================================================================================="
+corCurl --url /ngsi-ld/v1/types --urlParams 'details=true&local=true'
+echo
+echo
+
+
+echo "08. Seed CP1: a Robot with location and temp, and register CP1 on CB"
+echo "===================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:R2","type":"Robot","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[3,4]}},"temp":{"type":"Property","value":21}}' | head -1
+payload='{
+  "id": "urn:CSR:CP1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type": "Robot"}]}]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "09. GET /attributes?details=true (forwarded to CP1) - location once"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/attributes --urlParams 'details=true'
+echo
+echo
+
+
+echo "10. GET /attributes/location (forwarded to CP1) - one Attribute, attributeCount 2"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/attributes/location
+echo
+echo
+
+
+echo "11. GET /types/Robot (forwarded to CP1) - location once in attributeDetails, entityCount 2"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/types/Robot
+echo
+echo
+
+
+echo "12. GET /types?details=true (forwarded to CP1) - location once in attributeNames"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/types --urlParams 'details=true'
+echo
+echo
+
+
+--EXPECT--
+01. Seed CB: a Robot with location, status (core terms) and speed
+=================================================================
+HTTP/1.1 201 Created
+
+
+02. GET /attributes?details=true&local=true - location and status by their full URIs
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 480
+
+[
+  {
+    "attributeName": "location",
+    "id": "https://uri.etsi.org/ngsi-ld/location",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "status",
+    "id": "https://uri.etsi.org/ngsi-ld/status",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "speed",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  }
+]
+
+
+
+03. GET /attributes?local=true - the AttributeList holds names: location, status
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 141
+
+{
+  "attributeList": [
+    "location",
+    "status",
+    "speed"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+04. GET /attributes/location?local=true - id the full URI, attributeName location
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 208
+
+{
+  "attributeCount": 1,
+  "attributeName": "location",
+  "attributeTypes": [
+    "GeoProperty"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/location",
+  "type": "Attribute",
+  "typeNames": [
+    "Robot"
+  ]
+}
+
+
+
+05. GET /attributes/{the full URI of status}?local=true - the same Attribute
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 201
+
+{
+  "attributeCount": 1,
+  "attributeName": "status",
+  "attributeTypes": [
+    "Property"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/status",
+  "type": "Attribute",
+  "typeNames": [
+    "Robot"
+  ]
+}
+
+
+
+06. GET /types/Robot?local=true - attributeDetails: location and status by their full URIs
+==========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 716
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "location",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/location",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "status",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/status",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "speed",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 1,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
+  "type": "EntityTypeInfo",
+  "typeName": "Robot"
+}
+
+
+
+07. GET /types?details=true&local=true - attributeNames are names: location, status
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 205
+
+[
+  {
+    "attributeNames": [
+      "location",
+      "status",
+      "speed"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
+    "type": "EntityType",
+    "typeName": "Robot"
+  }
+]
+
+
+
+08. Seed CP1: a Robot with location and temp, and register CP1 on CB
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+09. GET /attributes?details=true (forwarded to CP1) - location once
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 645
+
+[
+  {
+    "attributeName": "location",
+    "id": "https://uri.etsi.org/ngsi-ld/location",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "status",
+    "id": "https://uri.etsi.org/ngsi-ld/status",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "speed",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "temp",
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  }
+]
+
+
+
+10. GET /attributes/location (forwarded to CP1) - one Attribute, attributeCount 2
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 208
+
+{
+  "attributeCount": 2,
+  "attributeName": "location",
+  "attributeTypes": [
+    "GeoProperty"
+  ],
+  "id": "https://uri.etsi.org/ngsi-ld/location",
+  "type": "Attribute",
+  "typeNames": [
+    "Robot"
+  ]
+}
+
+
+
+11. GET /types/Robot (forwarded to CP1) - location once in attributeDetails, entityCount 2
+==========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 905
+
+{
+  "attributeDetails": [
+    {
+      "attributeName": "location",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/location",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "status",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/status",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "speed",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "temp",
+      "attributeTypes": [
+        "Property"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/default-context/temp",
+      "type": "Attribute"
+    }
+  ],
+  "entityCount": 2,
+  "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
+  "type": "EntityTypeInfo",
+  "typeName": "Robot"
+}
+
+
+
+12. GET /types?details=true (forwarded to CP1) - location once in attributeNames
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 219
+
+[
+  {
+    "attributeNames": [
+      "location",
+      "status",
+      "speed",
+      "temp"
+    ],
+    "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
+    "type": "EntityType",
+    "typeName": "Robot"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
