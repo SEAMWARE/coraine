@@ -1862,6 +1862,7 @@ int main(int argC, char* argV[])
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestInit failed on port %u", port);
+  free(allServices);   // corRestInit copied every entry into its per-verb tables
 
   COR_I("coraine running on port %u", port);
 
