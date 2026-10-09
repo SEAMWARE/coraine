@@ -14,7 +14,8 @@
 # level turns it on or off, and it is written the same by every build.
 #
 # The command line and the version depend on how the suite was started (-db,
-# the build), and the stack on the build: patterns, not literals. The stack is
+# the build, the broker by name or by path - the coverage run's COR_BROKER is a
+# path), and the stack on the build: patterns, not literals. The stack is
 # only counted. The build id is compared with the running binary's own (readelf).
 #
 # Not under valgrind (-vt): the process at the pid is memcheck, not the broker
