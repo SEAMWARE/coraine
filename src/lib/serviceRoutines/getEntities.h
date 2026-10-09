@@ -14,6 +14,18 @@
 
 
 
+// -----------------------------------------------------------------------------
+//
+// GET_ENTITIES_PARAM_PAGE - ?pageAfter and ?pageBefore, the page position of GET /entities (one bit, both)
+//
+// A position in the default order (createdAt, id) that the links of a local query name instead of an
+// offset - see getEntities.c, PagePosition. The bits are one 64-bit space shared by every registrant:
+// corNgsild's LD_PARAM_* from 0 up (55), the broker's own from the top (seRequest.h has the list).
+//
+#define GET_ENTITIES_PARAM_PAGE  (1ULL << 59)
+
+
+
 #if COR_FEATURE_AUTO_ENTITY_MAP
 // -----------------------------------------------------------------------------
 //

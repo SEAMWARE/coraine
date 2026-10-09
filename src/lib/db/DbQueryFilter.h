@@ -111,6 +111,30 @@ typedef struct DbQueryFilter
   // header has the same layout up to here.
   //
   bool    idsOnly;
+
+  //
+  // seek - a page that starts at a POSITION in the order, not at an offset (seekId != NULL)
+  //
+  // The order is the default one - (createdAt, id) - and the position one entity's (seekCreatedAt,
+  // seekId), as the store gives them back (the entity's integer "createdAt" and its "id"). The page is
+  // the first `limit` matches after it (seekBefore false), or the last `limit` before it, NEAREST
+  // FIRST (seekBefore true - the caller turns them around). offset is 0, count false (the count of
+  // the query is the caller's, without the position), and never with unpaged, orderBy, georel=near
+  // or a distance order.
+  //
+  // MongoDB: an index range from the position on, {type, createdAt, _id} or {createdAt, _id} - no
+  // skip. corDB: the store's list is its creation order - the walk starts at the position's entity
+  // (the id index), or, when that entity is gone, where its createdAt is.
+  //
+  // LAST in the struct (as idsOnly before it): a plugin built against an older header has the same
+  // layout up to here. One that does not know the fields would answer as if there were no position -
+  // the first page again, and a client following `next` forever: a plugin that pages by position says
+  // so on every entity query (seekable, an OUTPUT), and the broker makes position links only then.
+  //
+  int64_t seekCreatedAt;
+  char*   seekId;
+  bool    seekBefore;
+  bool    seekable;     // OUTPUT: the plugin honours seekId (set on every query, with a position or not)
 } DbQueryFilter;
 
 
@@ -127,5 +151,9 @@ typedef struct DbQueryFilter
 // -----------------------------------------------------------------------------
 // DB_QUERY_FILTER_IDS_ONLY - this header has DbQueryFilter.idsOnly
 #define DB_QUERY_FILTER_IDS_ONLY
+
+// -----------------------------------------------------------------------------
+// DB_QUERY_FILTER_SEEK - this header has DbQueryFilter.seekCreatedAt, seekId and seekBefore
+#define DB_QUERY_FILTER_SEEK
 
 #endif  // DB_DBQUERYFILTER_H_

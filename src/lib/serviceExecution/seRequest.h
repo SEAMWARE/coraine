@@ -13,7 +13,7 @@
 //
 // SE_PARAM_* - Service Execution's URL parameters, registered by the broker (corRestParamAdd).
 // LD_PARAM_* grow from bit 0 (55 now), the broker's own from the top: ddsSync 63 (bridgeServiceSync.h),
-// the admin plugin 59-62 (adminRegister.c). Three are left, 56-58: the three filters of GET /services
+// the admin plugin 62 (adminRegister.c), GET /entities' page position 59 (getEntities.h). Three are 56-58: the three filters of GET /services
 // share one - they are allowed on that route only, and together.
 //
 #define SE_PARAM_INCLUDE_SERVICES  (1ULL << 56)   // GET /entities, /entities/{id}

@@ -713,6 +713,11 @@ on corDB (the ids-only query walks every match - corDB has no type index), and f
 the maps with maps nobody paged. A distributed query keeps its map: there is no other correct second
 page. A local client that wants a frozen set asks for it (`?entityMap=true`). The pages of a map fetch
 their local entities in one call to the store (`db.entityBulkRetrieve`) instead of one retrieve each.
+A local query's links page by POSITION (`pageAfter` / `pageBefore` = `<createdAt>,<id>` of the page's
+last / first entity, [Pagination](installation.md#pagination)): no skip and no repeat when entities are
+deleted or stop matching between pages, and a deep page as cheap as the first (an index range on
+MongoDB, the id index on corDB) - what a frozen set gave a local query, without its cost. A client's
+own `offset` pages as before.
 
 ---
 

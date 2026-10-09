@@ -131,9 +131,7 @@
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
-#if COR_FEATURE_AUTO_ENTITY_MAP
-#include "serviceRoutines/getEntities.h"                     // autoEntityMaps, AutoEntityMaps
-#endif
+#include "serviceRoutines/getEntities.h"                     // autoEntityMaps, AutoEntityMaps, GET_ENTITIES_PARAM_PAGE
 #if COR_FEATURE_RESPONSE_BUDGET
 #include "serviceRoutines/responseBudget.h"                  // responseBudgetBytes
 #endif
@@ -498,6 +496,20 @@ static CorRestParam bridgeParams[] =
 {
   { "ddsSync", BRIDGE_PARAM_DDS_SYNC },
   { NULL,      0                     }
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pageParams - the page position of GET /entities (getEntities.h): the links of a local query name
+// the entity a page starts after (or ends before) instead of an offset
+//
+static CorRestParam pageParams[] =
+{
+  { "pageAfter",  GET_ENTITIES_PARAM_PAGE },
+  { "pageBefore", GET_ENTITIES_PARAM_PAGE },
+  { NULL,         0                       }
 };
 
 
@@ -1583,6 +1595,9 @@ int main(int argC, char* argV[])
 
   if (corRestParamAdd(bridgeParams) == false)
     COR_X(1, "corRestParamAdd failed for the broker's own URL parameters");
+
+  if (corRestParamAdd(pageParams) == false)
+    COR_X(1, "corRestParamAdd failed for the page position parameters");
 
 #if COR_FEATURE_SERVICE_EXECUTION
   if (corRestParamAdd(serviceParams) == false)

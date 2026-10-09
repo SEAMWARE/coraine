@@ -362,6 +362,56 @@ The answers that were read are then counted entity by entity, as rendered:
 
 In the build by default; `-DCOR_FEATURE_RESPONSE_BUDGET=OFF` leaves it out (no option, no budget).
 
+## Pagination
+
+A query whose answer is more than `limit` entities is paged; its `Link` response header points at the
+next page (`rel="next"`) and, from the second page on, the previous one (`rel="prev"`), each a complete
+request: every parameter of the query, `limit`, and where the page starts (TS 104-175 § 7.4.2.2,
+TS 104-176 § 6.4.7.2).
+
+**A local query** (no registration matches it, or `local=true`) in the default order (no `orderBy`) is
+paged by **position**: `next` names the last entity of the page, `prev` the first -
+
+```
+Link: </ngsi-ld/v1/entities?type=T&q=speed%3E0&limit=20&pageAfter=1791549752292631675,urn:E20>;rel="next";type="application/json"
+```
+
+| parameter | the page |
+|---|---|
+| `pageAfter=<createdAt>,<id>` | the first `limit` matches after that entity, in the default order (creation time, then id) |
+| `pageBefore=<createdAt>,<id>` | the last `limit` matches before it |
+
+The value is the entity's creation time as the store holds it (an integer, nanoseconds) and its id - a
+position given by the broker's own links, not to be built by a client (it may change between
+versions). The store reads from the position on: MongoDB an index range on `{type, createdAt, _id}`
+(or `{createdAt, _id}`) - no skip; corDB the entity's place in its list, found by its id (one hash
+lookup), and walking back one lookup per entity for `pageBefore`. A page deep in the result costs what
+the first page costs, where `offset` reads (MongoDB) or walks (corDB) every match before it.
+
+What a page by position does that `offset` does not: an entity deleted, or one that no longer matches,
+on an earlier page moves nothing - the next page starts right after the previous page's last entity,
+with no entity skipped and none repeated (with `offset`, one entity fewer before the page shifts every
+later page by one, and one entity is never seen). The position's own entity deleted: the page starts
+where it was (its creation time; corDB walks its list to it then, as `offset` does). It is a live
+result, not a frozen set: an entity that starts to match before the position is not on the pages after
+it, and the pages after it show the entities as they are now. A frozen set is an EntityMap
+(`entityMap=true`, below).
+
+- A client's own `offset` pages as before, and the links of its pages carry `offset`.
+- `orderBy`, `georel=near`, a query that Context Sources answer too (distributed), an EntityMap, a
+  Snapshot (`NGSILD-Snapshot`): paged by `offset` (or the map's offset), as before.
+- `pageAfter` / `pageBefore` with `offset`, with `orderBy`, with `georel=near`, with an EntityMap or a
+  Snapshot, both together, or a value that is not a position: 400 `BadRequestData`. A position on a
+  query that has become distributed since its first page (a registration matches it now): 400 - its
+  pages start over.
+- `NGSILD-Results-Count` (`count=true`) is the count of the whole query, on every page.
+- The links are `next` and `prev` only - no `first` / `last` (the first page is the query without a
+  position).
+
+The names are coraine's: TS 104-175 § 7.4.2.3 leaves the links opaque ("only requires pointers to the
+following and previous pages, which can be implemented in a completely opaque way"); `limit` and
+`offset` are the "transparent" option, and a client using them gets them.
+
 ## EntityMaps
 
 An EntityMap (TS 104-175 § 9.6) freezes the **set** of entities a query matches - their ids, in the
@@ -381,12 +431,13 @@ gets a map without asking for one, as `--autoEntityMaps` says:
 | `all` | a local query too, when the store holds more than `limit` matches |
 | `none` | none - a map only when a client asks for one |
 
-A local query pages by `offset` / `limit` in the store, and an automatic map makes its first page
+A local query pages in the store ([Pagination](#pagination)), and an automatic map makes its first page
 cost more: a second query for the ids of every match, and the memory of the map
 ([performance.md](performance.md#what-automatic-entitymaps-cost) has the numbers - a first page of
 20 of a 1 % type in 300 000 entities: from 11 725 to 574 requests/s on MongoDB, from 16 372 to 66 on
-corDB). What it buys is pages that are slices of the set as it was at the first page. A client that
-wants that for a local query asks for it: `?entityMap=true`.
+corDB). What it buys is pages that are slices of the set as it was at the first page; a local query's
+pages by position already skip and repeat nothing. A client that wants the frozen set for a local
+query asks for it: `?entityMap=true`.
 
 - a local query (`all`), when the store holds more than `limit` matches;
 - a distributed query (`distributed`, `all`) (registrations matched, `--distributed`), when its answer is more than a page -

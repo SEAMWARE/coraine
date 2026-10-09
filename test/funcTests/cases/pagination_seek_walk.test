@@ -1,0 +1,166 @@
+#
+# FILE            pagination_seek_walk.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Walking a larger result by position (pageAfter / pageBefore - pagination_seek has the semantics):
+# 1 000 entities in ten batch creates of 100 - the entities of a batch share their createdAt, so the
+# id orders them (zero-padded ids: the id order is the creation order, on both stores). Every 10th is
+# of type Rare, the others Common.
+#
+#   - next from the first page to the last, limit=100 over the 900 Common and limit=7 over the 100
+#     Rare: every entity exactly once, in creation order;
+#   - prev from the last page back to the first: the same entities, in the same order;
+#   - the position's entity deleted inside a batch (its createdAt shared with 99 others): the next
+#     page starts right after where it was.
+#
+--NAME--
+Pagination by position over 1 000 entities: next and prev walks, ties within a batch
+
+--TAGS--
+entity pagination query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# walk <url> <rel> - follows <rel> from <url> to the end; prints the pages walked, the entities seen,
+#                    how many distinct, whether they came in creation order, and the first and last
+#
+walk()
+{
+  python3 - "$1" "$2" "$CB_PORT" <<'EOF'
+import sys, re, json, urllib.request
+url, rel, port = sys.argv[1], sys.argv[2], sys.argv[3]
+pages = []
+while url:
+  r = urllib.request.urlopen("http://localhost:%s%s" % (port, url))
+  ids = [e["id"] for e in json.loads(r.read())]
+  pages.append(ids)
+  url = None
+  for l in r.headers.get_all("Link") or []:
+    m = re.search(r"<([^>]*)>;rel=\"%s\"" % rel, l)
+    if m:
+      url = m.group(1)
+seen = [i for p in (pages if rel == "next" else list(reversed(pages))) for i in p]
+print("pages: %d, entities: %d, distinct: %d, in creation order: %s, first: %s, last: %s" %
+      (len(pages), len(seen), len(set(seen)), seen == sorted(seen), seen[0] if seen else "-", seen[-1] if seen else "-"))
+EOF
+}
+
+
+echo "01. 1 000 entities, ten batch creates of 100 - every 10th of type Rare"
+echo "======================================================================"
+for b in 0 1 2 3 4 5 6 7 8 9; do
+  BATCH=$(python3 -c "
+import json
+b = $b
+print(json.dumps([{'id': 'urn:W%04d' % i, 'type': ('Rare' if i % 10 == 0 else 'Common'), 'n': {'type': 'Property', 'value': i}} for i in range(b * 100 + 1, b * 100 + 101)]))")
+  corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$BATCH" | head -1
+done
+echo
+echo
+
+
+echo "02. type=Common, limit=100: next to the end - 900 entities, each once, in creation order"
+echo "========================================================================================"
+walk '/ngsi-ld/v1/entities?type=Common&limit=100' next
+echo
+echo
+
+
+echo "03. type=Rare, limit=7: next to the end - 100 entities, each once"
+echo "================================================================="
+walk '/ngsi-ld/v1/entities?type=Rare&limit=7' next
+echo
+echo
+
+
+echo "04. type=Common, limit=100: prev from the last page back to the first - the same 900, the same order"
+echo "===================================================================================================="
+LAST=$(python3 - "$CB_PORT" <<'EOF'
+import sys, re, urllib.request
+url = "/ngsi-ld/v1/entities?type=Common&limit=100"
+while True:
+  r = urllib.request.urlopen("http://localhost:%s%s" % (sys.argv[1], url))
+  nxt = None
+  for l in r.headers.get_all("Link") or []:
+    m = re.search(r"<([^>]*)>;rel=\"next\"", l)
+    if m:
+      nxt = m.group(1)
+  if nxt is None:
+    print(url)
+    break
+  url = nxt
+EOF
+)
+walk "$LAST" prev
+echo
+echo
+
+
+echo "05. Page 1 of type=Common (W0001..W0111), then its last entity W0111 - one of a batch of 100 - is deleted"
+echo "========================================================================================================="
+NEXT=$(corCurl --url '/ngsi-ld/v1/entities?type=Common&limit=100' | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+echo "next names: $(echo "$NEXT" | grep -o 'pageAfter=[0-9]*,[^&]*' | sed 's/=[0-9]*,/=<createdAt>,/')"
+corCurl --url /ngsi-ld/v1/entities/urn:W0111 -X DELETE | head -1
+echo
+echo
+
+
+echo "06. Its next page: W0112 first - right after where W0111 was"
+echo "============================================================"
+corCurl --url "$NEXT" | tr -d '\r' | sed -n '/^\[/,$p' | python3 -c 'import sys, json; ids = [e["id"] for e in json.load(sys.stdin)]; print("entities: %d, first: %s, last: %s" % (len(ids), ids[0], ids[-1]))'
+echo
+echo
+
+
+--EXPECT--
+01. 1 000 entities, ten batch creates of 100 - every 10th of type Rare
+======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. type=Common, limit=100: next to the end - 900 entities, each once, in creation order
+========================================================================================
+pages: 9, entities: 900, distinct: 900, in creation order: True, first: urn:W0001, last: urn:W0999
+
+
+03. type=Rare, limit=7: next to the end - 100 entities, each once
+=================================================================
+pages: 15, entities: 100, distinct: 100, in creation order: True, first: urn:W0010, last: urn:W1000
+
+
+04. type=Common, limit=100: prev from the last page back to the first - the same 900, the same order
+====================================================================================================
+pages: 9, entities: 900, distinct: 900, in creation order: True, first: urn:W0001, last: urn:W0999
+
+
+05. Page 1 of type=Common (W0001..W0111), then its last entity W0111 - one of a batch of 100 - is deleted
+=========================================================================================================
+next names: pageAfter=<createdAt>,urn:W0111
+HTTP/1.1 204 No Content
+
+
+06. Its next page: W0112 first - right after where W0111 was
+============================================================
+entities: 100, first: urn:W0112, last: urn:W0222
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

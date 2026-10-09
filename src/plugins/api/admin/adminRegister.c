@@ -61,12 +61,11 @@
 // until corNgsild grew into them - containedBy is 48, firstN 50, offsetN 51 -
 // and a route that took containedBy then took ?verbose too, as the same bit.
 //
-#define ADMIN_PARAM_VERBOSE       (1ULL << 59)
-#define ADMIN_PARAM_DEBUG         (1ULL << 60)
-#define ADMIN_PARAM_INFO          (1ULL << 61)
-#define ADMIN_PARAM_TRACELEVELS   (1ULL << 62)
-
-#define ADMIN_LOG_PARAMS   (ADMIN_PARAM_VERBOSE | ADMIN_PARAM_DEBUG | ADMIN_PARAM_INFO | ADMIN_PARAM_TRACELEVELS)
+// The four parameters of /admin/log share ONE bit: they are allowed on the same routes, always together,
+// and read by name - a bit each was three bits of the 64 for nothing (59-61 now GET /entities' page
+// position, getEntities.h).
+//
+#define ADMIN_LOG_PARAMS          (1ULL << 62)
 
 
 
@@ -76,10 +75,10 @@
 //
 static CorRestParam adminParams[] =
 {
-  { "verbose",     ADMIN_PARAM_VERBOSE     },
-  { "debug",       ADMIN_PARAM_DEBUG       },
-  { "info",        ADMIN_PARAM_INFO        },
-  { "traceLevels", ADMIN_PARAM_TRACELEVELS },
+  { "verbose",     ADMIN_LOG_PARAMS },
+  { "debug",       ADMIN_LOG_PARAMS },
+  { "info",        ADMIN_LOG_PARAMS },
+  { "traceLevels", ADMIN_LOG_PARAMS },
   { NULL, 0 }
 };
 

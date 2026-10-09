@@ -1,0 +1,292 @@
+#
+# FILE            pagination_seek.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The pagination links of a LOCAL query name a POSITION, not an offset: next is
+# ?pageAfter=<createdAt>,<id> of the page's last entity, prev ?pageBefore=<createdAt>,<id> of its first,
+# each with the whole query (every parameter but the pagination ones) and limit. The next page is the
+# first `limit` matches after that entity - wherever it is by now:
+#
+#   - an entity deleted, or one that stops matching, on an earlier page moves nothing: no entity is
+#     skipped, none repeated - an offset query skips one there (shown side by side, steps 05 / 06);
+#   - the position's own entity deleted: the page still starts after where it was (step 09);
+#   - prev walks back, and a first page has no prev;
+#   - a client's own offset pages as before, its links carry offsets (step 11);
+#   - pageAfter/pageBefore with offset, with orderBy, together, or not a position: 400 (step 12).
+#
+# A live result, not a frozen set: an entity that starts to match BEFORE the position is not seen by
+# the pages after it. A frozen set is ?entityMap=true.
+#
+# The position's createdAt is generated - the summary prints it as <createdAt>.
+#
+--NAME--
+Pagination of a local query by position (pageAfter / pageBefore): no skips, no repeats
+
+--TAGS--
+entity pagination query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# page <url> - the page as: status line, NGSILD-Results-Count, each pagination link (the createdAt of a
+#              position as <createdAt>), and the ids. NEXT / PREV: the links, ready to follow.
+#
+PYSUM='
+import sys, re, json
+raw = sys.stdin.read().replace("\r", "")
+head, _, body = raw.partition("\n\n")
+lines = head.splitlines()
+print(lines[0])
+for l in lines[1:]:
+  k, _, v = l.partition(":")
+  if k.strip().lower() == "ngsild-results-count":
+    print("NGSILD-Results-Count: %s" % v.strip())
+  if k.strip().lower() == "link" and "json-ld#context" not in v:
+    for m in re.finditer(r"<([^>]*)>;rel=\"([a-z]+)\"", v):
+      print("  rel=%-5s %s" % (m.group(2), re.sub(r"(page(After|Before)=)-?[0-9]+,", r"\1<createdAt>,", m.group(1))))
+try:
+  print("ids: %s" % " ".join([e["id"] for e in json.loads(body)]))
+except Exception:
+  print("body: %s" % body.strip())
+'
+
+page()
+{
+  RESP=$(corCurl --url "$1")
+  echo "$RESP" | python3 -c "$PYSUM"
+  NEXT=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="next"' | sed -E 's|<([^>]*)>.*|\1|')
+  PREV=$(echo "$RESP" | tr -d '\r' | grep -i '^Link:' | grep -o '<[^>]*>;rel="prev"' | sed -E 's|<([^>]*)>.*|\1|')
+}
+
+
+echo "01. Ten entities E01..E10 of type T, created one by one, speed 10 * i"
+echo "====================================================================="
+for i in 01 02 03 04 05 06 07 08 09 10; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:E'$i'","type":"T","speed":{"type":"Property","value":'$((10#$i * 10))'}}' | head -1
+done
+echo
+echo
+
+
+echo "02. type=T, limit=3, count=true - E01 E02 E03; next names E03's position, no prev"
+echo "================================================================================="
+page '/ngsi-ld/v1/entities?type=T&limit=3&count=true&options=keyValues'
+P1NEXT=$NEXT
+echo
+echo
+
+
+echo "03. Following next to the end - every entity exactly once"
+echo "========================================================="
+url=$P1NEXT
+ALL="E01 E02 E03"
+while [ -n "$url" ]; do
+  page "$url"
+  ALL="$ALL $(echo "$RESP" | tr -d '\r' | sed -n '/^\[/,$p' | grep -o '"urn:E[0-9]*"' | tr -d '"' | sed 's/urn://' | tr '\n' ' ')"
+  url=$NEXT
+done
+echo "walked: $(echo $ALL)"
+echo
+echo
+
+
+echo "04. Page 1 again, then E02 (on page 1) is deleted"
+echo "================================================="
+page '/ngsi-ld/v1/entities?type=T&limit=3&options=keyValues'
+P1NEXT=$NEXT
+corCurl --url /ngsi-ld/v1/entities/urn:E02 -X DELETE | head -1
+echo
+echo
+
+
+echo "05. Page 2 by position: E04 E05 E06 - nothing skipped"
+echo "====================================================="
+page "$P1NEXT"
+echo
+echo
+
+
+echo "06. Page 2 by offset (offset=3) after the same delete: E05 E06 E07 - E04 skipped"
+echo "================================================================================"
+page '/ngsi-ld/v1/entities?type=T&limit=3&offset=3&options=keyValues'
+echo
+echo
+
+
+echo "07. q=speed>0: page 1 is E01 E03 E04; then E03 slows down to 0 and no longer matches"
+echo "===================================================================================="
+page '/ngsi-ld/v1/entities?type=T&q=speed%3E0&limit=3&options=keyValues'
+Q1NEXT=$NEXT
+corCurl --url /ngsi-ld/v1/entities/urn:E03/attrs -X PATCH --payload '{"speed":{"type":"Property","value":0}}' | head -1
+echo
+echo
+
+
+echo "08. Its page 2 by position: E05 E06 E07 - nothing skipped (offset=3 would start at E06)"
+echo "======================================================================================="
+page "$Q1NEXT"
+Q2PREV=$PREV
+Q2NEXT=$NEXT
+echo
+echo
+
+
+echo "09. E07 - the last entity of that page, the next page's position - is deleted; next still starts after it"
+echo "========================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E07 -X DELETE | head -1
+page "$Q2NEXT"
+echo
+echo
+
+
+echo "10. prev of page 2 (before E05): E01 E04 - the first page now, so no prev of its own"
+echo "===================================================================================="
+page "$Q2PREV"
+echo
+echo
+
+
+echo "11. A client's own offset pages as before - its links carry offsets"
+echo "==================================================================="
+page '/ngsi-ld/v1/entities?type=T&limit=3&offset=3&options=keyValues'
+echo
+echo
+
+
+echo "12. 400: with offset, with orderBy, both together, not a position"
+echo "================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&offset=2' | grep -E '^HTTP|"detail"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&orderBy=speed' | grep -E '^HTTP|"detail"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&pageBefore=1,urn:E01' | grep -E '^HTTP|"detail"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=urn:E01' | grep -E '^HTTP|"detail"'
+echo
+echo
+
+
+--EXPECT--
+01. Ten entities E01..E10 of type T, created one by one, speed 10 * i
+=====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. type=T, limit=3, count=true - E01 E02 E03; next names E03's position, no prev
+=================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 10
+  rel=next  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E03
+ids: urn:E01 urn:E02 urn:E03
+
+
+03. Following next to the end - every entity exactly once
+=========================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 10
+  rel=prev  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E04
+  rel=next  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E06
+ids: urn:E04 urn:E05 urn:E06
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 10
+  rel=prev  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E07
+  rel=next  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E09
+ids: urn:E07 urn:E08 urn:E09
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 10
+  rel=prev  /ngsi-ld/v1/entities?type=T&count=true&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E10
+ids: urn:E10
+walked: E01 E02 E03 E04 E05 E06 E07 E08 E09 E10
+
+
+04. Page 1 again, then E02 (on page 1) is deleted
+=================================================
+HTTP/1.1 200 OK
+  rel=next  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E03
+ids: urn:E01 urn:E02 urn:E03
+HTTP/1.1 204 No Content
+
+
+05. Page 2 by position: E04 E05 E06 - nothing skipped
+=====================================================
+HTTP/1.1 200 OK
+  rel=prev  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E04
+  rel=next  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E06
+ids: urn:E04 urn:E05 urn:E06
+
+
+06. Page 2 by offset (offset=3) after the same delete: E05 E06 E07 - E04 skipped
+================================================================================
+HTTP/1.1 200 OK
+  rel=prev  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&offset=0
+  rel=next  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&offset=6
+ids: urn:E05 urn:E06 urn:E07
+
+
+07. q=speed>0: page 1 is E01 E03 E04; then E03 slows down to 0 and no longer matches
+====================================================================================
+HTTP/1.1 200 OK
+  rel=next  /ngsi-ld/v1/entities?type=T&q=speed%3E0&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E04
+ids: urn:E01 urn:E03 urn:E04
+HTTP/1.1 204 No Content
+
+
+08. Its page 2 by position: E05 E06 E07 - nothing skipped (offset=3 would start at E06)
+=======================================================================================
+HTTP/1.1 200 OK
+  rel=prev  /ngsi-ld/v1/entities?type=T&q=speed%3E0&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E05
+  rel=next  /ngsi-ld/v1/entities?type=T&q=speed%3E0&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E07
+ids: urn:E05 urn:E06 urn:E07
+
+
+09. E07 - the last entity of that page, the next page's position - is deleted; next still starts after it
+=========================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+  rel=prev  /ngsi-ld/v1/entities?type=T&q=speed%3E0&options=keyValues&limit=3&pageBefore=<createdAt>,urn:E08
+ids: urn:E08 urn:E09 urn:E10
+
+
+10. prev of page 2 (before E05): E01 E04 - the first page now, so no prev of its own
+====================================================================================
+HTTP/1.1 200 OK
+  rel=next  /ngsi-ld/v1/entities?type=T&q=speed%3E0&options=keyValues&limit=3&pageAfter=<createdAt>,urn:E04
+ids: urn:E01 urn:E04
+
+
+11. A client's own offset pages as before - its links carry offsets
+===================================================================
+HTTP/1.1 200 OK
+  rel=prev  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&offset=0
+  rel=next  /ngsi-ld/v1/entities?type=T&options=keyValues&limit=3&offset=6
+ids: urn:E05 urn:E06 urn:E08
+
+
+12. 400: with offset, with orderBy, both together, not a position
+=================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "pageAfter: a position and an offset together - a page starts at one or the other",
+HTTP/1.1 400 Bad Request
+  "detail": "pageAfter: a position with orderBy - a position is one in the default order (createdAt); an orderBy query pages by offset",
+HTTP/1.1 400 Bad Request
+  "detail": "pageAfter: pageAfter and pageBefore together",
+HTTP/1.1 400 Bad Request
+  "detail": "pageAfter: not a position given by this broker's pagination links (<createdAt>,<id>)",
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
