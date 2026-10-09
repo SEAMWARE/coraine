@@ -39,6 +39,8 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
 option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
 option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query of more than one page - distributed by default, local too with --autoEntityMaps all - freezes its set of matches and serves its pages from it (--entityMapMemory)" ON)
+option(COR_FEATURE_BRIDGE_RECORDS "Enable record Channels - a bridge endpoint whose samples are records (a CKAN row), each made into entities by the Channel's mapping (\"records\" in --bridgeConfig, doc/bridge-channels.md)" ON)
+option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridge ABI 12) - a bridge plugin reports whether a Channel carries, and why not, as the Channel's status and statusReason" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -61,7 +63,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP BRIDGE_RECORDS CHANNEL_STATUS_IN ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

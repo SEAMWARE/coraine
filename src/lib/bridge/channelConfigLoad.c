@@ -34,7 +34,10 @@
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
 
 #include "bridge/Channel.h"                           // Channel
-#include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
+#include "bridge/channelCache.h"                      // channelCreate, channelRecordsCreate, CHANNEL_*
+#if COR_FEATURE_BRIDGE_RECORDS
+#include "bridge/recordMap.h"                         // recordMapParse, recordMapFree
+#endif
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
@@ -361,6 +364,79 @@ static int channelsLoad(const char*        alias,
 
 
 
+#if COR_FEATURE_BRIDGE_RECORDS
+// -----------------------------------------------------------------------------
+//
+// recordChannelsLoad - a bridge's "records" section: one RECORD Channel per endpoint
+//
+//   "records": { "<endpoint>": { "entities": [ ... ], "channelInfo": [ ... ] } }
+//
+// What "entities" says is RecordMap.h's. An entry that cannot be used is warned about and skipped, as
+// an incomplete topic is; an endpoint named twice is fatal, as it is for topics.
+//
+static int recordChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenantP, CorAlloc* kaP)
+{
+  if (sectionP->type != CorObject)
+  {
+    COR_W("bridge '%s': 'records' is not an object (one member per endpoint) - no record Channels", alias);
+    return 0;
+  }
+
+  int created = 0;
+
+  for (CorNode* entryP = sectionP->value.head; entryP != NULL; entryP = entryP->next)
+  {
+    const char* endpoint = entryP->name;
+    const char* why      = NULL;
+    RecordMap*  mapP     = recordMapParse(entryP, kaP, &why);
+
+    if (mapP == NULL)
+    {
+      COR_W("bridge '%s': record endpoint '%s' - %s - skipped", alias, endpoint, (why != NULL) ? why : "?");
+      continue;
+    }
+
+    bool  infoOk;
+    char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
+
+    if (infoOk == false)
+    {
+      recordMapFree(mapP);
+      continue;
+    }
+
+    Channel* clashP = NULL;
+    int      r      = channelRecordsCreate(alias, endpoint, tenantP, mapP, &clashP);
+
+    if (r == CHANNEL_DUP_ENDPOINT)
+      COR_X(1, "bridge '%s': endpoint '%s' appears twice in the configuration - the second entry (records) could never be reached, the first already claims it",
+            alias, endpoint);
+
+    if (r == CHANNEL_BAD_INPUT)
+      COR_X(1, "bridge '%s': endpoint '%s' is not a usable endpoint name", alias, endpoint);
+
+    if (r != CHANNEL_OK)
+      COR_X(1, "bridge '%s': record endpoint '%s' could not be added (%d)", alias, endpoint, r);
+
+    if (info != NULL)
+    {
+      Channel* chP = channelLookup(alias, endpoint);
+
+      if (chP != NULL)
+        chP->info = info;
+      else
+        free(info);
+    }
+
+    ++created;
+  }
+
+  return created;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // defaultEntityLoad - one bridge's catch-all, if it asked for one
@@ -602,7 +678,19 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
       total += channelsLoad(alias, actionsP, BridgeChannelAction, BridgeDirectionOut, tenantP, &kalloc);
 
     //
-    // And the catch-all, which is off unless the file asks for it.
+    // Record Channels - an endpoint whose samples are records, each made into entities
+    //
+    CorNode* recordsP = corTreeLookup(ngsildP, "records");
+#if COR_FEATURE_BRIDGE_RECORDS
+    if (recordsP != NULL)
+      total += recordChannelsLoad(alias, recordsP, tenantP, &kalloc);
+#else
+    if (recordsP != NULL)
+      COR_W("bridge '%s': 'records' - record Channels are not in this build (COR_FEATURE_BRIDGE_RECORDS) - ignored", alias);
+#endif
+
+    //
+    // And the catch-all.
     //
     //
     // ON unless the file says "defaultEntity": false - as Orion-LD does, whose

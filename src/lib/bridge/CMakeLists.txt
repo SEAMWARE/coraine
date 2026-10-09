@@ -13,4 +13,8 @@ SET(SOURCES
   bridgeService.c
 )
 
+IF (COR_FEATURE_BRIDGE_RECORDS)
+  LIST(APPEND SOURCES recordMap.c bridgeRecordIn.c)
+ENDIF()
+
 ADD_LIBRARY(bridge STATIC ${SOURCES})

@@ -16,8 +16,12 @@
 #include "corLog/corLog.h"                            // COR_I, COR_T
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
+#include "corBridge/BridgeBroker.h"                   // BRIDGE_*, BridgeChannelStatus
 
 #include "bridge/Channel.h"                           // Channel
+#if COR_FEATURE_BRIDGE_RECORDS
+#include "bridge/recordMap.h"                         // recordMapFree
+#endif
 #include "bridge/channelCache.h"                      // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -184,6 +188,9 @@ Channel* channelLookupByTarget(Tenant* tenantP, const char* entityId, const char
     if (channelP->tenantP != tenantP)
       continue;
 
+    if (channelP->recordMapP != NULL)                 // a record Channel writes no one attribute
+      continue;
+
     if ((strcmp(channelP->entityId, entityId) == 0) && (strcmp(channelP->attrName, attrName) == 0))
       return channelP;
   }
@@ -226,6 +233,7 @@ static int createLocked
   const char*        entityId,
   const char*        entityType,
   const char*        attrName,
+  struct RecordMap*  recordMapP,
   Channel**          clashPP
 )
 {
@@ -242,7 +250,7 @@ static int createLocked
   if ((strchr(endpoint, CHANNEL_KEY_SEPARATOR) != NULL) || (strchr(bridgeName, CHANNEL_KEY_SEPARATOR) != NULL))
     return CHANNEL_BAD_INPUT;
 
-  if ((entityId == NULL) || (entityType == NULL) || (attrName == NULL))
+  if ((recordMapP == NULL) && ((entityId == NULL) || (entityType == NULL) || (attrName == NULL)))
     return CHANNEL_BAD_INPUT;
 
   if (endpointHash == NULL)
@@ -268,7 +276,7 @@ static int createLocked
   // Both WOULD be reached, and they race: the value of the attribute then
   // depends on which transport delivered last. One writer per attribute.
   //
-  clashP = channelLookupByTarget(tenantP, entityId, attrName);
+  clashP = (recordMapP == NULL) ? channelLookupByTarget(tenantP, entityId, attrName) : NULL;
   if (clashP != NULL)
   {
     if (clashPP != NULL)
@@ -287,9 +295,10 @@ static int createLocked
   channelP->direction  = direction;
   channelP->retention  = retention;
   channelP->tenantP    = tenantP;
-  channelP->entityId   = strdup(entityId);
-  channelP->entityType = strdup(entityType);
-  channelP->attrName   = strdup(attrName);
+  channelP->entityId   = (entityId   != NULL) ? strdup(entityId)   : NULL;
+  channelP->entityType = (entityType != NULL) ? strdup(entityType) : NULL;
+  channelP->attrName   = (attrName   != NULL) ? strdup(attrName)   : NULL;
+  channelP->recordMapP = recordMapP;
 
   //
   // Check 3 - is the Bridge it names actually here?
@@ -324,7 +333,7 @@ static int createLocked
     free(channelP->statusReason);
     free(channelP->notifyUri);
     free(channelP->notifyAccept);
-  free(channelP->info);
+    free(channelP->info);
     free(channelP);
     return CHANNEL_ERR;
   }
@@ -337,7 +346,7 @@ static int createLocked
     outCounter++;
 
   COR_T(CtBridge, "channel '%s' on bridge '%s' -> %s/%s (%s)",
-        endpoint, bridgeName, entityId, attrName,
+        endpoint, bridgeName, (entityId != NULL) ? entityId : "records", (attrName != NULL) ? attrName : "-",
         (channelP->status == ChannelStatusAvailable) ? "available" : "dormant");
 
   return CHANNEL_OK;
@@ -365,11 +374,101 @@ int channelCreate
 )
 {
   pthread_rwlock_wrlock(&cacheLock);
-  int r = createLocked(id, bridgeName, endpoint, kind, direction, retention, tenantP, entityId, entityType, attrName, clashPP);
+  int r = createLocked(id, bridgeName, endpoint, kind, direction, retention, tenantP, entityId, entityType, attrName, NULL, clashPP);
   pthread_rwlock_unlock(&cacheLock);
 
   return r;
 }
+
+
+
+#if COR_FEATURE_BRIDGE_RECORDS
+// -----------------------------------------------------------------------------
+//
+// channelRecordsCreate - see channelCache.h; createLocked under cacheLock (write)
+//
+int channelRecordsCreate(const char* bridgeName, const char* endpoint, Tenant* tenantP, struct RecordMap* recordMapP, Channel** clashPP)
+{
+  if (recordMapP == NULL)
+    return CHANNEL_BAD_INPUT;
+
+  pthread_rwlock_wrlock(&cacheLock);
+  int r = createLocked(NULL, bridgeName, endpoint, BridgeChannelTopic, BridgeDirectionIn, ChannelRetentionMirror, tenantP, NULL, NULL, NULL, recordMapP, clashPP);
+  pthread_rwlock_unlock(&cacheLock);
+
+  return r;
+}
+#endif
+
+
+
+#if COR_FEATURE_CHANNEL_STATUS_IN
+// -----------------------------------------------------------------------------
+//
+// bridgeChannelStatusIn - BridgeBroker.channelStatusIn, ABI 12
+//
+int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, int status, const char* reason)
+{
+  if ((bridgeName == NULL) || (endpoint == NULL))
+    return BRIDGE_BAD_INPUT;
+
+  if ((status != BridgeChannelAvailable) && (status != BridgeChannelDormant))
+    return BRIDGE_BAD_INPUT;
+
+  ChannelStatus channelStatus = (status == BridgeChannelAvailable) ? ChannelStatusAvailable : ChannelStatusDormant;
+
+  if (channelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
+    return BRIDGE_NOT_FOUND;
+
+  COR_I("bridge '%s': channel '%s' is %s%s%s", bridgeName, endpoint,
+        (channelStatus == ChannelStatusAvailable) ? "available" : "dormant",
+        (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelStatusSet - see channelCache.h
+//
+// A GET /channels on a worker thread may be rendering the reason being replaced, so the old one is
+// not freed here: it is kept with the Channel and freed with it. A status changes a handful of times
+// in a Channel's life, not per sample.
+//
+int channelStatusSet(const char* bridgeName, const char* endpoint, ChannelStatus status, const char* reason)
+{
+  Channel* channelP = channelLookup(bridgeName, endpoint);
+
+  if (channelP == NULL)
+    return CHANNEL_ERR;
+
+  char* newReason = (reason != NULL) ? strdup(reason) : NULL;
+
+  pthread_rwlock_wrlock(&cacheLock);
+
+  char*  oldReason = channelP->statusReason;
+  char** retiredV  = (oldReason != NULL) ? (char**) realloc(channelP->retiredReasonV, (channelP->retiredReasons + 1) * sizeof(char*)) : NULL;
+
+  if (retiredV != NULL)
+  {
+    retiredV[channelP->retiredReasons++] = oldReason;
+    channelP->retiredReasonV             = retiredV;
+  }
+
+  if ((oldReason == NULL) || (retiredV != NULL))
+    __atomic_store_n(&channelP->statusReason, newReason, __ATOMIC_RELEASE);
+  else
+    free(newReason);                                  // out of memory: the old reason stays rather than be freed under a reader
+
+  __atomic_store_n(&channelP->status, status, __ATOMIC_RELEASE);
+
+  pthread_rwlock_unlock(&cacheLock);
+
+  return CHANNEL_OK;
+}
+#endif
 
 
 
@@ -419,6 +518,16 @@ static int deleteLocked(const char* bridgeName, const char* endpoint)
   free(channelP->statusReason);
   free(channelP->notifyUri);
   free(channelP->notifyAccept);
+  free(channelP->info);
+
+  for (int ix = 0; ix < channelP->retiredReasons; ix++)
+    free(channelP->retiredReasonV[ix]);
+  free(channelP->retiredReasonV);
+
+#if COR_FEATURE_BRIDGE_RECORDS
+  recordMapFree(channelP->recordMapP);
+#endif
+
   free(channelP);
 
   channelCounter--;

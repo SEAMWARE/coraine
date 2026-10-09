@@ -62,6 +62,40 @@ extern int channelCreate(const char*        id,
 
 
 
+#if COR_FEATURE_BRIDGE_RECORDS
+// -----------------------------------------------------------------------------
+//
+// channelRecordsCreate - add a RECORD Channel: an endpoint whose samples are records, made into
+//                        entities by recordMapP (RecordMap.h)
+//
+// A topic, inbound only, mirror. It claims no attribute, so the only collision is on the endpoint
+// (CHANNEL_DUP_ENDPOINT). The Channel takes recordMapP over - on CHANNEL_OK only.
+//
+extern int channelRecordsCreate(const char* bridgeName, const char* endpoint, Tenant* tenantP, struct RecordMap* recordMapP, Channel** clashPP);
+#endif
+
+
+
+#if COR_FEATURE_CHANNEL_STATUS_IN
+// -----------------------------------------------------------------------------
+//
+// channelStatusSet - a Channel's status and statusReason, as its bridge reports them (channelStatusIn)
+//
+// Any thread. reason is copied; NULL for none. CHANNEL_ERR: no such Channel.
+//
+extern int channelStatusSet(const char* bridgeName, const char* endpoint, ChannelStatus status, const char* reason);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeChannelStatusIn - the broker's side of BridgeBroker.channelStatusIn (ABI 12): channelStatusSet
+//
+extern int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, int status, const char* reason);
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // channelLookup - find the Channel carrying (bridgeName, endpoint)

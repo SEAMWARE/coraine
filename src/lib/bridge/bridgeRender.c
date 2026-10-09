@@ -13,12 +13,16 @@
 #include "corJson/corJsonParse.h"                       // corJsonParse
 #include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeBoolean, corTreeChildAdd
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corRest/CorRestState.h"                     // corRest
 
 #include "bridge/Channel.h"                           // Channel, ChannelStatus*, ChannelRetention*
+#if COR_FEATURE_BRIDGE_RECORDS
+#include "bridge/RecordMap.h"                         // RecordMap
+#endif
 #include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefault
 #include "bridge/bridgeSampleIn.h"                    // bridgeSamplesDropped
@@ -181,15 +185,43 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
   corTreeChildAdd(bodyP, corTreeString(allocP, "channelDirection", (char*) directionName(channelP->direction)));
   corTreeChildAdd(bodyP, corTreeString(allocP, "retention", (char*) retentionName(channelP->retention)));
 
-  corTreeChildAdd(entityP, corTreeString(allocP, "id", channelP->entityId));
-  corTreeChildAdd(entityP, corTreeString(allocP, "type", (char*) shortOrSelf(contextP, channelP->entityType)));
-  corTreeChildAdd(bodyP, entityP);
+  if (channelP->recordMapP == NULL)
+  {
+    corTreeChildAdd(entityP, corTreeString(allocP, "id", channelP->entityId));
+    corTreeChildAdd(entityP, corTreeString(allocP, "type", (char*) shortOrSelf(contextP, channelP->entityType)));
+    corTreeChildAdd(bodyP, entityP);
 
-  corTreeChildAdd(bodyP, corTreeString(allocP, "entityAttribute", (char*) shortOrSelf(contextP, channelP->attrName)));
-  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (channelP->status == ChannelStatusAvailable) ? "available" : "dormant"));
+    corTreeChildAdd(bodyP, corTreeString(allocP, "entityAttribute", (char*) shortOrSelf(contextP, channelP->attrName)));
+  }
+#if COR_FEATURE_BRIDGE_RECORDS
+  else
+  {
+    //
+    // A record Channel names no entity: what it shows is its mapping, as the file wrote it
+    //
+    const char* text = ((RecordMap*) channelP->recordMapP)->text;
 
-  if (channelP->statusReason != NULL)
-    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", channelP->statusReason));
+    if ((text != NULL) && (corRest.corJsonP != NULL))
+    {
+      char*    copy     = corAllocStrdup(allocP, text);
+      CorNode* recordsP = (copy != NULL) ? corJsonParse(corRest.corJsonP, copy) : NULL;
+
+      if (recordsP != NULL)
+      {
+        recordsP->name = (char*) "recordEntities";
+        corTreeChildAdd(bodyP, recordsP);
+      }
+    }
+  }
+#endif
+
+  ChannelStatus status = __atomic_load_n(&channelP->status, __ATOMIC_ACQUIRE);       // channelStatusSet, on a plugin thread
+  char*         reason = __atomic_load_n(&channelP->statusReason, __ATOMIC_ACQUIRE);
+
+  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (status == ChannelStatusAvailable) ? "available" : "dormant"));
+
+  if (reason != NULL)
+    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", reason));
 
   //
   // endpointDiscovered only once the transport said so (endpointDiscoveredIn): absent means not

@@ -102,6 +102,8 @@ Content-Length: REGEX([0-9]+)
   "features": {
     "ADMIN_API": REGEX([a-z]+),
     "AUTO_ENTITY_MAP": REGEX([a-z]+),
+    "BRIDGE_RECORDS": REGEX([a-z]+),
+    "CHANNEL_STATUS_IN": REGEX([a-z]+),
     "CONTEXT_DL": REGEX([a-z]+),
     "CONTEXT_HOSTING": REGEX([a-z]+),
     "DATASETID": REGEX([a-z]+),
@@ -199,6 +201,8 @@ Content-Length: REGEX([0-9]+)
   "features": {
     "ADMIN_API": REGEX([a-z]+),
     "AUTO_ENTITY_MAP": REGEX([a-z]+),
+    "BRIDGE_RECORDS": REGEX([a-z]+),
+    "CHANNEL_STATUS_IN": REGEX([a-z]+),
     "CONTEXT_DL": REGEX([a-z]+),
     "CONTEXT_HOSTING": REGEX([a-z]+),
     "DATASETID": REGEX([a-z]+),

@@ -75,7 +75,10 @@ stored in the database, 409 on a duplicate id) is the design, not yet built.
   was not named on `--bridges`; a Channel is `available`, or `dormant` when it
   cannot carry (its Bridge is unavailable, or the transport refused it). A
   degraded object never stops the broker from starting; *"why is nothing
-  arriving?"* is a `GET`, not a log hunt.
+  arriving?"* is a `GET`, not a log hunt. A plugin can say so later, too, and
+  why, in its own words (`channelStatusIn`, bridge ABI 12 -
+  `COR_FEATURE_CHANNEL_STATUS_IN`): a resource its peer does not have, a peer
+  that cannot be reached, a peer that is back.
 - **Counters** - `samplesIn`, `samplesOut`, `requestsWaiting`,
   `requestsNotWaited`; on action Channels `goalsSent`, `goalCancelsSent`;
   `endpointDiscovered: true` once the transport found the endpoint (absent
@@ -102,7 +105,7 @@ stored in the database, 409 on a duplicate id) is the design, not yet built.
   provisional until ETSI's Service Execution lands.
 - **No echo.** A sample that arrived on a transport is not published back out
   of it.
-- **Catch-all entity**, off unless asked (`"ngsild": { "defaultEntity": true }`):
+- **Catch-all entity**, on unless the file says `"ngsild": { "defaultEntity": false }`:
   endpoints no Channel claims are stored on `urn:ngsi-ld:<bridge>:default`
   (for DDS `urn:ngsi-ld:dds:default`, type `DDS`), one attribute per endpoint,
   inbound only. The attribute's IRI is `@vocab` + the endpoint
@@ -110,6 +113,57 @@ stored in the database, 409 on a duplicate id) is the design, not yet built.
 - **Overlap with registrations**: a mirroring Channel and an `exclusive` or
   `redirect` registration may not claim the same attribute; `inclusive` and
   `auxiliary` never conflict.
+
+## Record Channels
+
+A plain Channel is one endpoint, one attribute of one entity. A **record
+Channel** is one endpoint whose samples are **records** - a row of a CKAN
+resource, a line of a CSV file: a JSON object, one member per column - and
+each record becomes one or more entities, the entity id taken from a column.
+Inbound only. In the file, a bridge's `records` section, one entry per
+endpoint:
+
+```json
+{ "ckan": { "server": { "url": "https://data.boston.gov" },
+            "ngsild": { "records": {
+              "44c931aa-4577-4caa-a8f2-ed1e38263e70": {
+                "channelInfo": [ { "key": "pageSize", "value": "100" } ],
+                "entities": [
+                  { "type": "BikeStation", "id": "urn:ngsi-ld:BikeStation:{Number}",
+                    "attributes": {
+                      "name":       { "column": "Name" },
+                      "totalDocks": { "column": "Total_docks", "as": "number" },
+                      "location":   { "point": { "longitude": "Longitude", "latitude": "Latitude" } },
+                      "inDistrict": { "relationship": "urn:ngsi-ld:District:{District}" } } },
+                  { "type": "District", "id": "urn:ngsi-ld:District:{District}",
+                    "attributes": { "name": { "column": "District" } } } ] } } } } }
+```
+
+- **`id`** is a template: `{Column}` is the column's value, each character
+  outside `[A-Za-z0-9._-]` replaced by `_` (`South Boston` -> `South_Boston`).
+  A record with no value in a column the id names makes no entity of that kind.
+- **`attributes`**: `{ "column": ... }` a Property, `"as"` `number`, `boolean`
+  (`yes`/`true`/`y`/`1`, `no`/`false`/`n`/`0`) or `string` converting the
+  value; `{ "point": { "longitude": ..., "latitude": ... } }` a GeoProperty
+  Point; `{ "relationship": <template> }` a Relationship. An absent, null or
+  empty column, or a value that does not convert, leaves the attribute out.
+  Names and types are expanded as a plain Channel's are.
+- **The write** is one batch upsert per record, `options=update`, local: the
+  entities are created when they are not there, their mapped attributes
+  replaced, other attributes left alone - with the checks, notifications and
+  temporal events of `POST /entityOperations/upsert`. The sample's time is
+  `observedAt` on every attribute.
+- **`GET /ngsi-ld/v1/channels`** shows the mapping as `recordEntities`, as the
+  file wrote it, and no `entity` / `entityAttribute`; `samplesIn` counts the
+  records that wrote at least one entity. A record that makes none is answered
+  `BRIDGE_BAD_INPUT`.
+- A record Channel claims no attribute, so the one-writer-per-attribute rule
+  does not cover it: two record Channels, or a record Channel and a plain one,
+  may write the same attribute.
+
+`COR_FEATURE_BRIDGE_RECORDS`; without it, a `records` section is warned
+about and ignored. The first bridge built on it is CKAN's (`ckan.so`,
+`corCkanBridge`).
 
 ## Key limits
 

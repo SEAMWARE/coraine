@@ -62,6 +62,10 @@ typedef enum ChannelStatus
 //
 // Channel - one foreign endpoint bound to one entity attribute
 //
+// Or, a RECORD Channel (COR_FEATURE_BRIDGE_RECORDS): one foreign endpoint whose samples are records,
+// each mapped to entities by recordMapP. It names no entity attribute, so it claims none: the
+// one-writer-per-attribute check below is not made for it. Inbound only.
+//
 // ⭐ The pair (bridgeName, endpoint) is what arrives from the wire, and
 // (entityId, attrName) is what it becomes. BOTH are unique across the cache,
 // and for different reasons:
@@ -90,6 +94,9 @@ typedef struct Channel
   char*              notifyUri;                       // action: where a goal naming no endpoint is notified. NULL: the Bridge's default
   char*              notifyAccept;                    // its accept - application/json unless the file said otherwise
   char*              info;                            // channelInfo as JSON text (an array of {key, value}), NULL if none - for the plugin (channelAddInfo, ABI 9)
+  struct RecordMap*  recordMapP;                      // a RECORD Channel: how a record becomes entities (RecordMap.h) - entityId, entityType and attrName are then NULL. NULL: a plain Channel
+  char**             retiredReasonV;                  // statusReasons replaced while the Channel was read (channelStatusSet) - freed with the Channel
+  int                retiredReasons;
 
   //
   // What the transport said, and what crossed - rendered by GET /channels. A test waits on THESE,

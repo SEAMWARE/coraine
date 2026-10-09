@@ -602,7 +602,12 @@ static BridgeBroker bridgeBroker =
   bridgeGoalEventMetaIn,
   bridgeReplyExchangeIn,
   bridgeEndpointDiscoveredIn,
-  bridgeServiceUpdateIn
+  bridgeServiceUpdateIn,
+#if COR_FEATURE_CHANNEL_STATUS_IN
+  bridgeChannelStatusIn
+#else
+  NULL                                                // channelStatusIn: not in this build
+#endif
 };
 
 
@@ -720,6 +725,8 @@ static void bridgesInit(void)
       if ((withInfo == false) && (channelP->info != NULL))
         COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for '%s'", channelP->bridgeName, bridges[i].abiVersion, channelP->endpoint);
 
+      char* reasonBefore = channelP->statusReason;   // a reason the plugin gives inside the call (channelStatusIn) replaces it
+
       int r = (withInfo == true) ? bridges[i].channelAddInfo(channelP->endpoint, channelP->kind, channelP->direction, channelP->info)
                                  : bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
       //
@@ -729,6 +736,12 @@ static void bridgesInit(void)
       if (r != BRIDGE_OK)
       {
         COR_W("bridge '%s' would not carry '%s' (%d)", channelP->bridgeName, channelP->endpoint, r);
+
+        if (channelP->statusReason != reasonBefore)  // the plugin said why, in its own words
+        {
+          channelP->status = ChannelStatusDormant;
+          break;
+        }
 
         char reason[128];
         snprintf(reason, sizeof(reason), "the bridge would not carry it: %s",

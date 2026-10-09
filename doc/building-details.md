@@ -156,7 +156,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These nine remove code from the broker and are covered by the test suite:**
+**These eleven remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -169,6 +169,8 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_HEALTH=OFF` | 5,312 bytes (and 432 from `mongoc.so`, 782 from `timescale.so`) | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
 | `COR_FEATURE_RESPONSE_BUDGET=OFF` | 5,056 bytes (and 256 from `mongoc.so`, 1,472 from `timescale.so`; release build. `corDB.so`, built in its own repository, keeps its counting, which nothing then turns on) | no `--maxResponseSize` - no byte budget on an entity query, a temporal query or the forwarded part of a distributed one ([Response size](installation.md#response-size)) |
 | `COR_FEATURE_AUTO_ENTITY_MAP=OFF` | 3,680 bytes (release build) | no automatic EntityMaps and no `--autoEntityMaps` - a query paginated past its first page is paged by `offset` / `limit`, locally and forwarded; a map only when a client asks for one (`--entityMapMemory` still caps those) ([EntityMaps](installation.md#entitymaps)) |
+| `COR_FEATURE_BRIDGE_RECORDS=OFF` | 10,944 bytes (release build) | no record Channels - a bridge's `records` section in `--bridgeConfig` is warned about and ignored ([Record Channels](bridge-channels.md#record-channels)) |
+| `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 448 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

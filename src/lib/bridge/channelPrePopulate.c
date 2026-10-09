@@ -81,6 +81,9 @@ static bool entitySeenEarlier(Channel* upToP, Tenant* tenantP, const char* entit
 {
   for (Channel* channelP = channelCacheFirst(); channelP != upToP; channelP = channelP->next)
   {
+    if (channelP->entityId == NULL)                   // a record Channel: its entities come from its records
+      continue;
+
     if ((channelP->tenantP == tenantP) && (strcmp(channelP->entityId, entityId) == 0))
       return true;
   }
@@ -108,6 +111,9 @@ int channelPrePopulate(Tenant* tenantP)
   for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
   {
     if (channelP->tenantP != tenantP)
+      continue;
+
+    if (channelP->entityId == NULL)                   // a record Channel: nothing to put in place before a record arrives
       continue;
 
     if (entitySeenEarlier(channelP, tenantP, channelP->entityId) == true)
@@ -157,6 +163,9 @@ int channelPrePopulate(Tenant* tenantP)
     for (Channel* attrChannelP = channelP; attrChannelP != NULL; attrChannelP = attrChannelP->next)
     {
       if (attrChannelP->tenantP != tenantP)
+        continue;
+
+      if (attrChannelP->entityId == NULL)
         continue;
 
       if (strcmp(attrChannelP->entityId, entityId) != 0)

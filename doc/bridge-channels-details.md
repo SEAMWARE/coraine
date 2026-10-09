@@ -999,7 +999,7 @@ answers it by storing every unclaimed topic in one entity,
 the topic. That is a good answer and we keep it, generalised:
 
 ```
-"ngsild": { "defaultEntity": true }                                  ← the derived pair
+"ngsild": { "defaultEntity": true }                                  ← the derived pair (the default)
 "ngsild": { "defaultEntity": { "id": "urn:...", "type": "Sensor" } } ← or say it exactly
 ```
 
@@ -1052,11 +1052,12 @@ a name it will not accept back, which is a wart of that check rather than of
 this feature; a client using the deployment's own `@context` writes it under
 whatever term that context defines for the IRI, which is the intended path.
 
-⚠️ **Off unless asked**, which is the one deliberate difference. A broker
-that stores every endpoint it hears, unasked, is a different product from
-one that stores what it was configured to store — and on a busy domain it
-is an unbounded entity. A file that wants the old behaviour says so in
-one line.
+⚠️ **On unless the file says `"defaultEntity": false`** - as Orion-LD, whose
+DDS clients find every unmapped topic on `urn:ngsi-ld:dds:default` without
+asking. The cost stands: a broker that stores every endpoint it hears,
+unasked, is a different product from one that stores what it was configured
+to store - and on a busy domain it is an unbounded entity. A file that wants
+only what it configured says so in one line.
 
 ⚠️ It also costs the transport plugin something, and the plugin must not
 decide it: `dds.so` does not read the `ngsild` section and cannot know
@@ -1122,7 +1123,11 @@ bundle source**:
   and the attribute names from what arrives.
 
 Same concept one level up. It does not bind a value; it says how to *derive*
-channels from traffic. Which explains what otherwise looks like a coincidence:
+channels from traffic. **Built for one family: the record Channel**
+(`COR_FEATURE_BRIDGE_RECORDS`, [Record Channels](bridge-channels.md#record-channels)) - a source whose
+messages are records (a CKAN row, a CSV line), each naming its entity in a column: the Channel names
+the endpoint, and a mapping from columns to entity ids, Properties, a `location` Point and
+Relationships. Which explains what otherwise looks like a coincidence:
 DDS integrations need no provisioning API and every device-protocol agent has
 one. That was never a maturity difference. It is whether the endpoint addresses
 a value or a stream of them.

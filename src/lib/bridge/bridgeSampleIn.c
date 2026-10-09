@@ -51,6 +51,9 @@
 #include "bridge/channelPrePopulate.h"                 // channelPrePopulate
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet, bridgeDefaultEntityCreated
 #include "bridge/bridgeSampleIn.h"                    // Own interface
+#if COR_FEATURE_BRIDGE_RECORDS
+#include "bridge/bridgeRecordIn.h"                    // bridgeRecordIn
+#endif
 #include "coraineTraceLevels.h"                       // CtBridge
 
 
@@ -495,6 +498,25 @@ static int sampleIn(const char* bridgeName,
   const char* entityType = NULL;
   const char* attrName   = NULL;
   bool        catchAll   = false;
+
+#if COR_FEATURE_BRIDGE_RECORDS
+  //
+  // A record Channel: the sample is a record, made into entities - nothing of what follows applies
+  //
+  if ((channelP != NULL) && (channelP->recordMapP != NULL))
+  {
+    if ((subAttrName != NULL) || (datasetId != NULL) || (goal == true) || (requestP != NULL))
+    {
+      COR_W("bridge '%s': '%s' carries records - a reply or a goal event on it is dropped", bridgeName, endpoint);
+      return BRIDGE_BAD_INPUT;
+    }
+
+    if ((meta != NULL) && (*meta != 0))
+      COR_T(CtBridge, "bridge '%s': the meta of a record on '%s' is not kept", bridgeName, endpoint);
+
+    return bridgeRecordIn(channelP, json, publishTime);
+  }
+#endif
 
   if (channelP != NULL)
   {
@@ -1055,7 +1077,7 @@ int bridgeGoalInstanceRemove(const char* bridgeName, const char* endpoint, const
 {
   Channel* channelP = channelLookup(bridgeName, endpoint);
 
-  if ((channelP == NULL) || (goalAlias == NULL))
+  if ((channelP == NULL) || (goalAlias == NULL) || (channelP->entityId == NULL))   // entityId NULL: a record Channel, no goals
     return BRIDGE_NOT_FOUND;
 
   if ((db.entityRetrieve == NULL) || (db.entityReplace == NULL))
