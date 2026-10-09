@@ -162,11 +162,11 @@ LeakSanitizer and UndefinedBehaviorSanitizer. The tools are in `test/sanitizer/`
 | `sanReport.py <report dir>` | the reports, deduplicated by kind and first frames, with the tests that hit each; exit 1 if there is one |
 | `lsan.supp` | LeakSanitizer suppressions - third-party stacks only, as `test/funcTests/valgrind.supp` |
 
-The reports go to `$SAN_REPORT_DIR` (default `/tmp/san-reports`): `asan.<pid>` and
-`ubsan.<pid>` (`log_path`), and `stderr.<pid>` - with gcc, UBSan inside an ASan
-process prints to stderr whatever `log_path` says, so the wrapper copies the
-broker's `runtime error` lines out of it. `pids` maps each pid to the test that
-started it.
+The reports go to `$SAN_REPORT_DIR` (default `/tmp/san-reports`): `asan.<pid>`
+(ASan, LSan) and `ubsan.<pid>`. With gcc, UBSan inside an ASan process ignores
+`UBSAN_OPTIONS`' `log_path` and prints to stderr; `sanPreload.so` sets libubsan's
+report path instead, so the broker's stdout and stderr are what they are in an
+ordinary run. `pids` maps each pid to the test that started it.
 
 A run, in a throwaway environment (it installs into `/usr/local` and
 `/opt/seamware`), from the coraine checkout, the libs already built by

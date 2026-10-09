@@ -74,7 +74,9 @@ for f in sorted(os.listdir(R)):
         line = lines[i]
         kind = None
         if 'runtime error:' in line:
+            # the operands' values out of the message: one finding, whatever the values were
             what = re.sub(r'0x[0-9a-f]+', 'ADDR', line.split('runtime error:')[1].strip())
+            what = re.sub(r'(?<![\w.])-?\d+(?![\w.])', 'N', what)
             kind = 'UBSAN ' + where(line.split(': runtime error')[0]) + ' ' + what
         elif re.match(r'^(Direct|Indirect) leak of', line):
             kind = 'LEAK ' + line.split(' leak')[0]
