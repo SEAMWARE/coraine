@@ -18,6 +18,8 @@
 #   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
 #                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
 #   --list-features    print every feature switch, its default and what it is, and exit
+#   --json             with --list-features: the same as a JSON array of {name, default, description,
+#                      requires} - "requires" names the switches it is turned off without
 #   --source <file>    the source tarball (default /usr/share/coraine/src/coraine-src.tar.xz - coraine-dev)
 #   -h, --help
 #
@@ -42,6 +44,7 @@ WORKLOAD=
 FEATURES=
 DIR=
 LIST=0
+JSON=0
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
 usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
@@ -55,6 +58,7 @@ while [ $# -gt 0 ]; do
     --features)       FEATURES=${2:?--features needs a list}; shift ;;
     --features=*)     FEATURES=${1#--features=} ;;
     --list-features)  LIST=1 ;;
+    --json)           JSON=1 ;;
     --source)         SOURCE=${2:?--source needs a file}; shift ;;
     -h|--help)        usage; exit 0 ;;
     -*)               die "unknown option '$1' (--help)" ;;
@@ -79,6 +83,33 @@ else
   tar -xJf "$SOURCE" -C "$DIR" --strip-components=1
 fi
 . "$DIR/SOURCE"      # version, gitSha, commitDate
+
+if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
+  # requires: CMakeLists.txt turns a switch off when another is off -
+  #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)
+  #     set(COR_FEATURE_C OFF)
+  awk '
+    /^if *\( *NOT COR_FEATURE_/ { n = split($0, w, /COR_FEATURE_/); req = "";
+                                   for (i = 2; i <= n; i++) { split(w[i], x, /[^A-Z_]/); req = req (req ? " " : "") x[1] }
+                                   next }
+    req != "" && /set\(COR_FEATURE_[A-Z_]* OFF\)/ { match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), req; req = ""; next }
+    /^endif/ { req = "" }
+  ' "$DIR/coraine/CMakeLists.txt" > "$DIR/.requires"
+  esc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<< "$1"; }
+  first=1
+  echo "["
+  sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
+    | while read -r name def desc; do
+        req=$(awk -v n="$name" '$1 == n { for (i = 2; i <= NF; i++) printf "%s\"%s\"", (i > 2 ? ", " : ""), $i }' "$DIR/.requires")
+        [ "$first" = 1 ] || echo ","
+        first=0
+        printf '  {"name": "%s", "default": %s, "description": "%s", "requires": [%s]}' \
+          "$name" "$([ "$def" = ON ] && echo true || echo false)" "$(esc "$desc")" "$req"
+      done
+  printf '\n]\n'
+  rm -f "$DIR/.requires"
+  exit 0
+fi
 
 if [ "$LIST" = 1 ]; then
   echo "coraine $version - feature switches (--features NAME=ON|OFF):"
@@ -143,8 +174,14 @@ C=$DIR/coraine
 #
 MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES")
 
+#
+# phase - one line per phase, for a front-end to show progress without parsing make's output
+#
+phase() { echo "coraine-build: phase $1"; }
+
 echo "coraine-build: coraine $version ($MODE${FEATURES:+, $FEATURES}) in $DIR"
 make -C "$C" clean > /dev/null
+phase build
 
 case "$MODE" in
   release) make -C "$C" "${MK[@]}" release;  B=$C/BUILD_RELEASE ;;
@@ -154,6 +191,7 @@ case "$MODE" in
     # pgoTrain.sh and perfRun.sh look: the umbrella's `all` builds them, corTools' and corJson's own
     # `install` copies them into their bin/ (nothing else), install-local gathers them. Never the
     # umbrella's `install`: it would write plugins to /opt/seamware
+    phase tools
     make -C "$DIR/corLibs" BUILD=release all
     make -C "$DIR/corTools" BUILD=release install
     make -C "$DIR/corJson" BUILD=release install
@@ -161,6 +199,7 @@ case "$MODE" in
     for t in corTestClient corRequest; do
       [ -x "$DIR/corLibs/bin/$t" ] || die "--$MODE: $t was not built - the training needs it"
     done
+    phase train
     if [ "$MODE" = pgo ]; then
       make -C "$C" "${MK[@]}" PGO_RESTORE_DEBUG=0 pgo 2>&1 | tee "$DIR/pgo.log"
     else
@@ -188,6 +227,7 @@ installFile()
   cp -p "$1" "$2/.$(basename "$1").new" && mv -f "$2/.$(basename "$1").new" "$2/$(basename "$1")"
 }
 
+phase install
 installFile "$B/src/app/coraine/coraine" "$INST/bin"
 [ ! -f "$B/src/app/coraineImport/coraine-import" ] || installFile "$B/src/app/coraineImport/coraine-import" "$INST/bin"
 find "$B/src/plugins" -name '*.so' | while read -r so; do
@@ -202,6 +242,7 @@ find "$B/src/plugins" -name '*.so' | while read -r so; do
   installFile "$so" "$INST/plugins/$d"
 done
 
+phase bridges
 # the bridges that are not the broker's: MQTT and Modbus (DDS needs the eProsima stack - not here)
 for br in corMqttBridge corModbusBridge; do
   flavour=release; [ "$MODE" = debug ] && flavour=debug
@@ -221,8 +262,10 @@ export SEAMWARE_PLUGIN_DIR="$INST/plugins"
 export CORAINE_CONTEXTSOURCEEXTRAS="$INST/etc/contextSourceExtras.json"
 EOF
 
+phase check
 "$INST/bin/coraine" --version > /dev/null || die "the broker just built does not start: $INST/bin/coraine --version"
 
+phase done
 echo
 echo "coraine-build: done - $INST"
 ( cd "$INST" && find bin plugins etc -type f | sort | sed 's/^/  /' )
