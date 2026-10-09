@@ -102,6 +102,12 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   automatic map answers 200 (201 only when the client asked for one).
   `--autoEntityMaps none|distributed|all` (default `distributed`) and `--entityMapMemory`
   (default 64 MiB) bound them.
+- **Downgrading to 0.4.x is not supported once 0.5.0 has written to a mongoc database.** 0.5.0
+  stores the system timestamps and attribute types once per entity; 0.4.x reads attributes
+  0.5.0 has written back without `type` and `createdAt`. 0.4.x cannot detect this - do not run it
+  on data 0.5.0 has written.
+- **`SEAMWARE_ETC_DIR`** (new environment variable, default `/opt/seamware/etc`): where the broker
+  looks for `bridges.json` and `contextSourceExtras.json` when no file is named.
 
 ### Fixed (a selection)
 
@@ -115,6 +121,20 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - A `>` in a query (`q=speed>20`) broke the pagination `Link` header; link values are now
   percent-encoded.
 - `?entityMap=true` copied itself into the `next` link, creating a new map on every page.
+- A registration with 14 or more `contextSourceInfo` entries crashed the broker on the first
+  forwarded request (a request with more than 15 headers freed memory it did not own).
+- cor:// client connections were not released when a thread ended (a buffer and an open socket
+  per thread).
+- Periodic and re-dispatched notifications sent a `Link` header from a buffer that had gone out of
+  scope.
+- Allocations were not 8-byte aligned (undefined behaviour; a fault risk for atomic accesses on
+  arm64).
+- The built-in HTTP server leaked each thread's pool of finished coroutines when the thread ended.
+- A bridge's sample text was parsed in place: the plugin's buffer came back truncated, and a string
+  literal crashed the broker.
+- Without `--bridgeConfig`, a bridge plugin was not given the default configuration file the
+  broker itself read (MQTT: "no server").
+- The MQTT and Modbus bridges read at most 64 KiB of their configuration and ignored the rest.
 
 ## 0.4.0 — 2026-08-28
 
