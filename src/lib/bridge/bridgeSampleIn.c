@@ -655,7 +655,17 @@ static int sampleIn(const char* bridgeName,
     }
   }
 
-  CorNode* attrP = attributeFromSample(attrName, json, publishTime, datasetId, subAttrName, existingValueP, meta, requestP);
+  //
+  // ⚠ A COPY, in the arena. corJsonParse parses IN PLACE, and json is the PLUGIN's const text: parsing
+  // it there wrote into the plugin's buffer (BridgeBroker.h: the plugin may reuse it the moment the
+  // call ends) and crashed on one in read-only memory - a string literal.
+  //
+  char* jsonCopy = corAllocStrdup(&corRest.kalloc, json);
+
+  if (jsonCopy == NULL)
+    return BRIDGE_ERR;
+
+  CorNode* attrP = attributeFromSample(attrName, jsonCopy, publishTime, datasetId, subAttrName, existingValueP, meta, requestP);
 
   if (attrP == NULL)
   {
