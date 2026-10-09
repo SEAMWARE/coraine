@@ -181,7 +181,12 @@ jobs:
       # branch cut before a tool existed is still checked with it
       #
       - uses: actions/checkout@v4
-        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
+        with:
+          path: tools
+          sparse-checkout: |
+            test/sanitizer
+            test/soak
+            test/upgrade
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
 
@@ -294,7 +299,12 @@ jobs:
       # branch cut before a tool existed is still checked with it
       #
       - uses: actions/checkout@v4
-        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
+        with:
+          path: tools
+          sparse-checkout: |
+            test/sanitizer
+            test/soak
+            test/upgrade
 
       - name: The build and test environment
         run: stack/coraine/.github/scripts/ci-env.sh
@@ -392,7 +402,12 @@ jobs:
       # branch cut before a tool existed is still checked with it
       #
       - uses: actions/checkout@v4
-        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
+        with:
+          path: tools
+          sparse-checkout: |
+            test/sanitizer
+            test/soak
+            test/upgrade
 
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
