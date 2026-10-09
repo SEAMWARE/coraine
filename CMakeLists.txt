@@ -93,7 +93,16 @@ add_compile_definitions(CORAINE_BUILD_COMPILER="${CMAKE_C_COMPILER_ID} ${CMAKE_C
 # Compiler flags
 #
 set(CMAKE_C_FLAGS         "-Wall -Werror -Wundef -fPIC -DLOG_ON")
-set(CMAKE_C_FLAGS_RELEASE  "-O2 -g")
+#
+# A release build's flags - COR_C_FLAGS_RELEASE where the caller gives them (`make pgo` adds the
+# profile flags there). Not CMAKE_C_FLAGS_RELEASE: the set() below shadows whatever -D gives that
+# one, and `make pgo` had been passing its profile flags there - linked with -fprofile-generate, the
+# broker's own objects were compiled without it, so neither instrumented nor profile-guided.
+#
+if (NOT DEFINED COR_C_FLAGS_RELEASE)
+  set(COR_C_FLAGS_RELEASE "-O2 -g")
+endif()
+set(CMAKE_C_FLAGS_RELEASE  "${COR_C_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_DEBUG    "-g -DDEBUG -DCOR_T_ON")
 #
 # COR_T_ON: traces (COR_T, and the libraries' COR_LIB_T) are compiled in - Debug and
