@@ -130,7 +130,7 @@ deployments ask, not to complete a matrix. [Speaking to devices directly](device
 CKAN is the data portal behind many city and government open-data sites; FIWARE already has agents
 for CKAN and for CSV. As plugins on the bridge contract:
 
-- **CKAN** reads a dataset through CKAN's API (`datastore_search`, rows as JSON) and writes its rows
+- **CKAN** reads a dataset through CKAN's API (`datastore_search`, rows as JSON) and ingests its rows
   as NGSI-LD entities.
 - **CSV** does the same for a CSV file - a local one, one at a URL, or a CKAN dataset whose data is
   an uploaded CSV file rather than a DataStore table.
@@ -138,7 +138,7 @@ for CKAN and for CSV. As plugins on the bridge contract:
 In both, a column holding a place becomes the `location` GeoProperty, and a column naming another row
 becomes a Relationship. The column-to-attribute mapping is made in c³ Configure, beside DDS and OPC
 UA. As a demo in c³: a dropdown of datasets from a portal, a preview of the first rows, the mapping,
-then the import - and the entities are on the map and in the graph in Connect. It gives real data to
+then the ingest - and the entities are on the map and in the graph in Connect. It gives real data to
 play with.
 
 ### A smaller DDS stack for the DDS bridge

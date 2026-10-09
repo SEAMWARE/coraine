@@ -105,7 +105,7 @@ typically within the subsequent release(s) generated in the next **9 months**:
 
 -   **c³ - Configure** - the mapping tools in the Control Center: DDS topics, services and actions to entities and attributes, and the same for OPC UA. ([more](ideas.md#c-the-coraine-control-center))
 -   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
--   **CKAN and CSV as cor-agent plugins** - open-data datasets from a CKAN portal, and CSV files, as NGSI-LD entities, as the FIWARE agents for both do; real data for c³ Connect and the demos. ([more](ideas.md#ckan-and-csv-as-cor-agent-plugins))
+-   **CKAN and CSV as cor-agent plugins** - open-data datasets from a CKAN portal, and CSV files, ingested as NGSI-LD entities, as the FIWARE agents for both do; real data for c³ Connect and the demos. ([more](ideas.md#ckan-and-csv-as-cor-agent-plugins))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **HA peer push** - with a shared database, the broker that changes a subscription, registration or @context pushes the change to the other brokers itself (cor://) and answers the client once they have it - the window in which an update reaching another broker misses a notification shrinks from the change stream's ~50 ms to a LAN round trip. The cluster's members in a collection of the shared database. ([more](ideas.md#ha-peer-push-over-a-shared-database))
