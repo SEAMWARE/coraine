@@ -185,8 +185,8 @@ HTTP/1.1 201 Created
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
 NGSILD-Results-Count: 5
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=2
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=4
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=2
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
 ids: urn:V3 urn:V4
 
 
@@ -205,10 +205,10 @@ HTTP/1.1 204 No Content
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
 NGSILD-Results-Count: 5
-  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=0
-  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=0
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=4
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=4
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=4
 ids: urn:V6
 
 
@@ -217,8 +217,8 @@ ids: urn:V6
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
 NGSILD-Results-Count: 5
-  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=0
-  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&count=true&options=keyValues&limit=2&offset=2
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Vehicle&q=speed%3E20&count=true&options=keyValues&limit=2&offset=2
 ids: urn:V7
 
 

@@ -156,7 +156,7 @@ HTTP/1.1 201 Created
 03. GET type=Blob, splitEntities=false - more than a page: an EntityMap; L1..L3 fit, R1 would not - next at map position 3
 ==========================================================================================================================
 HTTP/1.1 200 OK
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=100\&offset=3>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=100\&offset=3>;rel="last";type="application/json")
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&splitEntities=false\&limit=100\&offset=3>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&splitEntities=false\&limit=100\&offset=3>;rel="last";type="application/json")
 ids: urn:L:1 urn:L:2 urn:L:3
 
 
@@ -169,7 +169,7 @@ ids:  urn:L:1x1 urn:L:2x1 urn:L:3x1 urn:R:1x1 urn:R:2x1 urn:R:3x1
 05. limit=1 - an EntityMap; limit binds before the budget: one entity, next at map position 1
 =============================================================================================
 HTTP/1.1 200 OK
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=1\&offset=1>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=1\&offset=5>;rel="last";type="application/json")
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&splitEntities=false\&limit=1\&offset=1>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&splitEntities=false\&limit=1\&offset=5>;rel="last";type="application/json")
 ids: urn:L:1
 
 
@@ -182,7 +182,7 @@ error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the set of matches o
 07. Split entities (the default) - more than the budget at once: paged through an EntityMap, L1..L3 first
 =========================================================================================================
 HTTP/1.1 200 OK
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=100\&offset=3>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=100\&offset=3>;rel="last";type="application/json")
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&limit=100\&offset=3>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Blob\&limit=100\&offset=3>;rel="last";type="application/json")
 ids: urn:L:1 urn:L:2 urn:L:3
 
 

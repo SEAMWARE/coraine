@@ -17,7 +17,12 @@
 #   - the map holds the WHOLE matching set, not the first page of it (limit + 1 entities, before);
 #   - the request header NGSILD-EntityMap is the alternative to ?entityMap=<id>: a page needs no
 #     selector of its own either way; both naming different maps is 400 BadRequestData;
-#   - an unknown map is 404.
+#   - a link repeats the query of the map (TS 104-175 § 9.6: "the same parameters as in the original
+#     request"); a page that sends a selecting parameter with a different value, or one the
+#     creating query did not have, is 400; one that leaves it out is served by the map's query;
+#   - an expired map: the link is a complete query, so a new map is made from it and the page served
+#     from that one (§ 9.6: "a new one shall be created"), 200; with no selector to make one from - an
+#     unknown map named by the header alone - 404.
 #
 # REQUIRE_FEATURE: METRICS ADMIN_API
 #
@@ -89,6 +94,7 @@ echo "02. ?entityMap=true&limit=10 - 201, the map's URI, links naming the new ma
 echo "==========================================================================="
 page '/ngsi-ld/v1/entities?type=Room&entityMap=true&limit=10&options=keyValues'
 MAP1=$MAP
+P1NEXT=$NEXT
 echo
 echo
 
@@ -145,6 +151,24 @@ echo
 echo
 
 
+echo "10. Same parameters (§ 9.6): repeated - served, R01..R05; a different type - 400; attrs the map's query did not have - 400"
+echo "========================================================================================================================"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Room&limit=5&options=keyValues"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Car&limit=5&options=keyValues"
+page "/ngsi-ld/v1/entities?entityMap=${MAP1##*/}&type=Room&attrs=t&limit=5"
+echo
+echo
+
+
+echo "11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200"
+echo "=================================================================================="
+corCurl --url "$MAP1" -X PATCH --payload '{"expiresAt":"2020-01-01T00:00:00.000Z"}' | head -1
+page "$P1NEXT"
+[ "$MAP" != "$MAP1" ] && [ -n "$MAP" ] && echo "a new map" || echo "NOT A NEW MAP: $MAP"
+echo
+echo
+
+
 --EXPECT--
 01. Twenty-five rooms R01..R25 - more than the default page of 20, created in that order
 ========================================================================================
@@ -155,8 +179,8 @@ echo
 ===========================================================================
 HTTP/1.1 201 Created
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=10
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=20
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=10
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
 ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05 urn:R06 urn:R07 urn:R08 urn:R09 urn:R10
 
 
@@ -169,16 +193,16 @@ entities in the map: 25
 ======================================================================================
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
-  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=0
-  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=0
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=20
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=20
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
 ids: urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
 same map
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
-  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=0
-  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=10&offset=10
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=10
 ids: urn:R21 urn:R22 urn:R23 urn:R24 urn:R25
 same map
 
@@ -192,10 +216,10 @@ ngsild_entity_map_store_size 1
 ==================================================================================================
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
-  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=0
-  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=10
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=20
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=20
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=10
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
 ids: urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
 
 
@@ -210,8 +234,8 @@ https://uri.etsi.org/ngsi-ld/errors/BadRequestData: the NGSILD-EntityMap header 
 ===========================================
 HTTP/1.1 200 OK
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
-  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=5
-  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&options=keyValues&limit=5&offset=20
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=5
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
 ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05
 
 
@@ -220,6 +244,34 @@ ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05
 HTTP/1.1 404 Not Found
 NGSILD-EntityMap: (none)
 https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound: entity map 'urn:ngsi-ld:EntityMap:nosuchmap' not found or expired
+
+
+10. Same parameters (§ 9.6): repeated - served, R01..R05; a different type - 400; attrs the map's query did not have - 400
+========================================================================================================================
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=5
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=5&offset=20
+ids: urn:R01 urn:R02 urn:R03 urn:R04 urn:R05
+HTTP/1.1 400 Bad Request
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/BadRequestData: URL parameter 'type' differs from the query that created entity map 'urn:ngsi-ld:EntityMap:MAPID'
+HTTP/1.1 400 Bad Request
+NGSILD-EntityMap: (none)
+https://uri.etsi.org/ngsi-ld/errors/BadRequestData: URL parameter 'attrs' was not part of the query that created entity map 'urn:ngsi-ld:EntityMap:MAPID'
+
+
+11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200
+==================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+  rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
+  rel=next  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+  rel=last  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=20
+ids: urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20
+a new map
 
 
 --TEARDOWN--

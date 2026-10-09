@@ -369,9 +369,8 @@ query's order, each with the sources that hold it - and a paginated query is ser
 is a slice of the frozen ids, each entity fetched from where the map says it lives. It freezes the
 set, not the values. Every page applies the query's filters (`type`, `q`, `scopeQ`, the GeoQuery)
 again, and an entity that no longer matches is left out: `limit=20` with 3 that no longer match is a
-page of 17, and the next page still starts 20 further on, so the positions of the set never move and
-`prev` / `next` stay stable (§ 7.4.2.4; the short page is what ETSI decided). An entity created after
-the map is not in it.
+page of 17, and the next page still starts 20 further on (see below). An entity created after the map
+is not in it.
 
 **Automatic EntityMaps.** A `GET /ngsi-ld/v1/entities` whose first page (`offset` 0) has more after it
 gets a map without asking for one:
@@ -392,18 +391,32 @@ is a Snapshot (`NGSILD-Snapshot`), not an EntityMap.
 | | Status | `NGSILD-EntityMap` response header | `Link` |
 |---|---|---|---|
 | a query that gets an automatic map | 200 - the answer is the result of the query; the map is a by-product of paginating it | the map's URI | `next` / `last` name the map |
+| a page of an expired or unknown map, with the query's parameters | 200 - a new map is made from them | the new map's URI | name the new map |
 | `?entityMap=true`, or `GET`/`POST /ngsi-ld/v1/entityMaps` | 201 Created (TS 104-176 clause 7: "in case an EntityMap has been (re)created") | the map's URI | the first page's `next` / `last` name the new map |
 | a page of an existing map: `?entityMap=<id>`, or the request header `NGSILD-EntityMap: <URI>` | 200 | the map's URI | `first` / `prev` / `next` / `last` name the map |
 
-Every link names the map - `entityMap=<id>` with `limit` and `offset` - and repeats the parameters
-that shape the answer (`options`, `format`, `pick`, `omit`, `attrs`, `lang`, `count`, ...), but none of
-the ones that select: those are bound to the map when it is created. A page may repeat a selecting
-parameter with the same value, or leave it out; a different value, or one the map was not created
-with, is 400. The request header `NGSILD-EntityMap` and `?entityMap=<id>` naming different maps is
-400. `NGSILD-Results-Count` (`count=true`) on a page of a map is the size of the frozen set.
+Every link names the map - `entityMap=<id>` with `limit` and `offset` - and repeats the whole query
+that created it: the selecting parameters (`type`, `q`, `scopeQ`, the GeoQuery, `attrs`, `id`, `csf`,
+`local`, ...) and the ones that shape the answer (`options`, `format`, `pick`, `lang`, `count`, ...).
+TS 104-175 § 9.6: "Subsequent requests referencing an Entity Map shall use the same parameters as in
+the original request that created the Entity Map, except for the specification of Entity identifiers
+or parameters related to pagination". So a followed link is a complete query by itself. A page that
+sends a selecting parameter with a different value than the map's query, or one that query did not
+have, is 400 `BadRequestData` naming the parameter; one that leaves a selecting parameter out is served
+by the map's query. The request header `NGSILD-EntityMap` and `?entityMap=<id>` naming different maps
+is 400. `NGSILD-Results-Count` (`count=true`) on a page of a map is the size of the frozen set.
+
+An entity that no longer matches is left out of its page, and stays in the map. § 9.6 says such
+entities "shall be removed from the Entity Map"; the pages are the same either way, except that a
+removal would shift every later position, and the next page, at `offset` + `limit`, would skip as many
+entities as were removed. So the positions of the frozen set never move, a page can be shorter than
+`limit`, and `NGSILD-Results-Count` stays the size of the frozen set.
 
 A map lives 5 minutes. An automatic map's lifetime slides: each page served from it gives it another
-5 minutes. An expired or unknown map is 404 - its links carry nothing to re-query from.
+5 minutes. A page of a map that has expired, or is unknown: "a new one shall be created" (§ 9.6) - from
+the request's own parameters (a link carries the whole query), and the requested page is served from
+the new map, named in `NGSILD-EntityMap` (200). A request with no selector at all - nothing to make a
+map from - gets 404.
 
 **`--entityMapMemory <MiB>`** (default 64) is the memory all EntityMaps may hold together: an entity
 id and its sources, about 70 bytes plus the id for an entity of this broker. When a new map does not

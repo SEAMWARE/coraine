@@ -1159,6 +1159,10 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
 //
 // bindEntityMapFilters - § 9 "same parameters" enforcement on EntityMap reuse.
 //
+// TS 104-175 § 9.6: "Subsequent requests referencing an Entity Map shall use the same parameters as in
+// the original request that created the Entity Map". The links of a map's pages repeat that query
+// (ldPaginationEntityMapLinkHeader), so a client following them sends the same parameters.
+//
 // A filter param present at map creation may be re-sent with the SAME value or
 // omitted; a DIFFERENT value, or a filter NOT used at creation, is rejected
 // with 400 BadRequestData. (Modify / introduce are spec-clear violations of
@@ -1199,6 +1203,45 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
               "URL parameter '%s' differs from the query that created entity map '%s'",
               f[i].name, corNgsild.entityMapId);
+      return true;
+    }
+  }
+
+  //
+  // The rest of the parameters that SELECT, compared with the creating request's (LdEntityMap.queryParamV)
+  // the same way. Not id / idPattern: § 9.6 excepts "the specification of Entity identifiers".
+  //
+  static const char* selectingV[] =
+  {
+    "attrs", "csf", "local", "splitEntities", "orderBy", "orderFrom", "orderGeometry", "collation", NULL
+  };
+
+  for (int i = 0; i < corRest.in.uriParamCount; i++)
+  {
+    const char* key = corRest.in.uriParamV[i].key;
+    bool        sel = false;
+
+    for (int s = 0; selectingV[s] != NULL; s++)
+    {
+      if (strcmp(key, selectingV[s]) == 0) { sel = true; break; }
+    }
+
+    if (sel == false)
+      continue;
+
+    const char* bound = ldEntityMapQueryParam(mapP, key);
+    const char* value = (corRest.in.uriParamV[i].value != NULL) ? corRest.in.uriParamV[i].value : "";
+
+    if (bound == NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' was not part of the query that created entity map '%s'", key, corNgsild.entityMapId);
+      return true;
+    }
+    if (strcmp(bound, value) != 0)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' differs from the query that created entity map '%s'", key, corNgsild.entityMapId);
       return true;
     }
   }
@@ -1275,6 +1318,10 @@ static void orderBySkip(CorNode* arrayP, int offset)
 
   arrayP->value.head = eP;
 }
+
+
+
+static bool queryEntities(void);
 
 
 
@@ -1457,7 +1504,7 @@ static bool entityMapServe(LdEntityMap* mapP)
   //
   int nextOffset = offset + added;
 
-  ldPaginationEntityMapLinkHeader(mapP->mapId, offset, limit, nextOffset, mapP->entryCount, nextOffset < mapP->entryCount);
+  ldPaginationEntityMapLinkHeader(mapP, offset, limit, nextOffset, mapP->entryCount, nextOffset < mapP->entryCount);
 
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
@@ -1557,13 +1604,35 @@ static bool entityMapPaginate(void)
   LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId);
   if (mapP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
-    return true;
+    //
+    // § 9.6: "If an Entity Map has expired, or cannot be accessed, no inference can be made as to which
+    // entities are held within the Context Sources and a new one shall be created." The request is a
+    // complete query (its links repeat the creating request's parameters): a new map is made from it
+    // and the page served from the new one, at the requested offset - 200, the new map in
+    // NGSILD-EntityMap. A request with no selector at all (a link of a map without its query) has
+    // nothing to make one from: 404.
+    //
+    bool hasSelector = (corNgsild.typeV != NULL) || (corNgsild.typeExpr != NULL) || (corNgsild.attrsV != NULL) ||
+                       (corNgsild.qExpr != NULL) || (corNgsild.georel != NULL) || (corNgsild.local == true);
+
+    if (hasSelector == false)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
+      return true;
+    }
+
+    COR_T(CtDistOpRequest, "entity map '%s' not found or expired - a new one, from the request", corNgsild.entityMapId);
+
+    corNgsild.entityMapId     = NULL;
+    corNgsild.entityMapCreate = true;
+    corNgsild.entityMapAuto   = true;                // 201 only for a map the client asked to create
+
+    return queryEntities();
   }
 
   ldEntityMapRequestPin(mapP);     // unpinned post-response
 
-  // § 9 same-parameters: reject a modified / newly-introduced filter; default
+  // § 9.6 same-parameters: reject a modified / newly-introduced filter; default
   // an omitted bound filter so it is re-applied live (see bindEntityMapFilters).
   if (bindEntityMapFilters(mapP))
     return true;
@@ -1619,10 +1688,6 @@ static void geoJsonGeomProtectSetup(void)
 
   corNgsild.geoJsonGeomForced = !wanted;
 }
-
-
-
-static bool queryEntities(void);
 
 
 
@@ -1809,6 +1874,9 @@ static void entityMapFill(LdEntityMap* mapP, CorNode* arrayP, CorNode* srcMap, C
   //
   if (corNgsild.qExpr != NULL)
     ldEntityMapSetStoredQ(mapP, ldQRenderStored(corNgsild.qExpr, &corRest.kalloc));
+
+  // And every URL parameter of the request but pagination - for the links and the same-parameters check (§ 9.6)
+  ldEntityMapSetQueryParams(mapP);
 
   if (arrayP == NULL)
     return;
@@ -3154,7 +3222,7 @@ static bool queryEntities(void)
       nextOffset = budgetFetched;
 #endif
     entityMapHeader(autoMapP);
-    ldPaginationEntityMapLinkHeader(autoMapP->mapId, 0, corNgsild.limit, nextOffset, autoMapP->entryCount, nextOffset < autoMapP->entryCount);
+    ldPaginationEntityMapLinkHeader(autoMapP, 0, corNgsild.limit, nextOffset, autoMapP->entryCount, nextOffset < autoMapP->entryCount);
     linked = true;
   }
 #endif

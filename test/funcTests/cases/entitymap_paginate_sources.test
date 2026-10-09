@@ -123,7 +123,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 REGEX(NGSILD\-EntityMap:\ /ngsi\-ld/v1/entityMaps/urn:ngsi\-ld:EntityMap:[0-9a-f]+)
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&options=keyValues\&limit=1\&offset=1>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&options=keyValues\&limit=1\&offset=1>;rel="last";type="application/json")
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&options=keyValues\&orderBy=id\&limit=1\&offset=1>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&options=keyValues\&orderBy=id\&limit=1\&offset=1>;rel="last";type="application/json")
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 71
 
@@ -143,7 +143,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 REGEX(NGSILD\-EntityMap:\ /ngsi\-ld/v1/entityMaps/urn:ngsi\-ld:EntityMap:[0-9a-f]+)
-REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&options=keyValues\&limit=1\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&options=keyValues\&limit=1\&offset=0>;rel="prev";type="application/json")
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&options=keyValues\&orderBy=id\&limit=1\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&options=keyValues\&orderBy=id\&limit=1\&offset=0>;rel="prev";type="application/json")
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 71
 

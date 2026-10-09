@@ -661,7 +661,9 @@ that walks `next` from a map-creating request and asserts the map id never
 changes - see 14.
 
 **Done** ([EntityMaps](installation.md#entitymaps)): 13.2 - every link of a page that has a map names
-the map (`entityMap=<id>`), and none repeats the parameters that select. 13.1 - a `GET /entities`
+the map (`entityMap=<id>`) and repeats the whole query that created it (§ 9.6: "the same parameters
+as in the original request"); a page with a different selecting parameter is 400, and a page of an
+expired or unknown map creates a new one from its parameters (§ 9.6) - 404 only without a selector. 13.1 - a `GET /entities`
 whose first page has more after it gets a map of the broker's own: locally when the store holds more
 than `limit` matches, distributed when the answer is more than a page (a second round asks the sources
 for their EntityMaps). Not under `orderBy`: ordering by values is a Snapshot's. A map holds ids only
