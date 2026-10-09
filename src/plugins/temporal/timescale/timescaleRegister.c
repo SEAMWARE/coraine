@@ -19,9 +19,9 @@
 #include "temporal/timescale/timescaleEvent.h"            // timescaleEventList
 #include "temporal/timescale/timescaleQuery.h"            // timescaleEntityTemporalRetrieve
 #include "temporal/timescale/timescaleHistoryWrite.h"     // timescaleEntityTemporalDelete, etc.
+#include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 #if COR_FEATURE_HEALTH
 #include "temporal/timescale/timescalePool.h"             // timescalePing
-#include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 #endif
 
 
