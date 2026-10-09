@@ -710,6 +710,55 @@ scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=100" 50
 scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=20&offset=500" 50 ; read -r rareO500C50 rareO500C50P99 rareO500C50P50 rareO500C50P95 <<< "$SCEN"
 
 #
+# RARE TYPES IN A LARGER STORE. With the rare-type store above (100 000 entities, 1 % Rare) mongoc's old
+# index on {type} alone read the whole type and sorted it in memory for every page. Which plan MongoDB
+# picks for `type=X` in the default order depends on the type's share AND the store's size, and the
+# worst one is the other: in a larger store a 1 % type is answered by walking the {createdAt,_id} index
+# and filtering on the type - (skip + limit) / 1 % documents for a page, so a deep page reads most of
+# the store. So: the store emptied, PERF_BIG_ENTITIES (default 300 000) of the same entity, one in a
+# hundred of type R1 (1 %) and one in a thousand of type R01 (0.1 %), the rest Common - a first page and
+# a deep page of each. Added 2026-10-08, after mongoc's {type, createdAt, _id} index.
+#
+BIG_ENTITIES=${PERF_BIG_ENTITIES:-300000}
+
+bigFill() {
+  local code line from=1
+  while IFS= read -r line; do
+    code=$(printf '%s' "$line" | curl -s -o /dev/null -w '%{http_code}' -X POST \
+                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                -H 'Content-Type: application/json' --data-binary @-)
+    [ "$code" = 201 ] || { echo "perfRun.sh: the larger store got HTTP $code creating a batch from entity $from" >&2; exit 1; }
+    from=$(( from + FIXTURE_CHUNK ))
+  done < <(awk -v n="$BIG_ENTITIES" -v chunk="$FIXTURE_CHUNK" 'BEGIN {
+    for (from = 1; from <= n; from += chunk) {
+      to = from + chunk - 1; if (to > n) to = n
+      line = "["
+      for (i = from; i <= to; i++) {
+        if (i > from) line = line ","
+        if      (i % 100  == 0)  { id = "r1-" i;  type = "R1" }
+        else if (i % 1000 == 50) { id = "r01-" i; type = "R01" }
+        else                     { id = "big-" i; type = "Common" }
+        line = line sprintf("{\"id\":\"urn:ngsi-ld:Vehicle:%s\",\"type\":\"%s\",\"brand\":{\"type\":\"Property\",\"value\":\"Mercedes\"},\"speed\":{\"type\":\"Property\",\"value\":%d,\"observedAt\":\"2026-08-20T10:00:00Z\"},\"location\":{\"type\":\"GeoProperty\",\"value\":{\"type\":\"Point\",\"coordinates\":[13.4,52.5]}},\"isParked\":{\"type\":\"Relationship\",\"object\":\"urn:ngsi-ld:OffStreetParking:%d\"},\"description\":{\"type\":\"Property\",\"value\":\"a five-attribute vehicle used for throughput measurement, padded to roughly five hundred bytes so the numbers mean something ------------------------------------------------\"}}", id, type, i % 120, i)
+      }
+      print line "]"
+    }
+  }')
+}
+
+resetStore
+bigFill
+for t in R1:100 R01:1000; do
+  have=$(curl -s -D - -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/entities?type=${t%%:*}&limit=0&count=true" \
+         | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
+  [ "${have:-0}" = "$(( BIG_ENTITIES / ${t##*:} ))" ] || { echo "perfRun.sh: the larger store holds ${have:-0} ${t%%:*} entities, not $(( BIG_ENTITIES / ${t##*:} ))" >&2; exit 1; }
+done
+
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R1&limit=20" 50 ; read -r bigR1L20 bigR1L20P99 bigR1L20P50 bigR1L20P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R1&limit=20&offset=1000" 50 ; read -r bigR1O1000 bigR1O1000P99 bigR1O1000P50 bigR1O1000P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R01&limit=20" 50 ; read -r bigR01L20 bigR01L20P99 bigR01L20P50 bigR01L20P95 <<< "$SCEN"
+scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R01&limit=20&offset=200" 50 ; read -r bigR01O200 bigR01O200P99 bigR01O200P50 bigR01O200P95 <<< "$SCEN"
+
+#
 # Every rate carries the tail it was measured with. A throughput number on its
 # own says nothing about whether the requests behind it were answered promptly
 # or queued: libmicrohttpd reaches a higher peak than corHttp and pays for it in
@@ -734,4 +783,8 @@ printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s
 printf ',"patch_manysubs_c50":%s,"patch_manysubs_c50_p50us":%s,"patch_manysubs_c50_p95us":%s,"patch_manysubs_c50_p99us":%s' "$patchManySubsC50" "$patchManySubsC50P50" "$patchManySubsC50P95" "$patchManySubsC50P99"
 printf ',"rare_l20_c50":%s,"rare_l20_c50_p50us":%s,"rare_l20_c50_p95us":%s,"rare_l20_c50_p99us":%s' "$rareL20C50" "$rareL20C50P50" "$rareL20C50P95" "$rareL20C50P99"
 printf ',"rare_l100_c50":%s,"rare_l100_c50_p50us":%s,"rare_l100_c50_p95us":%s,"rare_l100_c50_p99us":%s' "$rareL100C50" "$rareL100C50P50" "$rareL100C50P95" "$rareL100C50P99"
-printf ',"rare_l20_o500_c50":%s,"rare_l20_o500_c50_p50us":%s,"rare_l20_o500_c50_p95us":%s,"rare_l20_o500_c50_p99us":%s}\n' "$rareO500C50" "$rareO500C50P50" "$rareO500C50P95" "$rareO500C50P99"
+printf ',"rare_l20_o500_c50":%s,"rare_l20_o500_c50_p50us":%s,"rare_l20_o500_c50_p95us":%s,"rare_l20_o500_c50_p99us":%s' "$rareO500C50" "$rareO500C50P50" "$rareO500C50P95" "$rareO500C50P99"
+printf ',"big_r1_l20_c50":%s,"big_r1_l20_c50_p50us":%s,"big_r1_l20_c50_p95us":%s,"big_r1_l20_c50_p99us":%s' "$bigR1L20" "$bigR1L20P50" "$bigR1L20P95" "$bigR1L20P99"
+printf ',"big_r1_l20_o1000_c50":%s,"big_r1_l20_o1000_c50_p50us":%s,"big_r1_l20_o1000_c50_p95us":%s,"big_r1_l20_o1000_c50_p99us":%s' "$bigR1O1000" "$bigR1O1000P50" "$bigR1O1000P95" "$bigR1O1000P99"
+printf ',"big_r01_l20_c50":%s,"big_r01_l20_c50_p50us":%s,"big_r01_l20_c50_p95us":%s,"big_r01_l20_c50_p99us":%s' "$bigR01L20" "$bigR01L20P50" "$bigR01L20P95" "$bigR01L20P99"
+printf ',"big_r01_l20_o200_c50":%s,"big_r01_l20_o200_c50_p50us":%s,"big_r01_l20_o200_c50_p95us":%s,"big_r01_l20_o200_c50_p99us":%s}\n' "$bigR01O200" "$bigR01O200P50" "$bigR01O200P95" "$bigR01O200P99"
