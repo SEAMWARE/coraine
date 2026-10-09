@@ -32,6 +32,13 @@ on:
         default: false
   workflow_call:
     inputs:
+      #
+      # The coraine ref to package - empty: the caller's own commit (release.yml). prerelease.yml
+      # passes the ref under test.
+      #
+      ref:
+        type: string
+        default: ''
       libs_ref:
         type: string
         default: main
@@ -60,6 +67,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: stack/coraine
+          ref: ${{ inputs.ref }}
           fetch-depth: 0              # version.sh: the release tag, or the commit date
 
       - uses: actions/checkout@v4

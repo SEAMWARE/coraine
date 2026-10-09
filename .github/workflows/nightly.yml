@@ -23,6 +23,27 @@ on:
         type: choice
         default: all
         options: [all, coverage, valgrind, etsi, performance, dds, arm64]
+  #
+  # Callable: the pre-release campaign (prerelease.yml) runs these jobs on the ref it is given rather
+  # than keeping a copy of them. Its call forces the run (no gate), and publishes nothing: the
+  # coverage site and the perf-history branch describe main, not a release branch.
+  #
+  workflow_call:
+    inputs:
+      ref:
+        description: 'The coraine ref to test (a branch, tag or sha) - empty: the commit of the caller'
+        type: string
+        default: ''
+      force:
+        type: boolean
+        default: true
+      only:
+        type: string
+        default: all
+      publish:
+        description: 'Publish the coverage site and record the performance run in perf-history'
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -38,6 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
 
       - id: check
         run: |
@@ -94,7 +116,7 @@ jobs:
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
-        with: { path: stack/coraine }
+        with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
@@ -239,10 +261,15 @@ jobs:
     # then. The site marks that run as untrustworthy in place, so publishing it is
     # not the same as pretending it is fine. Cancelled runs still publish nothing.
     #
+    #
+    # inputs.publish is false only in a call (prerelease.yml): a scheduled or dispatched run has no
+    # inputs.publish at all, and null is not false.
+    #
     if: |
       !cancelled() && needs.gate.outputs.run == 'true'
       && github.ref == 'refs/heads/main'
       && needs.coverage.result != 'skipped'
+      && inputs.publish != false
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -347,7 +374,7 @@ jobs:
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
-        with: { path: stack/coraine }
+        with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
@@ -467,7 +494,7 @@ jobs:
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
-        with: { path: stack/coraine }
+        with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
@@ -672,7 +699,7 @@ jobs:
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
     steps:
       - uses: actions/checkout@v4
-        with: { path: stack/coraine }
+        with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
 
@@ -728,8 +755,11 @@ jobs:
           done
           exit $status
 
+      #
+      # Not from a call that publishes nothing (prerelease.yml): the history is main's nightly
+      #
       - name: Record this run
-        if: always()
+        if: always() && inputs.publish != false
         run: |
           cd history
           for db in corDB mongoc; do
@@ -776,6 +806,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: stack/coraine
+          ref: ${{ inputs.ref }}
 
       - name: Check out corLibs
         uses: actions/checkout@v4
@@ -893,6 +924,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: stack/coraine
+          ref: ${{ inputs.ref }}
 
       - name: Check out corLibs
         uses: actions/checkout@v4
