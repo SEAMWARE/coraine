@@ -286,14 +286,14 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
 	done
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
-	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
+	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
 	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
-	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
+	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
 	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
 	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
