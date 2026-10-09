@@ -267,6 +267,29 @@ broker should be able to save its data in a **neutral format** (possibly a set o
 about it is decided yet). With that format, any broker's export is coraine's import, and the
 converter becomes "export, import". To be taken further at the Athens face-to-face, October 2026.
 
+### Scaling out: sharding by tenant and by entity type
+
+A standalone corDB, reached over the network by every broker, costs most of what makes corDB fast.
+Scaling out instead keeps corDB linked into each broker and splits the data between brokers:
+
+- **By tenant.** Every request names its tenant (`NGSILD-Tenant`) and tenants share nothing - no
+  query, subscription or join crosses them. APISIX routes on the header to the broker that owns the
+  tenant; corDB already keeps a store per tenant. No router of our own.
+- **By entity type.** The type is often not in the request (by id alone, queries without `type`,
+  batches mixing types, subscriptions over several types), so routing needs NGSI-LD itself:
+  **routing coraines** - a reduced build without a store, behind APISIX, as many as the load needs -
+  with an exclusive registration per type pointing at the shard that owns it. Forwarding, merging,
+  paging across sources (EntityMaps), splitting batches and distributed subscriptions are the
+  distributed operations coraine already has; router to shard over cor://. What is new: an
+  id -> shard directory for requests by id alone (or the type enforced in the entity id), and
+  moving a type between shards.
+- **One type too big for one broker** - split it by id range or hash, several registrations for the
+  same type with an `idPattern` each.
+
+Sharding is scale; availability is separate - each shard has its replica (haaux). The routing
+build's feature set is decided together with the rest of conditional compilation. First
+measurement: the router-to-shard hop over cor://.
+
 ### haaux
 
 High-availability cache synchronisation without a shared database: brokers register with each other
