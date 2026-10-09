@@ -1470,6 +1470,264 @@ static void entityMapHeader(LdEntityMap* mapP)
 
 
 
+static CorHashTable* idHashCreate(CorNode* arrayP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// MapSource - a Context Source of an EntityMap's page, and its entities of the page (mapSourcesFetch)
+//
+typedef struct MapSource
+{
+  const char*      regId;      // the registration the map recorded for the entities
+  LdRegCacheItem*  csr;        // pinned while the page is built; NULL: the registration is gone
+  CorNode*         arrayP;     // the entities it answered with, storage shape
+  CorHashTable*    idHashP;    // ... by id
+} MapSource;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapSourcesFetch - the page's entities of each Context Source, in ONE request per source
+//
+// A page of a map fetched its remote entities one GET /entities/{id} each - a page of 20 from one
+// source was 20 requests, one after the other. Now: the slice's entities grouped by the source the map
+// recorded for them, and each source asked for its group at once - GET /entities?type=<the map's
+// type>&id=<a,b,c>&sysAttrs=true&limit=<n>, every source in parallel (ldDistOpSendMultiMax). A group
+// that would make a long URL goes in more than one request (100 ids, or ~8 KiB of them, a request).
+//
+// The type is the map's (the selector § 10.4.3.4 asks of a query - ids alone are not one), as the
+// query that made the map asked the source; the filters are applied to the assembled entities, as
+// before. No NGSILD-EntityMap to the source: the ids ARE the frozen set, and a source asked for a page
+// of its own map pages the map. An entity a source does not answer with: not on the page, as a local
+// one that is gone.
+//
+// Returns the sources (NULL: not done - a map without a plain type list; the caller then retrieves
+// entity by entity), *nP their number. The caller unpins each csr.
+//
+static MapSource* mapSourcesFetch(LdEntityMapEntry** sliceV, int sliceN, const char* ownAlias, int* nP)
+{
+  Tenant*     tP       = (Tenant*) corNgsild.tenantP;
+  LdRegCache* rcP      = (tP != NULL) ? (LdRegCache*) tP->regCacheP : NULL;
+  int         maxSrc   = 0;
+
+  *nP = 0;
+
+  //
+  // The map's types, expanded: the request's own (typeV), or - a page that leaves the type out - the
+  // map's, as bindEntityMapFilters put it back (typeExpr). Only a plain list of types (OR): an AND of
+  // types, or a map with none, is fetched entity by entity.
+  //
+  char**    typeV = corNgsild.typeV;
+  LdTypeExpr* teP = corNgsild.typeExpr;
+
+  if ((typeV == NULL) && (teP != NULL) && teP->isSimple && (teP->groupCount > 0))
+  {
+    typeV = (char**) corAlloc(&corRest.kalloc, sizeof(char*) * (teP->groupCount + 1));
+    for (int g = 0; g < teP->groupCount; g++)
+      typeV[g] = teP->groupV[g].typeV[0];
+    typeV[teP->groupCount] = NULL;
+  }
+
+  if ((rcP == NULL) || (typeV == NULL) || (typeV[0] == NULL))
+    return NULL;
+
+  for (int i = 0; i < sliceN; i++)
+    maxSrc += sliceV[i]->sourceCount;
+
+  MapSource* srcV = (MapSource*) corAlloc(&corRest.kalloc, sizeof(MapSource) * (maxSrc + 1));
+  int        srcN = 0;
+
+  for (int i = 0; i < sliceN; i++)
+  {
+    for (int s = 0; s < sliceV[i]->sourceCount; s++)
+    {
+      const char* regId = sliceV[i]->sourceIdV[s];
+      int         ix    = 0;
+
+      if (strcmp(regId, "@none") == 0)
+        continue;
+
+      while ((ix < srcN) && (strcmp(srcV[ix].regId, regId) != 0))
+        ix++;
+
+      if (ix == srcN)
+      {
+        memset(&srcV[srcN], 0, sizeof(MapSource));
+        srcV[srcN].regId = regId;
+        srcN++;
+      }
+    }
+  }
+
+  // The registrations, pinned for the page (a DELETE during the forward frees what is not pinned)
+  ldRegCacheRdLock(rcP);
+  for (int ix = 0; ix < srcN; ix++)
+  {
+    srcV[ix].csr = ldRegCacheItemLookup(rcP, srcV[ix].regId);
+    if (srcV[ix].csr != NULL)
+      ldRegCacheItemPin(srcV[ix].csr);
+  }
+  ldRegCacheUnlock(rcP);
+
+  //
+  // The type list of the query string, once
+  //
+  int typesLen = 1;
+  for (int t = 0; typeV[t] != NULL; t++)
+    typesLen += 3 * strlen(typeV[t]) + 1;
+
+  char* types = (char*) corAlloc(&corRest.kalloc, typesLen);
+  int   tPos  = 0;
+
+  types[0] = 0;
+  for (int t = 0; typeV[t] != NULL; t++)
+    tPos += snprintf(types + tPos, typesLen - tPos, "%s%s", (t > 0) ? "," : "", corRestUrlValueEncode(typeV[t], &corRest.kalloc));
+
+  //
+  // The requests: per source, its entities of the slice in map order, 100 ids or ~8 KiB of them each
+  //
+  LdDistOpBatchItem* itemV = (LdDistOpBatchItem*) corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchItem) * (sliceN + srcN + 1));
+  int*               ownerV = (int*) corAlloc(&corRest.kalloc, sizeof(int) * (sliceN + srcN + 1));     // item -> source
+  int                itemN = 0;
+
+  for (int ix = 0; ix < srcN; ix++)
+  {
+    if ((srcV[ix].csr == NULL) || (srcV[ix].csr->endpoint == NULL))
+      continue;
+
+    const char* endpoint = srcV[ix].csr->endpoint;
+    int         i        = 0;
+
+    while (i < sliceN)
+    {
+      int   urlSize = strlen(endpoint) + tPos + 8192 + 256;
+      char* url     = (char*) corAlloc(&corRest.kalloc, urlSize);
+      int   pos     = snprintf(url, urlSize, "%s/ngsi-ld/v1/entities?type=%s&sysAttrs=true&id=", endpoint, types);
+      int   ids     = 0;
+
+      for (; i < sliceN; i++)
+      {
+        bool fromHere = false;
+
+        for (int s = 0; s < sliceV[i]->sourceCount; s++)
+        {
+          if (strcmp(sliceV[i]->sourceIdV[s], srcV[ix].regId) == 0)
+          {
+            fromHere = true;
+            break;
+          }
+        }
+
+        if (fromHere == false)
+          continue;
+
+        const char* id  = corRestUrlValueEncode(sliceV[i]->entityId, &corRest.kalloc);
+        int         len = strlen(id);
+
+        if ((ids > 0) && ((ids == 100) || (pos + len + 32 > urlSize - 64)))
+          break;
+
+        if (pos + len + 32 > urlSize - 64)       // one id longer than the whole budget: its own request
+        {
+          int   bigSize = pos + len + 64;
+          char* bigUrl  = (char*) corAlloc(&corRest.kalloc, bigSize);
+
+          memcpy(bigUrl, url, pos + 1);
+          url     = bigUrl;
+          urlSize = bigSize;
+        }
+
+        pos += snprintf(url + pos, urlSize - pos, "%s%s", (ids > 0) ? "," : "", id);
+        ids++;
+      }
+
+      if (ids == 0)
+        break;
+
+      snprintf(url + pos, urlSize - pos, "&limit=%d", ids);
+
+      memset(&itemV[itemN], 0, sizeof(LdDistOpBatchItem));
+      itemV[itemN].csr = srcV[ix].csr;
+      itemV[itemN].url = url;
+      ownerV[itemN]    = ix;
+      itemN++;
+
+      COR_T(CtDistOpRequest, "entity map page: GET %s (%d entities)", url, ids);
+    }
+  }
+
+  if (itemN > 0)
+  {
+    LdDistOpBatchResult* resultV = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchResult) * itemN);
+
+    memset(resultV, 0, sizeof(LdDistOpBatchResult) * itemN);
+    ldDistOpSendMultiMax(itemV, itemN, CorVerbGet, ownAlias, resultV, 0);
+
+    for (int it = 0; it < itemN; it++)
+    {
+      CorNode* treeP = resultV[it].responseTree;
+
+      if ((resultV[it].statusCode < 200) || (resultV[it].statusCode >= 300) || (treeP == NULL) || (treeP->type != CorArray))
+        continue;
+
+      // The context that travels with the answer (its json-ld#context Link), else core - as the query's forwards
+      CorLdContext* respCtxP = (resultV[it].responseContextUrl != NULL) ? corLdContextFromUrl(resultV[it].responseContextUrl, &corRest.kalloc) : NULL;
+
+      if (respCtxP == NULL)
+        respCtxP = corLdCoreContext();
+
+      MapSource* msP = &srcV[ownerV[it]];
+
+      if (msP->arrayP == NULL)
+        msP->arrayP = corTreeArray(corRest.kallocP, NULL);
+
+      for (CorNode* eP = treeP->value.head; eP != NULL; )
+      {
+        CorNode* nextP = eP->next;
+
+        eP->next = NULL;
+        corLdExpandTree(eP, respCtxP, &corRest.kalloc);
+        ldStripAtContext(eP);
+        apiAttrToStorageWrap(eP);
+        ldExpiresAtPropagate(eP, corRest.kallocP);   // § 4.5.5.2, as the retrieve of one did
+        corTreeChildAdd(msP->arrayP, eP);
+
+        eP = nextP;
+      }
+    }
+
+    for (int ix = 0; ix < srcN; ix++)
+    {
+      if (srcV[ix].arrayP != NULL)
+        srcV[ix].idHashP = idHashCreate(srcV[ix].arrayP);
+    }
+  }
+
+  *nP = srcN;
+  return srcV;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapSourcesUnpin - the registrations mapSourcesFetch pinned
+//
+static void mapSourcesUnpin(MapSource* srcV, int srcN)
+{
+  for (int ix = 0; (srcV != NULL) && (ix < srcN); ix++)
+  {
+    if (srcV[ix].csr != NULL)
+      ldRegCacheItemUnpin(srcV[ix].csr);
+    srcV[ix].csr = NULL;
+  }
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // entityMapServe - one page of an EntityMap: the slice [offset, offset + limit) of its frozen set
@@ -1585,6 +1843,13 @@ static bool entityMapServe(LdEntityMap* mapP)
     }
   }
 
+  //
+  // The slice's entities of each Context Source: one request per source (mapSourcesFetch). NULL: the
+  // map has no plain type list to ask with - one retrieve per entity, below.
+  //
+  int        mapSrcN = 0;
+  MapSource* mapSrcV = (sliceN > 0) ? mapSourcesFetch(sliceV, sliceN, ownAlias, &mapSrcN) : NULL;
+
   for (int sliceIx = 0; (sliceIx < sliceN) && (added < limit); sliceIx++)
   {
     entryP = sliceV[sliceIx];
@@ -1606,6 +1871,17 @@ static bool entityMapServe(LdEntityMap* mapP)
         // § 5.2.4: an Entity whose expiresAt has passed is gone (and deleted after the response)
         if ((partialP != NULL) && dbExpiredEntityIs(tP, partialP))
           partialP = NULL;
+      }
+      else if (mapSrcV != NULL)
+      {
+        for (int ix = 0; ix < mapSrcN; ix++)
+        {
+          if ((strcmp(mapSrcV[ix].regId, src) == 0) && (mapSrcV[ix].idHashP != NULL))
+          {
+            partialP = (CorNode*) corHashItemLookup(mapSrcV[ix].idHashP, entryP->entityId);
+            break;
+          }
+        }
       }
       else if (tP->regCacheP != NULL)
       {
@@ -1667,6 +1943,7 @@ static bool entityMapServe(LdEntityMap* mapP)
       {
         if (added == 0)
         {
+          mapSourcesUnpin(mapSrcV, mapSrcN);
           responseBudgetTooMany("the next entity of the EntityMap");
           return true;
         }
@@ -1685,6 +1962,8 @@ static bool entityMapServe(LdEntityMap* mapP)
 
     added++;
   }
+
+  mapSourcesUnpin(mapSrcV, mapSrcN);
 
   // Filters on the assembled entities — § 5.7.2.4.
   applyResultFilters(arrayP);
