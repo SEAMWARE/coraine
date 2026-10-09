@@ -47,11 +47,14 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   OOM-killed; a byte budget per query response (`doc/kubernetes.md`).
 - **`make tune`** — a broker built for your workload: the profile trained on it, the
   allocator and the lock policy measured on it.
-- **EntityMaps the broker creates itself** — a query whose answer is more than one page
-  freezes its set of matching entities and serves every page from it (TS 104-175 § 9.6):
-  consistent pages while the data changes, and correct paging of distributed queries. The
-  map is named in the `NGSILD-EntityMap` header, which a client may also send instead of
-  `?entityMap=<id>`.
+- **Paging that holds while the data changes** — a local query pages by position: its
+  `next`/`prev` links carry the query and the place of the page's last/first entity
+  (`pageAfter` / `pageBefore`), so deleted entities or entities that stop matching never make
+  a page skip or repeat one, and a deep page costs what the first does. A **distributed**
+  query freezes its set in an EntityMap the broker creates itself (TS 104-175 § 9.6) and
+  fetches each page with one request per Context Source. `entityMap=true` freezes a local set
+  on request. The map is named in the `NGSILD-EntityMap` header, which a client may also send
+  instead of `?entityMap=<id>`.
 
 ### Faster
 
@@ -61,6 +64,9 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **mongoc: a query by type** reads only the page it returns (an index on
   `{type, createdAt, _id}`): ×19.7 for a type that is 1 % of the store.
 - An NGSI-LD-aware JSON parser: the core terms are an enum, not strings.
+- **Deep pages**: a page at depth 1 000 by position instead of offset - ×3.3 on mongoc
+  (3 485 → 11 301 req/s), ×65 on corDB (243 → 15 958). A page served from an EntityMap is one
+  store call (one query on mongoc instead of one per entity).
 
 ### Changed behaviour
 
@@ -83,12 +89,14 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **Delete Entity** with an inclusive registration: a source answering 404 is not an error
   (204).
 - **mongoc** drops its old `type_1` index at startup (replaced by `{type, createdAt, _id}`).
-- **Paged queries**: a `GET /entities` with more matches than `limit` (and no `orderBy`) is
-  served from an automatic EntityMap. Its links carry `entityMap=<id>` with the original
-  query; an entity that stops matching is left out of its page (a page can be shorter than
-  `limit`); a request on a map with a different query is refused (400); an expired map is
-  recreated from the request. An automatic map answers 200 (201 only when the client asked
-  for one). `--entityMapMemory` (default 64 MiB; 0 = no automatic maps) bounds them.
+- **Paged queries**: a local query's `next`/`prev` links carry `pageAfter` / `pageBefore`
+  instead of `offset` (a client's own `offset` works as before). A distributed query with more
+  than one page is served from an automatic EntityMap: its links carry `entityMap=<id>` with
+  the original query, an entity that stops matching is left out of its page, a request on a map
+  with a different query is refused (400), an expired map is recreated from the request; an
+  automatic map answers 200 (201 only when the client asked for one).
+  `--autoEntityMaps none|distributed|all` (default `distributed`) and `--entityMapMemory`
+  (default 64 MiB) bound them.
 
 ### Fixed (a selection)
 
