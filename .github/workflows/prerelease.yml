@@ -58,6 +58,12 @@ defaults:
   run:
     shell: bash
 
+#
+# The ROS 2 image the DDS tests run, from the Docker Hub mirror (mirror-images.yml, doc/testing.md)
+#
+env:
+  COR_DDS_ROS2_IMAGE: quay.io/seamware/coraine-ci:mirror-vulcanexus-jazzy-desktop
+
 jobs:
   #
   # The sha every part tests, and the release before it (the upgrade check's starting point)
@@ -154,12 +160,12 @@ jobs:
         image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb-ha:pg16
+        image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
       context-server:
-        image: wistefan/context-server:0.2.0
+        image: quay.io/seamware/coraine-ci:mirror-context-server-0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports: ['7080:8080']
@@ -310,8 +316,8 @@ jobs:
 
       - name: MongoDB and TimescaleDB, and the previous release's image
         run: |
-          docker run -d --name mongo -p 27017:27017 mongo:8.0
-          docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust timescale/timescaledb-ha:pg16
+          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.0
+          docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
           docker pull "$FROM_IMAGE"
           for i in $(seq 1 60); do
             psql -h localhost -U postgres -c 'SELECT 1' >/dev/null 2>&1 && break
@@ -385,7 +391,7 @@ jobs:
       image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
     services:
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
         ports: ['27017:27017']
     env:
       COR_MONGO_HOST: mongo
