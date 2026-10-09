@@ -1,0 +1,168 @@
+#
+# FILE            service_registration_name_unique.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): a service name is unique within an entity. A Service
+# Registration (created, or PATCHed) whose serviceName another registration of the tenant already has, for
+# entities both could select, is refused - 409 AlreadyExists naming that registration. Could select, the
+# conservative way: the same type, and then the same id, an id the other's idPattern matches, two
+# idPatterns not provably disjoint (two anchored literal prefixes neither of which starts the other are
+# disjoint), or no id at all; q and scopeQ do not separate. Different types do. An entity of two types,
+# each with a registration of the name, still has the name twice: invoking it is a 409 naming both.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Registration - a service name is unique within an entity (409 on create, PATCH, invoke)
+
+--TAGS--
+service registration create update execution
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Entities urn:R1 (Robot), urn:M1 (Robot and Lamp), urn:D1 (Door); ping on every Robot (urn:SR1) - 201
+# 02. ping again: every Robot - 409; Robot urn:R1 (an id of the type) - 409; every Lamp (another type) - 201 (urn:SR2)
+# 03. echo on Doors ^urn:Door:A (urn:SR3) - 201; ^urn:Door: - 409; urn:Door:A7 - 409; urn:Gate:1 - 201 (urn:SR4);
+#     ^urn:Door:B - 201 (urn:SR5); A7$ (not anchored: it might) - 409 naming urn:SR3 (the first of SR3, SR5)
+# 04. open on Door urn:D1 (urn:SR6) - 201; the same id - 409; the same id with a q, with a scopeQ - 409 each;
+#     urn:D2 (urn:SR7) - 201; close on urn:D1 (another name) - 201 (urn:SR8)
+# 05. PATCH urn:SR7 to urn:D1 - 409 naming urn:SR6, urn:SR7 unchanged; PATCH urn:SR6 (its own entities again) - 204
+# 06. Invoke ping on urn:R1 - 200 (urn:SR1); on urn:M1 (a Robot and a Lamp: SR1 and SR2) - 409 naming both
+#
+
+reg() {
+  corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{${1:+\"id\":\"$1\",}\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",\"entities\":$3,$4\"serviceInformation\":{\"serviceName\":\"$2\"}}" | sed -n '1p;/"detail"/p'
+}
+
+echo "01. Entities urn:R1 (Robot), urn:M1 (Robot and Lamp), urn:D1 (Door); ping on every Robot (urn:SR1) - 201"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:M1","type":["Robot","Lamp"]}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:D1","type":"Door","scope":"/Madrid"}' | head -1
+reg urn:SR1 ping '[{"type":"Robot"}]'
+echo
+echo
+
+
+echo "02. ping again: every Robot - 409; Robot urn:R1 (an id of the type) - 409; every Lamp (another type) - 201 (urn:SR2)"
+echo "===================================================================================================================="
+reg "" ping '[{"type":"Robot"}]'
+reg "" ping '[{"type":"Robot","id":"urn:R1"}]'
+reg urn:SR2 ping '[{"type":"Lamp"}]'
+echo
+echo
+
+
+echo "03. echo on Doors ^urn:Door:A (urn:SR3) - 201; ^urn:Door: - 409; urn:Door:A7 - 409; urn:Gate:1 - 201 (urn:SR4); ^urn:Door:B - 201 (urn:SR5); A7$ - 409"
+echo "======================================================================================================================================================"
+reg urn:SR3 echo '[{"type":"Door","idPattern":"^urn:Door:A"}]'
+reg ""      echo '[{"type":"Door","idPattern":"^urn:Door:"}]'
+reg ""      echo '[{"type":"Door","id":"urn:Door:A7"}]'
+reg urn:SR4 echo '[{"type":"Door","id":"urn:Gate:1"}]'
+reg urn:SR5 echo '[{"type":"Door","idPattern":"^urn:Door:B"}]'
+reg ""      echo '[{"type":"Door","idPattern":"A7$"}]'
+echo
+echo
+
+
+echo "04. open on Door urn:D1 (urn:SR6) - 201; the same id - 409; with a q, with a scopeQ - 409 each; urn:D2 (urn:SR7) - 201; close on urn:D1 - 201 (urn:SR8)"
+echo "======================================================================================================================================================="
+reg urn:SR6 open  '[{"type":"Door","id":"urn:D1"}]'
+reg ""      open  '[{"type":"Door","id":"urn:D1"}]'
+reg ""      open  '[{"type":"Door","id":"urn:D1"}]' '"q":"locked==true",'
+reg ""      open  '[{"type":"Door","id":"urn:D1"}]' '"scopeQ":"/Barcelona",'
+reg urn:SR7 open  '[{"type":"Door","id":"urn:D2"}]'
+reg urn:SR8 close '[{"type":"Door","id":"urn:D1"}]'
+echo
+echo
+
+
+echo "05. PATCH urn:SR7 to urn:D1 - 409 naming urn:SR6, urn:SR7 unchanged; PATCH urn:SR6 (its own entities again) - 204"
+echo "================================================================================================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:SR7 -X PATCH --payload '{"entities":[{"type":"Door","id":"urn:D1"}]}' | sed -n '1p;/"detail"/p'
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:SR7 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['entities'], sort_keys=True))"
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:SR6 -X PATCH --payload '{"entities":[{"type":"Door","id":"urn:D1"}]}' | head -1
+echo
+echo
+
+
+echo "06. Invoke ping on urn:R1 - 200 (urn:SR1); on urn:M1 (a Robot and a Lamp: SR1 and SR2) - 409 naming both"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:R1/services/ping --payload '{}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:M1/services/ping --payload '{}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+--EXPECT--
+01. Entities urn:R1 (Robot), urn:M1 (Robot and Lamp), urn:D1 (Door); ping on every Robot (urn:SR1) - 201
+========================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. ping again: every Robot - 409; Robot urn:R1 (an id of the type) - 409; every Lamp (another type) - 201 (urn:SR2)
+====================================================================================================================
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR1' already offers the service 'ping' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR1' already offers the service 'ping' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 201 Created
+
+
+03. echo on Doors ^urn:Door:A (urn:SR3) - 201; ^urn:Door: - 409; urn:Door:A7 - 409; urn:Gate:1 - 201 (urn:SR4); ^urn:Door:B - 201 (urn:SR5); A7$ - 409
+======================================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR3' already offers the service 'echo' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR3' already offers the service 'echo' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR3' already offers the service 'echo' on entities this registration could select - a service name is unique within an entity",
+
+
+04. open on Door urn:D1 (urn:SR6) - 201; the same id - 409; with a q, with a scopeQ - 409 each; urn:D2 (urn:SR7) - 201; close on urn:D1 - 201 (urn:SR8)
+=======================================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR6' already offers the service 'open' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR6' already offers the service 'open' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR6' already offers the service 'open' on entities this registration could select - a service name is unique within an entity",
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+05. PATCH urn:SR7 to urn:D1 - 409 naming urn:SR6, urn:SR7 unchanged; PATCH urn:SR6 (its own entities again) - 204
+=================================================================================================================
+HTTP/1.1 409 Conflict
+  "detail": "Service Registration 'urn:SR6' already offers the service 'open' on entities this registration could select - a service name is unique within an entity",
+[{"id": "urn:D2", "type": "Door"}]
+HTTP/1.1 204 No Content
+
+
+06. Invoke ping on urn:R1 - 200 (urn:SR1); on urn:M1 (a Robot and a Lamp: SR1 and SR2) - 409 naming both
+========================================================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 409 Conflict
+  "detail": "the service 'ping' of entity 'urn:M1' is offered by 2 Service Registrations: 'urn:SR1', 'urn:SR2' - a service name is unique within an entity",
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

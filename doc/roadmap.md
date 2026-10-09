@@ -35,7 +35,17 @@ Recently built, and documented where it lives:
 -   **Temporal history in corDB** - `--troe corDB`: the whole temporal API on the history corDB keeps
     itself, on disk with the store - no PostgreSQL, no second plugin.
 -   **Service Execution** - "do this" in the API, not a write to an attribute: Service Descriptions,
-    executions, synchronous and asynchronous, combined (GR CIM-055).
+    executions, synchronous and asynchronous, combined (GR CIM-055). `scopeQ` - a subscription's scope
+    query, on the target entity's scope - selects the entities of a grouped execution (alone or with the
+    other selectors) and narrows the entities a Service Registration offers its service on. A grouped
+    execution refuses a member it does not know (400, naming it). A service name is unique within an
+    entity: a registration (created or PATCHed) whose `serviceName` another registration of the tenant
+    has, for entities both could select, is refused - 409 naming that registration. Two selectors are
+    taken as disjoint only when that is certain: different types, different ids, an id the other's
+    `idPattern` does not match, two anchored `idPattern`s with literal prefixes neither of which starts
+    the other; `q`, `geoQ` and `scopeQ` do not separate. An entity that still has a name twice (an
+    entity of two types, each with a registration of the name) answers an invocation of it with 409
+    naming the registrations.
 -   **Snapshots, on corDB too** - § 5.16 complete: writes and subscriptions on a Snapshot, on both
     stores.
 -   **The WebSocket transport** - subscriptions and notifications over a WebSocket.
@@ -70,10 +80,8 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **Service Execution, following GR CIM-055 as it settles** - the status names, `scopeQ` on the
-    entity's scope for registrations and grouped executions (a grouped execution ignores it today),
-    the query and discovery parameters, and a service name unique within an entity - enforced when a
-    registration is made, so a new registration can never make an invocation by name ambiguous.
+-   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
+    discovery parameters.
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Build GUI** - Qt/GTK application/webpage? to configure the build, incl cond.comp, pgo training, HW, etc => docker image

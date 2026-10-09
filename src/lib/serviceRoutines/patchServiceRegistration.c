@@ -17,12 +17,14 @@
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove
 #include "corNgsild/CorNgsild.h"                      // corNgsild
 #include "corNgsild/ldError.h"                        // ldError
+#include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corNgsild/LdProblem.h"                      // LD_ERROR_*
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
 #include "serviceExecution/seRegistrationCheck.h"     // seRegistrationCheck
+#include "serviceExecution/seRegistrationMatch.h"     // seRegistrationNameConflict
 #include "serviceRoutines/subscriptionQExpand.h"      // subscriptionQExpand
 #include "serviceRoutines/patchServiceRegistration.h" // Own interface
 
@@ -84,6 +86,18 @@ bool patchServiceRegistration(void)
 
   if (seRegistrationCheck(regP) == false)
     return true;
+
+  //
+  // A service name is unique within an entity: no other registration may offer it on an entity this one could select
+  //
+  const char* otherId = seRegistrationNameConflict(regP);
+
+  if (otherId != NULL)
+  {
+    ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists", "Service Registration '%s' already offers the service '%s' on entities this registration could select - a service name is unique within an entity",
+            otherId, corLdCompact(corNgsild.contextP, corTreeLookup(corTreeLookup(regP, "serviceInformation"), "serviceName")->value.s));
+    return true;
+  }
 
   ldSysTimestampModify(regP);
 

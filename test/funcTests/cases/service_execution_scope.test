@@ -1,0 +1,225 @@
+#
+# FILE            service_execution_scope.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): scopeQ - a filter on the target entity's scope, with the
+# syntax and the matching of a subscription's scopeQ. On a Grouped Service Execution it selects the
+# entities (alone, or with the other selectors); on a Service Registration it narrows the entities the
+# service is offered on (invocation and discovery). A Grouped Service Execution refuses a member it does
+# not know (400, naming it); a Service Registration refuses 'scope'.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - scopeQ on Grouped Service Executions and on Service Registrations
+
+--TAGS--
+service execution registration scope
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Lamps urn:L1 (/Madrid/Gardens), urn:L2 (/Madrid/Streets), urn:L3 (/Barcelona), urn:L4 (no scope); setLight on every Lamp (/echo)
+# 02. grouped, parallel: setLight on the Lamps with scopeQ /Madrid/# - L1 and L2 only
+# 03. grouped, scopeQ the only selector (/Barcelona) - L3 only
+# 04. grouped, entityType Lamp and scopeQ (/Madrid/Gardens;/Madrid/Streets) - AND: none - 404
+# 05. grouped refused, nothing created: 'input' - 400; 'foo' - 400; scopeQ "" - 400; scopeQ "(/Madrid" - 400
+# 06. A registration with scopeQ /Madrid/Gardens: blink on the Lamps (/echo) - 201; its scopeQ on GET
+# 07. Invoke blink on L1 - 200; on L2 - 404; on L4 (no scope) - 404
+# 08. Discovery: the services of L1 - blink and setLight; of L2 - setLight
+# 09. Registration refused: 'scope' - 400; scopeQ "" - 400; scopeQ "/A)" - 400
+#
+
+create() {
+  corCurl --url /ngsi-ld/v1/services --payload "$1" > /tmp/se.out
+  sed -n '1p;/"detail"/p' /tmp/se.out
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+show() {
+  for i in $(seq 1 50); do
+    s=$(corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+    [ "$s" == "$2" ] && break
+    sleep 0.1
+  done
+  corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+def p(e, d):
+    print('  ' * d + e['type'], e.get('combinationMethod', e.get('serviceName')), e.get('entityId', ''), e['executionStatus'])
+    for c in e.get('serviceExecutions', []):
+        p(c, d + 1)
+p(json.load(sys.stdin), 0)"
+}
+count() { corCurl --url /ngsi-ld/v1/services | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'executions')"; }
+names() { corCurl --url "/ngsi-ld/v1/serviceRegistrations?type=Lamp&id=$1" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print('$1:', sorted(r['serviceInformation']['serviceName'] for r in json.load(sys.stdin)))"; }
+
+echo "01. Lamps urn:L1 (/Madrid/Gardens), urn:L2 (/Madrid/Streets), urn:L3 (/Barcelona), urn:L4 (no scope); setLight on every Lamp (/echo)"
+echo "===================================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L1","type":"Lamp","scope":"/Madrid/Gardens"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L2","type":"Lamp","scope":"/Madrid/Streets"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L3","type":"Lamp","scope":"/Barcelona"}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L4","type":"Lamp"}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",\"entities\":[{\"type\":\"Lamp\"}],\"serviceInformation\":{\"serviceName\":\"setLight\",\"mode\":\"synchronous\"}}" | head -1
+echo
+echo
+
+
+echo "02. grouped, parallel: setLight on the Lamps with scopeQ /Madrid/# - L1 and L2 only"
+echo "==================================================================================="
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","entityType":"Lamp","scopeQ":"/Madrid/#","executionInput":{"brightness":7}}'
+G=$(lastId)
+show $G completed | sort
+corCurl --url /ngsi-ld/v1/services/$G | sed -n '/^{/,$p' | python3 -c "import json,sys; print('scopeQ:', json.load(sys.stdin).get('scopeQ'))"
+echo
+echo
+
+
+echo "03. grouped, scopeQ the only selector (/Barcelona) - L3 only"
+echo "============================================================"
+create '{"type":"GroupedServiceExecution","combinationMethod":"sequential","serviceName":"setLight","scopeQ":"/Barcelona"}'
+show $(lastId) completed | sort
+echo
+echo
+
+
+echo "04. grouped, entityType Lamp and scopeQ (/Madrid/Gardens;/Madrid/Streets) - AND: none - 404"
+echo "==========================================================================================="
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","entityType":"Lamp","scopeQ":"(/Madrid/Gardens;/Madrid/Streets)"}'
+echo
+echo
+
+
+echo "05. grouped refused, nothing created: 'input' - 400; 'foo' - 400; scopeQ \"\" - 400; scopeQ \"(/Madrid\" - 400"
+echo "=========================================================================================================="
+count
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","entityType":"Lamp","input":{"brightness":7}}'
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","entityType":"Lamp","foo":1}'
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","scopeQ":""}'
+create '{"type":"GroupedServiceExecution","combinationMethod":"parallel","serviceName":"setLight","scopeQ":"(/Madrid"}'
+count
+echo
+echo
+
+
+echo "06. A registration with scopeQ /Madrid/Gardens: blink on the Lamps (/echo) - 201; its scopeQ on GET"
+echo "==================================================================================================="
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"id\":\"urn:SR-blink\",\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",\"entities\":[{\"type\":\"Lamp\"}],\"scopeQ\":\"/Madrid/Gardens\",\"serviceInformation\":{\"serviceName\":\"blink\",\"mode\":\"synchronous\"}}" | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:SR-blink | sed -n '/^{/,$p' | python3 -c "import json,sys; print('scopeQ:', json.load(sys.stdin).get('scopeQ'))"
+echo
+echo
+
+
+echo "07. Invoke blink on L1 - 200; on L2 - 404; on L4 (no scope) - 404"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:L1/services/blink --payload '{}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:L2/services/blink --payload '{}' | sed -n '1p;/"detail"/p'
+corCurl --url /ngsi-ld/v1/entities/urn:L4/services/blink --payload '{}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+echo "08. Discovery: the services of L1 - blink and setLight; of L2 - setLight"
+echo "========================================================================"
+names urn:L1
+names urn:L2
+echo
+echo
+
+
+echo "09. Registration refused: 'scope' - 400; scopeQ \"\" - 400; scopeQ \"/A)\" - 400"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Door"}],"scope":"/Madrid","serviceInformation":{"serviceName":"open"}}' | sed -n '1p;/"detail"/p'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Door"}],"scopeQ":"","serviceInformation":{"serviceName":"open"}}' | sed -n '1p;/"detail"/p'
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"http://x","entities":[{"type":"Door"}],"scopeQ":"/A)","serviceInformation":{"serviceName":"open"}}' | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+--EXPECT--
+01. Lamps urn:L1 (/Madrid/Gardens), urn:L2 (/Madrid/Streets), urn:L3 (/Barcelona), urn:L4 (no scope); setLight on every Lamp (/echo)
+====================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. grouped, parallel: setLight on the Lamps with scopeQ /Madrid/# - L1 and L2 only
+===================================================================================
+HTTP/1.1 201 Created
+  ServiceExecution setLight urn:L1 completed
+  ServiceExecution setLight urn:L2 completed
+GroupedServiceExecution parallel  completed
+scopeQ: /Madrid/#
+
+
+03. grouped, scopeQ the only selector (/Barcelona) - L3 only
+============================================================
+HTTP/1.1 201 Created
+  ServiceExecution setLight urn:L3 completed
+GroupedServiceExecution sequential  completed
+
+
+04. grouped, entityType Lamp and scopeQ (/Madrid/Gardens;/Madrid/Streets) - AND: none - 404
+===========================================================================================
+HTTP/1.1 404 Not Found
+  "detail": "no entity of the selection offers the service 'setLight'",
+
+
+05. grouped refused, nothing created: 'input' - 400; 'foo' - 400; scopeQ "" - 400; scopeQ "(/Madrid" - 400
+==========================================================================================================
+5 executions
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of a Grouped Service Execution - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a Grouped Service Execution",
+HTTP/1.1 400 Bad Request
+  "detail": "'scopeQ' is a non-empty string: a scope query",
+HTTP/1.1 400 Bad Request
+  "detail": "unbalanced parenthesis in scopeQ expression",
+5 executions
+
+
+06. A registration with scopeQ /Madrid/Gardens: blink on the Lamps (/echo) - 201; its scopeQ on GET
+===================================================================================================
+HTTP/1.1 201 Created
+scopeQ: /Madrid/Gardens
+
+
+07. Invoke blink on L1 - 200; on L2 - 404; on L4 (no scope) - 404
+=================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
+  "detail": "entity 'urn:L2' has no service 'blink'",
+HTTP/1.1 404 Not Found
+  "detail": "entity 'urn:L4' has no service 'blink'",
+
+
+08. Discovery: the services of L1 - blink and setLight; of L2 - setLight
+========================================================================
+urn:L1: ['blink', 'setLight']
+urn:L2: ['setLight']
+
+
+09. Registration refused: 'scope' - 400; scopeQ "" - 400; scopeQ "/A)" - 400
+============================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'scope' is not a member of a Service Registration - 'scopeQ' selects the entities by their scope",
+HTTP/1.1 400 Bad Request
+  "detail": "'scopeQ' must be a non-empty string: a scope query",
+HTTP/1.1 400 Bad Request
+  "detail": "unbalanced parenthesis in scopeQ expression",
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop

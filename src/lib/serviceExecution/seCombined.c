@@ -28,6 +28,9 @@
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampCreate, ldSysTimestampToIso
 #include "corNgsild/ldQParse.h"                       // ldQParse
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchScope
+#include "corJsonld/corLdExpand.h"                    // corLdExpand
 
 #include "db/DbDriver.h"                              // db, DB_*
 #include "db/DbQueryFilter.h"                         // DbQueryFilter
@@ -157,6 +160,8 @@ static CorNode* buildRefused(int status, const char* why)
 {
   if (status == 404)
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+  else if (status == 409)
+    ldError(409, LD_ERROR_CONFLICT, "Conflict", "%s", why);
   else
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
 
@@ -370,7 +375,52 @@ static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overri
 
 // -----------------------------------------------------------------------------
 //
+// groupedMemberV - the members of a GroupedServiceExecution; any other is refused (400)
+//
+static const char* groupedMemberV[] =
+{
+  "type", "id", "combinationMethod", "serviceName", "entityType", "idPattern", "q", "geoQ", "scopeQ", "executionInput", "notification", NULL
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// groupedMembersCheck - every member known; false: a 400 naming the first that is not
+//
+static bool groupedMembersCheck(CorNode* bodyP)
+{
+  for (CorNode* mP = bodyP->value.head; mP != NULL; mP = mP->next)
+  {
+    bool known = false;
+
+    for (int ix = 0; (groupedMemberV[ix] != NULL) && (known == false); ix++)
+      known = (strcmp(mP->name, groupedMemberV[ix]) == 0);
+
+    if (known == true)
+      continue;
+
+    const char* name = corLdCompact(corNgsild.contextP, mP->name);
+
+    if (strcmp(name, "input") == 0)
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'input' is not a member of a Grouped Service Execution - the service's input is 'executionInput'");
+    else
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'%s' is not a member of a Grouped Service Execution", name);
+
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // buildGrouped - a GroupedServiceExecution: the service on every matching entity that offers it
+//
+// The selection: entityType, idPattern, q, geoQ and scopeQ (on the entity's scope, as a subscription's
+// scopeQ) - any one of them, or several (all must hold).
 //
 static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 {
@@ -380,7 +430,11 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
   const char* idPattern   = str(bodyP, "idPattern");
   const char* q           = str(bodyP, "q");
   CorNode*    geoQP       = corTreeLookup(bodyP, "geoQ");
+  CorNode*    scopeQP     = corTreeLookup(bodyP, "scopeQ");
   CorNode*    inputP      = corTreeLookup(bodyP, "executionInput");
+
+  if (groupedMembersCheck(bodyP) == false)
+    return NULL;
 
   if (methodOk(methodP) == false)
     return NULL;
@@ -391,9 +445,15 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
     return NULL;
   }
 
-  if ((entityType == NULL) && (idPattern == NULL) && (q == NULL) && (geoQP == NULL))
+  if ((entityType == NULL) && (idPattern == NULL) && (q == NULL) && (geoQP == NULL) && (scopeQP == NULL))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Grouped Service Execution selects its entities: entityType, idPattern, q or geoQ");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "a Grouped Service Execution selects its entities: entityType, idPattern, q, geoQ or scopeQ");
+    return NULL;
+  }
+
+  if ((inputP != NULL) && (inputP->type != CorObject))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'executionInput' is a JSON object");
     return NULL;
   }
 
@@ -439,7 +499,24 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
       corJsonFastRender(coordsP, filter.coordinates);
     }
 
-    filter.geoproperty = (char*) "location";
+    const char* geoproperty = (str(geoQP, "geoproperty") != NULL) ? str(geoQP, "geoproperty") : "location";
+
+    filter.geoproperty = (char*) corLdExpand(corNgsild.contextP, geoproperty, &corRest.kalloc, NULL, NULL);
+  }
+
+  //
+  // scopeQ - given to the query (a database that filters on it does), and checked on every entity it returns
+  //
+  if (scopeQP != NULL)
+  {
+    if ((scopeQP->type != CorString) || (scopeQP->value.s[0] == 0))
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'scopeQ' is a non-empty string: a scope query");
+      return NULL;
+    }
+
+    if ((filter.scopeExpr = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc)) == NULL)
+      return NULL;                                    // ldScopeExprParse has raised the 400
   }
 
   CorNode* entitiesP = NULL;
@@ -458,7 +535,7 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
   //
   // The selection, as given (the report's Retrieve shows it)
   //
-  const char* kept[] = { "serviceName", "entityType", "idPattern", "q", "geoQ", "executionInput", NULL };
+  const char* kept[] = { "serviceName", "entityType", "idPattern", "q", "geoQ", "scopeQ", "executionInput", NULL };
 
   for (int ix = 0; kept[ix] != NULL; ix++)
   {
@@ -476,6 +553,9 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 
     if (entityId == NULL)
       continue;
+
+    if ((filter.scopeExpr != NULL) && (ldEntityMatchScope(corTreeLookup(eP, "scope"), filter.scopeExpr) == false))
+      continue;                                       // out of the scope: not one of the group
 
     CorNode* childP = seExecutionBuild(entityId, serviceName, inputP, NULL, &status, why, sizeof(why));
 
