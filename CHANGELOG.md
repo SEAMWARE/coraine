@@ -45,6 +45,11 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   OOM-killed; a byte budget per query response (`doc/kubernetes.md`).
 - **`make tune`** — a broker built for your workload: the profile trained on it, the
   allocator and the lock policy measured on it.
+- **EntityMaps the broker creates itself** — a query whose answer is more than one page
+  freezes its set of matching entities and serves every page from it (TS 104-175 § 9.6):
+  consistent pages while the data changes, and correct paging of distributed queries. The
+  map is named in the `NGSILD-EntityMap` header, which a client may also send instead of
+  `?entityMap=<id>`.
 
 ### Faster
 
@@ -74,6 +79,12 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **Delete Entity** with an inclusive registration: a source answering 404 is not an error
   (204).
 - **mongoc** drops its old `type_1` index at startup (replaced by `{type, createdAt, _id}`).
+- **Paged queries**: a `GET /entities` with more matches than `limit` (and no `orderBy`) is
+  served from an automatic EntityMap. Its links carry `entityMap=<id>` with the original
+  query; an entity that stops matching is left out of its page (a page can be shorter than
+  `limit`); a request on a map with a different query is refused (400); an expired map is
+  recreated from the request. An automatic map answers 200 (201 only when the client asked
+  for one). `--entityMapMemory` (default 64 MiB; 0 = no automatic maps) bounds them.
 
 ### Fixed (a selection)
 
@@ -82,6 +93,9 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - A request arriving in the first milliseconds after start ran outside the worker pool.
 - `make release` linked debug foundation libraries; every release build now checks it
   carries no debug code.
+- A `>` in a query (`q=speed>20`) broke the pagination `Link` header; link values are now
+  percent-encoded.
+- `?entityMap=true` copied itself into the `next` link, creating a new map on every page.
 
 ## 0.4.0 — 2026-08-28
 
