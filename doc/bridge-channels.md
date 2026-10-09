@@ -33,6 +33,11 @@ battery level that polling would drain) stays a registration.
 coraine --bridges mqtt --bridgeConfig /etc/coraine/bridges.json
 ```
 
+Without `--bridgeConfig` the broker reads `/opt/seamware/etc/bridges.json` if that file exists
+(`$SEAMWARE_ETC_DIR/bridges.json` when that variable is set). If it does not exist, the broker
+creates no Channels from a file. Each bridge's `init()` is given the file the Channels came from,
+whether named or found by default.
+
 `--bridgeConfig` is one JSON file: per plugin, the transport's own settings and
 an `ngsild` section mapping endpoints to `(entityId, entityType, attribute)`.
 For DDS it is the Orion-LD configuration file, unchanged - `dds.ddsmodule`
