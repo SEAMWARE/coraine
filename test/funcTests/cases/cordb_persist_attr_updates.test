@@ -41,7 +41,8 @@ coraineStart --dbDir /tmp/corTest-cordb_persist_attr_updates
 #
 
 DIR=/tmp/corTest-cordb_persist_attr_updates
-both() { corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs' | sed -n '/^{/,$p'; corCurl --url '/ngsi-ld/v1/entities/urn:E2?options=sysAttrs' | sed -n '/^{/,$p'; }
+# the bodies, and a request that failed - corCurl's own line, which the body filter alone would drop
+both() { corCurl --url '/ngsi-ld/v1/entities/urn:E1?options=sysAttrs' | sed -n '/^corCurl:/p; /^{/,$p'; corCurl --url '/ngsi-ld/v1/entities/urn:E2?options=sysAttrs' | sed -n '/^corCurl:/p; /^{/,$p'; }
 
 echo "01. Create E1 (a with a dataset instance, b, c, d) and E2"
 echo "=========================================================="
