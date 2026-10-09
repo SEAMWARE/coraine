@@ -76,7 +76,7 @@ ap.add_argument('--broker', default='coraine')
 ap.add_argument('--work', default='/tmp/soak')
 ap.add_argument('--maxEntities', type=int, default=500, help='live entities per worker at most')
 ap.add_argument('--rssMaxGrowthPct', type=float, default=25)
-ap.add_argument('--rssMaxGrowthMiB', type=float, default=48)
+ap.add_argument('--rssMaxGrowthMiB', type=float, default=16)
 ap.add_argument('--sampleSeconds', type=float, default=30)
 args = ap.parse_args()
 
