@@ -125,6 +125,15 @@ beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
 
+### CKAN as a cor-agent plugin
+
+CKAN is the data portal behind many city and government open-data sites; FIWARE already has a CKAN
+agent. As a plugin on the bridge contract it reads a dataset through CKAN's API and writes its rows as
+NGSI-LD entities: a column holding a place becomes the `location` GeoProperty, a column naming
+another row becomes a Relationship. The column-to-attribute mapping is made in c³ Configure, beside
+DDS and OPC UA. It gives real data to play with - for c³ Connect, the graph and the map, and for
+demos.
+
 ### A smaller DDS stack for the DDS bridge
 
 The DDS bridge runs on a full DDS stack, the largest part of a coraine installation (about five times
@@ -244,8 +253,9 @@ One application for everything around a broker, in three parts:
 - **Configure** - the mapping tools: DDS topics, services and actions to NGSI-LD entities and
   attributes (the mapping file the DDS bridge reads), and the same for OPC UA variables, monitored
   items and methods.
-- **Connect** - a live connection to a running broker: its entities, their relationships drawn as a
-  graph, their values as they change.
+- **Connect** - a live connection to a running broker: its entities as boxes and their
+  Relationships as arrows between them - zoom, move the view, drag entities into place - the
+  entities with a GeoProperty on a map, and their values as they change.
 
 **A web application**, not a native one: the build often runs on a server without a screen, reached
 from a laptop, a Mac or a tablet; the best graph libraries are web libraries; and the broker already
