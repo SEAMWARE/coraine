@@ -144,22 +144,30 @@ network, no cloud):
 - **Switching** - a write to a light's entity (on, brightness, colour, a scene) becomes the bridge
   call that does it.
 
-### CKAN and CSV as cor-agent plugins
+### A CKAN bridge and a CSV bridge
 
-CKAN is the data portal behind many city and government open-data sites. FIWARE has no agent that
-ingests from CKAN or from CSV files: its IoT Agents are device protocols, and its CKAN extensions go
-the other way - they publish and show a broker's data in CKAN. As plugins on the bridge contract:
+CKAN is the data portal behind many city and government open-data sites. FIWARE reads nothing from
+it: its CKAN components (the Cygnus and Draco CKAN sinks, `ckanext-harvest-ngsild`) all go the other
+way and store a broker's data in CKAN. Reading from CKAN is new.
 
-- **CKAN** reads a dataset through CKAN's API (`datastore_search`, rows as JSON) and ingests its rows
-  as NGSI-LD entities.
-- **CSV** does the same for a CSV file - a local one, one at a URL, or a CKAN dataset whose data is
-  an uploaded CSV file rather than a DataStore table.
+Both are **bridges** on the Bridge/Channel seam, like DDS, MQTT and Modbus - the bridge knows nothing
+about entities; it speaks `(endpoint, json, time)`:
 
-In both, a column holding a place becomes the `location` GeoProperty, and a column naming another row
-becomes a Relationship. The column-to-attribute mapping is made in c³ Configure, beside DDS and OPC
-UA. As a demo in c³: a dropdown of datasets from a portal, a preview of the first rows, the mapping,
-then the ingest - and the entities are on the map and in the graph in Connect. It gives real data to
-play with.
+- **CKAN** - the endpoint is a dataset's resource; each row read through CKAN's API
+  (`datastore_search`, rows as JSON) is one message, timed by a column of the row or by when it was
+  read. CKAN pushes nothing, so the bridge reads the whole resource once and then polls for what
+  changed.
+- **CSV** - the same for a CSV file: a local one, one at a URL, or a CKAN dataset whose data is an
+  uploaded CSV file rather than a DataStore table.
+
+The **Channel** does the NGSI-LD side, as for every bridge: which column is the entity id, a column
+holding a place becomes the `location` GeoProperty, a column naming another row becomes a
+Relationship - made in c³ Configure, beside DDS and OPC UA. The other direction comes with the seam:
+a Channel the other way stores a broker's entities in CKAN - what the Cygnus and Draco sinks do today,
+without a separate process.
+
+As a demo in c³: a dropdown of datasets from a portal, a preview of the first rows, the mapping, then
+the ingest - and the entities are on the map and in the graph in Connect. Real data to play with.
 
 ### A smaller DDS stack for the DDS bridge
 
