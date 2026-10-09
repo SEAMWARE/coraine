@@ -312,6 +312,16 @@ speaks HTTP and WebSocket. A small backend in C on the build machine serves the 
 Compile and Configure need (`coraine-build`, the mapping files). Connect can also come with the
 broker itself, as an API plugin serving the page: connecting to a broker is then opening its URL.
 
+**Starting it** - one command, `c3`: it starts the backend on a local port and opens the
+application. With Chrome or Chromium installed it opens as an application window of its own
+(`--app=<url>`, no tabs or address bar), full-screen (`--start-fullscreen`); otherwise a tab in the
+default browser (`xdg-open`, `open` on macOS). A page cannot make itself full-screen without a click
+(the browser's rule), so full-screen is the launcher's job. On a machine without a screen, `c3`
+prints the URL to open from a laptop (through `ssh -L` when the port is not reachable). The first
+thing shown is a **splash screen** while the backend gets ready - each step as it really completes
+(the `coraine-dev` version, `coraine-build --list-features`, the brokers and bridges found), not a
+timer - then Compile.
+
 **Connect over the WebSocket transport** ([WebSocket](websocket.md)): the initial state by queries,
 then a subscription on the same socket and the notifications it pushes - no polling. A browser cannot
 set HTTP headers on a WebSocket, which the transport already allows for: every message carries its
