@@ -154,6 +154,21 @@ include_directories(${PROJECT_SOURCE_DIR}/src/lib)
 include_directories(${PROJECT_SOURCE_DIR}/src/app/coraine)
 include_directories(${PROJECT_SOURCE_DIR}/src/plugins)
 
+#
+# The DB / TRoE plugin interface stamp (tools/dbAbiStamp.sh; doc/plugin-architecture.md, "The DB plugin
+# interface stamp"): a hash of the headers the broker and its DB / TRoE plugins share structs through.
+# Generated into the build tree on EVERY build - a header edit needs no reconfigure - and rewritten only
+# when it changed, so only what includes it recompiles. The broker's pluginLoader.c (coraineDbAbi) and
+# every DB / TRoE plugin's shared/dbPluginAbi.c (dbPluginAbi) include it; their targets depend on this one.
+#
+set(COR_GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
+include_directories(${COR_GENERATED_DIR})
+add_custom_target(dbAbiStamp
+  COMMAND ${CMAKE_COMMAND} -E env COR_LIBS=${COR_LIBS_DIR} ${PROJECT_SOURCE_DIR}/tools/dbAbiStamp.sh --header ${COR_GENERATED_DIR}/dbAbiStamp.h
+  BYPRODUCTS ${COR_GENERATED_DIR}/dbAbiStamp.h
+  VERBATIM
+)
+
 set(COR_STATIC_LIBS
   ${COR_LIBS_DIR}/corRest/libcorRest.a
   ${COR_LIBS_DIR}/corNgsild/libcorNgsild.a

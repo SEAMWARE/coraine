@@ -1,0 +1,213 @@
+#
+# FILE            db_plugin_abi.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The DB plugin interface stamp (doc/plugin-architecture.md): a DB or TRoE plugin built against other
+# headers than its broker reads and writes the broker's structs at the wrong offsets - a corDB.so built
+# after DbQueryFilter grew four seek fields, loaded by a broker built before, answered queries with 0
+# entities at random and crashed in corDbIndexLookup. So the two refuse each other:
+#
+#   - the broker refuses a plugin whose dbPluginAbi is missing or differs from its own coraineDbAbi,
+#     before it calls the plugin's register function
+#   - the plugin's register function refuses a broker whose coraineDbAbi is missing (a broker older than
+#     the check) or differs, and exits
+#
+# The broker side with two small plugins built here: one with no stamp, one exporting "xxxx". The plugin
+# side with the plugins as installed: corDB.so in a copy of this broker whose coraineDbAbi is renamed in
+# its dynamic symbol table (a broker without the symbol, as every broker before the check), and none.so
+# - its check is the same shared/dbPluginAbi.c as every DB / TRoE plugin's - in a small host program,
+# once without coraineDbAbi and once exporting "xxxx".
+#
+--NAME--
+DB plugin interface stamp: a broker and a DB / TRoE plugin built against different headers refuse each other
+
+--TAGS--
+plugins cli corDB troe
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_dbPluginAbi
+rm -rf $D
+mkdir -p $D
+
+#
+# run <broker> <args> - the broker started in the foreground for at most 3 s: its exit code (124 = still
+# running when the timeout ended it - it started) and the refusal it gave, if any - the plugin directory
+# as <plugins>, the stamps as they are
+#
+run() {
+  local broker="$1"
+  shift
+  timeout 3 "$broker" -fg --port $((CB_PORT + 3200)) "$@" > $D/out 2>&1
+  echo "exit: $?"
+  grep -E "does not match this broker|refuses the broker|interface stamp|rebuild the plugin" $D/out | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+}
+
+
+echo "01. The plugins as installed carry the broker's stamp - each one loads"
+echo "======================================================================"
+echo -n "corDB.so, none.so - ";           run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+echo -n "ramDB.so, troe/ramDB.so - ";    run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/ramDB.so --troe $COR_PLUGIN_DIR/troe/temporal/ramDB.so
+echo -n "corDB.so, --troe corDB - ";     run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe corDB
+echo -n "mongoc.so, none.so - ";          run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/mongoc.so --dbHost $COR_MONGO_HOST --dbPort $COR_MONGO_PORT --dbName corTest_dbPluginAbi --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+#
+# timescale: refused or not is decided at the load, before it connects - its connection is no part of this
+#
+run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $COR_PLUGIN_DIR/troe/temporal/timescale.so --troeHost 127.0.0.1 --troePort 1 > /dev/null
+echo "timescale.so - refusals: $(grep -c 'interface stamp' $D/out)"
+echo
+echo
+
+
+echo "02. A DB plugin without dbPluginAbi - built before the check - is refused, exit 1"
+echo "================================================================================="
+cat > $D/noStamp.c << 'EOF'
+void dbRegister(void* driverP) { (void) driverP; }
+void troeRegister(void* driverP) { (void) driverP; }
+EOF
+gcc -shared -fPIC -o $D/noStamp.so $D/noStamp.c
+run $COR_BROKER --database $D/noStamp.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+echo
+echo
+
+
+echo "03. A DB plugin with another stamp is refused, exit 1"
+echo "====================================================="
+cat > $D/otherStamp.c << 'EOF'
+const char dbPluginAbi[] = "xxxx";
+void dbRegister(void* driverP) { (void) driverP; }
+void troeRegister(void* driverP) { (void) driverP; }
+EOF
+gcc -shared -fPIC -o $D/otherStamp.so $D/otherStamp.c
+run $COR_BROKER --database $D/otherStamp.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+echo
+echo
+
+
+echo "04. A TRoE plugin likewise - without a stamp, and with another, exit 1"
+echo "======================================================================"
+run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $D/noStamp.so
+run $COR_BROKER --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $D/otherStamp.so
+echo
+echo
+
+
+echo "05. corDB.so refuses a broker without coraineDbAbi - a broker older than the check - exit 1"
+echo "=========================================================================================="
+#
+# The same length, so nothing in the binary moves: the dynamic linker no longer finds 'coraineDbAbi'
+#
+sed 's/coraineDbAbi/coraineDbAbX/g' "$(command -v $COR_BROKER)" > $D/coraine
+chmod +x $D/coraine
+run $D/coraine --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+echo
+echo
+
+
+echo "06. A TRoE plugin (none.so) refuses a host without coraineDbAbi, and one exporting another, exit 1"
+echo "================================================================================================="
+cat > $D/host.c << 'EOF'
+#include <dlfcn.h>
+#include <stdio.h>
+#ifdef STAMP
+const char coraineDbAbi[] = STAMP;
+#endif
+int main(int argC, char* argV[])
+{
+  char  driver[4096] = { 0 };
+  void* handle       = dlopen(argV[1], RTLD_NOW);
+  void (*registerF)(void*) = (handle != NULL) ? (void (*)(void*)) dlsym(handle, "troeRegister") : NULL;
+
+  if (registerF == NULL)
+  {
+    printf("%s\n", dlerror());
+    return 2;
+  }
+  registerF(driver);
+  printf("registered\n");
+  return 0;
+}
+EOF
+gcc -o $D/hostNoStamp $D/host.c -ldl
+gcc -rdynamic -DSTAMP='"xxxx"' -o $D/hostOtherStamp $D/host.c -ldl
+$D/hostNoStamp    $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+echo "exit: ${PIPESTATUS[0]}"
+$D/hostOtherStamp $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+echo "exit: ${PIPESTATUS[0]}"
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_dbPluginAbi
+
+--EXPECT--
+01. The plugins as installed carry the broker's stamp - each one loads
+======================================================================
+corDB.so, none.so - exit: 124
+ramDB.so, troe/ramDB.so - exit: 124
+corDB.so, --troe corDB - exit: 124
+mongoc.so, none.so - exit: 124
+timescale.so - refusals: 0
+
+
+02. A DB plugin without dbPluginAbi - built before the check - is refused, exit 1
+=================================================================================
+exit: 1
+DB plugin '/tmp/corTest_dbPluginAbi/noStamp.so' does not match this broker: it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: none - built before the check
+  broker's interface stamp: REGEX([0-9a-f]{16})
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+
+
+03. A DB plugin with another stamp is refused, exit 1
+=====================================================
+exit: 1
+DB plugin '/tmp/corTest_dbPluginAbi/otherStamp.so' does not match this broker: it was built against another DB plugin interface; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: xxxx
+  broker's interface stamp: REGEX([0-9a-f]{16})
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+
+
+04. A TRoE plugin likewise - without a stamp, and with another, exit 1
+======================================================================
+exit: 1
+TRoE plugin '/tmp/corTest_dbPluginAbi/noStamp.so' does not match this broker: it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: none - built before the check
+  broker's interface stamp: REGEX([0-9a-f]{16})
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+exit: 1
+TRoE plugin '/tmp/corTest_dbPluginAbi/otherStamp.so' does not match this broker: it was built against another DB plugin interface; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: xxxx
+  broker's interface stamp: REGEX([0-9a-f]{16})
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+
+
+05. corDB.so refuses a broker without coraineDbAbi - a broker older than the check - exit 1
+==========================================================================================
+exit: 1
+DB plugin '<plugins>/db/currentState/corDB.so' refuses the broker '/tmp/corTest_dbPluginAbi/coraine': the broker is older than the plugin - it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: REGEX([0-9a-f]{16})
+  broker's interface stamp: none - built before the check
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+
+
+06. A TRoE plugin (none.so) refuses a host without coraineDbAbi, and one exporting another, exit 1
+=================================================================================================
+TRoE plugin '<plugins>/troe/temporal/none.so' refuses the broker '/tmp/corTest_dbPluginAbi/hostNoStamp': the broker is older than the plugin - it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: REGEX([0-9a-f]{16})
+  broker's interface stamp: none - built before the check
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+exit: 1
+TRoE plugin '<plugins>/troe/temporal/none.so' refuses the broker '/tmp/corTest_dbPluginAbi/hostOtherStamp': the broker was built against another DB plugin interface; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: REGEX([0-9a-f]{16})
+  broker's interface stamp: xxxx
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+exit: 1
+
+

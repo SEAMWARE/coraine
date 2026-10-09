@@ -21,6 +21,7 @@
 #include "temporal/timescale/timescaleHistoryWrite.h"     // timescaleEntityTemporalDelete, etc.
 #if COR_FEATURE_HEALTH
 #include "temporal/timescale/timescalePool.h"             // timescalePing
+#include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 #endif
 
 
@@ -31,6 +32,8 @@
 //
 void troeRegister(TroeDriver* driverP)
 {
+  dbPluginAbiBrokerCheck("TRoE");                     // exits on a broker built against another interface
+
   driverP->alias        = "timescale";
   driverP->version      = PLUGIN_VERSION;
   driverP->args         = timescaleArgV;
