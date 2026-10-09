@@ -33,6 +33,14 @@
 ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-09-22-f5a4eb4
 
 #
+# The Ubuntu every stage but the DDS one is FROM. Upstream's name here, for a build anywhere; CI's
+# image builds (deploy.yml, release.yml, the nightly) pass the same image from the Docker Hub mirror,
+# quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 - same digest, no anonymous Docker Hub pull
+# (.github/workflows/mirror-images.yml).
+#
+ARG BASE_IMAGE=ubuntu:26.04
+
+#
 # DDS=off - an image without the DDS bridge: the stack's stage below is then empty, nothing is taken
 # from the CI image (which is amd64 only), and the bridge is not built (COR_BRIDGE_DDS=auto finds no
 # headers). The arm64 image is built so.
@@ -53,7 +61,7 @@ ARG DDS=on
 # --------------------------------------------------------------------------- #
 FROM ${CI_IMAGE} AS ddsstack-on
 
-FROM ubuntu:26.04 AS ddsstack-off
+FROM ${BASE_IMAGE} AS ddsstack-off
 RUN mkdir -p /opt/dds/lib /opt/dds/include
 
 FROM ddsstack-${DDS} AS ddsstack
@@ -61,7 +69,7 @@ FROM ddsstack-${DDS} AS ddsstack
 # --------------------------------------------------------------------------- #
 # Stage 1 — builder
 # --------------------------------------------------------------------------- #
-FROM ubuntu:26.04 AS builder
+FROM ${BASE_IMAGE} AS builder
 
 # Both of these are source-built on the dev box, so the image matches it rather
 # than taking whatever apt has (apt's libmicrohttpd is a release behind, and
@@ -200,7 +208,7 @@ RUN set -eux; \
 # --------------------------------------------------------------------------- #
 # Stage 2 — runtime
 # --------------------------------------------------------------------------- #
-FROM ubuntu:26.04
+FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="coraine" \
       org.opencontainers.image.description="NGSI-LD Context Broker — ETSI GS CIM 009 v1.9.1" \

@@ -50,6 +50,14 @@ defaults:
   run:
     shell: bash
 
+#
+# The ROS 2 image the DDS tests run (test/funcTests/corTestFunctions.sh; upstream's name by default,
+# for a workstation): here the Docker Hub mirror (mirror-images.yml). A test job that has docker but
+# not this image skips those tests, as before.
+#
+env:
+  COR_DDS_ROS2_IMAGE: quay.io/seamware/coraine-ci:mirror-vulcanexus-jazzy-desktop
+
 jobs:
   #
   # Does this change need the suite at all? A README edit does not, and running
@@ -264,7 +272,7 @@ jobs:
       # timescaledb image has neither, and every broker start dies on it.
       #
       timescale:
-        image: timescale/timescaledb-ha:pg16
+        image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
@@ -276,7 +284,7 @@ jobs:
       # a container job, so it is a service here.
       #
       context-server:
-        image: wistefan/context-server:0.2.0
+        image: quay.io/seamware/coraine-ci:mirror-context-server-0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports:

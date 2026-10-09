@@ -49,6 +49,14 @@ defaults:
   run:
     shell: bash
 
+#
+# The ROS 2 image the DDS tests run (test/funcTests/corTestFunctions.sh; upstream's name by default,
+# for a workstation): here the Docker Hub mirror (mirror-images.yml). A test job that has docker but
+# not this image skips those tests, as before.
+#
+env:
+  COR_DDS_ROS2_IMAGE: quay.io/seamware/coraine-ci:mirror-vulcanexus-jazzy-desktop
+
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -100,12 +108,12 @@ jobs:
         image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb-ha:pg16
+        image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
       context-server:
-        image: wistefan/context-server:0.2.0
+        image: quay.io/seamware/coraine-ci:mirror-context-server-0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports: ['7080:8080']
@@ -355,12 +363,12 @@ jobs:
         image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb-ha:pg16
+        image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
       context-server:
-        image: wistefan/context-server:0.2.0
+        image: quay.io/seamware/coraine-ci:mirror-context-server-0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports: ['7080:8080']
@@ -475,15 +483,15 @@ jobs:
       # a change stream, and an oplog would only be overhead.
       #
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
         ports: ['27017:27017']
       timescale:
-        image: timescale/timescaledb-ha:pg16
+        image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
       context-server:
-        image: wistefan/context-server:0.2.0
+        image: quay.io/seamware/coraine-ci:mirror-context-server-0.2.0
         env:
           MEMORY_ENABLED: 'true'
         ports: ['7080:8080']
@@ -691,7 +699,7 @@ jobs:
       # measuring the change of database topology, not the change in the broker.
       #
       mongo:
-        image: mongo:8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
         ports: ['27017:27017']
     env:
       COR_MONGO_HOST: mongo
@@ -851,9 +859,17 @@ jobs:
       # Dockerfile's CI_IMAGE arg is where the eProsima stack comes from; the
       # plugin is compiled here, against it.
       #
+      #
+      # Ubuntu from the Docker Hub mirror (mirror-images.yml): BASE_IMAGE for the Dockerfile, and the
+      # same image tagged ubuntu:26.04 for a ref whose Dockerfile predates BASE_IMAGE (the pre-release
+      # campaign checks out older branches) - a local image is used, not pulled.
+      #
       - name: Build the coraine image
         working-directory: stack/coraine
-        run: docker build -f docker/Dockerfile -t coraine:nightly .
+        run: |
+          docker pull -q quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
+          docker tag quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 ubuntu:26.04
+          docker build -f docker/Dockerfile --build-arg BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 -t coraine:nightly .
 
       #
       # It has to start, and it has to have the bridge. An image that boots
@@ -943,8 +959,8 @@ jobs:
       - name: The @context server, native arm64
         run: |
           printf '%s\n' \
-            'FROM --platform=linux/amd64 wistefan/context-server:0.2.0 AS app' \
-            'FROM eclipse-temurin:11-jre' \
+            'FROM --platform=linux/amd64 quay.io/seamware/coraine-ci:mirror-context-server-0.2.0 AS app' \
+            'FROM quay.io/seamware/coraine-ci:mirror-eclipse-temurin-11-jre' \
             'COPY --from=app /app /app' \
             'ENTRYPOINT ["java","-cp","/app/resources:/app/classes:/app/libs/*","org.fiware.context.Application"]' \
             | docker buildx build --load -t context-server-arm64 -
@@ -956,8 +972,8 @@ jobs:
 
       - name: The services - mongo replica set, TimescaleDB, the @context server
         run: |
-          docker run -d --name mongo -p 27017:27017 mongo:8.0 mongod --replSet rs0 --bind_ip_all
-          docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust timescale/timescaledb-ha:pg16
+          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.0 mongod --replSet rs0 --bind_ip_all
+          docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
           docker run -d --name ctx-arm64 -p 7080:8080 -e MEMORY_ENABLED=true context-server-arm64
           stack/coraine/.github/scripts/mongo-rs-init.sh
           for i in $(seq 1 60); do

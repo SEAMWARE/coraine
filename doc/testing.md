@@ -124,6 +124,43 @@ reaches a participant on the same machine over shared memory, so without the
 first the broker discovers nothing at all and nothing is logged anywhere; with
 both, discovery gets confused and the topics never surface either.
 
+In GitHub Actions `COR_DDS_ROS2_IMAGE` names the image's mirror (below); on a
+workstation it defaults to `eprosima/vulcanexus:jazzy-desktop`.
+
+## Docker Hub mirrors
+
+The workflows pull nothing from Docker Hub. Its anonymous pull limit is per IP,
+GitHub's runners share their IPs, and a run of ~45 jobs was refused
+(`toomanyrequests`) in most of them. Each Docker Hub image is pulled from a copy
+in `quay.io/seamware/coraine-ci`, tagged `mirror-<name>-<tag>`: every
+architecture, same digests.
+
+| Docker Hub | Mirror (`quay.io/seamware/coraine-ci:`) | Used by |
+|---|---|---|
+| `timescale/timescaledb-ha:pg16` | `mirror-timescaledb-ha-pg16` | service container / `docker run`: ci, nightly, pre-release |
+| `wistefan/context-server:0.2.0` | `mirror-context-server-0.2.0` | service container: ci, nightly, pre-release; the arm64 context server |
+| `mongo:8.0` | `mirror-mongo-8.0` | nightly (ETSI, performance, arm64), pre-release (upgrade, soak) |
+| `ubuntu:26.04` | `mirror-ubuntu-26.04` | packages; `docker/Dockerfile` in deploy, release, the nightly's DDS image (`BASE_IMAGE`) |
+| `ubuntu:24.04` | `mirror-ubuntu-24.04` | packages |
+| `debian:trixie` | `mirror-debian-trixie` | packages |
+| `eclipse-temurin:11-jre` | `mirror-eclipse-temurin-11-jre` | the nightly's arm64 context server |
+| `eprosima/vulcanexus:jazzy-desktop` | `mirror-vulcanexus-jazzy-desktop` | `COR_DDS_ROS2_IMAGE` in ci and the nightly |
+
+`.github/workflows/mirror-images.yml` makes the copies: weekly (a new patch
+release behind the same tag) and on dispatch, copying an image only when its
+upstream digest differs from the mirror's. Its source is Docker Hub, or
+`mirror.gcr.io` (Google's cache of Docker Hub, same digests) when Docker Hub
+refuses. The copies are tags of `coraine-ci` because that repository is public
+and the quay robot can push to it, while it cannot create a repository.
+
+`docker/Dockerfile` keeps `ubuntu:26.04` as the default of its `BASE_IMAGE` arg,
+so a build outside CI needs nothing from quay. The compose files and the test
+helpers keep upstream names too.
+
+To add an image: a line in `IMAGES` in `mirror-images.yml`, then
+`gh workflow run mirror-images.yml`, then use
+`quay.io/seamware/coraine-ci:mirror-<name>-<tag>` in the workflow.
+
 
 ## Coverage
 
