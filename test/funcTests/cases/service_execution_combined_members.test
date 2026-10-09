@@ -1,0 +1,211 @@
+#
+# FILE            service_execution_combined_members.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md): a Combined Service Execution refuses a member it does not
+# know - 400 naming it, 'input' pointing at 'executionInput' - at every level: the request's object, a
+# Service Execution of its serviceExecutions, a nested Combined Service Execution (which has no
+# notification of its own), one made of a template, and an entry of its 'services' (no more entries than
+# the template has services; at the place of a nested template, an empty object). Nothing is created.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - Combined Service Executions refuse unknown members
+
+--TAGS--
+service execution
+
+--INIT--
+corDbDrop
+coraineStart
+ftExecStart
+
+--RUN--
+
+#
+# 01. Robot urn:R1; echo on every Robot (/echo); template urn:T1: sequential [echo on a Robot, parallel [echo on urn:R1]]
+# 02. Accepted: sequential [echo R1] - 201, completed
+# 03. The request's object: 'input' - 400; 'foo' - 400
+# 04. A Service Execution of serviceExecutions: 'input' - 400; 'id' - 400
+# 05. A nested Combined Service Execution: 'notification' - 400; 'foo' - 400
+# 06. Of a template: 'foo' - 400
+# 07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400
+# 08. Nothing created by 03-07: still 2 executions
+# 09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed
+#
+
+create() {
+  corCurl --url /ngsi-ld/v1/services --payload "$1" > /tmp/se.out
+  sed -n '1p;/"detail"/p' /tmp/se.out
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+show() {
+  for i in $(seq 1 50); do
+    s=$(corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+    [ "$s" == "$2" ] && break
+    sleep 0.1
+  done
+  corCurl --url /ngsi-ld/v1/services/$1 | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+def p(e, d):
+    print('  ' * d + e['type'], e.get('combinationMethod', e.get('serviceName')), e.get('entityId', ''), e['executionStatus'])
+    for c in e.get('serviceExecutions', []):
+        p(c, d + 1)
+p(json.load(sys.stdin), 0)"
+}
+count() { corCurl --url /ngsi-ld/v1/services | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'executions')"; }
+se() { echo "{\"type\":\"ServiceExecution\",\"entityId\":\"urn:R1\",\"serviceName\":\"echo\"$1}"; }
+
+echo "01. Robot urn:R1; echo on every Robot (/echo); template urn:T1: sequential [echo on a Robot, parallel [echo on urn:R1]]"
+echo "======================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$FT_EXEC_PORT/echo\",\"entities\":[{\"type\":\"Robot\"}],\"serviceInformation\":{\"serviceName\":\"echo\",\"mode\":\"synchronous\"}}" | head -1
+corCurl --url /ngsi-ld/v1/combinedServiceTemplate --payload '{"id":"urn:T1","type":"CombinedServiceTemplate","templateName":"twice","combinationMethod":"sequential",
+  "services":[{"serviceName":"echo","entityType":"Robot"},{"type":"CombinedServiceTemplate","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot","entityId":"urn:R1"}]}]}' | head -1
+echo
+echo
+
+
+echo "02. Accepted: sequential [echo R1] - 201, completed"
+echo "==================================================="
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)]}"
+show $(lastId) completed
+echo
+echo
+
+
+echo "03. The request's object: 'input' - 400; 'foo' - 400"
+echo "===================================================="
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)],\"input\":{}}"
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)],\"foo\":1}"
+echo
+echo
+
+
+echo "04. A Service Execution of serviceExecutions: 'input' - 400; 'id' - 400"
+echo "======================================================================="
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se ',"input":{}')]}"
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se ',"id":"urn:X"')]}"
+echo
+echo
+
+
+echo "05. A nested Combined Service Execution: 'notification' - 400; 'foo' - 400"
+echo "=========================================================================="
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se),{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"parallel\",\"serviceExecutions\":[$(se)],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:1/n\"}}}]}"
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se),{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"parallel\",\"serviceExecutions\":[$(se)],\"foo\":1}]}"
+echo
+echo
+
+
+echo "06. Of a template: 'foo' - 400"
+echo "=============================="
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"}],"foo":1}'
+echo
+echo
+
+
+echo "07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400"
+echo "====================================================================================================================================================="
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1","input":{}}]}'
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":{"entityId":"urn:R1"}}'
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{},{}]}'
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{"entityId":"urn:R1"}]}'
+echo
+echo
+
+
+echo "08. Nothing created by 03-07: still 2 executions"
+echo "================================================"
+count
+echo
+echo
+
+
+echo "09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed"
+echo "================================================================================"
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{}]}'
+show $(lastId) completed
+echo
+echo
+
+
+--EXPECT--
+01. Robot urn:R1; echo on every Robot (/echo); template urn:T1: sequential [echo on a Robot, parallel [echo on urn:R1]]
+=======================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Accepted: sequential [echo R1] - 201, completed
+===================================================
+HTTP/1.1 201 Created
+CombinedServiceExecution sequential  completed
+  ServiceExecution echo urn:R1 completed
+
+
+03. The request's object: 'input' - 400; 'foo' - 400
+====================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of a Combined Service Execution - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a Combined Service Execution",
+
+
+04. A Service Execution of serviceExecutions: 'input' - 400; 'id' - 400
+=======================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of a Service Execution of 'serviceExecutions' - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'id' is not a member of a Service Execution of 'serviceExecutions'",
+
+
+05. A nested Combined Service Execution: 'notification' - 400; 'foo' - 400
+==========================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'notification' is not a member of a nested Combined Service Execution",
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a nested Combined Service Execution",
+
+
+06. Of a template: 'foo' - 400
+==============================
+HTTP/1.1 400 Bad Request
+  "detail": "'foo' is not a member of a Combined Service Execution of a template",
+
+
+07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400
+=====================================================================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'input' is not a member of an entry of 'services' - the service's input is 'executionInput'",
+HTTP/1.1 400 Bad Request
+  "detail": "'services' is an array: the template's services, by place",
+HTTP/1.1 400 Bad Request
+  "detail": "'services' has 3 entries - the template has 2 services",
+HTTP/1.1 400 Bad Request
+  "detail": "the template's member at that place is a Combined Service Template - it is taken as it is: an empty object in 'services'",
+
+
+08. Nothing created by 03-07: still 2 executions
+================================================
+2 executions
+
+
+09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed
+================================================================================
+HTTP/1.1 201 Created
+CombinedServiceExecution sequential  completed
+  ServiceExecution echo urn:R1 completed
+  CombinedServiceExecution parallel  completed
+    ServiceExecution echo urn:R1 completed
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+corDbDrop
