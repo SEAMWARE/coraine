@@ -130,6 +130,11 @@ there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/
 `plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR` and
 `CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
 
+`coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
+`description`, and `requires`: the switches it is turned off without. While it builds, coraine-build
+prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
+front-end to follow.
+
 | Option | Build |
 |--------|-------|
 | `--release` (default) | optimised, traces compiled out |
