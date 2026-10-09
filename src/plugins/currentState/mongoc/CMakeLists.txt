@@ -35,6 +35,7 @@ SET(SOURCES
   mongocSnapshotUpdate.c
   mongocSnapshotDelete.c
   ${CMAKE_SOURCE_DIR}/src/plugins/shared/geoMatch.c
+  ${CMAKE_SOURCE_DIR}/src/plugins/shared/dbPluginAbi.c
 )
 
 IF (COR_FEATURE_CONTEXT_HOSTING)
@@ -73,6 +74,7 @@ ENDIF()
 LIST(APPEND SOURCES mongocDoc.c)
 
 ADD_LIBRARY(mongoc SHARED ${SOURCES})
+ADD_DEPENDENCIES(mongoc dbAbiStamp)                 # dbAbiStamp.h - dbPluginAbi
 
 TARGET_COMPILE_DEFINITIONS(mongoc PRIVATE MONGOC_PLUGIN_VERSION="0.1.0")
 TARGET_INCLUDE_DIRECTORIES(mongoc PRIVATE ${MONGOC2_INCLUDE_DIRS})

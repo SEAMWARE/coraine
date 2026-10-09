@@ -15,6 +15,7 @@
 #include <stddef.h>                                       // NULL
 
 #include "troe/TroeDriver.h"                              // TroeDriver
+#include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 
 
 
@@ -33,6 +34,8 @@ static void noneClose(void)  { }
 //
 void troeRegister(TroeDriver* driverP)
 {
+  dbPluginAbiBrokerCheck("TRoE");                     // exits on a broker built against another interface
+
   driverP->alias        = "none";
   driverP->version      = PLUGIN_VERSION;
   driverP->args         = NULL;

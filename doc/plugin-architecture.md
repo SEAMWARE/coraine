@@ -135,7 +135,9 @@ coraine --database ../corDB/obj/debug/corDB.so
    (`dbRegister` / `troeRegister` / `apiRegister` / `bridgeRegister`). Handles are
    tracked for
    `corPluginCloseAll()` at shutdown.
-3. The register function is called with a zeroed driver struct, which it fills with
+3. For a DB or TRoE plugin, its interface stamp is checked (next section) - before the
+   register function is called.
+4. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
 
 Plugins do **not** statically link the NGSI-LD/Cor-Lib symbols — the broker is linked
@@ -154,7 +156,58 @@ its structs and nothing else. A plugin that calls Cor-Lib functions must be buil
 against the **same** lib sources as the broker it will be loaded into — for a
 packaged broker, the `coraine-dev` source of the same version
 ([Installation](installation.md#coraine-dev-build-your-own)). A function the broker
-lacks fails the `dlopen`; a changed signature or struct layout is not detected.
+lacks fails the `dlopen`; a changed signature or struct layout is not detected. For a DB or TRoE plugin the
+headers its structs come from are checked at load, below.
+
+## The DB plugin interface stamp
+
+A DB or TRoE plugin shares structs with the broker by layout: `DbDriver`, `DbQueryFilter`,
+`Tenant`, `TroeDriver`, `CorNode`, ... A plugin built against other headers than its broker reads
+and writes them at the wrong offsets and corrupts memory. So a mismatch is refused, never
+tolerated - both ways, and the program exits 1:
+
+| Side | Exports | Checks | Refuses |
+|------|---------|--------|---------|
+| broker (`coraine`, `coraine-import`) | `coraineDbAbi` | the plugin's `dbPluginAbi` (`dlsym` on the plugin), after the `dlopen`, before the register function | a plugin without `dbPluginAbi` (built before the check), or with another stamp |
+| DB / TRoE plugin | `dbPluginAbi` | the broker's `coraineDbAbi` (`dlsym(RTLD_DEFAULT)`), first thing in `dbRegister` / `troeRegister` | a broker without `coraineDbAbi` (older than the plugin), or with another stamp |
+
+The plugin's check is what stops a broker built before the check, which loads any plugin unchecked.
+It exits rather than returning a failure: the register functions return nothing, and such a broker
+would carry on with the plugin loaded.
+
+The stamp is `tools/dbAbiStamp.sh`: a hash (sha256, 16 hex digits) of the headers the two sides
+share structs through - `db/DbDriver.h`, `db/DbQueryFilter.h`, `db/Tenant.h`, `ha/HaEvent.h`,
+`ha/haInit.h`, `troe/TroeDriver.h`, and every header they include with `#include "..."`, in this
+repository's `src/lib` or in the Cor-Libs beside it (`tools/dbAbiStamp.sh --list` names them).
+Comments are stripped (`gcc -fpreprocessed`) and whitespace collapsed before hashing: a comment
+edit leaves the stamp as it was, any declaration change gives a new one. Nothing is bumped by hand.
+
+The same script makes both sides' stamp: the broker's CMake writes it into
+`<build>/generated/dbAbiStamp.h` on every build (rewritten only when it changed), and corDB's
+makefile into `obj/<flavour>/dbAbiStamp.h`. The plugin side is `src/plugins/shared/dbPluginAbi.c`,
+compiled into every DB and TRoE plugin - mongoc, none, timescale here; corDB.so, ramDB.so and
+troe/ramDB.so in corDB.
+
+A refusal names both stamps and the way out:
+
+```text
+DB plugin '/opt/seamware/plugins/db/currentState/corDB.so' does not match this broker: it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: none - built before the check
+  broker's interface stamp: 8fa2e0424436a91e
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+```
+
+```text
+DB plugin '/opt/seamware/plugins/db/currentState/corDB.so' refuses the broker '/usr/local/bin/coraine': the broker is older than the plugin - it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: 8fa2e0424436a91e
+  broker's interface stamp: none - built before the check
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+```
+
+The check is always compiled in - it is a safety check of the plugin interface, not a feature,
+and has no `COR_FEATURE_*` switch. API, bridge and transport plugins do not carry the stamp: a
+bridge has `BRIDGE_ABI_VERSION` (below) and a transport `TRANSPORT_ABI_VERSION`
+(`src/lib/plugin/TransportDriver.h`).
 
 ## Plugin-contributed CLI args
 
@@ -267,6 +320,10 @@ void dbRegister(DbDriver* driverP)
   driverP->tenantSetup    = myTenantSetup;
 }
 ```
+
+It must also carry the interface stamp: compile `src/plugins/shared/dbPluginAbi.c` into it (with
+the generated `dbAbiStamp.h` on the include path) and call `dbPluginAbiBrokerCheck("DB")` first in
+`dbRegister` - without them the broker refuses it.
 
 Build it as a `SHARED` library that drops `myStore.so` into
 `<base>/db/currentState/`, then run `coraine --database myStore`. The existing
