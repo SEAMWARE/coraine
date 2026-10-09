@@ -1106,10 +1106,176 @@ The rest of perfRun in the same session:
 | `PATCH`, ~210 subscriptions, c50 | 11 228 / 11 202 | 10 871 / 11 277 / 11 357 | -0.4 % | 8.43 / 8.30 |
 
 - **The batch writes are lower on `main` in this session**: batch create −12.0 %, batch delete −7.8 %, batch
-  update −4.9 % - each of the three `main` runs below both runs before. In the interleaved session above
-  (A, B, A, B) the same three were −0.2 %, −3.5 % and +1.8 %. The two sessions do not agree; a wider index
-  entry (type, createdAt, _id against type) is the candidate cost for a batch write, and it is not
-  settled by these runs. The other scenarios: −3.9 % to +1.6 %.
+  update −4.9 % - each of the three `main` runs below both runs before; the interleaved session above (A, B, A, B)
+  showed −0.2 %, −3.5 % and +1.8 %. Measured to the bottom in "The new index and writes" below: the index costs a
+  batch create or delete 1-4.5 %, and this session's −12 % was contention. The other scenarios: −3.9 % to +1.6 %.
+
+### The new index and writes
+
+Does `{type, createdAt, _id}` in place of `{type}` cost a write, and how much? Measured 2026-10-09 00:16-06:05,
+three ways, each with the other variable held still.
+
+**Conditions, all of them.** Builds: A = `65be8c03` (the commit before #292, index `{type}`), B = `main` `6493d6c2`,
+both release (every library release, no `COR_T_ON` marker), built from clean checkouts of every library's
+`main`; **B-old** = the B binary with the old indexes put back by hand after every broker start (`type_1_createdAt_1__id_1`
+dropped, `{type}` created) - the index without the rest of the binary. MongoDB 8.2.12 in its container (`mongo:8.2`,
+port mapping), its cpuset set per view with `docker update --cpuset-cpus`; wrk on CPUs 2-7 in every view; a fresh
+database and broker before every scenario (perfRun's resets: before every repeat for the creates and the batch
+delete, whose pool is 100 000 entities). perfRun's entity, fixture and Lua scripts, 10 s x 5 repeats per scenario;
+a run's figure is the median of its repeats. CPU: governor `powersave` (amd-pstate-epp, `balance_performance`), idle
+states deep - not changed (it needs root). Interleaved A, B, B-old, A, ... in every view.
+
+The three views:
+
+- **broker-isolated** - broker on CPUs 0-1, MongoDB on 8 physical cores of its own (8-15 and their siblings).
+- **mongo-bound** - broker on CPUs 0-1, MongoDB on 2 physical cores (8-9 and siblings): the database limits.
+- **shared-8** - broker AND MongoDB on the same 8 physical cores (8-15 and siblings), not pinned against each other:
+  what one machine of 8 cores does with both. With it, for reference, `corDB` on the same 8 cores (B, `--dbDir`
+  on the local NVMe disk).
+
+**MongoDB alone** - `mongosh`, the stored form of perfRun's entity, 100 000 documents preloaded, 50 000 inserted,
+updated (`$set` of a value and `modifiedAt`) and deleted in batches, old and new index sets alternating, 7 repeats
+each, one client. Documents/s:
+
+| | old (`{type}`) | new (`{type,createdAt,_id}`) | new vs old, 95 % |
+|---|---:|---:|---:|
+| insert, batches of 20 | 37 207 | 37 286 | +0.2 % ± 1.7 |
+| update, batches of 20 | 31 398 | 31 570 | +0.5 % ± 1.2 |
+| delete, batches of 20 | 43 758 | 43 060 | -1.6 % ± 1.0 |
+| insert, batches of 100 | 53 952 | 52 845 | -2.1 % ± 1.8 |
+| update, batches of 100 | 41 570 | 41 448 | -0.3 % ± 0.9 |
+| delete, batches of 100 | 75 011 | 73 177 | -2.4 % ± 1.6 |
+
+The `{type}` index of 100 000 entities of one type is 40-48 KiB (one key, prefix-compressed); the new one 256 KiB.
+
+**Throughput, requests/s** (mean of the runs ± their sd; the interval is 95 %, Welch with a t for the small n):
+
+*shared-8* (three runs each; `corDB` two):
+
+| requests/s | A | B | Bold | BcorDB | B vs A | B-old vs A |
+|---|---:|---:|---:|---:|---:|---:|
+| batch create (20) | 12 066 ± 0.1 % | 11 519 ± 0.5 % | 11 967 ± 0.3 % | 19 884 ± 0.1 % | -4.5 % ± 0.8 | -0.8 % ± 0.5 |
+| batch update (20) | 2 898 ± 0.1 % | 2 891 ± 0.2 % | 2 901 ± 0.6 % | 38 828 ± 0.1 % | -0.2 % ± 0.4 | +0.1 % ± 1.0 |
+| batch delete (20) | 7 161 ± 0.5 % | 6 881 ± 0.4 % | 7 153 ± 0.4 % | 67 829 ± 7.8 % | -3.9 % ± 1.0 | -0.1 % ± 1.0 |
+| create, c50 | 57 173 ± 0.4 % | 56 687 ± 0.4 % | 56 998 ± 0.5 % | 93 304 ± 0.2 % | -0.8 % ± 0.9 | -0.3 % ± 1.0 |
+| create, c1 | 6 468 ± 0.3 % | 6 520 ± 1.2 % | 6 504 ± 0.4 % | 26 618 ± 0.6 % | +0.8 % ± 2.0 | +0.6 % ± 0.8 |
+| `PATCH`, c50 (control) | 25 464 ± 0.3 % | 25 407 ± 0.4 % | 25 498 ± 0.4 % | 137 386 ± 1.6 % | -0.2 % ± 0.9 | +0.1 % ± 0.8 |
+| query, 1 % type of 100 000, `limit=20` | 1 110 ± 0.0 % | 26 228 ± 0.4 % | 1 110 ± 0.1 % | 57 850 ± 0.0 % | ×23.6 | ×1.0 |
+| query `limit=20` | 25 755 ± 0.1 % | 26 512 ± 0.1 % | 25 836 ± 0.2 % | 85 261 ± 0.3 % | +2.9 % ± 0.3 | +0.3 % ± 0.4 |
+| `GET /entities/{id}` | 72 390 ± 0.4 % | 72 328 ± 0.2 % | 71 970 ± 0.4 % | 497 354 ± 0.2 % | -0.1 % ± 0.7 | -0.6 % ± 0.9 |
+
+*mongo-bound* (three runs each):
+
+| requests/s | A | B | Bold | B vs A | B-old vs A |
+|---|---:|---:|---:|---:|---:|
+| batch create (20) | 9 142 ± 0.3 % | 8 851 ± 0.2 % | 9 098 ± 0.3 % | -3.2 % ± 0.5 | -0.5 % ± 0.6 |
+| batch update (20) | 1 867 ± 0.0 % | 1 868 ± 0.1 % | 1 867 ± 0.2 % | +0.1 % ± 0.2 | +0.0 % ± 0.3 |
+| batch delete (20) | 4 299 ± 0.2 % | 4 249 ± 0.2 % | 4 287 ± 0.7 % | -1.2 % ± 0.4 | -0.3 % ± 1.2 |
+| create, c50 | 38 246 ± 0.5 % | 37 982 ± 0.3 % | 37 873 ± 0.2 % | -0.7 % ± 1.0 | -1.0 % ± 0.9 |
+| create, c1 | 8 473 ± 0.5 % | 8 404 ± 0.6 % | 8 469 ± 0.4 % | -0.8 % ± 1.3 | -0.0 % ± 1.0 |
+| `PATCH`, c50 (control) | 17 243 ± 0.4 % | 17 276 ± 0.2 % | 17 284 ± 0.4 % | +0.2 % ± 0.8 | +0.2 % ± 1.0 |
+| query, 1 % type of 100 000, `limit=20` | 1 675 ± 0.1 % | 12 173 ± 0.6 % | 1 678 ± 0.1 % | ×7.3 | ×1.0 |
+| query `limit=20` | 12 097 ± 0.7 % | 12 144 ± 1.1 % | 12 194 ± 0.8 % | +0.4 % ± 2.1 | +0.8 % ± 1.7 |
+| `GET /entities/{id}` | 41 699 ± 1.4 % | 42 013 ± 0.3 % | 42 067 ± 0.2 % | +0.8 % ± 2.3 | +0.9 % ± 2.2 |
+
+*broker-isolated* (two runs each in this series - and three each, write scenarios only, in a first series the same
+night, 00:23-01:29):
+
+| requests/s | A | B | Bold | B vs A | B-old vs A |
+|---|---:|---:|---:|---:|---:|
+| batch create (20) | 10 854 ± 2.6 % | 10 728 ± 3.4 % | 10 975 ± 0.4 % | -1.2 % ± 12.8 | +1.1 % ± 8.1 |
+| batch update (20) | 3 232 ± 2.1 % | 3 191 ± 5.7 % | 3 296 ± 0.4 % | -1.3 % ± 18.3 | +2.0 % ± 6.5 |
+| batch delete (20) | 6 932 ± 2.4 % | 6 879 ± 0.4 % | 6 979 ± 1.2 % | -0.8 % ± 7.3 | +0.7 % ± 8.1 |
+| create, c50 | 36 472 ± 3.3 % | 36 472 ± 3.4 % | 37 234 ± 1.1 % | +0.0 % ± 14.4 | +2.1 % ± 10.7 |
+| create, c1 | 8 328 ± 1.1 % | 8 292 ± 1.8 % | 8 422 ± 0.8 % | -0.4 % ± 6.3 | +1.1 % ± 4.2 |
+| `PATCH`, c50 (control) | 21 485 ± 1.8 % | 21 445 ± 2.5 % | 21 640 ± 0.3 % | -0.2 % ± 9.4 | +0.7 % ± 5.6 |
+| query, 1 % type of 100 000, `limit=20` | 1 698 ± 1.3 % | 11 798 ± 0.1 % | 1 710 ± 0.1 % | ×6.9 | ×1.0 |
+| query `limit=20` | 11 756 ± 2.4 % | 11 912 ± 0.1 % | 11 870 ± 0.8 % | +1.3 % ± 7.3 | +1.0 % ± 7.8 |
+| `GET /entities/{id}` | 39 086 ± 3.6 % | 39 982 ± 1.2 % | 39 848 ± 0.4 % | +2.3 % ± 11.7 | +1.9 % ± 11.1 |
+
+| scenario | A (before #292) | B (`main`) | B + old indexes | B vs A | B+old vs A | B vs B+old |
+|---|---:|---:|---:|---:|---:|---:|
+| batch create (20), c50 | 10 935 ± 0.5 % (10 894, 10 990, 10 920) | 10 735 ± 0.4 % (10 680, 10 764, 10 761) | 10 702 ± 4.1 % (11 077, 10 810, 10 220) | -1.8 % ± 1.0 | -2.1 % ± 6.5 | +0.3 % ± 6.6 |
+| batch update (20), c50 | 3 222 ± 2.8 % (3 128, 3 311, 3 227) | 3 227 ± 1.4 % (3 278, 3 213, 3 189) | 3 265 ± 3.4 % (3 347, 3 308, 3 141) | +0.1 % ± 5.1 | +1.3 % ± 7.1 | -1.2 % ± 5.8 |
+| batch delete (20), c50 | 6 938 ± 0.9 % (6 991, 6 870, 6 952) | 6 810 ± 0.2 % (6 801, 6 827, 6 803) | 6 951 ± 2.1 % (7 104, 6 931, 6 818) | -1.8 % ± 1.5 | +0.2 % ± 3.6 | -2.0 % ± 3.3 |
+| create, c50 | 36 891 ± 1.3 % (36 358, 37 250, 37 066) | 36 817 ± 1.0 % (37 165, 36 435, 36 850) | 36 170 ± 4.1 % (37 547, 36 345, 34 619) | -0.2 % ± 2.6 | -2.0 % ± 6.7 | +1.8 % ± 6.7 |
+| create, c1 | 8 415 ± 0.5 % (8 455, 8 421, 8 369) | 8 359 ± 0.5 % (8 403, 8 329, 8 346) | 8 332 ± 2.2 % (8 438, 8 433, 8 124) | -0.7 % ± 1.1 | -1.0 % ± 3.5 | +0.3 % ± 3.5 |
+| `PATCH .../attrs`, c50 (control) | 21 395 ± 2.4 % (20 883, 21 905, 21 397) | 21 603 ± 0.9 % (21 660, 21 378, 21 770) | 21 499 ± 2.0 % (21 721, 21 781, 20 994) | +1.0 % ± 4.1 | +0.5 % ± 5.0 | +0.5 % ± 3.6 |
+
+**MongoDB CPU per written entity** (reads: per request) - the container's cgroup `cpu.stat` `usage_usec` before and
+after every measured repeat, divided by the entities the repeat wrote (requests x batch size; the batch delete: its
+pool). Mean ± sd over all repeats:
+
+*shared-8*:
+
+| MongoDB CPU, µs per entity (reads: per request) | A | B | Bold | B vs A | B vs B-old |
+|---|---:|---:|---:|---:|---:|
+| batch create (20) | 39.0 ± 0.4 | 41.9 ± 0.4 | 39.3 ± 0.6 | +7.4 % | +6.6 % |
+| batch update (20) | 175.6 ± 0.6 | 176.2 ± 1.2 | 176.0 ± 1.7 | +0.4 % | +0.1 % |
+| batch delete (20) | 89.2 ± 4.2 | 93.4 ± 3.8 | 89.0 ± 3.8 | +4.7 % | +4.9 % |
+| create, c50 | 140.3 ± 1.7 | 142.0 ± 2.0 | 140.6 ± 1.6 | +1.2 % | +1.0 % |
+| create, c1 | 71.1 ± 7.3 | 71.5 ± 7.0 | 71.6 ± 9.3 | +0.6 % | -0.2 % |
+| `PATCH`, c50 (control) | 351.5 ± 1.7 | 352.4 ± 2.0 | 351.3 ± 2.7 | +0.3 % | +0.3 % |
+| query, 1 % type of 100 000, `limit=20` | 13766.9 ± 90.2 | 234.3 ± 2.5 | 13788.0 ± 70.6 | -98.3 % | -98.3 % |
+| query `limit=20` | 245.4 ± 3.8 | 230.5 ± 4.0 | 245.4 ± 4.3 | -6.1 % | -6.0 % |
+| `GET /entities/{id}` | 97.2 ± 0.8 | 97.2 ± 0.5 | 97.5 ± 0.6 | +0.1 % | -0.3 % |
+
+*mongo-bound*:
+
+| MongoDB CPU, µs per entity (reads: per request) | A | B | Bold | B vs A | B vs B-old |
+|---|---:|---:|---:|---:|---:|
+| batch create (20) | 21.6 ± 0.4 | 22.2 ± 0.2 | 21.7 ± 0.4 | +2.8 % | +2.3 % |
+| batch update (20) | 107.2 ± 0.3 | 107.1 ± 0.3 | 107.2 ± 0.3 | -0.1 % | -0.0 % |
+| batch delete (20) | 46.1 ± 0.3 | 47.0 ± 0.4 | 47.5 ± 2.8 | +2.0 % | -1.1 % |
+| create, c50 | 92.8 ± 1.9 | 93.8 ± 1.6 | 93.5 ± 2.0 | +1.1 % | +0.3 % |
+| create, c1 | 59.3 ± 4.8 | 59.9 ± 6.0 | 58.6 ± 4.7 | +0.9 % | +2.3 % |
+| `PATCH`, c50 (control) | 231.5 ± 1.1 | 231.3 ± 1.1 | 231.1 ± 1.4 | -0.1 % | +0.1 % |
+| query, 1 % type of 100 000, `limit=20` | 2388.8 ± 5.9 | 145.6 ± 1.3 | 2385.0 ± 7.2 | -93.9 % | -93.9 % |
+| query `limit=20` | 145.4 ± 3.0 | 140.5 ± 1.0 | 143.9 ± 1.5 | -3.4 % | -2.4 % |
+| `GET /entities/{id}` | 61.7 ± 0.4 | 61.2 ± 0.3 | 61.4 ± 0.3 | -0.8 % | -0.4 % |
+
+*broker-isolated*:
+
+| MongoDB CPU, µs per entity (reads: per request) | A | B | Bold | B vs A | B vs B-old |
+|---|---:|---:|---:|---:|---:|
+| batch create (20) | 21.7 ± 0.7 | 24.0 ± 1.0 | 21.4 ± 0.5 | +10.6 % | +12.3 % |
+| batch update (20) | 137.2 ± 1.9 | 137.1 ± 1.6 | 133.6 ± 1.2 | -0.1 % | +2.7 % |
+| batch delete (20) | 88.9 ± 2.8 | 95.8 ± 3.4 | 85.3 ± 5.0 | +7.8 % | +12.3 % |
+| create, c50 | 91.5 ± 2.9 | 93.2 ± 1.8 | 90.6 ± 2.3 | +2.0 % | +2.9 % |
+| create, c1 | 60.6 ± 6.5 | 60.0 ± 5.6 | 59.5 ± 3.1 | -1.0 % | +0.7 % |
+| `PATCH`, c50 (control) | 256.1 ± 3.1 | 258.9 ± 5.5 | 254.0 ± 0.6 | +1.1 % | +1.9 % |
+| query, 1 % type of 100 000, `limit=20` | 3913.0 ± 49.9 | 145.2 ± 1.2 | 3886.3 ± 18.8 | -96.3 % | -96.3 % |
+| query `limit=20` | 144.7 ± 1.2 | 141.2 ± 1.3 | 144.2 ± 2.2 | -2.4 % | -2.1 % |
+| `GET /entities/{id}` | 62.4 ± 1.1 | 61.1 ± 0.3 | 60.9 ± 0.2 | -2.1 % | +0.3 % |
+
+The broker's own CPU per entity does not move with the index in any view (tables in the run logs; batch create
+9.0 / 9.1 / 8.9 µs per entity for A / B / B-old, broker-isolated).
+
+**What it shows:**
+
+- **The index costs batch create and batch delete, nothing else.** Throughput, B against A: batch create −4.5 % ±
+  0.8 (shared-8), −3.2 % ± 0.5 (mongo-bound), −1.2 % / −1.8 % ± 1.0 (broker-isolated, the two series); batch delete
+  −3.9 % ± 1.0, −1.2 % ± 0.4, −0.8 %. B-old against A in the same views: −0.8 %, −0.5 %, +1.1 % (batch create) and
+  −0.1 %, −0.3 %, +0.7 % (batch delete) - the old indexes on the new binary give the old numbers back, so the cost
+  is the index. Batch update, create (c50 and c1) and the `PATCH` control: within ±1.5 % in every view.
+- **In MongoDB's CPU**: +2.9 µs per batch-created entity (39.0 -> 41.9, +7.4 %, shared-8; +2.8 % mongo-bound,
+  +10.6 % broker-isolated) and +4 µs per batch-deleted one (+4.7 %, +2.0 %, +7.8 %); a single create +1-2 %, an update
+  nothing - an update does not change an indexed field.
+- **The reads, the same runs**: a page of a 1 % type ×6.9 (broker-isolated), ×7.3 (mongo-bound), **×23.6
+  (shared-8: 1 110 -> 26 228 requests/s)**; MongoDB CPU for that page 13 767 -> 234 µs (shared-8). A query of the
+  fixture's one type (`limit=20`): +2.9 % ± 0.3 (shared-8), MongoDB CPU −6 % per request. Retrieve: no change.
+- **One rare-type page saves the MongoDB CPU of ~4 700 batch-created entities** (13 533 µs against 2.9 µs, shared-8).
+- **The session that showed batch create −12 %** (`perfRun.sh` unchanged, MongoDB unpinned, wrk on 14 cores beside
+  it) measured contention, not the index: its three `main` runs alone spread 10.7 %, and no view here - each with
+  MongoDB, the broker and wrk on cores of their own - shows more than −4.5 % ± 0.8.
+
+**Conclusion:** the index costs a batch write 1-4.5 % of throughput (the most where broker and database share the
+cores) and 3-4 µs of MongoDB CPU per entity, and nothing on single-entity writes, updates and reads; it makes a page
+of a rare type 7-24x faster and an ordinary query by type up to 3 % faster. It stays.
+
+`corDB` on the same 8 cores, for reference: batch create 19 884 requests/s against 11 519 (mongoc, B), batch update
+38 828 against 2 891, `PATCH` 137 386 against 25 407, retrieve 497 354 against 72 328 (wrk on six cores - for the
+largest `corDB` rates the load generator may be the limit).
 
 ### mongoc: every scenario, 2026-10-08
 
