@@ -307,6 +307,41 @@ static const char* loopbackEchoName(const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// Sample text - "sampleFrom": { "<endpoint>": "literal" | "checkedBuffer" }
+//
+// Where the text of a sample on that endpoint lives when sampleIn() is handed it. BridgeBroker.h
+// says the text is the PLUGIN's and constant: the broker reads it, keeps nothing that points into
+// it, and the plugin may reuse it the moment the call returns. These two make that testable:
+//
+//   literal        the payload is LOOPBACK_LITERAL_SAMPLE, a string literal - read-only memory -
+//                  whatever was emitted. A broker that writes into the text dies here.
+//   checkedBuffer  the payload is the loopback's own heap buffer, and after the call the loopback
+//                  reports what that buffer then holds, as a JSON string, in the sub-attribute
+//                  LOOPBACK_BUFFER_AFTER - the text it sent, when nothing wrote into it.
+//
+// Unsaid, the sample goes in as every other one does.
+//
+#define LOOPBACK_LITERAL_SAMPLE  "{\"a\": \"hello\", \"b\": [1, 2]}"
+#define LOOPBACK_BUFFER_AFTER    "bufferAfter"
+
+static LoopbackMeta  sampleFroms[LOOPBACK_CHANNELS_MAX];   // endpoint -> "literal" | "checkedBuffer"
+static int           sampleFromCount = 0;
+
+static const char* loopbackSampleFrom(const char* endpoint)
+{
+  for (int ix = 0; ix < sampleFromCount; ix++)
+  {
+    if (strcmp(sampleFroms[ix].endpoint, endpoint) == 0)
+      return sampleFroms[ix].meta;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackReplyDelay - how late to answer on this endpoint (0: at once, -1: never)
 //
 static int loopbackReplyDelay(const char* endpoint)
@@ -318,6 +353,53 @@ static int loopbackReplyDelay(const char* endpoint)
   }
 
   return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackSampleIn - hand a sample in, from where "sampleFrom" says (see sampleFroms)
+//
+static void loopbackSampleIn(const char* endpoint, char* json)
+{
+  const char* from = loopbackSampleFrom(endpoint);
+
+  if ((from != NULL) && (strcmp(from, "literal") == 0))
+  {
+    brokerP->sampleIn("loopback", endpoint, LOOPBACK_LITERAL_SAMPLE, 0);
+    return;
+  }
+
+  brokerP->sampleIn("loopback", endpoint, json, 0);
+
+  if ((from == NULL) || (strcmp(from, "checkedBuffer") != 0))
+    return;
+
+  if ((brokerP->abiVersion < 2) || (brokerP->sampleQualifiedIn == NULL))
+  {
+    COR_E("loopback: '%s' is checkedBuffer, but the host predates sampleQualifiedIn - not reported", endpoint);
+    return;
+  }
+
+  //
+  // The buffer as it is NOW, as a JSON string: '"' and '\\' escaped, a control character dropped.
+  //
+  char  after[1024];
+  int   ox = 0;
+
+  after[ox++] = '"';
+  for (const char* p = json; (*p != 0) && (ox < (int) sizeof(after) - 3); ++p)
+  {
+    if ((*p == '"') || (*p == '\\'))
+      after[ox++] = '\\';
+    if ((unsigned char) *p >= 0x20)
+      after[ox++] = *p;
+  }
+  after[ox++] = '"';
+  after[ox]   = 0;
+
+  brokerP->sampleQualifiedIn("loopback", endpoint, NULL, LOOPBACK_BUFFER_AFTER, after, 0);
 }
 
 
@@ -422,7 +504,7 @@ static void* loopbackDelivery(void* vP)
       else if ((sample.subAttrName == NULL) && (useMeta == true) && (brokerP->sampleMetaIn != NULL))
         brokerP->sampleMetaIn("loopback", sample.endpoint, sample.json, meta, 0);
       else if (sample.subAttrName == NULL)
-        brokerP->sampleIn("loopback", sample.endpoint, sample.json, 0);
+        loopbackSampleIn(sample.endpoint, sample.json);
       else if ((loopbackEchoName(sample.endpoint) != NULL) && (brokerP->abiVersion >= 7) && (brokerP->replyExchangeIn != NULL))
         brokerP->replyExchangeIn("loopback", sample.endpoint, sample.token, NULL,
                                  loopbackEchoName(sample.endpoint), sample.json, NULL, 0,
@@ -498,6 +580,7 @@ static void loopbackDiscoverAtStart(void);
 static void loopbackReplyDelaysLoad(void);
 static void loopbackMetasLoad(void);
 static void loopbackEchoesLoad(void);
+static void loopbackSampleFromsLoad(void);
 static void loopbackGoalModesLoad(void);
 static void loopbackTopicModesLoad(void);
 
@@ -536,6 +619,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackReplyDelaysLoad();
   loopbackMetasLoad();
   loopbackEchoesLoad();
+  loopbackSampleFromsLoad();
   loopbackGoalModesLoad();
   loopbackTopicModesLoad();
   loopbackEmitAtStart();
@@ -724,12 +808,24 @@ static void loopbackConfigPairs(const char* member, void (*pairFunc)(const char*
       }
     }
 
-    char saved = *p;
-    *p = 0;
-    pairFunc(keyP, valP);
-    *p = saved;
+    //
+    // An unquoted value ends where the text does - not at the newline and indentation before the
+    // closing brace, which would otherwise travel with it as part of the sample
+    //
+    char* endP = p;
 
-    if (saved == '"')
+    if (*p != '"')
+    {
+      while ((endP > valP) && isspace((unsigned char) endP[-1]))
+        --endP;
+    }
+
+    char saved = *endP;
+    *endP = 0;
+    pairFunc(keyP, valP);
+    *endP = saved;
+
+    if (*p == '"')
       ++p;
   }
 }
@@ -836,6 +932,33 @@ static void loopbackEchoPair(const char* endpoint, const char* value)
 static void loopbackEchoesLoad(void)
 {
   loopbackConfigPairs("\"echoRequest\"", loopbackEchoPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackSampleFromPair / loopbackSampleFromsLoad - "sampleFrom", see sampleFroms
+//
+static void loopbackSampleFromPair(const char* endpoint, const char* value)
+{
+  if ((strcmp(value, "literal") != 0) && (strcmp(value, "checkedBuffer") != 0))
+  {
+    COR_W("loopback: sampleFrom '%s': '%s' is neither 'literal' nor 'checkedBuffer' - ignored", endpoint, value);
+    return;
+  }
+
+  if (sampleFromCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  sampleFroms[sampleFromCount].endpoint = strdup(endpoint);
+  sampleFroms[sampleFromCount].meta     = strdup(value);
+  ++sampleFromCount;
+}
+
+static void loopbackSampleFromsLoad(void)
+{
+  loopbackConfigPairs("\"sampleFrom\"", loopbackSampleFromPair);
 }
 
 
@@ -957,6 +1080,13 @@ static void loopbackClose(void)
     free(echoes[i].meta);
   }
   echoCount = 0;
+
+  for (int i = 0; i < sampleFromCount; i++)
+  {
+    free(sampleFroms[i].endpoint);
+    free(sampleFroms[i].meta);
+  }
+  sampleFromCount = 0;
 
   for (int i = 0; i < goalModeCount; i++)
   {
