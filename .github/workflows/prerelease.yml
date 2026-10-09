@@ -211,7 +211,8 @@ jobs:
           make libs-rebuild CC=/opt/san/gcc-san COR_HTTP_SERVER=${{ matrix.httpServer }}
           make di CC=/opt/san/gcc-san COR_HTTP_SERVER=${{ matrix.httpServer }}
           for f in /usr/local/bin/coraine /opt/seamware/plugins/db/currentState/corDB.so /opt/seamware/plugins/db/currentState/mongoc.so; do
-            nm -D "$f" | grep -q __asan_report || { echo "::error::$f is not instrumented"; exit 1; }
+            # grep -c, not -q: -q exits at the first match, nm dies of SIGPIPE, and pipefail fails the line
+            nm -D "$f" | grep -c __asan_report_ > /dev/null || { echo "::error::$f is not instrumented"; exit 1; }
           done
           /opt/san/coraine --version
           rm -rf "$SAN_REPORT_DIR"
