@@ -225,6 +225,8 @@ or Actions → Pre-release → Run workflow.
 | `summary` | every job of the run, green or red, in the run summary; red if any part is | 1 |
 
 - Every part tests the sha `ref` names when the run starts; the Cor-Libs are at `main`.
+- The campaign's tools - `test/sanitizer/`, `test/soak/`, `test/upgrade/` - come from the commit
+  the workflow runs from (the branch it is dispatched on), the code and its suite from `ref`.
 - Nothing is published: `nightly.yml` and `packages.yml` are called with `publish: false` -
   no coverage site, no perf-history line, no apt repository.
 - `only` runs one part, for re-running the one that went red.

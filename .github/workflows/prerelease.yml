@@ -17,7 +17,9 @@
 #
 # Every part tests ONE commit - the sha `ref` names when the run starts, resolved once below - so a
 # branch that moves during the hours this takes does not split the campaign over two commits. The
-# Cor-Libs are at main (bootstrap.sh), as in the nightly. Nothing is published: no coverage site, no
+# Cor-Libs are at main (bootstrap.sh), as in the nightly. The campaign's own tools (test/sanitizer,
+# test/soak, test/upgrade) come from the commit this workflow runs from, so a branch cut before a tool
+# existed is checked with it. Nothing is published: no coverage site, no
 # perf-history line, no apt repository. doc/testing.md, "The pre-release campaign".
 #
 # Job count: the free plan runs 20 jobs at a time and this run has ~45 (the nightly's 17, the
@@ -174,6 +176,12 @@ jobs:
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      #
+      # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
+      # branch cut before a tool existed is still checked with it
+      #
+      - uses: actions/checkout@v4
+        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
 
@@ -182,7 +190,7 @@ jobs:
         run: ./bootstrap.sh
 
       - name: The sanitizer tools (gcc-san, the preload, the broker wrappers)
-        run: stack/coraine/test/sanitizer/sanSetup.sh /opt/san
+        run: tools/test/sanitizer/sanSetup.sh /opt/san
 
       #
       # CC on the make command line reaches every lib's make (MAKEFLAGS); CC in the environment is
@@ -220,7 +228,7 @@ jobs:
         working-directory: stack/coraine
         run: |
           set +e
-          python3 test/sanitizer/sanReport.py "$SAN_REPORT_DIR" > /tmp/san-report.md
+          python3 "$GITHUB_WORKSPACE/tools/test/sanitizer/sanReport.py" "$SAN_REPORT_DIR" > /tmp/san-report.md
           st=$?
           { echo "### Sanitizers: ${{ matrix.httpServer }} ${{ matrix.db }} - suite ${{ steps.suite.outcome }}"; cat /tmp/san-report.md; } >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/san-report.md
@@ -281,6 +289,12 @@ jobs:
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      #
+      # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
+      # branch cut before a tool existed is still checked with it
+      #
+      - uses: actions/checkout@v4
+        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
 
       - name: The build and test environment
         run: stack/coraine/.github/scripts/ci-env.sh
@@ -315,7 +329,7 @@ jobs:
         working-directory: stack/coraine
         run: |
           set -o pipefail
-          test/upgrade/upgradeCheck.sh --from "$FROM_IMAGE" --to coraine --store all 2>&1 | tee /tmp/upgrade.log
+          "$GITHUB_WORKSPACE/tools/test/upgrade/upgradeCheck.sh" --from "$FROM_IMAGE" --to coraine --store all 2>&1 | tee /tmp/upgrade.log
 
       - name: Summary
         if: always()
@@ -373,6 +387,12 @@ jobs:
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
         with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      #
+      # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
+      # branch cut before a tool existed is still checked with it
+      #
+      - uses: actions/checkout@v4
+        with: { path: tools, sparse-checkout: 'test/sanitizer test/soak test/upgrade' }
 
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
@@ -387,7 +407,7 @@ jobs:
 
       - name: Soak - ${{ matrix.db }}, ${{ inputs.soakMinutes }} minutes
         working-directory: stack/coraine
-        run: python3 test/soak/soak.py --db ${{ matrix.db }} --minutes ${{ inputs.soakMinutes }} --work /tmp/soak
+        run: python3 "$GITHUB_WORKSPACE/tools/test/soak/soak.py" --db ${{ matrix.db }} --minutes ${{ inputs.soakMinutes }} --work /tmp/soak
 
       - name: Summary
         if: always()
