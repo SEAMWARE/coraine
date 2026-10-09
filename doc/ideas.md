@@ -233,6 +233,20 @@ ends it - `--memoryLimit` is the start of it.
 
 ## Build, distribution and footprint
 
+### c³ - the coraine Control Center
+
+One application for everything around a broker, in three parts:
+
+- **Compile** - build a broker for a deployment: which features are compiled in, the profile
+  training (PGO) and `make tune` on a workload, the target hardware; the result as a binary, a
+  container image or a Debian package. It drives `coraine-build` from the `coraine-dev` package, so
+  it needs no toolchain of its own.
+- **Configure** - the mapping tools: DDS topics, services and actions to NGSI-LD entities and
+  attributes (the mapping file the DDS bridge reads), and the same for OPC UA variables, monitored
+  items and methods.
+- **Connect** - a live connection to a running broker: its entities, their relationships drawn as a
+  graph, their values as they change.
+
 ### Packages
 
 A Debian repository and `apt-get install coraine`, with a `coraine-dev` that pulls the whole
