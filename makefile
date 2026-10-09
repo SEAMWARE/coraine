@@ -327,18 +327,30 @@ etc/contextSourceExtras.json: FORCE
 	@printf '{\n  "version": "%s",\n  "gitSha": "%s",\n  "buildAt": "%s"\n}\n' \
 	  "$(CORAINE_VERSION)" "$(CORAINE_GIT_SHA)" "$(CORAINE_BUILD_AT)" > $@
 
+#
+# installFile <file> <path> - a NEW file at <path>: copied beside it, then renamed over it.
+#
+# Never `cp` onto an installed file: cp rewrites the existing file in place - the same inode - and a
+# running broker has its plugins mapped (dlopen). Their code then changes under it, and the broker
+# dies of SIGSEGV or SIGILL within seconds, in whichever thread next runs plugin code (corPeriodic,
+# once a second, or the shutdown). Onto the running binary itself cp fails outright (Text file busy).
+# A rename leaves a running broker its old files; its next start loads the new ones.
+# test/install/installUnderRunningBroker.sh checks it.
+#
+installFile = cp -p $(1) $(dir $(2)).$(notdir $(2)).new && mv -f $(dir $(2)).$(notdir $(2)).new $(2)
+
 # install_from <build-dir> — copy broker + plugins + etc out of a build tree
 define install_from
-	mkdir -p $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(ETC_DIR)
-	cp -p $(1)/src/app/coraine/coraine                       $(PREFIX)/bin/
-	if [ -f $(1)/src/app/coraineImport/coraine-import ]; then cp -p $(1)/src/app/coraineImport/coraine-import $(PREFIX)/bin/; fi   # COR_FEATURE_MIGRATE
-	cp -p $(1)/src/plugins/currentState/mongoc/mongoc.so       $(PLUGIN_DIR)/db/currentState/
-	cp -p $(1)/src/plugins/temporal/none/none.so               $(PLUGIN_DIR)/troe/temporal/
-	cp -p $(1)/src/plugins/temporal/timescale/timescale.so     $(PLUGIN_DIR)/troe/temporal/
-	cp -p $(1)/src/plugins/api/admin/admin.so                  $(PLUGIN_DIR)/api/
-	cp -p $(1)/src/plugins/bridge/loopback/loopback.so          $(PLUGIN_DIR)/bridge/
-	cp -p $(1)/src/plugins/transport/ws/ws.so                   $(PLUGIN_DIR)/transport/
-	cp -p etc/contextSourceExtras.json                         $(ETC_DIR)/
+	mkdir -p $(PREFIX)/bin $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(ETC_DIR)
+	$(call installFile,$(1)/src/app/coraine/coraine,$(PREFIX)/bin/coraine)
+	if [ -f $(1)/src/app/coraineImport/coraine-import ]; then $(call installFile,$(1)/src/app/coraineImport/coraine-import,$(PREFIX)/bin/coraine-import); fi   # COR_FEATURE_MIGRATE
+	$(call installFile,$(1)/src/plugins/currentState/mongoc/mongoc.so,$(PLUGIN_DIR)/db/currentState/mongoc.so)
+	$(call installFile,$(1)/src/plugins/temporal/none/none.so,$(PLUGIN_DIR)/troe/temporal/none.so)
+	$(call installFile,$(1)/src/plugins/temporal/timescale/timescale.so,$(PLUGIN_DIR)/troe/temporal/timescale.so)
+	$(call installFile,$(1)/src/plugins/api/admin/admin.so,$(PLUGIN_DIR)/api/admin.so)
+	$(call installFile,$(1)/src/plugins/bridge/loopback/loopback.so,$(PLUGIN_DIR)/bridge/loopback.so)
+	$(call installFile,$(1)/src/plugins/transport/ws/ws.so,$(PLUGIN_DIR)/transport/ws.so)
+	$(call installFile,etc/contextSourceExtras.json,$(ETC_DIR)/contextSourceExtras.json)
 endef
 
 install: etc/contextSourceExtras.json
