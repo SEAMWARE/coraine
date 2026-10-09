@@ -85,7 +85,10 @@ incorporated in the next release of the product, in roughly this order:
 -   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
     discovery parameters.
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
--   **Build GUI** - Qt/GTK application/webpage? to configure the build, incl cond.comp, pgo training, HW, etc => docker image
+-   **c³, the coraine Control Center - Compile** - a web application (a small C backend on the build machine) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
+-   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
+    NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
+    plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
 -   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
     Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
 -   **Authorisation inside the broker** - per entity, per type after expansion, per tenant, per attribute; ODRL,
@@ -103,7 +106,9 @@ incorporated in the next release of the product, in roughly this order:
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **The IoT Agents as cor-agent plugins** - device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
+-   **c³ - Configure** - the mapping tools in the Control Center: DDS topics, services and actions to entities and attributes, and the same for OPC UA. ([more](ideas.md#c-the-coraine-control-center))
+-   **The IoT Agents as cor-agent plugins** - all seven FIWARE IoT Agents (JSON, UltraLight, LWM2M, OPC UA, LoRaWAN, Sigfox, ISOXML) as device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
+-   **A CKAN bridge and a CSV bridge** - open-data datasets from a CKAN portal, and CSV files, ingested as NGSI-LD entities through the Bridge/Channel seam - new: FIWARE only stores into CKAN, never reads from it; real data for c³ Connect and the demos. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **HA peer push** - with a shared database, the broker that changes a subscription, registration or @context pushes the change to the other brokers itself (cor://) and answers the client once they have it - the window in which an update reaching another broker misses a notification shrinks from the change stream's ~50 ms to a LAN round trip. The cluster's members in a collection of the shared database. ([more](ideas.md#ha-peer-push-over-a-shared-database))
@@ -125,6 +130,7 @@ product is heading and may wish to get involved.
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
+-   **c³ - Connect** - the Control Center connected live to a running broker over its WebSocket transport (queries, then a subscription's notifications): its entities, their relationships as a graph (boxes and arrows, zoom, pan, entities dragged into place), the GeoProperty entities on a map, their values as they change; also as an API plugin of the broker itself. ([more](ideas.md#c-the-coraine-control-center))
 -   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))

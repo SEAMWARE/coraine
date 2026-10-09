@@ -14,7 +14,7 @@
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
 #
-import json, os, sys, statistics
+import json, os, re, sys, statistics
 
 WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 
@@ -22,8 +22,9 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 #
 # ⭐ Not every metric is "bigger is better".
 #
-# The throughput metrics are requests/second - up is good. The `_p99us` ones
-# are p99 LATENCY in microseconds - down is good. Comparing them the same way
+# The throughput metrics are requests/second - up is good. The `_p50us`,
+# `_p95us` and `_p99us` ones are LATENCY percentiles in microseconds - down is
+# good. Comparing them the same way
 # gets the answer exactly backwards: a runner that happens to be fast raises
 # every throughput number AND lowers every p99, and the p99 rows then read as
 # a collapse. That is not hypothetical - it is why this job went red on
@@ -35,8 +36,14 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 # green. A perf gate that is loud when things improve and silent when they
 # rot is worse than no gate.
 #
+# Every percentile, not just p99: perfRun.sh has reported p50 and p95 beside
+# p99 since 2026-10-04 (7ae40963), and with only `_p99us` matched here they
+# were read as throughput. The release/0.5.0 nightly went red on exactly that -
+# the rare-type and big-store queries got 10-150x faster (#300) and their p50
+# and p95 rows read as -60 % to -99 % collapses.
+#
 def lowerIsBetter(metric):
-    return metric.endswith("_p99us")
+    return re.search(r"_p\d+us$", metric) is not None
 
 #
 # cpu - the machine this run is on, as perfRecord.py records it
@@ -80,12 +87,28 @@ print(f"On `{machine}` - compared with the {min(len(history), WINDOW)} latest ru
 print("| metric | now | median of last %d | change | | " % WINDOW)
 print("|---|---:|---:|---:|---|")
 
-worst, verdict = 0.0, 0
+#
+# ⭐ A tail percentile (p95, p99) fails the gate only when its scenario moved too.
+#
+# A real regression moves the whole scenario: throughput drops, p50 rises, the tail with them. A
+# p99 on its own is the runner's tail - on a ~120 us single-connection p99, 60 us of scheduling
+# noise is "+50 %". The release/0.5.0 nightly (2026-10-09) went red on corDB create_c1_p99us
+# 126 -> 201 us while that scenario's throughput was +2.4 % and its p50 and p95 sat in their
+# usual range. So a p95/p99 past the fail line counts only when the same scenario's throughput
+# or p50 is past the warn line as well; otherwise it is shown as a warning, "tail only".
+#
+def scenarioOf(m):
+    return re.sub(r"_p\d+us$", "", m)
+
+def isTail(m):
+    return re.search(r"_p\d+us$", m) is not None and not m.endswith("_p50us")
+
+rows = []
 for m in metrics:
     now  = today[m]
     past = [r[m] for r in history[-WINDOW:] if m in r]
     if not past:
-        print(f"| {m} | {now} | — | first run |")
+        rows.append((m, now, None, None, None))
         continue
     ref    = statistics.median(past)
     change = (now - ref) / ref * 100.0
@@ -93,12 +116,36 @@ for m in metrics:
     # metric runs. Every threshold below is on delta; the table still prints
     # the true change, so the numbers can be checked against the raw records.
     delta  = -change if lowerIsBetter(m) else change
-    mark   = "" if delta >= -WARN_PCT else (" ⚠️" if delta > -FAIL_PCT else " ❌")
-    note   = "latency, lower is better" if lowerIsBetter(m) else ""
+    rows.append((m, now, ref, change, delta))
+
+deltaOf = {r[0]: r[4] for r in rows if r[4] is not None}
+
+def confirmed(m):
+    sc = scenarioOf(m)
+    return any(deltaOf.get(k) is not None and deltaOf[k] <= -WARN_PCT for k in (sc, sc + "_p50us"))
+
+worst, verdict = 0.0, 0
+for m, now, ref, change, delta in rows:
+    if ref is None:
+        print(f"| {m} | {now} | — | first run |")
+        continue
+    counts = not (isTail(m) and delta <= -FAIL_PCT and not confirmed(m))
+    if delta >= -WARN_PCT:
+        mark = ""
+    elif delta > -FAIL_PCT or not counts:
+        mark = " ⚠️"
+    else:
+        mark = " ❌"
+    note = "latency, lower is better" if lowerIsBetter(m) else ""
+    if not counts:
+        note = "tail only - throughput and p50 of this scenario did not move"
     print(f"| {m} | {now} | {ref:.0f} | {change:+.1f}%{mark} | {note} |")
-    worst = min(worst, delta)
-    if delta <= -FAIL_PCT:
-        verdict = 1
+    if counts:
+        worst = min(worst, delta)
+        if delta <= -FAIL_PCT:
+            verdict = 1
+    else:
+        worst = min(worst, -WARN_PCT)
 
 print()
 if worst <= -FAIL_PCT:

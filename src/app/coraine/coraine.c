@@ -103,7 +103,7 @@
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
-#include "bridge/channelConfigLoad.h"             // channelConfigLoad
+#include "bridge/channelConfigLoad.h"             // channelConfigLoad, channelConfigPath
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
@@ -674,7 +674,12 @@ static void bridgesInit(void)
     if (driverP->init == NULL)
       continue;
 
-    if (driverP->init(bridgeConfig, &bridgeBroker) != BRIDGE_OK)
+    //
+    // The file the Channels came from - the default location too, when --bridgeConfig is not given.
+    // Handing the plugin NULL then left it without its own settings (mqtt.server) while the broker
+    // had made its Channels from that very file.
+    //
+    if (driverP->init(channelConfigPath(bridgeConfig), &bridgeBroker) != BRIDGE_OK)
       COR_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
 
     COR_I("bridge '%s' up%s%s",
@@ -1200,7 +1205,8 @@ static void brokerLinkedEntitiesHook(CorNode* dataArrayP, const char* mode, int 
 //
 // `cliPath` is the value of --contextSourceExtras (NULL if not supplied).
 // On no CLI override, falls back to the install-time default at
-// /opt/seamware/etc/contextSourceExtras.json (regenerated on every build).
+// /opt/seamware/etc/contextSourceExtras.json (regenerated on every build) - or in the
+// directory SEAMWARE_ETC_DIR names, as for the default bridges.json.
 //
 // Parses with the startup pool (corRest.kalloc) so the raw text and the
 // transient parse tree are freed by the pool reset that the caller does
@@ -1215,9 +1221,18 @@ static void contextSourceExtrasLoad(const char* cliPath)
 {
   const char* path        = cliPath;
   bool        cliSupplied = (cliPath != NULL);
+  char        defaultPath[1024];
 
   if (path == NULL)
-    path = "/opt/seamware/etc/contextSourceExtras.json";
+  {
+    const char* etcDir = getenv("SEAMWARE_ETC_DIR");
+
+    if ((etcDir == NULL) || (*etcDir == 0))
+      etcDir = "/opt/seamware/etc";
+
+    snprintf(defaultPath, sizeof(defaultPath), "%s/contextSourceExtras.json", etcDir);
+    path = defaultPath;
+  }
 
   FILE* fp = fopen(path, "r");
   if (fp == NULL)
@@ -1862,6 +1877,7 @@ int main(int argC, char* argV[])
 
   if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestInit failed on port %u", port);
+  free(allServices);   // corRestInit copied every entry into its per-verb tables
 
   COR_I("coraine running on port %u", port);
 

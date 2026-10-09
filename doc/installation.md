@@ -246,12 +246,13 @@ at runtime: choose it knowing that.
 alongside its type and default, so the list never has to be maintained by hand.
 A command-line argument overrides the environment variable.
 
-One variable is read outside that mechanism, by the plugin loader itself before the
-arguments are parsed:
+Two variables are read outside that mechanism. They move the installation's directories, and they
+name no file:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `SEAMWARE_PLUGIN_DIR` | `/opt/seamware/plugins` | base directory plugin short names resolve against |
+| `SEAMWARE_PLUGIN_DIR` | `/opt/seamware/plugins` | base directory plugin short names resolve against (read by the plugin loader, before the arguments are parsed) |
+| `SEAMWARE_ETC_DIR` | `/opt/seamware/etc` | where the broker looks for `bridges.json` when `--bridgeConfig` is not given, and for `contextSourceExtras.json` when `--contextSourceExtras` is not given. A file missing from there is not an error |
 
 ## Migrating from another broker
 

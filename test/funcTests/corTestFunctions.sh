@@ -201,6 +201,18 @@ coraineStart() {
   corRoleLookup "$role" || return 1
   coraineStop -role "$role" 2>/dev/null
 
+  #
+  # The previous broker's ports closed before this one starts. A broker that is killed (kill -9, or
+  # its own exit) reads Z in /proc - what corPidAlive and coraineStop wait for - as soon as its main
+  # thread is gone, while its other threads are still being torn down; its listening sockets stay
+  # open until the last of them is. Started inside that window, corAwaitPort below connects to the
+  # DYING broker and returns before the new one listens, and the test's next request gets a reset
+  # (curl exit 56) or a refused connection (exit 7) - cordb_persist_attr_updates' step 04 on a CI
+  # runner.
+  #
+  corAwaitPortClosed $COR_ROLE_PORT 10
+  [ "$COR_TRANSPORT" == "cor" ] && corAwaitPortClosed $((COR_ROLE_PORT + 1000)) 10
+
   # --httpEndpoint is pinned to localhost so served-@context URLs, distributed-sub
   # callbacks and forwarded Link headers are host-independent (the broker now
   # auto-detects a LAN IP by default, which would make expected outputs vary per
@@ -808,6 +820,28 @@ ftClientStart() {
 #
 corPortOpen() {
   bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
+}
+
+
+# corAwaitPortClosed <port> [seconds] - wait until nothing accepts a TCP connection on <port>
+#
+# corAwaitPort's counterpart, for a broker on its way out (see coraineStart). Returns at once when
+# the port is closed already. On timeout it says so on stderr and returns 1: something else holds
+# the port, and the broker about to start there will not be the one that answers.
+#
+corAwaitPortClosed() {
+  local port=$1
+  local deadline=$(( $(date +%s) + ${2:-10} ))
+
+  while corPortOpen "$port"; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "corAwaitPortClosed: port $port still accepts connections after ${2:-10}s" >&2
+      return 1
+    fi
+    sleep 0.01
+  done
+
+  return 0
 }
 
 

@@ -150,6 +150,13 @@ command attributes set to `null`, meaning "not yet triggered".
 
 Seven, plus `iotagent-node-lib` itself. That is the parity bar.
 
+The same catalogue chapter ("Interface with IoT, Robots and Third-Party Systems") also holds
+components that are not IoT Agents: **Fast DDS** and **Micro XRCE-DDS** (DDS middleware; coraine's
+DDS bridge runs on a DDS stack), **Oliot** (an EPCIS mediation gateway), and **Kurento** /
+**OpenVidu** (media streams). There is no CSV or CKAN agent; the **CKAN extensions** (catalogue
+chapter "Context Data/API Management, Publication and Monetization") publish a broker's data in
+CKAN, the opposite direction to ingesting from it.
+
 ---
 
 ## 7. Transport and payload are separate axes

@@ -174,7 +174,7 @@ jobs:
     # end"). Hardcode the last index and the day somebody adds a test it is run by
     # nobody, silently.
     #
-    name: functest ${{ matrix.shard.db }} ${{ matrix.shard.name }}
+    name: functest ${{ matrix.shard.db }}${{ matrix.shard.http == 'builtin' && ' corHttp' || '' }} ${{ matrix.shard.name }}
     strategy:
       fail-fast: false
       matrix:
@@ -194,9 +194,13 @@ jobs:
           # corDB re-cut 2026-10-06 (757 tests since the mongoc-only ones run on it too): ~202 s
           # of tests a shard, the same per-test measure.
           #
-          - { db: corDB,  name: '1-254',   from: 1,   to: 254 }
-          - { db: corDB,  name: '255-569', from: 255, to: 569 }
-          - { db: corDB,  name: '570-end', from: 570, to: 0 }
+          # The corDB shards run on corHttp (COR_HTTP_SERVER=builtin), the mongoc shards on libmicrohttpd:
+          # the whole suite on each HTTP server on every PR - the headline build (corHttp + corDB) among them -
+          # without one more job (the free plan runs 20 at a time). corDB + libmicrohttpd: the nightly.
+          #
+          - { db: corDB,  name: '1-254',   from: 1,   to: 254, http: builtin }
+          - { db: corDB,  name: '255-569', from: 255, to: 569, http: builtin }
+          - { db: corDB,  name: '570-end', from: 570, to: 0, http: builtin }
           #
           # The reduced builds. Its own shard rather than a share of one,
           # because it is the only case that COMPILES rather than requesting -
@@ -335,7 +339,7 @@ jobs:
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make di
+          make di COR_HTTP_SERVER=${{ matrix.shard.http || 'mhd' }}
 
       #
       # The mongo half of the old wait now lives in the script, because initiating

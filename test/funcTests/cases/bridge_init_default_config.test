@@ -1,0 +1,110 @@
+#
+# FILE            bridge_init_default_config.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Without --bridgeConfig the broker reads its Channels from the default bridges.json, and each
+# bridge's init() must be handed that same file - a plugin's own settings live beside the Channels,
+# under its alias. Handed NULL, the plugin never sees them: corMqttBridge opened no connection and
+# every Channel went dormant ("no server"), and a plugin that needs its settings failed init, which
+# ends startup.
+#
+# The loopback's own setting here is emitAtStart, which the PLUGIN reads, from the file init() gives
+# it: the emitted value arriving is the plugin having seen the file. The Channel's entity is there
+# either way - the broker read the file itself.
+#
+# The default file is found in SEAMWARE_ETC_DIR (/opt/seamware/etc when unset), so nothing is
+# written to /opt.
+#
+--NAME--
+Bridges: without --bridgeConfig, init() is given the default bridges.json the Channels came from
+
+--TAGS--
+bridge channel plugins config
+
+--INIT--
+corDbDrop
+
+mkdir -p /tmp/coraine_etc
+bridgeConfig -o /tmp/coraine_etc/bridges.json \
+  --topic "P1,Machine,urn:ngsi-ld:Machine:etc1,temperature" \
+  --emit "P1=41" > /dev/null
+
+export SEAMWARE_ETC_DIR=/tmp/coraine_etc
+coraineStart --bridges loopback
+
+--RUN--
+
+echo "01. The value the plugin emits - a setting it read from the file init() gave it - has arrived"
+echo "=============================================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:etc1 41
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:etc1
+echo
+echo
+
+
+echo "02. The Channel came from the default file, and carried that one sample in"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/channels
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/coraine_etc
+
+--EXPECT--
+01. The value the plugin emits - a setting it read from the file init() gave it - has arrived
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "id": "urn:ngsi-ld:Machine:etc1",
+  "temperature": {
+    "type": "Property",
+    "value": 41
+  },
+  "type": "Machine"
+}
+
+
+
+02. The Channel came from the default file, and carried that one sample in
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 494
+
+[
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelDirection": "both",
+    "channelKind": "topic",
+    "channelTarget": "P1",
+    "entity": {
+      "id": "urn:ngsi-ld:Machine:etc1",
+      "type": "Machine"
+    },
+    "entityAttribute": "temperature",
+    "id": "urn:ngsi-ld:Channel:loopback:P1",
+    "requestsNotWaited": 0,
+    "requestsWaiting": 0,
+    "retention": "mirror",
+    "samplesIn": 1,
+    "samplesOut": 0,
+    "status": "available",
+    "type": "Channel"
+  }
+]
+
+
+

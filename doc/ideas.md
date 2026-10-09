@@ -125,6 +125,64 @@ beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
 
+### Philips Hue - the first FIWARE@Home plugin
+
+FIWARE@Home - coraine on a Raspberry Pi as the home's context broker - starts with the devices people
+already have. Parity with the FIWARE IoT Agents is the floor; the home needs more plugins than those,
+and Philips Hue comes first.
+
+A plugin on the bridge contract, speaking the Hue Bridge's local API (version 2, HTTPS on the home
+network, no cloud):
+
+- **Pairing** - the bridge is found on the network (mDNS), and the plugin gets its application key
+  when someone presses the bridge's link button.
+- **Entities** - lights, rooms and zones, scenes, and the sensors (motion, temperature, light level,
+  buttons). A light's `on`, brightness and colour are Properties; the room it is in is a
+  Relationship - so in c³ Connect the home is a graph: rooms, their lights, their sensors.
+- **Live** - the bridge's event stream pushes every change; the plugin writes it to the broker as it
+  happens. No polling.
+- **Switching** - a write to a light's entity (on, brightness, colour, a scene) becomes the bridge
+  call that does it.
+
+### A CKAN bridge and a CSV bridge
+
+CKAN is the data portal behind many city and government open-data sites. FIWARE reads nothing from
+it: its CKAN components (the Cygnus and Draco CKAN sinks, `ckanext-harvest-ngsild`) all go the other
+way and store a broker's data in CKAN. Reading from CKAN is new.
+
+Both are **bridges** on the Bridge/Channel seam, like DDS, MQTT and Modbus - the bridge knows nothing
+about entities; it speaks `(endpoint, json, time)`:
+
+- **CKAN** - the endpoint is a dataset's resource; each row read through CKAN's API
+  (`datastore_search`, rows as JSON) is one message, timed by a column of the row or by when it was
+  read.
+- **CSV** - the same for a CSV file: a local one, one at a URL, or a CKAN dataset whose data is an
+  uploaded CSV file rather than a DataStore table.
+
+CKAN pushes nothing - no event stream, no change feed for rows - so how a Channel follows its
+resource is a **mode**, set per Channel:
+
+- **once** - read the resource at start-up, then stop. Most open data, and the c³ demo.
+- **poll** - watch the dataset's activity stream (`package_activity_list`, "resource updated"); on a
+  change, read only the new rows (`_id` above the last one seen - DataStore rows get increasing
+  integer ids) when the table only grows, or the whole resource again when it was replaced. A row
+  changed in place keeps its `_id`; it is seen only through a timestamp column. The broker's upsert
+  writes only what changed.
+- **push** - where the portal has a webhooks extension installed (`ckanext-webhooks`): a dataset
+  change is pushed, then read as in poll.
+
+Most open data is not an append stream: a dataset is replaced whole, often nightly - a fresh CSV or a
+rewritten table. Poll treats that as a re-read, not a tail.
+
+The **Channel** does the NGSI-LD side, as for every bridge: which column is the entity id, a column
+holding a place becomes the `location` GeoProperty, a column naming another row becomes a
+Relationship - made in c³ Configure, beside DDS and OPC UA. The other direction comes with the seam:
+a Channel the other way stores a broker's entities in CKAN - what the Cygnus and Draco sinks do today,
+without a separate process.
+
+As a demo in c³: a dropdown of datasets from a portal, a preview of the first rows, the mapping, then
+the ingest - and the entities are on the map and in the graph in Connect. Real data to play with.
+
 ### A smaller DDS stack for the DDS bridge
 
 The DDS bridge runs on a full DDS stack, the largest part of a coraine installation (about five times
@@ -232,6 +290,45 @@ A broker that knows its memory budget (a container's limit) and refuses writes b
 ends it - `--memoryLimit` is the start of it.
 
 ## Build, distribution and footprint
+
+### c³ - the coraine Control Center
+
+One application for everything around a broker, in three parts:
+
+- **Compile** - build a broker for a deployment: which features are compiled in, the profile
+  training (PGO) and `make tune` on a workload, the target hardware; the result as a binary, a
+  container image or a Debian package. It drives `coraine-build` from the `coraine-dev` package, so
+  it needs no toolchain of its own.
+- **Configure** - the mapping tools: DDS topics, services and actions to NGSI-LD entities and
+  attributes (the mapping file the DDS bridge reads), and the same for OPC UA variables, monitored
+  items and methods.
+- **Connect** - a live connection to a running broker: its entities as boxes and their
+  Relationships as arrows between them - zoom, move the view, drag entities into place - the
+  entities with a GeoProperty on a map, and their values as they change.
+
+**A web application**, not a native one: the build often runs on a server without a screen, reached
+from a laptop, a Mac or a tablet; the best graph libraries are web libraries; and the broker already
+speaks HTTP and WebSocket. A small backend in C on the build machine serves the pages and runs what
+Compile and Configure need (`coraine-build`, the mapping files). Connect can also come with the
+broker itself, as an API plugin serving the page: connecting to a broker is then opening its URL.
+
+**Starting it** - one command, `c3`: it starts the backend on a local port and opens the
+application. With Chrome or Chromium installed it opens as an application window of its own
+(`--app=<url>`, no tabs or address bar), full-screen (`--start-fullscreen`); otherwise a tab in the
+default browser (`xdg-open`, `open` on macOS). A page cannot make itself full-screen without a click
+(the browser's rule), so full-screen is the launcher's job. On a machine without a screen, `c3`
+prints the URL to open from a laptop (through `ssh -L` when the port is not reachable). The first
+thing shown is a **splash screen** while the backend gets ready - each step as it really completes
+(the `coraine-dev` version, `coraine-build --list-features`, the brokers and bridges found), not a
+timer - then Compile.
+
+**Connect over the WebSocket transport** ([WebSocket](websocket.md)): the initial state by queries,
+then a subscription on the same socket and the notifications it pushes - no polling. A browser cannot
+set HTTP headers on a WebSocket, which the transport already allows for: every message carries its
+headers (`NGSILD-Tenant`, `Link`) in its own `metadata`. Two things to settle with the broker's
+authorisation, not after it: how a browser presents a token on the socket (in a message's metadata,
+or a cookie), and an `Origin` check for a page not served by the broker itself (as `--corsOrigin`
+does for HTTP).
 
 ### Packages
 

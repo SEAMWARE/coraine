@@ -15,11 +15,11 @@ BUILD_COVERAGE = BUILD_COVERAGE
 #
 # Functional-test coverage is measured PER CURRENT-STATE DB, because the two DB
 # plugins take different paths through the broker and each leaves the other's
-# plugin sources unexecuted. `make coverage` runs corDB, `make coverage DB=mongoc`
-# runs mongoc, and each writes its own report - comparing a corDB run against a
+# plugin sources unexecuted. `make coverage` runs mongoc, `make coverage DB=corDB`
+# runs corDB, and each writes its own report - comparing a corDB run against a
 # mongoc one is comparing two different measurements.
 #
-COV_DB        ?= $(if $(DB),$(DB),corDB)
+COV_DB        ?= $(if $(DB),$(DB),mongoc)
 COV_DIR        = coverage-$(COV_DB)
 COV_REPORT     = $(COV_DIR)/index.html
 COV_STATUS     = $(COV_DIR)/suite-status
@@ -286,14 +286,14 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
 	done
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
-	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
+	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
 	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
 	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_FEATURES) \
-	  -DCMAKE_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
+	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
 	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
 	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
@@ -424,8 +424,13 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge $(COV_PLUGIN_DIR)/transport
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
+#
+# corDB's plugins as its `make install` lays them out: corDB.so (--troe corDB is its own troeRegister,
+# no plugin of its own) and ramDB.so as current-state stores, the RAM ring troe/ramDB.so as --troe ramDB.
+#
 	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/corDB.so        $(COV_PLUGIN_DIR)/db/currentState/
-	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/troe/corDB.so   $(COV_PLUGIN_DIR)/troe/temporal/
+	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/ramDB.so        $(COV_PLUGIN_DIR)/db/currentState/
+	@cp -p $(SIBLING_DIR)/corDB/obj/coverage/troe/ramDB.so   $(COV_PLUGIN_DIR)/troe/temporal/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/transport/*/*.so    $(COV_PLUGIN_DIR)/transport/

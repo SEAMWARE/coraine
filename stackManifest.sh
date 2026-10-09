@@ -36,7 +36,7 @@ fi
 for lib in $LIBS; do
   sha=""
 
-  if [ -d "$SIBLINGS/$lib/.git" ]; then
+  if [ -e "$SIBLINGS/$lib/.git" ]; then          # -e: in a git worktree, .git is a file
     sha=$(git -C "$SIBLINGS/$lib" rev-parse HEAD 2>/dev/null)
   fi
 

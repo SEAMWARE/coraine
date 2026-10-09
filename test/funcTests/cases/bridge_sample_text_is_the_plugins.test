@@ -1,0 +1,123 @@
+#
+# FILE            bridge_sample_text_is_the_plugins.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The JSON text a bridge hands to sampleIn() is the PLUGIN's, and constant: BridgeBroker.h promises
+# that the broker reads it, parses into its own memory, and the plugin may reuse the text the moment
+# the call returns. A broker that parses the text IN PLACE breaks both halves of that promise:
+#
+#   - a heap buffer comes back cut up - {"a": "hello", "b": [1, 2]} reads {"a afterwards
+#   - a text in read-only memory - a string literal - takes the broker down (SIGSEGV)
+#
+# The loopback bridge's "sampleFrom" produces both:
+#
+#   checkedBuffer  the sample goes in from the loopback's own heap buffer, and after the call the
+#                  loopback reports what that buffer then holds, in the sub-attribute bufferAfter
+#   literal        the sample goes in as a string literal, {"a": "hello", "b": [1, 2]}, whatever was
+#                  emitted (the emitted 0 only makes the loopback send)
+#
+# One broker each: a broker that dies on the literal must not take the buffer's evidence with it.
+#
+--NAME--
+Bridges: the broker parses a copy of a sample's text - the plugin's buffer is left as it was, and a literal is fine
+
+--TAGS--
+bridge plugins
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic "P1,Thing,urn:ngsi-ld:Thing:buffer,greeting" \
+  --raw '"sampleFrom": { "P1": "checkedBuffer" }' \
+  --emit 'P1={"a": "hello", "b": [1, 2]}')
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. A sample from the plugin's heap buffer - the buffer, after the call, still holds what was sent"
+echo "==================================================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thing:buffer bufferAfter
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thing:buffer
+echo
+echo
+
+
+echo "02. A sample in read-only memory (a string literal) - stored, and the broker is still there"
+echo "==========================================================================================="
+BRIDGE_CONFIG2=$(bridgeConfig -o /tmp/coraine_bridges2.json \
+  --topic "P1,Thing,urn:ngsi-ld:Thing:literal,greeting" \
+  --raw '"sampleFrom": { "P1": "literal" }' \
+  --emit 'P1=0')
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG2
+
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thing:literal hello
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thing:literal
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json /tmp/coraine_bridges2.json
+
+--EXPECT--
+01. A sample from the plugin's heap buffer - the buffer, after the call, still holds what was sent
+===================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 291
+
+{
+  "greeting": {
+    "bufferAfter": {
+      "type": "Property",
+      "value": "{\"a\": \"hello\", \"b\": [1, 2]}"
+    },
+    "type": "Property",
+    "value": {
+      "a": "hello",
+      "b": [
+        1,
+        2
+      ]
+    }
+  },
+  "id": "urn:ngsi-ld:Thing:buffer",
+  "type": "Thing"
+}
+
+
+
+02. A sample in read-only memory (a string literal) - stored, and the broker is still there
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 187
+
+{
+  "greeting": {
+    "type": "Property",
+    "value": {
+      "a": "hello",
+      "b": [
+        1,
+        2
+      ]
+    }
+  },
+  "id": "urn:ngsi-ld:Thing:literal",
+  "type": "Thing"
+}
+
+
+

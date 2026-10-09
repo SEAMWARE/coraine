@@ -1,0 +1,73 @@
+#
+# FILE            broker_start_waits_for_port_closed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraineStart starts the broker only once its port is closed. A killed broker reads Z in /proc while
+# its listening socket is still open (its other threads are still being torn down); a start inside
+# that window had corAwaitPort connect to the dying broker, and the test's first request went to it.
+# Here a listener that accepts and never answers holds the port for 0.5 s after the broker is stopped
+# - the dying broker's socket, made long. The broker started then is the one that answers.
+#
+--NAME--
+coraineStart waits for the previous listener on the port to go away
+
+--TAGS--
+cli
+
+--INIT--
+rm -f /tmp/corTest-broker_start_waits_for_port_closed.up
+coraineStart
+
+--RUN--
+
+#
+# 01. Stop the broker; a listener holds its port for 0.5 s
+# 02. Start the broker, GET /ngsi-ld/v1/types - the new broker answers
+#
+
+echo "01. Stop the broker; a listener holds its port for 0.5 s"
+echo "========================================================="
+corRoleLookup CB
+coraineStop
+python3 -c "
+import socket, time
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('127.0.0.1', $COR_ROLE_PORT))
+s.listen(8)
+open('/tmp/corTest-broker_start_waits_for_port_closed.up', 'w').close()
+time.sleep(0.5)
+" &
+holder=$!
+while [ ! -f /tmp/corTest-broker_start_waits_for_port_closed.up ]; do sleep 0.01; done
+corPortOpen $COR_ROLE_PORT && echo "the port accepts connections"
+echo
+echo
+
+
+echo "02. Start the broker, GET /ngsi-ld/v1/types - the new broker answers"
+echo "===================================================================="
+coraineStart
+corCurl --url /ngsi-ld/v1/types | head -1
+wait $holder   # the listener - not the broker, a job of this shell too
+echo
+echo
+
+
+--EXPECT--
+01. Stop the broker; a listener holds its port for 0.5 s
+=========================================================
+the port accepts connections
+
+
+02. Start the broker, GET /ngsi-ld/v1/types - the new broker answers
+====================================================================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/corTest-broker_start_waits_for_port_closed.up

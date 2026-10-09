@@ -1210,6 +1210,7 @@ shared runner moves ~2x between runs — the 09-18 file holds two records per DB
 that differ by that much — so this would have fired on roughly every other
 night from here on.
 
-⚠️ Lesson for any future metric: `perfCompare.py` now asks `lowerIsBetter()`,
-which keys off the `_p99us` suffix. A latency metric named anything else will
-reintroduce the bug silently.
+⚠️ Lesson for any future metric: `perfCompare.py` asks `lowerIsBetter()`,
+which keys off the `_p<N>us` suffix (p50, p95, p99). A latency metric named
+anything else reintroduces the bug silently - as `_p50us` / `_p95us` did when
+perfRun.sh added them (2026-10-04) while the suffix matched was still `_p99us`.

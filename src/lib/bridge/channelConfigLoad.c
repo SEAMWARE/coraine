@@ -45,9 +45,24 @@
 
 // -----------------------------------------------------------------------------
 //
-// CHANNEL_CONFIG_DEFAULT - where the file lives when nobody says
+// channelConfigDefault - where the file lives when nobody says
 //
-#define CHANNEL_CONFIG_DEFAULT "/opt/seamware/etc/bridges.json"
+// bridges.json in the installation's etc directory: /opt/seamware/etc, or the directory the
+// environment variable SEAMWARE_ETC_DIR names - as SEAMWARE_PLUGIN_DIR moves /opt/seamware/plugins.
+// Read here, outside the option mechanism: CORAINE_BRIDGECONFIG is --bridgeConfig, a file NAMED
+// (fatal when missing); this moves the file looked for by default (no file there, no Channels).
+//
+static const char* channelConfigDefault(void)
+{
+  static char  path[1024];
+  const char*  etcDir = getenv("SEAMWARE_ETC_DIR");
+
+  if ((etcDir == NULL) || (*etcDir == 0))
+    etcDir = "/opt/seamware/etc";
+
+  snprintf(path, sizeof(path), "%s/bridges.json", etcDir);
+  return path;
+}
 
 
 
@@ -408,12 +423,26 @@ static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP
 
 // -----------------------------------------------------------------------------
 //
+// channelConfigPath -
+//
+const char* channelConfigPath(const char* path)
+{
+  if (path != NULL)
+    return path;
+
+  return (access(channelConfigDefault(), R_OK) == 0) ? channelConfigDefault() : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelConfigLoad -
 //
 int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 {
   if (path == NULL)
-    path = CHANNEL_CONFIG_DEFAULT;
+    path = channelConfigDefault();
 
   if (access(path, R_OK) != 0)
   {

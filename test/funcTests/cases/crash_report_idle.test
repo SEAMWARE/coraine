@@ -17,6 +17,13 @@
 # the build), and the stack on the build: patterns, not literals. The stack is
 # only counted. The build id is compared with the running binary's own (readelf).
 #
+# Not under valgrind (-vt): the process at the pid is memcheck, not the broker
+# (/proc/<pid>/comm), its SIGSEGV is valgrind's to deliver and its death is
+# valgrind's "terminating with default action" - a crash on purpose is not a
+# memory check, and the report it leaves is no verdict on the broker's memory.
+#
+# SKIP_VALGRIND: on
+#
 --NAME--
 Crash report: a fatal signal on an idle broker - signal, version, command line, no request, a stack
 
@@ -82,7 +89,7 @@ broker: gone
 reports: 1
 === coraine crashed: SIGSEGV (11) ===
 version:      REGEX(\d+\.\d+\.\d+\S* \((Debug|Release|Coverage)\))
-command line: coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026REGEX(( --[a-zA-Z]+ \S+)+)
+command line: REGEX((\S*/)?coraine --port 1026 --pretty-print 2 --foreground --httpEndpoint http://localhost:1026( --[a-zA-Z]+ \S+)+)
 request:      (none - the crash was not in a request)
 stack:
 build id: the binary's own
