@@ -35,8 +35,9 @@ extern int64_t responseBudgetBytes;
 // A short page is an answer only where a page is: when the store paginates and at
 // least one entity fitted. Refused (and true returned) when the budget was spent
 // and either nothing fitted at all, or wholeSet - the caller needs every match
-// (an orderBy query orders the whole set before paginating it, an EntityMap
-// freezes it, a split-entity assembly merges it) and a part of it is a wrong answer.
+// (an orderBy query orders the whole set before paginating it, a split-entity assembly
+// without an EntityMap merges it) and a part of it is a wrong answer. An EntityMap is
+// not one of them: it freezes the ids of the set, and its pages are slices of it.
 //
 extern bool responseBudgetRefused(DbQueryFilter* filterP, CorNode* arrayP, bool wholeSet);
 

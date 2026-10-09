@@ -99,7 +99,7 @@ Content-Length: 0
 
 02. Query with entityMap=true - the map id comes back in NGSILD-EntityMap
 =========================================================================
-HTTP/1.1 200 OK
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)

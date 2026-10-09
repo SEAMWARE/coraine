@@ -47,7 +47,7 @@
 #include "corAlloc/corAlloc.h"                    // corAlloc
 #include "corAlloc/corAllocStrdup.h"              // corAllocStrdup
 #include "corNgsild/LdSnapshotCache.h"                // ldSnapshotCacheDestroyHookSet, ldSnapshotRequestRelease
-#include "corNgsild/ldEntityMap.h"                    // ldEntityMapRequestRelease
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapRequestRelease, ldEntityMapMaxBytes
 #include "corNgsild/corNgsild.h"                    // ldInit, CORNGSILD_VERSION, ldParamsInit
 #include "corNgsild/ldUrlWildcardCheck.h"          // ldUrlWildcardCheck
 #include "corNgsild/ldHooks.h"                      // ldAcceptPrecondition
@@ -205,6 +205,7 @@ int            maxRequestSize  = 2;          // MiB; § 6.3.2 413 threshold (0 =
 #if COR_FEATURE_RESPONSE_BUDGET
 int            maxResponseSize = -1;         // MiB; the byte budget of an entity query (0 = none; -1 = 1/16 of the memory budget, none without one - see responseBudget.h)
 #endif
+int            entityMapMemory = 64;         // MiB; the memory all EntityMaps may hold together (0 = no cap, and no automatic maps - see ldEntityMap.h)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
 
@@ -243,6 +244,7 @@ static CorArg kargV[] =
 #if COR_FEATURE_RESPONSE_BUDGET
   { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp -1, _vp -1,   _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget; -1 = 1/16 of the memory budget, none without one)" },
 #endif
+  { "--entityMapMemory",    "-entityMapMemory", CorArgInt, _vp &entityMapMemory, CorArgOpt, _vp 64, _vp 0,    _vp 65536, "memory all EntityMaps may hold together, in MiB - an automatic map that does not fit is not made (the least recently used ones give way first), a requested one gets 403 TooManyResults (0 = no cap, and no automatic EntityMaps)" },
   { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
@@ -1595,6 +1597,12 @@ int main(int argC, char* argV[])
   inlineDispatchInit(dbName, troeName, noInline);
   memoryBudgetInit(memoryLimit);
   metricsMemoryValuesSet(memoryBudgetValues);
+
+  //
+  // The memory of the EntityMaps (ldEntityMap.h) - automatic ones and the ones clients ask for
+  //
+  ldEntityMapMaxBytes = ((int64_t) entityMapMemory) * 1024 * 1024;
+  COR_V("EntityMap memory: %d MiB%s", entityMapMemory, (entityMapMemory == 0)? " (no cap, no automatic EntityMaps)" : "");
 
 #if COR_FEATURE_RESPONSE_BUDGET
   //

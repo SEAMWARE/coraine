@@ -141,7 +141,7 @@ HTTP/1.1 201 Created
 ========================================================================================
 HTTP/1.1 200 OK
 NGSILD-Results-Count: 7
-Link: </ngsi-ld/v1/entities?type=Blob&count=true&limit=100&offset=3>;rel="next";type="application/json"
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&count=true\&limit=100\&offset=3>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&count=true\&limit=100\&offset=3>;rel="last";type="application/json")
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 ids: urn:B:1 urn:B:2 urn:B:3
 
@@ -173,7 +173,7 @@ ids:  urn:B:1x1 urn:B:2x1 urn:B:3x1 urn:B:4x1 urn:B:5x1 urn:B:6x1 urn:B:7x1
 06. limit=2 binds before the budget - two entities, next at offset 2
 ====================================================================
 HTTP/1.1 200 OK
-Link: </ngsi-ld/v1/entities?type=Blob&limit=2&offset=2>;rel="next";type="application/json"
+REGEX(Link:\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=2\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/entities\?entityMap=urn:ngsi\-ld:EntityMap:[0-9a-f]+\&limit=2\&offset=6>;rel="last";type="application/json")
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 ids: urn:B:1 urn:B:2
 

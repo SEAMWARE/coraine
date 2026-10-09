@@ -98,6 +98,19 @@ typedef struct DbQueryFilter
   int64_t maxBytes;   // input: 0 = no budget
   bool    budgetHit;  // OUTPUT: the fetch stopped because the next entity did not fit
                       //         (the entities returned are the array's length)
+
+  //
+  // idsOnly - return each match as { "id": <entity id> } and nothing more
+  //
+  // For an EntityMap (getEntities.c): it freezes the SET of matching entities - their ids, in the
+  // store's order - and the pages fetch the entities. Materialising every match whole, to keep its
+  // id, cost a full entity per match for a map that holds a string per match.
+  //
+  // A plugin that does not know the field returns the entities whole, which is still correct.
+  // LAST in the struct (as maxBytes and budgetHit before it): a plugin built against an older
+  // header has the same layout up to here.
+  //
+  bool    idsOnly;
 } DbQueryFilter;
 
 
@@ -110,5 +123,9 @@ typedef struct DbQueryFilter
 // with and without them.
 //
 #define DB_QUERY_FILTER_MAX_BYTES
+
+// -----------------------------------------------------------------------------
+// DB_QUERY_FILTER_IDS_ONLY - this header has DbQueryFilter.idsOnly
+#define DB_QUERY_FILTER_IDS_ONLY
 
 #endif  // DB_DBQUERYFILTER_H_

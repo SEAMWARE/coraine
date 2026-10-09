@@ -1459,6 +1459,21 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
   bson_destroy(&sort);
 
   //
+  // The ids of the matches and nothing else (DbQueryFilter.idsOnly - an EntityMap): with the index
+  // on {type, createdAt, _id} a type query is then answered from the index alone.
+  //
+  bool idsOnly = (filterP != NULL) && filterP->idsOnly;
+
+  if (idsOnly)
+  {
+    bson_t projection;
+    bson_init(&projection);
+    BSON_APPEND_INT32(&projection, "_id", 1);
+    BSON_APPEND_DOCUMENT(&opts, "projection", &projection);
+    bson_destroy(&projection);
+  }
+
+  //
   // Count total matching documents (before limit/offset) if requested.
   //
   // For georel=near, `$near` inside a regular filter cannot survive
@@ -1735,6 +1750,19 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
       bson_append_document_end(&stages, &stageDoc);
     }
 
+    // --- $project stage: the ids only (an EntityMap) ---
+    if (idsOnly)
+    {
+      char key[16];
+      int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+      bson_t stageDoc, projectDoc;
+      bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+      bson_append_document_begin(&stageDoc, "$project", 8, &projectDoc);
+      BSON_APPEND_INT32(&projectDoc, "_id", 1);
+      bson_append_document_end(&stageDoc, &projectDoc);
+      bson_append_document_end(&stages, &stageDoc);
+    }
+
     bson_append_array_end(&pipeline, &stages);
 
     cursorP = mongoc_collection_aggregate(collP, MONGOC_QUERY_NONE, &pipeline, NULL, NULL);
@@ -1776,6 +1804,19 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
       bytes += doc->len;
     }
 #endif
+
+    if (idsOnly)
+    {
+      bson_iter_t idIter;
+
+      if (bson_iter_init_find(&idIter, doc, "_id") && BSON_ITER_HOLDS_UTF8(&idIter))
+      {
+        CorNode* entityP = corTreeObject(corRest.kallocP, NULL);
+        corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "id", bson_iter_utf8(&idIter, NULL)));
+        corTreeChildAdd(arrayP, entityP);
+      }
+      continue;
+    }
 
     CorNode* entityP = mongocEntityBsonToTree(&corRest.kalloc, doc);
     corTreeChildAdd(arrayP, entityP);
