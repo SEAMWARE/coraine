@@ -9,7 +9,7 @@
 # know - 400 naming it, 'input' pointing at 'executionInput' - at every level: the request's object, a
 # Service Execution of its serviceExecutions, a nested Combined Service Execution (which has no
 # notification of its own), one made of a template, and an entry of its 'services' (no more entries than
-# the template has services; at the place of a nested template, an empty object). Nothing is created.
+# the template has services; none at the place of a nested template). Nothing is created.
 # A Combined Service Template too - created, or PATCHed (the stored one checked whole, its timestamps
 # the broker's own): its object, a service of it, a nested template.
 #
@@ -37,7 +37,7 @@ ftExecStart
 # 06. Of a template: 'foo' - 400
 # 07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400
 # 08. Nothing created by 03-07: still 2 executions
-# 09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed
+# 09. Accepted, of the template: services [{entityId urn:R1}] - 201, completed
 # 10. Templates refused: 'foo' - 400; a service with 'input' - 400; a service with a 'type' - 400; a nested template with a 'templateName' - 400
 # 11. PATCH urn:T1: a service with 'input' - 400; 'foo' - 400; its templateName - 204 (the stored one, its timestamps, checked whole); GET it
 #
@@ -86,7 +86,7 @@ echo
 
 echo "03. The request's object: 'input' - 400; 'foo' - 400"
 echo "===================================================="
-create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)],\"input\":{}}"
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)],\"input\":1}"
 create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se)],\"foo\":1}"
 echo
 echo
@@ -94,7 +94,7 @@ echo
 
 echo "04. A Service Execution of serviceExecutions: 'input' - 400; 'id' - 400"
 echo "======================================================================="
-create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se ',"input":{}')]}"
+create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se ',"input":1')]}"
 create "{\"type\":\"CombinedServiceExecution\",\"combinationMethod\":\"sequential\",\"serviceExecutions\":[$(se ',"id":"urn:X"')]}"
 echo
 echo
@@ -117,9 +117,9 @@ echo
 
 echo "07. Its 'services': an entry with 'input' - 400; an object, not an array - 400; three entries - 400; an entityId at the nested template's place - 400"
 echo "====================================================================================================================================================="
-create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1","input":{}}]}'
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1","input":1}]}'
 create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":{"entityId":"urn:R1"}}'
-create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{},{}]}'
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{"entityId":"urn:R1"},{"entityId":"urn:R1"}]}'
 create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{"entityId":"urn:R1"}]}'
 echo
 echo
@@ -132,9 +132,9 @@ echo
 echo
 
 
-echo "09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed"
-echo "================================================================================"
-create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"},{}]}'
+echo "09. Accepted, of the template: services [{entityId urn:R1}] - 201, completed"
+echo "============================================================================"
+create '{"type":"CombinedServiceExecution","serviceTemplateId":"urn:T1","services":[{"entityId":"urn:R1"}]}'
 show $(lastId) completed
 echo
 echo
@@ -143,7 +143,7 @@ echo
 echo "10. Templates refused: 'foo' - 400; a service with 'input' - 400; a service with a 'type' - 400; a nested template with a 'templateName' - 400"
 echo "=============================================================================================================================================="
 tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot"}],"foo":1}'
-tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot","input":{}}]}'
+tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot","input":1}]}'
 tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"type":"ServiceExecution","serviceName":"echo","entityType":"Robot"}]}'
 tpost '{"type":"CombinedServiceTemplate","templateName":"t","combinationMethod":"parallel","services":[{"type":"CombinedServiceTemplate","templateName":"n","combinationMethod":"parallel","services":[{"serviceName":"echo","entityType":"Robot"}]}]}'
 echo
@@ -152,7 +152,7 @@ echo
 
 echo "11. PATCH urn:T1: a service with 'input' - 400; 'foo' - 400; its templateName - 204 (the stored one, its timestamps, checked whole); GET it"
 echo "==========================================================================================================================================="
-tpatch '{"services":[{"serviceName":"echo","entityType":"Robot","input":{}}]}'
+tpatch '{"services":[{"serviceName":"echo","entityType":"Robot","input":1}]}'
 tpatch '{"foo":1}'
 tpatch '{"templateName":"thrice"}'
 corCurl --url /ngsi-ld/v1/combinedServiceTemplate/urn:T1 | sed -n '/^{/,$p' | python3 -c "import json,sys; t=json.load(sys.stdin); print(t['templateName'], len(t['services']), 'services')"
@@ -214,7 +214,7 @@ HTTP/1.1 400 Bad Request
 HTTP/1.1 400 Bad Request
   "detail": "'services' has 3 entries - the template has 2 services",
 HTTP/1.1 400 Bad Request
-  "detail": "the template's member at that place is a Combined Service Template - it is taken as it is: an empty object in 'services'",
+  "detail": "the template's member at that place is a Combined Service Template - it is taken as it is: 'services' has no entry for it",
 
 
 08. Nothing created by 03-07: still 2 executions
@@ -222,8 +222,8 @@ HTTP/1.1 400 Bad Request
 2 executions
 
 
-09. Accepted, of the template: services [{entityId urn:R1}, {}] - 201, completed
-================================================================================
+09. Accepted, of the template: services [{entityId urn:R1}] - 201, completed
+============================================================================
 HTTP/1.1 201 Created
 CombinedServiceExecution sequential  completed
   ServiceExecution echo urn:R1 completed

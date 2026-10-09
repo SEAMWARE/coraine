@@ -382,7 +382,7 @@ static CorNode* buildCombined(Built* bP, CorNode* nodeP, const char* parentId)
 //
 // A member of the request's "services" (if there is one at that place) gives the entityId, and may give
 // an executionInput that replaces the template's; its serviceName, if given, must be the template's.
-// A nested template is taken as it is: the request's member at its place, if any, is an empty object.
+// A nested template is taken as it is: 'services' has no entry for its place (an entry there is refused).
 // A member of "services" is an object of entityId, serviceName, executionInput; no more of them than the
 // template has services.
 //
@@ -437,9 +437,9 @@ static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overri
 
     if ((str(sP, "type") != NULL) && (strcmp(str(sP, "type"), "CombinedServiceTemplate") == 0))
     {
-      if ((overP != NULL) && (overP->value.head != NULL))
+      if (overP != NULL)
       {
-        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's member at that place is a Combined Service Template - it is taken as it is: an empty object in 'services'");
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's member at that place is a Combined Service Template - it is taken as it is: 'services' has no entry for it");
         return NULL;
       }
 
