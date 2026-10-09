@@ -62,6 +62,7 @@ Recently built, and documented where it lives:
 -   **Migrating from Orion-LD** - `coraine-import`, a program of its own on the broker's libraries:
     entities, subscriptions, registrations and the temporal history, with their ids and system
     timestamps ([Migrating a database to coraine](migration.md)). Later, the ETSI neutral export format.
+-   **Debian packages** - `apt install coraine` (and `coraine-dev`: the exact source and `coraine-build`) for Ubuntu 26.04, 24.04 and Debian 13, amd64 and arm64, from the signed repository https://seamware.github.io/apt ([Installation](installation.md#install-with-apt)).
 -   **Running on Kubernetes** - a memory budget that refuses work instead of being killed for it, a
     health port answering `/live` and `/ready` outside the HTTP queue, and a byte budget per query
     response - entity, temporal and distributed queries ([Kubernetes](kubernetes.md)).
@@ -83,7 +84,6 @@ incorporated in the next release of the product, in roughly this order:
 
 -   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
     discovery parameters.
--   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **Build GUI** - Qt/GTK application/webpage? to configure the build, incl cond.comp, pgo training, HW, etc => docker image
 -   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
