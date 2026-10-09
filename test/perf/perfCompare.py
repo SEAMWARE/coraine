@@ -14,7 +14,7 @@
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
 #
-import json, os, sys, statistics
+import json, os, re, sys, statistics
 
 WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 
@@ -22,8 +22,9 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 #
 # ⭐ Not every metric is "bigger is better".
 #
-# The throughput metrics are requests/second - up is good. The `_p99us` ones
-# are p99 LATENCY in microseconds - down is good. Comparing them the same way
+# The throughput metrics are requests/second - up is good. The `_p50us`,
+# `_p95us` and `_p99us` ones are LATENCY percentiles in microseconds - down is
+# good. Comparing them the same way
 # gets the answer exactly backwards: a runner that happens to be fast raises
 # every throughput number AND lowers every p99, and the p99 rows then read as
 # a collapse. That is not hypothetical - it is why this job went red on
@@ -35,8 +36,14 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 # green. A perf gate that is loud when things improve and silent when they
 # rot is worse than no gate.
 #
+# Every percentile, not just p99: perfRun.sh has reported p50 and p95 beside
+# p99 since 2026-10-04 (7ae40963), and with only `_p99us` matched here they
+# were read as throughput. The release/0.5.0 nightly went red on exactly that -
+# the rare-type and big-store queries got 10-150x faster (#300) and their p50
+# and p95 rows read as -60 % to -99 % collapses.
+#
 def lowerIsBetter(metric):
-    return metric.endswith("_p99us")
+    return re.search(r"_p\d+us$", metric) is not None
 
 #
 # cpu - the machine this run is on, as perfRecord.py records it
