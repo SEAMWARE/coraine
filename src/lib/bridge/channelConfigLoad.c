@@ -408,6 +408,20 @@ static void defaultEntityLoad(const char* alias, CorNode* nodeP, Tenant* tenantP
 
 // -----------------------------------------------------------------------------
 //
+// channelConfigPath -
+//
+const char* channelConfigPath(const char* path)
+{
+  if (path != NULL)
+    return path;
+
+  return (access(CHANNEL_CONFIG_DEFAULT, R_OK) == 0) ? CHANNEL_CONFIG_DEFAULT : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelConfigLoad -
 //
 int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)

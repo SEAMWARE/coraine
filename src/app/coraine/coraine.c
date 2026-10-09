@@ -103,7 +103,7 @@
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
-#include "bridge/channelConfigLoad.h"             // channelConfigLoad
+#include "bridge/channelConfigLoad.h"             // channelConfigLoad, channelConfigPath
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
 #include "bridge/bridgeGoal.h"                        // bridgeGoalEventIn
@@ -674,7 +674,12 @@ static void bridgesInit(void)
     if (driverP->init == NULL)
       continue;
 
-    if (driverP->init(bridgeConfig, &bridgeBroker) != BRIDGE_OK)
+    //
+    // The file the Channels came from - the default location too, when --bridgeConfig is not given.
+    // Handing the plugin NULL then left it without its own settings (mqtt.server) while the broker
+    // had made its Channels from that very file.
+    //
+    if (driverP->init(channelConfigPath(bridgeConfig), &bridgeBroker) != BRIDGE_OK)
       COR_X(1, "init failed for bridge plugin '%s'", (driverP->alias != NULL) ? driverP->alias : "?");
 
     COR_I("bridge '%s' up%s%s",
