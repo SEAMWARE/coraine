@@ -660,7 +660,7 @@ bool postEntityBatchMerge(void)
     LdDistOpBatchItem*   bItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchItem));
     memset(bItems, 0, csrAccumsN * sizeof(LdDistOpBatchItem));
     LdDistOpBatchResult* bResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, csrAccumsN * sizeof(LdDistOpBatchResult));
-    int                  bIdx[csrAccumsN];
+    int                  bIdx[csrAccumsN + 1];   // +1: a VLA of 0 elements is undefined (no CSR to forward to)
     int                  bCount   = 0;
     memset(bResults, 0, csrAccumsN * sizeof(LdDistOpBatchResult));
 
