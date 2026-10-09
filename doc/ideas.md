@@ -125,6 +125,25 @@ beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
 
+### Philips Hue - the first FIWARE@Home plugin
+
+FIWARE@Home - coraine on a Raspberry Pi as the home's context broker - starts with the devices people
+already have. Parity with the FIWARE IoT Agents is the floor; the home needs more plugins than those,
+and Philips Hue comes first.
+
+A plugin on the bridge contract, speaking the Hue Bridge's local API (version 2, HTTPS on the home
+network, no cloud):
+
+- **Pairing** - the bridge is found on the network (mDNS), and the plugin gets its application key
+  when someone presses the bridge's link button.
+- **Entities** - lights, rooms and zones, scenes, and the sensors (motion, temperature, light level,
+  buttons). A light's `on`, brightness and colour are Properties; the room it is in is a
+  Relationship - so in c³ Connect the home is a graph: rooms, their lights, their sensors.
+- **Live** - the bridge's event stream pushes every change; the plugin writes it to the broker as it
+  happens. No polling.
+- **Switching** - a write to a light's entity (on, brightness, colour, a scene) becomes the bridge
+  call that does it.
+
 ### CKAN and CSV as cor-agent plugins
 
 CKAN is the data portal behind many city and government open-data sites. FIWARE has no agent that

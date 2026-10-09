@@ -86,6 +86,9 @@ incorporated in the next release of the product, in roughly this order:
 -   **Packages** - `apt-get install coraine`. ([more](ideas.md#packages))
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **c³, the coraine Control Center - Compile** - a web application (a small C backend on the build machine) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
+-   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
+    NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
+    plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
 -   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
     Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
 -   **Authorisation inside the broker** - per entity, per type after expansion, per tenant, per attribute; ODRL,
