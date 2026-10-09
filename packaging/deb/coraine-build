@@ -180,8 +180,16 @@ esac
 # would fail it: the broker, coraine-import and whatever plugins this build produced, by kind -
 # src/plugins/<kind>/<name>/<name>.so -> plugins/<directory the broker loads <kind> from>/<name>.so
 #
-cp -p "$B/src/app/coraine/coraine" "$INST/bin/"
-[ ! -f "$B/src/app/coraineImport/coraine-import" ] || cp -p "$B/src/app/coraineImport/coraine-import" "$INST/bin/"
+# installFile <file> <dir> - a NEW file in <dir>, renamed over the old one: never cp onto it. cp rewrites
+# the file in place (the same inode); a broker running from $INST has its plugins mapped, their code
+# changes under it and it dies (SIGSEGV, SIGILL) - and cp onto the running coraine fails (Text file busy)
+installFile()
+{
+  cp -p "$1" "$2/.$(basename "$1").new" && mv -f "$2/.$(basename "$1").new" "$2/$(basename "$1")"
+}
+
+installFile "$B/src/app/coraine/coraine" "$INST/bin"
+[ ! -f "$B/src/app/coraineImport/coraine-import" ] || installFile "$B/src/app/coraineImport/coraine-import" "$INST/bin"
 find "$B/src/plugins" -name '*.so' | while read -r so; do
   kind=$(basename "$(dirname "$(dirname "$so")")")
   case "$kind" in
@@ -191,7 +199,7 @@ find "$B/src/plugins" -name '*.so' | while read -r so; do
     *) continue ;;
   esac
   mkdir -p "$INST/plugins/$d"
-  cp -p "$so" "$INST/plugins/$d/"
+  installFile "$so" "$INST/plugins/$d"
 done
 
 # the bridges that are not the broker's: MQTT and Modbus (DDS needs the eProsima stack - not here)
@@ -200,7 +208,7 @@ for br in corMqttBridge corModbusBridge; do
   make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" install > /dev/null
 done
 
-cp -p "$C/etc/contextSourceExtras.json" "$INST/etc/"
+installFile "$C/etc/contextSourceExtras.json" "$INST/etc"
 
 if [ "$BUNDLED" = 1 ] && [ -f "$INST/plugins/db/currentState/mongoc.so" ]; then
   patchelf --set-rpath /opt/seamware/lib "$INST/plugins/db/currentState/mongoc.so"
