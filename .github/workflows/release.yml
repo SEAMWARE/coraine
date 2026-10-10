@@ -389,7 +389,7 @@ jobs:
           for tag in "$VERSION" "$LONG" "$VERSION-debug" "$LONG-debug"; do
             case "$tag" in *-debug) base=${tag%-debug}; arm="$IMG:$base-arm64-debug" ;; *) arm="$IMG:$tag-arm64" ;; esac
             docker buildx imagetools create -t "$IMG:$tag" "$IMG:$tag" "$arm"
-            docker buildx imagetools inspect "$IMG:$tag" | head -12
+            docker buildx imagetools inspect "$IMG:$tag" | sed -n 1,12p
           done
           echo "### $VERSION: linux/amd64 + linux/arm64 (arm64 without the DDS bridge)" >> "$GITHUB_STEP_SUMMARY"
 

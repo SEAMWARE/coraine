@@ -1,0 +1,37 @@
+#
+# Puts an already-pushed <tag>-arm64 image under <tag> beside the amd64 one - the last step of
+# release.yml's arm64 job, on its own, for a release whose arm64 images were pushed but not merged.
+# A -debug tag takes <base>-arm64-debug, as in release.yml.
+#
+name: Multi-arch tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "space-separated image tags, e.g. 0.5.0-debug 0.5.0-2026-10-10-7ad9140f"
+        required: true
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: One name, both architectures
+        env:
+          IMG: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine
+          TAGS: ${{ inputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            case "$tag" in *-debug) arm="$IMG:${tag%-debug}-arm64-debug" ;; *) arm="$IMG:$tag-arm64" ;; esac
+            docker buildx imagetools create -t "$IMG:$tag" "$IMG:$tag" "$arm"
+            docker buildx imagetools inspect "$IMG:$tag" | command grep Platform
+            docker buildx imagetools inspect "$IMG:$tag" | command grep -q linux/arm64
+          done
