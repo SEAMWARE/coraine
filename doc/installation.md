@@ -58,16 +58,27 @@ Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 
 | `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine` |
 | `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
-The packages are built by the GitHub workflow `Packages` (`.github/workflows/packages.yml`) - for every
-release, and on demand - and kept as **artifacts of that run**, one per distribution and architecture
-(`debs-<dist>-<arch>`). A signed apt repository is **coming**; until then, install a downloaded file:
+From the signed apt repository, **https://seamware.github.io/apt**:
 
 ```sh
-sudo apt install ./coraine_0.4.0+ubuntu24.04_amd64.deb      # apt resolves the dependencies
+curl -fsSL https://seamware.github.io/apt/coraine.gpg | sudo tee /usr/share/keyrings/coraine.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] https://seamware.github.io/apt $(. /etc/os-release; echo $VERSION_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/coraine.list
+sudo apt update && sudo apt install coraine        # or coraine-dev
 ```
 
-Versions: `0.4.0+<dist>` for a release, `0.4.0~git<YYYYMMDD>.<sha8>+<dist>` for a build of any other
-commit (it sorts before `0.4.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
+The component `main` holds the releases; `testing` holds builds of a commit between releases (put
+`testing` in place of `main` on that line). The packages are built and published by the GitHub
+workflow `Packages` (`.github/workflows/packages.yml`) - for every release, and on demand - which also
+keeps each run's `.deb` files as artifacts (`debs-<dist>-<arch>`), for an installation without the
+repository:
+
+```sh
+sudo apt install ./coraine_0.5.0+ubuntu24.04_amd64.deb      # apt resolves the dependencies
+```
+
+Versions: `0.5.0+<dist>` for a release, `0.5.0~git<YYYYMMDD>.<sha8>+<dist>` for a build of any other
+commit (it sorts before `0.5.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
 
 ### The coraine package
 
