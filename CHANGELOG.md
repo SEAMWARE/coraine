@@ -9,7 +9,7 @@ bump may still change behaviour; the entry says so where it does.
 
 ---
 
-## 0.5.0 — 2026-10-09
+## 0.5.0 — 2026-10-10
 
 Six weeks of work since 0.4.0: a broker that keeps its data on disk with no database
 server, temporal history in the same process, its own binary protocol between brokers,
