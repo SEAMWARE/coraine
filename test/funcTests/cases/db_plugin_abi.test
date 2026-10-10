@@ -102,9 +102,23 @@ echo "==========================================================================
 #
 # The same length, so nothing in the binary moves: the dynamic linker no longer finds 'coraineDbAbi'
 #
-sed 's/coraineDbAbi/coraineDbAbX/g' "$(command -v $COR_BROKER)" > $D/coraine
+# Under the sanitizers $COR_BROKER is a wrapper script (test/sanitizer/sanSetup.sh) that execs the
+# sanitized binary with the sanitizer runtime preloaded: the binary is the one its exec line names, and
+# the copy runs through a copy of the wrapper that execs the copy instead
+#
+broker=$(command -v $COR_BROKER)
+brokerRun=$D/coraine
+if [ "$(head -c 2 "$broker")" == '#!' ]; then
+  brokerBin=$(sed -n 's/^exec -a [^ ]* "\(.*\)" "\$@"$/\1/p' "$broker")
+  [ -x "$brokerBin" ] || echo "$broker: a script without the exec line of a sanSetup.sh wrapper"
+  sed "s#\"$brokerBin\"#\"$D/coraine\"#" "$broker" > $D/coraineWrapper
+  chmod +x $D/coraineWrapper
+  broker=$brokerBin
+  brokerRun=$D/coraineWrapper
+fi
+sed 's/coraineDbAbi/coraineDbAbX/g' "$broker" > $D/coraine
 chmod +x $D/coraine
-run $D/coraine --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+run $brokerRun --database $COR_PLUGIN_DIR/db/currentState/corDB.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
 echo
 echo
 
@@ -135,9 +149,16 @@ int main(int argC, char* argV[])
 EOF
 gcc -o $D/hostNoStamp $D/host.c -ldl
 gcc -rdynamic -DSTAMP='"xxxx"' -o $D/hostOtherStamp $D/host.c -ldl
-$D/hostNoStamp    $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+#
+# A none.so built with the sanitizers (test/sanitizer/sanSetup.sh) needs the AddressSanitizer runtime
+# loaded first - before the host's own libraries, as the broker's wrapper preloads it - or the runtime
+# refuses to start ("ASan runtime does not come first"): the one the plugin is linked with, preloaded.
+# An ordinary none.so needs none.
+#
+asanRuntime=$(ldd $COR_PLUGIN_DIR/troe/temporal/none.so | awk '$1 ~ /^libasan\.so/ { print $3 }')
+LD_PRELOAD=$asanRuntime $D/hostNoStamp    $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
 echo "exit: ${PIPESTATUS[0]}"
-$D/hostOtherStamp $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+LD_PRELOAD=$asanRuntime $D/hostOtherStamp $COR_PLUGIN_DIR/troe/temporal/none.so 2>&1 | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
 echo "exit: ${PIPESTATUS[0]}"
 echo
 echo
