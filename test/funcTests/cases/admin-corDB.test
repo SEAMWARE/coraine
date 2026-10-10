@@ -220,7 +220,7 @@ Content-Length: REGEX(\d+)
   "corProm": "0.1.0",
   "corRest": "0.1.0",
   "corTree": "0.1.0",
-  "coraine version": "REGEX(\d+\.\d+\.\d+)"
+  "coraine version": "REGEX(\d+\.\d+\.\d+(-dev)?)"
 }
 
 

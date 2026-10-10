@@ -134,12 +134,12 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "REGEX([0-9.]+)"
+    "version": "REGEX([0-9.]+(-dev)?)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "contextSourceUptime": "REGEX(PT[0-9]+S)",
-  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+)",
+  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+(-dev)?)",
   "id": "urn:ngsi-ld:ContextSource:cb-alias",
   "type": "ContextSourceIdentity"
 }
@@ -159,12 +159,12 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "REGEX([0-9.]+)"
+    "version": "REGEX([0-9.]+(-dev)?)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "contextSourceUptime": "REGEX(PT[0-9]+S)",
-  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+)",
+  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+(-dev)?)",
   "id": "urn:ngsi-ld:ContextSource:cp1-alias",
   "type": "ContextSourceIdentity"
 }
@@ -184,12 +184,12 @@ Content-Length: REGEX(\d+)
   "contextSourceExtras": {
     "buildAt": "REGEX([^"]+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "version": "REGEX([0-9.]+)"
+    "version": "REGEX([0-9.]+(-dev)?)"
   },
   "contextSourceName": "coraine",
   "contextSourceTimeAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
   "contextSourceUptime": "REGEX(PT[0-9]+S)",
-  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+)",
+  "contextSourceVersion": "REGEX(\d+\.\d+\.\d+(-dev)?)",
   "id": "urn:ngsi-ld:ContextSource:cb-alias:t1",
   "type": "ContextSourceIdentity"
 }

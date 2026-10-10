@@ -130,7 +130,7 @@ HTTP/1.1 201 Created
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
-      "User-Agent": "Coraine/REGEX(\d+\.\d+\.\d+)"
+      "User-Agent": "Coraine/REGEX(\d+\.\d+\.\d+(-dev)?)"
     },
     "url": "/notify",
     "verb": "POST"
