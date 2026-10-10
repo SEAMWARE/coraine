@@ -119,6 +119,11 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **`make install`** replaces each installed file (a new file renamed over the old) instead of
   writing into it: a broker running from the installed plugins keeps running.
 - **`coraine-build --list-features --json`**, and one `coraine-build: phase <name>` line per phase.
+- **A request in flight when the broker stops** (built-in HTTP server) is answered as failed and
+  freed; a notification in flight then is counted as failed.
+- **Discovery** (`/attributes`, `/attributes/{attr}`, `/types`, `/types/{type}`): a core attribute's `id`
+  is its full IRI (`https://uri.etsi.org/ngsi-ld/location`, `.../observationSpace`, `.../operationSpace`,
+  ...), as TS 104 175 § 5.2.6.10.1 requires; `attributeName` stays compacted.
 , default `/opt/seamware/etc`): where the broker
   looks for `bridges.json` and `contextSourceExtras.json` when no file is named.
 
@@ -156,6 +161,9 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   read (data left inside OpenSSL).
 - Distributed discovery counted an attribute twice when a source answered its full IRI.
 - An environment-variable prefix ending in `_` gave option variables a double underscore.
+- A deleted Snapshot's store was never freed (corDB), nor its geo index cache (mongoc); deleting a
+  Snapshot while corDB was writing its own snapshot of the store could read freed memory.
+- Coroutines and connections still waiting when the built-in server stopped were never freed.
 
 ## 0.4.0 — 2026-08-28
 
