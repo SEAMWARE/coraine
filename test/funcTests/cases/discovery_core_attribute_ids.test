@@ -11,6 +11,10 @@
 # and https://uri.etsi.org/ngsi-ld/status. attributeName, attributeNames and attributeList
 # are names, compacted with the request's @context: "location" there.
 #
+# The other core GeoProperty terms too: observationSpace and operationSpace are
+# https://uri.etsi.org/ngsi-ld/observationSpace and https://uri.etsi.org/ngsi-ld/operationSpace
+# by id, "observationSpace" and "operationSpace" by name.
+#
 # The broker holds a core term by its short name, so the id used to come out as "location".
 #
 # Also over forwarding: a Context Source that answers with the Full URI of a core Attribute
@@ -33,10 +37,10 @@ coraineStart -role CP1 -dist
 
 --RUN--
 
-echo "01. Seed CB: a Robot with location, status (core terms) and speed"
-echo "================================================================="
+echo "01. Seed CB: a Robot with location, status, observationSpace, operationSpace (core terms) and speed"
+echo "==================================================================================================="
 corCurl --url /ngsi-ld/v1/entities --payload \
-  '{"id":"urn:R1","type":"Robot","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"status":{"type":"Property","value":"ok"},"speed":{"type":"Property","value":3}}' | head -1
+  '{"id":"urn:R1","type":"Robot","location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,2]}},"status":{"type":"Property","value":"ok"},"speed":{"type":"Property","value":3},"observationSpace":{"type":"GeoProperty","value":{"type":"Point","coordinates":[5,6]}},"operationSpace":{"type":"GeoProperty","value":{"type":"Point","coordinates":[7,8]}}}' | head -1
 echo
 echo
 
@@ -128,8 +132,8 @@ echo
 
 
 --EXPECT--
-01. Seed CB: a Robot with location, status (core terms) and speed
-=================================================================
+01. Seed CB: a Robot with location, status, observationSpace, operationSpace (core terms) and speed
+===================================================================================================
 HTTP/1.1 201 Created
 
 
@@ -139,7 +143,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 480
+Content-Length: 822
 
 [
   {
@@ -165,6 +169,22 @@ Content-Length: 480
     "typeNames": [
       "Robot"
     ]
+  },
+  {
+    "attributeName": "observationSpace",
+    "id": "https://uri.etsi.org/ngsi-ld/observationSpace",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "operationSpace",
+    "id": "https://uri.etsi.org/ngsi-ld/operationSpace",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
   }
 ]
 
@@ -176,13 +196,15 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 141
+Content-Length: 187
 
 {
   "attributeList": [
     "location",
     "status",
-    "speed"
+    "speed",
+    "observationSpace",
+    "operationSpace"
   ],
   "id": "urn:ngsi-ld:AttributeList:local",
   "type": "AttributeList"
@@ -242,7 +264,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 716
+Content-Length: 1112
 
 {
   "attributeDetails": [
@@ -269,6 +291,22 @@ Content-Length: 716
       ],
       "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
       "type": "Attribute"
+    },
+    {
+      "attributeName": "observationSpace",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/observationSpace",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "operationSpace",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/operationSpace",
+      "type": "Attribute"
     }
   ],
   "entityCount": 1,
@@ -285,14 +323,16 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 205
+Content-Length: 255
 
 [
   {
     "attributeNames": [
       "location",
       "status",
-      "speed"
+      "speed",
+      "observationSpace",
+      "operationSpace"
     ],
     "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
     "type": "EntityType",
@@ -314,7 +354,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 645
+Content-Length: 987
 
 [
   {
@@ -336,6 +376,22 @@ Content-Length: 645
   {
     "attributeName": "speed",
     "id": "https://uri.etsi.org/ngsi-ld/default-context/speed",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "observationSpace",
+    "id": "https://uri.etsi.org/ngsi-ld/observationSpace",
+    "type": "Attribute",
+    "typeNames": [
+      "Robot"
+    ]
+  },
+  {
+    "attributeName": "operationSpace",
+    "id": "https://uri.etsi.org/ngsi-ld/operationSpace",
     "type": "Attribute",
     "typeNames": [
       "Robot"
@@ -382,7 +438,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 905
+Content-Length: 1301
 
 {
   "attributeDetails": [
@@ -411,6 +467,22 @@ Content-Length: 905
       "type": "Attribute"
     },
     {
+      "attributeName": "observationSpace",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/observationSpace",
+      "type": "Attribute"
+    },
+    {
+      "attributeName": "operationSpace",
+      "attributeTypes": [
+        "GeoProperty"
+      ],
+      "id": "https://uri.etsi.org/ngsi-ld/operationSpace",
+      "type": "Attribute"
+    },
+    {
       "attributeName": "temp",
       "attributeTypes": [
         "Property"
@@ -433,7 +505,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 219
+Content-Length: 269
 
 [
   {
@@ -441,6 +513,8 @@ Content-Length: 219
       "location",
       "status",
       "speed",
+      "observationSpace",
+      "operationSpace",
       "temp"
     ],
     "id": "https://uri.etsi.org/ngsi-ld/default-context/Robot",
