@@ -1,12 +1,13 @@
 # Performance and footprint
 
 Every number on this page was measured on one machine, from release builds, and
-each section says how. Re-measured on 2026-10-05, after corDB's log became
-memory-mapped (a write's record is in the kernel before the response) and with the
-databases on the host network: the eight-core section, what persistence costs, and
-the libmicrohttpd rows of the first throughput tables. The rest of the per-core
-throughput - the writes table and the container section - is from 2026-09-30 to
-10-02, corDB in RAM; everything else (size, RAM, start-up, the `corHttp` rows, the client
+each section says how. Re-measured on 2026-10-10 for 0.5.0, the broker's own code
+profile-guided: the libmicrohttpd + `corDB` rows of the first throughput tables, the writes
+table (both `corDB` on disk) and "Profile-guided". Re-measured on 2026-10-05, after corDB's log
+became memory-mapped (a write's record is in the kernel before the response) and with the
+databases on the host network: the eight-core section, what persistence costs, and the
+libmicrohttpd + `mongoc` row. The rest of the per-core throughput, the container section
+included, is from 2026-09-30 to 10-02, corDB in RAM; everything else (size, RAM, start-up, the `corHttp` rows, the client
 curve, the database and eight-core sections) is from 2026-09-16 and says so. Nothing
 here is a vendor estimate or a figure carried over from an earlier version. The
 summary table is in the [README](https://github.com/SEAMWARE/coraine#footprint-and-speed);
@@ -227,25 +228,27 @@ only at `limit=1` - a figure quoted without its page size says little:
 
 | Response | req/s per core | **entities/s per core** |
 |---|---:|---:|
-| 1 entity | **83 372** | 83 372 |
-| 20 entities | 12 703 | **254 060** |
-| 100 entities | 2 737 | **273 700** |
+| 1 entity | **82 672** | 82 672 |
+| 20 entities | 12 577 | **251 540** |
+| 100 entities | 2 750 | **275 000** |
 
-*(libmicrohttpd + `corDB`, PGO release, 2026-10-05. The per-request cost is fixed, so the
-bigger the page the more of it is amortised — and the entities/s column is still
-climbing at 100.)*
+*(libmicrohttpd + `corDB` on disk (`--dbDir`, the durable configuration), PGO release with the broker's
+own code profile-guided, 2026-10-10, coraine 0.5.0 - the conditions in "Profile-guided"; in RAM the
+same build within 2 %. The per-request cost is fixed, so the bigger the page the more of it is
+amortised — and the entities/s column is still climbing at 100.)*
 
 **All four builds, `limit=20`:**
 
 | Configuration | req/s per core | entities/s per core |
 |---------------|---------------:|--------------------:|
-| libmicrohttpd + `corDB` | **12 703** | **254 060** |
+| libmicrohttpd + `corDB` | **12 577** | **251 540** |
 | `corHttp` + `corDB` | 9 508 | 190 160 |
 | libmicrohttpd + `mongoc` | 7 342 | 146 840 |
 | `corHttp` + `mongoc` | 4 634 | 92 680 |
 
-*(libmicrohttpd rows 2026-10-05, PGO release, `mongoc` against MongoDB 8.2 on the host network,
-pinned to seven other cores. `corHttp` rows 2026-09-16, without PGO; its `mongoc` row against
+*(libmicrohttpd + `corDB` 2026-10-10, PGO release, `corDB` on disk (`--dbDir`). libmicrohttpd +
+`mongoc` 2026-10-05, PGO release (the libraries only, before #307), against MongoDB 8.2 on the host
+network, pinned to seven other cores. `corHttp` rows 2026-09-16, without PGO; its `mongoc` row against
 MongoDB 4.4 through a port mapping (`docker run -p`), which costs a database round trip - a floor,
 not re-measured since.)*
 
@@ -333,17 +336,19 @@ attributes) the p99 goes to 12-24 ms.
 
 | Operation | req/s | **entities/s** | vs one at a time |
 |---|---:|---:|---:|
-| `PATCH` one attribute, 50 clients | 96 965 | 96 965 | — |
-| `PATCH`, 1 client | 47 003 | 47 003 | — |
-| batch update, 20 per request | 8 056 | **161 120** | **1.7×** |
-| merge (`PATCH /entities/{id}`), 50 clients | 76 783 | 76 783 | — |
-| create one entity | 62 500 | 62 500 | — |
-| batch create, 20 per request | 8 442 | **168 840** | **2.7×** |
-| delete one entity | 117 398 | 117 398 | — |
-| batch delete, 20 per request | 20 556 | **411 120** | **3.5×** |
+| `PATCH` one attribute, 50 clients | 104 400 | 104 400 | — |
+| `PATCH`, 1 client | 48 625 | 48 625 | — |
+| batch update, 20 per request | 10 022 | **200 440** | **1.9×** |
+| merge (`PATCH /entities/{id}`), 50 clients | 78 548 | 78 548 | — |
+| create one entity | 54 707 | 54 707 | — |
+| batch create, 20 per request | 5 873 | **117 460** | **2.1×** |
+| delete one entity | 126 714 | 126 714 | — |
+| batch delete, 20 per request | 23 814 | **476 280** | **3.8×** |
 
-*(2026-10-01, libmicrohttpd. Deletes are measured against a store of 40 000
-entities, refilled before every repeat - a delete consumes what it measures.)*
+*(2026-10-10, libmicrohttpd, `corDB` on disk (`--dbDir`, the durable configuration), PGO release with
+the broker's own code profile-guided - the conditions in "Profile-guided", which also has the same
+build in RAM. Deletes are measured against a store of 40 000 entities, refilled before every repeat -
+a delete consumes what it measures.)*
 
 Batching is worth two to four times per entity: one HTTP request, one
 URL-parameter parse, one `@context` resolution and one lock acquisition amortised
@@ -375,8 +380,80 @@ A release build compiled twice: once instrumented (`-fprofile-generate`), run th
 measured on (`test/perf/pgoTrain.sh`: perfRun's request shapes, a write that notifies, the three-broker
 chain in all three modes), then again with the profile (`-fprofile-use`) - the compiler lays out the
 hot paths together and the cold ones out of the way, and inlines and unrolls where the profile says
-it pays. Every library is in it, not only the broker. Against the same source and flags without the
-profile (2026-10-02, one core, `corDB`, built-in server):
+it pays. Every library is in it, and the broker's own code: since #307 (2026-10-09) the profile flags
+reach the broker's sources too (`COR_C_FLAGS_RELEASE`); before it CMake's `CMAKE_C_FLAGS_RELEASE`
+replaced them and only the libraries were profile-guided.
+
+**2026-10-09/10, the broker's own code profile-guided since #307.** Against the same source and flags
+without the profile:
+
+| | |
+|---|---|
+| Source | coraine `e289dc6c` (`main`); corBase `d6fcc0a`, corLog `339e2f3`, corAlloc `c328237`, corArgs `48e963b`, corHash `d25d65b`, corTree `9d63d52`, corJson `bd0c7b4`, corProm `f20d9ab`, corHttp `cfc49f2`, corBridge `1a57ea7`, corPlugin `86d0726`, corRest `27944dc`, corJsonld `c7bfcde`, corNgsild `5cfed34`, corDB `9ae7c0d` - every one at its `main` |
+| Builds | **without**: `make release`; **PGO**: `make pgo PGO_RESTORE_DEBUG=0` (as the Docker image), trained by `pgoTrain.sh` with every step completing. Each with `COR_HTTP_SERVER=builtin` and with libmicrohttpd (the default, as the Docker image and the packages); every library release, the libraries rebuilt from clean for each `make release`. The broker's 21 targets compiled with `-fprofile-use`, 154 profile files (`.gcda`) for the broker's own sources, `.text.hot` sections in 25 of its objects (none in the build without) |
+| Machine | AMD Ryzen 9 8940HX (16 cores / 32 threads), 60 GiB, Linux 7.0, glibc 2.43, gcc 15.2.0; governor `powersave` (amd-pstate-epp, `balance_performance`), boost on, idle states **deep** - as the machine ships (not changed: it needs root) |
+| Load | `test/perf/perfRun.sh corDB`, `PERF_BROKER_CORES=1` (the broker on CPU 0, wrk on CPUs 1-15), 5 s x 3 per scenario (perfRun's defaults), a run's figure the median of its three; `--httpLoops 1` on the built-in server; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes" (the rate is `Consumed/sec`, the same either way); perfRun's rare-type and larger-store scenarios with `PERF_RARE_ENTITIES=100 PERF_BIG_ENTITIES=1000` and not reported |
+| Store | `corDB` in RAM (no `--dbDir`), as the table of 2026-10-02 below; the libmicrohttpd PGO build also with `--dbDir` on the local NVMe disk (ext4 on LUKS), `--dbSync interval` (the default) - the durable configuration |
+| Runs | three per build, interleaved (without, PGO, without, ...): built-in server 2026-10-09 22:50-23:38, libmicrohttpd 23:38-00:25, libmicrohttpd PGO `--dbDir` 00:25-00:50; every run started with no browser running, no other broker, test or load generator, and the load average below 1 |
+
+Requests/s: the median of the three runs, ± half the spread of the three:
+
+| One core, built-in server, `corDB` in RAM | without | **PGO** | | p99 ms, without / PGO |
+|---|---:|---:|---:|---:|
+| query, 1 entity | 75 408 (±1.3 %) | **80 457** (±1.5 %) | +6.7 % | 0.71 / 0.66 |
+| query, 20 entities | 11 597 (±1.6 %) | **12 310** (±1.2 %) | +6.1 % | 4.22 / 3.95 |
+| query, 100 entities | 2 510 (±1.3 %) | **2 737** (±0.9 %) | +9.0 % | 19.27 / 17.65 |
+| query, 20 entities, 200 connections | 11 580 (±1.5 %) | **12 350** (±0.9 %) | +6.6 % | 17.70 / 16.48 |
+| retrieve | 84 276 (±0.7 %) | **88 391** (±1.2 %) | +4.9 % | 0.65 / 0.62 |
+| PATCH, 1 connection | 45 263 (±5.0 %) | **50 054** (±4.2 %) | +10.6 % | 0.03 / 0.03 |
+| PATCH, 50 connections | 99 371 (±0.9 %) | **105 918** (±0.6 %) | +6.6 % | 0.55 / 0.52 |
+| create | 64 129 (±0.5 %) | **68 981** (±1.2 %) | +7.6 % | 0.87 / 0.81 |
+| create, 1 connection | 36 451 (±2.3 %) | **38 320** (±0.9 %) | +5.1 % | 0.04 / 0.04 |
+| merge | 76 901 (±0.9 %) | **80 386** (±0.8 %) | +4.5 % | 0.69 / 0.66 |
+| delete | 110 834 (±2.6 %) | **116 330** (±2.9 %) | +5.0 % | 0.48 / 0.48 |
+| batch update (20) | 12 445 (±2.0 %) | **13 649** (±1.4 %) | +9.7 % | 4.01 / 3.58 |
+| batch create (20) | 8 884 (±1.1 %) | **9 801** (±1.7 %) | +10.3 % | 5.59 / 5.12 |
+| batch delete (20) | 29 635 (±1.1 %) | **30 399** (±1.2 %) | +2.6 % | 1.70 / 1.65 |
+| PATCH, 1 subscriber | 40 046 (±1.6 %) | **43 168** (±3.4 %) | +7.8 % | 1.36 / 1.25 |
+| PATCH, ~210 subscriptions | 37 188 (±1.8 %) | **39 599** (±3.4 %) | +6.5 % | 1.40 / 1.31 |
+
+| One core, libmicrohttpd, `corDB` | without, in RAM | **PGO**, in RAM | | **PGO**, `--dbDir` | `--dbDir` vs in RAM | p99 ms, without / PGO / PGO `--dbDir` |
+|---|---:|---:|---:|---:|---:|---:|
+| query, 1 entity | 77 951 (±0.5 %) | **81 083** (±0.9 %) | +4.0 % | **82 672** (±0.6 %) | +2.0 % | 0.69 / 0.65 / 0.66 |
+| query, 20 entities | 11 596 (±0.4 %) | **12 536** (±0.5 %) | +8.1 % | **12 577** (±1.0 %) | +0.3 % | 4.20 / 3.88 / 3.91 |
+| query, 100 entities | 2 540 (±0.4 %) | **2 742** (±9.4 %) | +8.0 % | **2 750** (±9.9 %) | +0.3 % | 19.01 / 18.00 / 17.56 |
+| query, 20 entities, 200 connections | 11 544 (±0.3 %) | **12 477** (±0.8 %) | +8.1 % | **12 477** (±0.7 %) | +0.0 % | 19.01 / 16.50 / 16.54 |
+| retrieve | 87 834 (±1.2 %) | **91 141** (±0.3 %) | +3.8 % | **90 916** (±0.4 %) | -0.2 % | 0.60 / 0.58 / 0.58 |
+| PATCH, 1 connection | 50 279 (±1.7 %) | **50 243** (±2.3 %) | -0.1 % | **48 625** (±2.6 %) | -3.2 % | 0.03 / 0.03 / 0.76 |
+| PATCH, 50 connections | 109 111 (±0.6 %) | **115 173** (±0.2 %) | +5.6 % | **104 400** (±0.5 %) | -9.4 % | 0.52 / 0.48 / 0.54 |
+| create | 66 137 (±0.1 %) | **69 936** (±1.0 %) | +5.7 % | **54 707** (±0.9 %) | -21.8 % | 0.82 / 0.77 / 4.37 |
+| create, 1 connection | 35 353 (±2.4 %) | **38 692** (±1.7 %) | +9.4 % | **34 032** (±1.6 %) | -12.0 % | 0.04 / 0.03 / 0.87 |
+| merge | 80 911 (±0.8 %) | **84 160** (±1.5 %) | +4.0 % | **78 548** (±0.7 %) | -6.7 % | 0.65 / 0.63 / 0.69 |
+| delete | 127 055 (±1.0 %) | **128 309** (±1.0 %) | +1.0 % | **126 714** (±2.4 %) | -1.2 % | 0.44 / 0.43 / 0.44 |
+| batch update (20) | 11 250 (±2.0 %) | **12 038** (±0.9 %) | +7.0 % | **10 022** (±1.0 %) | -16.7 % | 4.46 / 4.22 / 5.45 |
+| batch create (20) | 7 869 (±0.5 %) | **8 470** (±0.6 %) | +7.6 % | **5 873** (±0.8 %) | -30.7 % | 6.34 / 5.99 / 21.61 |
+| batch delete (20) | 24 850 (±0.6 %) | **25 325** (±0.9 %) | +1.9 % | **23 814** (±0.2 %) | -6.0 % | 3.06 / 2.93 / 3.26 |
+| PATCH, 1 subscriber | 21 868 (±1.3 %) | **22 670** (±1.7 %) | +3.7 % | **22 043** (±0.9 %) | -2.8 % | 2.72 / 2.28 / 2.97 |
+| PATCH, ~210 subscriptions | 20 800 (±2.6 %) | **21 741** (±0.9 %) | +4.5 % | **21 416** (±1.7 %) | -1.5 % | 2.52 / 2.39 / 2.66 |
+
+- **PGO, built-in server: +2.6 % (batch delete) to +10.6 % (`PATCH`, one connection)**, every scenario.
+  The three runs of the two builds do not overlap on any scenario but single-connection `PATCH`
+  (45 263 / 46 217 / 41 653 against 47 029 / 50 054 / 51 263).
+- **PGO, libmicrohttpd: +1.0 % (delete) to +9.4 % (create, one connection)**; single-connection `PATCH`
+  -0.1 %, within its spread.
+- **Query, 100 entities, libmicrohttpd PGO**: one of the three runs of each store low (2 245 in RAM,
+  2 216 on disk; the other two 2 742-2 762), which is the ±9.4 % and ±9.9 %; without it the spread
+  is ±0.3 %.
+- **Against the 2026-10-02 table below** (another day, other sources): the builds without the profile
+  within -5.3 % (query, 1 entity) to +3.5 % (create); PGO lower on reads (query, 20 entities 12 310
+  against 12 702; retrieve 88 391 against 90 200) and higher on writes (`PATCH`, 50 connections 105 918
+  against 100 851; create 68 981 against 64 417).
+- **`--dbDir` against RAM, the same PGO build: reads within -0.2 % to +2.0 %; writes -1.2 % (delete) to
+  -30.7 % (batch create)**, the store growing and snapshotting the most there ("corDB on disk: what
+  persistence costs").
+
+**2026-10-02, the libraries only** (before #307 the broker's own code was compiled without the profile -
+the flags did not reach it). One core, `corDB` in RAM, built-in server:
 
 | One core | without | **PGO** | |
 |---|---:|---:|---:|
@@ -400,7 +477,7 @@ build fails if the broker or a plugin carries code compiled with `COR_T_ON` (tra
 performance job has linked release foundation libraries since 2026-10-03 (`make pgo`); before that
 (`make i`) they were the debug ones `bootstrap.sh` builds, traces compiled in.
 
-User-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
+2026-10-02, the libraries only: user-space instructions per request: retrieve -4.5 %, PATCH -3.5 %, a 20-entity query -6.4 %. The
 three-broker chain, 16 callers, cor:// end to end: +4 % (small entity), +10-15 % (20 attributes); one
 caller, HTTP in front and cor:// between: +11 % (p50 95 -> 69 µs). Nothing slower.
 

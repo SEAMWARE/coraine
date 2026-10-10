@@ -4,6 +4,37 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-10 - 0.5.0: the broker's own code profile-guided (#307)
+
+Until #307 (2026-10-09) `make pgo` and `make tune` profile-guided the libraries only: CMake's
+`CMAKE_C_FLAGS_RELEASE` replaced the profile flags for the broker's own sources. Every PGO figure up
+to then is a libraries-only one. Measured again on 0.5.0's source ("Profile-guided" on the performance
+page); the per-core tables it replaced:
+
+#### Per core, before (libmicrohttpd + `corDB`, PGO release - the libraries only, 2026-10-05)
+
+| Response | req/s per core | entities/s per core |
+|---|---:|---:|
+| 1 entity | 83 372 | 83 372 |
+| 20 entities | 12 703 | 254 060 |
+| 100 entities | 2 737 | 273 700 |
+
+#### Writes per core, before (libmicrohttpd, `corDB` in RAM, release without PGO, 2026-10-01)
+
+| Operation | req/s | entities/s | vs one at a time |
+|---|---:|---:|---:|
+| `PATCH` one attribute, 50 clients | 96 965 | 96 965 | — |
+| `PATCH`, 1 client | 47 003 | 47 003 | — |
+| batch update, 20 per request | 8 056 | 161 120 | 1.7× |
+| merge (`PATCH /entities/{id}`), 50 clients | 76 783 | 76 783 | — |
+| create one entity | 62 500 | 62 500 | — |
+| batch create, 20 per request | 8 442 | 168 840 | 2.7× |
+| delete one entity | 117 398 | 117 398 | — |
+| batch delete, 20 per request | 20 556 | 411 120 | 3.5× |
+
+The tables that replace them are `corDB` on disk (`--dbDir`); the same PGO build in RAM is beside them
+in "Profile-guided" (create 69 936, batch create 8 470, against 54 707 and 5 873 on disk).
+
 ## 2026-10-05 - batch update as what changed; `--dbCompress`; every table from one clean run
 
 Every table of the performance page from one run (12:29-14:48): Chrome closed - a browser that spins
