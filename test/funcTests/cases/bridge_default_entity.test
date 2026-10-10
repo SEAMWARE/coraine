@@ -155,7 +155,8 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG4
 # thread's 1 ms tick.
 #
 sleep 1
-corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default | grep -c '"flowRate"'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:loopback:default | awk '/^corCurl:/ { print } /"flowRate"/ { n++ } END { print n + 0 }'
 echo
 echo
 

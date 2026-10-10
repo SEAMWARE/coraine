@@ -80,7 +80,8 @@ echo "07. Restart - S comes back from the database unchanged: W1 ('50% off') no 
 echo "============================================================================================================"
 coraineStop
 coraineStart
-corCurl --url /ngsi-ld/v1/subscriptions/urn:PC:S | grep '"q"'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url /ngsi-ld/v1/subscriptions/urn:PC:S | grep -E '^corCurl:|"q"'
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:W1","type":"W","name":{"type":"Property","value":"50% off"}}' | head -1
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:PC:W2","type":"W","name":{"type":"Property","value":"50%25 off"}}' | head -1
 ftClientWait 1

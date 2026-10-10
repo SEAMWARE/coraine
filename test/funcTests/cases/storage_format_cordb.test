@@ -70,7 +70,8 @@ echo "03. Files and no version (written before the version was recorded): the br
 echo "============================================================================================================="
 rm $D/_storageFormat
 coraineStart --dbDir $D -v      # -v: the info line - the store read as it is
-corCurl --url /ngsi-ld/v1/entities/urn:E0 | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+r=$(corCurl --url /ngsi-ld/v1/entities/urn:E0); grep '^corCurl:' <<< "$r"; sed -n '/^{/,$p' <<< "$r" | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
 corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "NGSILD-Tenant: t1" | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("t1:      E1 p =", e["p"]["value"])'
 echo "_storageFormat: $(cat $D/_storageFormat)"
 grep -o "corDB: --dbDir '[^']*' has no storage format recorded (written before formats were) - read as it is, now storage format 1" /tmp/coraine.CB.log

@@ -72,7 +72,8 @@ echo
 
 echo "05. LIST after restart (both still there)"
 echo "========================================="
-corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^corCurl:|^    "(localId|kind)":' | sort
 echo
 echo
 
@@ -95,7 +96,8 @@ echo
 
 echo "08. LIST after restart (Hosted gone, Cached survives)"
 echo "====================================================="
-corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^    "(localId|kind)":' | sort
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url "/ngsi-ld/v1/jsonldContexts?details=true" | grep -E '^corCurl:|^    "(localId|kind)":' | sort
 echo
 echo
 

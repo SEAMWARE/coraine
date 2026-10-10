@@ -75,7 +75,8 @@ echo
 
 echo "06. GET sub after restart → timesSent=2 (persisted)"
 echo "==================================================="
-corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '"(timesSent|timesFailed)"'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 | grep -E '^corCurl:|"(timesSent|timesFailed)"'
 echo
 echo
 

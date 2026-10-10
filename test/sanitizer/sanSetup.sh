@@ -57,7 +57,8 @@ LIBASAN=$(gcc -print-file-name=libasan.so)
 # date or tr. abort_on_error=0: an ASan error still ends the process (halt_on_error), with exit code 1
 # rather than a core. allow_user_segv_handler=1: the broker's own crash report (crash_report_*.test)
 # runs on a fatal signal, as it does outside the sanitizers. exec -a: argv[0] is the plain name, as
-# when corTest runs `coraine` from PATH - the crash report prints the command line.
+# when corTest runs `coraine` from PATH - the crash report prints the command line. The exec line's form
+# is read by db_plugin_abi.test, which runs a renamed copy of the binary through a copy of the wrapper.
 #
 wrapper()
 {
