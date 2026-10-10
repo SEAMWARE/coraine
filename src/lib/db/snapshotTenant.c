@@ -20,7 +20,7 @@
 #include "corNgsild/ldSubCache.h"                       // ldSubCacheCreate, ldSubCacheRelease
 #include "corNgsild/LdPernotCache.h"                    // LdPernotCache
 #include "corNgsild/ldPernotCache.h"                    // ldPernotCacheCreate, ldPernotCacheRelease
-#include "db/DbDriver.h"                                 // db, DB_OK
+#include "db/DbDriver.h"                                 // db, DB_OK, tenantRelease
 #include "troe/TroeDriver.h"                             // troe
 #include "db/Tenant.h"                                   // Tenant, tenant0
 
@@ -129,6 +129,13 @@ void snapshotTenantDestroy(Tenant* snapTenantP)
   //
   ldSubCacheRelease((LdSubCache*) snapTenantP->subCacheP);
   ldPernotCacheRelease((LdPernotCache*) snapTenantP->pernotCacheP);
+
+  //
+  // And for the same reason the DB plugin can free what it hung on the tenant - corDB's store, which its
+  // tenantDrop empties but cannot free (a request might still hold it, as far as the plugin can tell)
+  //
+  if (db.tenantRelease != NULL)
+    db.tenantRelease(snapTenantP);
 
   free(snapTenantP);
 }

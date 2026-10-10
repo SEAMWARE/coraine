@@ -26,6 +26,15 @@ extern void mongocGeoIndexInit(Tenant* tenantP, mongoc_collection_t* collP);
 
 // -----------------------------------------------------------------------------
 //
+// mongocGeoIndexCacheRelease - the tenant's geo index cache (Tenant.pluginData) freed - its tenant is
+// about to be, and nothing reaches it any more (DbDriver.h, tenantRelease)
+//
+extern void mongocGeoIndexCacheRelease(Tenant* tenantP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocGeoIndexExists - is there a 2dsphere index for this GeoProperty?
 //
 // "No index" means no Entity in this database has that GeoProperty, so no Entity can
