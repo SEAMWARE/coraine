@@ -384,6 +384,28 @@ int timescaleMigrate(PGconn* conn)
   int current = currentSchemaVersion(conn);
   COR_V("timescale: current schema version = %d", current);
 
+  //
+  // 2b. A schema newer than the newest migration of this build: written by a newer release, that this
+  // one would misread - refused (doc/installation.md, "Storage format"). The connection is closed by
+  // the caller, and the advisory lock with it.
+  //
+  int newest = 0;
+
+  for (int i = 0; migrationsV[i].sqlFn != NULL; i++)
+  {
+    if (migrationsV[i].version > newest)
+      newest = migrationsV[i].version;
+  }
+
+  if (current > newest)
+  {
+    COR_E("timescale: database '%s' is in schema version %d - this build of coraine knows versions up to %d. "
+          "It was written by a newer release of coraine, and this one would misread it: run the release that wrote it, or a newer one. "
+          "A downgrade is not supported once a newer release has written to a database - doc/installation.md, Storage format",
+          PQdb(conn), current, newest);
+    return -1;
+  }
+
   // 3. Apply pending migrations.
   for (int i = 0; migrationsV[i].sqlFn != NULL; i++)
   {

@@ -7,9 +7,9 @@ What makes it worth a look:
 - **Small.** **4.3 MiB** of files a machine did not already have — the broker,
   its in-memory store and three shared libraries. One process, no runtime, no
   JVM, and no database server to install beside it.
-- **Fast.** **12 703 requests/s per core** at `limit=20` — **254 060 entities/s per
-  core** — and answering 9 ms after `exec`. Writes: 62 500 creates/s per core one at a
-  time, 168 840 in batches of twenty.
+- **Fast.** **12 577 requests/s per core** at `limit=20` — **251 540 entities/s per
+  core** — and answering 9 ms after `exec`. Writes, the store on disk: 54 707 creates/s
+  per core one at a time, 117 460 in batches of twenty.
 - **Persistent, still without a database server.** `--database corDB --dbDir <dir>
   --troe corDB`: the store and its temporal history on disk, in the same process.
 - **Plugin-driven.** Storage backend, temporal history and extra API surfaces are

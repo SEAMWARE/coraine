@@ -106,7 +106,20 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
   stores the system timestamps and attribute types once per entity; 0.4.x reads attributes
   0.5.0 has written back without `type` and `createdAt`. 0.4.x cannot detect this - do not run it
   on data 0.5.0 has written.
-- **`SEAMWARE_ETC_DIR`** (new environment variable, default `/opt/seamware/etc`): where the broker
+- **A store records its storage format**, and a broker refuses to start on a store written in a newer
+  format than it knows: mongoc in each database (`metadata`, `{_id: "storageFormat", version}`),
+  corDB in `<--dbDir>/_storageFormat`, timescale in its schema version. A database without one (0.4.x)
+  is read as it is and given 0.5.0's (`doc/installation.md`, "Storage format").
+- **A DB or TRoE plugin and the broker check each other's interface stamp** at load - a hash of the
+  headers they share structs through - and refuse to start on a mismatch, naming both stamps. A
+  broker and plugins built from different sources no longer load and corrupt memory
+  (`doc/plugin-architecture.md`, "The DB plugin interface stamp").
+- **The built-in HTTP server no longer shares its port** (`SO_REUSEPORT` is off): a second broker on
+  the same port fails with "Address already in use" instead of taking part of the connections.
+- **`make install`** replaces each installed file (a new file renamed over the old) instead of
+  writing into it: a broker running from the installed plugins keeps running.
+- **`coraine-build --list-features --json`**, and one `coraine-build: phase <name>` line per phase.
+, default `/opt/seamware/etc`): where the broker
   looks for `bridges.json` and `contextSourceExtras.json` when no file is named.
 
 ### Fixed (a selection)
@@ -135,6 +148,14 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - Without `--bridgeConfig`, a bridge plugin was not given the default configuration file the
   broker itself read (MQTT: "no server").
 - The MQTT and Modbus bridges read at most 64 KiB of their configuration and ignored the rest.
+- A forwarded request's response (body, status text, headers) pointed into its connection's buffer,
+  which could be reused by another request or freed before it was read - distributed operations,
+  forwarding, Service Execution executors, snapshots and the @context download.
+- A forwarded request whose path and query were longer than about 450 characters failed (502).
+- An HTTPS request through the multi client could wait for its full timeout with its answer already
+  read (data left inside OpenSSL).
+- Distributed discovery counted an attribute twice when a source answered its full IRI.
+- An environment-variable prefix ending in `_` gave option variables a double underscore.
 
 ## 0.4.0 — 2026-08-28
 

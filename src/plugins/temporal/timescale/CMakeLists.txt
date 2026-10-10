@@ -11,9 +11,11 @@ SET(TIMESCALE_SOURCES
   timescaleQuery.c
   timescaleHistoryWrite.c
   timescaleRegister.c
+  ${CMAKE_SOURCE_DIR}/src/plugins/shared/dbPluginAbi.c
 )
 
 ADD_LIBRARY(troeTimescale SHARED ${TIMESCALE_SOURCES})
+ADD_DEPENDENCIES(troeTimescale dbAbiStamp)          # dbAbiStamp.h - dbPluginAbi
 TARGET_INCLUDE_DIRECTORIES(troeTimescale PRIVATE ${LIBPQ_INCLUDE_DIRS})
 # Plugin .so resolves NGSI-LD/k-lib symbols from the (rdynamic) broker at dlopen,
 # so only its own external deps are linked here.

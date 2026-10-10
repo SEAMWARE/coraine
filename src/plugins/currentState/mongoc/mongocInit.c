@@ -18,6 +18,7 @@
 #include "shared/geoMatch.h"                                      // geoMatchInit
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
 #include "currentState/mongoc/mongocGlobals.h"                    // mongocDbHost, mongocDbName, ...
+#include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
 #include "currentState/mongoc/mongocTenantSetup.h"                // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                    // mongocServerVersionGet
 #include "currentState/mongoc/mongocInit.h"                       // Own interface
@@ -134,25 +135,50 @@ int mongocInit(void)
   mongocServerVersionGet();
 
   //
+  // The existing tenant databases: any DB named "{prefix}-*"
+  //
+  char**  dbNames   = mongoc_client_get_database_names_with_opts(clientP, NULL, &error);
+  int     prefixLen = strlen(mongocDbName);
+
+  mongoc_client_pool_push(poolP, clientP);
+
+  //
+  // The storage format of every database of the broker - the default tenant's and each tenant's -
+  // before anything is written to any of them: one in a newer format than this build knows, and
+  // the broker does not start, with all of them as they were (mongocStorageFormat says why)
+  //
+  bool refused = (mongocStorageFormat(mongocDbName, false) != 0);
+
+  for (int ix = 0; (dbNames != NULL) && (dbNames[ix] != NULL); ix++)
+  {
+    if ((strncmp(dbNames[ix], mongocDbName, prefixLen) == 0) && (dbNames[ix][prefixLen] == '-') && (dbNames[ix][prefixLen + 1] != 0))
+    {
+      if (mongocStorageFormat(dbNames[ix], false) != 0)
+        refused = true;
+    }
+  }
+
+  if (refused)
+  {
+    bson_strfreev(dbNames);
+    return -1;
+  }
+
+  //
   // Bind the default tenant to the configured database and set up its indexes.
   // tenant0 and its caches were already created by main's tenantInit() before
   // DB start; here we only point them at the real db name (re-running
   // tenantInit would orphan those caches — a startup leak).
   //
   tenantDbPrefixSet(mongocDbName);
-  mongocTenantSetup(&tenant0);
-
-  //
-  // Discover existing tenant databases: any DB named "{prefix}-*"
-  //
-  char**  dbNames = mongoc_client_get_database_names_with_opts(clientP, NULL, &error);
-
-  mongoc_client_pool_push(poolP, clientP);
+  if (mongocTenantSetup(&tenant0) != 0)
+  {
+    bson_strfreev(dbNames);
+    return -1;
+  }
 
   if (dbNames != NULL)
   {
-    int prefixLen = strlen(mongocDbName);
-
     for (int ix = 0; dbNames[ix] != NULL; ix++)
     {
       // Match databases named "{prefix}-{tenantname}"

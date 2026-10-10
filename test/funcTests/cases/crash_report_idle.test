@@ -14,7 +14,8 @@
 # level turns it on or off, and it is written the same by every build.
 #
 # The command line and the version depend on how the suite was started (-db,
-# the build), and the stack on the build: patterns, not literals. The stack is
+# the build, the broker by name or by path - the coverage run's COR_BROKER is a
+# path), and the stack on the build: patterns, not literals. The stack is
 # only counted. The build id is compared with the running binary's own (readelf).
 #
 # Not under valgrind (-vt): the process at the pid is memcheck, not the broker
@@ -43,6 +44,11 @@ PID=$(cat /tmp/coraine_CB.pid)
 # Only the broker: a stale pid file must not send a SIGSEGV to whatever has that pid now.
 #
 [ "$(cat /proc/$PID/comm 2>/dev/null)" == "coraine" ] || { echo "no broker at pid '$PID'" >&2; exit 1; }
+#
+# The executable of THIS process, read while it lives - $COR_BROKER may be a script that execs the
+# broker (a sanitizer run's wrapper, test/sanitizer/sanSetup.sh), and a script has no build id
+#
+EXE=$(readlink /proc/$PID/exe)
 kill -SEGV $PID
 #
 # Up to 30 s. The report is written in milliseconds, but the broker's last act is to re-raise the
@@ -67,7 +73,7 @@ sed -n '/^=== coraine crashed/,/^stack:$/p' $LOG | grep -v '^build id:' | head -
 # The build id says which binary the stack's offsets belong to - so it has to be THIS one's
 #
 REPORTED=$(grep -m1 '^build id:' $LOG | awk '{ print $3 }')
-ACTUAL=$(readelf -n "$(command -v $COR_BROKER)" 2>/dev/null | awk '/Build ID:/ { print $3; exit }')
+ACTUAL=$(readelf -n "$EXE" 2>/dev/null | awk '/Build ID:/ { print $3; exit }')
 if [ -n "$REPORTED" ] && [ "$REPORTED" == "$ACTUAL" ]; then echo "build id: the binary's own"; else echo "build id: '$REPORTED', the binary's is '$ACTUAL'"; fi
 echo "stack frames: $(sed -n '/^stack:$/,/^=== end of crash report ===$/p' $LOG | sed '1d;$d' | wc -l | awk '{ print ($1 > 0) ? "some" : "none" }')"
 grep -m1 '^=== end of crash report ===$' $LOG

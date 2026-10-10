@@ -124,6 +124,43 @@ reaches a participant on the same machine over shared memory, so without the
 first the broker discovers nothing at all and nothing is logged anywhere; with
 both, discovery gets confused and the topics never surface either.
 
+In GitHub Actions `COR_DDS_ROS2_IMAGE` names the image's mirror (below); on a
+workstation it defaults to `eprosima/vulcanexus:jazzy-desktop`.
+
+## Docker Hub mirrors
+
+The workflows pull nothing from Docker Hub. Its anonymous pull limit is per IP,
+GitHub's runners share their IPs, and a run of ~45 jobs was refused
+(`toomanyrequests`) in most of them. Each Docker Hub image is pulled from a copy
+in `quay.io/seamware/coraine-ci`, tagged `mirror-<name>-<tag>`: every
+architecture, same digests.
+
+| Docker Hub | Mirror (`quay.io/seamware/coraine-ci:`) | Used by |
+|---|---|---|
+| `timescale/timescaledb-ha:pg16` | `mirror-timescaledb-ha-pg16` | service container / `docker run`: ci, nightly, pre-release |
+| `wistefan/context-server:0.2.0` | `mirror-context-server-0.2.0` | service container: ci, nightly, pre-release; the arm64 context server |
+| `mongo:8.0` | `mirror-mongo-8.0` | nightly (ETSI, performance, arm64), pre-release (upgrade, soak) |
+| `ubuntu:26.04` | `mirror-ubuntu-26.04` | packages; `docker/Dockerfile` in deploy, release, the nightly's DDS image (`BASE_IMAGE`) |
+| `ubuntu:24.04` | `mirror-ubuntu-24.04` | packages |
+| `debian:trixie` | `mirror-debian-trixie` | packages |
+| `eclipse-temurin:11-jre` | `mirror-eclipse-temurin-11-jre` | the nightly's arm64 context server |
+| `eprosima/vulcanexus:jazzy-desktop` | `mirror-vulcanexus-jazzy-desktop` | `COR_DDS_ROS2_IMAGE` in ci and the nightly |
+
+`.github/workflows/mirror-images.yml` makes the copies: weekly (a new patch
+release behind the same tag) and on dispatch, copying an image only when its
+upstream digest differs from the mirror's. Its source is Docker Hub, or
+`mirror.gcr.io` (Google's cache of Docker Hub, same digests) when Docker Hub
+refuses. The copies are tags of `coraine-ci` because that repository is public
+and the quay robot can push to it, while it cannot create a repository.
+
+`docker/Dockerfile` keeps `ubuntu:26.04` as the default of its `BASE_IMAGE` arg,
+so a build outside CI needs nothing from quay. The compose files and the test
+helpers keep upstream names too.
+
+To add an image: a line in `IMAGES` in `mirror-images.yml`, then
+`gh workflow run mirror-images.yml`, then use
+`quay.io/seamware/coraine-ci:mirror-<name>-<tag>` in the workflow.
+
 
 ## Coverage
 
@@ -148,3 +185,86 @@ separate measurements rather than two views of one.
 The ETSI target instruments the broker **and** the NGSI-LD libs (whole-archived,
 so they flush through the broker's gcov runtime) **and** the mongoc/timescale
 plugin `.so`s.
+
+
+## Sanitizers
+
+The functional suite with every Cor-Lib and the broker built with
+`-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g` - AddressSanitizer,
+LeakSanitizer and UndefinedBehaviorSanitizer. The tools are in `test/sanitizer/`:
+
+| | |
+|---|---|
+| `sanSetup.sh <dir> [<bin dir>]` | writes `gcc-san` (the compiler), `sanPreload.so` (`dlclose()` a no-op, so a leak inside a plugin names its frames) and the wrappers `coraine` / `coraine-import`, which run the installed binaries with the sanitizer options |
+| `sanReport.py <report dir>` | the reports, deduplicated by kind and first frames, with the tests that hit each; exit 1 if there is one |
+| `lsan.supp` | LeakSanitizer suppressions - third-party stacks only, as `test/funcTests/valgrind.supp` |
+
+The reports go to `$SAN_REPORT_DIR` (default `/tmp/san-reports`): `asan.<pid>`
+(ASan, LSan) and `ubsan.<pid>`. With gcc, UBSan inside an ASan process ignores
+`UBSAN_OPTIONS`' `log_path` and prints to stderr; `sanPreload.so` sets libubsan's
+report path instead, so the broker's stdout and stderr are what they are in an
+ordinary run. `pids` maps each pid to the test that started it.
+
+A run, in a throwaway environment (it installs into `/usr/local` and
+`/opt/seamware`), from the coraine checkout, the libs already built by
+`bootstrap.sh`:
+
+```sh
+test/sanitizer/sanSetup.sh /opt/san
+make libs-rebuild CC=/opt/san/gcc-san COR_HTTP_SERVER=mhd
+CC=/opt/san/gcc-san make di CC=/opt/san/gcc-san COR_HTTP_SERVER=mhd
+COR_BROKER=/opt/san/coraine COR_IMPORT=/opt/san/coraine-import corTest -db mongoc
+test/sanitizer/sanReport.py /tmp/san-reports
+```
+
+`CC` on the make command line reaches every lib's make; `CC` in the environment
+is what cmake reads for the broker and its plugins. corTest's own tools stay
+unsanitized: they are linked before the rebuild.
+
+## Soak
+
+`test/soak/soak.py --db mongoc|corDB [--minutes 120] [--rate 40]` starts a
+release broker and puts mixed load on it at a fixed, moderate rate: creates,
+PATCHes, retrieves, queries, batch create / update / delete, deletes, a
+subscription created and deleted, with three subscriptions on the entities
+(`entityCreated`, `attributeUpdated`, `entityDeleted`) notifying a receiver the
+script runs. Each worker owns its entities and caps them (`--maxEntities`), so the
+store reaches a steady size.
+
+It fails on: the broker exiting or not answering; a status other than the one
+expected; a retrieve not returning the value last written; RssAnon growing after
+the warm-up (the first 15 %, at least 5 minutes) by more than
+`max(--rssMaxGrowthPct %, --rssMaxGrowthMiB)`; an `E` or `X` line in the broker's
+log; a notification count other than the one expected; and a final read - every
+live entity, its value, the entity count, the subscriptions - that differs from
+what the script wrote. It measures no throughput and compares none.
+
+corDB runs with `--dbDir` (the durable configuration); both run with `--troe none`.
+
+## The pre-release campaign
+
+Everything a release is checked with, in one run of `.github/workflows/prerelease.yml`:
+
+```sh
+gh workflow run prerelease.yml -f ref=release/0.5.0              # soakMinutes=120, only=all
+gh workflow run prerelease.yml -f ref=release/0.5.0 -f only=soak -f soakMinutes=30
+```
+
+or Actions → Pre-release → Run workflow.
+
+| part | what | jobs |
+|---|---|---|
+| `nightly` | `nightly.yml`, called: valgrind on both HTTP servers, ETSI (mhd/builtin × mongoc, mhd corDB), coverage, performance, the DDS bridge image, the suite on arm64 | 17 |
+| `packages` | `packages.yml`, called: the Debian packages built (pgo), then installed in clean containers | 20 |
+| `sanitizers` | the whole suite under ASan + UBSan (above), {mhd, builtin} × {mongoc, corDB} - a sanitizer report or a failed test fails the job | 4 |
+| `upgrade` | `test/upgrade/upgradeCheck.sh` from the image of the newest `v*` tag before `ref` to this build, mongoc + corDB; a failed check fails it, a downgrade difference is listed | 1 |
+| `soak` | `test/soak/soak.py`, `soakMinutes` per database, mongoc and corDB | 2 |
+| `summary` | every job of the run, green or red, in the run summary; red if any part is | 1 |
+
+- Every part tests the sha `ref` names when the run starts; the Cor-Libs are at `main`.
+- The campaign's tools - `test/sanitizer/`, `test/soak/`, `test/upgrade/` - come from the commit
+  the workflow runs from (the branch it is dispatched on), the code and its suite from `ref`.
+- Nothing is published: `nightly.yml` and `packages.yml` are called with `publish: false` -
+  no coverage site, no perf-history line, no apt repository.
+- `only` runs one part, for re-running the one that went red.
+- About 45 jobs against the plan's 20 at a time: the run queues.

@@ -1,0 +1,165 @@
+#
+# The Docker Hub images CI, the nightly, the packages and the pre-release campaign use, copied to
+# quay.io/seamware/coraine-ci:mirror-<name>-<tag> - every architecture they publish (the multi-arch
+# index is copied as it is, digests unchanged). The workflows pull the mirrors, never Docker Hub:
+# Docker Hub limits anonymous pulls per IP, GitHub's runners share their IPs, and a run of ~45 jobs
+# pulling at once was refused ("toomanyrequests") in most of them. This job is the ONE that pulls
+# from Docker Hub.
+#
+# The mirror's tag: mirror-, the last component of the repository, -, the tag -
+# timescale/timescaledb-ha:pg16 -> quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16.
+#
+# WHY TAGS IN coraine-ci, not a repository per image: quay creates a repository on the first push
+# only for an account with the organisation's creator role, and the robot behind QUAY_USERNAME has
+# not got it (its token for a new name carries no actions). A repository quay creates is private,
+# too. coraine-ci exists, is public - CI already pulls it without credentials - and the robot pushes
+# to it (corLibs' baseimage.yml). No tag in it expires; these carry no quay.expires-after label.
+#
+# An image is copied only when its upstream digest differs from the mirror's (a HEAD request, which
+# Docker Hub does not count as a pull): the weekly run picks up a new patch release behind the same
+# tag (mongo:8.0, ubuntu:24.04) and costs nothing when there is none.
+#
+# The source is Docker Hub, and mirror.gcr.io (Google's cache of Docker Hub - the same manifests,
+# the same digests) when Docker Hub refuses: a runner's shared IP can be over the limit before this
+# job has made a single request (HEAD answered 429 on the first run, the token service 504 on the
+# second). An image neither serves fails the run and leaves its mirror as it was; the next run copies
+# it.
+#
+# To add an image: one line in IMAGES below, run this workflow (Actions -> Mirror images -> Run
+# workflow, or `gh workflow run mirror-images.yml`), then use the tag it printed.
+# doc/testing.md, "Docker Hub mirrors".
+#
+name: Mirror images
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Copy every image, even when the mirror has the upstream digest'
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 3 * * 1'
+
+concurrency:
+  group: mirror-images
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  MIRROR_REPO: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine-ci
+  #
+  # Docker Hub references, one per line: everything the workflows, the image builds in CI and the
+  # test jobs pull from Docker Hub
+  #
+  IMAGES: |
+    timescale/timescaledb-ha:pg16
+    wistefan/context-server:0.2.0
+    mongo:8.0
+    ubuntu:26.04
+    ubuntu:24.04
+    debian:trixie
+    eclipse-temurin:11-jre
+    eprosima/vulcanexus:jazzy-desktop
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: crane
+        run: |
+          v=v0.20.6
+          curl -sSfL "https://github.com/google/go-containerregistry/releases/download/$v/go-containerregistry_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin crane
+          crane version
+
+      #
+      # What the robot may do to the mirror repository, from quay's token service - "no push" here,
+      # not a bare 401 from every copy
+      #
+      - name: Log in to quay.io, push access
+        env:
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+        run: |
+          echo "$QUAY_PASSWORD" | crane auth login quay.io -u "$QUAY_USERNAME" --password-stdin
+          repo=${MIRROR_REPO#quay.io/}
+          tok=$(curl -s -u "$QUAY_USERNAME:$QUAY_PASSWORD" "https://quay.io/v2/auth?service=quay.io&scope=repository:$repo:push,pull" | jq -r '.token // empty')
+          b=$(cut -d. -f2 <<< "$tok" | tr '_-' '/+'); while [ $(( ${#b} % 4 )) -ne 0 ]; do b="$b="; done
+          acts=$(base64 -d <<< "$b" 2>/dev/null | jq -c '[.access[]?.actions[]?]' 2>/dev/null || true)
+          echo "$repo: ${acts:-no token}"
+          grep -q push <<< "$acts" || { echo "::error::the robot cannot push to $repo (${acts:-no token})"; exit 1; }
+
+      - name: Copy
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          fails=0
+          echo "| image | mirror | digest | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          while read -r src; do
+            [ -z "$src" ] && continue
+            repo=${src%:*}; tag=${src##*:}
+            dst="$MIRROR_REPO:mirror-${repo##*/}-$tag"
+            from=""
+            for reg in docker.io mirror.gcr.io; do
+              if up=$(crane digest "$reg/$src" 2> /tmp/err); then from="$reg/$src"; break; fi
+              echo "$reg/$src: $(tail -1 /tmp/err)"
+            done
+            if [ -z "$from" ]; then
+              echo "::error::$src: no source answered"; fails=$((fails + 1))
+              echo "| $src | $dst | | ❌ no source answered |" >> "$GITHUB_STEP_SUMMARY"; continue
+            fi
+            have=$(crane digest "$dst" 2>/dev/null || true)
+            if [ "$up" = "$have" ] && [ "$FORCE" != true ]; then
+              echo "$src = $dst ($up)"
+              echo "| $src | $dst | \`${up:7:12}\` | up to date |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "::group::$from -> $dst (${have:-new})"
+            #
+            # A HEAD Docker Hub answered and a GET it then refuses: the copy from the cache instead. The
+            # cache holds only the platforms somebody pulled through it (eclipse-temurin's index named
+            # manifests it did not have): then an index of linux/amd64 + linux/arm64 alone, the two CI
+            # runs on - its digest is not upstream's, so the next run tries Docker Hub again
+            #
+            if crane copy "$from" "$dst" || { [ "${from%%/*}" = docker.io ] && from="mirror.gcr.io/$src" && crane copy "$from" "$dst"; } \
+               || { [ "${from%%/*}" = mirror.gcr.io ] && echo "the whole index failed - linux/amd64 + linux/arm64 only" \
+                    && crane index filter --platform linux/amd64 --platform linux/arm64 "$from" -t "$dst"; }; then
+              got=$(crane digest "$dst")
+              [ "$got" = "$up" ] || echo "::warning::$dst is $got, upstream $up (the tag moved during the copy, or amd64 + arm64 only)"
+              echo "| $src | $dst | \`${got:7:12}\` | copied from ${from%%/*} |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::$from -> $dst failed"
+              fails=$((fails + 1))
+              echo "| $src | $dst | | ❌ copy failed |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "::endgroup::"
+          done <<< "$IMAGES"
+          exit $fails
+
+      #
+      # Pullable without credentials, as CI pulls them: the repository public (quay's API answers an
+      # anonymous request for a public one only), and each mirror's manifest, asked anonymously
+      #
+      - name: Every mirror pullable without credentials
+        if: always()
+        run: |
+          repo=${MIRROR_REPO#quay.io/}
+          [ "$(curl -s "https://quay.io/api/v1/repository/$repo" | jq -r '.is_public // false')" = true ] \
+            || { echo "::error::$MIRROR_REPO is not public"; exit 1; }
+          bad=0
+          while read -r src; do
+            [ -z "$src" ] && continue
+            r=${src%:*}; t=${src##*:}
+            dst="$MIRROR_REPO:mirror-${r##*/}-$t"
+            if d=$(DOCKER_CONFIG=/nonexistent crane digest "$dst" 2>&1); then echo "$dst $d"; else echo "::error::$dst: $d"; bad=$((bad + 1)); fi
+          done <<< "$IMAGES"
+          exit $bad

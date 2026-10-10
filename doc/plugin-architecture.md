@@ -63,8 +63,7 @@ There are **five** kinds of plugin:
   `corPlugin` is the precedent: one is the *mechanism* for loading a `.so`, the
   other the *contract* one kind of `.so` must satisfy.
 
-So today four of the five are live; the communication-protocol category is the
-remaining plugin axis to land.
+All five are live.
 
 ## What crosses a bridge, and what does not
 
@@ -136,13 +135,79 @@ coraine --database ../corDB/obj/debug/corDB.so
    (`dbRegister` / `troeRegister` / `apiRegister` / `bridgeRegister`). Handles are
    tracked for
    `corPluginCloseAll()` at shutdown.
-3. The register function is called with a zeroed driver struct, which it fills with
+3. For a DB or TRoE plugin, its interface stamp is checked (next section) - before the
+   register function is called.
+4. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
 
 Plugins do **not** statically link the NGSI-LD/Cor-Lib symbols — the broker is linked
-`rdynamic`, so a plugin `.so` resolves `corTree`, `corJson`, `corNgsild`, etc. from the running
-broker at `dlopen` time. Keep that in mind: a plugin must be built against the
-**same** lib headers as the broker it will be loaded into.
+`rdynamic` (`ENABLE_EXPORTS`), with its own libraries and the Cor-Libs whole-archived,
+and `corPluginOpen` uses `RTLD_NOW`, so a plugin `.so` resolves `corLog`, `corAlloc`,
+`corTree`, `corJson`, `corNgsild`, etc. from the running broker at `dlopen` time.
+
+That holds for bridge plugins too. A bridge calls the broker's NGSI-LD side only
+through the `BridgeBroker` slots, and may use the Cor-Libs directly: the loopback,
+MQTT, Modbus and DDS bridges log with the `COR_*` macros and parse their
+configuration with corJson and corTree, in a corAlloc buffer of their own.
+`BridgeBroker::logFunction` is for forwarding a transport library's own log sink.
+
+A plugin's contract version (`BRIDGE_ABI_VERSION`, `TRANSPORT_ABI_VERSION`) covers
+its structs and nothing else. A plugin that calls Cor-Lib functions must be built
+against the **same** lib sources as the broker it will be loaded into — for a
+packaged broker, the `coraine-dev` source of the same version
+([Installation](installation.md#coraine-dev-build-your-own)). A function the broker
+lacks fails the `dlopen`; a changed signature or struct layout is not detected. For a DB or TRoE plugin the
+headers its structs come from are checked at load, below.
+
+## The DB plugin interface stamp
+
+A DB or TRoE plugin shares structs with the broker by layout: `DbDriver`, `DbQueryFilter`,
+`Tenant`, `TroeDriver`, `CorNode`, ... A plugin built against other headers than its broker reads
+and writes them at the wrong offsets and corrupts memory. So a mismatch is refused, never
+tolerated - both ways, and the program exits 1:
+
+| Side | Exports | Checks | Refuses |
+|------|---------|--------|---------|
+| broker (`coraine`, `coraine-import`) | `coraineDbAbi` | the plugin's `dbPluginAbi` (`dlsym` on the plugin), after the `dlopen`, before the register function | a plugin without `dbPluginAbi` (built before the check), or with another stamp |
+| DB / TRoE plugin | `dbPluginAbi` | the broker's `coraineDbAbi` (`dlsym(RTLD_DEFAULT)`), first thing in `dbRegister` / `troeRegister` | a broker without `coraineDbAbi` (older than the plugin), or with another stamp |
+
+The plugin's check is what stops a broker built before the check, which loads any plugin unchecked.
+It exits rather than returning a failure: the register functions return nothing, and such a broker
+would carry on with the plugin loaded.
+
+The stamp is `tools/dbAbiStamp.sh`: a hash (sha256, 16 hex digits) of the headers the two sides
+share structs through - `db/DbDriver.h`, `db/DbQueryFilter.h`, `db/Tenant.h`, `ha/HaEvent.h`,
+`ha/haInit.h`, `troe/TroeDriver.h`, and every header they include with `#include "..."`, in this
+repository's `src/lib` or in the Cor-Libs beside it (`tools/dbAbiStamp.sh --list` names them).
+Comments are stripped (`gcc -fpreprocessed`) and whitespace collapsed before hashing: a comment
+edit leaves the stamp as it was, any declaration change gives a new one. Nothing is bumped by hand.
+
+The same script makes both sides' stamp: the broker's CMake writes it into
+`<build>/generated/dbAbiStamp.h` on every build (rewritten only when it changed), and corDB's
+makefile into `obj/<flavour>/dbAbiStamp.h`. The plugin side is `src/plugins/shared/dbPluginAbi.c`,
+compiled into every DB and TRoE plugin - mongoc, none, timescale here; corDB.so, ramDB.so and
+troe/ramDB.so in corDB.
+
+A refusal names both stamps and the way out:
+
+```text
+DB plugin '/opt/seamware/plugins/db/currentState/corDB.so' does not match this broker: it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: none - built before the check
+  broker's interface stamp: 8fa2e0424436a91e
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+```
+
+```text
+DB plugin '/opt/seamware/plugins/db/currentState/corDB.so' refuses the broker '/usr/local/bin/coraine': the broker is older than the plugin - it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: 8fa2e0424436a91e
+  broker's interface stamp: none - built before the check
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+```
+
+The check is always compiled in - it is a safety check of the plugin interface, not a feature,
+and has no `COR_FEATURE_*` switch. API, bridge and transport plugins do not carry the stamp: a
+bridge has `BRIDGE_ABI_VERSION` (below) and a transport `TRANSPORT_ABI_VERSION`
+(`src/lib/plugin/TransportDriver.h`).
 
 ## Plugin-contributed CLI args
 
@@ -181,14 +246,38 @@ the headers — read these before writing a plugin:
 - **`src/lib/plugin/ApiPlugin.h`** — extra endpoints. A flat
   `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
   optional `args`, and `init`/`close`/`versionInfo` hooks.
-- **`corBridge/BridgeDriver.h`** — what a bridge `.so` fills in: `init`, `close`,
-  `channelAdd`, `channelDel`, `publish`. And **`corBridge/BridgeBroker.h`** — what
-  the broker hands back: `sampleIn`, `logFunction`. Error codes: `BRIDGE_OK`,
-  `BRIDGE_NOT_FOUND`, `BRIDGE_UNSUPPORTED`, `BRIDGE_BAD_INPUT`, `BRIDGE_ERR`.
-  These live outside the broker because the plugins are external; the structs
-  are **append-only** and carry `BRIDGE_ABI_VERSION`, and a mismatch is logged
-  rather than refused — an older plugin simply leaves the newer slots NULL,
-  which is already how "unsupported" is spelled.
+- **`corBridge`** — the bridge contract, three structs in three headers, at
+  `BRIDGE_ABI_VERSION` **11**. Each slot below carries the revision that added it.
+  - **`BridgeDriver.h`** — what a bridge `.so` fills in (`BridgeDriver`):
+    `alias`, `version`, `abiVersion`, `args`; ABI 1: `init`, `close`,
+    `channelAdd`, `channelDel`, `publish`, `versionInfo`; ABI 2:
+    `serviceInvoke`, `serverIface`; ABI 3: `serviceInvokeTracked`; ABI 4:
+    `actionGoalSend`, `actionGoalCancel`; ABI 9: `channelAddInfo`; ABI 10:
+    `notifySchemes`, `notify`; ABI 11: `serviceSchemes`, `serviceExecute`,
+    `serviceCancel`. The broker does not call `channelDel` today: Channels come
+    from `--bridgeConfig` and from discovered endpoints, and none is removed while
+    the broker runs.
+  - **`BridgeBroker.h`** — what the broker hands the plugin in `init()`
+    (`BridgeBroker`): `abiVersion`; ABI 1: `sampleIn`, `logFunction`; ABI 2:
+    `sampleQualifiedIn`; ABI 3: `replyIn`; ABI 4: `goalEventIn`; ABI 5:
+    `goalEventPartIn`; ABI 6: `sampleMetaIn`, `replyMetaIn`, `goalEventMetaIn`;
+    ABI 7: `replyExchangeIn`; ABI 8: `endpointDiscoveredIn`; ABI 11:
+    `serviceUpdateIn`.
+  - **`BridgeServer.h`** — the peer side (`BridgeServer`, returned by
+    `serverIface()`): `abiVersion`, `serviceServe`, `serviceUnserve`,
+    `serviceReply`. The broker never uses it; the functional test client does.
+
+  Error codes: `BRIDGE_OK`, `BRIDGE_NOT_FOUND`, `BRIDGE_UNSUPPORTED`,
+  `BRIDGE_BAD_INPUT`, `BRIDGE_ERR`. These live outside the broker because the
+  plugins are external. The structs are **append-only**; the broker writes its
+  `BRIDGE_ABI_VERSION` into `BridgeDriver.abiVersion` before `bridgeRegister`, the
+  plugin fills no slot the broker is too old to have and writes its own version
+  back, and a mismatch is logged (INFO) rather than refused — an older plugin
+  leaves the newer slots NULL, which is already how "unsupported" is spelled. A
+  plugin checks `brokerP->abiVersion` and the pointer before calling a
+  `BridgeBroker` slot added after ABI 1. `GET /version` shows each bridge's
+  `versionInfo()` string under `bridges`; neither the broker's bridge ABI nor a
+  plugin's `abiVersion` is in it.
 
 ## Bundled plugins
 
@@ -231,6 +320,10 @@ void dbRegister(DbDriver* driverP)
   driverP->tenantSetup    = myTenantSetup;
 }
 ```
+
+It must also carry the interface stamp: compile `src/plugins/shared/dbPluginAbi.c` into it (with
+the generated `dbAbiStamp.h` on the include path) and call `dbPluginAbiBrokerCheck("DB")` first in
+`dbRegister` - without them the broker refuses it.
 
 Build it as a `SHARED` library that drops `myStore.so` into
 `<base>/db/currentState/`, then run `coraine --database myStore`. The existing

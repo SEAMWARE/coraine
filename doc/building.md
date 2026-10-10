@@ -77,6 +77,12 @@ that).
 Install writes to `/opt/seamware/...` and `/usr/local/bin` — run with appropriate
 permissions or pre-create the dirs.
 
+Install with brokers running: each file is copied beside the installed one and renamed
+over it, never written in place. A running broker keeps the files it started with and
+loads the new ones at its next start. (A copy *onto* a plugin a broker has loaded
+changes that broker's code under it - it dies of SIGSEGV within seconds.)
+`test/install/installUnderRunningBroker.sh` checks it.
+
 ## Build options
 
 | | |

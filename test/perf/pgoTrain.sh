@@ -29,6 +29,12 @@ CORDB=${COR_DB_DIR:-$(cd "$HERE/../../../corDB" && pwd)}
 cp "$CORDB/obj/release/corDB.so"      "$TMP/plugins/db/currentState/"
 cp "$SRC/temporal/none/none.so"       "$TMP/plugins/troe/temporal/"
 export SEAMWARE_PLUGIN_DIR=$TMP/plugins
+#
+# The tools, corTestClient the receiver of perfRun's notifying scenarios among them: perfRun looks for
+# it beside coraine (../corLibs/bin) unless told, and without it perfRun stops at those scenarios
+#
+TOOLS=${COR_TOOLS_DIR:-$(cd "$HERE/../../../corLibs/bin" && pwd)}
+export PERF_RECEIVER=$TOOLS/corTestClient
 
 echo "pgoTrain: request shapes (perfRun, short)"
 PERF_DURATION=2s PERF_REPEATS=1 PERF_BROKER_CMD="$B --port 1029 --database corDB --troe none --httpLoops 1" \
@@ -45,7 +51,6 @@ PERF_DURATION=2s PERF_REPEATS=1 PERF_DB_DIR=$TMP/dbDir PERF_TROE=corDB \
   "$HERE/perfRun.sh" corDB 1029 > /dev/null 2>&1 || echo "pgoTrain: perfRun on disk failed - the profile lacks the log and the history"
 
 echo "pgoTrain: writes that notify"
-TOOLS=${COR_TOOLS_DIR:-$(cd "$HERE/../../../corLibs/bin" && pwd)}
 RECEIVER=$TOOLS/corTestClient
 "$RECEIVER" --port 7799 --traceLevels "" > /dev/null 2>&1 & R=$!
 "$B" --port 1029 --database corDB --troe none --foreground > /dev/null 2>&1 & P=$!

@@ -169,6 +169,7 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
             BUILD=release
             GIT_SHA=${{ steps.v.outputs.sha }}
             BUILD_AT=${{ steps.v.outputs.buildAt }}
@@ -189,6 +190,7 @@ jobs:
           file: stack/coraine/docker/Dockerfile
           push: true
           build-args: |
+            BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
             BUILD=debug
             GIT_SHA=${{ steps.v.outputs.sha }}
             BUILD_AT=${{ steps.v.outputs.buildAt }}
@@ -356,7 +358,7 @@ jobs:
             suffix=$( [ "$flavour" = debug ] && echo -debug || true )
             docker buildx build --push --platform linux/arm64 \
               -f stack/coraine/docker/Dockerfile \
-              --build-arg BUILD=$flavour --build-arg DDS=off \
+              --build-arg BUILD=$flavour --build-arg DDS=off --build-arg BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 \
               --build-arg GIT_SHA=${{ needs.release.outputs.sha }} --build-arg BUILD_AT=${{ needs.release.outputs.buildAt }} \
               -t "$IMG:$VERSION-arm64$suffix" -t "$IMG:$LONG-arm64$suffix" \
               stack/coraine

@@ -56,7 +56,7 @@ Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 
 | Package | What it holds |
 |---------|---------------|
 | `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine` |
-| `coraine-dev` | the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz`, the toolchain and libraries to build it (as dependencies), and `coraine-build` |
+| `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
 From the signed apt repository, **https://seamware.github.io/apt**:
 
@@ -112,9 +112,39 @@ coraine-build --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF ~/coraine-small
 coraine -fg --database corDB
 ```
 
-`coraine-build [options] <dir>` unpacks the source into `<dir>` and builds there, as any user; nothing is
-written outside `<dir>`. The result is in `<dir>/install` (`bin/`, `plugins/`, `etc/`, and `env`, which
-points `PATH`, `SEAMWARE_PLUGIN_DIR` and `CORAINE_CONTEXTSOURCEEXTRAS` at it).
+What the package installs, and nothing else:
+
+| Path | What |
+|------|------|
+| `/usr/bin/coraine-build` | the build script (`coraine-build --help`) |
+| `/usr/share/coraine/src/coraine-src.tar.xz` | the source the `coraine` package of the same version was built from |
+| `/usr/share/doc/coraine-dev/MANIFEST.txt` | every repository in the tarball and the commit it was taken at |
+| `/opt/seamware/include`, `/opt/seamware/lib/{libmongoc2.so,libbson2.so,pkgconfig,cmake}` | Ubuntu 24.04 and Debian 13 only: the development files of the MongoDB C driver v2 the `coraine` package bundles |
+
+It installs **no coraine or Cor-Lib headers and no libraries** (no `/usr/include/cor*`, no `libcor*.a`).
+The headers are in the tarball. Its layout is the one the build expects - coraine and the Cor-Libs as
+sibling directories:
+
+```
+coraine-<version>/
+├── SOURCE          version, gitSha, commitDate
+├── MANIFEST.txt
+├── coraine/
+├── corBase/  corLog/  corAlloc/  corArgs/  corHash/  corTree/  corJson/  corProm/
+├── corPlugin/  corBridge/  corHttp/  corRest/  corJsonld/  corNgsild/  corDB/
+├── corDdsBridge/  corModbusBridge/  corMqttBridge/
+└── corTools/  corTest/  corLibs/
+```
+
+`coraine-build [options] <dir>` unpacks it into `<dir>` (without the `coraine-<version>/` level) and builds
+there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/install` (`bin/`,
+`plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR` and
+`CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
+
+`coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
+`description`, and `requires`: the switches it is turned off without. While it builds, coraine-build
+prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
+front-end to follow.
 
 | Option | Build |
 |--------|-------|
@@ -123,6 +153,31 @@ points `PATH`, `SEAMWARE_PLUGIN_DIR` and `CORAINE_CONTEXTSOURCEEXTRAS` at it).
 | `--pgo` | profile-guided: trained on the measured request shapes, as the packages and the image ([Performance](performance.md)) |
 | `--tune <workload>` | profile-guided on your workload, the knobs measured on it ([Extreme performance](extreme-performance.md)) |
 | `--features NAME=ON\|OFF,...` | the `COR_FEATURE_*` switches ([Building - details](building-details.md)) |
+
+#### Building a plugin against it
+
+A plugin is compiled against the headers in that tree and links none of the broker's libraries: the
+broker exports its symbols and resolves the plugin's at `dlopen`
+([Plugin architecture](plugin-architecture.md#how-loading-works-the-mechanism)). The headers are
+included by repository, `#include "corBridge/BridgeDriver.h"`, `#include "corLog/corLog.h"`, so the
+include path is the directory that holds the siblings:
+
+```sh
+mkdir ~/coraine-src
+tar -xJf /usr/share/coraine/src/coraine-src.tar.xz -C ~/coraine-src --strip-components=1
+cc -std=gnu11 -O2 -Wall -fPIC -I ~/coraine-src -c myBridge.c -o myBridge.o
+cc -shared myBridge.o -o myBridge.so                 # + the transport's own libraries, nothing of coraine's
+sudo install -m 0644 myBridge.so /opt/seamware/plugins/bridge/
+coraine -fg --bridges myBridge                        # the name of the .so, without .so
+```
+
+The MQTT and Modbus bridges in the tarball (`corMqttBridge/`, `corModbusBridge/`) are built exactly this
+way - `coraine-build` runs `make -C <dir>/corMqttBridge` with `COR_LIBS ?= ..`, the parent directory as
+include path - and are the templates for a bridge built outside coraine; `coraine/src/plugins/bridge/loopback`
+is the reference for every entry point. A plugin built from the tarball of version X matches the
+`coraine` package of version X, which was built from that same tarball. A plugin that calls Cor-Lib
+functions (`COR_E`, corJson, corTree, ...) depends on that match; one that uses only the slots of its
+contract struct depends on the contract's ABI version alone.
 
 The packages are made by the scripts in `packaging/deb/` (`source.sh`, `build.sh`, `test-install.sh`,
 `test-dev.sh`, `publish.sh`), each of which runs by hand in a container of the target distribution.
@@ -188,6 +243,8 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--asyncSnapshot` | off | run snapshot queries in the background |
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
 | `--contextSourceExtras` / `-csx` | `/opt/seamware/etc/contextSourceExtras.json` | JSON rendered verbatim on `/info/sourceIdentity` |
+| `--bridges` / `-br` | — | bridge plugins to load, comma-separated (`/opt/seamware/plugins/bridge/<name>.so`) - see [Bridges and Channels](bridge-channels.md) |
+| `--bridgeConfig` / `-brc` | `/opt/seamware/etc/bridges.json` if it exists | the bridge configuration file. A file named here and missing stops the broker; the default file missing means no Channels from a file. `SEAMWARE_ETC_DIR` moves the default |
 | `--high-availability` / `-ha` | — | keep the caches in step with the other instances (`mongo` = change streams; needs the `mongoc` DB **and** a replica set) - see [High Availability](high-availability.md) |
 | `--version` / `-V` | — | print the version and exit |
 | `--traceLevels` / `-t` | — | trace levels for debugging |
@@ -203,7 +260,7 @@ interval.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `--dbDir` | none: in RAM only | the directory - one subdirectory per tenant |
+| `--dbDir` | none: in RAM only | the directory - one subdirectory per tenant, and the [storage format](#storage-format) |
 | `--dbSync` | `interval` | `interval`: synced every `--dbSyncInterval` ms; `request`: a write answers once its record is on the disk; `none`: written, never synced |
 | `--dbSyncInterval` | 100 | ms between two syncs |
 | `--dbSnapshotEvery` | 64 | MiB of log after which a tenant is snapshotted (and at least as much as its last snapshot) |
@@ -253,6 +310,36 @@ name no file:
 |----------|---------|---------|
 | `SEAMWARE_PLUGIN_DIR` | `/opt/seamware/plugins` | base directory plugin short names resolve against (read by the plugin loader, before the arguments are parsed) |
 | `SEAMWARE_ETC_DIR` | `/opt/seamware/etc` | where the broker looks for `bridges.json` when `--bridgeConfig` is not given, and for `contextSourceExtras.json` when `--contextSourceExtras` is not given. A file missing from there is not an error |
+
+## Storage format
+
+Every store records the version of the format its data is written in. At start, a broker checks
+it in every store it opens:
+
+| Store | Where the version is | 0.5.0 writes |
+|-------|----------------------|------------|
+| `mongoc` | `<database>.metadata`, document `{ _id: "storageFormat", version: <n> }` - in the default tenant's database and in every tenant's | 1 |
+| `corDB` with `--dbDir` | `<--dbDir>/_storageFormat`: the number, as text | 1 |
+| `timescale` (TRoE) | the schema version: `max(version)` of `troe_schema_version`, in every tenant's database | 3 |
+
+- **No version recorded, no data**: a new store - this build's version is written.
+- **No version recorded, data**: a store written before the version was recorded (`mongoc`:
+  coraine 0.4.x or earlier). It is read as it is, and this build's version is written.
+- **A version up to this build's**: the store is used. A lower version is upgraded and this build's
+  is written.
+- **A version above this build's**: the store was written by a newer release. **The broker does not
+  start**: it exits with 1, and the error names the store, the version found and the newest this
+  build knows. Run the release that wrote it, or a newer one. A tenant's `mongoc` database in a newer
+  format that appears while the broker runs is not used: the request that would create the tenant is
+  answered 500.
+
+`mongoc` version 1 is the format of coraine 0.5.0: system timestamps once per entity and attribute
+types once per entity. coraine 0.4.x reads that format wrong - attributes that 0.5.0 has written
+come back without `type` and `createdAt` - and 0.4.x predates the check, so it cannot refuse it.
+**Downgrading to 0.4.x is not supported once 0.5.0 has written to a database: do not run 0.4.x on
+data 0.5.0 has written.** From 0.5.0 on, a release refuses data written by a newer one.
+
+The check runs in `coraine-import` too: it opens the stores the way the broker does.
 
 ## Migrating from another broker
 

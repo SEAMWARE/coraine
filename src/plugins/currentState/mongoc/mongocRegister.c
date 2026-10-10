@@ -59,6 +59,7 @@
 #include "currentState/mongoc/mongocSnapshotUpdate.h"               // mongocSnapshotUpdate
 #include "currentState/mongoc/mongocSnapshotDelete.h"               // mongocSnapshotDelete
 #include "currentState/mongoc/mongocTenantDrop.h"                   // mongocTenantDrop
+#include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 
 
 
@@ -88,6 +89,8 @@ static bool mongocGeoMatchCb(CorNode* entityP, LdGeoRel* geoRel, const char* geo
 //
 void dbRegister(DbDriver* driverP)
 {
+  dbPluginAbiBrokerCheck("DB");                     // exits on a broker built against another interface
+
   driverP->alias           = "mongoc";
   driverP->version         = MONGOC_PLUGIN_VERSION;
   driverP->args            = mongocArgV;

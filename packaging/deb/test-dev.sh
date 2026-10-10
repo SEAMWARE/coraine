@@ -30,9 +30,13 @@ dpkg -s coraine-dev | sed -n '/^Version/p;/^Depends/p'
 
 useradd -m builder
 runuser -u builder -- coraine-build --list-features > /tmp/features.txt; head -5 /tmp/features.txt
+runuser -u builder -- coraine-build --list-features --json > /tmp/features.json
+python3 -c 'import json, sys; d = json.load(open("/tmp/features.json")); assert d and all({"name", "default", "description", "requires"} <= set(x) for x in d); print(len(d), "features as JSON")' \
+  || fail "coraine-build --list-features --json is not the expected JSON"
 time runuser -u builder -- coraine-build --features "$FEATURES" /home/builder/b > /tmp/build.log 2>&1 \
   || { tail -60 /tmp/build.log; fail "coraine-build"; }
 tail -25 /tmp/build.log
+grep -q '^coraine-build: phase done$' /tmp/build.log || fail "coraine-build printed no 'phase done' line"
 
 B=/home/builder/b/install
 v=$(runuser -u builder -- "$B/bin/coraine" --version)
