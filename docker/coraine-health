@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# coraine-health - the image's HEALTHCHECK: probes the broker on the port it was started with.
+#
+# The broker is PID 1 (coraine-start execs it). Its arguments name the ports: --healthPort/-healthPort
+# (GET /live there - served outside the HTTP server's queue, doc/kubernetes.md) and --port/-p (GET
+# /version there); CORAINE_HEALTHPORT / CORAINE_PORT in its environment likewise. Neither given: 1026.
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+port=; health=
+prev=
+for a in $(tr '\0' ' ' < /proc/1/cmdline); do
+  case "$prev" in
+    --port|-p)                   port=$a ;;
+    --healthPort|-healthPort)    health=$a ;;
+  esac
+  case "$a" in
+    --port=*)       port=${a#--port=} ;;
+    --healthPort=*) health=${a#--healthPort=} ;;
+  esac
+  prev=$a
+done
+
+env1=$(tr '\0' '\n' < /proc/1/environ 2>/dev/null)
+[ -n "$port" ]   || port=$(printf '%s\n' "$env1" | sed -n 's/^CORAINE_PORT=//p')
+[ -n "$health" ] || health=$(printf '%s\n' "$env1" | sed -n 's/^CORAINE_HEALTHPORT=//p')
+
+if [ -n "$health" ] && [ "$health" != 0 ]; then
+  exec curl -fsS "http://localhost:$health/live" -o /dev/null
+fi
+exec curl -fsS "http://localhost:${port:-1026}/version" -o /dev/null

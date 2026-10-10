@@ -228,6 +228,7 @@ COPY --from=builder /usr/local/bin/coraine /usr/local/bin/coraine
 COPY --from=builder /usr/local/bin/coraine-import /usr/local/bin/coraine-import
 COPY --from=builder /opt/seamware/ /opt/seamware/
 COPY docker/coraine-start /usr/local/bin/coraine-start
+COPY docker/coraine-health /usr/local/bin/coraine-health
 
 #
 # The allocator `make tune` chose (WORKLOAD), and only that one
@@ -295,8 +296,11 @@ EXPOSE 1026
 # everything else is refused with 503 by design, and a full broker is not an unhealthy one. (A broker
 # started with --healthPort has a better probe: GET /live on that port, outside the HTTP server's
 # queue - doc/kubernetes.md.)
+# The port is the one the broker was started with (docker/coraine-health reads PID 1's arguments and
+# environment: --port, --healthPort; 1026 when neither is given) - a broker on another port is not
+# an unhealthy one. With --healthPort the probe is GET /live there.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -fsS http://localhost:1026/version >/dev/null || exit 1
+  CMD coraine-health || exit 1
 
 # coraine -fg (mandatory in a container: without it the broker daemonizes and PID 1 exits), with what
 # `make tune` chose if the image was built with a WORKLOAD (docker/coraine-start)
