@@ -86,6 +86,15 @@ every connection and deals them out in turn (`corHttpAcceptShare`), so connectio
 the loop's thread (`corHttpResumeHere`); one that finished without ever waiting is answered when the
 server's callback returns.
 
+**At a stop.** `corRestStop` drains the workers, then stops the loops. A loop that has stopped
+cancels the waits of its coroutines (corBase `corCoLoopCancel`): a coroutine waiting for a socket is
+resumed with -1 (`ECANCELED`), a parked one with 0, and every later wait fails at once - so a request
+or post-response phase still waiting (a Context Source that does not connect, a notification endpoint
+that does not answer) runs its failure path to its end and frees what it holds, without waiting out
+its timeout. Then the connections still holding a request are closed (`corHttpServeEnd`). A stop
+takes no longer for it; a request in flight at the stop is answered as failed, and a notification in
+flight is counted as failed.
+
 **cor:// server.** A connection is armed once and multiplexed: the loop reads every frame that comes,
 starts each request (inline or as a coroutine), and queues each response as it finishes -
 `doc/cor-protocol-details.md` § 5.3.

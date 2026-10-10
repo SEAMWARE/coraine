@@ -29,6 +29,7 @@ SET(SOURCES
   mongocBsonToTree.c
   mongocDotEscape.c
   mongocTenantDrop.c
+  mongocTenantRelease.c
   mongocInjectType.c
   mongocSnapshotCreate.c
   mongocSnapshotQuery.c

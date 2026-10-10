@@ -225,7 +225,7 @@ Driver structs are big, and not every plugin implements every operation. The
 convention: a **NULL function pointer means "unsupported"**, and the service
 routine returns **501 Not Implemented** (or treats it as a no-op where the spec
 allows). Examples called out in the headers: `subscriptionStatsFlush`,
-`snapshot*`, `tenantDrop`, and the whole context-persistence quartet
+`snapshot*`, `tenantDrop`, `tenantRelease`, and the whole context-persistence quartet
 (`contextSave/Delete/List/Get`) are NULL on `corDB`. This is how the in-memory
 driver legitimately ships without persistence.
 
@@ -318,6 +318,7 @@ void dbRegister(DbDriver* driverP)
   driverP->entityDelete   = myEntityDelete;
   // … fill what you support; leave the rest NULL (→ 501)
   driverP->tenantSetup    = myTenantSetup;
+  driverP->tenantRelease  = myTenantRelease; // frees what tenantSetup hung on Tenant.pluginData
 }
 ```
 

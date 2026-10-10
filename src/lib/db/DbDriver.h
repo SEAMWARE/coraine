@@ -305,6 +305,19 @@ typedef int  (*DbSnapshotDeleteFunc)(Tenant* tenantP, const char* snapId);
 //
 typedef int  (*DbTenantDropFunc)(Tenant* tenantP);
 
+//
+// DbTenantReleaseFunc - free what the plugin hung on the tenant (Tenant.pluginData), right before the
+// broker frees the Tenant itself. The broker calls it only when nothing can reach the tenant any more -
+// no request, no loop, no cache: for a Snapshot's tenant, at the snapshot's last unpin
+// (snapshotTenantDestroy). Memory only: the tenant's data stays where it is (tenantDrop is what deletes
+// it, and may come first). NULL allowed (a plugin that hangs nothing on a tenant).
+//
+// Why a call of its own and not part of tenantDrop: a drop cannot know whether a request still holds
+// what it empties - it keeps the struct for that request, and only the broker knows when the last one
+// is gone.
+//
+typedef int  (*DbTenantReleaseFunc)(Tenant* tenantP);
+
 typedef int  (*DbTenantSetupFunc)(Tenant* tenantP);
 typedef void (*DbVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 
@@ -379,6 +392,7 @@ typedef struct DbDriver
   DbSnapshotUpdateFunc       snapshotUpdate;       // NULL-allowed
   DbSnapshotDeleteFunc       snapshotDelete;       // NULL-allowed
   DbTenantDropFunc           tenantDrop;           // NULL-allowed
+  DbTenantReleaseFunc        tenantRelease;        // NULL-allowed
   DbTenantSetupFunc       tenantSetup;
   DbVersionInfoFunc       versionInfo;
   DbHaWatchStartFunc      haWatchStart;    // NULL-allowed (e.g. corDB) — see the typedef
