@@ -75,7 +75,6 @@ typedef struct Conn
 {
   int               connId;
   TransportDriver*  driverP;
-  char*             tenant;                          // the handshake's NGSILD-Tenant - a request's own overrides it; NULL: default
   Owned*            ownV;                            // the subscriptions it created - deleted when it closes
   int               ownN;
   int               ownSize;
@@ -468,7 +467,6 @@ static void hostClosed(int connId)
   }
 
   free(cP->ownV);
-  free(cP->tenant);
   free(cP);
 }
 
@@ -565,27 +563,9 @@ static void hostMessage(int connId, const char* text, int len)
   }
 
   //
-  // The tenant: the request's own, else the connection's (the handshake's), else the default
+  // The tenant is the request's own NGSILD-Tenant, none the default tenant - as over HTTP. A connection
+  // has no tenant (nor any other NGSI-LD header): a message means the same on every connection.
   //
-  char connTenant[256] = "";
-
-  if (tenant == NULL)
-  {
-    pthread_mutex_lock(&connMutex);
-    Conn* cP = connFind(connId);
-    if ((cP != NULL) && (cP->tenant != NULL))
-      snprintf(connTenant, sizeof(connTenant), "%s", cP->tenant);
-    pthread_mutex_unlock(&connMutex);
-
-    if (connTenant[0] != 0)
-    {
-      tenant                 = connTenant;
-      headerV[headers].key   = (char*) "NGSILD-Tenant";
-      headerV[headers].value = connTenant;
-      ++headers;
-    }
-  }
-
   //
   // The body, rendered back to text: the request runs as an HTTP one, from its JSON
   //
@@ -640,7 +620,6 @@ static int connNext = 1;                             // under connMutex
 typedef struct UpgradeCtx
 {
   TransportDriver*  driverP;
-  char*             tenant;                          // the upgrade request's NGSILD-Tenant, NULL: none
 } UpgradeCtx;
 
 static void upgradeTake(int fd, const char* extra, int extraLen, CorRestUpgradeClose closeFn, void* closeArg, void* ctx)
@@ -651,13 +630,11 @@ static void upgradeTake(int fd, const char* extra, int extraLen, CorRestUpgradeC
 
   if (cP == NULL)
   {
-    free(uP->tenant);
     free(uP);
     closeFn(closeArg);
     return;
   }
 
-  cP->tenant = uP->tenant;                           // the connection's now
   free(uP);
 
   //
@@ -705,8 +682,24 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
     return NULL;
   }
 
-  UpgradeCtx* uP     = (UpgradeCtx*) calloc(1, sizeof(UpgradeCtx));
-  const char* tenant = headerLookup("NGSILD-Tenant");
+  //
+  // NGSI-LD headers belong to each message's metadata, never to the connection: one in the upgrade
+  // request is refused, not ignored - a client must not believe it chose a tenant or an @context
+  // for the connection. (A browser cannot set them on an upgrade anyway.)
+  //
+  static const char* ngsildHeaderV[] = { "NGSILD-Tenant", "Link", "NGSILD-Snapshot", NULL };
+
+  for (int i = 0; ngsildHeaderV[i] != NULL; i++)
+  {
+    if (headerLookup(ngsildHeaderV[i]) != NULL)
+    {
+      corRestProblem(400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request",
+                     "'%s' in the upgrade request - NGSI-LD headers go in each message's metadata, the connection has none", ngsildHeaderV[i]);
+      return NULL;
+    }
+  }
+
+  UpgradeCtx* uP = (UpgradeCtx*) calloc(1, sizeof(UpgradeCtx));
 
   if (uP == NULL)
   {
@@ -715,7 +708,6 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
   }
 
   uP->driverP = driverP;
-  uP->tenant  = ((tenant != NULL) && (tenant[0] != 0)) ? strdup(tenant) : NULL;
 
   corRest.out.httpStatusCode = 101;
   *ctxP = uP;

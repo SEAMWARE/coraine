@@ -31,6 +31,7 @@ The broker's first message names the connection:
 | Refused upgrade | Status |
 |---|---|
 | no `Sec-WebSocket-Key`, a version other than 13, a subprotocol other than `ngsi-ld.json` | 400 |
+| NGSI-LD headers - `NGSILD-Tenant`, `Link`, `NGSILD-Snapshot` - in the upgrade request | 400 |
 | a path other than `/ngsi-ld/v1/ws` | 404 |
 
 ## Messages
@@ -70,8 +71,10 @@ is the same. Over a WebSocket besides:
 
 ## Tenants
 
-A request's tenant is its own `NGSILD-Tenant` in `metadata`; without one, the connection's - the
-`NGSILD-Tenant` header of the upgrade request; without that, the default tenant.
+A request's tenant is its own `NGSILD-Tenant` in `metadata`; without one, the default tenant - as over
+HTTP. A connection has no tenant, nor any other NGSI-LD header: every message carries its own, and a
+message means the same on every connection. An upgrade request with `NGSILD-Tenant`, `Link` or
+`NGSILD-Snapshot` is refused (400). A browser cannot set headers on an upgrade request anyway.
 
 ## Subscriptions
 
@@ -107,7 +110,6 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 
 ## Not yet
 
-- changing the connection's tenant on an open connection
 - a subscription notifying another connection than its own
 - a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
 - cor:// as a transport plugin (`cor.so`)
