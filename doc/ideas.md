@@ -396,3 +396,30 @@ More scenarios measured nightly and recorded, so a regression is noticed by CI, 
 
 Why `corHttp` is slower than libmicrohttpd on one core, and whether the pool size is the cause -
 [Performance](performance.md), "An open question".
+
+## Live public transport: GTFS-realtime
+
+A demo with a real graph and real movement, on standard data any city publishes.
+
+-   **Static GTFS** - a zip of CSV files: `routes.txt`, `stops.txt`, `trips.txt`, `stop_times.txt`,
+    `shapes.txt`, `calendar.txt`, linked by id columns. Routes, stops and trips become entities with
+    their relationships; a route's path is the rows of `shapes.txt` collected in order into one
+    `LineString`. Loaded once, when the broker starts.
+-   **GTFS-realtime** - Protocol Buffers over HTTP, polled every few seconds; three feeds:
+    -   *VehiclePosition* - the vehicle (id, label), its trip (trip, route, direction, start time), its
+        position (latitude, longitude, bearing, speed), its progress (the stop, `INCOMING_AT` /
+        `STOPPED_AT` / `IN_TRANSIT_TO`), its timestamp, often its occupancy;
+    -   *TripUpdate* - predicted arrivals and departures, delays;
+    -   *Alert* - cause, effect, the routes and stops affected, the text for passengers.
+-   **The bridge** - each VehiclePosition updates one `Bus` entity: `location`, `bearing`, `speed`,
+    `status`, Relationships to its `Trip`, `Route` and next `Stop`; the measurement time is `observedAt`.
+    Needs a protobuf decoder (protobuf-c). The MBTA's own JSON API (V3) serves the same data as JSON,
+    with filters and a stream of changes - the simpler start for Boston; GTFS-realtime is what every
+    city has.
+-   **c³** - subscribes to `Bus` (`watchedAttributes=location`) over its WebSocket; each notification
+    moves a marker, turned to the bearing and animated between positions, over the route's `LineString`.
+    The history holds every position: a trip can be replayed.
+-   **Invented data** - what no feed has (drivers, shifts, depots) generated, with `Bus → drivenBy →
+    Driver`.
+-   **Models** - Smart Data Models' GTFS-based models (UrbanMobility) for the entity types.
+

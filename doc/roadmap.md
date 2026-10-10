@@ -86,6 +86,11 @@ incorporated in the next release of the product, in roughly this order:
     discovery parameters.
 -   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
 -   **c³, the coraine Control Center - Compile** - a web application (a small C backend on the build machine) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
+-   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
+    routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
+    (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
+    and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
+    arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
 -   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
     NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
     plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
