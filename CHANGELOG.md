@@ -119,6 +119,9 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **`make install`** replaces each installed file (a new file renamed over the old) instead of
   writing into it: a broker running from the installed plugins keeps running.
 - **`coraine-build --list-features --json`**, and one `coraine-build: phase <name>` line per phase.
+- **WebSocket works like HTTP**: a connection has no tenant nor any other NGSI-LD header - every
+  message carries its own in `metadata`, and a message without `NGSILD-Tenant` is for the default
+  tenant. An upgrade request carrying `NGSILD-Tenant`, `Link` or `NGSILD-Snapshot` is refused (400).
 - **A request in flight when the broker stops** (built-in HTTP server) is answered as failed and
   freed; a notification in flight then is counted as failed.
 - **Discovery** (`/attributes`, `/attributes/{attr}`, `/types`, `/types/{type}`): a core attribute's `id`
@@ -164,6 +167,9 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - A deleted Snapshot's store was never freed (corDB), nor its geo index cache (mongoc); deleting a
   Snapshot while corDB was writing its own snapshot of the store could read freed memory.
 - Coroutines and connections still waiting when the built-in server stopped were never freed.
+- The image's health check asked port 1026 whatever the broker was started with: a container broker
+  on another `--port` was marked unhealthy. It now asks the broker's own port (`/live` on the health
+  port when there is one).
 
 ## 0.4.0 — 2026-08-28
 
