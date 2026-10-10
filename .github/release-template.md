@@ -10,20 +10,32 @@ What makes it worth a look:
 - **Fast.** **12 577 requests/s per core** at `limit=20` — **251 540 entities/s per
   core** — and answering 9 ms after `exec`. Writes, the store on disk: 54 707 creates/s
   per core one at a time, 117 460 in batches of twenty.
+- **Persistent, still without a database server.** `--database corDB --dbDir <dir>
+  --troe corDB`: the store and its temporal history on disk, in the same process.
 - **Plugin-driven.** Storage backend, temporal history and extra API surfaces are
   shared libraries loaded at startup. The core speaks NGSI-LD; the plugins decide
   where data lives and how the broker talks to the world.
 
 ## Getting started
 
-An in-memory store, no external services — the broker answers NGSI-LD on 1026:
+The image runs on amd64 and arm64 under the same tag. An in-memory store, no external
+services — the broker answers NGSI-LD on 1026:
 
 ```sh
 docker run --rm -p 1026:1026 \
     quay.io/seamware/coraine:{{VERSION}} --database corDB
 ```
 
-Then, from another terminal:
+Or as a Debian package (Ubuntu 26.04, 24.04, Debian 13), from the signed repository:
+
+```sh
+curl -fsSL https://seamware.github.io/apt/coraine.gpg | sudo tee /usr/share/keyrings/coraine.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] https://seamware.github.io/apt $(. /etc/os-release; echo $VERSION_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/coraine.list
+sudo apt update && sudo apt install coraine
+```
+
+Then:
 
 ```sh
 curl -X POST localhost:1026/ngsi-ld/v1/entities \
@@ -34,8 +46,9 @@ curl -X POST localhost:1026/ngsi-ld/v1/entities \
 curl localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:1
 ```
 
-For a persistent store, point it at MongoDB with `--database mongoc` instead. The
-[README](https://github.com/SEAMWARE/coraine#readme) walks through the rest.
+To keep the data, add `--dbDir <dir>` (corDB on disk), or use MongoDB with
+`--database mongoc`. The [README](https://github.com/SEAMWARE/coraine#readme) walks
+through the rest.
 
 ## Where to look next
 

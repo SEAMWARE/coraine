@@ -12,7 +12,7 @@
 #
 #   Requirements:  Linux, docker, wrk, curl        (apt install wrk / dnf install wrk)
 #   Usage:         bash reproduce.sh [image]
-#   Example:       bash reproduce.sh quay.io/seamware/coraine:0.4.0
+#   Example:       bash reproduce.sh quay.io/seamware/coraine:0.5.0
 #
 #   Environment (all optional):
 #     CORES="1 4"     the core counts to measure the broker on
@@ -44,7 +44,7 @@
 #
 set -euo pipefail
 
-IMAGE=${1:-quay.io/seamware/coraine:0.4.0}
+IMAGE=${1:-quay.io/seamware/coraine:0.5.0}
 CORES=${CORES:-"1 4"}
 DURATION=${DURATION:-5}
 REPEATS=${REPEATS:-3}

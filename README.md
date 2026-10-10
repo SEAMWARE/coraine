@@ -76,7 +76,7 @@ broker answers NGSI-LD on port 1026:
 
 ```sh
 docker run --rm -p 1026:1026 \
-    quay.io/seamware/coraine:0.4.0 --database corDB
+    quay.io/seamware/coraine:0.5.0 --database corDB
 ```
 
 Then, from another terminal — create an entity and read it back:
