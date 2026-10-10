@@ -38,6 +38,7 @@ SET(SOURCES
   getType.c
   getAttributes.c
   getAttribute.c
+  discoveryIri.c
   getSourceIdentity.c
   getVersion.c
   getEntityTemporal.c
