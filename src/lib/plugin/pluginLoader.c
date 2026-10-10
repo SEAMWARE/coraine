@@ -70,6 +70,8 @@ __attribute__((visibility("default"), used)) const char coraineDbAbi[] = DB_ABI_
 // The plugin is open already (corPluginOpen): RTLD_NOLOAD finds that handle, and dlsym on it searches the
 // plugin and its dependencies - not the broker.
 //
+static bool abiRefused = false;                      // a DB / TRoE plugin refused - start-up ends at once
+
 static bool pluginAbiCheck(const char* kind, const char* path, char* errorBuf, int errorBufSize)
 {
   void*        handle      = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
@@ -89,6 +91,9 @@ static bool pluginAbiCheck(const char* kind, const char* path, char* errorBuf, i
 
   if (handle != NULL)
     dlclose(handle);                                  // the reference RTLD_NOLOAD took - corPluginOpen keeps its own
+
+  if (ok == false)
+    abiRefused = true;
 
   return ok;
 }
@@ -492,6 +497,14 @@ bool pluginStoresLoad(const char* dbName, const char* troeName)
   }
   else if (troe.args != NULL)
     pluginSeparatedArgsAdd("TRoE", troe.alias, troe.args, troeSepText, sizeof(troeSepText), troeSepArgV);
+
+  //
+  // A refused plugin ends the start here, its message the last thing said: going on would parse the
+  // command line without the plugin's options and report one of them as unknown (--dbDir), hiding
+  // the reason
+  //
+  if (abiRefused)
+    exit(1);
 
   corPluginArgUpdate("--database", "db/currentState");
   pluginTroeArgUpdate();

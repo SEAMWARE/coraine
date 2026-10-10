@@ -72,6 +72,9 @@ void troeRegister(void* driverP) { (void) driverP; }
 EOF
 gcc -shared -fPIC -o $D/noStamp.so $D/noStamp.c
 run $COR_BROKER --database $D/noStamp.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so
+echo "- with a DB plugin option (--dbDir): start-up ends at the refusal, the option is not reported unknown"
+run $COR_BROKER --database $D/noStamp.so --troe $COR_PLUGIN_DIR/troe/temporal/none.so --dbDir $D/data
+echo "unrecognized: $(grep -c unrecognized $D/out)"
 echo
 echo
 
@@ -184,6 +187,13 @@ DB plugin '/tmp/corTest_dbPluginAbi/noStamp.so' does not match this broker: it h
   plugin's interface stamp: none - built before the check
   broker's interface stamp: REGEX([0-9a-f]{16})
   rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+- with a DB plugin option (--dbDir): start-up ends at the refusal, the option is not reported unknown
+exit: 1
+DB plugin '/tmp/corTest_dbPluginAbi/noStamp.so' does not match this broker: it has no DB plugin interface stamp; a plugin built against another DB plugin interface corrupts memory
+  plugin's interface stamp: none - built before the check
+  broker's interface stamp: REGEX([0-9a-f]{16})
+  rebuild the plugin against this broker's source, or install matching versions of the broker and its plugins
+unrecognized: 0
 
 
 03. A DB plugin with another stamp is refused, exit 1
