@@ -9,11 +9,11 @@
 # HTTP is served over the connection - the version, batch operations, types and attributes, context
 # source registrations, @context documents, context source subscriptions notifying the connection - and
 # a body that is not JSON comes as a JSON string. Tenants: a request's own NGSILD-Tenant, else the
-# connection's from the upgrade request, else the default. When the connection closes, the
-# subscriptions it created go, each in its tenant.
+# default tenant - as over HTTP; a connection has none, and an upgrade request carrying NGSI-LD headers
+# is refused. When the connection closes, the subscriptions it created go, each in its tenant.
 #
 --NAME--
-WebSocket - the whole API over the connection, tenants per request and per connection, subscriptions deleted in their tenants on close
+WebSocket - the whole API over the connection, tenants per request (never per connection), subscriptions deleted in their tenants on close
 
 --TAGS--
 websocket subscription registration tenant
@@ -33,7 +33,7 @@ coraineStart --transports ws --apiPlugins admin
 # 06. NGSILD-Tenant t1 in a request's metadata: an entity and a subscription, in t1 only (seen over HTTP)
 # 07. GET /metrics - a body that is not JSON, as a JSON string
 # 08. Close: the subscriptions go - of the default tenant and of t1, and the context source subscription
-# 09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes
+# 09. NGSI-LD headers in the upgrade request (NGSILD-Tenant, Link, NGSILD-Snapshot) - 400, the connection has none; tenant t2 never created
 #
 
 #
@@ -194,19 +194,14 @@ echo
 echo
 
 
-echo "09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes"
-echo "==============================================================================================================================="
-ftWsStart 1026 "" "" t2
-ftWsAwait 1
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"t2e"},"body":{"id":"urn:T2","type":"Room"}}'
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"t2s"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:2"}}}}'
-resp t2e
-resp t2s
-http '/ngsi-ld/v1/entities?type=Room' t2
-subIn t2s t2
-subIn t2s
-ftWsClose
-sleep 0.3
+echo "09. NGSI-LD headers in the upgrade request (NGSILD-Tenant, Link, NGSILD-Snapshot) - 400, the connection has none"
+echo "======================================================================================================================"
+U='-H Upgrade:websocket -H Connection:Upgrade -H Sec-WebSocket-Version:13 -H Sec-WebSocket-Key:dGhlIHNhbXBsZSBub25jZQ=='
+for h in 'NGSILD-Tenant: t2' 'Link: <https://example.org/ctx.jsonld>; rel="http://www.w3.org/ns/json-ld#context"' 'NGSILD-Snapshot: urn:ngsi-ld:Snapshot:s1'; do
+  code=$(curl -s -m 5 $U -H "$h" -o /tmp/wsUpgrade.$$ -w '%{http_code}' localhost:1026/ngsi-ld/v1/ws)
+  echo "$code $(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['detail'])" /tmp/wsUpgrade.$$)"
+  rm -f /tmp/wsUpgrade.$$
+done
 http '/ngsi-ld/v1/subscriptions' t2
 echo
 echo
@@ -275,14 +270,12 @@ me 200 str
 []
 
 
-09. A connection with NGSILD-Tenant t2 in its upgrade request: an entity and a subscription, in t2; close: the subscription goes
-===============================================================================================================================
-t2e 201 /ngsi-ld/v1/entities/urn:T2 
-t2s 201 /ngsi-ld/v1/subscriptions/<id> 
-[{"id": "urn:T2", "type": "Room"}]
-t2s in t2: True
-t2s in the default tenant: False
-[]
+09. NGSI-LD headers in the upgrade request (NGSILD-Tenant, Link, NGSILD-Snapshot) - 400, the connection has none
+======================================================================================================================
+400 'NGSILD-Tenant' in the upgrade request - NGSI-LD headers go in each message's metadata, the connection has none
+400 'Link' in the upgrade request - NGSI-LD headers go in each message's metadata, the connection has none
+400 'NGSILD-Snapshot' in the upgrade request - NGSI-LD headers go in each message's metadata, the connection has none
+{"detail": "tenant 't2' does not exist", "status": 404, "title": "NonexistentTenant", "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"}
 
 
 --TEARDOWN--
