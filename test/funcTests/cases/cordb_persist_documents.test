@@ -32,7 +32,8 @@ coraineStart --dbDir /tmp/corTest-cordb_persist_documents --dbSync request
 
 DIR=/tmp/corTest-cordb_persist_documents
 sr() { echo "{\"id\":\"urn:ngsi-ld:ServiceRegistration:$1\",\"type\":\"ServiceRegistration\",\"endpoint\":\"http://x/$1\",\"entities\":[{\"type\":\"Lamp\"}],\"serviceInformation\":{\"serviceName\":\"$2\"}}"; }
-list() { corCurl --url /ngsi-ld/v1/serviceRegistrations | sed -n '/^\[/,$p' | python3 -c "import json,sys; print([(r['id'][-3:], r['serviceInformation']['serviceName']) for r in json.load(sys.stdin)])"; }
+# the list, and a request that failed - corCurl's own line, which the body filter alone would drop
+list() { local r; r=$(corCurl --url /ngsi-ld/v1/serviceRegistrations); grep '^corCurl:' <<< "$r"; sed -n '/^\[/,$p' <<< "$r" | python3 -c "import json,sys; print([(r['id'][-3:], r['serviceInformation']['serviceName']) for r in json.load(sys.stdin)])"; }
 
 echo "01. POST SR1, SR2, SR3; PATCH SR1 (serviceName dim); DELETE SR2"
 echo "================================================================"

@@ -62,7 +62,10 @@ for n in sorted(json.load(sys.stdin, object_pairs_hook=pairs), key=lambda n: n['
 }
 
 subIds() {
-  sed -n '/^\[/,$p' | python3 -c "import json,sys; print(sorted(s['id'] for s in json.load(sys.stdin)))"
+  local r
+  r=$(cat)
+  grep '^corCurl:' <<< "$r"   # a request that failed: corCurl's own line, which the body filter alone would drop
+  sed -n '/^\[/,$p' <<< "$r" | python3 -c "import json,sys; print(sorted(s['id'] for s in json.load(sys.stdin)))"
 }
 
 sub() {  # sub <id> [extra JSON members]

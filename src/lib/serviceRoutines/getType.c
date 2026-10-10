@@ -36,6 +36,7 @@
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
 
+#include "serviceRoutines/discoveryIri.h"             // discoveryIri
 #include "serviceRoutines/getType.h"                  // Own interface
 
 
@@ -125,7 +126,7 @@ bool getType(void)
   //     attributeDetails: [ Attribute-restricted ] }
   //
   CorNode* body = corTreeObject(corRest.kallocP, NULL);
-  corTreeChildAdd(body, corTreeString(corRest.kallocP, "id", typeIri));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "id", discoveryIri(typeIri)));
   corTreeChildAdd(body, corTreeString(corRest.kallocP, "type", "EntityTypeInfo"));
   corTreeChildAdd(body, corTreeString(corRest.kallocP, "typeName", shortOrSelf(ctxP, typeIri)));
 
@@ -144,7 +145,7 @@ bool getType(void)
       if (aN->type != CorString) continue;
 
       CorNode* ad = corTreeObject(corRest.kallocP, NULL);
-      corTreeChildAdd(ad, corTreeString(corRest.kallocP, "id", aN->value.s));
+      corTreeChildAdd(ad, corTreeString(corRest.kallocP, "id", discoveryIri(aN->value.s)));
       corTreeChildAdd(ad, corTreeString(corRest.kallocP, "type", "Attribute"));
       corTreeChildAdd(ad, corTreeString(corRest.kallocP, "attributeName", shortOrSelf(ctxP, aN->value.s)));
 

@@ -85,7 +85,8 @@ fmtSet $COR_ROLE_DB_PREFIX none
 fmtSet $COR_ROLE_DB_PREFIX-sf1 none
 echo "before:  default $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
 coraineStart -v           # -v: the info lines - each database read as it is
-corCurl --url /ngsi-ld/v1/entities/urn:E0 | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+r=$(corCurl --url /ngsi-ld/v1/entities/urn:E0); grep '^corCurl:' <<< "$r"; sed -n '/^{/,$p' <<< "$r" | python3 -c 'import json,sys; e = json.load(sys.stdin); print("default: E0 p =", e["p"]["value"])'
 corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "NGSILD-Tenant: sf1" | sed -n '/^{/,$p' | python3 -c 'import json,sys; e = json.load(sys.stdin); print("sf1:     E1 p =", e["p"]["value"])'
 echo "after:   default $(fmt $COR_ROLE_DB_PREFIX), sf1 $(fmt $COR_ROLE_DB_PREFIX-sf1)"
 grep -o "database '[^']*' has no storage format recorded (coraine 0.4.x or earlier) - read as it is, now storage format 1" /tmp/coraine.CB.log | sed "s/'$COR_ROLE_DB_PREFIX/'<db>/" | sort

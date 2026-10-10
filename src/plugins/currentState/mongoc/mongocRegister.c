@@ -59,6 +59,7 @@
 #include "currentState/mongoc/mongocSnapshotUpdate.h"               // mongocSnapshotUpdate
 #include "currentState/mongoc/mongocSnapshotDelete.h"               // mongocSnapshotDelete
 #include "currentState/mongoc/mongocTenantDrop.h"                   // mongocTenantDrop
+#include "currentState/mongoc/mongocTenantRelease.h"                // mongocTenantRelease
 #include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 
 
@@ -158,6 +159,7 @@ void dbRegister(DbDriver* driverP)
   driverP->snapshotUpdate        = mongocSnapshotUpdate;
   driverP->snapshotDelete        = mongocSnapshotDelete;
   driverP->tenantDrop            = mongocTenantDrop;
+  driverP->tenantRelease         = mongocTenantRelease;
 
   driverP->contextSave           = mongocContextSave;
   driverP->contextDelete         = mongocContextDelete;

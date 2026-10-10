@@ -75,7 +75,8 @@ echo
 
 echo "06. GET pernot after restart — timesSent STILL present"
 echo "======================================================"
-corCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | grep -cE '"timesSent":'
+# corCurl's own line kept: a request that failed shows as such, not as missing data
+corCurl --url /ngsi-ld/v1/subscriptions/urn:P1 | awk '/^corCurl:/ { print } /"timesSent":/ { n++ } END { print n + 0 }'
 echo
 echo
 

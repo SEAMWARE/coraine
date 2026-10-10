@@ -210,6 +210,8 @@ Tenant* tenantGetOrCreate(const char* name)
   if ((db.tenantSetup != NULL) && (db.tenantSetup(tP) != DB_OK))
   {
     COR_E("tenant: the tenant '%s' (db: '%s') could not be set up - not created", tP->name, tP->dbName);
+    if (db.tenantRelease != NULL)
+      db.tenantRelease(tP);                         // what the setup hung on it before it failed - nobody has seen the tenant
     free(tP);
     pthread_mutex_unlock(&tenantMutex);
     return NULL;

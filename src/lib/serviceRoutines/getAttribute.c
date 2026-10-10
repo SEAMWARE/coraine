@@ -34,6 +34,7 @@
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
 
+#include "serviceRoutines/discoveryIri.h"             // discoveryIri
 #include "serviceRoutines/getAttribute.h"             // Own interface
 
 
@@ -108,7 +109,7 @@ bool getAttribute(void)
   //                       attributeTypes, typeNames
   //
   CorNode* body = corTreeObject(corRest.kallocP, NULL);
-  corTreeChildAdd(body, corTreeString(corRest.kallocP, "id", attrIri));
+  corTreeChildAdd(body, corTreeString(corRest.kallocP, "id", discoveryIri(attrIri)));
   corTreeChildAdd(body, corTreeString(corRest.kallocP, "type", "Attribute"));
   corTreeChildAdd(body, corTreeString(corRest.kallocP, "attributeName", shortOrSelf(ctxP, attrIri)));
 

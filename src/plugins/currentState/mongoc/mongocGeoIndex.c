@@ -57,8 +57,8 @@ typedef struct MongocGeoCache
 // concurrently. It had no lock: two adds could lose an entry - and a lost entry reads as "no
 // entity has this GeoProperty", so the geoquery answers EMPTY - and a reader could see count
 // moved before the pointer was stored, and strcmp a NULL. Its lazy creation had the same race
-// as corDbStoreOf: two first requests each made one, and one was lost. Nothing is ever freed
-// before shutdown, so a mutex is all it needs.
+// as corDbStoreOf: two first requests each made one, and one was lost. It is freed only with its
+// tenant (mongocGeoIndexCacheRelease), when no request can reach it, so a mutex is all it needs.
 //
 static MongocGeoCache* geoCacheGet(Tenant* tenantP)
 {
@@ -126,6 +126,27 @@ static void geoIndexCacheAdd(Tenant* tenantP, const char* fieldPath)
   else
     COR_E("mongoc: geo index cache full (%d entries) for db '%s', cannot track '%s'", GEO_INDEX_CACHE_MAX, tenantP->dbName, fieldPath);
   pthread_mutex_unlock(&cacheP->mutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mongocGeoIndexCacheRelease - the tenant's cache freed (the broker's tenantRelease: nobody reaches the
+// tenant any more)
+//
+void mongocGeoIndexCacheRelease(Tenant* tenantP)
+{
+  MongocGeoCache* cacheP = (MongocGeoCache*) __atomic_exchange_n(&tenantP->pluginData, NULL, __ATOMIC_ACQ_REL);
+
+  if (cacheP == NULL)
+    return;
+
+  for (int ix = 0; ix < cacheP->count; ix++)
+    free(cacheP->fieldPaths[ix]);
+
+  pthread_mutex_destroy(&cacheP->mutex);
+  free(cacheP);
 }
 
 
