@@ -141,7 +141,8 @@ coraine --database ../corDB/obj/debug/corDB.so
 1. `corPluginResolve(base, category, subcategory, name, path, …)` → builds the `.so`
    path (skipped when `name` already looks like a path).
 2. `corPluginOpen(path, "<symbol>", …)` → `dlopen` + `dlsym` for the register symbol
-   (`dbRegister` / `troeRegister` / `apiRegister` / `bridgeRegister`). Handles are
+   (`dbRegister` / `troeRegister` / `apiRegister` / `bridgeRegister` / `transportRegister` /
+   `authRegister`). Handles are
    tracked for
    `corPluginCloseAll()` at shutdown.
 3. For a DB or TRoE plugin, its interface stamp is checked (next section) - before the
@@ -222,11 +223,12 @@ bridge has `BRIDGE_ABI_VERSION` (below) and a transport `TRANSPORT_ABI_VERSION`
 
 A plugin can publish its own command-line options. It sets `driverP->args`
 (a `CorArg*` array) in its register function; the broker **peeks** at
-`--database`/`--troe`/`--apiPlugins`/`--bridges` *before* the main parse, loads the
+`--database`/`--troe`/`--apiPlugins`/`--bridges`/`--auth` *before* the main parse, loads the
 plugins,
 then splices each plugin's `args` into the global arg table so they show up in
 `--help` and parse normally. This is why `coraine --help` shows different options
-depending on which DB/TRoE plugin you selected.
+depending on which DB/TRoE plugin you selected - and `coraine --auth fdsc -u` lists the
+`--fdsc*` options under "Auth (fdsc) plugin options".
 
 ## NULL-allowed methods → graceful 501
 

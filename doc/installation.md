@@ -244,6 +244,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
 | `--contextSourceExtras` / `-csx` | `/opt/seamware/etc/contextSourceExtras.json` | JSON rendered verbatim on `/info/sourceIdentity` |
 | `--bridges` / `-br` | — | bridge plugins to load, comma-separated (`/opt/seamware/plugins/bridge/<name>.so`) - see [Bridges and Channels](bridge-channels.md) |
+| `--auth` | — | the auth plugin (`/opt/seamware/plugins/auth/<name>.so`): `fdsc` - the Data Space Connector's access tokens and ODRL policies, with options of its own (`--fdscDiscovery`, `--fdscPap`, ...). None: every request is let in. A plugin that cannot start stops the broker - see [Authorization](authorization.md) |
 | `--bridgeConfig` / `-brc` | `/opt/seamware/etc/bridges.json` if it exists | the bridge configuration file. A file named here and missing stops the broker; the default file missing means no Channels from a file. `SEAMWARE_ETC_DIR` moves the default |
 | `--high-availability` / `-ha` | — | keep the caches in step with the other instances (`mongo` = change streams; needs the `mongoc` DB **and** a replica set) - see [High Availability](high-availability.md) |
 | `--version` / `-V` | — | print the version and exit |
