@@ -626,7 +626,7 @@ static bool constraintParse(PolicySet* psP, CorNode* cP, Rule* rP, char* errorBu
     //
     if ((strcmp(name, "http:bodyValue") == 0) || (strcmp(name, "ovc:leftOperand") == 0))
     {
-      snprintf(errorBuf, errorBufSize, "'%s' as a leftOperand: its path is missing (\"%s\": \"$.a.b\") - in the Data Space Connector this policy stops OPA from loading any", name, name);
+      snprintf(errorBuf, errorBufSize, "'%.64s' as a leftOperand: its path is missing (\"%.64s\": \"$.a.b\") - in the Data Space Connector this policy stops OPA from loading any", name, name);
       return false;
     }
 
@@ -830,7 +830,7 @@ static bool actionParse(PolicySet* psP, CorNode* actionP, RuleList* rulesP, char
     }
   }
 
-  snprintf(errorBuf, errorBufSize, "unknown action '%s'", name);
+  snprintf(errorBuf, errorBufSize, "unknown action '%.128s'", name);
   return false;
 }
 
