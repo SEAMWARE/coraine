@@ -83,6 +83,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
+                [--auth/-auth <fdsc>]
                 [--transports/-transports <transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
@@ -143,6 +144,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
+                [--auth/-auth <fdsc>]
                 [--transports/-transports <transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
@@ -206,6 +208,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troeSync/-troeSync (record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it)]
                 [--apiPlugins/-api <admin>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
+                [--auth/-auth <fdsc>]
                 [--transports/-transports <transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)>]
                 [--bridgeConfig/-brc <bridge configuration file (Channels, and each bridge's own settings)>]
                 [--ddsSync/-ddsSync (a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait)]
@@ -258,6 +261,7 @@ Usage: coraine  [--usage/-u (usage)]
   --troeSync              (-troeSync)           CORAINE_TROESYNC              Optional   Bool     Default Value  
   --apiPlugins            (-api)                CORAINE_APIPLUGINS            Optional   String   Default Value  
   --bridges               (-br)                 CORAINE_BRIDGES               Optional   String   Default Value  
+  --auth                  (-auth)               CORAINE_AUTH                  Optional   String   Default Value  
   --transports            (-transports)         CORAINE_TRANSPORTS            Optional   String   Default Value  
   --bridgeConfig          (-brc)                CORAINE_BRIDGECONFIG          Optional   String   Default Value  
   --ddsSync               (-ddsSync)            CORAINE_DDSSYNC               Optional   Bool     Default Value  
