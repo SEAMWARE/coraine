@@ -33,6 +33,7 @@
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
+#include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TROE_OK
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 #include "auth/auth.h"                               // Own interface
 
@@ -56,7 +57,9 @@ static bool        loaded = false;
 #define AUTH_ENTITY_OPS  (LdOpCreateEntity  | LdOpRetrieveEntity | LdOpMergeEntity | LdOpReplaceEntity | LdOpDeleteEntity | \
                           LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr    | \
                           LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete | \
-                          LdOpQueryEntities | LdOpBatchQuery)
+                          LdOpQueryEntities | LdOpBatchQuery     | \
+                          LdOpUpsertTemporal | LdOpAppendAttrsTemporal | LdOpDeleteAttrsTemporal | LdOpUpdateAttrInstanceTemporal | \
+                          LdOpDeleteAttrInstanceTemporal | LdOpDeleteTemporal | LdOpRetrieveTemporal | LdOpQueryTemporal)
 
 
 
@@ -947,6 +950,39 @@ bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const ch
 
 // -----------------------------------------------------------------------------
 //
+// storedTypes - an entity's stored types: its current state's, else its history's (the temporal store -
+// an entity that has history and no current state: a deleted one, one made through the temporal API); NULL:
+// not stored here
+//
+static CorNode* storedTypes(const char* id)
+{
+  CorNode* entityP = NULL;
+
+  if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
+      (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+    return corTreeLookup(entityP, "type");
+
+  if ((corNgsild.tenantP != NULL) && (troe.entityTemporalRetrieve != NULL))
+  {
+    TroeQueryFilter filter;
+    TroeRangeInfo   range;
+    CorNode*        resultP = NULL;
+
+    memset(&filter, 0, sizeof(filter));
+    memset(&range,  0, sizeof(range));
+    filter.lastN = 1;                                // the types, not the history
+
+    if ((troe.entityTemporalRetrieve((Tenant*) corNgsild.tenantP, id, &filter, &resultP, &range) == TROE_OK) && (resultP != NULL))
+      return corTreeLookup(resultP, "type");
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authEntityStoredCheck -
 //
 bool authEntityStoredCheck(const char* id)
@@ -958,12 +994,7 @@ bool authEntityStoredCheck(const char* id)
   // The STORED entity's types - looked up here, before the routine forwards or writes anything. An entity
   // that is not here locally has no types: what depends on its type does not hold for it
   //
-  CorNode* entityP = NULL;
-  CorNode* typeP   = NULL;
-
-  if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) && (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
-    typeP = corTreeLookup(entityP, "type");
-
+  CorNode*    typeP  = storedTypes(id);
   const char* detail = NULL;
 
   if (authEntityTreeAllowed(id, typeP, true, &detail) == false)
@@ -977,7 +1008,7 @@ bool authEntityStoredCheck(const char* id)
   // entity's type, or adding one, needs the right to the type it gets. Only where the body is an entity - an attribute's body has a "type" of its own ("Property")
   //
   uint64_t op       = (corRest.serviceP != NULL) ? corRest.serviceP->ldOp : 0;
-  bool     isEntity = ((op & (LdOpReplaceEntity | LdOpMergeEntity)) != 0);
+  bool     isEntity = ((op & (LdOpReplaceEntity | LdOpMergeEntity)) != 0);   // (a temporal write's body is attributes - their instances)
   CorNode* bodyTypeP = ((isEntity == true) && (corRest.in.requestTree != NULL) && (corRest.in.requestTree->type == CorObject)) ? corTreeLookup(corRest.in.requestTree, "type") : NULL;
 
   if ((bodyTypeP != NULL) && (authEntityTreeAllowed(id, bodyTypeP, false, &detail) == false))
@@ -1000,12 +1031,11 @@ bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, con
   if (authEntityWanted() == false)
     return true;
 
-  CorNode* entityP = NULL;
+  CorNode* storedP = (lookup == true) ? storedTypes(id) : NULL;
 
-  if ((lookup == true) && (corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
-      (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+  if (storedP != NULL)
   {
-    if (authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP) == false)
+    if (authEntityTreeAllowed(id, storedP, true, detailP) == false)
       return false;
 
     //
@@ -1045,7 +1075,15 @@ bool authEntityArrayFilter(CorNode* arrayP)
     CorNode* nextP = eP->next;
     CorNode* idP   = (eP->type == CorObject) ? corTreeLookup(eP, "id") : NULL;
 
-    if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, corTreeLookup(eP, "type"), true, NULL) == false))
+    //
+    // Its types as the response has them - or, when a projection (pick) took them out, as stored
+    //
+    CorNode* typeP = (idP != NULL) ? corTreeLookup(eP, "type") : NULL;
+
+    if ((typeP == NULL) && (idP != NULL) && (idP->type == CorString))
+      typeP = storedTypes(idP->value.s);
+
+    if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, typeP, true, NULL) == false))
       corTreeChildRemove(arrayP, eP);
 
     eP = nextP;

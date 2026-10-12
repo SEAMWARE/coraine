@@ -40,6 +40,9 @@
 
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/deleteEntityTemporalAttr.h"  // Own interface
 
 
@@ -61,6 +64,10 @@ static bool csrCoversAttr(LdRegCacheItem* csr, const char* attrIri)
 bool deleteEntityTemporalAttr(void)
 {
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded or written
+    return true;
+#endif
   const char* attrWild = corRest.in.wildcard[1];
 
   if (entityId == NULL || entityId[0] == 0)

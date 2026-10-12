@@ -2002,14 +2002,16 @@ static int actionOf(uint64_t op)
                            LdOpRetrieveTemporal    | LdOpQueryTemporal;
   const uint64_t creates = LdOpCreateEntity | LdOpBatchCreate;
   const uint64_t updates = LdOpUpdateEntity | LdOpAppendAttrs | LdOpUpdateAttrs | LdOpMergeEntity | LdOpReplaceEntity |
-                           LdOpReplaceAttr  | LdOpBatchUpdate | LdOpBatchMerge;
-  const uint64_t deletes = LdOpDeleteEntity | LdOpDeleteAttr | LdOpPurgeEntity | LdOpBatchDelete;
+                           LdOpReplaceAttr  | LdOpBatchUpdate | LdOpBatchMerge  |
+                           LdOpAppendAttrsTemporal | LdOpUpdateAttrInstanceTemporal;
+  const uint64_t deletes = LdOpDeleteEntity | LdOpDeleteAttr | LdOpPurgeEntity | LdOpBatchDelete |
+                           LdOpDeleteAttrsTemporal | LdOpDeleteAttrInstanceTemporal | LdOpDeleteTemporal;
 
   if ((op & reads)   != 0)  return M_GET;
   if ((op & creates) != 0)  return M_POST;
   if ((op & updates) != 0)  return M_PATCH;
   if ((op & deletes) != 0)  return M_DELETE;
-  if ((op & LdOpBatchUpsert) != 0)  return M_POST | M_PATCH;   // a create, or an update: either action allows it
+  if ((op & (LdOpBatchUpsert | LdOpUpsertTemporal)) != 0)  return M_POST | M_PATCH;   // a create, or an update: either action allows it
 
   return 0;
 }
@@ -2057,7 +2059,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
   //
   // An upsert, entity by entity: an update of one that exists, a create of one that does not
   //
-  if ((ngsild == true) && (entityP != NULL) && ((reqP->op & LdOpBatchUpsert) != 0))
+  if ((ngsild == true) && (entityP != NULL) && ((reqP->op & (LdOpBatchUpsert | LdOpUpsertTemporal)) != 0))
     ctx.method = (entityP->stored == true) ? M_PATCH : M_POST;
   ctx.nowMs   = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
   ctx.entityP = entityP;

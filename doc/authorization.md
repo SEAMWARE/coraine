@@ -67,7 +67,11 @@ shared store.
 
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
-two queries) - a plugin leaves the entity's part of a decision to `entity` only when it is true.
+two queries, and the temporal API - retrieve, query, the upsert, the attribute and instance writes, the
+delete) - a plugin leaves the entity's part of a decision to `entity` only when it is true.
+
+An entity's stored types are its current state's; for one that has history and no current state (a
+deleted entity, one made through the temporal API), its history's.
 
 Either may answer `AuthUnavailable` - **503**: the plugin cannot decide (no keys, no policies yet), and the
 request is refused, never let in. The answers are ProblemDetails with type `about:blank` (RFC 9457
@@ -320,11 +324,11 @@ decisions (`entity`, § 2.1). The policies are the same; what their words read i
 | the action | the HTTP method: `odrl:modify` is PATCH only, a POST query is a create | the NGSI-LD operation: a POST query is a read, a PUT a modification, an upsert per entity a create or an update |
 | notifications | not decided: a subscription notifies what matches | for the subscription's owner, entity by entity (§ 2.1); the owner's credential kept in the store, honoured until its `validUntil` or `--fdscOwnerMaxAge` |
 
-For an operation the broker does not decide entity by entity (`AuthRequest.entities` false - the temporal
-API, subscriptions, registrations, `/types`, ...), `--fdscNgsild` reads the entity type as the connector does.
+For an operation the broker does not decide entity by entity (`AuthRequest.entities` false - subscriptions,
+registrations, `/types`, ...), `--fdscNgsild` reads the entity type as the connector does.
 
-`auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch`, `auth_fdsc_ngsild_query` and `auth_fdsc_ngsild_notify` hold
-it; each of them fails without `--fdscNgsild`.
+`auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch`, `auth_fdsc_ngsild_query`, `auth_fdsc_ngsild_temporal` and
+`auth_fdsc_ngsild_notify` hold it; each of them fails without `--fdscNgsild`.
 
 A credential kept as an owner is personal data at rest: it goes with its subscription (a DELETE of it), and
 it is never checked again for revocation - VCVerifier checks that when it issues a token. `--fdscOwnerMaxAge`

@@ -74,6 +74,9 @@
 #if COR_FEATURE_RESPONSE_BUDGET
 #include "serviceRoutines/responseBudget.h"          // responseBudgetBytes, responseBudgetTooMany, responseBudgetDepth, responseBudgetCut
 #endif
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityArrayFilter
+#endif
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
 
 
@@ -893,6 +896,11 @@ bool getEntitiesTemporal(void)
 
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction
   // and ?format=temporalValues run in renderHook, see ldHooks.c).
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(result) == false)        // the entities the request may not read are left out - before a projection
+    return true;
+#endif
+
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
   {
     for (CorNode* ep = result->value.head; ep != NULL; ep = ep->next)
