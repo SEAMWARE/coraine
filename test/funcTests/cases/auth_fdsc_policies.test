@@ -1,0 +1,213 @@
+#
+# FILE            auth_fdsc_policies.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin (--auth fdsc, doc/authorization.md § 5): the ODRL-PAP's policies, decided as the Data
+# Space Connector decides them - read from the PAP's GET /policy listing (each policy a JSON string in
+# "odrl"), and evaluated as the Rego the PAP generates is:
+#
+#   - ngsi-ld:entityType is the third ':' part of the id in the path, else ?type, else the body's type
+#   - a string assignee is the credential's issuer; vc:role the roles for the organisation; vc:type its types
+#   - verifiablePresentation (a token with two or more credentials) is not read: no vc: word holds for it
+#   - the permissions of one policy are an AND; prohibitions are ignored
+#   - a constraint on a value that is not there is not true - not even isNoneOf
+#   - http:bodyValue compares the body's value as sent: the string "3" is not the number 3
+#   - a request no policy allows is a 403 - and a create on an unknown tenant leaves no tenant behind
+#
+--NAME--
+Auth plugin fdsc - the ODRL-PAP's policies, decided as the Data Space Connector decides them
+
+--TAGS--
+auth fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/papListing.json --fdscIssuer http://verifier.ft --fdscOrganization did:web:provider
+
+--RUN--
+
+#
+# 01. energyReport (read, any credential, entityType EnergyReport): by the id's type, by ?type - and not another type, not a write
+# 02. clusterCreate (use, role OPERATOR + OperatorCredential, K8SCluster): the operator may create - a user may not, nor the operator's credential in a verifiablePresentation
+# 03. typesReader (read, the issuer did:web:typesReader, http:path in /ngsi-ld/v1/types): that issuer may - another may not
+# 04. bodyValue (create, $.numNodes.value == "3"): the string "3" may - the number 3 may not
+# 05. twoPermissions (read Car, AND the party did:web:carPeople): both must hold
+# 06. time (read Clock, any day 0-6, any hour 0-23 - xsd:integer, one of them written as a string)
+# 07. noneOf (read Open, vc:type isNoneOf [BannedCredential]): a credential with a type may - one without types may not
+# 08. prohibitionIgnored (read Shop, and a prohibition of the same): the prohibition is ignored
+# 09. A create no policy allows, on an unknown tenant: 403, and the tenant does not exist
+#
+status() { label="$1"; shift; echo "$label: $(corCurl "$@" | head -1)"; }
+vc() { echo "{\"type\": $1, \"issuer\": \"$2\", \"credentialSubject\": $3}"; }
+
+USER=$(ftAuthToken k1 --vc "$(vc '["VerifiableCredential", "UserCredential"]' did:web:consumer '{}')")
+OPERATOR=$(ftAuthToken k1 --vc "$(vc '["OperatorCredential"]' did:web:consumer '{"roles": [{"target": "did:web:provider", "names": ["OPERATOR"]}]}')")
+OPERATOR_VP=$(ftAuthToken k1 --vp "[$(vc '["OperatorCredential"]' did:web:consumer '{"roles": [{"target": "did:web:provider", "names": ["OPERATOR"]}]}'), $(vc '["UserCredential"]' did:web:consumer '{}')]")
+TYPES=$(ftAuthToken k1 --vc "$(vc '["UserCredential"]' did:web:typesReader '{}')")
+CARS=$(ftAuthToken k1 --vc "$(vc '["UserCredential"]' did:web:carPeople '{}')")
+NOTYPE=$(ftAuthToken k1 --vc '{"issuer": "did:web:consumer", "credentialSubject": {}}')
+
+echo "01. energyReport (read, any credential, entityType EnergyReport): by the id's type, by ?type - and not another type, not a write"
+echo "============================================================================================================================="
+status "GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there)" --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1 -H "Authorization: Bearer $USER"
+status "GET ?type=EnergyReport                                 " --url "/ngsi-ld/v1/entities?type=EnergyReport" -H "Authorization: Bearer $USER"
+status "GET urn:ngsi-ld:Building:1                             " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:1 -H "Authorization: Bearer $USER"
+status "PATCH urn:ngsi-ld:EnergyReport:1                       " --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1 -X PATCH --payload '{"p": 1}' -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "02. clusterCreate (use, role OPERATOR + OperatorCredential, K8SCluster): the operator may create - a user may not, nor the operator's credential in a verifiablePresentation"
+echo "========================================================================================================================================================================"
+payload='{"id": "urn:ngsi-ld:K8SCluster:c1", "type": "K8SCluster"}'
+status "POST, operator                  " --url /ngsi-ld/v1/entities --payload "$payload" -H "Authorization: Bearer $OPERATOR"
+status "GET, operator                   " --url /ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1 -H "Authorization: Bearer $OPERATOR"
+status "POST, user                      " --url /ngsi-ld/v1/entities --payload "$payload" -H "Authorization: Bearer $USER"
+status "GET, verifiablePresentation     " --url /ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1 -H "Authorization: Bearer $OPERATOR_VP"
+echo
+echo
+
+
+echo "03. typesReader (read, the issuer did:web:typesReader, http:path in /ngsi-ld/v1/types): that issuer may - another may not"
+echo "========================================================================================================================"
+status "GET /types, did:web:typesReader     " --url /ngsi-ld/v1/types -H "Authorization: Bearer $TYPES"
+status "GET /types/K8SCluster, typesReader  " --url /ngsi-ld/v1/types/K8SCluster -H "Authorization: Bearer $TYPES"
+status "GET /types, did:web:consumer        " --url /ngsi-ld/v1/types -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "04. bodyValue (create, \$.numNodes.value == \"3\"): the string \"3\" may - the number 3 may not"
+echo "============================================================================================"
+status "POST numNodes \"3\"" --url /ngsi-ld/v1/entities --payload '{"id": "urn:C3", "type": "C", "numNodes": {"type": "Property", "value": "3"}}' -H "Authorization: Bearer $USER"
+status "POST numNodes 3  " --url /ngsi-ld/v1/entities --payload '{"id": "urn:C4", "type": "C", "numNodes": {"type": "Property", "value": 3}}' -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "05. twoPermissions (read Car, AND the party did:web:carPeople): both must hold"
+echo "=============================================================================="
+status "GET Car, did:web:carPeople" --url /ngsi-ld/v1/entities/urn:ngsi-ld:Car:1 -H "Authorization: Bearer $CARS"
+status "GET Car, did:web:consumer " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Car:1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "06. time (read Clock, any day 0-6, any hour 0-23 - xsd:integer, one of them written as a string)"
+echo "================================================================================================"
+status "GET Clock" --url /ngsi-ld/v1/entities/urn:ngsi-ld:Clock:1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "07. noneOf (read Open, vc:type isNoneOf [BannedCredential]): a credential with a type may - one without types may not"
+echo "===================================================================================================================="
+status "GET Open, UserCredential  " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Open:1 -H "Authorization: Bearer $USER"
+status "GET Open, no type         " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Open:1 -H "Authorization: Bearer $NOTYPE"
+echo
+echo
+
+
+echo "08. prohibitionIgnored (read Shop, and a prohibition of the same): the prohibition is ignored"
+echo "============================================================================================"
+status "GET Shop" --url /ngsi-ld/v1/entities/urn:ngsi-ld:Shop:1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "09. A create no policy allows, on an unknown tenant: 403, and the tenant does not exist"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:Building:b1", "type": "Building"}' -H "NGSILD-Tenant: t9" -H "Authorization: Bearer $USER" | grep -v '^Date:'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1 -H "NGSILD-Tenant: t9" -H "Authorization: Bearer $OPERATOR" | grep -v '^Date:'
+echo
+echo
+
+
+--EXPECT--
+01. energyReport (read, any credential, entityType EnergyReport): by the id's type, by ?type - and not another type, not a write
+=============================================================================================================================
+GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there): HTTP/1.1 404 Not Found
+GET ?type=EnergyReport                                 : HTTP/1.1 200 OK
+GET urn:ngsi-ld:Building:1                             : HTTP/1.1 403 Forbidden
+PATCH urn:ngsi-ld:EnergyReport:1                       : HTTP/1.1 403 Forbidden
+
+
+02. clusterCreate (use, role OPERATOR + OperatorCredential, K8SCluster): the operator may create - a user may not, nor the operator's credential in a verifiablePresentation
+========================================================================================================================================================================
+POST, operator                  : HTTP/1.1 201 Created
+GET, operator                   : HTTP/1.1 200 OK
+POST, user                      : HTTP/1.1 403 Forbidden
+GET, verifiablePresentation     : HTTP/1.1 403 Forbidden
+
+
+03. typesReader (read, the issuer did:web:typesReader, http:path in /ngsi-ld/v1/types): that issuer may - another may not
+========================================================================================================================
+GET /types, did:web:typesReader     : HTTP/1.1 200 OK
+GET /types/K8SCluster, typesReader  : HTTP/1.1 200 OK
+GET /types, did:web:consumer        : HTTP/1.1 403 Forbidden
+
+
+04. bodyValue (create, $.numNodes.value == "3"): the string "3" may - the number 3 may not
+============================================================================================
+POST numNodes "3": HTTP/1.1 201 Created
+POST numNodes 3  : HTTP/1.1 403 Forbidden
+
+
+05. twoPermissions (read Car, AND the party did:web:carPeople): both must hold
+==============================================================================
+GET Car, did:web:carPeople: HTTP/1.1 404 Not Found
+GET Car, did:web:consumer : HTTP/1.1 403 Forbidden
+
+
+06. time (read Clock, any day 0-6, any hour 0-23 - xsd:integer, one of them written as a string)
+================================================================================================
+GET Clock: HTTP/1.1 404 Not Found
+
+
+07. noneOf (read Open, vc:type isNoneOf [BannedCredential]): a credential with a type may - one without types may not
+====================================================================================================================
+GET Open, UserCredential  : HTTP/1.1 404 Not Found
+GET Open, no type         : HTTP/1.1 403 Forbidden
+
+
+08. prohibitionIgnored (read Shop, and a prohibition of the same): the prohibition is ignored
+============================================================================================
+GET Shop: HTTP/1.1 404 Not Found
+
+
+09. A create no policy allows, on an unknown tenant: 403, and the tenant does not exist
+======================================================================================
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 113
+
+{
+  "detail": "no policy allows the request",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+Content-Length: 161
+
+{
+  "detail": "tenant 't9' does not exist",
+  "status": 404,
+  "title": "NonexistentTenant",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

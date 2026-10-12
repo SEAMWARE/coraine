@@ -341,7 +341,7 @@ installFile = cp -p $(1) $(dir $(2)).$(notdir $(2)).new && mv -f $(dir $(2)).$(n
 
 # install_from <build-dir> — copy broker + plugins + etc out of a build tree
 define install_from
-	mkdir -p $(PREFIX)/bin $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(ETC_DIR)
+	mkdir -p $(PREFIX)/bin $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(PLUGIN_DIR)/auth $(ETC_DIR)
 	$(call installFile,$(1)/src/app/coraine/coraine,$(PREFIX)/bin/coraine)
 	if [ -f $(1)/src/app/coraineImport/coraine-import ]; then $(call installFile,$(1)/src/app/coraineImport/coraine-import,$(PREFIX)/bin/coraine-import); fi   # COR_FEATURE_MIGRATE
 	$(call installFile,$(1)/src/plugins/currentState/mongoc/mongoc.so,$(PLUGIN_DIR)/db/currentState/mongoc.so)
@@ -350,6 +350,7 @@ define install_from
 	$(call installFile,$(1)/src/plugins/api/admin/admin.so,$(PLUGIN_DIR)/api/admin.so)
 	$(call installFile,$(1)/src/plugins/bridge/loopback/loopback.so,$(PLUGIN_DIR)/bridge/loopback.so)
 	$(call installFile,$(1)/src/plugins/transport/ws/ws.so,$(PLUGIN_DIR)/transport/ws.so)
+	if [ -f $(1)/src/plugins/auth/fdsc/fdsc.so ]; then $(call installFile,$(1)/src/plugins/auth/fdsc/fdsc.so,$(PLUGIN_DIR)/auth/fdsc.so); fi   # COR_FEATURE_AUTH
 	$(call installFile,etc/contextSourceExtras.json,$(ETC_DIR)/contextSourceExtras.json)
 endef
 

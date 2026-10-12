@@ -20,6 +20,9 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/corNgsild.h"                       // corNgsild (rawResponse)
 #include "corBridge/BridgeDriver.h"                     // bridges, bridgeCount
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                                 // authVersionInfo
+#endif
 
 #include "coraineVersion.h"                         // CORAINE_VERSION (-Isrc/app/coraine)
 #include "coraineStack.h"                           // coraineStack - GENERATED, see the makefile
@@ -76,6 +79,16 @@ bool getVersion(void)
 
     corTreeChildAdd(body, bridgesP);
   }
+
+#if COR_FEATURE_AUTH
+  //
+  // The auth plugin's one-liner - absent without --auth, as for the bridges
+  //
+  const char* authInfo = authVersionInfo();
+
+  if (authInfo != NULL)
+    corTreeChildAdd(body, corTreeString(corRest.kallocP, "auth", authInfo));
+#endif
 
   // Bypass @context expansion / compaction — this endpoint is non-NGSI-LD.
   corNgsild.rawResponse      = true;

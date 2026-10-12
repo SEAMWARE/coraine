@@ -1,0 +1,50 @@
+[
+ {
+  "id": "p0",
+  "odrl:uid": "urn:ft:energyReport",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:energyReport\", \"odrl:uid\": \"urn:ft:energyReport\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:assigner\": {\"@id\": \"https://www.mp-operation.org/\"}, \"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"EnergyReport\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}}}",
+  "rego": "package policy.p0"
+ },
+ {
+  "id": "p1",
+  "odrl:uid": "urn:ft:clusterCreate",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:clusterCreate\", \"odrl:uid\": \"urn:ft:clusterCreate\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"K8SCluster\"}]}, \"odrl:assignee\": {\"@type\": \"odrl:PartyCollection\", \"odrl:source\": \"urn:user\", \"odrl:refinement\": {\"@type\": \"odrl:LogicalConstraint\", \"odrl:and\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": {\"@id\": \"vc:role\"}, \"odrl:operator\": {\"@id\": \"odrl:hasPart\"}, \"odrl:rightOperand\": {\"@value\": \"OPERATOR\", \"@type\": \"xsd:string\"}}, {\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": {\"@id\": \"vc:type\"}, \"odrl:operator\": {\"@id\": \"odrl:hasPart\"}, \"odrl:rightOperand\": {\"@value\": \"OperatorCredential\", \"@type\": \"xsd:string\"}}]}}, \"odrl:action\": {\"@id\": \"odrl:use\"}}}",
+  "rego": "package policy.p1"
+ },
+ {
+  "id": "p2",
+  "odrl:uid": "urn:ft:typesReader",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:typesReader\", \"odrl:uid\": \"urn:ft:typesReader\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"http:path\", \"odrl:operator\": {\"@id\": \"http:isInPath\"}, \"odrl:rightOperand\": \"/ngsi-ld/v1/types\"}]}, \"odrl:assignee\": \"did:web:typesReader\", \"odrl:action\": {\"@id\": \"odrl:read\"}}}",
+  "rego": "package policy.p2"
+ },
+ {
+  "id": "p3",
+  "odrl:uid": "urn:ft:bodyValue",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:bodyValue\", \"odrl:uid\": \"urn:ft:bodyValue\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"http:bodyValue\": \"$.numNodes.value\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"3\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"ngsild:create\"}}}",
+  "rego": "package policy.p3"
+ },
+ {
+  "id": "p4",
+  "odrl:uid": "urn:ft:twoPermissions",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:twoPermissions\", \"odrl:uid\": \"urn:ft:twoPermissions\", \"@type\": \"odrl:Policy\", \"odrl:permission\": [{\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"Car\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}}, {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\"}, \"odrl:assignee\": {\"@type\": \"odrl:Party\", \"odrl:uid\": \"did:web:carPeople\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}}]}",
+  "rego": "package policy.p4"
+ },
+ {
+  "id": "p5",
+  "odrl:uid": "urn:ft:time",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:time\", \"odrl:uid\": \"urn:ft:time\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"Clock\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}, \"odrl:constraint\": [{\"odrl:leftOperand\": \"odrl:dayOfWeek\", \"odrl:operator\": \"odrl:gteq\", \"odrl:rightOperand\": {\"@value\": 0, \"@type\": \"xsd:integer\"}}, {\"odrl:leftOperand\": \"odrl:dayOfWeek\", \"odrl:operator\": \"odrl:lteq\", \"odrl:rightOperand\": {\"@value\": 6, \"@type\": \"xsd:integer\"}}, {\"odrl:leftOperand\": \"odrl:hourOfDay\", \"odrl:operator\": \"odrl:gteq\", \"odrl:rightOperand\": {\"@value\": \"0\", \"@type\": \"xsd:integer\"}}, {\"odrl:leftOperand\": \"odrl:hourOfDay\", \"odrl:operator\": \"odrl:lteq\", \"odrl:rightOperand\": {\"@value\": 23, \"@type\": \"xsd:integer\"}}]}}",
+  "rego": "package policy.p5"
+ },
+ {
+  "id": "p6",
+  "odrl:uid": "urn:ft:noneOf",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:noneOf\", \"odrl:uid\": \"urn:ft:noneOf\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"Open\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}, \"odrl:constraint\": {\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": {\"@id\": \"vc:type\"}, \"odrl:operator\": {\"@id\": \"odrl:isNoneOf\"}, \"odrl:rightOperand\": [\"BannedCredential\"]}}}",
+  "rego": "package policy.p6"
+ },
+ {
+  "id": "p7",
+  "odrl:uid": "urn:ft:prohibitionIgnored",
+  "odrl": "{\"@context\": {\"odrl\": \"http://www.w3.org/ns/odrl/2/\"}, \"@id\": \"urn:ft:prohibitionIgnored\", \"odrl:uid\": \"urn:ft:prohibitionIgnored\", \"@type\": \"odrl:Policy\", \"odrl:permission\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"Shop\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}}, \"odrl:prohibition\": {\"odrl:target\": {\"@type\": \"odrl:AssetCollection\", \"odrl:source\": \"urn:asset\", \"odrl:refinement\": [{\"@type\": \"odrl:Constraint\", \"odrl:leftOperand\": \"ngsi-ld:entityType\", \"odrl:operator\": {\"@id\": \"odrl:eq\"}, \"odrl:rightOperand\": \"Shop\"}]}, \"odrl:assignee\": {\"@id\": \"vc:any\"}, \"odrl:action\": {\"@id\": \"odrl:read\"}}}",
+  "rego": "package policy.p7"
+ }
+]
