@@ -1,0 +1,119 @@
+#
+# FILE            auth_fdsc_ngsild_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin with --fdscNgsild (doc/authorization.md § 6): ngsi-ld:entityType is the ENTITY's
+# type - as the body has it for a create, the stored one for everything done to an existing entity - and
+# expanded: "EnergyReport" in a policy is what the broker's default context makes of it, whatever the
+# request's @context makes of the same word. Where the Data Space Connector reads the type out of the id
+# string, here the id says nothing.
+#
+--NAME--
+Auth plugin fdsc --fdscNgsild - one entity: the type of the body for a create, the stored type for the rest, expanded
+
+--TAGS--
+auth fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# Policies: anyone may read an EnergyReport; did:web:writer may do anything to one.
+#
+# 01. Create: an EnergyReport whose id does not say so - 201; a Building whose id says EnergyReport - 403
+# 02. Read: the stored type decides - urn:E1 (an EnergyReport) yes, urn:ngsi-ld:EnergyReport:B1 does not exist (no stored type) - 403
+# 03. An attribute of urn:E1: read yes; a write by anyone - 403, by the writer - 204
+# 04. The request's @context makes "EnergyReport" another type - not the policy's: 403
+# 05. Delete urn:E1: anyone - 403; the writer - 204
+#
+status() { label="$1"; shift; echo "$label: $(corCurl "$@" | head -1)"; }
+vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
+
+USER=$(ftAuthToken k1 --vc "$(vc did:web:consumer)")
+WRITER=$(ftAuthToken k1 --vc "$(vc did:web:writer)")
+
+echo "01. Create: an EnergyReport whose id does not say so - 201; a Building whose id says EnergyReport - 403"
+echo "======================================================================================================"
+status "POST urn:E1, type EnergyReport                       " --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "EnergyReport", "p": {"type": "Property", "value": 1}}' -H "Authorization: Bearer $WRITER"
+status "POST urn:ngsi-ld:EnergyReport:B1, type Building      " --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:EnergyReport:B1", "type": "Building"}' -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+echo "02. Read: the stored type decides - urn:E1 (an EnergyReport) yes, urn:ngsi-ld:EnergyReport:B1 does not exist (no stored type) - 403"
+echo "===================================================================================================================================="
+status "GET urn:E1                       " --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $USER"
+status "GET urn:ngsi-ld:EnergyReport:B1  " --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:B1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "03. An attribute of urn:E1: read yes; a write by anyone - 403, by the writer - 204"
+echo "=================================================================================="
+status "GET urn:E1/attrs/p          " --url /ngsi-ld/v1/entities/urn:E1/attrs/p -H "Authorization: Bearer $USER"
+status "PATCH urn:E1/attrs/p, user  " --url /ngsi-ld/v1/entities/urn:E1/attrs/p -X PATCH --payload '{"type": "Property", "value": 2}' -H "Authorization: Bearer $USER"
+status "PATCH urn:E1/attrs/p, writer" --url /ngsi-ld/v1/entities/urn:E1/attrs/p -X PATCH --payload '{"type": "Property", "value": 2}' -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+echo "04. The request's @context makes \"EnergyReport\" another type - not the policy's: 403"
+echo "====================================================================================="
+payload='{"id": "urn:E2", "type": "EnergyReport", "@context": [{"EnergyReport": "http://other.example/EnergyReport"}, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]}'
+status "POST urn:E2, EnergyReport = http://other.example/EnergyReport" --url /ngsi-ld/v1/entities --payload "$payload" -H "Content-Type: application/ld+json" -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+echo "05. Delete urn:E1: anyone - 403; the writer - 204"
+echo "================================================="
+status "DELETE urn:E1, user  " --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $USER"
+status "DELETE urn:E1, writer" --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+--EXPECT--
+01. Create: an EnergyReport whose id does not say so - 201; a Building whose id says EnergyReport - 403
+======================================================================================================
+POST urn:E1, type EnergyReport                       : HTTP/1.1 201 Created
+POST urn:ngsi-ld:EnergyReport:B1, type Building      : HTTP/1.1 403 Forbidden
+
+
+02. Read: the stored type decides - urn:E1 (an EnergyReport) yes, urn:ngsi-ld:EnergyReport:B1 does not exist (no stored type) - 403
+====================================================================================================================================
+GET urn:E1                       : HTTP/1.1 200 OK
+GET urn:ngsi-ld:EnergyReport:B1  : HTTP/1.1 403 Forbidden
+
+
+03. An attribute of urn:E1: read yes; a write by anyone - 403, by the writer - 204
+==================================================================================
+GET urn:E1/attrs/p          : HTTP/1.1 200 OK
+PATCH urn:E1/attrs/p, user  : HTTP/1.1 403 Forbidden
+PATCH urn:E1/attrs/p, writer: HTTP/1.1 204 No Content
+
+
+04. The request's @context makes "EnergyReport" another type - not the policy's: 403
+=====================================================================================
+POST urn:E2, EnergyReport = http://other.example/EnergyReport: HTTP/1.1 403 Forbidden
+
+
+05. Delete urn:E1: anyone - 403; the writer - 204
+=================================================
+DELETE urn:E1, user  : HTTP/1.1 403 Forbidden
+DELETE urn:E1, writer: HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

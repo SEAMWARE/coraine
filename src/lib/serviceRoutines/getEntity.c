@@ -56,6 +56,9 @@
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
 #endif
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/getEntity.h"               // Own interface
 
 
@@ -829,6 +832,10 @@ bool getEntity(void)
   geoJsonGeomProtectSetup();
 
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded, bridged or written
+    return true;
+#endif
 
   //
   // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header

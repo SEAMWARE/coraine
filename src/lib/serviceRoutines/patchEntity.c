@@ -52,6 +52,9 @@
 #include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/patchEntity.h"             // Own interface
 
 
@@ -176,6 +179,10 @@ bool patchEntity(void)
   bool ddsAccepted = false;   // a request to the DDS side went out and is not finished: 202, not 204
 
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded, bridged or written
+    return true;
+#endif
   CorNode*    fragment = corRest.in.requestTree;
 
   //

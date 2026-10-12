@@ -1,0 +1,56 @@
+[
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@type": "odrl:Policy",
+  "odrl:uid": "urn:ft:readEnergyReport",
+  "odrl:permission": {
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   },
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "EnergyReport"
+     }
+    ]
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@type": "odrl:Policy",
+  "odrl:uid": "urn:ft:writeEnergyReport",
+  "odrl:permission": {
+   "odrl:assignee": "did:web:writer",
+   "odrl:action": {
+    "@id": "odrl:use"
+   },
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "EnergyReport"
+     }
+    ]
+   }
+  }
+ }
+]

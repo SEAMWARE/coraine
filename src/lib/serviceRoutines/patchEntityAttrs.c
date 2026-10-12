@@ -64,6 +64,9 @@
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                                // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/patchEntityAttrs.h"         // Own interface
 
 
@@ -195,6 +198,11 @@ static void recordFragmentAttrsUpdated(CorNode* targetP, CorNode* fragP)
 //
 bool patchEntityAttrs(void)
 {
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(corRest.in.wildcard[0]) == false)   // the stored entity's types - before anything is forwarded, bridged or written
+    return true;
+#endif
+
   return patchEntityAttrsOn(corRest.in.wildcard[0], corRest.in.requestTree, NULL);
 }
 

@@ -85,6 +85,16 @@ extern bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, c
 
 // -----------------------------------------------------------------------------
 //
+// authEntityStoredCheck - the request's one entity, by id, its stored types looked up: may it. false: the
+// 403 is set - the service routine returns. Call it first thing, before anything is forwarded (distributed
+// operations), handed to a bridge or written. Costs nothing when the plugin does not decide per entity.
+//
+extern bool authEntityStoredCheck(const char* id);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authEntityDeny - the request's answer when its one entity may not: 403 with that detail
 //
 extern void authEntityDeny(const char* detail);

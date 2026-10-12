@@ -17,6 +17,7 @@
 #include "corJsonld/corLdExpand.h"                   // corLdExpand
 #include "corJsonld/corLdDownload.h"                 // corLdContextFromUrl
 #include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corRest/CorRestState.h"                    // corRest
 #include "corRest/corRestHooks.h"                    // corRestSetAdmitHook
 #include "corRest/corRestInHeader.h"                 // corRestInHeader
@@ -25,6 +26,8 @@
 #include "corNgsild/CorNgsild.h"                     // corNgsild, ldDefaultContextUrl
 #include "corNgsild/LdOp.h"                          // LdOp, ldOpToString
 
+#include "db/DbDriver.h"                             // db, DB_OK
+#include "db/Tenant.h"                               // Tenant
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 #include "auth/auth.h"                               // Own interface
 
@@ -45,7 +48,8 @@ static bool        loaded = false;
 // (AuthRequest.entities). An operation is added here together with its routine's call - never before: a
 // plugin trusts this to leave the entity's part of a decision to entity().
 //
-#define AUTH_ENTITY_OPS  ((uint64_t) 0)
+#define AUTH_ENTITY_OPS  (LdOpCreateEntity  | LdOpRetrieveEntity | LdOpMergeEntity | LdOpReplaceEntity | LdOpDeleteEntity | \
+                          LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr)
 
 
 
@@ -557,6 +561,36 @@ bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const ch
   }
 
   return authEntityAllowed(id, typeV, types, stored, NULL, 0, detailP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityStoredCheck -
+//
+bool authEntityStoredCheck(const char* id)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  //
+  // The STORED entity's types - looked up here, before the routine forwards or writes anything. An entity
+  // that is not here locally has no types: what depends on its type does not hold for it
+  //
+  CorNode* entityP = NULL;
+  CorNode* typeP   = NULL;
+
+  if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) && (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+    typeP = corTreeLookup(entityP, "type");
+
+  const char* detail = NULL;
+
+  if (authEntityTreeAllowed(id, typeP, true, &detail) == true)
+    return true;
+
+  authEntityDeny(detail);
+  return false;
 }
 
 
