@@ -290,7 +290,10 @@ static void answer(AuthVerdict verdict, AuthAnswer* answerP)
   {
     status = 401;
     title  = "Unauthorized";
-    corRestOutHeaderAdd("WWW-Authenticate", (answerP->wwwAuthenticate != NULL) ? answerP->wwwAuthenticate : "Bearer");
+    //
+    // Copied: the plugin's text may be a buffer of its thread, and the header is written after the call
+    //
+    corRestOutHeaderAdd("WWW-Authenticate", (answerP->wwwAuthenticate != NULL) ? corAllocStrdup(&corRest.kalloc, answerP->wwwAuthenticate) : "Bearer");
   }
   else if (verdict == AuthUnavailable)
   {
@@ -699,6 +702,17 @@ void authTrustNext(void)
 {
   if (loaded == true)
     trustNext = true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authTrustClear -
+//
+void authTrustClear(void)
+{
+  trustNext = false;
 }
 
 

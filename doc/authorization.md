@@ -132,6 +132,7 @@ Cor-Lib functions is built against the same lib sources as its broker ([Plugin a
 | `--fdscPolicies <url\|file>` | the policies themselves (the PAP's listing, an array of ODRL policies, one policy, or an `@graph`), instead of `--fdscPap` |
 | `--fdscOrganization <did>` | the provider's DID - the PAP's `GENERAL_ORGANIZATION_DID`; `vc:role` reads a credential's roles for it |
 | `--fdscRefresh <s>` | seconds between two fetches of keys and policies - default 30 |
+| `--fdscStrippedPath` | `http:path` reads the `x-stripped-path` header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path |
 | `--fdscAnonymous` | a request without a token is let in as no one, instead of a 401 - only a `vc:any` policy can allow it anything |
 | `--fdscNgsild` | decide on the entity, as NGSI-LD has it (§ 6) - **decisions differ from the connector's** |
 
@@ -153,6 +154,11 @@ A token that does not hold is a 401 with `WWW-Authenticate: Bearer error="invali
 error_description="..."` (RFC 6750 § 3); no token, a 401 with `WWW-Authenticate: Bearer`.
 
 The credential is the token's `verifiableCredential` (else `vc`) - what the PAP's Rego reads (§ 4).
+
+`iss` is always checked: `--fdscJwks` needs `--fdscIssuer`, and with `--fdscDiscovery` a discovery document
+without an `issuer` leaves every token refused (503). `aud` is checked with `--fdscAudience` - recommended
+(VCVerifier sets the service id): without it, a token the verifier issued for another service is accepted,
+as APISIX accepts it.
 
 A token whose signature has been checked is kept (1024 of them): a client sends the same token with every
 request for its 30 minutes, and a signature check costs as much as a request. A kept token is its exact
@@ -200,7 +206,7 @@ The words of the PAP's `mapping.json`, and what each reads:
 | `vc:role` | `credentialSubject.roles[]` whose `target` is the organisation: its `names` |
 | `vc:type` | the credential's `type` (a string as a one-element array) |
 | `vc:currentParty`, `dome-op:currentParty` | the credential's `issuer` |
-| `http:path` | the `x-stripped-path` header, else the path |
+| `http:path` | the path (the connector: the `x-stripped-path` header first - with `--fdscStrippedPath`, § 4.4) |
 | `http:bodyValue "$.a.b"` | the body's value at `a.b`, as sent |
 | `ovc:leftOperand "a.b"` | the credential's value at `a.b`; `ovc:credentialSubjectType` its `credentialSubject.type` |
 | `odrl:dateTime` / `odrl:dayOfWeek` / `odrl:hourOfDay` | now in ms / 0 = Monday, UTC / 0-23, UTC |
@@ -251,6 +257,10 @@ Where the connector's chain does not work at all, coraine does not copy the fail
   has no `x5c` ("No trusted certs loaded"), and VCVerifier's has none: behind APISIX a verifier configured
   for ES256 gets every token refused. coraine verifies it.
   ([FIWARE/data-space-connector#238](https://github.com/FIWARE/data-space-connector/issues/238))
+- **`x-stripped-path`.** The PAP's `http:path` reads that header before the path, and APISIX passes a
+  client's on: a client sends `x-stripped-path: /allowed/path` and an `http:isInPath` rule holds for any
+  request. coraine reads the request's path, and the header only with `--fdscStrippedPath` - behind a
+  gateway that sets it and drops the client's.
 - **A policy whose Rego does not parse.** The PAP accepts `"odrl:leftOperand": "http:bodyValue"` (or
   `ovc:leftOperand`) without the path - the key form `"http:bodyValue": "$.a.b"` is the one that works - and
   generates Rego with the path's `%s` left in it. OPA then refuses the **whole** policies bundle: every

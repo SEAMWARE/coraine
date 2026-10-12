@@ -80,6 +80,7 @@ echo "==========================================================================
 status "GET /types, did:web:typesReader     " --url /ngsi-ld/v1/types -H "Authorization: Bearer $TYPES"
 status "GET /types/K8SCluster, typesReader  " --url /ngsi-ld/v1/types/K8SCluster -H "Authorization: Bearer $TYPES"
 status "GET /types, did:web:consumer        " --url /ngsi-ld/v1/types -H "Authorization: Bearer $USER"
+status "GET /attributes, typesReader, x-stripped-path: /ngsi-ld/v1/types (a client's - ignored)" --url /ngsi-ld/v1/attributes -H "x-stripped-path: /ngsi-ld/v1/types" -H "Authorization: Bearer $TYPES"
 echo
 echo
 
@@ -153,6 +154,7 @@ GET, verifiablePresentation     : HTTP/1.1 403 Forbidden
 GET /types, did:web:typesReader     : HTTP/1.1 200 OK
 GET /types/K8SCluster, typesReader  : HTTP/1.1 200 OK
 GET /types, did:web:consumer        : HTTP/1.1 403 Forbidden
+GET /attributes, typesReader, x-stripped-path: /ngsi-ld/v1/types (a client's - ignored): HTTP/1.1 403 Forbidden
 
 
 04. bodyValue (create, $.numNodes.value == "3"): the string "3" may - the number 3 may not

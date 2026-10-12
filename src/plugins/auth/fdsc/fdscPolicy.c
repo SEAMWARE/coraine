@@ -1321,13 +1321,29 @@ static CorNode* query(Ctx* cP)
 
 // -----------------------------------------------------------------------------
 //
-// pathOf - http:path's path: the x-stripped-path header, else the request's
+// pathOf - http:path's path: the x-stripped-path header (--fdscStrippedPath), else the request's
 //
+static bool strippedPathOk = false;                 // --fdscStrippedPath
+
 static const char* pathOf(Ctx* cP)
 {
-  const char* stripped = cP->reqP->header("x-stripped-path");
+  //
+  // A client can send the header: it is read only when a gateway in front sets it (and drops the client's)
+  //
+  const char* stripped = (strippedPathOk == true) ? cP->reqP->header("x-stripped-path") : NULL;
 
   return (stripped != NULL) ? stripped : cP->reqP->path;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscPolicyStrippedPathSet -
+//
+void fdscPolicyStrippedPathSet(bool on)
+{
+  strippedPathOk = on;
 }
 
 

@@ -22,8 +22,9 @@ auth fdsc cli
 #
 # 01. --auth nope (no such plugin) - exit 1, the plugin's path named
 # 02. --auth fdsc, no keys (--fdscDiscovery / --fdscJwks) - exit 1, said why
-# 03. --auth fdsc --fdscJwks, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
+# 03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
 # 04. --fdscJwks without --auth - an unknown option, exit 1
+# 05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked
 #
 run() {
   timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database corDB "$@" > /tmp/authRefused.$$ 2>&1
@@ -46,9 +47,9 @@ echo
 echo
 
 
-echo "03. --auth fdsc --fdscJwks, no policies (--fdscPap / --fdscPolicies) - exit 1, said why"
-echo "======================================================================================="
-run --auth fdsc --fdscJwks /tmp/jwks.json
+echo "03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why"
+echo "======================================================================================================"
+run --auth fdsc --fdscJwks /tmp/jwks.json --fdscIssuer http://verifier.ft
 echo
 echo
 
@@ -56,6 +57,13 @@ echo
 echo "04. --fdscJwks without --auth - an unknown option, exit 1"
 echo "========================================================="
 run --fdscJwks /tmp/jwks.json
+echo
+echo
+
+
+echo "05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked"
+echo "============================================================================================"
+run --auth fdsc --fdscJwks /tmp/jwks.json --fdscPolicies /tmp/policies.json
 echo
 echo
 
@@ -73,8 +81,8 @@ exit: 1
 E: auth plugin 'fdsc': no keys to check a token with: --fdscDiscovery or --fdscJwks
 
 
-03. --auth fdsc --fdscJwks, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
-=======================================================================================
+03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
+======================================================================================================
 exit: 1
 E: auth plugin 'fdsc': no policies to decide with: --fdscPap or --fdscPolicies
 
@@ -83,6 +91,12 @@ E: auth plugin 'fdsc': no policies to decide with: --fdscPap or --fdscPolicies
 =========================================================
 exit: 1
 coraine: unrecognized option: --fdscJwks
+
+
+05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked
+============================================================================================
+exit: 1
+E: auth plugin 'fdsc': --fdscJwks needs --fdscIssuer: a token's iss is always checked
 
 
 --TEARDOWN--
