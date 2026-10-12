@@ -48,6 +48,7 @@ typedef struct AuthState
   bool   released;
   char*  body;                                       // the body as sent (bodyKeep)
   int    bodyLen;
+  char*  path;                                       // the URL path as sent (pathKeep)
 } AuthState;
 
 
@@ -96,6 +97,69 @@ static void bodyKeep(AuthState* stateP)
 
 // -----------------------------------------------------------------------------
 //
+// pathKeep - the URL path, whole: the route lookup has cut it where a wildcard's value ends (corRest
+// NUL-terminates the values in place) - put back together from the route and the values
+//
+static void pathKeep(AuthState* stateP)
+{
+  const char* path = (corRest.in.urlPath != NULL) ? corRest.in.urlPath : "/";
+
+  int wildcards = (corRest.serviceP != NULL) ? corRest.serviceP->wildcards : 0;
+
+  if (wildcards == 0)
+  {
+    stateP->path = (char*) path;
+    return;
+  }
+
+  int len = strlen(corRest.serviceP->url) + 1;
+
+  for (int i = 0; i < wildcards; i++)
+    len += (corRest.in.wildcard[i] != NULL) ? strlen(corRest.in.wildcard[i]) : 0;
+
+  char* buf = (char*) corAlloc(&corRest.kalloc, len);
+
+  if (buf == NULL)
+  {
+    stateP->path = (char*) path;
+    return;
+  }
+
+  const char* p  = corRest.serviceP->url;
+  char*       o  = buf;
+  int         wx = 0;
+
+  while (*p != 0)
+  {
+    if (*p == '*')
+    {
+      if (p[1] == '*')                               // ** - a greedy wildcard, one value
+        ++p;
+
+      const char* v = (wx < wildcards) ? corRest.in.wildcard[wx] : NULL;
+
+      ++wx;
+      if (v != NULL)
+      {
+        int vLen = strlen(v);
+        memcpy(o, v, vLen);
+        o += vLen;
+      }
+      ++p;
+      continue;
+    }
+
+    *o++ = *p++;
+  }
+
+  *o = 0;
+  stateP->path = buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bodyText - AuthRequest.body
 //
 static const char* bodyText(int* lenP)
@@ -137,7 +201,7 @@ static void requestFill(AuthRequest* reqP, bool withTenant)
   memset(reqP, 0, sizeof(AuthRequest));
 
   reqP->method = (corRest.in.verbString != NULL) ? corRest.in.verbString : "?";
-  reqP->path   = (corRest.in.urlPath != NULL) ? corRest.in.urlPath : "/";
+  reqP->path   = ((corNgsild.authP != NULL) && (((AuthState*) corNgsild.authP)->path != NULL)) ? ((AuthState*) corNgsild.authP)->path : ((corRest.in.urlPath != NULL) ? corRest.in.urlPath : "/");
   if (corRest.in.uriParamCount > 0)
   {
     const char** keyV   = (const char**) corAlloc(&corRest.kalloc, corRest.in.uriParamCount * sizeof(char*));
@@ -233,6 +297,7 @@ static bool admit(void)
   }
 
   bodyKeep(stateP);
+  pathKeep(stateP);
 
   AuthRequest  req;
   AuthAnswer   ans;

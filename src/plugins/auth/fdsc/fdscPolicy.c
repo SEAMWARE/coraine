@@ -617,7 +617,19 @@ static bool constraintParse(PolicySet* psP, CorNode* cP, Rule* rP, char* errorBu
       return false;
     }
 
-    name         = norm(name);
+    name = norm(name);
+
+    //
+    // The words that take an argument, as a leftOperand without one: the PAP maps them to Rego with the
+    // argument's '%s' left in it - Rego that does not parse, and OPA then refuses the whole bundle: every
+    // request of the deployment denied. Here the policy is skipped, and the others decide.
+    //
+    if ((strcmp(name, "http:bodyValue") == 0) || (strcmp(name, "ovc:leftOperand") == 0))
+    {
+      snprintf(errorBuf, errorBufSize, "'%s' as a leftOperand: its path is missing (\"%s\": \"$.a.b\") - in the Data Space Connector this policy stops OPA from loading any", name, name);
+      return false;
+    }
+
     main.left    = leftOf(name);
     main.leftArg = corAllocStrdup(&psP->ka, name);
   }
@@ -747,6 +759,26 @@ static bool refinementParse(PolicySet* psP, CorNode* refP, RuleList* rulesP, cha
 
 // -----------------------------------------------------------------------------
 //
+// collectionParse - an odrl:AssetCollection / odrl:PartyCollection: its refinement - the PAP refuses one
+// without ("No refinement contained in the collection.")
+//
+static bool collectionParse(PolicySet* psP, CorNode* collectionP, RuleList* rulesP, char* errorBuf, int errorBufSize)
+{
+  CorNode* refP = odrl(collectionP, "refinement");
+
+  if (refP == NULL)
+  {
+    snprintf(errorBuf, errorBufSize, "no refinement in the collection");
+    return false;
+  }
+
+  return refinementParse(psP, refP, rulesP, errorBuf, errorBufSize);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // actionParse -
 //
 static bool actionParse(PolicySet* psP, CorNode* actionP, RuleList* rulesP, char* errorBuf, int errorBufSize)
@@ -811,11 +843,7 @@ static bool actionParse(PolicySet* psP, CorNode* actionP, RuleList* rulesP, char
 static bool assigneeParse(PolicySet* psP, CorNode* assigneeP, RuleList* rulesP, char* errorBuf, int errorBufSize)
 {
   if (typeIs(assigneeP, "odrl:PartyCollection") == true)
-  {
-    CorNode* refP = odrl(assigneeP, "refinement");
-
-    return (refP == NULL) ? true : refinementParse(psP, refP, rulesP, errorBuf, errorBufSize);
-  }
+    return collectionParse(psP, assigneeP, rulesP, errorBuf, errorBufSize);
 
   const char* uid = (typeIs(assigneeP, "odrl:Party") == true) ? idOf(odrl(assigneeP, "uid")) : idOf(assigneeP);
 
@@ -850,11 +878,7 @@ static bool assigneeParse(PolicySet* psP, CorNode* assigneeP, RuleList* rulesP, 
 static bool targetParse(PolicySet* psP, CorNode* targetP, RuleList* rulesP, char* errorBuf, int errorBufSize)
 {
   if (typeIs(targetP, "odrl:AssetCollection") == true)
-  {
-    CorNode* refP = odrl(targetP, "refinement");
-
-    return (refP == NULL) ? true : refinementParse(psP, refP, rulesP, errorBuf, errorBufSize);
-  }
+    return collectionParse(psP, targetP, rulesP, errorBuf, errorBufSize);
 
   const char* uid = (typeIs(targetP, "odrl:Asset") == true) ? idOf(odrl(targetP, "uid")) : idOf(targetP);
 

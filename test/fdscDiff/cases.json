@@ -1,0 +1,1109 @@
+[
+ {
+  "name": "no token",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": null,
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "expired 300s",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "exp": -300
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "expired 60s (leeway)",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "exp": -60
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "wrong issuer",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "iss": "http://evil"
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "bad signature",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "badSig": true
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "unknown kid",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "kid": "nope"
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "ES256 token",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "key": "k2"
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "X-Access-Token",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "header": "X-Access-Token"
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "lowercase bearer",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   },
+   "scheme": "bearer"
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "type from id",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "other type from id",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Building:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "type from ?type",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities?type=EnergyReport",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "?type=A,B",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities?type=EnergyReport,Building",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "type from id, attr path",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1/attrs/p",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "id not a URN of the type",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:uuid:1234",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "id with 4 parts",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:a:b",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "PATCH on read-only type",
+  "method": "PATCH",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1/attrs",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "p": {
+    "type": "Property",
+    "value": 1
+   }
+  },
+  "headers": {}
+ },
+ {
+  "name": "HEAD",
+  "method": "HEAD",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "operator create",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entities",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": {
+   "id": "urn:ngsi-ld:K8SCluster:c1",
+   "type": "K8SCluster"
+  },
+  "headers": {}
+ },
+ {
+  "name": "user create cluster",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entities",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "id": "urn:ngsi-ld:K8SCluster:c2",
+   "type": "K8SCluster"
+  },
+  "headers": {}
+ },
+ {
+  "name": "operator in a VP",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
+  "token": {
+   "vp": [
+    {
+     "type": [
+      "OperatorCredential"
+     ],
+     "issuer": "did:web:consumer",
+     "credentialSubject": {
+      "roles": [
+       {
+        "target": "did:web:provider",
+        "names": [
+         "OPERATOR"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "type": [
+      "VerifiableCredential",
+      "UserCredential"
+     ],
+     "issuer": "did:web:consumer",
+     "credentialSubject": {}
+    }
+   ]
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "operator, role for another org",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:other",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "two role entries, same names",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      },
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "two role entries, different names",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      },
+      {
+       "target": "did:web:provider",
+       "names": [
+        "READER"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "vc.type a string",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
+  "token": {
+   "vc": {
+    "type": "OperatorCredential",
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "issuer typesReader",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/types",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:typesReader",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "issuer typesReader, sub path",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/types/K8SCluster",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:typesReader",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "issuer typesReader, other path",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/attributes",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:typesReader",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "other issuer, types",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/types",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "issuer as an object",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/types",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": {
+     "id": "did:web:typesReader"
+    },
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "bodyValue string 3",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entities",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "id": "urn:C3",
+   "type": "C",
+   "numNodes": {
+    "type": "Property",
+    "value": "3"
+   }
+  },
+  "headers": {}
+ },
+ {
+  "name": "bodyValue number 3",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entities",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "id": "urn:C4",
+   "type": "C",
+   "numNodes": {
+    "type": "Property",
+    "value": 3
+   }
+  },
+  "headers": {}
+ },
+ {
+  "name": "batch create (array body)",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entityOperations/create",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": [
+   {
+    "id": "urn:ngsi-ld:EnergyReport:9",
+    "type": "EnergyReport"
+   }
+  ],
+  "headers": {}
+ },
+ {
+  "name": "batch query (POST read)",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entityOperations/query",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "type": "Query",
+   "entities": [
+    {
+     "type": "EnergyReport"
+    }
+   ]
+  },
+  "headers": {}
+ },
+ {
+  "name": "two permissions, both",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Car:1",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:carPeople",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "two permissions, one",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Car:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "time",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Clock:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isNoneOf, types",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Open:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isNoneOf, no types",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Open:1",
+  "token": {
+   "vc": {
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "prohibition ignored",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Shop:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "or with an undefined element",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Either:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "neq on a missing body",
+  "method": "DELETE",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Neq:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "neq, body value differs",
+  "method": "PATCH",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Neq:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "p": "y"
+  },
+  "headers": {}
+ },
+ {
+  "name": "regex match",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Rx42:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "regex no match",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:RxA:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isAnyOf",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Beta:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isPartOf",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Part:1",
+  "token": {
+   "vc": {
+    "type": [
+     "PartCredential",
+     "X"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isAllOf same order",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:AllOf:1",
+  "token": {
+   "vc": {
+    "type": [
+     "A",
+     "B"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "isAllOf other order",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:AllOf:1",
+  "token": {
+   "vc": {
+    "type": [
+     "B",
+     "A"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "gt number > 5",
+  "method": "PATCH",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Gt:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "n": 7
+  },
+  "headers": {}
+ },
+ {
+  "name": "gt string vs number",
+  "method": "PATCH",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Gt:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "n": "a"
+  },
+  "headers": {}
+ },
+ {
+  "name": "target uid",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Thing:special",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "modify = PATCH",
+  "method": "PATCH",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Doc:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "p": 1
+  },
+  "headers": {}
+ },
+ {
+  "name": "modify, not PUT",
+  "method": "PUT",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Doc:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "id": "urn:ngsi-ld:Doc:1",
+   "type": "Doc"
+  },
+  "headers": {}
+ },
+ {
+  "name": "dateTime > xsd:date",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Dated:1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "ovc claim >= 3",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Claim:1",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "level": 4
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "ovc claim < 3",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Claim:1",
+  "token": {
+   "vc": {
+    "type": [
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "level": 2
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "version",
+  "method": "GET",
+  "path": "/version",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "CORS preflight",
+  "method": "OPTIONS",
+  "path": "/ngsi-ld/v1/entities",
+  "token": null,
+  "body": null,
+  "headers": {
+   "Origin": "http://app",
+   "Access-Control-Request-Method": "GET"
+  }
+ }
+]

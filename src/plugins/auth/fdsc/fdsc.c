@@ -336,16 +336,7 @@ static const char* bearer(const AuthRequest* reqP)
 {
   const char* value = reqP->header("Authorization");
 
-  //
-  // APISIX's openid-connect takes X-Access-Token too, when there is no Authorization
-  //
-  if (value == NULL)
-  {
-    value = reqP->header("X-Access-Token");
-    return ((value != NULL) && (value[0] != 0)) ? value : NULL;
-  }
-
-  if (strncasecmp(value, "Bearer ", 7) != 0)
+  if ((value == NULL) || (strncasecmp(value, "Bearer ", 7) != 0))
     return NULL;
 
   value += 7;
@@ -363,12 +354,6 @@ static const char* bearer(const AuthRequest* reqP)
 //
 static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, AuthAnswer* answerP)
 {
-  //
-  // A CORS preflight carries no credentials (Fetch § 3.7.1) - it is let in, and answered without data
-  //
-  if (strcmp(reqP->method, "OPTIONS") == 0)
-    return AuthAllow;
-
   const char* token = bearer(reqP);
 
   if (token == NULL)
@@ -434,9 +419,6 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
 //
 static AuthVerdict fdscAuthorize(const AuthRequest* reqP, void* identity, AuthAnswer* answerP)
 {
-  if (strcmp(reqP->method, "OPTIONS") == 0)
-    return AuthAllow;
-
   if (fdscPolicyLoaded() == false)
   {
     answerP->detail = "the policies are not loaded yet";

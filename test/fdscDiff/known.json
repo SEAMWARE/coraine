@@ -1,0 +1,3 @@
+{
+  "ES256 token": "APISIX's lua-resty-openidc 1.8.0 cannot use an EC key of a JWK Set without x5c (\"No trusted certs loaded\") - VCVerifier's ES256 JWK Set has none: the connector refuses every ES256 token, coraine verifies it"
+}

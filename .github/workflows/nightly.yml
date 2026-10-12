@@ -22,7 +22,7 @@ on:
         description: 'Run just one of them - for trying a fix without paying for the rest'
         type: choice
         default: all
-        options: [all, coverage, valgrind, etsi, performance, dds, arm64]
+        options: [all, coverage, valgrind, etsi, performance, dds, arm64, fdsc]
   #
   # Callable: the pre-release campaign (prerelease.yml) runs these jobs on the ref it is given rather
   # than keeping a copy of them. Its call forces the run (no gate), and publishes nothing: the
@@ -907,6 +907,59 @@ jobs:
       #
       - name: What the image weighs
         run: docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep -E "^coraine"
+
+  #
+  # fdsc.so against the Data Space Connector itself (doc/authorization.md § 4.3): the connector's chain -
+  # APISIX + odrl-authorization's opa plugin, OPA, odrl-pap on PostgreSQL, at the versions FDSC 10.87.0
+  # deploys - and coraine with --auth fdsc, from the image built here; every case of test/fdscDiff/cases.json
+  # to both, the answers compared. A difference outside test/fdscDiff/known.json fails the job: either
+  # coraine decides otherwise than the connector, or the connector changed.
+  #
+  fdsc:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "fdsc"]'), needs.gate.outputs.only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    name: fdsc auth plugin vs the Data Space Connector
+
+    steps:
+      - name: Check out coraine
+        uses: actions/checkout@v4
+        with:
+          path: stack/coraine
+          ref: ${{ inputs.ref }}
+
+      - name: Check out corLibs
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corLibs
+          path: stack/corLibs
+
+      - name: Clone the dependency stack
+        working-directory: stack/corLibs
+        run: NOBUILD=1 ./bootstrap.sh
+
+      - name: Stage the vendored libs
+        working-directory: stack/coraine
+        env:
+          BASE: ${{ github.workspace }}/stack
+        run: ./docker/vendor-libs.sh
+
+      - name: Build the coraine image
+        working-directory: stack/coraine
+        run: |
+          docker pull -q quay.io/seamware/coraine-ci:mirror-ubuntu-26.04
+          docker tag quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 ubuntu:26.04
+          docker build -f docker/Dockerfile --build-arg BASE_IMAGE=quay.io/seamware/coraine-ci:mirror-ubuntu-26.04 -t coraine:nightly .
+
+      - name: The connector's chain and coraine, every case to both
+        working-directory: stack/coraine
+        env:
+          FDSC_DIFF_CORAINE_IMAGE: coraine:nightly
+        run: |
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          trap 'echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"' EXIT
+          test/fdscDiff/fdscDiff.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   #
   # The functional suite on ARM: linux/arm64, on GitHub's own ARM runners (free for public repositories) -

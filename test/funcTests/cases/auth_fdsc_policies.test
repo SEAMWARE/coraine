@@ -33,7 +33,7 @@ coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_
 --RUN--
 
 #
-# 01. energyReport (read, any credential, entityType EnergyReport): by the id's type, by ?type - and not another type, not a write
+# 01. energyReport (read, any credential, entityType EnergyReport): by the id's type, by ?type - and not another type, not a write, not an attribute (its name is the last path segment)
 # 02. clusterCreate (use, role OPERATOR + OperatorCredential, K8SCluster): the operator may create - a user may not, nor the operator's credential in a verifiablePresentation
 # 03. typesReader (read, the issuer did:web:typesReader, http:path in /ngsi-ld/v1/types): that issuer may - another may not
 # 04. bodyValue (create, $.numNodes.value == "3"): the string "3" may - the number 3 may not
@@ -59,6 +59,7 @@ status "GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there)" --url /ngsi-ld/
 status "GET ?type=EnergyReport                                 " --url "/ngsi-ld/v1/entities?type=EnergyReport" -H "Authorization: Bearer $USER"
 status "GET urn:ngsi-ld:Building:1                             " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:1 -H "Authorization: Bearer $USER"
 status "PATCH urn:ngsi-ld:EnergyReport:1                       " --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1 -X PATCH --payload '{"p": 1}' -H "Authorization: Bearer $USER"
+status "GET urn:ngsi-ld:EnergyReport:1/attrs/p (the last segment)" --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1/attrs/p -H "Authorization: Bearer $USER"
 echo
 echo
 
@@ -136,6 +137,7 @@ GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there): HTTP/1.1 404 Not Found
 GET ?type=EnergyReport                                 : HTTP/1.1 200 OK
 GET urn:ngsi-ld:Building:1                             : HTTP/1.1 403 Forbidden
 PATCH urn:ngsi-ld:EnergyReport:1                       : HTTP/1.1 403 Forbidden
+GET urn:ngsi-ld:EnergyReport:1/attrs/p (the last segment): HTTP/1.1 403 Forbidden
 
 
 02. clusterCreate (use, role OPERATOR + OperatorCredential, K8SCluster): the operator may create - a user may not, nor the operator's credential in a verifiablePresentation

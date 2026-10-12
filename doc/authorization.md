@@ -123,8 +123,8 @@ A source of keys and a source of policies are required; without either the broke
 
 ### 3.2 The token
 
-`Authorization: Bearer <JWT>` (the scheme in any case), or `X-Access-Token: <JWT>` when there is no
-`Authorization` - both as APISIX takes them. The token holds when:
+`Authorization: Bearer <JWT>`, the scheme in any case - as APISIX's `openid-connect` takes it with
+`bearer_only` (no `X-Access-Token`, no exception for a CORS preflight). The token holds when:
 
 - it is a compact JWS whose `alg` is **RS256 or ES256** - VCVerifier's two - and whose signature verifies
   with the key of its `kid` in the verifier's JWK Set (RSA, or EC P-256). `alg: none`, or an `alg` that is
@@ -155,12 +155,8 @@ has been read completely; a fetch that fails keeps what is in use.
   401 and has the keys fetched at once (not more than once a second): the client's next request with a
   new token is let in.
 
-A policy that cannot be read (no `odrl:uid`, no permission, an unknown action or operator) is skipped and
-said in the log, as the PAP refuses it.
-
-### 3.4 CORS
-
-A preflight (`OPTIONS`) carries no credentials (Fetch § 3.7.1): it is let in, and answered without data.
+A policy that cannot be read (no `odrl:uid`, no permission, an unknown action or operator, an asset or party
+collection without a refinement) is skipped and said in the log, as the PAP refuses it.
 
 ## 4. Compatible with the Data Space Connector
 
@@ -218,13 +214,31 @@ Words of the PAP's other PEPs (`json:*`, `dspace:read`) and those that make a ca
   assignee: the PAP's Rego reads `verifiableCredential` only.
 - A credential with two different role lists for the organisation is OPA's `eval_conflict_error`: 503.
 
-### 4.3 Proven by the functests
+### 4.3 Proven against the connector itself
 
-`auth_fdsc_token`, `auth_fdsc_policies`, `auth_fdsc_refresh`, `auth_fdsc_discovery`,
-`auth_fdsc_websocket`, `auth_startup_refused` - the connector's own example policies (`energyReport`,
-`clusterCreate`) among them, and the PAP's paged listing served by a stand-in (`test/funcTests/tools/ftVerifier.py`).
-Planned: the same requests through a deployed connector (APISIX + OPA) and through coraine, every decision
-compared - a nightly job, at the pinned connector version.
+`test/fdscDiff/fdscDiff.sh` deploys the connector's chain - APISIX 3.17.0 with `openid-connect` and
+odrl-authorization 2.4.3's `opa` plugin (fetched from its tag), OPA 1.11.0, odrl-pap 1.7.1 on PostgreSQL -
+in docker, beside coraine with `--auth fdsc`, both given the same verifier (a stand-in serving the
+discovery document and the JWK Set as VCVerifier does) and the same PAP. Each case of
+`test/fdscDiff/cases.json` - tokens, the vocabulary, the combination rules, the cases where the Rego is not
+what ODRL says - goes to both, and the answers are compared by class (401, 403, 503, let through).
+**59 cases, 0 differences** (2026-10-12), apart from the one decided below (`known.json`).
+
+The functests (`auth_fdsc_*`, `auth_startup_refused`) hold the same behaviour without docker, against a
+stand-in PAP (`test/funcTests/tools/ftVerifier.py`).
+
+### 4.4 Where coraine decides otherwise, on purpose
+
+Where the connector's chain does not work at all, coraine does not copy the failure:
+
+- **ES256.** APISIX's `openid-connect` (lua-resty-openidc 1.8.0) cannot use an EC key of a JWK Set that
+  has no `x5c` ("No trusted certs loaded"), and VCVerifier's has none: behind APISIX a verifier configured
+  for ES256 gets every token refused. coraine verifies it.
+- **A policy whose Rego does not parse.** The PAP accepts `"odrl:leftOperand": "http:bodyValue"` (or
+  `ovc:leftOperand`) without the path - the key form `"http:bodyValue": "$.a.b"` is the one that works - and
+  generates Rego with the path's `%s` left in it. OPA then refuses the **whole** policies bundle: every
+  request of the deployment is denied, whatever the other policies say. coraine skips that one policy, says
+  so in its log, and decides with the others.
 
 ## 5. Inside a Data Space Connector
 

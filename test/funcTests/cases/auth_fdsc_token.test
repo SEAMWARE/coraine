@@ -8,8 +8,9 @@
 # The fdsc auth plugin (--auth fdsc, doc/authorization.md): the access token, checked as the Data Space
 # Connector's APISIX checks it - a JWT signed with RS256 or ES256 by a key of the verifier's JWK Set, by
 # kid; iss the verifier; exp passed by more than 120 s is expired (inside that, not). No token, or one that
-# does not hold, is a 401 with WWW-Authenticate: Bearer. Authorization: Bearer or X-Access-Token. The
-# policy here allows any credential anything: what is tested is the token alone.
+# does not hold, is a 401 with WWW-Authenticate: Bearer. Authorization: Bearer only - X-Access-Token is not
+# taken, a CORS preflight is no exception (as APISIX's openid-connect, bearer_only). The policy here
+# allows any credential anything: what is tested is the token alone.
 #
 --NAME--
 Auth plugin fdsc - the access token: RS256, ES256, kid, iss, exp with 120 s leeway; 401 + WWW-Authenticate
@@ -30,10 +31,10 @@ coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_
 #
 # 01. No token: 401, WWW-Authenticate: Bearer - for an NGSI-LD route and for /version alike
 # 02. An RS256 token of k1: create an entity, retrieve it
-# 03. An ES256 token of k2, and the same token as X-Access-Token
+# 03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401
 # 04. Expired 300 s ago: 401 (invalid_token); expired 60 s ago - inside the leeway: 200
 # 05. A broken signature, another issuer, an unknown kid, not a JWT, alg none (signed with anything), Basic instead of Bearer: 401 each
-# 06. A CORS preflight (OPTIONS) carries no credentials: not a 401
+# 06. A CORS preflight (OPTIONS) without a token: 401, as everything else
 #
 show() { corCurl "$@" | grep -v '^Date:'; }
 status() { corCurl "$@" | head -1; }
@@ -58,11 +59,11 @@ echo
 echo
 
 
-echo "03. An ES256 token of k2, and the same token as X-Access-Token"
-echo "=============================================================="
+echo "03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401"
+echo "=========================================================================================="
 status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $TOKEN2"
-status --url /ngsi-ld/v1/entities/urn:E1 -H "X-Access-Token: $TOKEN2"
 status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: bearer $TOKEN2"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "X-Access-Token: $TOKEN2"
 echo
 echo
 
@@ -91,9 +92,9 @@ echo
 echo
 
 
-echo "06. A CORS preflight (OPTIONS) carries no credentials: not a 401"
-echo "================================================================"
-corCurl --url /ngsi-ld/v1/entities -X OPTIONS -H "Origin: http://app.ft" -H "Access-Control-Request-Method: GET" | head -1 | grep -c ' 401 '
+echo "06. A CORS preflight (OPTIONS) without a token: 401, as everything else"
+echo "========================================================================="
+corCurl --url /ngsi-ld/v1/entities -X OPTIONS -H "Origin: http://app.ft" -H "Access-Control-Request-Method: GET" | head -1
 echo
 echo
 
@@ -135,11 +136,11 @@ Content-Length: 89
 
 
 
-03. An ES256 token of k2, and the same token as X-Access-Token
-==============================================================
+03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401
+==========================================================================================
 HTTP/1.1 200 OK
 HTTP/1.1 200 OK
-HTTP/1.1 200 OK
+HTTP/1.1 401 Unauthorized
 
 
 04. Expired 300 s ago: 401 (invalid_token); expired 60 s ago - inside the leeway: 200
@@ -169,9 +170,9 @@ WWW-Authenticate: Bearer error="invalid_token", error_description="algorithm not
 WWW-Authenticate: Bearer
 
 
-06. A CORS preflight (OPTIONS) carries no credentials: not a 401
-================================================================
-0
+06. A CORS preflight (OPTIONS) without a token: 401, as everything else
+=========================================================================
+HTTP/1.1 401 Unauthorized
 
 
 --TEARDOWN--
