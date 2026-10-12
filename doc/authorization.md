@@ -1,139 +1,279 @@
-# Authorization in the broker — design notes
+# Authorization in the broker
 
-> Working notes, not built. Written 2026-10-01 from a reading of the FIWARE Data Space Connector
-> (DSC) sources, to decide the shape of an **optional** authorization layer inside coraine before
-> any code. Claims about the DSC are from its source and shipped configuration on that date; the
-> files are listed at the end.
+coraine decides **who sent a request and whether it may do what it asks** in the broker itself, through
+an **auth plugin** - one at most, chosen with `--auth`. Without `--auth` every request is let in, as it
+always has been, and none of this code runs. With `-DCOR_FEATURE_AUTH=OFF` it is not in the build.
+
+Two parts:
+
+- **the auth plugin contract** (§ 2) - a sixth plugin category, plain data across it, so that a
+  deployment can bring its own security layer, written in any language that exports a C function;
+- **`fdsc.so`** (§ 3) - the plugin coraine ships: the FIWARE Data Space Connector's provider-side
+  security - VCVerifier's access tokens and the ODRL-PAP's policies - decided inside the broker, as the
+  connector decides them today (§ 4).
 
 ## 1. Why in the broker
 
-A security component in front of a broker re-reads every request: it parses the body again,
-guesses the entity type from strings, and cannot see what the broker sees. In the FIWARE Data Space
-Connector that component is APISIX with an OPA sidecar, and the throughput the client gets is the
-proxy's, not the broker's.
+A security component in front of a broker re-reads every request: it parses the body again, guesses the
+entity type from strings, and cannot see what the broker sees. In the Data Space Connector that component
+is APISIX with an OPA sidecar, and the throughput a client gets is the proxy's, not the broker's.
 
-Inside the broker the request is already parsed, the `@context` already applied, every entity
-type and attribute name already expanded, a batch already split into its entities. A decision
-there costs a lookup, not a second parse, and it can do things a proxy cannot:
+Inside the broker the request is already parsed, the `@context` already applied, every entity type and
+attribute name already expanded, a batch already split into its entities. A decision there costs a lookup,
+not a second parse, and it can do what a proxy cannot (§ 6): decide per entity in a batch, decide on the
+**stored** type of an entity whose request does not carry one, turn "may only read type X" into a
+condition on the query itself, and see the tenant, the `@context` and the NGSI-LD operation.
 
-- decide **per entity** in a batch, and for the entity's **stored** type when the request does not
-  carry one (an attribute PATCH);
-- turn "may only read type X" into **a condition on the query itself**, so the store never touches
-  anything else - a proxy can only reject or filter the response afterwards;
-- see the **tenant**, the `@context` and the NGSI-LD operation, not only a method and a path.
+## 2. The auth plugin contract
 
-It is optional - a plugin like the database and TRoE plugins, absent = no cost - because a
-deployment that already runs a proxy it trusts must not be made to change. The same decision
-engine is meant to run, second, inside an APISIX plugin (LuaJIT FFI) in front of **any** broker;
-that plugin is a separate deliverable and is not tied to coraine.
+`--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 1; append-only, as the bridge and
+transport contracts are.
 
-## 2. What the DSC does today
+### 2.1 When the broker asks
 
-### 2.1 The request path (provider side)
+| | when | the plugin answers | not allowed |
+|---|---|---|---|
+| `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
+| `authorize` | once the `@context` is resolved, **before** the tenant is (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
+| `release` | the request is over, its response sent | - | - |
 
-1. **Token.** The client presents a Verifiable Presentation to **VCVerifier**
-   (`/services/<service>/token`, grant type `vp_token`). VCVerifier checks signatures, holder
-   binding and status, the participant against the Trust Anchor's registry and the issuer against
-   the local **Trusted Issuers List**, all per the **Credentials Config Service** entry for that
-   service and scope. It then issues **its own JWT**: `iss` = the verifier, `aud` = the service id,
-   `sub` = the holder, `exp` = 30 minutes by default, and the credential itself in
-   `verifiableCredential` (or `verifiablePresentation` when there are several).
-2. **Signature.** RS256 by default, or ES256. The public key is at `/.well-known/jwks`; by default
-   the key is **generated at every verifier start**, so a consumer must look keys up by `kid` and
-   refetch on an unknown one.
-3. **APISIX** - route `/*` to the broker:
-   - `openid-connect` (`bearer_only`, JWKS from the verifier's discovery document): no valid token
-     is **401**;
-   - `opa` (patched to send the body): the method, path, headers, query and decoded body go to OPA
-     (`policy/main`); `allow` false is **403**, OPA unreachable is 403 too.
-4. **OPA** evaluates Rego generated by the **ODRL-PAP** from ODRL policies. The broker gets the
-   original request.
+Either may answer `AuthUnavailable` - **503**: the plugin cannot decide (no keys, no policies yet), and the
+request is refused, never let in. The answers are ProblemDetails with type `about:blank` (RFC 9457
+§ 4.2.1) - NGSI-LD defines no error type for either status - and the title and detail the plugin gives.
 
-### 2.2 The policy model
+Every request is asked: HTTP, cor://, and **each message** of a transport (a WebSocket connection carries
+no credentials, as it carries no tenant - each message has its own `Authorization` in its metadata; the
+upgrade itself is not asked, a browser cannot set the header on it). Not asked: an in-process forward (its
+request was asked when it arrived) and the broker's own requests - deleting the subscriptions of a closed
+WebSocket connection. The health port (`--healthPort`) is a server of its own, outside the plugin's reach.
 
-The PAP (`SEAMWARE/odrl-pap`) turns each ODRL policy into one Rego rule; a request is allowed if
-**any** policy allows it, and a policy allows it if **all** its conditions hold. The vocabulary:
+### 2.2 What crosses
 
-| | |
+Plain data only - `const char*`, integers, function pointers - as for a bridge: a plugin needs none of the
+broker's trees or allocators. `AuthRequest` holds the method, the path, the URL parameters (decoded, in
+order), the NGSI-LD operation (an `LdOp` bit and its name; 0 for a route that is no NGSI-LD operation),
+the matched route, the tenant (`authorize`), and three accessors: `header(name)`, `body(&len)` - the body
+**as the client sent it**, before any `@context` is applied - and `expand(term)` with the request's
+`@context` (`authorize`).
+
+The plugin is called on the broker's request threads, concurrently, and with coroutines possibly on a
+coroutine's stack: it is thread-safe and **never blocks** - keys and policies are fetched by threads of its
+own.
+
+### 2.3 Fail closed
+
+A plugin that cannot be loaded, or whose `init` refuses its options, stops the broker (exit 1): `--auth`
+asks for security, and starting without it would be starting open. A plugin's own options exist only when
+it is loaded (`coraine --auth fdsc -u` lists them).
+
+### 2.4 Writing one
+
+```c
+#include "plugin/AuthDriver.h"
+
+static AuthVerdict authenticate(const AuthRequest* reqP, void** identityP, AuthAnswer* answerP)
+{
+  const char* key = reqP->header("X-Api-Key");
+
+  if ((key == NULL) || (strcmp(key, "secret") != 0))
+  {
+    answerP->detail = "no API key";
+    return AuthUnauthenticated;
+  }
+
+  return AuthAllow;
+}
+
+void authRegister(AuthDriver* driverP)
+{
+  driverP->abiVersion   = AUTH_ABI_VERSION;
+  driverP->name         = "apikey";
+  driverP->authenticate = authenticate;          // authorize NULL: an authenticated request may do anything
+}
+```
+
+Built as a shared object, put in `<plugins>/auth/apikey.so`, run with `--auth apikey`. A plugin that calls
+Cor-Lib functions is built against the same lib sources as its broker ([Plugin architecture](plugin-architecture.md)).
+
+## 3. `fdsc.so` - the Data Space Connector's security
+
+`--auth fdsc` takes what the connector's provider side has, unchanged:
+
+- the **access token** VCVerifier issues for a Verifiable Presentation - checked here as APISIX's
+  `openid-connect` checks it;
+- the **ODRL policies** of the ODRL-PAP - evaluated here as OPA evaluates the Rego the PAP generates from them.
+
+### 3.1 Options
+
+| option | |
 |---|---|
-| actions | `odrl:read` = GET, `odrl:modify` = PATCH, `odrl:delete` = DELETE, `ngsild:create` = POST, `odrl:use` = any |
-| assignee | `odrl:assignee` = the **issuer** of the VC (the consumer organisation), or `vc:any` |
-| target | `odrl:uid` = the last path segment; an `AssetCollection` with refinements = more conditions |
-| conditions | `ngsi-ld:entityType`, `ngsi-ld:entityTypeGroup`, `ngsi-ld:<property>` (its `value`), `<property>_observedAt`, `<relationship>` (its `object`), `http:path`, `http:bodyValue`, `vc:role`, `vc:type`, `vc:currentParty`, `odrl:dateTime`, `dayOfWeek`, `hourOfDay` |
-| operators | eq, neq, lt, lteq, gt, gteq, isAnyOf, isAllOf, isNoneOf, isPartOf, hasPart, regex, isInPath |
+| `--fdscDiscovery <url>` | the verifier's OpenID discovery document - the URL APISIX's `openid-connect` has as `discovery` (`http://verifier:3000/services/<service>/.well-known/openid-configuration`). Its `jwks_uri` gives the keys, its `issuer` the `iss` a token must have |
+| `--fdscJwks <url\|file>` | the JWK Set itself, instead of `--fdscDiscovery` |
+| `--fdscIssuer <iss>` | the issuer a token must have - default: the discovery document's |
+| `--fdscAudience <aud>` | an audience a token must have - default: not checked, as APISIX does not check it. VCVerifier sets `aud` to the service id |
+| `--fdscLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 120, what APISIX allows |
+| `--fdscPap <url>` | the ODRL-PAP's base URL (`http://odrl-pap:8080`) - the policies are read from its `GET /policy` |
+| `--fdscPolicies <url\|file>` | the policies themselves (the PAP's listing, an array of ODRL policies, one policy, or an `@graph`), instead of `--fdscPap` |
+| `--fdscOrganization <did>` | the provider's DID - the PAP's `GENERAL_ORGANIZATION_DID`; `vc:role` reads a credential's roles for it |
+| `--fdscRefresh <s>` | seconds between two fetches of keys and policies - default 30 |
+| `--fdscAnonymous` | a request without a token is let in as no one, instead of a 401 - only a `vc:any` policy can allow it anything |
 
-Policies are managed through the PAP's REST API (`/policy`, `/service/{id}/policy`) and reach OPA
-as bundles (`/bundles/service/v1/...`), polled every few seconds.
+A source of keys and a source of policies are required; without either the broker does not start.
 
-### 2.3 What it gets wrong for NGSI-LD
+### 3.2 The token
 
-All from the PAP's `ngsi-ld/leftOperand.rego` and `utils/apisix.rego`:
+`Authorization: Bearer <JWT>` (the scheme in any case), or `X-Access-Token: <JWT>` when there is no
+`Authorization` - both as APISIX takes them. The token holds when:
 
-- **The entity type is read out of the id string** - the third `:`-separated part of the last path
-  segment - else `?type=`, else `body.type`. So `urn:uuid:abc` is type "abc";
-  `/entities/{id}/attrs/{attr}` takes the attribute name as the id; and an id that does not encode
-  its type cannot be authorized by type at all.
-- **No `@context`**: a short name is compared with a short name. The same type reached through a
-  different context, or written as an IRI, passes or fails by accident.
-- **Batches** (`/entityOperations/*`) have an array body: no `body.type`, so a type policy denies -
-  and there is no per-entity decision. `entityOperations/query`, a read, is a POST and counts as
-  create.
-- **Queries** without `type` deny; `type=A,B` is compared as one string; there is no way to say
-  "only these attributes".
-- **`odrl:modify` is PATCH only** - PUT is not covered. Subscriptions, registrations, temporal
-  and `@context` endpoints are not told apart.
-- **The tenant** (`NGSILD-Tenant`) is never examined.
-- OPA decodes the JWT **without verifying it** and relies on APISIX having verified it on the
-  same route.
+- it is a compact JWS whose `alg` is **RS256 or ES256** - VCVerifier's two - and whose signature verifies
+  with the key of its `kid` in the verifier's JWK Set (RSA, or EC P-256). `alg: none`, or an `alg` that is
+  not its key's, is refused;
+- `iss` is the issuer;
+- `exp` has not passed by more than the leeway, nor `nbf` (when present) is still ahead by more than it;
+- `aud` holds the audience, when one is configured.
 
-## 3. The built-in layer
+A token that does not hold is a 401 with `WWW-Authenticate: Bearer error="invalid_token",
+error_description="..."` (RFC 6750 § 3); no token, a 401 with `WWW-Authenticate: Bearer`.
 
-### 3.1 What it has to do
+The credential is the token's `verifiableCredential` (else `vc`) - what the PAP's Rego reads (§ 4).
 
-1. **Validate the JWT.** Discover the verifier (`.well-known/openid-configuration` -> `jwks_uri`),
-   cache its keys by `kid`, refetch on an unknown `kid` (it rotates at every verifier restart),
-   accept RS256 and ES256 only, check `exp`, `iss` and - stricter than APISIX, still compatible -
-   `aud`. No valid token: **401**. Key fetches are **never** made on a request's path: a cache that
-   is refreshed in the background, and an unknown `kid` answered 401 while the refresh runs.
-2. **Read the credential.** `verifiableCredential` (or each one in `verifiablePresentation`): its
-   `issuer` (the assignee), `type`, `credentialSubject.roles` for the provider's organisation.
-3. **Evaluate the policies natively** - the ~30 mappings above, in C, on the parsed request: the
-   expanded types of every entity, the operation, the tenant, the attributes. Not Rego: nothing in
-   the chain needs Rego except OPA, and embedding a Rego evaluator buys fidelity to the PAP's
-   mistakes. Policies come from the PAP's REST API (the ODRL JSON-LD), refreshed in the background.
-4. **Decide per entity** in a batch (a 207 with the denied ones), and **restrict queries** by
-   adding the allowed types to the query.
-5. **Fail closed**: no policies loaded, no keys - deny.
+A token whose signature has been checked is kept (1024 of them): a client sends the same token with every
+request for its 30 minutes, and a signature check costs as much as a request. A kept token is its exact
+bytes; its claims are checked on every request. The kept tokens are dropped whenever the key set changes.
 
-### 3.2 Version 1
+### 3.3 Keys and policies
 
-Operation + entity type + tenant, identity from the verifier's JWT (so verifiable credentials
-through VCVerifier, unchanged), ODRL policies from the PAP. Attribute-level rules (read and write
-per attribute) in version 2.
+A thread of the plugin fetches the keys (the discovery document, then `jwks_uri`) and the policies (the
+PAP's `GET /policy`, page by page until a page is empty - the PAP says nothing of how many there are) every
+`--fdscRefresh` seconds, and every second while either is missing. Each is replaced whole, only once it
+has been read completely; a fetch that fails keeps what is in use.
 
-### 3.3 Inside a DSC
+- **No keys yet**: a request with a token is a 503; **no policies yet**: every request is a 503 - the
+  connector answers 503 too while OPA has no bundle.
+- **A token signed by a key the set does not have** - VCVerifier generates its key at every start - is a
+  401 and has the keys fetched at once (not more than once a second): the client's next request with a
+  new token is let in.
 
-The provider route keeps APISIX for the token endpoint and discovery, and points the data route
-straight at the broker - or keeps APISIX with `openid-connect` only and lets the broker decide. The
-PAP stays the place policies are written; the broker reads them where OPA did. Nothing on the
-consumer side changes.
+A policy that cannot be read (no `odrl:uid`, no permission, an unknown action or operator) is skipped and
+said in the log, as the PAP refuses it.
 
-## 4. Open questions
+### 3.4 CORS
 
-1. Does the layer read the PAP's REST API (proposed), or the OPA bundle (Rego text it would have
-   to map back)?
-2. Should the broker also serve the verifier's discovery route, so a DSC provider can drop APISIX
-   entirely - or is APISIX staying for everything but the decision the realistic first step?
-3. Which of the PAP's NGSI-LD mistakes (§ 2.3) does the layer reproduce for compatibility, if any?
-   An `entityType` policy that matched by accident in the DSC may stop matching in coraine.
+A preflight (`OPTIONS`) carries no credentials (Fetch § 3.7.1): it is let in, and answered without data.
 
-## Sources (2026-10-01)
+## 4. Compatible with the Data Space Connector
 
-- `FIWARE/data-space-connector`: `k3s/provider.yaml`, `doc/deployment-integration/roles/provider/README.md`,
-  `doc/deployment-integration/local-deployment/LOCAL.MD`
-- `FIWARE/odrl-authorization`: `charts/odrl-authorization` (`files/apixis-opa.lua`, `files/apixis-helper.lua`,
+**Target: FIWARE Data Space Connector 10.87.0** (2026-10-09): VCVerifier 6.23.1, odrl-pap 1.7.1
+(`SEAMWARE/odrl-pap`), odrl-authorization 2.4.3 (APISIX 3.17.0, OPA 1.11.0).
+
+The plugin decides as that chain decides - for every request, the same 401, 403 or pass - so that a
+deployment's tokens and policies need no change. That includes where the chain's Rego is not what ODRL
+or NGSI-LD say; the corrections need the broker's view of the request and come with the next contract
+version (§ 6).
+
+### 4.1 The vocabulary
+
+The words of the PAP's `mapping.json`, and what each reads:
+
+| word | reads |
+|---|---|
+| `odrl:read` / `odrl:modify` / `odrl:delete` / `ngsild:create` / `odrl:use` | the method: GET / **PATCH only** / DELETE / POST / any of GET POST PUT PATCH DELETE. `dome-op:read\|modify\|write\|create`, `tmf:create` the same |
+| assignee `vc:any` | anyone |
+| assignee `<string>`, `odrl:Party` | the credential's **`issuer`** is that string |
+| assignee `odrl:PartyCollection` | its refinement - and no issuer check |
+| target `<uid>`, `odrl:Asset` | the last path segment is the uid |
+| target `odrl:AssetCollection` | its refinement |
+| `ngsi-ld:entityType`, `ngsi-ld:entityTypeGroup` | the third `:` part of the last path segment (`urn:ngsi-ld:<Type>:...`), else the `type` URL parameter, else the body's `type` - as sent, never expanded |
+| `vc:role` | `credentialSubject.roles[]` whose `target` is the organisation: its `names` |
+| `vc:type` | the credential's `type` (a string as a one-element array) |
+| `vc:currentParty`, `dome-op:currentParty` | the credential's `issuer` |
+| `http:path` | the `x-stripped-path` header, else the path |
+| `http:bodyValue "$.a.b"` | the body's value at `a.b`, as sent |
+| `ovc:leftOperand "a.b"` | the credential's value at `a.b`; `ovc:credentialSubjectType` its `credentialSubject.type` |
+| `odrl:dateTime` / `odrl:dayOfWeek` / `odrl:hourOfDay` | now in ms / 0 = Monday, UTC / 0-23, UTC |
+| `dome-op:role` | `credentialSubject.rolesAndDuties[]` for the organisation: its `roleNames` |
+| `tmf:lifecycleStatus` / `tmf:resource` | the body's `lifeCycleStatus` / the last path segment without "ngsi-ld" |
+
+Operators: `eq`, `neq`, `gt`, `gteq`, `lt`, `lteq` (Rego's order across types: null < boolean < number <
+string < array < object), `hasPart` and `isPartOf` (both: the right operand is in the left), `isAnyOf`,
+`isNoneOf`, `isAllOf` (equality), `regex` (POSIX extended, unanchored), `http:isInPath` (the right path a
+prefix of the left, segment by segment, `*` one any segment). Logical constraints `and`, `andSequence`,
+`or`, `xone`. Right operands: a string, a number, a list, `{"@value", "@type"}` with `xsd:integer` and its
+kin (a number), `xsd:decimal`/`float`/`double`, `xsd:date` (ms at 00:00 UTC); `odrl:policyUsage` (now).
+
+Words of the PAP's other PEPs (`json:*`, `dspace:read`) and those that make a call of their own
+(`dome-op:relatedParty`, `owner`, `validFor_*`) read nothing an HTTP request has: never true.
+
+### 4.2 How a decision is made
+
+- A request is allowed when **one** policy allows it; there is no default allow, and no policy at all
+  allows nothing.
+- A policy allows when **all** its rules hold - the rules of **all its permissions** together: the PAP
+  puts them in one rule set, so two permissions are an AND, not ODRL's OR. Prohibitions, obligations and
+  duties are ignored, as the PAP ignores them.
+- A rule on a value the request or the credential does not have is not true - nor its negation
+  (`neq`, `isNoneOf`), nor a logical constraint that holds it (Rego's undefined).
+- A token with two or more credentials (`verifiablePresentation`) satisfies no `vc:` word and no issuer
+  assignee: the PAP's Rego reads `verifiableCredential` only.
+- A credential with two different role lists for the organisation is OPA's `eval_conflict_error`: 503.
+
+### 4.3 Proven by the functests
+
+`auth_fdsc_token`, `auth_fdsc_policies`, `auth_fdsc_refresh`, `auth_fdsc_discovery`,
+`auth_fdsc_websocket`, `auth_startup_refused` - the connector's own example policies (`energyReport`,
+`clusterCreate`) among them, and the PAP's paged listing served by a stand-in (`test/funcTests/tools/ftVerifier.py`).
+Planned: the same requests through a deployed connector (APISIX + OPA) and through coraine, every decision
+compared - a nightly job, at the pinned connector version.
+
+## 5. Inside a Data Space Connector
+
+The provider's data route goes to coraine instead of through APISIX's `openid-connect` and `opa` plugins:
+
+| APISIX route (`k3s/provider.yaml`) | coraine |
+|---|---|
+| `openid-connect.discovery` | `--fdscDiscovery` (same URL) |
+| `openid-connect.bearer_only`, `use_jwks` | what `fdsc.so` does |
+| `opa.policy: policy/main`, `with_body: true` | `--fdscPap http://odrl-pap:8080` |
+| PAP `GENERAL_ORGANIZATION_DID` | `--fdscOrganization` |
+
+VCVerifier, the Trusted Issuers List, the Credentials Config Service and the ODRL-PAP stay as they are -
+the PAP is still where policies are written; coraine reads them where OPA did. Nothing on the consumer
+side changes. The connector also routes `GET /.well-known/openid-configuration` on the data host to the
+verifier, so that a client finds the token endpoint: that route stays on the proxy (or ingress) in front.
+
+## 6. Next
+
+What the connector's chain gets wrong for NGSI-LD, from the PAP's `ngsi-ld/leftOperand.rego` and
+`utils/apisix.rego` - and what the broker can do instead, with the next contract version (per-entity
+decisions, query restriction, notifications):
+
+- **The entity type is read out of the id string**, else `?type=`, else the body's `type`: `urn:uuid:abc`
+  is no type at all, `/entities/{id}/attrs/{attr}` takes the attribute name for the id, and an id that does
+  not encode its type cannot be authorized by type. The broker knows the **stored** type.
+- **No `@context`**: a short name is compared with a short name; the same type through another context, or
+  as an IRI, passes or fails by accident. The broker compares **expanded** types.
+- **Batches** (`/entityOperations/*`) have an array body - no `type` - and no per-entity decision;
+  `entityOperations/query`, a read, is a POST and counts as create. The broker decides **per entity**
+  (207 for the denied ones).
+- **Queries** without `type` deny; `type=A,B` is one string; there is no "only these attributes". The
+  broker can **add the allowed types to the query**.
+- `odrl:modify` is PATCH only; subscriptions, registrations, temporal and `@context` endpoints are not told
+  apart. The broker has the NGSI-LD **operation**.
+- **Notifications**: a subscription notifies what matches, whatever its subscriber may read. The broker
+  can keep the subscriber's identity with the subscription and decide each notification.
+- The tenant (`NGSILD-Tenant`) is never examined.
+
+Then: attribute-level rules (read and write per attribute); serving the PAP's `/policy` API from the broker.
+
+## Sources (2026-10-12)
+
+- `FIWARE/data-space-connector` 10.87.0: `k3s/provider.yaml`, `charts/data-space-connector/Chart.yaml`,
+  `it/src/test/resources/policies/*.json`, `doc/deployment-integration/local-deployment/LOCAL.MD`
+- `FIWARE/odrl-authorization` 2.4.3: `charts/odrl-authorization` (`files/apixis-opa.lua`, `files/apixis-helper.lua`,
   `templates/opa-cm.yaml`, `templates/routes.yaml`)
-- `SEAMWARE/odrl-pap`: `src/main/resources/mapping.json`, `rego/ngsi-ld/leftOperand.rego`,
-  `rego/utils/apisix.rego`, `rego/vc/leftOperand.rego`, `BundleResource.java`, `api/odrl.yaml`, `api/bundle.yaml`
-- `FIWARE/VCVerifier`: `verifier/verifier.go`, `config/config.go`, `api/api.yaml`
-- `FIWARE/credentials-config-service`, `FIWARE/trusted-issuers-list` (READMEs)
+- `SEAMWARE/odrl-pap` 1.7.1: `src/main/resources/mapping.json`, `rego/ngsi-ld/*.rego`, `rego/vc/*.rego`,
+  `rego/odrl/*.rego`, `rego/utils/apisix.rego`, `mapping/OdrlMapper.java`, `mapping/MappingResult.java`,
+  `BundleResource.java`, `api/odrl.yaml`
+- `FIWARE/VCVerifier` 6.23.1: `verifier/verifier.go`, `openapi/routers.go`, `openapi/api_api.go`, `config/config.go`
+- `apache/apisix` 3.17.0 `apisix/plugins/openid-connect.lua`; `zmartzone/lua-resty-openidc` 1.8.0

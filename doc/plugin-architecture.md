@@ -8,9 +8,9 @@
 
 How it came about: [history](history/plugin-architecture.md).
 
-## The five plugin categories
+## The six plugin categories
 
-There are **five** kinds of plugin:
+There are **six** kinds of plugin:
 
 - **Current-state DB** — where entities, subscriptions and registrations live.
   Loaded via `--database` / `-db`; resolves to `<base>/db/currentState/<name>.so`;
@@ -63,7 +63,14 @@ There are **five** kinds of plugin:
   `corPlugin` is the precedent: one is the *mechanism* for loading a `.so`, the
   other the *contract* one kind of `.so` must satisfy.
 
-All five are live.
+- **Auth** — who sent a request and whether it may do what it asks. Loaded via
+  `--auth`; resolves to `<base>/auth/<name>.so`; register symbol `authRegister`;
+  fills an `AuthDriver` (`src/lib/plugin/AuthDriver.h`, plain data, `AUTH_ABI_VERSION`).
+  **One at most**; none = every request let in. A plugin that cannot load or init
+  stops the broker. Bundled: `fdsc` - the FIWARE Data Space Connector's tokens and
+  policies ([Authorization](authorization.md)).
+
+All six are live.
 
 ## What crosses a bridge, and what does not
 
@@ -110,6 +117,8 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 │   └── timescale.so       # TimescaleDB/Postgres history
 ├── api/
 │   └── admin.so           # health/version/log/tenants/plugins
+├── auth/
+│   └── fdsc.so            # the Data Space Connector's tokens and policies (--auth fdsc)
 └── bridge/
     ├── loopback.so        # a transport that goes nowhere - test instrument
     ├── dds.so             # DDS, from corDdsBridge (not built by default)
@@ -243,6 +252,10 @@ the headers — read these before writing a plugin:
   during a request and drains them *after* the response (per-event or bulk
   `eventList`); read paths return `EntityTemporal` trees. Error codes: `TROE_OK`,
   `TROE_NOT_FOUND`, `TROE_UPDATED`, `TROE_ERR`.
+- **`src/lib/plugin/AuthDriver.h`** — auth. `authenticate` (before anything is done
+  for a request: 401), `authorize` (once the `@context` is resolved, before the
+  tenant: 403), `release`; `AuthUnavailable` is a 503. Verdicts `AuthAllow`,
+  `AuthUnauthenticated`, `AuthDeny`, `AuthUnavailable`.
 - **`src/lib/plugin/ApiPlugin.h`** — extra endpoints. A flat
   `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
   optional `args`, and `init`/`close`/`versionInfo` hooks.
@@ -291,6 +304,7 @@ the headers — read these before writing a plugin:
 | **ramDB** | TRoE | A ring of the broker's TRoE events in RAM - the most recent N, nothing on disk, shown by `/admin/troe/dump` (the `admin` API plugin). Dev/test today: the functests assert the broker's TRoE event contract through it. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`. |
+| **fdsc** | Auth | VCVerifier's access tokens (RS256/ES256 by `kid`, `iss`, `exp`) and the ODRL-PAP's policies, decided as the Data Space Connector 10.87.0 decides them. libcrypto. See [Authorization](authorization.md). |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
 | **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
 | **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself does not link libmosquitto. |
