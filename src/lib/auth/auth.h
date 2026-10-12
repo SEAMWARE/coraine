@@ -85,8 +85,8 @@ extern bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, c
 
 // -----------------------------------------------------------------------------
 //
-// authEntityStoredCheck - the request's one entity, by id, its stored types looked up: may it. false: the
-// 403 is set - the service routine returns. Call it first thing, before anything is forwarded (distributed
+// authEntityStoredCheck - the request's one entity, by id, its stored types looked up - and the types the
+// request body gives it, if it gives any: may it. false: the 403 is set - the service routine returns. Call it first thing, before anything is forwarded (distributed
 // operations), handed to a bridge or written. Costs nothing when the plugin does not decide per entity.
 //
 extern bool authEntityStoredCheck(const char* id);
@@ -96,8 +96,9 @@ extern bool authEntityStoredCheck(const char* id);
 // -----------------------------------------------------------------------------
 //
 // authEntityBatchAllowed - one entity of a batch: lookup - its stored types when it exists (an upsert, an
-// update, a merge, a delete), else bodyTypeP - the types the body gives it (a create, the upsert of a new
-// one; NULL: none). false: *detailP says why - the entity's error in the 207.
+// update, a merge, a delete) AND the types the body gives it (bodyTypeP, NULL: none) - a write that changes
+// or adds a type needs the right to it; an entity that does not exist (or no lookup: a create) - bodyTypeP.
+// false: *detailP says why - the entity's error in the 207.
 //
 extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP);
 

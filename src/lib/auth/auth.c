@@ -592,11 +592,27 @@ bool authEntityStoredCheck(const char* id)
 
   const char* detail = NULL;
 
-  if (authEntityTreeAllowed(id, typeP, true, &detail) == true)
-    return true;
+  if (authEntityTreeAllowed(id, typeP, true, &detail) == false)
+  {
+    authEntityDeny(detail);
+    return false;
+  }
 
-  authEntityDeny(detail);
-  return false;
+  //
+  // A write that gives the entity types (a replace, a merge): those are asked about too - changing an
+  // entity's type, or adding one, needs the right to the type it gets. Only where the body is an entity - an attribute's body has a "type" of its own ("Property")
+  //
+  uint64_t op       = (corRest.serviceP != NULL) ? corRest.serviceP->ldOp : 0;
+  bool     isEntity = ((op & (LdOpReplaceEntity | LdOpMergeEntity)) != 0);
+  CorNode* bodyTypeP = ((isEntity == true) && (corRest.in.requestTree != NULL) && (corRest.in.requestTree->type == CorObject)) ? corTreeLookup(corRest.in.requestTree, "type") : NULL;
+
+  if ((bodyTypeP != NULL) && (authEntityTreeAllowed(id, bodyTypeP, false, &detail) == false))
+  {
+    authEntityDeny(detail);
+    return false;
+  }
+
+  return true;
 }
 
 
@@ -614,7 +630,15 @@ bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, con
 
   if ((lookup == true) && (corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
       (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
-    return authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP);
+  {
+    if (authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP) == false)
+      return false;
+
+    //
+    // The types the body gives it, too: an update that changes or adds a type needs the right to that type
+    //
+    return (bodyTypeP == NULL) || authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+  }
 
   return authEntityTreeAllowed(id, bodyTypeP, false, detailP);
 }

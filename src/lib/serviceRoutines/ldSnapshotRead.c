@@ -37,6 +37,10 @@
 #endif
 #include "db/Tenant.h"                                   // Tenant
 
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityTreeAllowed, authEntityArrayFilter, authEntityDeny
+#endif
 #include "serviceRoutines/ldSnapshotRead.h"              // Own interface
 
 
@@ -121,6 +125,21 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
     return true;
   }
 
+#if COR_FEATURE_AUTH
+  //
+  // The snapshot's entity, on its own types - before a projection can take them away
+  //
+  {
+    const char* detail = NULL;
+
+    if (authEntityTreeAllowed(entityId, corTreeLookup(entityP, "type"), true, &detail) == false)
+    {
+      authEntityDeny(detail);
+      return true;
+    }
+  }
+#endif
+
   if (corNgsild.pickV != NULL || corNgsild.omitV != NULL)
     ldPickOmit(entityP, corNgsild.pickV, corNgsild.omitV);
 
@@ -182,6 +201,11 @@ bool snapshotGetEntities(LdSnapshotCacheItem* itemP)
 
   // § 7.4.2.2: no prev/next pointers for a page that is empty AND has nothing
   // more pending; keep next when more pages remain (hasMore).
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(arrayP) == false)        // the entities the request may not read are left out - before the page is cut
+    return true;
+#endif
+
   bool hasMore = ldPaginationTrim(arrayP, corNgsild.limit);
 #if COR_FEATURE_RESPONSE_BUDGET
   responseBudgetLinkHeader(&filter, arrayP, hasMore, budgetFetched);   // a page the budget ended: next where it stopped

@@ -41,6 +41,9 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchEntityAttr.h"         // patchEntityAttr
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/putEntityAttrValue.h"      // Own interface
 
 
@@ -70,6 +73,10 @@ static const char* valueMemberForType(const char* typeStr)
 bool putEntityAttrValue(void)
 {
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // first: a 404 below would tell what exists to a request that may not know
+    return true;
+#endif
   const char* attrWild = corRest.in.wildcard[1];
   CorNode*    valueP   = corRest.in.requestTree;  // raw value (NOT @context-expanded)
 

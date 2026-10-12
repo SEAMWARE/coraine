@@ -90,6 +90,7 @@ static CorArg fdscArgs[] =
 //
 // The refresh thread
 //
+static AuthDriver*      driverSelf = NULL;         // the broker's struct, as authRegister got it - init takes entity() back without --fdscNgsild
 static pthread_t        refreshThread;
 static bool             refreshRunning = false;
 static pthread_mutex_t  refreshMutex   = PTHREAD_MUTEX_INITIALIZER;
@@ -333,6 +334,13 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
 
   fdscPolicyOrganizationSet(organization);
   fdscPolicyNgsildSet(ngsildMode);
+
+  //
+  // Without --fdscNgsild the connector decides alone - no entity(): the broker looks no entity up, filters
+  // nothing, refuses nothing it would not refuse
+  //
+  if ((ngsildMode == false) && (driverSelf != NULL) && (driverSelf->abiVersion >= 2))
+    driverSelf->entity = NULL;
   fdscPolicyStrippedPathSet(strippedPath);
   refreshRunning = true;
   COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
@@ -546,4 +554,6 @@ void authRegister(AuthDriver* driverP)
 
   if (brokerAbi >= 2)                                // a broker older than ABI 2 has no room for it
     driverP->entity = fdscEntity;
+
+  driverSelf = driverP;
 }

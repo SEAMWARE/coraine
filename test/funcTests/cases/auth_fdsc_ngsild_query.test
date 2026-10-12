@@ -34,6 +34,7 @@ coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPo
 # 03. A user: POST /entityOperations/query for both types - a read, though a POST
 # 04. The builder: ?type=Building,EnergyReport - its Building and the EnergyReports anyone may read
 # 05. join=inline: refused (403); join=flat: the linked entities are asked about too
+# 06. A Snapshot of both types (the writer): read through NGSILD-Snapshot, each entity is the snapshot's and decided on its own
 #
 query() { label="$1"; shift; echo "$label: $(corCurl "$@" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(sorted(e['id'] for e in json.load(sys.stdin)))" 2>/dev/null || corCurl "$@" | head -1)"; }
 vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
@@ -84,6 +85,18 @@ echo
 echo
 
 
+echo "06. A Snapshot of both types (the writer): read through NGSILD-Snapshot, each entity is the snapshot's and decided on its own"
+echo "=============================================================================================================================="
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id": "urn:ngsi-ld:Snapshot:S1", "type": "Snapshot", "snapshotQueries": [{"type": "Query", "entities": [{"type": "Building"}, {"type": "EnergyReport"}]}]}' -H "Authorization: Bearer $WRITER" | head -1
+SNAP="NGSILD-Snapshot: urn:ngsi-ld:Snapshot:S1"
+query "snapshot, a user, ?type=Building,EnergyReport   " --url "/ngsi-ld/v1/entities?type=Building,EnergyReport" -H "$SNAP" -H "Authorization: Bearer $USER"
+query "snapshot, a builder, ?type=Building,EnergyReport" --url "/ngsi-ld/v1/entities?type=Building,EnergyReport" -H "$SNAP" -H "Authorization: Bearer $BUILDER"
+echo "snapshot, a user, GET the Building:    $(corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:B1 -H "$SNAP" -H "Authorization: Bearer $USER" | head -1)"
+echo "snapshot, a builder, GET the Building: $(corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:B1 -H "$SNAP" -H "Authorization: Bearer $BUILDER" | head -1)"
+echo
+echo
+
+
 --EXPECT--
 01. Two EnergyReports (the writer) and a Building whose id says EnergyReport (the builder)
 ==========================================================================================
@@ -115,6 +128,15 @@ POST query: ['urn:E1', 'urn:E2']
 HTTP/1.1 403 Forbidden
 join=flat, a user   : ['urn:E1', 'urn:E2']
 join=flat, a builder: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
+
+
+06. A Snapshot of both types (the writer): read through NGSILD-Snapshot, each entity is the snapshot's and decided on its own
+==============================================================================================================================
+HTTP/1.1 201 Created
+snapshot, a user, ?type=Building,EnergyReport   : ['urn:E1', 'urn:E2']
+snapshot, a builder, ?type=Building,EnergyReport: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
+snapshot, a user, GET the Building:    HTTP/1.1 403 Forbidden
+snapshot, a builder, GET the Building: HTTP/1.1 200 OK
 
 
 --TEARDOWN--

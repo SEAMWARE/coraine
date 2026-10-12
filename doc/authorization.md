@@ -44,9 +44,14 @@ broker is too old to have.
 types the body gives for a create (and for an upsert of a new entity); the stored entity's for a retrieve,
 for every write on an existing entity - looked up before anything is forwarded to a context source, handed
 to a bridge or written - and for each entity a query finds (`GET /entities`, `POST /entityOperations/query`,
-the linked entities of `join=flat`; `join=inline` is refused, its nested entities are not asked about). An
-entity that is not stored here has no types. A query's page may hold fewer entities than its `limit`, and
-its count counts the ones left out.
+the linked entities of `join=flat`, a Snapshot's entities read through `NGSILD-Snapshot` - the snapshot's,
+on their own types). Refused, as not decided entity by entity: `join=inline` (its nested entities are not
+asked about) and the EntityMaps themselves (`GET /entityMaps/{id}`, `POST /entityMaps` - a map names its
+entities by id). A write that gives the entity types (a replace, a merge, a batch entry) is asked about
+those too: changing or adding a type needs the right to it. An entity that is not stored here has no types.
+A query's page may hold fewer entities than its `limit`, its position links (`pageAfter` / `pageBefore`)
+name only entities the request may read, and its count counts the ones left out - with `q`, a count is an
+answer about entities the request cannot see.
 
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
@@ -294,6 +299,7 @@ decisions (`entity`, § 2.1). The policies are the same; what their words read i
 |---|---|---|
 | `ngsi-ld:entityType` | the third `:` part of the last path segment (`urn:ngsi-ld:<Type>:...`), else `?type=` as one string, else the body's `type` - as sent | the entity's types: the body's for a create, the **stored** entity's for everything else - **expanded**; the policy's type expanded with the broker's default context. A positive operator holds when it holds for one of the types, `neq` / `isNoneOf` when for all |
 | an id that does not say its type, `/attrs/{attr}` | no type: denied | the stored type |
+| a write on `/entities/{id}/attrs` whose body has a `type` | the body's - the last path segment is `attrs`: the client chooses the type | the stored type |
 | an id that says another type than the entity's | the id's | the entity's |
 | a request `@context` that makes the word another type | the word matches | it does not |
 | a batch | one `type` sought in an array body - none: denied | entity by entity - a denied one is its 403 in the 207 |
@@ -313,6 +319,10 @@ without `--fdscNgsild`.
   and where it is kept (with the subscription, in the store; or in memory, lost at a restart) is still to
   decide.
 - The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
+- A request's `@context` (its `Link` header, its body's `@context`) is fetched before `authorize`: an
+  authenticated client - anyone, with `--fdscAnonymous` - can have the broker fetch a URL of its choice,
+  as it can through the connector's chain, which forwards the request to its broker. Deciding first needs
+  `authorize` without the expanded request.
 - Attribute-level rules (read and write per attribute: `AuthEntity.attrV`); serving the PAP's `/policy`
   API from the broker.
 
