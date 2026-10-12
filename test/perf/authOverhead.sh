@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# authOverhead.sh - what the auth plugin costs: perfRun.sh without --auth, and with --auth fdsc and 1, 10
-# and 20 policies, the same build, the same store, one JSON object per configuration in <outDir>.
+# authOverhead.sh - what the auth plugin costs: perfRun.sh without --auth, without --auth but every request
+# carrying the token (what receiving it costs), and with --auth fdsc and 1, 10 and 20 policies; the same
+# build, the same store, one JSON object per configuration in <outDir>.
 #
-# Usage:  authOverhead.sh <outDir> [none|p1|p10|p20 ...]      (default: all four)
+# Usage:  authOverhead.sh <outDir> [none|token|p1|p10|p20 ...]      (default: all five)
 #
 # The token: one RS256 token (tools/ftJwt.py), valid for a day, a UserCredential - every request carries
 # it (PERF_AUTH). The policies: N-1 that never hold for the measured requests, and allowAll last, so each
@@ -19,9 +20,9 @@
 #
 set -euo pipefail
 
-OUT=${1:?usage: authOverhead.sh <outDir> [none|p1|p10|p20 ...]}
+OUT=${1:?usage: authOverhead.sh <outDir> [none|token|p1|p10|p20 ...]}
 shift
-CONFIGS=( "${@:-none p1 p10 p20}" )
+CONFIGS=( "${@:-none token p1 p10 p20}" )
 read -r -a CONFIGS <<< "${CONFIGS[*]}"
 
 SCRIPTDIR=$(cd "$(dirname "$0")" && pwd)
@@ -64,7 +65,8 @@ EOF
 
 for c in "${CONFIGS[@]}"; do
   case "$c" in
-    none) auth=""; args="" ;;
+    none)  auth="";     args="" ;;
+    token) auth=$TOKEN; args="" ;;               # no plugin: the header is received and never read
     p[0-9]*)
       n=${c#p}
       policies "$n" > "$OUT/policies-$n.json"
