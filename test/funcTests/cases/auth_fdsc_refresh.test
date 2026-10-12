@@ -30,7 +30,7 @@ coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AU
 # 01. No JWK Set yet: a request with a token is a 503 (the keys) - one without, a 401 still
 # 02. The JWK Set (k1) appears: 503 (the policies) - within a second or so
 # 03. The policies appear: let in
-# 04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token now 401
+# 04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401
 # 05. Restarted with --fdscRefresh 1: the policies replaced by none - denied after the next refresh
 #
 status() { corCurl "$@" | head -1; }
@@ -51,6 +51,7 @@ awaitStatus() {
 }
 
 URL=/ngsi-ld/v1/entities/urn:E1
+TOKEN1=$(ftAuthToken k1)
 
 echo "01. No JWK Set yet: a request with a token is a 503 (the keys) - one without, a 401 still"
 echo "========================================================================================="
@@ -77,18 +78,19 @@ echo
 echo "03. The policies appear: let in"
 echo "==============================="
 cp $REPO_ROOT/test/funcTests/fixtures/auth/allowAll.json $FT_AUTH_DIR/policies.json
-awaitStatus 404 --url $URL -H "Authorization: Bearer $(ftAuthToken k1)"
+awaitStatus 404 --url $URL -H "Authorization: Bearer $TOKEN1"
+status --url $URL -H "Authorization: Bearer $TOKEN1"
 echo
 echo
 
 
-echo "04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token now 401"
-echo "================================================================================================================================================================"
+echo "04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401"
+echo "==================================================================================================================================================================================="
 ftAuthJwks k2
 TOKEN2=$(ftAuthToken k2)
 corCurl --url $URL -H "Authorization: Bearer $TOKEN2" | grep '^WWW-Authenticate:'
 awaitStatus 404 --url $URL -H "Authorization: Bearer $TOKEN2"
-corCurl --url $URL -H "Authorization: Bearer $(ftAuthToken k1)" | grep '^WWW-Authenticate:'
+corCurl --url $URL -H "Authorization: Bearer $TOKEN1" | grep '^WWW-Authenticate:'
 echo
 echo
 
@@ -120,10 +122,11 @@ HTTP/1.1 503 Service Unavailable
 03. The policies appear: let in
 ===============================
 404
+HTTP/1.1 404 Not Found
 
 
-04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token now 401
-================================================================================================================================================================
+04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401
+===================================================================================================================================================================================
 WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
 404
 WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"

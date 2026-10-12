@@ -27,6 +27,7 @@
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "fdscBase64.h"                              // fdscBase64UrlDecode
+#include "fdscTokenCache.h"                          // fdscTokenCacheClear
 #include "fdscKeys.h"                                // Own interface
 
 
@@ -52,6 +53,7 @@ typedef struct FdscKeySet
 
 static pthread_rwlock_t  setLock = PTHREAD_RWLOCK_INITIALIZER;
 static FdscKeySet*       setP    = NULL;
+static char*             setText = NULL;             // the JWK Set the set in use was made from - the refresh thread's only
 
 
 
@@ -220,6 +222,21 @@ static void setFree(FdscKeySet* sP)
 //
 bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
 {
+  //
+  // The same JWK Set as the one in use (the refresh thread fetches it every --fdscRefresh): nothing to do -
+  // and the tokens checked with it stay checked
+  //
+  if ((setText != NULL) && (strcmp(setText, jwksText) == 0))
+    return true;
+
+  char* textCopy = strdup(jwksText);                 // corJsonParse works in place
+
+  if (textCopy == NULL)
+  {
+    snprintf(errorBuf, errorBufSize, "out of memory");
+    return false;
+  }
+
   CorAlloc  ka;
   char      buf[8 * 1024];
   CorJson   cj;
@@ -234,6 +251,7 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   {
     snprintf(errorBuf, errorBufSize, "not a JWK Set (no 'keys' array)");
     corAllocBufferReset(&ka, false);
+    free(textCopy);
     return false;
   }
 
@@ -247,6 +265,7 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   {
     snprintf(errorBuf, errorBufSize, "out of memory");
     corAllocBufferReset(&ka, false);
+    free(textCopy);
     return false;
   }
 
@@ -292,6 +311,10 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   pthread_rwlock_unlock(&setLock);
 
   setFree(oldP);                                     // no reader left: they hold the read lock while they use it
+  fdscTokenCacheClear();                             // a token is checked again, with the new keys
+
+  free(setText);
+  setText = textCopy;
   return true;
 }
 
@@ -426,4 +449,7 @@ void fdscKeysRelease(void)
   pthread_rwlock_unlock(&setLock);
 
   setFree(oldP);
+  fdscTokenCacheClear();
+  free(setText);
+  setText = NULL;
 }

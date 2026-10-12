@@ -18,6 +18,7 @@
 
 #include "fdscBase64.h"                              // fdscBase64UrlDecode
 #include "fdscKeys.h"                                // fdscKeysVerify
+#include "fdscTokenCache.h"                          // fdscTokenCacheHas, fdscTokenCacheAdd
 #include "fdscJwt.h"                                 // Own interface
 
 
@@ -127,26 +128,37 @@ FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorA
   if (alg == NULL)
     return FdscJwtMalformed;
 
-  const char*    sigText = dot2 + 1;
-  int            sigLen  = strlen(sigText);
-  unsigned char* sig     = (unsigned char*) corAlloc(kaP, sigLen * 3 / 4 + 4);
+  //
+  // The signature - unless this very token's has been checked already, with the key set in use
+  //
+  int tokenLen = strlen(token);
 
-  if (sig == NULL)
-    return FdscJwtMalformed;
+  if (fdscTokenCacheHas(token, tokenLen) == false)
+  {
+    unsigned int   generation = fdscTokenCacheGeneration();
+    const char*    sigText = dot2 + 1;
+    int            sigLen  = strlen(sigText);
+    unsigned char* sig     = (unsigned char*) corAlloc(kaP, sigLen * 3 / 4 + 4);
 
-  int n = fdscBase64UrlDecode(sigText, sigLen, sig);
+    if (sig == NULL)
+      return FdscJwtMalformed;
 
-  if (n <= 0)
-    return FdscJwtMalformed;
+    int n = fdscBase64UrlDecode(sigText, sigLen, sig);
 
-  FdscKeyCheck keyCheck = fdscKeysVerify(kid, alg, token, dot2 - token, sig, n);
+    if (n <= 0)
+      return FdscJwtMalformed;
 
-  if (keyCheck == FdscKeyUnknown)
-    return FdscJwtUnknownKey;
-  if (keyCheck == FdscKeyBadAlg)
-    return FdscJwtBadAlg;
-  if (keyCheck != FdscKeyOk)
-    return FdscJwtBadSignature;
+    FdscKeyCheck keyCheck = fdscKeysVerify(kid, alg, token, dot2 - token, sig, n);
+
+    if (keyCheck == FdscKeyUnknown)
+      return FdscJwtUnknownKey;
+    if (keyCheck == FdscKeyBadAlg)
+      return FdscJwtBadAlg;
+    if (keyCheck != FdscKeyOk)
+      return FdscJwtBadSignature;
+
+    fdscTokenCacheAdd(token, tokenLen, generation);
+  }
 
   //
   // The claims - only once the signature holds: what an unsigned token says is nothing
