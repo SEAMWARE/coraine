@@ -1,0 +1,18 @@
+# odrl-authorization 2.4.3 templates/opa-cm.yaml, with the PAP on localhost and short polling
+services:
+  - name: bundle-server
+    url: http://localhost:8080/bundles/service/v1
+bundles:
+  policies:
+    service: bundle-server
+    resource: policies.tar.gz
+    polling: { min_delay_seconds: 1, max_delay_seconds: 2 }
+  methods:
+    service: bundle-server
+    resource: methods.tar.gz
+    polling: { min_delay_seconds: 1, max_delay_seconds: 2 }
+  data:
+    service: bundle-server
+    resource: data.tar.gz
+    polling: { min_delay_seconds: 1, max_delay_seconds: 2 }
+default_decision: /policy/main/allow

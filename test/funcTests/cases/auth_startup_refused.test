@@ -1,0 +1,102 @@
+#
+# FILE            auth_startup_refused.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --auth asks for security: a broker that cannot have it does not start (doc/authorization.md § 4) - an
+# auth plugin that is not there, or one that cannot work with the options it was given. An auth plugin's
+# options exist only with the plugin: without --auth they are unknown options.
+#
+--NAME--
+Auth plugin - the broker does not start without the security it was asked for (exit 1)
+
+--TAGS--
+auth fdsc cli
+
+--INIT--
+
+--RUN--
+
+#
+# 01. --auth nope (no such plugin) - exit 1, the plugin's path named
+# 02. --auth fdsc, no keys (--fdscDiscovery / --fdscJwks) - exit 1, said why
+# 03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
+# 04. --fdscJwks without --auth - an unknown option, exit 1
+# 05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked
+#
+run() {
+  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database corDB "$@" > /tmp/authRefused.$$ 2>&1
+  echo "exit: $?"
+  grep -m1 -E "^auth plugin|^E: .*auth plugin|^coraine:" /tmp/authRefused.$$ | sed -e 's/^E: [0-9.]*: auth.c\[[0-9]*\]: authInit: /E: /' -e 's/ (\/[^)]*nope.so)/ (<plugins>\/auth\/nope.so)/'
+  rm -f /tmp/authRefused.$$
+}
+
+echo "01. --auth nope (no such plugin) - exit 1, the plugin's path named"
+echo "=================================================================="
+run --auth nope
+echo
+echo
+
+
+echo "02. --auth fdsc, no keys (--fdscDiscovery / --fdscJwks) - exit 1, said why"
+echo "==========================================================================="
+run --auth fdsc
+echo
+echo
+
+
+echo "03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why"
+echo "======================================================================================================"
+run --auth fdsc --fdscJwks /tmp/jwks.json --fdscIssuer http://verifier.ft
+echo
+echo
+
+
+echo "04. --fdscJwks without --auth - an unknown option, exit 1"
+echo "========================================================="
+run --fdscJwks /tmp/jwks.json
+echo
+echo
+
+
+echo "05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked"
+echo "============================================================================================"
+run --auth fdsc --fdscJwks /tmp/jwks.json --fdscPolicies /tmp/policies.json
+echo
+echo
+
+
+--EXPECT--
+01. --auth nope (no such plugin) - exit 1, the plugin's path named
+==================================================================
+exit: 1
+auth plugin 'nope' (<plugins>/auth/nope.so): not found
+
+
+02. --auth fdsc, no keys (--fdscDiscovery / --fdscJwks) - exit 1, said why
+===========================================================================
+exit: 1
+E: auth plugin 'fdsc': no keys to check a token with: --fdscDiscovery or --fdscJwks
+
+
+03. --auth fdsc --fdscJwks --fdscIssuer, no policies (--fdscPap / --fdscPolicies) - exit 1, said why
+======================================================================================================
+exit: 1
+E: auth plugin 'fdsc': no policies to decide with: --fdscPap or --fdscPolicies
+
+
+04. --fdscJwks without --auth - an unknown option, exit 1
+=========================================================
+exit: 1
+coraine: unrecognized option: --fdscJwks
+
+
+05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked
+============================================================================================
+exit: 1
+E: auth plugin 'fdsc': --fdscJwks needs --fdscIssuer: a token's iss is always checked
+
+
+--TEARDOWN--

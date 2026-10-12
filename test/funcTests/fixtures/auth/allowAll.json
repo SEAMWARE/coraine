@@ -1,0 +1,31 @@
+[
+  {
+    "@context": {
+      "odrl": "http://www.w3.org/ns/odrl/2/"
+    },
+    "@type": "odrl:Policy",
+    "odrl:uid": "urn:ft:policy:allowAll",
+    "odrl:permission": {
+      "odrl:assignee": {
+        "@id": "vc:any"
+      },
+      "odrl:target": {
+        "@type": "odrl:AssetCollection",
+        "odrl:source": "urn:asset",
+        "odrl:refinement": [
+          {
+            "@type": "odrl:Constraint",
+            "odrl:leftOperand": "http:path",
+            "odrl:operator": {
+              "@id": "odrl:regex"
+            },
+            "odrl:rightOperand": "^/"
+          }
+        ]
+      },
+      "odrl:action": {
+        "@id": "odrl:use"
+      }
+    }
+  }
+]

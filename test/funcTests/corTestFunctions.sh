@@ -1338,6 +1338,79 @@ ftModbusStop() {
 
 # -----------------------------------------------------------------------------
 #
+# ftAuth - keys, JWK Sets and tokens for the auth plugin tests (tools/ftJwt.py), in FT_AUTH_DIR
+#
+#   ftAuthInit                    an empty FT_AUTH_DIR
+#   ftAuthKey <name> [ES256]      a key pair, its JWK kid = <name>
+#   ftAuthJwks <name>...          FT_AUTH_DIR/jwks.json - the JWK Set of those keys (replaced whole)
+#   ftAuthToken <name> [opts]     a token signed by <name>, on stdout (ftJwt.py sign's options; RS256 / ES256 from the key)
+#
+FT_AUTH_DIR=/tmp/ftAuth.${COR_PORT:-1026}
+
+ftJwt() {
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftJwt.py" "$@"
+}
+
+ftAuthInit() {
+  rm -rf "$FT_AUTH_DIR"
+  mkdir -p "$FT_AUTH_DIR"
+}
+
+ftAuthKey() {
+  ftJwt key --out "$FT_AUTH_DIR" --name "$1" --alg "${2:-RS256}"
+  echo "${2:-RS256}" > "$FT_AUTH_DIR/$1.alg"
+}
+
+ftAuthJwks() {
+  local jwkV=()
+  for name in "$@"; do jwkV+=("$FT_AUTH_DIR/$name.jwk"); done
+  ftJwt jwks --out "$FT_AUTH_DIR/jwks.json.new" "${jwkV[@]}" && mv -f "$FT_AUTH_DIR/jwks.json.new" "$FT_AUTH_DIR/jwks.json"
+}
+
+ftAuthToken() {
+  local name="$1"
+  shift
+  ftJwt sign --key "$FT_AUTH_DIR/$name.pem" --alg "$(cat "$FT_AUTH_DIR/$name.alg")" "$@"
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
+# ftVerifier - a stand-in for the Data Space Connector's VCVerifier and ODRL-PAP (tools/ftVerifier.py), on
+# FT_VERIFIER_PORT, serving FT_AUTH_DIR's jwks.json and papListing.json
+#
+#   ftVerifierStart     the discovery document at $FT_VERIFIER_URL/services/data-service/.well-known/openid-configuration
+#   ftVerifierCount     how many times each route was asked, {path: n}
+#   ftVerifierStop
+#
+FT_VERIFIER_PORT=7740
+FT_VERIFIER_URL=http://localhost:$FT_VERIFIER_PORT
+
+ftVerifierStart() {
+  ftVerifierStop
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftVerifier.py" --port $FT_VERIFIER_PORT --dir "$FT_AUTH_DIR" > /tmp/ftVerifier.$FT_VERIFIER_PORT.log 2>&1 &
+  echo $! > /tmp/ftVerifier.$FT_VERIFIER_PORT.pid
+  corAwaitPort $FT_VERIFIER_PORT 10 > /dev/null
+}
+
+ftVerifierCount() {
+  curl -s $FT_VERIFIER_URL/count
+}
+
+ftVerifierStop() {
+  local pidFile=/tmp/ftVerifier.$FT_VERIFIER_PORT.pid
+  if [ -f $pidFile ]; then
+    kill $(cat $pidFile) 2>/dev/null
+    rm -f $pidFile
+  fi
+  corAwaitPortClosed $FT_VERIFIER_PORT 5 2>/dev/null
+}
+
+
+
+# -----------------------------------------------------------------------------
+#
 # ftWs - a WebSocket client for the WebSocket transport tests (tools/ftWs.py)
 #
 # ONE WebSocket to a broker (GET /ngsi-ld/v1/ws), kept open; its control API on FT_WS_PORT:

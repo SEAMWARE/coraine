@@ -93,6 +93,9 @@
 #include "plugin/pluginLoader.h"                  // pluginStoresLoad, pluginLoadApi, pluginLoadBridges, pluginArgsAdd
 #include "bridge/bridgeNotify.h"                  // bridgeNotifyInit
 #include "corBridge/BridgeDriver.h"                // BridgeDriver, bridges, bridgeCount, BRIDGES_MAX
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                             // authLoad, authArgs, authInit, authAuthorize, authRelease, authClose
+#endif
 #if COR_FEATURE_TRANSPORTS
 #include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 #endif
@@ -177,6 +180,9 @@ char*          bridgeNames  = NULL;
 #if COR_FEATURE_TRANSPORTS
 char*          transportNames = NULL;
 #endif
+#if COR_FEATURE_AUTH
+char*          authName     = NULL;
+#endif
 char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
@@ -223,6 +229,9 @@ static CorArg kargV[] =
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
   { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+#if COR_FEATURE_AUTH
+  { "--auth",               "-auth",        CorArgString, _vp &authName,     CorArgOpt, _vp NULL,  NULL,  NULL,      "auth plugin - who sent a request and whether it may: fdsc (the FIWARE Data Space Connector's tokens and policies); none: every request is let in" },
+#endif
 #if COR_FEATURE_TRANSPORTS
   { "--transports",         "-transports",  CorArgString, _vp &transportNames, CorArgOpt, _vp NULL, NULL, NULL,      "transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)" },
 #endif
@@ -343,6 +352,10 @@ static void shutdownInOrder(void)
   healthStop();       // the pingers stopped: they ping with what dbClose frees
 #endif
 
+#if COR_FEATURE_AUTH
+  authClose();        // after the transports: closing them deletes subscriptions, through requests the plugin lets in
+#endif
+
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
   // (corDB) is released rather than leaked — exit(0) then lets valgrind (--vt)
   // and any leak gate see a clean shutdown.
@@ -400,6 +413,12 @@ static bool pluginsLoad(int argC, char* argV[])
   char* bridgePeek = corArgsPeek(argC, argV, kargV, "--bridges");
   if (bridgePeek == NULL)
     bridgePeek = bridgeNames;  // CORAINE_BRIDGES - and it needs this line for the same reason --apiPlugins did
+
+#if COR_FEATURE_AUTH
+  char* authPeek = corArgsPeek(argC, argV, kargV, "--auth");
+  if (authPeek == NULL)
+    authPeek = authName;       // CORAINE_AUTH
+#endif
 
   //
   // The DB and the TRoE plugin (dlopen + register, no connection yet) - as coraine-import loads them
@@ -468,10 +487,41 @@ static bool pluginsLoad(int argC, char* argV[])
   }
 
   //
+  // The auth plugin (dlopen + authRegister) - its options under a separator of their own. It is
+  // initialised after the parse (authInit), and a plugin that cannot load stops the broker: --auth asks
+  // for security, and starting without it would be starting open.
+  //
+#if COR_FEATURE_AUTH
+  if ((authPeek != NULL) && (authPeek[0] != 0))
+  {
+    char errBuf[1024];
+
+    if (authLoad(authPeek, errBuf, sizeof(errBuf)) != 0)
+    {
+      fprintf(stderr, "%s\n", errBuf);
+      startupError = true;
+    }
+    else if (authArgs() != NULL)
+    {
+      static char   authSepText[128];
+      static CorArg authSepArgV[] = { CORARGS_SEPARATOR(NULL), CORARGS_END };
+
+      snprintf(authSepText, sizeof(authSepText), "Auth (%s) plugin options:", (authPluginName() != NULL) ? authPluginName() : authPeek);
+      authSepArgV[0].description = authSepText;
+      pluginArgsAdd(authSepArgV);
+      pluginArgsAdd(authArgs());
+    }
+  }
+#endif
+
+  //
   // Add available-plugin info (shown in -u usage output)
   //
   corPluginArgUpdate("--apiPlugins", "api");
   corPluginArgUpdate("--bridges", "bridge");
+#if COR_FEATURE_AUTH
+  corPluginArgUpdate("--auth", "auth");
+#endif
 
   // Add footer showing plugin directory
   static char footerText[256];
@@ -1143,6 +1193,14 @@ static bool brokerPreServiceHook(void)
 
   if (!ldUrlWildcardCheck())
     return false;
+#if COR_FEATURE_AUTH
+  //
+  // May it - BEFORE the tenant is resolved: resolving it creates it, for a create operation, and a
+  // request that may not must leave nothing behind
+  //
+  if (!authAuthorize())
+    return false;
+#endif
   if (!tenantPreServiceHook())
     return false;
   if (!ldSnapshotWriteGuard())
@@ -1169,6 +1227,9 @@ static void brokerPostResponseHook(void)
   ldSubEntityTypeExprsRelease();   // free the per-request subscription type-expr scratch
   ldSnapshotRequestRelease();      // the Snapshot a read was routed to (NGSILD-Snapshot), pinned till now
   ldEntityMapRequestRelease();     // the EntityMap the request created or paged, pinned till now
+#if COR_FEATURE_AUTH
+  authRelease();                   // the sender's identity back to the auth plugin
+#endif
 #if COR_FEATURE_HEALTH
   healthRequestEnd();              // last: a request stuck in its post-response work is still in flight
 #endif
@@ -1793,6 +1854,17 @@ int main(int argC, char* argV[])
   // Transport plugins (--transports): the API over another protocol - a WebSocket upgraded from
   // GET /ngsi-ld/v1/ws (doc/websocket.md). Before the REST server starts: the upgrade hook is set here.
   //
+#if COR_FEATURE_AUTH
+  //
+  // The auth plugin up before the first request can arrive - and if it cannot be, no broker (fail closed)
+  //
+  if (authInit() == false)
+  {
+    fprintf(stderr, "the auth plugin did not start - see the log\n");
+    exit(1);
+  }
+#endif
+
 #if COR_FEATURE_TRANSPORTS
   if (transportNames != NULL)
   {

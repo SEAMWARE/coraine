@@ -32,6 +32,9 @@
 #include "corRest/corRestProblem.h"                  // corRestProblem
 #include "corRest/corRestRun.h"                      // corRestRunJson
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authTrustNext
+#endif
 #include "plugin/TransportDriver.h"                  // TransportDriver, TransportHost
 #include "transport/transport.h"                     // Own interface
 
@@ -460,7 +463,13 @@ static void hostClosed(int connId)
   {
     CorRestKeyValue tenantH = { (char*) "NGSILD-Tenant", cP->ownV[i].tenant };
 
+#if COR_FEATURE_AUTH
+    authTrustNext();     // the broker's own request: the connection that created the subscription is gone
+#endif
     corRestRunJson("DELETE", cP->ownV[i].path, &tenantH, (cP->ownV[i].tenant != NULL) ? 1 : 0, NULL, 0, runIgnore, NULL);
+#if COR_FEATURE_AUTH
+    authTrustClear();
+#endif
     COR_I("transport: connection %d closed - '%s' (tenant %s) deleted", connId, cP->ownV[i].path, (cP->ownV[i].tenant != NULL) ? cP->ownV[i].tenant : "default");
     free(cP->ownV[i].path);
     free(cP->ownV[i].tenant);

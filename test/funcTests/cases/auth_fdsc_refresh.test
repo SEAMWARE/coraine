@@ -1,0 +1,144 @@
+#
+# FILE            auth_fdsc_refresh.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin fails CLOSED and catches up on its own (doc/authorization.md § 5.3): until the
+# verifier's keys are there, a request with a token is a 503; until the policies are, too. Both are
+# fetched by a thread of the plugin - every second while one is missing, every --fdscRefresh seconds once
+# both are - and a token signed by a key the set does not have makes it fetch the keys at once: VCVerifier
+# generates its key at every start.
+#
+--NAME--
+Auth plugin fdsc - 503 until keys and policies are there; a new verifier key fetched on its first token; new policies on the next refresh
+
+--TAGS--
+auth fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthKey k2 ES256
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/policies.json --fdscIssuer http://verifier.ft --fdscRefresh 60
+
+--RUN--
+
+#
+# 01. No JWK Set yet: a request with a token is a 503 (the keys) - one without, a 401 still
+# 02. The JWK Set (k1) appears: 503 (the policies) - within a second or so
+# 03. The policies appear: let in
+# 04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401
+# 05. Restarted with --fdscRefresh 1: the policies replaced by none - denied after the next refresh
+#
+status() { corCurl "$@" | head -1; }
+detail() { corCurl "$@" | grep '"detail"'; }
+
+#
+# awaitStatus <status> <curl args> - the request repeated until it answers <status> (5 s at most); its status
+#
+awaitStatus() {
+  local want="$1"
+  shift
+  for i in $(seq 1 50); do
+    s=$(corCurl "$@" | head -1 | awk '{print $2}')
+    [ "$s" == "$want" ] && break
+    sleep 0.1
+  done
+  echo "$s"
+}
+
+URL=/ngsi-ld/v1/entities/urn:E1
+TOKEN1=$(ftAuthToken k1)
+
+echo "01. No JWK Set yet: a request with a token is a 503 (the keys) - one without, a 401 still"
+echo "========================================================================================="
+status --url $URL -H "Authorization: Bearer $(ftAuthToken k1)"
+detail --url $URL -H "Authorization: Bearer $(ftAuthToken k1)"
+status --url $URL
+echo
+echo
+
+
+echo "02. The JWK Set (k1) appears: 503 (the policies) - within a second or so"
+echo "========================================================================"
+ftAuthJwks k1
+for i in $(seq 1 50); do
+  corCurl --url $URL -H "Authorization: Bearer $(ftAuthToken k1)" | grep -q "keys are not loaded" || break
+  sleep 0.1
+done
+status --url $URL -H "Authorization: Bearer $(ftAuthToken k1)"
+detail --url $URL -H "Authorization: Bearer $(ftAuthToken k1)"
+echo
+echo
+
+
+echo "03. The policies appear: let in"
+echo "==============================="
+cp $REPO_ROOT/test/funcTests/fixtures/auth/allowAll.json $FT_AUTH_DIR/policies.json
+awaitStatus 404 --url $URL -H "Authorization: Bearer $TOKEN1"
+status --url $URL -H "Authorization: Bearer $TOKEN1"
+echo
+echo
+
+
+echo "04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401"
+echo "==================================================================================================================================================================================="
+ftAuthJwks k2
+TOKEN2=$(ftAuthToken k2)
+corCurl --url $URL -H "Authorization: Bearer $TOKEN2" | grep '^WWW-Authenticate:'
+awaitStatus 404 --url $URL -H "Authorization: Bearer $TOKEN2"
+corCurl --url $URL -H "Authorization: Bearer $TOKEN1" | grep '^WWW-Authenticate:'
+echo
+echo
+
+
+echo "05. Restarted with --fdscRefresh 1: the policies replaced by none - denied after the next refresh"
+echo "================================================================================================"
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/policies.json --fdscIssuer http://verifier.ft --fdscRefresh 1
+awaitStatus 404 --url $URL -H "Authorization: Bearer $TOKEN2"
+echo '[]' > $FT_AUTH_DIR/policies.json.new && mv -f $FT_AUTH_DIR/policies.json.new $FT_AUTH_DIR/policies.json
+awaitStatus 403 --url $URL -H "Authorization: Bearer $TOKEN2"
+echo
+echo
+
+
+--EXPECT--
+01. No JWK Set yet: a request with a token is a 503 (the keys) - one without, a 401 still
+=========================================================================================
+HTTP/1.1 503 Service Unavailable
+  "detail": "the verifier's keys are not loaded yet",
+HTTP/1.1 401 Unauthorized
+
+
+02. The JWK Set (k1) appears: 503 (the policies) - within a second or so
+========================================================================
+HTTP/1.1 503 Service Unavailable
+  "detail": "the policies are not loaded yet",
+
+
+03. The policies appear: let in
+===============================
+404
+HTTP/1.1 404 Not Found
+
+
+04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401
+===================================================================================================================================================================================
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+404
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+
+
+05. Restarted with --fdscRefresh 1: the policies replaced by none - denied after the next refresh
+================================================================================================
+404
+403
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

@@ -1,0 +1,127 @@
+#
+# FILE            auth_fdsc_websocket.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin over a WebSocket (--transports ws, doc/websocket.md): a connection has no
+# credentials, as it has no tenant - each message carries its own Authorization in its metadata, and is
+# let in or answered 401 / 403 on its own. The upgrade is let in without one (a browser cannot set the
+# header on it). When the connection closes, the broker deletes the subscriptions it made - its own
+# requests, let in without a token.
+#
+--NAME--
+Auth plugin fdsc - over a WebSocket each message carries its own token; the subscriptions of a closed connection still go
+
+--TAGS--
+auth fdsc websocket
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --transports ws --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/allowAll.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. Connect - the upgrade carries no token
+# 02. A message without Authorization: 401; with an invalid token: 401
+# 03. With a valid token: a create (201), a subscription notifying this connection (201)
+# 04. The connection closes: its subscription is deleted, the entity stays (over HTTP, with a token)
+#
+req() {
+  local id=$(echo "$1" | python3 -c "import json,sys; print(json.load(sys.stdin)['metadata']['requestId'])")
+  ftWsSend "$1"
+  for i in $(seq 1 100); do
+    ftWsMessages | python3 -c "import json,sys; sys.exit(0 if any(m.get('metadata',{}).get('requestId') == '$id' for m in json.load(sys.stdin)) else 1)" && return
+    sleep 0.05
+  done
+  echo "no response to $id"
+}
+resp() {
+  ftWsMessages | python3 -c "
+import json,sys
+for m in json.load(sys.stdin):
+    md = m.get('metadata', {})
+    if md.get('requestId') == '$1':
+        print('$1', md['status'], json.dumps(m['body'], sort_keys=True) if 'body' in m else '')"
+}
+
+TOKEN=$(ftAuthToken k1)
+
+echo "01. Connect - the upgrade carries no token"
+echo "=========================================="
+ftWsStart
+ftWsAwait 1
+ftWsMessages | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'message (the greeting)')"
+echo
+echo
+
+
+echo "02. A message without Authorization: 401; with an invalid token: 401"
+echo "===================================================================="
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities/urn:E1","requestId":"r0"}}'
+resp r0
+req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/entities/urn:E1","requestId":"r1","Authorization":"Bearer not.a.jwt"}}'
+resp r1
+echo
+echo
+
+
+echo "03. With a valid token: a create (201), a subscription notifying this connection (201)"
+echo "======================================================================================"
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"c1","Authorization":"Bearer '$TOKEN'"},"body":{"id":"urn:E1","type":"T"}}'
+resp c1
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"s1","Authorization":"Bearer '$TOKEN'"},"body":{"type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+resp s1
+echo
+echo
+
+
+echo "04. The connection closes: its subscription is deleted, the entity stays (over HTTP, with a token)"
+echo "================================================================================================="
+ftWsClose
+for i in $(seq 1 50); do
+  [ "$(corCurl --url /ngsi-ld/v1/subscriptions -H "Authorization: Bearer $TOKEN" | sed -n '/^\[/,$p' | tr -d ' \n')" == "[]" ] && break
+  sleep 0.1
+done
+corCurl --url /ngsi-ld/v1/subscriptions -H "Authorization: Bearer $TOKEN" | sed -n '/^\[/,$p' | tr -d ' \n'
+echo
+corCurl --url '/ngsi-ld/v1/entities?type=T' -H "Authorization: Bearer $TOKEN" | sed -n '/^\[/,$p' | tr -d ' \n'
+echo
+echo
+echo
+
+
+--EXPECT--
+01. Connect - the upgrade carries no token
+==========================================
+1 message (the greeting)
+
+
+02. A message without Authorization: 401; with an invalid token: 401
+====================================================================
+r0 401 {"detail": "no access token (Authorization: Bearer)", "status": 401, "title": "Unauthorized", "type": "about:blank"}
+r1 401 {"detail": "not a JWT", "status": 401, "title": "Unauthorized", "type": "about:blank"}
+
+
+03. With a valid token: a create (201), a subscription notifying this connection (201)
+======================================================================================
+c1 201 
+s1 201 
+
+
+04. The connection closes: its subscription is deleted, the entity stays (over HTTP, with a token)
+=================================================================================================
+[]
+[{"id":"urn:E1","type":"T"}]
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

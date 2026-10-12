@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Data Space Connector's provider-side PEP/PDP chain, as FDSC 10.87.0 deploys it - for fdscDiff.sh:
+# APISIX 3.17.0 (openid-connect + odrl-authorization 2.4.3's opa plugin), OPA 1.11.0 polling the ODRL-PAP's
+# bundles, odrl-pap 1.7.1 on PostgreSQL. Host networking, as the chart's OPA is APISIX's sidecar
+# (localhost:8181); the verifier (ftVerifier.py) and the brokers run on the host.
+#
+services:
+  postgres:
+    image: postgres:16-alpine
+    network_mode: host
+    command: ["postgres", "-p", "5440"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pap
+
+  pap:
+    image: quay.io/fiware/odrl-pap:1.7.1
+    network_mode: host
+    depends_on: [postgres]
+    environment:
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5440/pap
+      QUARKUS_HTTP_PORT: "8080"
+      QUARKUS_MANAGEMENT_PORT: "9001"
+      GENERAL_ORGANIZATION_DID: did:web:provider
+
+  opa:
+    image: openpolicyagent/opa:1.11.0
+    network_mode: host
+    command: ["run", "--server", "-c", "/config/opa.yaml", "--addr", "127.0.0.1:8181"]
+    volumes:
+      - ./opa.yaml:/config/opa.yaml:ro
+
+  apisix:
+    image: apache/apisix:3.17.0-debian
+    network_mode: host
+    volumes:
+      - ./apisix-config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ${FDSC_DIFF_WORK}/plugins:/opts/custom_plugins/apisix/plugins:ro

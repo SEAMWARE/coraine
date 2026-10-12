@@ -106,10 +106,13 @@ for t in none timescale ramDB; do
 done
 coraine --database corDB --apiPlugins admin -u > /tmp/u.log 2>&1 || { cat /tmp/u.log; fail "--apiPlugins admin"; }
 echo "--apiPlugins admin: loads"
-for p in bridge/mqtt.so bridge/modbus.so bridge/loopback.so transport/ws.so; do
+for p in bridge/mqtt.so bridge/modbus.so bridge/loopback.so transport/ws.so auth/fdsc.so; do
   [ -f "/opt/seamware/plugins/$p" ] || fail "no plugin $p"
 done
-echo "bridges mqtt, modbus, loopback and the ws transport: present (and resolved, step 2)"
+echo "bridges mqtt, modbus, loopback, the ws transport and the fdsc auth plugin: present (and resolved, step 2)"
+coraine --database corDB --auth fdsc -u > /tmp/u.log 2>&1 || { cat /tmp/u.log; fail "--auth fdsc"; }
+grep -q -- "--fdscDiscovery" /tmp/u.log || { cat /tmp/u.log; fail "--auth fdsc: no fdsc options"; }
+echo "--auth fdsc: loads"
 [ ! -e /opt/seamware/plugins/bridge/dds.so ] || fail "the DDS bridge is in the package"
 
 step "6. remove, purge"

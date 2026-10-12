@@ -1,0 +1,742 @@
+[
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:energyReport",
+  "odrl:uid": "urn:fd:energyReport",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "EnergyReport"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:clusterCreate",
+  "odrl:uid": "urn:fd:clusterCreate",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "K8SCluster"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@type": "odrl:PartyCollection",
+    "odrl:source": "urn:user",
+    "odrl:refinement": {
+     "@type": "odrl:LogicalConstraint",
+     "odrl:and": [
+      {
+       "@type": "odrl:Constraint",
+       "odrl:leftOperand": {
+        "@id": "vc:role"
+       },
+       "odrl:operator": {
+        "@id": "odrl:hasPart"
+       },
+       "odrl:rightOperand": {
+        "@value": "OPERATOR",
+        "@type": "xsd:string"
+       }
+      },
+      {
+       "@type": "odrl:Constraint",
+       "odrl:leftOperand": {
+        "@id": "vc:type"
+       },
+       "odrl:operator": {
+        "@id": "odrl:hasPart"
+       },
+       "odrl:rightOperand": {
+        "@value": "OperatorCredential",
+        "@type": "xsd:string"
+       }
+      }
+     ]
+    }
+   },
+   "odrl:action": {
+    "@id": "odrl:use"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:typesReader",
+  "odrl:uid": "urn:fd:typesReader",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "http:path",
+      "odrl:operator": {
+       "@id": "http:isInPath"
+      },
+      "odrl:rightOperand": "/ngsi-ld/v1/types"
+     }
+    ]
+   },
+   "odrl:assignee": "did:web:typesReader",
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:bodyValue",
+  "odrl:uid": "urn:fd:bodyValue",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "http:bodyValue": "$.numNodes.value",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "3"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "ngsild:create"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:twoPermissions",
+  "odrl:uid": "urn:fd:twoPermissions",
+  "@type": "odrl:Policy",
+  "odrl:permission": [
+   {
+    "odrl:target": {
+     "@type": "odrl:AssetCollection",
+     "odrl:source": "urn:asset",
+     "odrl:refinement": [
+      {
+       "@type": "odrl:Constraint",
+       "odrl:leftOperand": "ngsi-ld:entityType",
+       "odrl:operator": {
+        "@id": "odrl:eq"
+       },
+       "odrl:rightOperand": "Car"
+      }
+     ]
+    },
+    "odrl:assignee": {
+     "@id": "vc:any"
+    },
+    "odrl:action": {
+     "@id": "odrl:read"
+    }
+   },
+   {
+    "odrl:target": {
+     "@type": "odrl:AssetCollection",
+     "odrl:source": "urn:asset",
+     "odrl:refinement": [
+      {
+       "@type": "odrl:Constraint",
+       "odrl:leftOperand": "http:path",
+       "odrl:operator": {
+        "@id": "odrl:regex"
+       },
+       "odrl:rightOperand": "^/"
+      }
+     ]
+    },
+    "odrl:assignee": {
+     "@type": "odrl:Party",
+     "odrl:uid": "did:web:carPeople"
+    },
+    "odrl:action": {
+     "@id": "odrl:read"
+    }
+   }
+  ]
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:time",
+  "odrl:uid": "urn:fd:time",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Clock"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   },
+   "odrl:constraint": [
+    {
+     "odrl:leftOperand": "odrl:dayOfWeek",
+     "odrl:operator": "odrl:gteq",
+     "odrl:rightOperand": {
+      "@value": 0,
+      "@type": "xsd:integer"
+     }
+    },
+    {
+     "odrl:leftOperand": "odrl:hourOfDay",
+     "odrl:operator": "odrl:lteq",
+     "odrl:rightOperand": {
+      "@value": 23,
+      "@type": "xsd:integer"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:noneOf",
+  "odrl:uid": "urn:fd:noneOf",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Open"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   },
+   "odrl:constraint": {
+    "@type": "odrl:Constraint",
+    "odrl:leftOperand": {
+     "@id": "vc:type"
+    },
+    "odrl:operator": {
+     "@id": "odrl:isNoneOf"
+    },
+    "odrl:rightOperand": [
+     "BannedCredential"
+    ]
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:prohibitionIgnored",
+  "odrl:uid": "urn:fd:prohibitionIgnored",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Shop"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  },
+  "odrl:prohibition": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Shop"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:orUndefined",
+  "odrl:uid": "urn:fd:orUndefined",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:LogicalConstraint",
+      "odrl:or": [
+       {
+        "@type": "odrl:Constraint",
+        "odrl:leftOperand": {
+         "@id": "vc:role"
+        },
+        "odrl:operator": {
+         "@id": "odrl:hasPart"
+        },
+        "odrl:rightOperand": "READER"
+       },
+       {
+        "@type": "odrl:Constraint",
+        "odrl:leftOperand": "ngsi-ld:entityType",
+        "odrl:operator": {
+         "@id": "odrl:eq"
+        },
+        "odrl:rightOperand": "Either"
+       }
+      ]
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:neqMissing",
+  "odrl:uid": "urn:fd:neqMissing",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:operator": {
+       "@id": "odrl:neq"
+      },
+      "odrl:rightOperand": "x",
+      "http:bodyValue": "$.p"
+     },
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Neq"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:use"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:regex",
+  "odrl:uid": "urn:fd:regex",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "http:path",
+      "odrl:operator": {
+       "@id": "odrl:regex"
+      },
+      "odrl:rightOperand": "^/ngsi-ld/v1/entities/urn:ngsi-ld:Rx[0-9]+"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:anyOf",
+  "odrl:uid": "urn:fd:anyOf",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:isAnyOf"
+      },
+      "odrl:rightOperand": [
+       "Alpha",
+       "Beta"
+      ]
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:isPartOf",
+  "odrl:uid": "urn:fd:isPartOf",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Part"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@type": "odrl:PartyCollection",
+    "odrl:refinement": {
+     "@type": "odrl:Constraint",
+     "odrl:leftOperand": {
+      "@id": "vc:type"
+     },
+     "odrl:operator": {
+      "@id": "odrl:isPartOf"
+     },
+     "odrl:rightOperand": "PartCredential"
+    }
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:allOf",
+  "odrl:uid": "urn:fd:allOf",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "AllOf"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@type": "odrl:PartyCollection",
+    "odrl:refinement": {
+     "@type": "odrl:Constraint",
+     "odrl:leftOperand": {
+      "@id": "vc:type"
+     },
+     "odrl:operator": {
+      "@id": "odrl:isAllOf"
+     },
+     "odrl:rightOperand": [
+      "A",
+      "B"
+     ]
+    }
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:gtCrossType",
+  "odrl:uid": "urn:fd:gtCrossType",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Gt"
+     },
+     {
+      "@type": "odrl:Constraint",
+      "odrl:operator": {
+       "@id": "odrl:gt"
+      },
+      "odrl:rightOperand": 5,
+      "http:bodyValue": "$.n"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:use"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:target",
+  "odrl:uid": "urn:fd:target",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": "urn:ngsi-ld:Thing:special",
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:modifyOnly",
+  "odrl:uid": "urn:fd:modifyOnly",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Doc"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:modify"
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:dateTime",
+  "odrl:uid": "urn:fd:dateTime",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Dated"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   },
+   "odrl:constraint": {
+    "@type": "odrl:Constraint",
+    "odrl:leftOperand": "odrl:dateTime",
+    "odrl:operator": {
+     "@id": "odrl:gt"
+    },
+    "odrl:rightOperand": {
+     "@value": "2020-01-01",
+     "@type": "xsd:date"
+    }
+   }
+  }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "urn:fd:subjectClaim",
+  "odrl:uid": "urn:fd:subjectClaim",
+  "@type": "odrl:Policy",
+  "odrl:permission": {
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:source": "urn:asset",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "ngsi-ld:entityType",
+      "odrl:operator": {
+       "@id": "odrl:eq"
+      },
+      "odrl:rightOperand": "Claim"
+     }
+    ]
+   },
+   "odrl:assignee": {
+    "@type": "odrl:PartyCollection",
+    "odrl:refinement": {
+     "@type": "odrl:Constraint",
+     "ovc:leftOperand": "$.credentialSubject.level",
+     "odrl:operator": {
+      "@id": "odrl:gteq"
+     },
+     "odrl:rightOperand": 3
+    }
+   },
+   "odrl:action": {
+    "@id": "odrl:read"
+   }
+  }
+ }
+]

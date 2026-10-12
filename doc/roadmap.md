@@ -169,8 +169,11 @@ in order:
    (the job is being brought up - its first run found a C23-only construct, corJsonld#28); then the
    other diversity builds: ASan + UBSan, clang, Alpine / musl. (`-funsigned-char`, ARM's `char`, passed
    the whole suite on 2026-10-08.)
-5. **Security** - in the broker (`authorization.md` § 4), verifiable credentials, the FIWARE Data Space
-   Connector drop-in.
+5. **Security** - being built: auth plugins (`--auth`) and `fdsc.so`, the FIWARE Data Space Connector's
+   tokens and policies decided as the connector 10.87.0 decides them ([Authorization](authorization.md)).
+   Next: the same requests through a deployed connector and through coraine, every decision compared (a
+   nightly job); contract version 2 - per-entity decisions on the stored, expanded type, query
+   restriction, notifications decided for the subscriber; attribute-level rules.
 6. **One compound geo index** - prototype both variants, measure.
 7. **Hot and cold entity segments** - a design note.
 8. **The batch-delete regression** - low priority (attribute updates matter far more).

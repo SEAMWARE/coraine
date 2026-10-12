@@ -1,0 +1,101 @@
+#
+# FILE            auth_fdsc_discovery.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin configured as the Data Space Connector configures APISIX (doc/authorization.md § 5.3):
+# --fdscDiscovery is the verifier's discovery document - its jwks_uri gives the keys, its issuer the iss a
+# token must have - and --fdscPap the ODRL-PAP, whose GET /policy is paged and says nothing of how many
+# there are: read page by page until one is empty. The verifier and the PAP here are a stand-in
+# (tools/ftVerifier.py) answering those routes as VCVerifier 6.23.1 and odrl-pap 1.7.1 do.
+#
+--NAME--
+Auth plugin fdsc - keys through the verifier's discovery document, policies from the PAP page by page
+
+--TAGS--
+auth fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+#
+# 150 policies: 149 that allow nothing anybody asks, then one that lets anyone read type Last - the PAP's
+# listing order is its rego ids', so the one that matters is on the second page of 100
+#
+python3 - "$FT_AUTH_DIR/papListing.json" <<'PY'
+import json, sys
+def pol(uid, etype):
+    return {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": uid,
+            "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:read"},
+                                "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                                    {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType",
+                                     "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": etype}]}}}
+listing = [pol("urn:ft:p%03d" % i, "Nothing%03d" % i) for i in range(149)] + [pol("urn:ft:p149", "Last")]
+json.dump([{"id": "p%03d" % i, "odrl:uid": p["odrl:uid"], "odrl": json.dumps(p)} for i, p in enumerate(listing)], open(sys.argv[1], "w"))
+PY
+ftVerifierStart
+coraineStart --auth fdsc --fdscDiscovery $FT_VERIFIER_URL/services/data-service/.well-known/openid-configuration --fdscPap $FT_VERIFIER_URL
+
+--RUN--
+
+#
+# 01. A token of the discovery document's issuer: let in to read type Last (the 150th policy, page 2)
+# 02. A token of another issuer: 401 - the issuer is the discovery document's, not configured
+# 03. What the plugin asked: the discovery document, the JWK Set, and the PAP's pages 0, 1 and 2 (empty)
+#
+status() { corCurl "$@" | head -1; }
+
+TOKEN=$(ftAuthToken k1 --iss $FT_VERIFIER_URL)
+
+echo "01. A token of the discovery document's issuer: let in to read type Last (the 150th policy, page 2)"
+echo "==================================================================================================="
+for i in $(seq 1 50); do
+  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Last:1 -H "Authorization: Bearer $TOKEN" | head -1 | grep -q " 503 " || break
+  sleep 0.1
+done
+status --url /ngsi-ld/v1/entities/urn:ngsi-ld:Last:1 -H "Authorization: Bearer $TOKEN"
+status --url /ngsi-ld/v1/entities/urn:ngsi-ld:Other:1 -H "Authorization: Bearer $TOKEN"
+echo
+echo
+
+
+echo "02. A token of another issuer: 401 - the issuer is the discovery document's, not configured"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Last:1 -H "Authorization: Bearer $(ftAuthToken k1 --iss http://verifier.ft)" | grep '^WWW-Authenticate:'
+echo
+echo
+
+
+echo "03. What the plugin asked: the discovery document, the JWK Set, and the PAP's pages 0, 1 and 2 (empty)"
+echo "======================================================================================================"
+ftVerifierCount | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), sort_keys=True))"
+echo
+echo
+
+
+--EXPECT--
+01. A token of the discovery document's issuer: let in to read type Last (the 150th policy, page 2)
+===================================================================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 403 Forbidden
+
+
+02. A token of another issuer: 401 - the issuer is the discovery document's, not configured
+===========================================================================================
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer"
+
+
+03. What the plugin asked: the discovery document, the JWK Set, and the PAP's pages 0, 1 and 2 (empty)
+======================================================================================================
+{"/.well-known/jwks": 1, "/policy": 3, "/services/*/.well-known/openid-configuration": 1}
+
+
+--TEARDOWN--
+coraineStop
+ftVerifierStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

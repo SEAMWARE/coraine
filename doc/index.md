@@ -36,7 +36,7 @@ cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
 | read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
 | send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
-| see how authorization will work inside the broker | [Authorization in the broker](authorization.md) |
+| secure it - the Data Space Connector's tokens and policies, or your own security layer, inside the broker | [Authorization in the broker](authorization.md) |
 | see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |
 | use the API over a WebSocket and get the notifications on it | [WebSocket](websocket.md) |
 | see where a request runs - inline, as a coroutine, on a worker - and how it waits | [Coroutines](coroutines.md) |

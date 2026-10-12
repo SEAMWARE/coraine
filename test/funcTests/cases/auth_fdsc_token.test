@@ -1,0 +1,181 @@
+#
+# FILE            auth_fdsc_token.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin (--auth fdsc, doc/authorization.md): the access token, checked as the Data Space
+# Connector's APISIX checks it - a JWT signed with RS256 or ES256 by a key of the verifier's JWK Set, by
+# kid; iss the verifier; exp passed by more than 120 s is expired (inside that, not). No token, or one that
+# does not hold, is a 401 with WWW-Authenticate: Bearer. Authorization: Bearer only - X-Access-Token is not
+# taken, a CORS preflight is no exception (as APISIX's openid-connect, bearer_only). The policy here
+# allows any credential anything: what is tested is the token alone.
+#
+--NAME--
+Auth plugin fdsc - the access token: RS256, ES256, kid, iss, exp with 120 s leeway; 401 + WWW-Authenticate
+
+--TAGS--
+auth fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthKey k2 ES256
+ftAuthJwks k1 k2
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/allowAll.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. No token: 401, WWW-Authenticate: Bearer - for an NGSI-LD route and for /version alike
+# 02. An RS256 token of k1: create an entity, retrieve it
+# 03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401
+# 04. Expired 300 s ago: 401 (invalid_token); expired 60 s ago - inside the leeway: 200
+# 05. A broken signature, another issuer, an unknown kid, not a JWT, alg none (signed with anything), Basic instead of Bearer: 401 each
+# 06. A CORS preflight (OPTIONS) without a token: 401, as everything else
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+status() { corCurl "$@" | head -1; }
+
+TOKEN1=$(ftAuthToken k1)
+TOKEN2=$(ftAuthToken k2)
+
+echo "01. No token: 401, WWW-Authenticate: Bearer - for an NGSI-LD route and for /version alike"
+echo "========================================================================================"
+show --url /ngsi-ld/v1/entities/urn:E1
+status --url /version
+echo
+echo
+
+
+echo "02. An RS256 token of k1: create an entity, retrieve it"
+echo "======================================================="
+payload='{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}'
+status --url /ngsi-ld/v1/entities --payload "$payload" -H "Authorization: Bearer $TOKEN1"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $TOKEN1"
+echo
+echo
+
+
+echo "03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401"
+echo "=========================================================================================="
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $TOKEN2"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: bearer $TOKEN2"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "X-Access-Token: $TOKEN2"
+echo
+echo
+
+
+echo "04. Expired 300 s ago: 401 (invalid_token); expired 60 s ago - inside the leeway: 200"
+echo "===================================================================================="
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --exp -300)"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --exp -60)"
+echo
+echo
+
+
+echo "05. A broken signature, another issuer, an unknown kid, not a JWT, alg none (signed with anything), Basic instead of Bearer: 401 each"
+echo "==================================================================================================================================="
+ALGNONE=$(python3 -c "
+import base64, json
+b = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b'=').decode()
+print(b({'alg': 'none', 'kid': 'k1'}) + '.' + b({'iss': 'http://verifier.ft', 'exp': 9999999999}) + '.AAAA')")
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --badSig)"          | grep '^WWW-Authenticate:'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --iss http://evil)" | grep '^WWW-Authenticate:'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --kid nope)"       | grep '^WWW-Authenticate:'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer not.a.jwt"                          | grep '^WWW-Authenticate:'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $ALGNONE"                           | grep '^WWW-Authenticate:'
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Basic a2F6OnNlY3JldA=="                    | grep '^WWW-Authenticate:'
+echo
+echo
+
+
+echo "06. A CORS preflight (OPTIONS) without a token: 401, as everything else"
+echo "========================================================================="
+corCurl --url /ngsi-ld/v1/entities -X OPTIONS -H "Origin: http://app.ft" -H "Access-Control-Request-Method: GET" | head -1
+echo
+echo
+
+
+--EXPECT--
+01. No token: 401, WWW-Authenticate: Bearer - for an NGSI-LD route and for /version alike
+========================================================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer
+Content-Length: 127
+
+{
+  "detail": "no access token (Authorization: Bearer)",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+HTTP/1.1 401 Unauthorized
+
+
+02. An RS256 token of k1: create an entity, retrieve it
+=======================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+03. An ES256 token of k2; the scheme in lower case; the same token as X-Access-Token: 401
+==========================================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+HTTP/1.1 401 Unauthorized
+
+
+04. Expired 300 s ago: 401 (invalid_token); expired 60 s ago - inside the leeway: 200
+====================================================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer error="invalid_token", error_description="expired, or not yet valid"
+Content-Length: 113
+
+{
+  "detail": "expired, or not yet valid",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+HTTP/1.1 200 OK
+
+
+05. A broken signature, another issuer, an unknown kid, not a JWT, alg none (signed with anything), Basic instead of Bearer: 401 each
+===================================================================================================================================
+WWW-Authenticate: Bearer error="invalid_token", error_description="invalid signature"
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer"
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+WWW-Authenticate: Bearer error="invalid_token", error_description="not a JWT"
+WWW-Authenticate: Bearer error="invalid_token", error_description="algorithm not accepted"
+WWW-Authenticate: Bearer
+
+
+06. A CORS preflight (OPTIONS) without a token: 401, as everything else
+=========================================================================
+HTTP/1.1 401 Unauthorized
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

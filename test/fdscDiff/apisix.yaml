@@ -1,0 +1,20 @@
+# The provider's data route - fdsc@10.87.0 k3s/provider.yaml:491-510, the upstream the plain broker
+routes:
+  - uri: /*
+    upstream:
+      nodes:
+        "127.0.0.1:1027": 1
+      type: roundrobin
+    plugins:
+      openid-connect:
+        bearer_only: true
+        use_jwks: true
+        client_id: data-service
+        client_secret: unused
+        ssl_verify: false
+        discovery: http://localhost:7740/services/data-service/.well-known/openid-configuration
+      opa:
+        host: http://localhost:8181
+        policy: policy/main
+        with_body: true
+#END

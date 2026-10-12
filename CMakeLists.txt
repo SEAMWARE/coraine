@@ -31,6 +31,7 @@ option(COR_FEATURE_TENANTS         "Enable multi-tenancy (NGSILD-Tenant header)"
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
+option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
 option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
@@ -61,7 +62,7 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS AUTH TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -265,6 +266,9 @@ ADD_SUBDIRECTORY(src/lib/bridge)
 if (COR_FEATURE_TRANSPORTS)
   ADD_SUBDIRECTORY(src/lib/transport)
 endif()
+if (COR_FEATURE_AUTH)
+  ADD_SUBDIRECTORY(src/lib/auth)
+endif()
 if (COR_FEATURE_METRICS)
   ADD_SUBDIRECTORY(src/lib/metrics)
 endif()
@@ -303,6 +307,13 @@ ADD_SUBDIRECTORY(src/plugins/bridge/loopback)
 #
 if (COR_FEATURE_TRANSPORTS)
   ADD_SUBDIRECTORY(src/plugins/transport/ws)
+endif()
+
+#
+# fdsc - the FIWARE Data Space Connector's security inside the broker (--auth fdsc, doc/authorization.md)
+#
+if (COR_FEATURE_AUTH)
+  ADD_SUBDIRECTORY(src/plugins/auth/fdsc)
 endif()
 
 ADD_SUBDIRECTORY(src/app/coraine)

@@ -213,6 +213,7 @@ full list and the honest state of each.
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
 | **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |
 | **Transport** (the API over another protocol) | `--transports` | any number | `ws` - WebSocket: the API and its notifications over one connection ([doc](doc/websocket.md)) |
+| **Auth** (who sent a request, and may it) | `--auth` | one, or none (every request let in) | `fdsc` - the FIWARE Data Space Connector's access tokens and ODRL policies, decided inside the broker ([doc](doc/authorization.md)) |
 
 **Why that matters, beyond tidiness.** The broker never talks to a database. It talks
 to a *driver interface* — `DbDriver.h` for current state, `TroeDriver.h` for history —
@@ -345,6 +346,7 @@ repository, which is where to read them offline or alongside a checkout:
 | ↳ [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | **Running it** | |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
+| [Authorization](doc/authorization.md) | security inside the broker - the auth plugin contract, and `fdsc`: the Data Space Connector's tokens and policies, as the connector decides them (`--auth fdsc`) |
 | [High Availability](doc/high-availability.md) | several instances behind a load balancer: requirements, MongoDB privileges, troubleshooting |
 | [Migrating a database to coraine](doc/migration.md) | another broker's data - entities, subscriptions, registrations, history - with its ids and timestamps; Orion-LD today |
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |
