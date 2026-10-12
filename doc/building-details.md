@@ -280,7 +280,23 @@ Why bother: `libmicrohttpd` is ~180 kB of mapped code, about 21% on top of the
 broker's own, for a library coraine uses 32 of the 81 exported symbols of — and
 it is the last third-party runtime dependency besides libc and OpenSSL once the
 optional features are compiled out. It is also a tarball fetched from
-ftp.gnu.org and built from source in the Dockerfile.
+ftp.gnu.org and built from source.
+
+**Which libmicrohttpd.** The images and CI build **1.0.10** with corLibs'
+`tools/mhd/mhdBuild.sh` - the CI image, the published image (`docker/vendor-libs.sh`
+stages the directory) and the bare runners (`.github/scripts/ci-env.sh`). It
+accepts a release tarball only with the SHA-256 pinned in the script (each pin
+taken from a tarball whose GPG signature was checked), and applies the patches in
+`tools/mhd/patches/<version>/`. On a workstation:
+
+```console
+~/git/corLibs/tools/mhd/mhdBuild.sh --sudo                 # /usr/local, with TLS (the https tests need it)
+~/git/corLibs/tools/mhd/mhdBuild.sh --sudo -- --disable-https
+```
+
+A distribution's `libmicrohttpd-dev` builds and runs coraine as well; 1.0.4 and
+1.0.5 fixed HTTP request smuggling (CWE-444), so a release before 1.0.5 is not one
+to put behind a gateway.
 
 ### The optional runtime dependencies
 

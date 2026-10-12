@@ -15,7 +15,7 @@
 set -euxo pipefail
 
 MONGOC_VERSION=${MONGOC_VERSION:-2.2.2}
-MHD_VERSION=${MHD_VERSION:-1.0.2}
+MHD_VERSION=${MHD_VERSION:-1.0.10}
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -32,10 +32,9 @@ echo "deb [signed-by=/usr/share/keyrings/mongodb.gpg] https://repo.mongodb.org/a
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends mongodb-mongosh
 
-# libmicrohttpd WITH TLS (the https tests) - the distribution's is older than the stack wants
-curl -fsSL "https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-${MHD_VERSION}.tar.gz" -o /tmp/mhd.tar.gz
-tar -xzf /tmp/mhd.tar.gz -C /tmp
-(cd "/tmp/libmicrohttpd-${MHD_VERSION}" && ./configure --disable-doc --disable-examples && make -j"$(nproc)" && sudo make install)
+# libmicrohttpd WITH TLS (the https tests) - the distribution's is older than the stack wants. corLibs' tools/mhd/
+# mhdBuild.sh, as the CI image builds it: corLibs is checked out beside coraine (stack/corLibs)
+MHD_VERSION="$MHD_VERSION" "$(cd "$(dirname "$0")/../../.." && pwd)/corLibs/tools/mhd/mhdBuild.sh" --sudo
 
 # mongo-c-driver
 git clone --depth 1 --branch "${MONGOC_VERSION}" https://github.com/mongodb/mongo-c-driver.git /tmp/mongo-c
