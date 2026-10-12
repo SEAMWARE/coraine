@@ -234,11 +234,13 @@ Where the connector's chain does not work at all, coraine does not copy the fail
 - **ES256.** APISIX's `openid-connect` (lua-resty-openidc 1.8.0) cannot use an EC key of a JWK Set that
   has no `x5c` ("No trusted certs loaded"), and VCVerifier's has none: behind APISIX a verifier configured
   for ES256 gets every token refused. coraine verifies it.
+  ([FIWARE/data-space-connector#238](https://github.com/FIWARE/data-space-connector/issues/238))
 - **A policy whose Rego does not parse.** The PAP accepts `"odrl:leftOperand": "http:bodyValue"` (or
   `ovc:leftOperand`) without the path - the key form `"http:bodyValue": "$.a.b"` is the one that works - and
   generates Rego with the path's `%s` left in it. OPA then refuses the **whole** policies bundle: every
   request of the deployment is denied, whatever the other policies say. coraine skips that one policy, says
   so in its log, and decides with the others.
+  ([SEAMWARE/odrl-pap#58](https://github.com/SEAMWARE/odrl-pap/issues/58))
 
 ## 5. Inside a Data Space Connector
 
