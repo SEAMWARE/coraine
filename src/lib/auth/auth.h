@@ -16,6 +16,7 @@
 #include <stdbool.h>                                 // bool
 
 #include "corArgs/corArgs.h"                         // CorArg
+#include "corTree/CorNode.h"                         // CorNode
 
 
 
@@ -58,6 +59,35 @@ extern bool authInit(void);
 // and BEFORE the tenant is (resolving it may create it). false: the error is set (403 / 503).
 //
 extern bool authAuthorize(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityWanted - does the plugin decide per entity (ABI 2's entity, and a request that is not the
+// broker's own) - a caller that would have to look an entity up only for the check asks this first
+//
+extern bool authEntityWanted(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityAllowed / authEntityTreeAllowed - may the bound request read or write this entity: its
+// EXPANDED types (stored: the stored entity's; false: as the request sends them), the expanded attributes
+// it touches (NULL: the whole entity). false: *detailP says why (in the request's arena). true when the
+// plugin does not decide per entity. The Tree variant takes the types as a tree: "T" or ["T1", "T2"].
+//
+extern bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, const char** detailP);
+extern bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const char** detailP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityDeny - the request's answer when its one entity may not: 403 with that detail
+//
+extern void authEntityDeny(const char* detail);
 
 
 

@@ -42,7 +42,7 @@
 
 
 
-#define AUTH_ABI_VERSION  1
+#define AUTH_ABI_VERSION  2
 
 
 
@@ -90,7 +90,37 @@ typedef struct AuthRequest
   // such term and no @vocab applies. The answer is valid for the call.
   //
   const char*  (*expand)(const char* term);
+
+  //
+  // ABI 2: expandDefault - a term as the broker's default context expands it (the core context, and
+  // --defaultUserContext when there is one) - what a short name means to whoever wrote a POLICY, which is
+  // not what the request's @context makes of it
+  //
+  const char*  (*expandDefault)(const char* term);
+
+  //
+  // ABI 2: entities - true: the broker asks entity() for EACH entity this operation reads or writes. A
+  // plugin may then leave what depends on the entity to entity(); false (an operation the broker does not
+  // check entity by entity), it decides here, or not at all.
+  //
+  bool         entities;
 } AuthRequest;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// AuthEntity - ABI 2: one entity a request reads or writes
+//
+typedef struct AuthEntity
+{
+  const char*         id;
+  const char* const*  typeV;                         // its types, EXPANDED
+  int                 types;
+  bool                stored;                        // true: the stored entity's types; false: as the request sends them (a create)
+  const char* const*  attrV;                         // the attributes the operation touches, EXPANDED; NULL: the entity as a whole
+  int                 attrs;
+} AuthEntity;
 
 
 
@@ -142,6 +172,15 @@ typedef struct AuthDriver
 
   const char*  (*versionInfo)(void);                 // a line for GET /version - NULL: name + version
   void         (*close)(void);                       // the broker stops
+
+  //
+  // ABI 2: entity - may the request read or write this entity. Asked, once authorize has let the request
+  // through, for each entity the operation reads or writes: the one entity of a create, a retrieve or a
+  // write on it (its STORED types - the request need not carry them); each entity of a batch (a denied
+  // one is that entity's error in the 207); each entity a query finds (a denied one is left out of the
+  // response). NULL: authorize decides alone.
+  //
+  AuthVerdict  (*entity)(const AuthRequest* reqP, void* identity, const AuthEntity* entityP, AuthAnswer* answerP);
 } AuthDriver;
 
 typedef void (*AuthRegisterFunc)(AuthDriver* driverP);
