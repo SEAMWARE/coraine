@@ -15,6 +15,13 @@
 # "Next File Descriptor" (from /admin/version) is volatile, so the test computes
 # the delta in the shell and asserts only that there is no leak.
 #
+# A leak grows with every round; what the broker creates once does not. So a first round of 30
+# notifications warms the broker up, and the baseline is taken after it: the worker threads the hung
+# notifications made it start (each with its loop's eventfd and two epoll fds - 32 workers, 96 fds) and
+# the client pool's kept connections are there by then. The second round must leave the count where the
+# first left it. (Measured before the first round, a broker that grew its worker pool during the round -
+# valgrind's slowness holds the workers longer - looked like a leak of 60-77 fds: no socket among them.)
+#
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
 --NAME--
@@ -31,35 +38,40 @@ coraineStart --apiPlugins admin --distOpTimeout 1000
 --RUN--
 
 #
-# 01. Baseline open-fd count (/admin/version)
-# 02. Create an entity and a subscription to the unresponsive endpoint
-# 03. PATCH the entity 30 times -> 30 hung notifications
-# 04. After the notifications time out and their sockets close, the open-fd count
-#     is back at the baseline (no leak)
+# 01. An entity and a subscription to the unresponsive endpoint
+# 02. Round 1: 30 PATCHes -> 30 hung notifications; the open-fd count once they are reclaimed is the baseline
+# 03. Round 2: the same - the count must be back at that baseline (no leak)
 #
 
-fd1=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
+fdNow() { corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+'; }
 
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:E1","type":"T","a":{"type":"Property","value":0}}' > /dev/null
 corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/noresponse"}}}' > /dev/null
 
-i=1
-while [ $i -le 30 ]; do
-  corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":'$i'}' > /dev/null
-  i=$((i+1))
-done
+#
+# round <n> - 30 PATCHes, 30 hung notifications; then wait until the count stops moving (each timed-out
+# notification reclaimed - 1 s each, slower under valgrind): two equal readings 2 s apart, up to 60 s
+#
+round() {
+  local i=1
+  while [ $i -le 30 ]; do
+    corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/a -X PATCH --payload '{"type":"Property","value":'$(( $1 * 100 + i ))'}' > /dev/null
+    i=$((i+1))
+  done
 
-#
-# Wait for the hung notification sockets to time out (1s each) and be reclaimed - polled, up to 60 s.
-# A fixed sleep (8 s) was not enough under valgrind, where 30 timed-out notifications take longer to
-# work through (delta 39 in a nightly whose next run passed): a leak never comes back down, a slow
-# broker does.
-#
-for i in $(seq 1 60); do
-  sleep 1
-  fd2=$(corCurl --url /admin/version | grep -oE '"Next File Descriptor": [0-9]+' | grep -oE '[0-9]+')
-  [ $((fd2 - fd1)) -lt 10 ] && break
-done
+  local prev=-1
+  local now
+  for i in $(seq 1 30); do
+    sleep 2
+    now=$(fdNow)
+    [ "$now" == "$prev" ] && break
+    prev=$now
+  done
+  echo "$now"
+}
+
+fd1=$(round 1)                                     # the warm-up: the baseline is what it leaves
+fd2=$(round 2)                                     # a leak: this one leaves more
 
 echo "01. No file-descriptor leak after 30 unresponsive notifications"
 echo "=============================================================="
