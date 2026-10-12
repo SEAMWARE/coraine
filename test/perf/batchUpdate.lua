@@ -17,6 +17,8 @@
 -- The body is built ONCE, at load: rebuilding it per request would measure the
 -- load generator's string handling rather than the broker's write path.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local batch = tonumber(os.getenv("PERF_BATCH")) or 20
 
 local parts = {}
@@ -29,7 +31,7 @@ local body = "[" .. table.concat(parts, ",") .. "]"
 
 request = function()
   return wrk.format("POST", "/ngsi-ld/v1/entityOperations/update",
-                    {["Content-Type"] = "application/json"}, body)
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth}, body)
 end
 
 -- The latency distribution, exact (wrk's own percentile), for perfRun.sh: p50, p95, p99 in microseconds
