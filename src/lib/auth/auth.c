@@ -49,7 +49,8 @@ static bool        loaded = false;
 // plugin trusts this to leave the entity's part of a decision to entity().
 //
 #define AUTH_ENTITY_OPS  (LdOpCreateEntity  | LdOpRetrieveEntity | LdOpMergeEntity | LdOpReplaceEntity | LdOpDeleteEntity | \
-                          LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr)
+                          LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr    | \
+                          LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete)
 
 
 
@@ -591,6 +592,26 @@ bool authEntityStoredCheck(const char* id)
 
   authEntityDeny(detail);
   return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityBatchAllowed -
+//
+bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  CorNode* entityP = NULL;
+
+  if ((lookup == true) && (corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
+      (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+    return authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP);
+
+  return authEntityTreeAllowed(id, bodyTypeP, false, detailP);
 }
 
 

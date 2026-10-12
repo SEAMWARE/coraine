@@ -79,6 +79,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_ALREADY_EXISTS, DB_ERR
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed
+#endif
 #include "serviceRoutines/postEntityBatchCreate.h"   // Own interface
 
 
@@ -678,6 +681,19 @@ bool postEntityBatchCreate(void)
     }
 
     const char* eid = idP->value.s;
+
+#if COR_FEATURE_AUTH
+    {
+      const char* authDetail = NULL;
+
+      if (authEntityBatchAllowed(eid, corTreeLookup(inP, "type"), false, &authDetail) == false)
+      {
+        addBatchError(errorsP, eid, 403, "about:blank", "Forbidden", authDetail, NULL);
+        inP = nextP;
+        continue;
+      }
+    }
+#endif
 
     if (corTreeLookup(seen, eid) != NULL)
     {

@@ -95,6 +95,16 @@ extern bool authEntityStoredCheck(const char* id);
 
 // -----------------------------------------------------------------------------
 //
+// authEntityBatchAllowed - one entity of a batch: lookup - its stored types when it exists (an upsert, an
+// update, a merge, a delete), else bodyTypeP - the types the body gives it (a create, the upsert of a new
+// one; NULL: none). false: *detailP says why - the entity's error in the 207.
+//
+extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authEntityDeny - the request's answer when its one entity may not: 403 with that detail
 //
 extern void authEntityDeny(const char* detail);

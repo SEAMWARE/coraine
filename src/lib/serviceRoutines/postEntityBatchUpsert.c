@@ -93,6 +93,9 @@
 #include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed
+#endif
 #include "serviceRoutines/postEntityBatchUpsert.h"   // Own interface
 
 
@@ -555,6 +558,18 @@ bool postEntityBatchUpsert(void)
         continue;
       }
     }
+
+#if COR_FEATURE_AUTH
+    {
+      const char* authDetail = NULL;
+
+      if (authEntityBatchAllowed(idP->value.s, corTreeLookup(inP, "type"), true, &authDetail) == false)
+      {
+        addBatchError(errorsP, idP->value.s, 403, "about:blank", "Forbidden", authDetail, NULL);
+        continue;
+      }
+    }
+#endif
 
     Group* g = groupFindOrCreate(&groups, &gN, &gCap, idP->value.s);
     groupFragAppend(g, inP);

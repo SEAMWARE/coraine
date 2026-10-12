@@ -92,6 +92,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed
+#endif
 #include "serviceRoutines/postEntityBatchUpdate.h"   // Own interface
 
 
@@ -741,6 +744,18 @@ bool postEntityBatchUpdate(void)
         continue;
       }
     }
+
+#if COR_FEATURE_AUTH
+    {
+      const char* authDetail = NULL;
+
+      if (authEntityBatchAllowed(idP->value.s, NULL, true, &authDetail) == false)
+      {
+        addBatchError(errorsP, idP->value.s, 403, "about:blank", "Forbidden", authDetail, NULL);
+        continue;
+      }
+    }
+#endif
 
     Group* g = groupFindOrCreate(&groups, &gN, &gCap, idP->value.s);
     groupFragAppend(g, inP);

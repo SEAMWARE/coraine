@@ -1,0 +1,145 @@
+#
+# FILE            auth_fdsc_ngsild_batch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin with --fdscNgsild (doc/authorization.md § 6): a batch is decided ENTITY BY ENTITY -
+# a create on the types its body gives, an upsert, update, merge or delete on the stored entity's (the body's
+# for an upsert that creates). An entity the request may not touch is that entity's 403 in the 207; the
+# others are done. (The Data Space Connector reads a batch's array body for one 'type' and finds none.)
+#
+--NAME--
+Auth plugin fdsc --fdscNgsild - a batch is decided entity by entity: a denied one is its own 403 in the 207
+
+--TAGS--
+auth fdsc batch
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# Policies: anyone may read an EnergyReport; did:web:writer may do anything to one; did:web:builder to a Building.
+#
+# 01. The builder creates a Building whose id says EnergyReport (urn:ngsi-ld:EnergyReport:B1)
+# 02. The writer, batch create: urn:E1 (EnergyReport) and urn:B2 (Building) - E1 created, B2 its 403
+# 03. The writer, batch update: urn:E1 and urn:ngsi-ld:EnergyReport:B1 (stored: a Building) - E1 updated, B1 its 403
+# 04. The writer, batch upsert: urn:E1 (stored EnergyReport) and urn:E3 (new, an EnergyReport) - both done; and urn:B1 (a Building) - 403
+# 05. The writer, batch merge and batch delete: E1 and B1 - E1 done, B1 its 403
+# 06. What is left: B1 - the builder may read its Building; E3; E1 is deleted - with no stored type, no EnergyReport policy holds: 403
+#
+batch() { op="$1"; tok="$2"; body="$3"; corCurl --url /ngsi-ld/v1/entityOperations/$op --payload "$body" -H "Authorization: Bearer $tok" > /tmp/authBatch.$$; head -1 /tmp/authBatch.$$; sed -n '/^[[{]/,$p' /tmp/authBatch.$$ | python3 -c "
+import json,sys
+t = sys.stdin.read().strip()
+if not t: sys.exit(0)
+d = json.loads(t)
+if isinstance(d, dict) and 'success' in d:
+    print('  success:', sorted(d['success']))
+    print('  errors: ', sorted((e['entityId'], e['error']['status']) for e in d.get('errors', [])))
+else:
+    print(' ', json.dumps(d, sort_keys=True))"; rm -f /tmp/authBatch.$$; }
+vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
+
+WRITER=$(ftAuthToken k1 --vc "$(vc did:web:writer)")
+BUILDER=$(ftAuthToken k1 --vc "$(vc did:web:builder)")
+
+echo "01. The builder creates a Building whose id says EnergyReport (urn:ngsi-ld:EnergyReport:B1)"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:EnergyReport:B1", "type": "Building"}' -H "Authorization: Bearer $BUILDER" | head -1
+echo
+echo
+
+
+echo "02. The writer, batch create: urn:E1 (EnergyReport) and urn:B2 (Building) - E1 created, B2 its 403"
+echo "=================================================================================================="
+batch create "$WRITER" '[{"id": "urn:E1", "type": "EnergyReport", "p": {"type": "Property", "value": 1}}, {"id": "urn:B2", "type": "Building"}]'
+echo
+echo
+
+
+echo "03. The writer, batch update: urn:E1 and urn:ngsi-ld:EnergyReport:B1 (stored: a Building) - E1 updated, B1 its 403"
+echo "==================================================================================================================="
+batch update "$WRITER" '[{"id": "urn:E1", "p": {"type": "Property", "value": 2}}, {"id": "urn:ngsi-ld:EnergyReport:B1", "p": {"type": "Property", "value": 2}}]'
+echo
+echo
+
+
+echo "04. The writer, batch upsert: urn:E1 (stored EnergyReport) and urn:E3 (new, an EnergyReport) - both done; and urn:B1 (a Building) - 403"
+echo "======================================================================================================================================"
+batch upsert "$WRITER" '[{"id": "urn:E1", "type": "EnergyReport", "p": {"type": "Property", "value": 3}}, {"id": "urn:E3", "type": "EnergyReport"}, {"id": "urn:ngsi-ld:EnergyReport:B1", "type": "EnergyReport"}]'
+echo
+echo
+
+
+echo "05. The writer, batch merge and batch delete: E1 and B1 - E1 done, B1 its 403"
+echo "============================================================================="
+batch merge "$WRITER" '[{"id": "urn:E1", "q": {"type": "Property", "value": 1}}, {"id": "urn:ngsi-ld:EnergyReport:B1", "q": {"type": "Property", "value": 1}}]'
+batch delete "$WRITER" '["urn:E1", "urn:ngsi-ld:EnergyReport:B1"]'
+echo
+echo
+
+
+echo "06. What is left: B1 - the builder may read its Building; E3; E1 is deleted - with no stored type, no EnergyReport policy holds: 403"
+echo "========================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:B1 -H "Authorization: Bearer $BUILDER" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E3 -H "Authorization: Bearer $WRITER" | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $WRITER" | head -1
+echo
+echo
+
+
+--EXPECT--
+01. The builder creates a Building whose id says EnergyReport (urn:ngsi-ld:EnergyReport:B1)
+==========================================================================================
+HTTP/1.1 201 Created
+
+
+02. The writer, batch create: urn:E1 (EnergyReport) and urn:B2 (Building) - E1 created, B2 its 403
+==================================================================================================
+HTTP/1.1 207 Multi-Status
+  success: ['urn:E1']
+  errors:  [('urn:B2', 403)]
+
+
+03. The writer, batch update: urn:E1 and urn:ngsi-ld:EnergyReport:B1 (stored: a Building) - E1 updated, B1 its 403
+===================================================================================================================
+HTTP/1.1 207 Multi-Status
+  success: ['urn:E1']
+  errors:  [('urn:ngsi-ld:EnergyReport:B1', 403)]
+
+
+04. The writer, batch upsert: urn:E1 (stored EnergyReport) and urn:E3 (new, an EnergyReport) - both done; and urn:B1 (a Building) - 403
+======================================================================================================================================
+HTTP/1.1 207 Multi-Status
+  success: ['urn:E1', 'urn:E3']
+  errors:  [('urn:ngsi-ld:EnergyReport:B1', 403)]
+
+
+05. The writer, batch merge and batch delete: E1 and B1 - E1 done, B1 its 403
+=============================================================================
+HTTP/1.1 207 Multi-Status
+  success: ['urn:E1']
+  errors:  [('urn:ngsi-ld:EnergyReport:B1', 403)]
+HTTP/1.1 207 Multi-Status
+  success: ['urn:E1']
+  errors:  [('urn:ngsi-ld:EnergyReport:B1', 403)]
+
+
+06. What is left: B1 - the builder may read its Building; E3; E1 is deleted - with no stored type, no EnergyReport policy holds: 403
+=========================================================================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+HTTP/1.1 403 Forbidden
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR
