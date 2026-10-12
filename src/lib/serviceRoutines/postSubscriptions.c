@@ -52,6 +52,9 @@ extern CorLdContextCache* corLdCacheGet(void);
 
 #include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
 #include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authSubscriptionOwnerKeep
+#endif
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 
 
@@ -414,6 +417,14 @@ bool postSubscriptions(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error creating subscription '%s'", idP->value.s);
     return true;
   }
+
+#if COR_FEATURE_AUTH
+  //
+  // Who made it - its notifications are decided for them. Before it is in the cache: its first
+  // notification finds its owner.
+  //
+  authSubscriptionOwnerKeep(idP->value.s);
+#endif
 
   //
   // Add to subscription cache

@@ -53,6 +53,18 @@ A query's page may hold fewer entities than its `limit`, its position links (`pa
 name only entities the request may read, and its count counts the ones left out - with `q`, a count is an
 answer about entities the request cannot see.
 
+**Notifications** (ABI 2: `identitySave`, `identityRestore`). A subscription notifies long after the request
+that made it, so the broker keeps its **owner** - who created it, or last updated it: `identitySave`'s text -
+in the store's document collection `subscriptionOwners`, beside the subscription and never inside it
+(nothing that renders a subscription can show it, and a broker that does not know the collection ignores
+it). Each entity of each notification - the linked entities of a `join` too; `join=inline` is not done - is
+asked about as a retrieve of it, with `entity` on the identity `identityRestore` makes of that text; the
+ones the owner may not read are left out, and a notification left with none is not sent. An owner not
+known (none kept, or one that no longer holds) leaves out every entity: fail closed. A PATCH of the
+subscription makes whoever sent it the owner - how an owner takes a subscription back. A restored owner is
+cached for 30 s: an owner a broker of an HA set stores is seen by the others within that, through the
+shared store.
+
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
 two queries) - a plugin leaves the entity's part of a decision to `entity` only when it is true.
@@ -140,6 +152,7 @@ Cor-Lib functions is built against the same lib sources as its broker ([Plugin a
 | `--fdscStrippedPath` | `http:path` reads the `x-stripped-path` header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path |
 | `--fdscAnonymous` | a request without a token is let in as no one, instead of a 401 - only a `vc:any` policy can allow it anything |
 | `--fdscNgsild` | decide on the entity, as NGSI-LD has it (§ 6) - **decisions differ from the connector's** |
+| `--fdscOwnerMaxAge <s>` | `--fdscNgsild`: seconds a subscription's owner (its maker's credential, kept for its notifications) holds - after that, its notifications go without entities until the owner updates the subscription. 0 (default): until the credential's own `validUntil` (VC 1.1: `expirationDate`) |
 
 A source of keys and a source of policies are required; without either the broker does not start.
 
@@ -305,19 +318,22 @@ decisions (`entity`, § 2.1). The policies are the same; what their words read i
 | a batch | one `type` sought in an array body - none: denied | entity by entity - a denied one is its 403 in the 207 |
 | a query | `?type=A,B` is one string; a POST query has no `type` | each entity found, on its stored type - the denied ones left out |
 | the action | the HTTP method: `odrl:modify` is PATCH only, a POST query is a create | the NGSI-LD operation: a POST query is a read, a PUT a modification, an upsert per entity a create or an update |
+| notifications | not decided: a subscription notifies what matches | for the subscription's owner, entity by entity (§ 2.1); the owner's credential kept in the store, honoured until its `validUntil` or `--fdscOwnerMaxAge` |
 
 For an operation the broker does not decide entity by entity (`AuthRequest.entities` false - the temporal
 API, subscriptions, registrations, `/types`, ...), `--fdscNgsild` reads the entity type as the connector does.
 
-`auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch` and `auth_fdsc_ngsild_query` hold it; each of them fails
-without `--fdscNgsild`.
+`auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch`, `auth_fdsc_ngsild_query` and `auth_fdsc_ngsild_notify` hold
+it; each of them fails without `--fdscNgsild`.
+
+A credential kept as an owner is personal data at rest: it goes with its subscription (a DELETE of it), and
+it is never checked again for revocation - VCVerifier checks that when it issues a token. `--fdscOwnerMaxAge`
+bounds how long a revoked credential still receives notifications.
 
 ## 7. Next
 
-- **Notifications**: a subscription notifies what matches, whatever its subscriber may read. Deciding each
-  notification needs the subscriber's identity kept with the subscription - with `fdsc.so` its credential -
-  and where it is kept (with the subscription, in the store; or in memory, lost at a restart) is still to
-  decide.
+- A subscription's owner kept in the store with **haaux** (corDB HA): the owners are not among what haaux
+  syncs - with MongoDB the store is shared, and they are.
 - The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
 - A request's `@context` (its `Link` header, its body's `@context`) is fetched before `authorize`: an
   authenticated client - anyone, with `--fdscAnonymous` - can have the broker fetch a URL of its choice,

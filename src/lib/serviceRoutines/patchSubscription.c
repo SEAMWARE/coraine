@@ -35,6 +35,9 @@
 #include "db/Tenant.h"                               // Tenant, tenantApiName
 
 #include "serviceRoutines/subscriptionQExpand.h"   // subscriptionQExpand
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authSubscriptionOwnerKeep
+#endif
 #include "serviceRoutines/patchSubscription.h"       // Own interface
 
 
@@ -295,6 +298,14 @@ bool patchSubscription(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error updating subscription '%s'", subId);
     return true;
   }
+
+#if COR_FEATURE_AUTH
+  //
+  // Whoever may update it is its owner from now on - how an owner whose credential ran out, or who is not
+  // known (an older broker made it), takes it back
+  //
+  authSubscriptionOwnerKeep(subId);
+#endif
 
   //
   // A periodic subscription lives in the periodic cache, and is replaced THERE. This went on to
