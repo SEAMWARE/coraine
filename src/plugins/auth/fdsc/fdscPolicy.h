@@ -62,6 +62,19 @@ extern AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, 
 
 // -----------------------------------------------------------------------------
 //
+// fdscPolicyNgsildSet / fdscPolicyEntity - --fdscNgsild: ngsi-ld:entityType is the entity's - its stored,
+// expanded types, compared with the policy's type expanded with the broker's default context - and is
+// decided by fdscPolicyEntity (AuthDriver.entity) for each entity of an operation the broker checks entity
+// by entity. Without --fdscNgsild fdscPolicyEntity allows everything: fdscPolicyDecide has decided, as
+// the Data Space Connector does.
+//
+extern void        fdscPolicyNgsildSet(bool on);
+extern AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscPolicyLoaded / fdscPolicyCount / fdscPolicyRelease
 //
 extern bool fdscPolicyLoaded(void);                  // a set has been installed - even an empty one

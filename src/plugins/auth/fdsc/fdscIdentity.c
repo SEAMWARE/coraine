@@ -30,6 +30,7 @@ FdscIdentity* fdscIdentityNew(void)
   corAllocBufferInit(&idP->ka, idP->buf, sizeof(idP->buf), 8192, NULL, "fdsc identity");
   idP->claimsP     = NULL;
   idP->credentials = 0;
+  idP->entityFree  = false;
   return idP;
 }
 

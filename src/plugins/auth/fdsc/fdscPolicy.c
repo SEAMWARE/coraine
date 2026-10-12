@@ -43,7 +43,7 @@
 //
 // Tri - a rule's value
 //
-typedef enum Tri { TriFalse = 0, TriTrue = 1, TriUndef = 2 } Tri;
+typedef enum Tri { TriFalse = 0, TriTrue = 1, TriUndef = 2, TriPending = 3 } Tri;   // Pending: --fdscNgsild - it depends on the entity, entity() decides
 
 
 
@@ -1192,7 +1192,16 @@ typedef struct Ctx
   CorNode*            bodyP;
   bool                queryRead;
   CorNode*            queryP;
+
+  //
+  // --fdscNgsild: the entity type is the entity's - its expanded types (entityP, in entity()); before it is
+  // known (authorize, when the broker will ask entity()), a rule on it is Pending
+  //
+  const AuthEntity*   entityP;
+  bool                defer;
 } Ctx;
+
+static bool ngsild = false;                          // --fdscNgsild (fdscPolicyNgsildSet)
 
 
 
@@ -1726,8 +1735,20 @@ static bool inPath(const char* l, const char* r)
 //
 // constraintEval -
 //
+static Tri opEval(Ctx* cP, Rule* rP, CorNode* lP, CorNode* vP);
+static Tri entityTypeEval(Ctx* cP, Rule* rP);
+
 static Tri constraintEval(Ctx* cP, Rule* rP)
 {
+  if ((rP->left == LeftEntityType) && (ngsild == true))
+  {
+    if (cP->entityP != NULL)
+      return entityTypeEval(cP, rP);
+
+    if (cP->defer == true)
+      return TriPending;
+  }
+
   CorNode* lP = leftValue(cP, rP);
   CorNode* vP;
 
@@ -1740,6 +1761,74 @@ static Tri constraintEval(Ctx* cP, Rule* rP)
   }
   else
     vP = rP->rightP;
+
+  return opEval(cP, rP, lP, vP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// rightExpanded - --fdscNgsild: an entity type of a policy as an IRI - a short name expanded with the
+// broker's default context (what the policy's author meant by it, not the request's @context)
+//
+static CorNode* rightExpanded(Ctx* cP, CorNode* vP)
+{
+  if (vP->type == CorString)
+    return corTreeString(cP->kaP, NULL, cP->reqP->expandDefault(vP->value.s));
+
+  if (vP->type != CorArray)
+    return vP;
+
+  CorNode* arrayP = corTreeArray(cP->kaP, NULL);
+
+  for (CorNode* eP = vP->value.head; eP != NULL; eP = eP->next)
+    corTreeChildAdd(arrayP, (eP->type == CorString) ? corTreeString(cP->kaP, NULL, cP->reqP->expandDefault(eP->value.s)) : eP);
+
+  return arrayP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityTypeEval - --fdscNgsild, in entity(): ngsi-ld:entityType against the entity's expanded types - a
+// positive operator holds when it holds for ONE of them, a negative one (neq, isNoneOf) when it holds for
+// every one
+//
+static Tri entityTypeEval(Ctx* cP, Rule* rP)
+{
+  if ((rP->right != RightValue) || (rP->rightP == NULL) || (cP->entityP->types == 0))
+    return TriUndef;
+
+  CorNode* vP       = rightExpanded(cP, rP->rightP);
+  bool     negative = (rP->op == OpNeq) || (rP->op == OpIsNoneOf);
+  bool     any      = false;
+  bool     all      = true;
+
+  for (int i = 0; i < cP->entityP->types; i++)
+  {
+    Tri t = opEval(cP, rP, corTreeString(cP->kaP, NULL, cP->entityP->typeV[i]), vP);
+
+    if (t == TriUndef)
+      return TriUndef;
+
+    any = any || (t == TriTrue);
+    all = all && (t == TriTrue);
+  }
+
+  return ((negative == true) ? all : any) ? TriTrue : TriFalse;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// opEval - an operator on two defined values
+//
+static Tri opEval(Ctx* cP, Rule* rP, CorNode* lP, CorNode* vP)
+{
+  (void) cP;
 
   if ((lP == NULL) || (vP == NULL))
     return TriUndef;
@@ -1819,8 +1908,9 @@ static Tri ruleEval(Ctx* cP, Rule* rP)
       //
       // The elements are an array literal in the Rego: one undefined element makes the whole undefined
       //
-      int trues = 0;
-      int undef = 0;
+      int trues   = 0;
+      int undef   = 0;
+      int pending = 0;
 
       for (int i = 0; i < rP->children; i++)
       {
@@ -1830,14 +1920,25 @@ static Tri ruleEval(Ctx* cP, Rule* rP)
           ++trues;
         else if (t == TriUndef)
           ++undef;
+        else if (t == TriPending)
+          ++pending;
       }
 
       if (undef > 0)
         return TriUndef;
 
-      if (rP->kind == RuleAnd)  return (trues == rP->children) ? TriTrue : TriFalse;
-      if (rP->kind == RuleOr)   return (trues > 0)             ? TriTrue : TriFalse;
-      return (trues == 1) ? TriTrue : TriFalse;
+      int falses = rP->children - trues - pending;
+
+      if (rP->kind == RuleAnd)
+        return (falses > 0) ? TriFalse : (pending > 0) ? TriPending : TriTrue;
+
+      if (rP->kind == RuleOr)
+        return (trues > 0) ? TriTrue : (pending > 0) ? TriPending : TriFalse;
+
+      if ((trues > 1) || ((trues == 0) && (pending == 0)))
+        return TriFalse;
+
+      return (pending > 0) ? TriPending : TriTrue;
     }
   }
 
@@ -1848,17 +1949,24 @@ static Tri ruleEval(Ctx* cP, Rule* rP)
 
 // -----------------------------------------------------------------------------
 //
-// policyAllows - every rule of the policy true (its body: each line must hold, the first that does not ends it)
+// policyAllows - every rule of the policy true (its body: each line must hold, the first that does not ends
+// it); Pending: no rule fails, and one depends on the entity
 //
-static bool policyAllows(Ctx* cP, Policy* pP)
+static Tri policyAllows(Ctx* cP, Policy* pP)
 {
+  bool pending = false;
+
   for (int i = 0; i < pP->all.children; i++)
   {
-    if (ruleEval(cP, &pP->all.childV[i]) != TriTrue)
-      return false;
+    Tri t = ruleEval(cP, &pP->all.childV[i]);
+
+    if (t == TriPending)
+      pending = true;
+    else if (t != TriTrue)
+      return TriFalse;
   }
 
-  return true;
+  return (pending == true) ? TriPending : TriTrue;
 }
 
 
@@ -1882,9 +1990,10 @@ static int methodOf(const char* method)
 
 // -----------------------------------------------------------------------------
 //
-// fdscPolicyDecide -
+// decide - every policy, as OPA evaluates every 'allow if' of policy.main - an error in any one of them
+// (eval_conflict_error) is the decision's error, whatever the others say
 //
-AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAnswer* answerP)
+static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP)
 {
   CorAlloc         ka;
   char             buf[4096];
@@ -1895,24 +2004,27 @@ AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAns
   corAllocBufferInit(&ka, buf, sizeof(buf), 8192, NULL, "fdsc decision");
 
   memset(&ctx, 0, sizeof(ctx));
-  ctx.reqP   = reqP;
-  ctx.idP    = idP;
-  ctx.kaP    = &ka;
-  ctx.method = methodOf(reqP->method);
-  ctx.nowMs  = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
+  ctx.reqP    = reqP;
+  ctx.idP     = idP;
+  ctx.kaP     = &ka;
+  ctx.method  = methodOf(reqP->method);
+  ctx.nowMs   = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
+  ctx.entityP = entityP;
+  ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (idP != NULL);
 
   bool allowed = false;
+  bool pending = false;
 
   pthread_rwlock_rdlock(&setLock);
 
-  //
-  // Every policy, as OPA evaluates every 'allow if' of policy.main - an error in any one of them
-  // (eval_conflict_error) is the decision's error, whatever the others say
-  //
   for (int i = 0; (setP != NULL) && (i < setP->policies); i++)
   {
-    if (policyAllows(&ctx, &setP->policyV[i]) == true)
+    Tri t = policyAllows(&ctx, &setP->policyV[i]);
+
+    if (t == TriTrue)
       allowed = true;
+    else if (t == TriPending)
+      pending = true;
   }
 
   pthread_rwlock_unlock(&setLock);
@@ -1924,11 +2036,54 @@ AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAns
     return AuthUnavailable;
   }
 
-  if (allowed == true)
+  //
+  // authorize: a policy that holds whatever the entity - entity() has nothing left to ask; one that holds
+  // depending on the entity - entity() decides
+  //
+  if ((entityP == NULL) && (idP != NULL))
+    idP->entityFree = allowed;
+
+  if ((allowed == true) || (pending == true))
     return AuthAllow;
 
-  answerP->detail = "no policy allows the request";
+  answerP->detail = (entityP != NULL) ? "no policy allows this entity" : "no policy allows the request";
   return AuthDeny;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscPolicyDecide -
+//
+AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAnswer* answerP)
+{
+  return decide(reqP, idP, NULL, answerP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscPolicyEntity -
+//
+AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP)
+{
+  if ((ngsild == false) || ((idP != NULL) && (idP->entityFree == true)))
+    return AuthAllow;
+
+  return decide(reqP, idP, entityP, answerP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscPolicyNgsildSet -
+//
+void fdscPolicyNgsildSet(bool on)
+{
+  ngsild = on;
 }
 
 
