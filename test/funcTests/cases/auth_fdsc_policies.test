@@ -57,6 +57,7 @@ echo "01. energyReport (read, any credential, entityType EnergyReport): by the i
 echo "============================================================================================================================="
 status "GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there)" --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1 -H "Authorization: Bearer $USER"
 status "GET ?type=EnergyReport                                 " --url "/ngsi-ld/v1/entities?type=EnergyReport" -H "Authorization: Bearer $USER"
+status "GET ?type=EnergyReport&join=inline (the connector allows it)" --url "/ngsi-ld/v1/entities?type=EnergyReport&join=inline" -H "Authorization: Bearer $USER"
 status "GET urn:ngsi-ld:Building:1                             " --url /ngsi-ld/v1/entities/urn:ngsi-ld:Building:1 -H "Authorization: Bearer $USER"
 status "PATCH urn:ngsi-ld:EnergyReport:1                       " --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1 -X PATCH --payload '{"p": 1}' -H "Authorization: Bearer $USER"
 status "GET urn:ngsi-ld:EnergyReport:1/attrs/p (the last segment)" --url /ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:1/attrs/p -H "Authorization: Bearer $USER"
@@ -136,6 +137,7 @@ echo
 =============================================================================================================================
 GET urn:ngsi-ld:EnergyReport:1 (404: let in, not there): HTTP/1.1 404 Not Found
 GET ?type=EnergyReport                                 : HTTP/1.1 200 OK
+GET ?type=EnergyReport&join=inline (the connector allows it): HTTP/1.1 200 OK
 GET urn:ngsi-ld:Building:1                             : HTTP/1.1 403 Forbidden
 PATCH urn:ngsi-ld:EnergyReport:1                       : HTTP/1.1 403 Forbidden
 GET urn:ngsi-ld:EnergyReport:1/attrs/p (the last segment): HTTP/1.1 403 Forbidden

@@ -64,6 +64,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed
+#endif
 #include "serviceRoutines/postEntityBatchDelete.h"   // Own interface
 
 
@@ -313,6 +316,18 @@ bool postEntityBatchDelete(void)
                     "entry is not a valid URI", NULL);
       continue;
     }
+#if COR_FEATURE_AUTH
+    {
+      const char* authDetail = NULL;
+
+      if (authEntityBatchAllowed(inP->value.s, NULL, true, &authDetail) == false)
+      {
+        addBatchError(errorsP, inP->value.s, 403, "about:blank", "Forbidden", authDetail, NULL);
+        continue;
+      }
+    }
+#endif
+
     idV[n++] = inP->value.s;
   }
 

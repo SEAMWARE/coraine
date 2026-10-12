@@ -65,6 +65,7 @@ static char*  organization  = NULL;                  // the provider's DID - the
 static int    refresh       = 30;                    // seconds between two fetches of keys and policies
 static bool   strippedPath  = false;                 // the x-stripped-path header is a gateway's, not a client's: http:path reads it
 static bool   anonymousOk   = false;                 // a request without a token is let in, as no one - only a policy for vc:any can allow it anything
+static bool   ngsildMode    = false;                 // ngsi-ld:entityType is the entity's stored, expanded type - not read out of the id, ?type or the body
 
 static CorArg fdscArgs[] =
 {
@@ -78,6 +79,7 @@ static CorArg fdscArgs[] =
   { "--fdscOrganization", "-fdscOrganization", CorArgString, _vp &organization, CorArgOpt, _vp NULL, NULL, NULL,       "the provider's DID - the PAP's GENERAL_ORGANIZATION_DID: vc:role reads the credential's roles for it" },
   { "--fdscRefresh",   "-fdscRefresh",   CorArgInt,    _vp &refresh,     CorArgOpt, _vp 30,    _vp 1,    _vp 86400,     "seconds between two fetches of the keys and the policies" },
   { "--fdscAnonymous", "-fdscAnonymous", CorArgBool,   _vp &anonymousOk, CorArgOpt, _vp false, _vp false, _vp true,     "a request without a token is not a 401 - it is let in as no one, and only a policy for vc:any can allow it" },
+  { "--fdscNgsild",    "-fdscNgsild",    CorArgBool,   _vp &ngsildMode,  CorArgOpt, _vp false, _vp false, _vp true,     "ngsi-ld:entityType is the entity's - its stored, expanded types, each entity of a batch or a query on its own - instead of what the Data Space Connector reads (the id string, ?type, the body's type): decisions differ from the connector's" },
   { "--fdscStrippedPath", "-fdscStrippedPath", CorArgBool, _vp &strippedPath, CorArgOpt, _vp false, _vp false, _vp true, "http:path reads the x-stripped-path header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path" },
   CORARGS_END
 };
@@ -88,6 +90,7 @@ static CorArg fdscArgs[] =
 //
 // The refresh thread
 //
+static AuthDriver*      driverSelf = NULL;         // the broker's struct, as authRegister got it - init takes entity() back without --fdscNgsild
 static pthread_t        refreshThread;
 static bool             refreshRunning = false;
 static pthread_mutex_t  refreshMutex   = PTHREAD_MUTEX_INITIALIZER;
@@ -330,6 +333,14 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
   }
 
   fdscPolicyOrganizationSet(organization);
+  fdscPolicyNgsildSet(ngsildMode);
+
+  //
+  // Without --fdscNgsild the connector decides alone - no entity(): the broker looks no entity up, filters
+  // nothing, refuses nothing it would not refuse
+  //
+  if ((ngsildMode == false) && (driverSelf != NULL) && (driverSelf->abiVersion >= 2))
+    driverSelf->entity = NULL;
   fdscPolicyStrippedPathSet(strippedPath);
   refreshRunning = true;
   COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
@@ -369,7 +380,14 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   if (token == NULL)
   {
     if (anonymousOk == true)
-      return AuthAllow;                              // identity NULL: no one
+    {
+      //
+      // No one: identity NULL - or, with --fdscNgsild, an identity without claims, which holds what
+      // authorize leaves to entity()
+      //
+      *identityP = (ngsildMode == true) ? fdscIdentityNew() : NULL;
+      return AuthAllow;
+    }
 
     answerP->detail = "no access token (Authorization: Bearer)";
     return AuthUnauthenticated;
@@ -454,6 +472,17 @@ static AuthVerdict fdscAuthorize(const AuthRequest* reqP, void* identity, AuthAn
 
 // -----------------------------------------------------------------------------
 //
+// fdscEntity - AuthDriver.entity (ABI 2): --fdscNgsild decides here what depends on the entity
+//
+static AuthVerdict fdscEntity(const AuthRequest* reqP, void* identity, const AuthEntity* entityP, AuthAnswer* answerP)
+{
+  return fdscPolicyEntity(reqP, (FdscIdentity*) identity, entityP, answerP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscRelease -
 //
 static void fdscRelease(void* identity)
@@ -510,7 +539,9 @@ static void fdscClose(void)
 //
 void authRegister(AuthDriver* driverP)
 {
-  driverP->abiVersion   = AUTH_ABI_VERSION;
+  int brokerAbi = driverP->abiVersion;               // the broker's - how much of the struct it has
+
+  driverP->abiVersion   = (brokerAbi < AUTH_ABI_VERSION) ? brokerAbi : AUTH_ABI_VERSION;
   driverP->name         = "fdsc";
   driverP->version      = FDSC_VERSION;
   driverP->args         = fdscArgs;
@@ -520,4 +551,9 @@ void authRegister(AuthDriver* driverP)
   driverP->release      = fdscRelease;
   driverP->versionInfo  = fdscVersionInfo;
   driverP->close        = fdscClose;
+
+  if (brokerAbi >= 2)                                // a broker older than ABI 2 has no room for it
+    driverP->entity = fdscEntity;
+
+  driverSelf = driverP;
 }

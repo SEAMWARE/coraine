@@ -16,6 +16,7 @@
 #include <stdbool.h>                                 // bool
 
 #include "corArgs/corArgs.h"                         // CorArg
+#include "corTree/CorNode.h"                         // CorNode
 
 
 
@@ -58,6 +59,66 @@ extern bool authInit(void);
 // and BEFORE the tenant is (resolving it may create it). false: the error is set (403 / 503).
 //
 extern bool authAuthorize(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityWanted - does the plugin decide per entity (ABI 2's entity, and a request that is not the
+// broker's own) - a caller that would have to look an entity up only for the check asks this first
+//
+extern bool authEntityWanted(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityAllowed / authEntityTreeAllowed - may the bound request read or write this entity: its
+// EXPANDED types (stored: the stored entity's; false: as the request sends them), the expanded attributes
+// it touches (NULL: the whole entity). false: *detailP says why (in the request's arena). true when the
+// plugin does not decide per entity. The Tree variant takes the types as a tree: "T" or ["T1", "T2"].
+//
+extern bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, const char** detailP);
+extern bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const char** detailP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityStoredCheck - the request's one entity, by id, its stored types looked up - and the types the
+// request body gives it, if it gives any: may it. false: the 403 is set - the service routine returns. Call it first thing, before anything is forwarded (distributed
+// operations), handed to a bridge or written. Costs nothing when the plugin does not decide per entity.
+//
+extern bool authEntityStoredCheck(const char* id);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityBatchAllowed - one entity of a batch: lookup - its stored types when it exists (an upsert, an
+// update, a merge, a delete) AND the types the body gives it (bodyTypeP, NULL: none) - a write that changes
+// or adds a type needs the right to it; an entity that does not exist (or no lookup: a create) - bodyTypeP.
+// false: *detailP says why - the entity's error in the 207.
+//
+extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityArrayFilter - a query's entities, as they go into the response: each the request may not read
+// is left out (a page may hold fewer than the limit; a count counts it). false: join=inline - refused (403
+// set), its nested entities are not asked about.
+//
+extern bool authEntityArrayFilter(CorNode* arrayP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityDeny - the request's answer when its one entity may not: 403 with that detail
+//
+extern void authEntityDeny(const char* detail);
 
 
 

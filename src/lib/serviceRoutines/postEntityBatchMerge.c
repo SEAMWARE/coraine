@@ -82,6 +82,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND, DB_ERR, DB_BAD_INPUT
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed
+#endif
 #include "serviceRoutines/postEntityBatchMerge.h"    // Own interface
 
 
@@ -537,6 +540,18 @@ bool postEntityBatchMerge(void)
         continue;
       }
     }
+
+#if COR_FEATURE_AUTH
+    {
+      const char* authDetail = NULL;
+
+      if (authEntityBatchAllowed(idP->value.s, corTreeLookup(inP, "type"), true, &authDetail) == false)
+      {
+        addBatchError(errorsP, idP->value.s, 403, "about:blank", "Forbidden", authDetail, NULL);
+        continue;
+      }
+    }
+#endif
 
     fragV[fragN] = inP;
     idV[fragN]   = idP->value.s;

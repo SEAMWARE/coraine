@@ -15,14 +15,20 @@
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corJsonld/corLdExpand.h"                   // corLdExpand
+#include "corJsonld/corLdDownload.h"                 // corLdContextFromUrl
+#include "corTree/CorNode.h"                         // CorNode
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeChildRemove
 #include "corRest/CorRestState.h"                    // corRest
 #include "corRest/corRestHooks.h"                    // corRestSetAdmitHook
 #include "corRest/corRestInHeader.h"                 // corRestInHeader
 #include "corRest/corRestOutHeader.h"                // corRestOutHeaderAdd
 #include "corRest/corRestProblem.h"                  // corRestProblem
-#include "corNgsild/CorNgsild.h"                     // corNgsild
+#include "corNgsild/CorNgsild.h"                     // corNgsild, ldDefaultContextUrl
 #include "corNgsild/LdOp.h"                          // LdOp, ldOpToString
 
+#include "db/DbDriver.h"                             // db, DB_OK
+#include "db/Tenant.h"                               // Tenant
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 #include "auth/auth.h"                               // Own interface
 
@@ -34,6 +40,19 @@
 //
 static AuthDriver  driver;
 static bool        loaded = false;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// AUTH_ENTITY_OPS - the operations whose service routines ask entity() for every entity they read or write
+// (AuthRequest.entities). An operation is added here together with its routine's call - never before: a
+// plugin trusts this to leave the entity's part of a decision to entity().
+//
+#define AUTH_ENTITY_OPS  (LdOpCreateEntity  | LdOpRetrieveEntity | LdOpMergeEntity | LdOpReplaceEntity | LdOpDeleteEntity | \
+                          LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr    | \
+                          LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete | \
+                          LdOpQueryEntities | LdOpBatchQuery)
 
 
 
@@ -192,6 +211,24 @@ static const char* termExpand(const char* term)
 
 // -----------------------------------------------------------------------------
 //
+// termExpandDefault - AuthRequest.expandDefault: a term with the broker's default context (core, and
+// --defaultUserContext)
+//
+static const char* termExpandDefault(const char* term)
+{
+  if (term == NULL)
+    return NULL;
+
+  CorLdContext* contextP = (ldDefaultContextUrl != NULL) ? corLdContextFromUrl(ldDefaultContextUrl, &corRest.kalloc) : NULL;
+  char*         iri      = corLdExpand(contextP, term, &corRest.kalloc, NULL, NULL);
+
+  return (iri != NULL) ? iri : term;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // requestFill - the AuthRequest of the bound request
 //
 static void requestFill(AuthRequest* reqP, bool withTenant)
@@ -231,8 +268,10 @@ static void requestFill(AuthRequest* reqP, bool withTenant)
   {
     const char* tenant = corRestInHeader("NGSILD-Tenant");
 
-    reqP->tenant = ((tenant != NULL) && (tenant[0] != 0)) ? tenant : NULL;
-    reqP->expand = termExpand;
+    reqP->tenant        = ((tenant != NULL) && (tenant[0] != 0)) ? tenant : NULL;
+    reqP->expand        = termExpand;
+    reqP->expandDefault = termExpandDefault;
+    reqP->entities      = (driver.abiVersion >= 2) && (driver.entity != NULL) && ((op & AUTH_ENTITY_OPS) != 0);
   }
 }
 
@@ -434,6 +473,226 @@ bool authAuthorize(void)
 
   answer(verdict, &ans);
   return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityWanted -
+//
+bool authEntityWanted(void)
+{
+  if ((loaded == false) || (driver.abiVersion < 2) || (driver.entity == NULL))
+    return false;
+
+  AuthState* stateP = (AuthState*) corNgsild.authP;
+
+  return (stateP != NULL) && (stateP->trusted == false);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityAllowed -
+//
+bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, const char** detailP)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  AuthState*   stateP = (AuthState*) corNgsild.authP;
+  AuthRequest  req;
+  AuthAnswer   ans;
+  AuthEntity   entity;
+
+  requestFill(&req, true);
+  memset(&ans, 0, sizeof(ans));
+
+  entity.id     = id;
+  entity.typeV  = typeV;
+  entity.types  = types;
+  entity.stored = stored;
+  entity.attrV  = attrV;
+  entity.attrs  = attrs;
+
+  AuthVerdict verdict = driver.entity(&req, stateP->identity, &entity, &ans);
+
+  if (verdict == AuthAllow)
+    return true;
+
+  if (detailP != NULL)
+    *detailP = (ans.detail != NULL) ? corAllocStrdup(&corRest.kalloc, ans.detail) : "not allowed";
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityTreeAllowed - authEntityAllowed for an entity whose types are a tree: "T" or ["T1", "T2"],
+// expanded
+//
+bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const char** detailP)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  const char*  one[1];
+  const char** typeV = one;
+  int          types = 0;
+
+  if ((typeP != NULL) && (typeP->type == CorString))
+  {
+    one[0] = typeP->value.s;
+    types  = 1;
+  }
+  else if ((typeP != NULL) && (typeP->type == CorArray))
+  {
+    int n = 0;
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+      ++n;
+
+    typeV = (const char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+    if (typeV == NULL)
+      return false;
+
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+    {
+      if (tP->type == CorString)
+        typeV[types++] = tP->value.s;
+    }
+  }
+
+  return authEntityAllowed(id, typeV, types, stored, NULL, 0, detailP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityStoredCheck -
+//
+bool authEntityStoredCheck(const char* id)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  //
+  // The STORED entity's types - looked up here, before the routine forwards or writes anything. An entity
+  // that is not here locally has no types: what depends on its type does not hold for it
+  //
+  CorNode* entityP = NULL;
+  CorNode* typeP   = NULL;
+
+  if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) && (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+    typeP = corTreeLookup(entityP, "type");
+
+  const char* detail = NULL;
+
+  if (authEntityTreeAllowed(id, typeP, true, &detail) == false)
+  {
+    authEntityDeny(detail);
+    return false;
+  }
+
+  //
+  // A write that gives the entity types (a replace, a merge): those are asked about too - changing an
+  // entity's type, or adding one, needs the right to the type it gets. Only where the body is an entity - an attribute's body has a "type" of its own ("Property")
+  //
+  uint64_t op       = (corRest.serviceP != NULL) ? corRest.serviceP->ldOp : 0;
+  bool     isEntity = ((op & (LdOpReplaceEntity | LdOpMergeEntity)) != 0);
+  CorNode* bodyTypeP = ((isEntity == true) && (corRest.in.requestTree != NULL) && (corRest.in.requestTree->type == CorObject)) ? corTreeLookup(corRest.in.requestTree, "type") : NULL;
+
+  if ((bodyTypeP != NULL) && (authEntityTreeAllowed(id, bodyTypeP, false, &detail) == false))
+  {
+    authEntityDeny(detail);
+    return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityBatchAllowed -
+//
+bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  CorNode* entityP = NULL;
+
+  if ((lookup == true) && (corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
+      (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
+  {
+    if (authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP) == false)
+      return false;
+
+    //
+    // The types the body gives it, too: an update that changes or adds a type needs the right to that type
+    //
+    return (bodyTypeP == NULL) || authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+  }
+
+  return authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityArrayFilter -
+//
+bool authEntityArrayFilter(CorNode* arrayP)
+{
+  if ((authEntityWanted() == false) || (arrayP == NULL) || (arrayP->type != CorArray))
+    return true;
+
+  //
+  // join=inline nests the linked entities inside the ones that link to them - none of them is asked
+  // about. Refused rather than answered with what may not be read.
+  //
+  if ((corNgsild.join != NULL) && (strcmp(corNgsild.join, "inline") == 0))
+  {
+    authEntityDeny("join=inline is not decided entity by entity - use join=flat");
+    return false;
+  }
+
+  CorNode* eP = arrayP->value.head;
+
+  while (eP != NULL)
+  {
+    CorNode* nextP = eP->next;
+    CorNode* idP   = (eP->type == CorObject) ? corTreeLookup(eP, "id") : NULL;
+
+    if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, corTreeLookup(eP, "type"), true, NULL) == false))
+      corTreeChildRemove(arrayP, eP);
+
+    eP = nextP;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityDeny - the bound request's answer when its one entity may not: a 403
+//
+void authEntityDeny(const char* detail)
+{
+  AuthAnswer ans;
+
+  memset(&ans, 0, sizeof(ans));
+  ans.detail = detail;
+  answer(AuthDeny, &ans);
 }
 
 

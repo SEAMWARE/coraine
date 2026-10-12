@@ -37,6 +37,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/getEntityAttr.h"           // Own interface
 
 
@@ -48,6 +51,10 @@
 bool getEntityAttr(void)
 {
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded, bridged or written
+    return true;
+#endif
   const char* attrWild = corRest.in.wildcard[1];
 
   ldContextResolve();

@@ -56,6 +56,9 @@
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
 #endif
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck, authEntityArrayFilter, authEntityWanted, authEntityDeny
+#endif
 #include "serviceRoutines/getEntity.h"               // Own interface
 
 
@@ -845,6 +848,15 @@ bool getEntity(void)
     }
   }
 
+#if COR_FEATURE_AUTH
+  //
+  // The stored entity's types - before anything is forwarded (a Snapshot read, above, is decided on the
+  // snapshot's entity)
+  //
+  if (authEntityStoredCheck(entityId) == false)
+    return true;
+#endif
+
   //
   // DistOps dispatch (§ 5.7.1.4): always attempt local AND forward to
   // any matching registrations. Processing order per § 4.3.6:
@@ -1019,6 +1031,14 @@ bool getEntity(void)
     if (strcmp(corNgsild.join, "flat") == 0)
     {
       CorNode* flatP = ldLinkedEntitiesFlat(entityP, level, (Tenant*) corNgsild.tenantP);
+
+#if COR_FEATURE_AUTH
+      //
+      // The linked entities, each asked about as a query's are (the primary was, at the start)
+      //
+      if (authEntityArrayFilter(flatP) == false)
+        return true;
+#endif
       // Single-entity Retrieve shape: if flat returned only the
       // primary (no linked targets resolved), unwrap the array so the
       // response stays a plain Entity object. § 4.5.23 doesn't mandate
@@ -1039,6 +1059,13 @@ bool getEntity(void)
     }
     if (strcmp(corNgsild.join, "inline") == 0)
     {
+#if COR_FEATURE_AUTH
+      if (authEntityWanted() == true)                // its nested entities are not asked about one by one
+      {
+        authEntityDeny("join=inline is not decided entity by entity - use join=flat");
+        return true;
+      }
+#endif
       corRest.out.responseTree = ldLinkedEntitiesInline(entityP, level, (Tenant*) corNgsild.tenantP);
       return true;
     }

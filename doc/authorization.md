@@ -27,8 +27,9 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 1; append-only, as the bridge and
-transport contracts are.
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 2; append-only, as the bridge and
+transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
+broker is too old to have.
 
 ### 2.1 When the broker asks
 
@@ -36,7 +37,25 @@ transport contracts are.
 |---|---|---|---|
 | `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
 | `authorize` | once the `@context` is resolved, **before** the tenant is (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
+| `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
 | `release` | the request is over, its response sent | - | - |
+
+`entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
+types the body gives for a create (and for an upsert of a new entity); the stored entity's for a retrieve,
+for every write on an existing entity - looked up before anything is forwarded to a context source, handed
+to a bridge or written - and for each entity a query finds (`GET /entities`, `POST /entityOperations/query`,
+the linked entities of `join=flat`, a Snapshot's entities read through `NGSILD-Snapshot` - the snapshot's,
+on their own types). Refused, as not decided entity by entity: `join=inline` (its nested entities are not
+asked about) and the EntityMaps themselves (`GET /entityMaps/{id}`, `POST /entityMaps` - a map names its
+entities by id). A write that gives the entity types (a replace, a merge, a batch entry) is asked about
+those too: changing or adding a type needs the right to it. An entity that is not stored here has no types.
+A query's page may hold fewer entities than its `limit`, its position links (`pageAfter` / `pageBefore`)
+name only entities the request may read, and its count counts the ones left out - with `q`, a count is an
+answer about entities the request cannot see.
+
+`AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
+operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
+two queries) - a plugin leaves the entity's part of a decision to `entity` only when it is true.
 
 Either may answer `AuthUnavailable` - **503**: the plugin cannot decide (no keys, no policies yet), and the
 request is refused, never let in. The answers are ProblemDetails with type `about:blank` (RFC 9457
@@ -53,9 +72,10 @@ WebSocket connection. The health port (`--healthPort`) is a server of its own, o
 Plain data only - `const char*`, integers, function pointers - as for a bridge: a plugin needs none of the
 broker's trees or allocators. `AuthRequest` holds the method, the path, the URL parameters (decoded, in
 order), the NGSI-LD operation (an `LdOp` bit and its name; 0 for a route that is no NGSI-LD operation),
-the matched route, the tenant (`authorize`), and three accessors: `header(name)`, `body(&len)` - the body
-**as the client sent it**, before any `@context` is applied - and `expand(term)` with the request's
-`@context` (`authorize`).
+the matched route, the tenant (`authorize`), and four accessors: `header(name)`, `body(&len)` - the body
+**as the client sent it**, before any `@context` is applied - `expand(term)` with the request's
+`@context`, and `expandDefault(term)` with the broker's default context (core, and `--defaultUserContext`) -
+what a short name in a policy means, whatever the request's `@context` makes of it.
 
 The plugin is called on the broker's request threads, concurrently, and with coroutines possibly on a
 coroutine's stack: it is thread-safe and **never blocks** - keys and policies are fetched by threads of its
@@ -119,6 +139,7 @@ Cor-Lib functions is built against the same lib sources as its broker ([Plugin a
 | `--fdscRefresh <s>` | seconds between two fetches of keys and policies - default 30 |
 | `--fdscStrippedPath` | `http:path` reads the `x-stripped-path` header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path |
 | `--fdscAnonymous` | a request without a token is let in as no one, instead of a 401 - only a `vc:any` policy can allow it anything |
+| `--fdscNgsild` | decide on the entity, as NGSI-LD has it (§ 6) - **decisions differ from the connector's** |
 
 A source of keys and a source of policies are required; without either the broker does not start.
 
@@ -171,8 +192,8 @@ collection without a refinement) is skipped and said in the log, as the PAP refu
 
 The plugin decides as that chain decides - for every request, the same 401, 403 or pass - so that a
 deployment's tokens and policies need no change. That includes where the chain's Rego is not what ODRL
-or NGSI-LD say; the corrections need the broker's view of the request and come with the next contract
-version (§ 6).
+or NGSI-LD say - by default. The corrections are `--fdscNgsild` (§ 6), with decisions the connector
+would not make.
 
 ### 4.1 The vocabulary
 
@@ -268,29 +289,42 @@ the PAP is still where policies are written; coraine reads them where OPA did. N
 side changes. The connector also routes `GET /.well-known/openid-configuration` on the data host to the
 verifier, so that a client finds the token endpoint: that route stays on the proxy (or ingress) in front.
 
-## 6. Next
+## 6. `--fdscNgsild` - decided on the entity
 
 What the connector's chain gets wrong for NGSI-LD, from the PAP's `ngsi-ld/leftOperand.rego` and
-`utils/apisix.rego` - and what the broker can do instead, with the next contract version (per-entity
-decisions, query restriction, notifications):
+`utils/apisix.rego` - and what `fdsc.so` does instead with `--fdscNgsild`, on the broker's per-entity
+decisions (`entity`, § 2.1). The policies are the same; what their words read is not:
 
-- **The entity type is read out of the id string**, else `?type=`, else the body's `type`: `urn:uuid:abc`
-  is no type at all, `/entities/{id}/attrs/{attr}` takes the attribute name for the id, and an id that does
-  not encode its type cannot be authorized by type. The broker knows the **stored** type.
-- **No `@context`**: a short name is compared with a short name; the same type through another context, or
-  as an IRI, passes or fails by accident. The broker compares **expanded** types.
-- **Batches** (`/entityOperations/*`) have an array body - no `type` - and no per-entity decision;
-  `entityOperations/query`, a read, is a POST and counts as create. The broker decides **per entity**
-  (207 for the denied ones).
-- **Queries** without `type` deny; `type=A,B` is one string; there is no "only these attributes". The
-  broker can **add the allowed types to the query**.
-- `odrl:modify` is PATCH only; subscriptions, registrations, temporal and `@context` endpoints are not told
-  apart. The broker has the NGSI-LD **operation**.
-- **Notifications**: a subscription notifies what matches, whatever its subscriber may read. The broker
-  can keep the subscriber's identity with the subscription and decide each notification.
-- The tenant (`NGSILD-Tenant`) is never examined.
+| | the connector (default) | `--fdscNgsild` |
+|---|---|---|
+| `ngsi-ld:entityType` | the third `:` part of the last path segment (`urn:ngsi-ld:<Type>:...`), else `?type=` as one string, else the body's `type` - as sent | the entity's types: the body's for a create, the **stored** entity's for everything else - **expanded**; the policy's type expanded with the broker's default context. A positive operator holds when it holds for one of the types, `neq` / `isNoneOf` when for all |
+| an id that does not say its type, `/attrs/{attr}` | no type: denied | the stored type |
+| a write on `/entities/{id}/attrs` whose body has a `type` | the body's - the last path segment is `attrs`: the client chooses the type | the stored type |
+| an id that says another type than the entity's | the id's | the entity's |
+| a request `@context` that makes the word another type | the word matches | it does not |
+| a batch | one `type` sought in an array body - none: denied | entity by entity - a denied one is its 403 in the 207 |
+| a query | `?type=A,B` is one string; a POST query has no `type` | each entity found, on its stored type - the denied ones left out |
+| the action | the HTTP method: `odrl:modify` is PATCH only, a POST query is a create | the NGSI-LD operation: a POST query is a read, a PUT a modification, an upsert per entity a create or an update |
 
-Then: attribute-level rules (read and write per attribute); serving the PAP's `/policy` API from the broker.
+For an operation the broker does not decide entity by entity (`AuthRequest.entities` false - the temporal
+API, subscriptions, registrations, `/types`, ...), `--fdscNgsild` reads the entity type as the connector does.
+
+`auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch` and `auth_fdsc_ngsild_query` hold it; each of them fails
+without `--fdscNgsild`.
+
+## 7. Next
+
+- **Notifications**: a subscription notifies what matches, whatever its subscriber may read. Deciding each
+  notification needs the subscriber's identity kept with the subscription - with `fdsc.so` its credential -
+  and where it is kept (with the subscription, in the store; or in memory, lost at a restart) is still to
+  decide.
+- The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
+- A request's `@context` (its `Link` header, its body's `@context`) is fetched before `authorize`: an
+  authenticated client - anyone, with `--fdscAnonymous` - can have the broker fetch a URL of its choice,
+  as it can through the connector's chain, which forwards the request to its broker. Deciding first needs
+  `authorize` without the expanded request.
+- Attribute-level rules (read and write per attribute: `AuthEntity.attrV`); serving the PAP's `/policy`
+  API from the broker.
 
 ## Sources (2026-10-12)
 

@@ -59,6 +59,9 @@
 #include "corLog/corLog.h"                           // COR_T
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityTreeAllowed, authEntityDeny
+#endif
 #include "serviceRoutines/postEntities.h"            // Own interface
 
 
@@ -347,6 +350,22 @@ bool postEntities(void)
   }
 
   const char* entityId = idP->value.s;
+
+#if COR_FEATURE_AUTH
+  //
+  // May the request create it - its types as the body has them, expanded - before anything is forwarded
+  // or written
+  //
+  {
+    const char* detail = NULL;
+
+    if (authEntityTreeAllowed(entityId, corTreeLookup(entityP, "type"), false, &detail) == false)
+    {
+      authEntityDeny(detail);
+      return true;
+    }
+  }
+#endif
 
   //
   // Snapshot "had non-keyword attributes before dispatch". Used post-

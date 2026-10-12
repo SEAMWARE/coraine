@@ -18,6 +18,9 @@
 
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityWanted, authEntityDeny
+#endif
 #include "serviceRoutines/getEntityMap.h"            // Own interface
 
 
@@ -44,6 +47,18 @@ bool getEntityMap(void)
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found", mapId);
     return true;
   }
+
+#if COR_FEATURE_AUTH
+  //
+  // The map names its entities by id - none of them asked about: refused
+  //
+  if (authEntityWanted() == true)
+  {
+    ldEntityMapUnpin(mapP);
+    authEntityDeny("an EntityMap names entities without asking about each - query the entities instead");
+    return true;
+  }
+#endif
 
   CorNode* treeP = ldEntityMapToTree(mapP);
   ldEntityMapUnpin(mapP);

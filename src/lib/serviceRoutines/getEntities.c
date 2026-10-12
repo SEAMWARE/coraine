@@ -75,6 +75,9 @@
 #endif
 #include "corNgsild/ldPagination.h"                  // ldPaginationSeekLinkHeader, ldPaginationTrim
 #include "corNgsild/ldParams.h"                      // LD_PARAM_OFFSET
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityArrayFilter, authEntityTreeAllowed, authEntityWanted, authEntityDeny
+#endif
 #include "serviceRoutines/getEntities.h"             // Own interface, GET_ENTITIES_PARAM_PAGE
 
 
@@ -2046,6 +2049,11 @@ static bool entityMapServe(LdEntityMap* mapP)
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(arrayP) == false)        // the entities the request may not read are left out
+    return true;
+#endif
+
 #if COR_FEATURE_SERVICE_EXECUTION
   seEntityServicesAdd(arrayP);                        // ?includeServices=true
 #endif
@@ -2865,6 +2873,20 @@ static bool queryEntities(PagePosition* posP)
     {
       if (eP == pageExtraP)
         continue;
+
+#if COR_FEATURE_AUTH
+      //
+      // A position names an entity in the Link header: never one the request may not read (it is left out
+      // of the page further down) - the visible ones bound the page, and paging on from them is the same
+      //
+      if (authEntityWanted() == true)
+      {
+        CorNode* idP = corTreeLookup(eP, "id");
+
+        if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, corTreeLookup(eP, "type"), true, NULL) == false))
+          continue;
+      }
+#endif
 
       if (pageFirstP == NULL)
         pageFirstP = eP;
@@ -3711,6 +3733,16 @@ static bool queryEntities(PagePosition* posP)
       //
       if (corNgsild.entityMapOnly)
       {
+#if COR_FEATURE_AUTH
+        //
+        // The map is the ids of every matching entity - not decided entity by entity: refused
+        //
+        if (authEntityWanted() == true)
+        {
+          authEntityDeny("an EntityMap names entities without asking about each - query the entities instead");
+          return true;
+        }
+#endif
         entityMapHeader(mapP);
         corRest.out.responseTree   = ldEntityMapToTree(mapP);
         corRest.out.httpStatusCode = 201;
@@ -3953,6 +3985,11 @@ static bool queryEntities(PagePosition* posP)
     if      (strcmp(corNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
+
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(arrayP) == false)        // the entities the request may not read are left out
+    return true;
+#endif
 
 #if COR_FEATURE_SERVICE_EXECUTION
   seEntityServicesAdd(arrayP);                        // ?includeServices=true

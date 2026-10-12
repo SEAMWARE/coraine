@@ -171,9 +171,9 @@ in order:
    the whole suite on 2026-10-08.)
 5. **Security** - being built: auth plugins (`--auth`) and `fdsc.so`, the FIWARE Data Space Connector's
    tokens and policies decided as the connector 10.87.0 decides them ([Authorization](authorization.md)).
-   Next: the same requests through a deployed connector and through coraine, every decision compared (a
-   nightly job); contract version 2 - per-entity decisions on the stored, expanded type, query
-   restriction, notifications decided for the subscriber; attribute-level rules.
+   Built since: the comparison with a deployed connector (59 cases, a nightly job) and contract version 2 -
+   per-entity decisions (create, retrieve, every write, batches, queries) and `--fdscNgsild`. Next:
+   notifications decided for the subscriber (where its identity is kept is to decide), attribute-level rules.
 6. **One compound geo index** - prototype both variants, measure.
 7. **Hot and cold entity segments** - a design note.
 8. **The batch-delete regression** - low priority (attribute updates matter far more).

@@ -29,6 +29,8 @@ typedef struct FdscIdentity
   CorNode*   claimsP;                                // the token's payload
   CorNode*   credentialV[8];                         // the Verifiable Credentials it carries (verifiableCredential, or each of verifiablePresentation)
   int        credentials;
+
+  bool       entityFree;                             // --fdscNgsild: a policy allows the request whatever its entities (set by authorize)
 } FdscIdentity;
 
 
