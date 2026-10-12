@@ -37,6 +37,14 @@ extern void fdscPolicyOrganizationSet(const char* did);
 
 // -----------------------------------------------------------------------------
 //
+// fdscPolicyStrippedPathSet - http:path reads the x-stripped-path header (a gateway's) - default: the path
+//
+extern void fdscPolicyStrippedPathSet(bool on);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscPolicySetBegin / fdscPolicySetAdd / fdscPolicySetCommit - a set built from one or more texts (the PAP
 // pages its policies) and installed, in place of the set in use, once complete. A text: the PAP's GET
 // /policy answer (an array of { id, odrl:uid, odrl: "<the policy, as a string>" }), an array of ODRL

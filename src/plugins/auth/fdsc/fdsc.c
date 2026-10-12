@@ -24,6 +24,7 @@
 #include <time.h>                                    // time, clock_gettime
 
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
+#include "corAlloc/corAlloc.h"                       // corAllocStrdup
 #include "corAlloc/corAllocBufferInit.h"             // corAllocBufferInit
 #include "corAlloc/corAllocBufferReset.h"            // corAllocBufferReset
 #include "corArgs/corArgs.h"                         // CorArg, CORARGS_END
@@ -62,6 +63,7 @@ static char*  pap           = NULL;                  // the ODRL-PAP (its base U
 static char*  policies      = NULL;                  // the policies themselves (a URL or a file: a JSON array of ODRL policies) - instead of the PAP
 static char*  organization  = NULL;                  // the provider's DID - the PAP's GENERAL_ORGANIZATION_DID - vc:role looks for its roles
 static int    refresh       = 30;                    // seconds between two fetches of keys and policies
+static bool   strippedPath  = false;                 // the x-stripped-path header is a gateway's, not a client's: http:path reads it
 static bool   anonymousOk   = false;                 // a request without a token is let in, as no one - only a policy for vc:any can allow it anything
 
 static CorArg fdscArgs[] =
@@ -76,6 +78,7 @@ static CorArg fdscArgs[] =
   { "--fdscOrganization", "-fdscOrganization", CorArgString, _vp &organization, CorArgOpt, _vp NULL, NULL, NULL,       "the provider's DID - the PAP's GENERAL_ORGANIZATION_DID: vc:role reads the credential's roles for it" },
   { "--fdscRefresh",   "-fdscRefresh",   CorArgInt,    _vp &refresh,     CorArgOpt, _vp 30,    _vp 1,    _vp 86400,     "seconds between two fetches of the keys and the policies" },
   { "--fdscAnonymous", "-fdscAnonymous", CorArgBool,   _vp &anonymousOk, CorArgOpt, _vp false, _vp false, _vp true,     "a request without a token is not a 401 - it is let in as no one, and only a policy for vc:any can allow it" },
+  { "--fdscStrippedPath", "-fdscStrippedPath", CorArgBool, _vp &strippedPath, CorArgOpt, _vp false, _vp false, _vp true, "http:path reads the x-stripped-path header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path" },
   CORARGS_END
 };
 
@@ -126,7 +129,7 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
       free(jwksUrl);
       jwksUrl = strdup(uriP->value.s);
 
-      if ((issP != NULL) && (issP->type == CorString))
+      if ((issP != NULL) && (issP->type == CorString) && ((discoveredIss == NULL) || (strcmp(discoveredIss, issP->value.s) != 0)))
       {
         free(discoveredIss);
         discoveredIss = strdup(issP->value.s);
@@ -308,6 +311,12 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
     return false;
   }
 
+  if ((jwks != NULL) && (issuer == NULL))
+  {
+    snprintf(errorBuf, errorBufSize, "--fdscJwks needs --fdscIssuer: a token's iss is always checked");
+    return false;
+  }
+
   if ((pap == NULL) && (policies == NULL))
   {
     snprintf(errorBuf, errorBufSize, "no policies to decide with: --fdscPap or --fdscPolicies");
@@ -321,6 +330,7 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
   }
 
   fdscPolicyOrganizationSet(organization);
+  fdscPolicyStrippedPathSet(strippedPath);
   refreshRunning = true;
   COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
   return true;
@@ -381,9 +391,21 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
 
   FdscJwtExpect expect;
 
+  //
+  // The issuer - copied while the lock is held: the refresh thread replaces the discovered one
+  //
   pthread_mutex_lock(&refreshMutex);
-  expect.issuer   = (issuer != NULL) ? issuer : discoveredIss;
+  const char* iss = (issuer != NULL) ? issuer : discoveredIss;
+  expect.issuer = (iss != NULL) ? corAllocStrdup(&idP->ka, iss) : NULL;
   pthread_mutex_unlock(&refreshMutex);
+
+  if (expect.issuer == NULL)                         // a token of no known issuer is no token: never accepted unchecked
+  {
+    fdscIdentityFree(idP);
+    answerP->detail = "the verifier's issuer is not known (its discovery document has none, and --fdscIssuer is not set)";
+    return AuthUnavailable;
+  }
+
   expect.audience = audience;
   expect.now      = time(NULL);
   expect.leeway   = leeway;

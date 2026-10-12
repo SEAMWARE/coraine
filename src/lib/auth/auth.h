@@ -81,6 +81,15 @@ extern void authTrustNext(void);
 
 // -----------------------------------------------------------------------------
 //
+// authTrustClear - authTrustNext's mark dropped, consumed or not - call it right after the corRestRunJson:
+// a run that never reached admission must not leave the next request on this thread trusted
+//
+extern void authTrustClear(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authVersionInfo - the plugin's line for GET /version, NULL: no plugin
 //
 extern const char* authVersionInfo(void);
