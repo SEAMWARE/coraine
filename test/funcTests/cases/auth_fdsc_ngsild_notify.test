@@ -1,0 +1,167 @@
+#
+# FILE            auth_fdsc_ngsild_notify.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin with --fdscNgsild (doc/authorization.md § 7): a subscription's notifications are
+# decided for its OWNER - who created it, or last updated it - entity by entity: an entity the owner may
+# not read is left out, a notification left with none is not sent. The owner is kept in the store beside
+# the subscription (never in it - a GET of it does not show it) and survives a restart. An owner that
+# no longer holds (--fdscOwnerMaxAge) leaves the notifications empty - not sent - until the owner updates
+# the subscription with a valid token.
+#
+--NAME--
+Auth plugin fdsc --fdscNgsild - notifications decided for the subscription's owner, kept in the store, re-taken by a PATCH
+
+--TAGS--
+auth fdsc subscription notification
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+ftClientStart --port 7711 --status 200
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# Policies: anyone may read an EnergyReport; did:web:writer may do anything to one, did:web:builder to a
+# Building; anyone may manage subscriptions.
+#
+# 01. A user subscribes to EnergyReports and Buildings (/user), the builder too (/builder); a GET of the user's shows no owner
+# 02. The writer creates an EnergyReport, the builder a Building: the user is notified of the EnergyReport only, the builder of both
+# 03. The broker restarts: the owners are read back from the store - the same notifications
+# 04. Restarted with --fdscOwnerMaxAge 1: both owners have expired - the notifications go without entities, none is sent
+# 05. The user updates the subscription (PATCH) - the owner again: notified of the EnergyReport (the builder's stays withheld)
+#
+vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
+USER=$(ftAuthToken k1 --vc "$(vc did:web:consumer)")
+WRITER=$(ftAuthToken k1 --vc "$(vc did:web:writer)")
+BUILDER=$(ftAuthToken k1 --vc "$(vc did:web:builder)")
+
+#
+# notified - what each endpoint got since the last look: <path>: the entity ids, one line per notification
+#
+notified() {
+  ftClientDump --port 7711 | python3 -c "
+import json, sys
+text = sys.stdin.read()
+dec = json.JSONDecoder()
+i, out = 0, []
+while i < len(text):
+    j = text.find('[', i)
+    if j < 0: break
+    try:
+        arr, i = dec.raw_decode(text, j)
+    except ValueError:
+        i = j + 1
+        continue
+    for d in arr if isinstance(arr, list) else []:
+        body = d.get('body') if isinstance(d, dict) else None
+        if isinstance(body, dict) and body.get('type') == 'Notification':
+            out.append('%s %s' % (d.get('url', '?'), sorted(e['id'] for e in body.get('data', []))))
+print('\\n'.join(sorted(out)) if out else '(none)')"
+}
+sub() { echo "{\"id\": \"urn:ngsi-ld:Subscription:$1\", \"type\": \"Subscription\", \"entities\": [{\"type\": \"EnergyReport\"}, {\"type\": \"Building\"}], \"notification\": {\"format\": \"keyValues\", \"endpoint\": {\"uri\": \"http://localhost:7711/$1\"}}}"; }
+write() { corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"v": {"type": "Property", "value": '$1'}}' -H "Authorization: Bearer $WRITER" | head -1; corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs --payload '{"v": {"type": "Property", "value": '$1'}}' -H "Authorization: Bearer $BUILDER" | head -1; }
+
+echo "01. A user subscribes to EnergyReports and Buildings (/user), the builder too (/builder); a GET of the user's shows no owner"
+echo "=========================================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$(sub user)" -H "Authorization: Bearer $USER" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$(sub builder)" -H "Authorization: Bearer $BUILDER" | head -1
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:user -H "Authorization: Bearer $USER" | grep -ci "owner\|claims\|credential"
+echo
+echo
+
+
+echo "02. The writer creates an EnergyReport, the builder a Building: the user is notified of the EnergyReport only, the builder of both"
+echo "================================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "EnergyReport"}' -H "Authorization: Bearer $WRITER" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:B1", "type": "Building"}' -H "Authorization: Bearer $BUILDER" | head -1
+ftClientWait 3 --port 7711 > /dev/null
+notified
+echo
+echo
+
+
+echo "03. The broker restarts: the owners are read back from the store - the same notifications"
+echo "========================================================================================="
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+write 1
+ftClientWait 3 --port 7711 > /dev/null
+notified
+echo
+echo
+
+
+echo "04. Restarted with --fdscOwnerMaxAge 1: both owners have expired - the notifications go without entities, none is sent"
+echo "====================================================================================================================="
+coraineStart --auth fdsc --fdscNgsild --fdscOwnerMaxAge 1 --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+sleep 2.5                                          # whole seconds: an owner saved in second N is older than 1 s from N+2 on
+write 2
+ftClientSettle 1000
+notified
+echo
+echo
+
+
+echo "05. The user updates the subscription (PATCH) - the owner again: notified of the EnergyReport (the builder's stays withheld)"
+echo "============================================================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:user -X PATCH --payload '{"description": "mine"}' -H "Authorization: Bearer $USER" | head -1
+write 3
+ftClientWait 1 --port 7711 > /dev/null
+notified
+echo
+echo
+
+
+--EXPECT--
+01. A user subscribes to EnergyReports and Buildings (/user), the builder too (/builder); a GET of the user's shows no owner
+==========================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+0
+
+
+02. The writer creates an EnergyReport, the builder a Building: the user is notified of the EnergyReport only, the builder of both
+================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+/builder ['urn:B1']
+/builder ['urn:E1']
+/user ['urn:E1']
+
+
+03. The broker restarts: the owners are read back from the store - the same notifications
+=========================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+/builder ['urn:B1']
+/builder ['urn:E1']
+/user ['urn:E1']
+
+
+04. Restarted with --fdscOwnerMaxAge 1: both owners have expired - the notifications go without entities, none is sent
+=====================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+(none)
+
+
+05. The user updates the subscription (PATCH) - the owner again: notified of the EnergyReport (the builder's stays withheld)
+============================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+/user ['urn:E1']
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop --port 7711
+corDbDrop
+rm -rf $FT_AUTH_DIR

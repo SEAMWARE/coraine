@@ -104,5 +104,33 @@
     ]
    }
   }
+ },
+ {
+  "@context": {
+   "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@type": "odrl:Policy",
+  "odrl:uid": "urn:ft:subscribe",
+  "odrl:permission": {
+   "odrl:assignee": {
+    "@id": "vc:any"
+   },
+   "odrl:action": {
+    "@id": "odrl:use"
+   },
+   "odrl:target": {
+    "@type": "odrl:AssetCollection",
+    "odrl:refinement": [
+     {
+      "@type": "odrl:Constraint",
+      "odrl:leftOperand": "http:path",
+      "odrl:operator": {
+       "@id": "http:isInPath"
+      },
+      "odrl:rightOperand": "/ngsi-ld/v1/subscriptions"
+     }
+    ]
+   }
+  }
  }
 ]
