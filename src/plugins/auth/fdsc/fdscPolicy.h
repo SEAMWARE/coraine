@@ -22,7 +22,7 @@
 #include <stdbool.h>                                 // bool
 
 #include "plugin/AuthDriver.h"                       // AuthRequest, AuthAnswer, AuthVerdict
-#include "fdscIdentity.h"                            // FdscIdentity
+#include "fdscIdentity.h"                            // FdscIdentity, FdscHandle
 
 
 
@@ -64,7 +64,7 @@ extern void fdscPolicySetCommit(void);
 // fdscPolicyDecide - AuthAllow, AuthDeny (no policy allows), AuthUnavailable (OPA's error cases: a
 // credential with two different role lists for the organisation)
 //
-extern AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAnswer* answerP);
+extern AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscHandle* hP, AuthAnswer* answerP);
 
 
 
@@ -77,7 +77,7 @@ extern AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, 
 // the Data Space Connector does.
 //
 extern void        fdscPolicyNgsildSet(bool on);
-extern AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP);
+extern AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, AuthAnswer* answerP);
 
 
 

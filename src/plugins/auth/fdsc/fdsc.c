@@ -47,6 +47,7 @@
 #include "fdscIdentity.h"                            // FdscIdentity
 #include "fdscJwt.h"                                 // fdscJwtVerify, FdscJwtExpect
 #include "fdscKeys.h"                                // fdscKeysLoad, fdscKeysCount
+#include "fdscTokenCache.h"                          // fdscTokenCacheGet, fdscTokenCacheAdd, fdscTokenCacheGeneration
 #include "fdscPolicy.h"                              // fdscPolicyLoad, fdscPolicyDecide, fdscPolicyCount
 
 
@@ -397,7 +398,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
       // No one: identity NULL - or, with --fdscNgsild, an identity without claims, which holds what
       // authorize leaves to entity()
       //
-      *identityP = (ngsildMode == true) ? fdscIdentityNew() : NULL;
+      *identityP = (ngsildMode == true) ? fdscHandleNew(NULL) : NULL;
       return AuthAllow;
     }
 
@@ -411,7 +412,41 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthUnavailable;
   }
 
-  FdscIdentity* idP = fdscIdentityNew();
+  //
+  // A token checked before: its identity, already made - only its time is checked again
+  //
+  int           tokenLen = strlen(token);
+  long long     now      = (long long) time(NULL);
+  FdscIdentity* idP      = fdscTokenCacheGet(token, tokenLen);
+
+  if (idP != NULL)
+  {
+    if (((idP->exp != 0) && (now > idP->exp + leeway)) || ((idP->nbf != 0) && (now + leeway < idP->nbf)))
+    {
+      fdscIdentityUnref(idP);
+
+      static __thread char wwwAuthExp[160];
+      snprintf(wwwAuthExp, sizeof(wwwAuthExp), "Bearer error=\"invalid_token\", error_description=\"%s\"", fdscJwtCheckString(FdscJwtExpired));
+
+      answerP->detail          = fdscJwtCheckString(FdscJwtExpired);
+      answerP->wwwAuthenticate = wwwAuthExp;
+      return AuthUnauthenticated;
+    }
+
+    *identityP = fdscHandleNew(idP);
+
+    if (*identityP == NULL)
+    {
+      answerP->detail = "out of memory";
+      return AuthUnavailable;
+    }
+
+    return AuthAllow;
+  }
+
+  unsigned int generation = fdscTokenCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
+
+  idP = fdscIdentityNew();
 
   if (idP == NULL)
   {
@@ -437,7 +472,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   }
 
   expect.audience = audience;
-  expect.now      = time(NULL);
+  expect.now      = now;
   expect.leeway   = leeway;
 
   CorNode*     claimsP = NULL;
@@ -459,7 +494,16 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   }
 
   fdscIdentityFill(idP, claimsP);
-  *identityP = idP;
+  fdscTokenCacheAdd(token, tokenLen, idP, generation);
+
+  *identityP = fdscHandleNew(idP);
+
+  if (*identityP == NULL)
+  {
+    answerP->detail = "out of memory";
+    return AuthUnavailable;
+  }
+
   return AuthAllow;
 }
 
@@ -477,7 +521,7 @@ static AuthVerdict fdscAuthorize(const AuthRequest* reqP, void* identity, AuthAn
     return AuthUnavailable;
   }
 
-  return fdscPolicyDecide(reqP, (FdscIdentity*) identity, answerP);
+  return fdscPolicyDecide(reqP, (FdscHandle*) identity, answerP);
 }
 
 
@@ -488,7 +532,7 @@ static AuthVerdict fdscAuthorize(const AuthRequest* reqP, void* identity, AuthAn
 //
 static AuthVerdict fdscEntity(const AuthRequest* reqP, void* identity, const AuthEntity* entityP, AuthAnswer* answerP)
 {
-  return fdscPolicyEntity(reqP, (FdscIdentity*) identity, entityP, answerP);
+  return fdscPolicyEntity(reqP, (FdscHandle*) identity, entityP, answerP);
 }
 
 
@@ -518,7 +562,8 @@ static long long isoSeconds(const char* iso)
 //
 static char* fdscIdentitySave(void* identity)
 {
-  FdscIdentity* idP = (FdscIdentity*) identity;
+  FdscHandle*   hP  = (FdscHandle*) identity;
+  FdscIdentity* idP = (hP != NULL) ? hP->idP : NULL;
 
   if ((idP == NULL) || (idP->claimsP == NULL))       // no one: nothing to keep
     return NULL;
@@ -613,7 +658,7 @@ static void* fdscIdentityRestore(const char* saved)
     }
   }
 
-  return idP;
+  return fdscHandleNew(idP);
 }
 
 
@@ -624,7 +669,7 @@ static void* fdscIdentityRestore(const char* saved)
 //
 static void fdscRelease(void* identity)
 {
-  fdscIdentityFree((FdscIdentity*) identity);
+  fdscHandleFree((FdscHandle*) identity);
 }
 
 
