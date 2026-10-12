@@ -18,6 +18,7 @@
 #include "corJsonld/corLdDownload.h"                 // corLdContextFromUrl
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeBuilder.h"                  // corTreeChildRemove
 #include "corRest/CorRestState.h"                    // corRest
 #include "corRest/corRestHooks.h"                    // corRestSetAdmitHook
 #include "corRest/corRestInHeader.h"                 // corRestInHeader
@@ -50,7 +51,8 @@ static bool        loaded = false;
 //
 #define AUTH_ENTITY_OPS  (LdOpCreateEntity  | LdOpRetrieveEntity | LdOpMergeEntity | LdOpReplaceEntity | LdOpDeleteEntity | \
                           LdOpAppendAttrs   | LdOpUpdateAttrs    | LdOpReplaceAttr | LdOpDeleteAttr    | \
-                          LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete)
+                          LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete | \
+                          LdOpQueryEntities | LdOpBatchQuery)
 
 
 
@@ -612,6 +614,43 @@ bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, con
     return authEntityTreeAllowed(id, corTreeLookup(entityP, "type"), true, detailP);
 
   return authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityArrayFilter -
+//
+bool authEntityArrayFilter(CorNode* arrayP)
+{
+  if ((authEntityWanted() == false) || (arrayP == NULL) || (arrayP->type != CorArray))
+    return true;
+
+  //
+  // join=inline nests the linked entities inside the ones that link to them - none of them is asked
+  // about. Refused rather than answered with what may not be read.
+  //
+  if ((corNgsild.join != NULL) && (strcmp(corNgsild.join, "inline") == 0))
+  {
+    authEntityDeny("join=inline is not decided entity by entity - use join=flat");
+    return false;
+  }
+
+  CorNode* eP = arrayP->value.head;
+
+  while (eP != NULL)
+  {
+    CorNode* nextP = eP->next;
+    CorNode* idP   = (eP->type == CorObject) ? corTreeLookup(eP, "id") : NULL;
+
+    if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, corTreeLookup(eP, "type"), true, NULL) == false))
+      corTreeChildRemove(arrayP, eP);
+
+    eP = nextP;
+  }
+
+  return true;
 }
 
 

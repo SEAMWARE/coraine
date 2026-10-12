@@ -105,6 +105,16 @@ extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool look
 
 // -----------------------------------------------------------------------------
 //
+// authEntityArrayFilter - a query's entities, as they go into the response: each the request may not read
+// is left out (a page may hold fewer than the limit; a count counts it). false: join=inline - refused (403
+// set), its nested entities are not asked about.
+//
+extern bool authEntityArrayFilter(CorNode* arrayP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authEntityDeny - the request's answer when its one entity may not: 403 with that detail
 //
 extern void authEntityDeny(const char* detail);

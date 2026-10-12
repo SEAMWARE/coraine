@@ -35,6 +35,8 @@
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeArray, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
+#include "corNgsild/LdOp.h"                          // LdOp*
+
 #include "fdscPolicy.h"                              // Own interface
 
 
@@ -1973,6 +1975,33 @@ static Tri policyAllows(Ctx* cP, Policy* pP)
 
 // -----------------------------------------------------------------------------
 //
+// actionOf - --fdscNgsild: the action of an NGSI-LD operation, whatever its HTTP method - a query in a POST
+// body is a read, a PUT is a modification. 0: not one of these (the method decides).
+//
+static int actionOf(uint64_t op)
+{
+  const uint64_t reads   = LdOpRetrieveEntity | LdOpQueryEntities | LdOpBatchQuery |
+                           LdOpRetrieveEntityTypes | LdOpRetrieveEntityTypeDetails | LdOpRetrieveEntityTypeInfo |
+                           LdOpRetrieveAttrTypes   | LdOpRetrieveAttrTypeDetails   | LdOpRetrieveAttrTypeInfo |
+                           LdOpRetrieveTemporal    | LdOpQueryTemporal;
+  const uint64_t creates = LdOpCreateEntity | LdOpBatchCreate;
+  const uint64_t updates = LdOpUpdateEntity | LdOpAppendAttrs | LdOpUpdateAttrs | LdOpMergeEntity | LdOpReplaceEntity |
+                           LdOpReplaceAttr  | LdOpBatchUpdate | LdOpBatchMerge;
+  const uint64_t deletes = LdOpDeleteEntity | LdOpDeleteAttr | LdOpPurgeEntity | LdOpBatchDelete;
+
+  if ((op & reads)   != 0)  return M_GET;
+  if ((op & creates) != 0)  return M_POST;
+  if ((op & updates) != 0)  return M_PATCH;
+  if ((op & deletes) != 0)  return M_DELETE;
+  if ((op & LdOpBatchUpsert) != 0)  return M_POST | M_PATCH;   // a create, or an update: either action allows it
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // methodOf -
 //
 static int methodOf(const char* method)
@@ -2007,7 +2036,13 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
   ctx.reqP    = reqP;
   ctx.idP     = idP;
   ctx.kaP     = &ka;
-  ctx.method  = methodOf(reqP->method);
+  ctx.method  = ((ngsild == true) && (actionOf(reqP->op) != 0)) ? actionOf(reqP->op) : methodOf(reqP->method);
+
+  //
+  // An upsert, entity by entity: an update of one that exists, a create of one that does not
+  //
+  if ((ngsild == true) && (entityP != NULL) && ((reqP->op & LdOpBatchUpsert) != 0))
+    ctx.method = (entityP->stored == true) ? M_PATCH : M_POST;
   ctx.nowMs   = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
   ctx.entityP = entityP;
   ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (idP != NULL);

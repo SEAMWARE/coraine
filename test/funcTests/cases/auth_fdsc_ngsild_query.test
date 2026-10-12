@@ -1,0 +1,123 @@
+#
+# FILE            auth_fdsc_ngsild_query.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The fdsc auth plugin with --fdscNgsild (doc/authorization.md § 6): a query is let through, and each
+# entity it finds is decided on its own stored type - one the request may not read is left out of the
+# response. So ?type=A,B, a POST query of several types, a query by id, all answer what may be read of them
+# (the Data Space Connector compares "A,B" as one string, and finds no 'type' in a POST query's body).
+# join=inline - entities nested in entities, not asked about one by one - is refused.
+#
+--NAME--
+Auth plugin fdsc --fdscNgsild - a query answers the entities the request may read, each on its stored type
+
+--TAGS--
+auth fdsc query
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# Policies: anyone may read an EnergyReport; did:web:writer may do anything to one; did:web:builder to a Building.
+#
+# 01. Two EnergyReports (the writer) and a Building whose id says EnergyReport (the builder)
+# 02. A user: ?type=EnergyReport, ?type=Building, ?type=EnergyReport,Building, the Building by its id
+# 03. A user: POST /entityOperations/query for both types - a read, though a POST
+# 04. The builder: ?type=Building,EnergyReport - its Building and the EnergyReports anyone may read
+# 05. join=inline: refused (403); join=flat: the linked entities are asked about too
+#
+query() { label="$1"; shift; echo "$label: $(corCurl "$@" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(sorted(e['id'] for e in json.load(sys.stdin)))" 2>/dev/null || corCurl "$@" | head -1)"; }
+vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
+
+USER=$(ftAuthToken k1 --vc "$(vc did:web:consumer)")
+WRITER=$(ftAuthToken k1 --vc "$(vc did:web:writer)")
+BUILDER=$(ftAuthToken k1 --vc "$(vc did:web:builder)")
+
+echo "01. Two EnergyReports (the writer) and a Building whose id says EnergyReport (the builder)"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "EnergyReport"}' -H "Authorization: Bearer $WRITER" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "EnergyReport", "site": {"type": "Relationship", "object": "urn:ngsi-ld:EnergyReport:B1"}}' -H "Authorization: Bearer $WRITER" | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:EnergyReport:B1", "type": "Building"}' -H "Authorization: Bearer $BUILDER" | head -1
+echo
+echo
+
+
+echo "02. A user: ?type=EnergyReport, ?type=Building, ?type=EnergyReport,Building, the Building by its id"
+echo "================================================================================================="
+query "?type=EnergyReport         " --url "/ngsi-ld/v1/entities?type=EnergyReport" -H "Authorization: Bearer $USER"
+query "?type=Building             " --url "/ngsi-ld/v1/entities?type=Building" -H "Authorization: Bearer $USER"
+query "?type=EnergyReport,Building" --url "/ngsi-ld/v1/entities?type=EnergyReport,Building" -H "Authorization: Bearer $USER"
+query "?id=urn:ngsi-ld:EnergyReport:B1&type=Building" --url "/ngsi-ld/v1/entities?id=urn:ngsi-ld:EnergyReport:B1&type=Building" -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "03. A user: POST /entityOperations/query for both types - a read, though a POST"
+echo "================================================================================"
+query "POST query" --url /ngsi-ld/v1/entityOperations/query --payload '{"type": "Query", "entities": [{"type": "Building"}, {"type": "EnergyReport"}]}' -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "04. The builder: ?type=Building,EnergyReport - its Building and the EnergyReports anyone may read"
+echo "================================================================================================"
+query "?type=Building,EnergyReport" --url "/ngsi-ld/v1/entities?type=Building,EnergyReport" -H "Authorization: Bearer $BUILDER"
+echo
+echo
+
+
+echo "05. join=inline: refused (403); join=flat: the linked entities are asked about too"
+echo "=================================================================================="
+corCurl --url "/ngsi-ld/v1/entities?type=EnergyReport&join=inline" -H "Authorization: Bearer $USER" | head -1
+query "join=flat, a user   " --url "/ngsi-ld/v1/entities?type=EnergyReport&join=flat" -H "Authorization: Bearer $USER"
+query "join=flat, a builder" --url "/ngsi-ld/v1/entities?type=EnergyReport&join=flat" -H "Authorization: Bearer $BUILDER"
+echo
+echo
+
+
+--EXPECT--
+01. Two EnergyReports (the writer) and a Building whose id says EnergyReport (the builder)
+==========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. A user: ?type=EnergyReport, ?type=Building, ?type=EnergyReport,Building, the Building by its id
+=================================================================================================
+?type=EnergyReport         : ['urn:E1', 'urn:E2']
+?type=Building             : []
+?type=EnergyReport,Building: ['urn:E1', 'urn:E2']
+?id=urn:ngsi-ld:EnergyReport:B1&type=Building: []
+
+
+03. A user: POST /entityOperations/query for both types - a read, though a POST
+================================================================================
+POST query: ['urn:E1', 'urn:E2']
+
+
+04. The builder: ?type=Building,EnergyReport - its Building and the EnergyReports anyone may read
+================================================================================================
+?type=Building,EnergyReport: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
+
+
+05. join=inline: refused (403); join=flat: the linked entities are asked about too
+==================================================================================
+HTTP/1.1 403 Forbidden
+join=flat, a user   : ['urn:E1', 'urn:E2']
+join=flat, a builder: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

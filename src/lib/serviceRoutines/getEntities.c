@@ -75,6 +75,9 @@
 #endif
 #include "corNgsild/ldPagination.h"                  // ldPaginationSeekLinkHeader, ldPaginationTrim
 #include "corNgsild/ldParams.h"                      // LD_PARAM_OFFSET
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityArrayFilter
+#endif
 #include "serviceRoutines/getEntities.h"             // Own interface, GET_ENTITIES_PARAM_PAGE
 
 
@@ -2046,6 +2049,11 @@ static bool entityMapServe(LdEntityMap* mapP)
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
 
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(arrayP) == false)        // the entities the request may not read are left out
+    return true;
+#endif
+
 #if COR_FEATURE_SERVICE_EXECUTION
   seEntityServicesAdd(arrayP);                        // ?includeServices=true
 #endif
@@ -3953,6 +3961,11 @@ static bool queryEntities(PagePosition* posP)
     if      (strcmp(corNgsild.join, "flat")   == 0) ldLinkedEntitiesExpandArrayFlat(arrayP, level, tP);
     else if (strcmp(corNgsild.join, "inline") == 0) ldLinkedEntitiesExpandArrayInline(arrayP, level, tP);
   }
+
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(arrayP) == false)        // the entities the request may not read are left out
+    return true;
+#endif
 
 #if COR_FEATURE_SERVICE_EXECUTION
   seEntityServicesAdd(arrayP);                        // ?includeServices=true
