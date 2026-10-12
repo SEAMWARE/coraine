@@ -669,9 +669,30 @@ before=$(curl "${authH[@]}" -s "http://localhost:$RECEIVER_PORT/count")
 scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patchManySubsC50 patchManySubsC50P99 patchManySubsC50P50 patchManySubsC50P95 <<< "$SCEN"
 
 notified=$(( $(curl "${authH[@]}" -s "http://localhost:$RECEIVER_PORT/count") - ${before:-0} ))
-kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: killed - as meant
-[ "${notified:-0}" -gt 0 ] || { echo "perfRun.sh: patch_manysubs_c50 notified nobody" >&2; exit 1; }
+[ "${notified:-0}" -gt 0 ] || { kill "$receiverPid"; echo "perfRun.sh: patch_manysubs_c50 notified nobody" >&2; exit 1; }
 echo "perfRun.sh: patch_manysubs_c50: $notified notifications received" >&2
+
+#
+# PATCH NOTIFYING TEN. On top of patch_manysubs_c50's subscriptions: 9 to the type Vehicle on speed, so
+# each PATCH notifies TEN subscribers - its entity's own and these 9 - past the ~110 that do not match.
+# The rate is the PATCHes'; the log says how many notifications per PATCH arrived (ten, or the scenario
+# did not measure what it says), and none at all stops the run.
+#
+for (( i=1; i<=9; i++ )); do
+  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+              -H 'Content-Type: application/json' \
+              --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-ten-'"$i"'","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
+  [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: ten-subscriber subscription $i got HTTP $code" >&2; exit 1; }
+done
+
+before=$(curl "${authH[@]}" -s "http://localhost:$RECEIVER_PORT/count")
+scen measureScript "$SCRIPTDIR/patchAttr.lua" 50 ; read -r patch10SubsC50 patch10SubsC50P99 patch10SubsC50P50 patch10SubsC50P95 <<< "$SCEN"
+sleep 2                                                               # the last notifications' delivery
+notified=$(( $(curl "${authH[@]}" -s "http://localhost:$RECEIVER_PORT/count") - ${before:-0} ))
+kill "$receiverPid"; wait "$receiverPid" 2>/dev/null || true          # 143: killed - as meant
+[ "${notified:-0}" -gt 0 ] || { echo "perfRun.sh: patch_10subs_c50 notified nobody" >&2; exit 1; }
+secs=$(( ${DURATION%s} * REPEATS + 2 ))                               # the measured repeats and the warm-up
+echo "perfRun.sh: patch_10subs_c50: $notified notifications received, $(awk -v n="$notified" -v r="${patch10SubsC50%.*}" -v t="$secs" 'BEGIN{printf "%.1f", n / (r * t)}') per PATCH" >&2
 
 #
 # A RARE TYPE IN A LARGE STORE. Every scenario above queries the fixture's one type, so the store's
@@ -790,6 +811,7 @@ printf ',"delete_c50":%s,"delete_c50_p50us":%s,"delete_c50_p95us":%s,"delete_c50
 printf ',"batch20delete_c50":%s,"batch20delete_c50_p50us":%s,"batch20delete_c50_p95us":%s,"batch20delete_c50_p99us":%s' "$batch20DeleteC50" "$batch20DeleteC50P50" "$batch20DeleteC50P95" "$batch20DeleteC50P99"
 printf ',"patch_subs_c50":%s,"patch_subs_c50_p50us":%s,"patch_subs_c50_p95us":%s,"patch_subs_c50_p99us":%s' "$patchSubsC50" "$patchSubsC50P50" "$patchSubsC50P95" "$patchSubsC50P99"
 printf ',"patch_manysubs_c50":%s,"patch_manysubs_c50_p50us":%s,"patch_manysubs_c50_p95us":%s,"patch_manysubs_c50_p99us":%s' "$patchManySubsC50" "$patchManySubsC50P50" "$patchManySubsC50P95" "$patchManySubsC50P99"
+printf ',"patch_10subs_c50":%s,"patch_10subs_c50_p50us":%s,"patch_10subs_c50_p95us":%s,"patch_10subs_c50_p99us":%s' "$patch10SubsC50" "$patch10SubsC50P50" "$patch10SubsC50P95" "$patch10SubsC50P99"
 printf ',"rare_l20_c50":%s,"rare_l20_c50_p50us":%s,"rare_l20_c50_p95us":%s,"rare_l20_c50_p99us":%s' "$rareL20C50" "$rareL20C50P50" "$rareL20C50P95" "$rareL20C50P99"
 printf ',"rare_l100_c50":%s,"rare_l100_c50_p50us":%s,"rare_l100_c50_p95us":%s,"rare_l100_c50_p99us":%s' "$rareL100C50" "$rareL100C50P50" "$rareL100C50P95" "$rareL100C50P99"
 printf ',"rare_l20_o500_c50":%s,"rare_l20_o500_c50_p50us":%s,"rare_l20_o500_c50_p95us":%s,"rare_l20_o500_c50_p99us":%s' "$rareO500C50" "$rareO500C50P50" "$rareO500C50P95" "$rareO500C50P99"

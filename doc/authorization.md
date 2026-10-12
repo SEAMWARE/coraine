@@ -248,7 +248,8 @@ Words of the PAP's other PEPs (`json:*`, `dspace:read`) and those that make a ca
 ### 4.2 How a decision is made
 
 - A request is allowed when **one** policy allows it; there is no default allow, and no policy at all
-  allows nothing.
+  allows nothing. The policies are evaluated in the PAP's order - the order of the `allow` rules of OPA's
+  `policy.main` - and the first that allows decides: OPA's early exit evaluates none after it.
 - A policy allows when **all** its rules hold - the rules of **all its permissions** together: the PAP
   puts them in one rule set, so two permissions are an AND, not ODRL's OR. Prohibitions, obligations and
   duties are ignored, as the PAP ignores them.
@@ -256,7 +257,12 @@ Words of the PAP's other PEPs (`json:*`, `dspace:read`) and those that make a ca
   (`neq`, `isNoneOf`), nor a logical constraint that holds it (Rego's undefined).
 - A token with two or more credentials (`verifiablePresentation`) satisfies no `vc:` word and no issuer
   assignee: the PAP's Rego reads `verifiableCredential` only.
-- A credential with two different role lists for the organisation is OPA's `eval_conflict_error`: 503.
+- A credential with two different role lists for the organisation is OPA's `eval_conflict_error` - 503 -
+  where a policy evaluated before the first that allows reads `vc:role` (or `dome-op:role`). Which rule
+  of one policy is evaluated first is the PAP's: it writes a policy's rules in an order of its own (the
+  assignee first in one policy, the target first in another), and coraine evaluates the action, then the
+  assignee, then the target. For such a credential, and only for one, a policy whose `vc:role` rule the
+  PAP writes after a rule that fails can be a 503 here and not in the connector.
 
 ### 4.3 Proven against the connector itself
 
@@ -266,7 +272,7 @@ in docker, beside coraine with `--auth fdsc`, both given the same verifier (a st
 discovery document and the JWK Set as VCVerifier does) and the same PAP. Each case of
 `test/fdscDiff/cases.json` - tokens, the vocabulary, the combination rules, the cases where the Rego is not
 what ODRL says - goes to both, and the answers are compared by class (401, 403, 503, let through).
-**59 cases, 0 differences** (2026-10-12), apart from the one decided below (`known.json`).
+**62 cases, 0 differences** (2026-10-13), apart from the one decided below (`known.json`).
 
 The functests (`auth_fdsc_*`, `auth_startup_refused`) hold the same behaviour without docker, against a
 stand-in PAP (`test/funcTests/tools/ftVerifier.py`).
