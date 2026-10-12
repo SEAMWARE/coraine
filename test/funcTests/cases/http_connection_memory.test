@@ -1,0 +1,104 @@
+#
+# FILE            http_connection_memory.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# --httpConnectionMemory: libmicrohttpd's memory per connection, where a request's line and headers must fit.
+# A request that does not fit is refused by libmicrohttpd itself, before it reaches the broker: 431 for the
+# headers, 414 for the URL - and said in the broker's log, with what to do about it (a long query in the body
+# of POST /entityOperations/query). The default, 12 kB, takes a 9 kB header (a VCVerifier token is 1.5-4 kB).
+#
+# REQUIRE_HTTPSERVER: mhd
+#
+--NAME--
+A request too big for the HTTP connection memory: 431 / 414, and said in the log
+
+--TAGS--
+http limits
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. The default (12 kB): a 9 kB header - 200
+# 02. A 14 kB header - 431
+# 03. A 12 kB URL - 414
+# 04. The log says it, with the way around it
+# 05. --httpConnectionMemory 32: the 14 kB header - 200
+#
+
+big() { head -c $(( $1 * 1024 )) /dev/zero | tr '\0' 'a'; }
+
+echo "01. The default (12 kB): a 9 kB header - 200"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/types -H "X-Big: $(big 9)" | grep "^HTTP/"
+echo
+echo
+
+
+echo "02. A 14 kB header - 431"
+echo "========================="
+curl -s -o /dev/null -w '%{http_code}\n' -H "X-Big: $(big 14)" "http://localhost:$COR_PORT/ngsi-ld/v1/types"
+echo
+echo
+
+
+echo "03. A 12 kB URL - 414"
+echo "====================="
+sleep 1.1                                          # its own line in the log: one a second
+curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=T&q=$(big 12)"
+echo
+echo
+
+
+echo "04. The log says it, with the way around it"
+echo "==========================================="
+grep -o "a request was refused with 4[0-9]* by the HTTP server: its [a-zA-Z]* exceeds* the connection memory (12 kB, --httpConnectionMemory) - a long query fits in the body of POST /ngsi-ld/v1/entityOperations/query; or raise --httpConnectionMemory" /tmp/coraine.CB.log | sort -u
+echo
+echo
+
+
+echo "05. --httpConnectionMemory 32: the 14 kB header - 200"
+echo "======================================================"
+coraineStart --httpConnectionMemory 32
+corCurl --url /ngsi-ld/v1/types -H "X-Big: $(big 14)" | grep "^HTTP/"
+echo
+echo
+
+
+--EXPECT--
+01. The default (12 kB): a 9 kB header - 200
+============================================
+HTTP/1.1 200 OK
+
+
+02. A 14 kB header - 431
+=========================
+431
+
+
+03. A 12 kB URL - 414
+=====================
+414
+
+
+04. The log says it, with the way around it
+===========================================
+a request was refused with 414 by the HTTP server: its URL exceeds the connection memory (12 kB, --httpConnectionMemory) - a long query fits in the body of POST /ngsi-ld/v1/entityOperations/query; or raise --httpConnectionMemory
+a request was refused with 431 by the HTTP server: its headers exceed the connection memory (12 kB, --httpConnectionMemory) - a long query fits in the body of POST /ngsi-ld/v1/entityOperations/query; or raise --httpConnectionMemory
+
+
+05. --httpConnectionMemory 32: the 14 kB header - 200
+======================================================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
