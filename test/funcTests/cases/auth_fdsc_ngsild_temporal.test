@@ -1,0 +1,136 @@
+#
+# FILE            auth_fdsc_ngsild_temporal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: corDB
+#
+# The fdsc auth plugin with --fdscNgsild (doc/authorization.md § 2.1, § 6): the temporal API decided as the
+# rest is - on the entity's stored, expanded types; for an entity that has history and no current state,
+# its history's types. A query's entities each on their own; an upsert on the stored types and the body's.
+#
+--NAME--
+Auth plugin fdsc --fdscNgsild - the temporal API: retrieve, query, writes on the stored type - the history's when there is no current state
+
+--TAGS--
+auth fdsc temporal
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+coraineStart --troe corDB --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# Policies: anyone may read an EnergyReport; did:web:writer may do anything to one, did:web:builder to a Building.
+#
+# 01. An EnergyReport urn:E1 (the writer) with history, a Building urn:ngsi-ld:EnergyReport:B1 (the builder)
+# 02. A user: the temporal evolution of urn:E1 yes, of the Building no
+# 03. A temporal query of both types: the builder - both; a user - urn:E1 only
+# 04. Appending to urn:E1's history: a user no, the writer yes
+# 05. urn:E1 deleted (its current state): its history is still an EnergyReport's - a user reads it
+# 06. POST /temporal/entities (an upsert of history): the writer, an EnergyReport - yes; a Building - no
+#
+status() { label="$1"; shift; echo "$label: $(corCurl "$@" | head -1)"; }
+ids() { label="$1"; shift; echo "$label: $(corCurl "$@" | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(sorted(e['id'] for e in json.load(sys.stdin)))" 2>/dev/null || corCurl "$@" | head -1)"; }
+vc() { echo "{\"type\": [\"UserCredential\"], \"issuer\": \"$1\", \"credentialSubject\": {}}"; }
+USER=$(ftAuthToken k1 --vc "$(vc did:web:consumer)")
+WRITER=$(ftAuthToken k1 --vc "$(vc did:web:writer)")
+BUILDER=$(ftAuthToken k1 --vc "$(vc did:web:builder)")
+
+echo "01. An EnergyReport urn:E1 (the writer) with history, a Building urn:ngsi-ld:EnergyReport:B1 (the builder)"
+echo "========================================================================================================="
+status "POST urn:E1   " --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "EnergyReport", "v": {"type": "Property", "value": 1}}' -H "Authorization: Bearer $WRITER"
+status "PATCH urn:E1  " --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"v": {"type": "Property", "value": 2}}' -X PATCH -H "Authorization: Bearer $WRITER"
+status "POST the B1   " --url /ngsi-ld/v1/entities --payload '{"id": "urn:ngsi-ld:EnergyReport:B1", "type": "Building", "v": {"type": "Property", "value": 1}}' -H "Authorization: Bearer $BUILDER"
+echo
+echo
+
+
+echo "02. A user: the temporal evolution of urn:E1 yes, of the Building no"
+echo "===================================================================="
+status "GET /temporal/entities/urn:E1                       " --url /ngsi-ld/v1/temporal/entities/urn:E1 -H "Authorization: Bearer $USER"
+status "GET /temporal/entities/urn:ngsi-ld:EnergyReport:B1  " --url /ngsi-ld/v1/temporal/entities/urn:ngsi-ld:EnergyReport:B1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "03. A temporal query of both types: the builder - both; a user - urn:E1 only"
+echo "============================================================================="
+ids "GET /temporal/entities?type=EnergyReport,Building, the builder" --url "/ngsi-ld/v1/temporal/entities?type=EnergyReport,Building&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt" -H "Authorization: Bearer $BUILDER"
+ids "GET /temporal/entities?type=EnergyReport,Building, a user     " --url "/ngsi-ld/v1/temporal/entities?type=EnergyReport,Building&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt" -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "04. Appending to urn:E1's history: a user no, the writer yes"
+echo "============================================================"
+status "POST /temporal/entities/urn:E1/attrs, user  " --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs --payload '{"v": [{"type": "Property", "value": 9, "observedAt": "2026-01-01T00:00:00Z"}]}' -H "Authorization: Bearer $USER"
+status "POST /temporal/entities/urn:E1/attrs, writer" --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs --payload '{"v": [{"type": "Property", "value": 9, "observedAt": "2026-01-01T00:00:00Z"}]}' -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+echo "05. urn:E1 deleted (its current state): its history is still an EnergyReport's - a user reads it"
+echo "================================================================================================"
+status "DELETE /entities/urn:E1, writer      " --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $WRITER"
+status "GET /temporal/entities/urn:E1, user  " --url /ngsi-ld/v1/temporal/entities/urn:E1 -H "Authorization: Bearer $USER"
+echo
+echo
+
+
+echo "06. POST /temporal/entities (an upsert of history): the writer, an EnergyReport - yes; a Building - no"
+echo "======================================================================================================"
+status "POST /temporal/entities urn:E3 EnergyReport" --url /ngsi-ld/v1/temporal/entities --payload '{"id": "urn:E3", "type": "EnergyReport", "v": [{"type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z"}]}' -H "Authorization: Bearer $WRITER"
+status "POST /temporal/entities urn:B3 Building    " --url /ngsi-ld/v1/temporal/entities --payload '{"id": "urn:B3", "type": "Building", "v": [{"type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z"}]}' -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+--EXPECT--
+01. An EnergyReport urn:E1 (the writer) with history, a Building urn:ngsi-ld:EnergyReport:B1 (the builder)
+=========================================================================================================
+POST urn:E1   : HTTP/1.1 201 Created
+PATCH urn:E1  : HTTP/1.1 204 No Content
+POST the B1   : HTTP/1.1 201 Created
+
+
+02. A user: the temporal evolution of urn:E1 yes, of the Building no
+====================================================================
+GET /temporal/entities/urn:E1                       : HTTP/1.1 200 OK
+GET /temporal/entities/urn:ngsi-ld:EnergyReport:B1  : HTTP/1.1 403 Forbidden
+
+
+03. A temporal query of both types: the builder - both; a user - urn:E1 only
+=============================================================================
+GET /temporal/entities?type=EnergyReport,Building, the builder: ['urn:E1', 'urn:ngsi-ld:EnergyReport:B1']
+GET /temporal/entities?type=EnergyReport,Building, a user     : ['urn:E1']
+
+
+04. Appending to urn:E1's history: a user no, the writer yes
+============================================================
+POST /temporal/entities/urn:E1/attrs, user  : HTTP/1.1 403 Forbidden
+POST /temporal/entities/urn:E1/attrs, writer: HTTP/1.1 204 No Content
+
+
+05. urn:E1 deleted (its current state): its history is still an EnergyReport's - a user reads it
+================================================================================================
+DELETE /entities/urn:E1, writer      : HTTP/1.1 204 No Content
+GET /temporal/entities/urn:E1, user  : HTTP/1.1 200 OK
+
+
+06. POST /temporal/entities (an upsert of history): the writer, an EnergyReport - yes; a Building - no
+======================================================================================================
+POST /temporal/entities urn:E3 EnergyReport: HTTP/1.1 201 Created
+POST /temporal/entities urn:B3 Building    : HTTP/1.1 403 Forbidden
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

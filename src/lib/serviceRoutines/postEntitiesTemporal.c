@@ -57,6 +57,9 @@
 
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityBatchAllowed, authEntityDeny
+#endif
 #include "serviceRoutines/postEntitiesTemporal.h"    // Own interface
 
 
@@ -156,6 +159,21 @@ bool postEntitiesTemporal(void)
             "EntityTemporal must include a non-empty 'type'");
     return true;
   }
+
+#if COR_FEATURE_AUTH
+  //
+  // An upsert of the entity's history: its stored types (if it is stored) and the types the body gives it
+  //
+  {
+    const char* detail = NULL;
+
+    if (authEntityBatchAllowed(idP->value.s, typeP, true, &detail) == false)
+    {
+      authEntityDeny(detail);
+      return true;
+    }
+  }
+#endif
 
   if (typeP->type == CorArray)
   {

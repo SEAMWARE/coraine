@@ -46,6 +46,9 @@
 
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authEntityStoredCheck
+#endif
 #include "serviceRoutines/postEntityTemporalAttrs.h" // Own interface
 
 
@@ -102,6 +105,10 @@ static char* renderFragmentWithContext(CorNode* fragP)
 bool postEntityTemporalAttrs(void)
 {
   const char* entityId = corRest.in.wildcard[0];
+#if COR_FEATURE_AUTH
+  if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded or written
+    return true;
+#endif
   CorNode*    bodyP    = corRest.in.requestTree;
 
   if (entityId == NULL || entityId[0] == 0)
