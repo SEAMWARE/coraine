@@ -6,6 +6,9 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <pthread.h>                                 // pthread_mutex_*
+#include <stdlib.h>                                  // malloc, free
+#include <time.h>                                    // time
 #include <stdio.h>                                   // snprintf
 #include <string.h>                                  // memset, strcasecmp
 
@@ -25,6 +28,7 @@
 #include "corRest/corRestOutHeader.h"                // corRestOutHeaderAdd
 #include "corRest/corRestProblem.h"                  // corRestProblem
 #include "corNgsild/CorNgsild.h"                     // corNgsild, ldDefaultContextUrl
+#include "corNgsild/ldSubscriptionNotify.h"          // ldNotifyFilterHook
 #include "corNgsild/LdOp.h"                          // LdOp, ldOpToString
 
 #include "db/DbDriver.h"                             // db, DB_OK
@@ -361,6 +365,368 @@ static bool admit(void)
 
 
 
+// =============================================================================
+//
+// A subscription's owner - who made it, for its notifications (ABI 2: identitySave / identityRestore)
+//
+// The plugin's text, kept in the store's document collection "subscriptionOwners" - never inside the
+// subscription, so nothing that renders a subscription can show it. Restored identities are cached here,
+// shared by the notifying threads (counted, freed when the last lets go), and read again after OWNER_TTL
+// seconds - another instance (HA) may have stored a new owner meanwhile.
+//
+// =============================================================================
+
+#define OWNER_COLLECTION  "subscriptionOwners"
+#define OWNER_TTL         30
+#define OWNER_BUCKETS     256
+
+typedef struct Owner
+{
+  char*          key;                                // <tenant>|<subId>
+  void*          identity;                           // NULL: none - the notifications go without their entities
+  int            refs;                               // the cache's own, and each notification's using it
+  time_t         loadedAt;
+  bool           dropped;                            // out of the cache - freed at its last release
+  struct Owner*  next;
+} Owner;
+
+static pthread_mutex_t  ownerMutex = PTHREAD_MUTEX_INITIALIZER;
+static Owner*           ownerV[OWNER_BUCKETS];
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ownerKey - <tenant>|<subId>, malloc'd
+//
+static char* ownerKey(Tenant* tenantP, const char* subId)
+{
+  const char* tenant = ((tenantP != NULL) && (tenantP->name[0] != 0)) ? tenantP->name : "";
+  size_t      len    = strlen(tenant) + 1 + strlen(subId) + 1;
+  char*       key    = (char*) malloc(len);
+
+  if (key != NULL)
+    snprintf(key, len, "%s|%s", tenant, subId);
+
+  return key;
+}
+
+static unsigned int ownerBucket(const char* key)
+{
+  unsigned int h = 5381;
+
+  for (const char* c = key; *c != 0; c++)
+    h = h * 33 + (unsigned char) *c;
+
+  return h % OWNER_BUCKETS;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ownerRelease - a reference let go; the last of a dropped owner frees it. Under ownerMutex.
+//
+static void ownerRelease(Owner* oP)
+{
+  if (--oP->refs > 0)
+    return;
+
+  if ((oP->identity != NULL) && (driver.release != NULL))
+    driver.release(oP->identity);
+
+  free(oP->key);
+  free(oP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ownerDrop - the cache's entry for 'key' out of the cache. Under ownerMutex.
+//
+static void ownerDrop(const char* key)
+{
+  Owner** prevPP = &ownerV[ownerBucket(key)];
+
+  for (Owner* oP = *prevPP; oP != NULL; prevPP = &oP->next, oP = oP->next)
+  {
+    if (strcmp(oP->key, key) == 0)
+    {
+      *prevPP     = oP->next;
+      oP->dropped = true;
+      ownerRelease(oP);                              // the cache's reference
+      return;
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// ownerGet - the owner of a subscription, referenced (ownerPut when done) - from the cache, or read from the
+// store and restored. NULL only when out of memory.
+//
+static Owner* ownerGet(Tenant* tenantP, const char* subId)
+{
+  char* key = ownerKey(tenantP, subId);
+
+  if (key == NULL)
+    return NULL;
+
+  time_t now = time(NULL);
+
+  pthread_mutex_lock(&ownerMutex);
+
+  for (Owner* oP = ownerV[ownerBucket(key)]; oP != NULL; oP = oP->next)
+  {
+    if ((strcmp(oP->key, key) == 0) && (now - oP->loadedAt < OWNER_TTL))
+    {
+      oP->refs += 1;
+      pthread_mutex_unlock(&ownerMutex);
+      free(key);
+      return oP;
+    }
+  }
+
+  pthread_mutex_unlock(&ownerMutex);
+
+  //
+  // Read from the store - outside the lock: it may wait for the database
+  //
+  void*    identity = NULL;
+  CorNode* docP     = NULL;
+
+  if ((db.docRetrieve != NULL) && (db.docRetrieve(tenantP, OWNER_COLLECTION, subId, &docP) == DB_OK) && (docP != NULL))
+  {
+    CorNode* textP = corTreeLookup(docP, "owner");
+
+    if ((textP != NULL) && (textP->type == CorString))
+      identity = driver.identityRestore(textP->value.s);
+  }
+
+  Owner* oP = (Owner*) calloc(1, sizeof(Owner));
+
+  if (oP == NULL)
+  {
+    if ((identity != NULL) && (driver.release != NULL))
+      driver.release(identity);
+    free(key);
+    return NULL;
+  }
+
+  oP->key      = key;
+  oP->identity = identity;
+  oP->refs     = 2;                                  // the cache's and the caller's
+  oP->loadedAt = now;
+
+  pthread_mutex_lock(&ownerMutex);
+  ownerDrop(key);                                    // a stale one, or one another thread loaded meanwhile
+  unsigned int b = ownerBucket(key);
+  oP->next  = ownerV[b];
+  ownerV[b] = oP;
+  pthread_mutex_unlock(&ownerMutex);
+
+  return oP;
+}
+
+static void ownerPut(Owner* oP)
+{
+  pthread_mutex_lock(&ownerMutex);
+  ownerRelease(oP);
+  pthread_mutex_unlock(&ownerMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// nullHeader, nullBody - a notification's AuthRequest has neither
+//
+static const char* nullHeader(const char* name)  { (void) name; return NULL; }
+static const char* nullBody(int* lenP)           { if (lenP != NULL) *lenP = 0; return NULL; }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notifyEntityAllowed - may the owner read this entity: asked as a retrieve of it
+//
+static bool notifyEntityAllowed(Tenant* tenantP, void* identity, CorNode* entityP, CorAlloc* kaP)
+{
+  CorNode* idP   = (entityP->type == CorObject) ? corTreeLookup(entityP, "id") : NULL;
+  CorNode* typeP = (entityP->type == CorObject) ? corTreeLookup(entityP, "type") : NULL;
+
+  if ((idP == NULL) || (idP->type != CorString))
+    return false;
+
+  const char*  one[1];
+  const char** typeV = one;
+  int          types = 0;
+
+  if ((typeP != NULL) && (typeP->type == CorString))
+  {
+    one[0] = typeP->value.s;
+    types  = 1;
+  }
+  else if ((typeP != NULL) && (typeP->type == CorArray))
+  {
+    int n = 0;
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+      ++n;
+
+    typeV = (const char**) corAlloc(kaP, (n + 1) * sizeof(char*));
+    if (typeV == NULL)
+      return false;
+
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+    {
+      if (tP->type == CorString)
+        typeV[types++] = tP->value.s;
+    }
+  }
+
+  size_t pathLen = strlen("/ngsi-ld/v1/entities/") + strlen(idP->value.s) + 1;
+  char*  path    = (char*) corAlloc(kaP, pathLen);
+
+  if (path == NULL)
+    return false;
+
+  snprintf(path, pathLen, "/ngsi-ld/v1/entities/%s", idP->value.s);
+
+  AuthRequest req;
+  AuthAnswer  ans;
+  AuthEntity  entity;
+
+  memset(&req, 0, sizeof(req));
+  memset(&ans, 0, sizeof(ans));
+
+  req.method        = "GET";
+  req.path          = path;
+  req.op            = LdOpRetrieveEntity;
+  req.opName        = ldOpToString(LdOpRetrieveEntity);
+  req.route         = "/ngsi-ld/v1/entities/*";
+  req.tenant        = ((tenantP != NULL) && (tenantP->name[0] != 0)) ? tenantP->name : NULL;
+  req.header        = nullHeader;
+  req.body          = nullBody;
+  req.expand        = termExpandDefault;             // no request, no @context of its own
+  req.expandDefault = termExpandDefault;
+  req.entities      = true;
+
+  entity.id     = idP->value.s;
+  entity.typeV  = typeV;
+  entity.types  = types;
+  entity.stored = true;
+  entity.attrV  = NULL;
+  entity.attrs  = 0;
+
+  return driver.entity(&req, identity, &entity, &ans) == AuthAllow;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// notifyFilter - corNgsild's ldNotifyFilterHook: the entities the subscription's owner may not read go;
+// an owner not known (none kept, none any more) - all of them go: fail closed
+//
+static void notifyFilter(void* tenantP, const char* subId, CorNode* dataArrayP, CorAlloc* kaP)
+{
+  if ((dataArrayP == NULL) || (dataArrayP->type != CorArray) || (subId == NULL))
+    return;
+
+  Owner* oP = ownerGet((Tenant*) tenantP, subId);
+
+  CorNode* eP = dataArrayP->value.head;
+
+  while (eP != NULL)
+  {
+    CorNode* nextP = eP->next;
+
+    if ((oP == NULL) || (oP->identity == NULL) || (notifyEntityAllowed((Tenant*) tenantP, oP->identity, eP, kaP) == false))
+      corTreeChildRemove(dataArrayP, eP);
+
+    eP = nextP;
+  }
+
+  if (oP != NULL)
+    ownerPut(oP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authSubscriptionOwnerKeep -
+//
+void authSubscriptionOwnerKeep(const char* subId)
+{
+  if ((loaded == false) || (driver.abiVersion < 2) || (driver.identitySave == NULL) || (subId == NULL) || (db.docCreate == NULL))
+    return;
+
+  AuthState* stateP = (AuthState*) corNgsild.authP;
+
+  if ((stateP == NULL) || (stateP->trusted == true))   // the broker's own request: the owner stays who it was
+    return;
+
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+  char*   text    = driver.identitySave(stateP->identity);
+
+  if (text == NULL)                                  // no one: an owner kept before goes
+  {
+    authSubscriptionOwnerForget(subId);
+    return;
+  }
+
+  CorNode* docP = corTreeObject(corRest.kallocP, NULL);
+
+  corTreeChildAdd(docP, corTreeString(corRest.kallocP, "id",    corAllocStrdup(&corRest.kalloc, subId)));
+  corTreeChildAdd(docP, corTreeString(corRest.kallocP, "owner", corAllocStrdup(&corRest.kalloc, text)));
+  free(text);
+
+  if (db.docReplace(tenantP, OWNER_COLLECTION, subId, docP) == DB_NOT_FOUND)
+    db.docCreate(tenantP, OWNER_COLLECTION, subId, docP);
+
+  char* key = ownerKey(tenantP, subId);
+
+  if (key != NULL)
+  {
+    pthread_mutex_lock(&ownerMutex);
+    ownerDrop(key);                                  // the next notification reads the new one
+    pthread_mutex_unlock(&ownerMutex);
+    free(key);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authSubscriptionOwnerForget -
+//
+void authSubscriptionOwnerForget(const char* subId)
+{
+  if ((loaded == false) || (subId == NULL) || (db.docDelete == NULL))
+    return;
+
+  Tenant* tenantP = (Tenant*) corNgsild.tenantP;
+
+  db.docDelete(tenantP, OWNER_COLLECTION, subId);
+
+  char* key = ownerKey(tenantP, subId);
+
+  if (key != NULL)
+  {
+    pthread_mutex_lock(&ownerMutex);
+    ownerDrop(key);
+    pthread_mutex_unlock(&ownerMutex);
+    free(key);
+  }
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // authLoad -
@@ -437,6 +803,14 @@ bool authInit(void)
   }
 
   corRestSetAdmitHook(admit);
+
+  //
+  // The notifications - decided for their subscription's owner, when the plugin can (after its init: a
+  // plugin may take its slots back there)
+  //
+  if ((driver.abiVersion >= 2) && (driver.entity != NULL) && (driver.identitySave != NULL) && (driver.identityRestore != NULL))
+    ldNotifyFilterHook = notifyFilter;
+
   return true;
 }
 

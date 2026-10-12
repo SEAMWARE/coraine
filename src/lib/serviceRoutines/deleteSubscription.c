@@ -25,6 +25,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_AUTH
+#include "auth/auth.h"                               // authSubscriptionOwnerForget
+#endif
 #include "serviceRoutines/deleteSubscription.h"      // Own interface
 
 
@@ -77,6 +80,10 @@ bool deleteSubscription(void)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error deleting subscription '%s'", subId);
     return true;
   }
+
+#if COR_FEATURE_AUTH
+  authSubscriptionOwnerForget(subId);                // its owner goes with it
+#endif
 
   //
   // § 5.8.1.4 — DELETE cascade. Walk subordinateP and DELETE each

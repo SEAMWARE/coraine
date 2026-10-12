@@ -17,6 +17,8 @@
 // Keys and policies are fetched by a thread of this plugin and replaced whole; a request never waits for
 // the network. Until both are there every request is a 503 (fail closed).
 //
+#define _GNU_SOURCE                                  // strptime, timegm
+
 #include <pthread.h>                                 // pthread_*
 #include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // malloc, free
@@ -33,7 +35,11 @@
 #include "corJson/corJsonParse.h"                    // corJsonParse
 #include "corLog/corLog.h"                           // COR_I, COR_W, COR_E
 #include "corTree/CorNode.h"                         // CorNode
-#include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeLookup.h"
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
+#include "corJson/corJsonRender.h"                   // corJsonFastRender
+#include "corTree/corTreeClone.h"                    // corTreeClone
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeInteger, corTreeChildAdd                   // corTreeLookup
 
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 
@@ -62,6 +68,7 @@ static int    leeway        = 120;                   // seconds of clock skew on
 static char*  pap           = NULL;                  // the ODRL-PAP (its base URL) - the policies
 static char*  policies      = NULL;                  // the policies themselves (a URL or a file: a JSON array of ODRL policies) - instead of the PAP
 static char*  organization  = NULL;                  // the provider's DID - the PAP's GENERAL_ORGANIZATION_DID - vc:role looks for its roles
+static int    ownerMaxAge   = 0;                     // seconds a subscription's saved owner holds (0: until its credential's validUntil)
 static int    refresh       = 30;                    // seconds between two fetches of keys and policies
 static bool   strippedPath  = false;                 // the x-stripped-path header is a gateway's, not a client's: http:path reads it
 static bool   anonymousOk   = false;                 // a request without a token is let in, as no one - only a policy for vc:any can allow it anything
@@ -79,6 +86,7 @@ static CorArg fdscArgs[] =
   { "--fdscOrganization", "-fdscOrganization", CorArgString, _vp &organization, CorArgOpt, _vp NULL, NULL, NULL,       "the provider's DID - the PAP's GENERAL_ORGANIZATION_DID: vc:role reads the credential's roles for it" },
   { "--fdscRefresh",   "-fdscRefresh",   CorArgInt,    _vp &refresh,     CorArgOpt, _vp 30,    _vp 1,    _vp 86400,     "seconds between two fetches of the keys and the policies" },
   { "--fdscAnonymous", "-fdscAnonymous", CorArgBool,   _vp &anonymousOk, CorArgOpt, _vp false, _vp false, _vp true,     "a request without a token is not a 401 - it is let in as no one, and only a policy for vc:any can allow it" },
+  { "--fdscOwnerMaxAge", "-fdscOwnerMaxAge", CorArgInt, _vp &ownerMaxAge, CorArgOpt, _vp 0, _vp 0, _vp 31536000,      "seconds a subscription's owner (its maker's credential, kept for its notifications) holds - after that its notifications go without entities until the owner updates the subscription; 0: until the credential's validUntil" },
   { "--fdscNgsild",    "-fdscNgsild",    CorArgBool,   _vp &ngsildMode,  CorArgOpt, _vp false, _vp false, _vp true,     "ngsi-ld:entityType is the entity's - its stored, expanded types, each entity of a batch or a query on its own - instead of what the Data Space Connector reads (the id string, ?type, the body's type): decisions differ from the connector's" },
   { "--fdscStrippedPath", "-fdscStrippedPath", CorArgBool, _vp &strippedPath, CorArgOpt, _vp false, _vp false, _vp true, "http:path reads the x-stripped-path header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path" },
   CORARGS_END
@@ -340,7 +348,11 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
   // nothing, refuses nothing it would not refuse
   //
   if ((ngsildMode == false) && (driverSelf != NULL) && (driverSelf->abiVersion >= 2))
-    driverSelf->entity = NULL;
+  {
+    driverSelf->entity          = NULL;
+    driverSelf->identitySave    = NULL;              // the connector does not decide notifications either
+    driverSelf->identityRestore = NULL;
+  }
   fdscPolicyStrippedPathSet(strippedPath);
   refreshRunning = true;
   COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
@@ -483,6 +495,131 @@ static AuthVerdict fdscEntity(const AuthRequest* reqP, void* identity, const Aut
 
 // -----------------------------------------------------------------------------
 //
+// isoSeconds - an ISO 8601 date-time's seconds since the epoch (UTC; fractions and the zone ignored, 'Z'
+// assumed); -1: not one
+//
+static long long isoSeconds(const char* iso)
+{
+  struct tm tm;
+
+  memset(&tm, 0, sizeof(tm));
+
+  if ((iso == NULL) || (strptime(iso, "%Y-%m-%dT%H:%M:%S", &tm) == NULL))
+    return -1;
+
+  return (long long) timegm(&tm);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscIdentitySave - AuthDriver.identitySave (ABI 2): { "savedAt": <s>, "claims": <the token's claims> }
+//
+static char* fdscIdentitySave(void* identity)
+{
+  FdscIdentity* idP = (FdscIdentity*) identity;
+
+  if ((idP == NULL) || (idP->claimsP == NULL))       // no one: nothing to keep
+    return NULL;
+
+  CorAlloc ka;
+  char     buf[4096];
+
+  corAllocBufferInit(&ka, buf, sizeof(buf), 8192, NULL, "fdsc identity save");
+
+  CorNode* rootP   = corTreeObject(&ka, NULL);
+  CorNode* claimsP = corTreeClone(&ka, idP->claimsP);
+  char*    text    = NULL;
+
+  if ((rootP != NULL) && (claimsP != NULL))
+  {
+    claimsP->name = (char*) "claims";
+    corTreeChildAdd(rootP, corTreeInteger(&ka, "savedAt", (long long) time(NULL)));
+    corTreeChildAdd(rootP, claimsP);
+
+    text = (char*) malloc(corJsonFastRenderSize(rootP) + 1);
+
+    if (text != NULL)
+      corJsonFastRender(rootP, text);
+  }
+
+  corAllocBufferReset(&ka, false);
+  return text;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscIdentityRestore - AuthDriver.identityRestore (ABI 2): NULL when the credential no longer holds - its
+// validUntil passed, or --fdscOwnerMaxAge
+//
+static void* fdscIdentityRestore(const char* saved)
+{
+  if (saved == NULL)
+    return NULL;
+
+  FdscIdentity* idP  = fdscIdentityNew();
+  char*         text = (idP != NULL) ? corAllocStrdup(&idP->ka, saved) : NULL;
+
+  if (text == NULL)
+  {
+    fdscIdentityFree(idP);
+    return NULL;
+  }
+
+  CorJson cj;
+  corJsonCreate(&cj, &idP->ka);
+
+  CorNode*  rootP    = corJsonParse(&cj, text);
+  CorNode*  savedAtP = (rootP != NULL) ? corTreeLookup(rootP, "savedAt") : NULL;
+  CorNode*  claimsP  = (rootP != NULL) ? corTreeLookup(rootP, "claims")  : NULL;
+  long long now      = (long long) time(NULL);
+
+  if ((claimsP == NULL) || (claimsP->type != CorObject) || (savedAtP == NULL) || (savedAtP->type != CorInt))
+  {
+    fdscIdentityFree(idP);
+    return NULL;
+  }
+
+  if ((ownerMaxAge > 0) && (now - savedAtP->value.i > ownerMaxAge))
+  {
+    fdscIdentityFree(idP);
+    return NULL;
+  }
+
+  fdscIdentityFill(idP, claimsP);
+
+  //
+  // The credential's own end: validUntil (VC 2.0), expirationDate (VC 1.1)
+  //
+  for (int i = 0; i < idP->credentials; i++)
+  {
+    CorNode* untilP = corTreeLookup(idP->credentialV[i], "validUntil");
+
+    if (untilP == NULL)
+      untilP = corTreeLookup(idP->credentialV[i], "expirationDate");
+
+    if ((untilP != NULL) && (untilP->type == CorString))
+    {
+      long long until = isoSeconds(untilP->value.s);
+
+      if ((until < 0) || (now > until))
+      {
+        fdscIdentityFree(idP);
+        return NULL;
+      }
+    }
+  }
+
+  return idP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscRelease -
 //
 static void fdscRelease(void* identity)
@@ -554,6 +691,12 @@ void authRegister(AuthDriver* driverP)
 
   if (brokerAbi >= 2)                                // a broker older than ABI 2 has no room for it
     driverP->entity = fdscEntity;
+
+  if (brokerAbi >= 2)
+  {
+    driverP->identitySave    = fdscIdentitySave;
+    driverP->identityRestore = fdscIdentityRestore;
+  }
 
   driverSelf = driverP;
 }

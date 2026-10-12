@@ -124,6 +124,18 @@ extern void authEntityDeny(const char* detail);
 
 // -----------------------------------------------------------------------------
 //
+// authSubscriptionOwnerKeep / authSubscriptionOwnerForget - a subscription's owner (who made it, or last
+// updated it): kept, in the store, beside the subscription - for its notifications, decided entity by
+// entity for that owner (fail closed: no owner known, no entity). Keep after a create and an update,
+// forget after a delete. Nothing without an auth plugin that keeps identities.
+//
+extern void authSubscriptionOwnerKeep(const char* subId);
+extern void authSubscriptionOwnerForget(const char* subId);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authRelease - the request is over: its identity back to the plugin (the post-response hook)
 //
 extern void authRelease(void);

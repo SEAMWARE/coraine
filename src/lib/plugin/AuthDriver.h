@@ -181,6 +181,19 @@ typedef struct AuthDriver
   // response). NULL: authorize decides alone.
   //
   AuthVerdict  (*entity)(const AuthRequest* reqP, void* identity, const AuthEntity* entityP, AuthAnswer* answerP);
+
+  //
+  // ABI 2: identitySave / identityRestore - a subscription notifies long after the request that made it:
+  // the broker keeps its maker's identity (as text, in the store, beside the subscription - never in it)
+  // and decides each entity of each notification with entity() on the identity restored. identitySave:
+  // malloc'd text, the broker frees it; NULL: nothing to keep (an anonymous request). identityRestore: an
+  // identity of the plugin's, freed with release(); NULL: the text holds none (any more - expired): the
+  // notifications go without the entities. The notification is asked about as a retrieve of each entity
+  // (op LdOpRetrieveEntity, GET /ngsi-ld/v1/entities/<id>, no headers, no body). NULL slots: the broker
+  // keeps nothing and filters nothing.
+  //
+  char*        (*identitySave)(void* identity);
+  void*        (*identityRestore)(const char* saved);
 } AuthDriver;
 
 typedef void (*AuthRegisterFunc)(AuthDriver* driverP);
