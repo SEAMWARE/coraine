@@ -176,6 +176,8 @@ jobs:
           tags: |
             quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}
             quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-amd64
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}-amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -197,6 +199,8 @@ jobs:
           tags: |
             quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-debug
             quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}-debug
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-amd64-debug
+            quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:${{ steps.v.outputs.version }}-${{ steps.v.outputs.date }}-${{ steps.v.outputs.shortSha }}-amd64-debug
           cache-from: type=gha,scope=debug
           cache-to: type=gha,mode=max,scope=debug
 
@@ -385,11 +389,28 @@ jobs:
           IMG: quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine
           VERSION: ${{ needs.release.outputs.version }}
           LONG: ${{ needs.release.outputs.version }}-${{ needs.release.outputs.date }}-${{ needs.release.outputs.shortSha }}
+        #
+        # Each index made from the two single-architecture tags, never from the tag itself: on a re-run of
+        # this job the tag is already an index, and merging it again added a second arm64 (0.5.0: the
+        # stale image of an earlier attempt first, the one tested second). And the inspect read whole -
+        # a reader that stops early (| sed -n 1,12p) kills it with SIGPIPE, and pipefail fails the step
+        # after the index was pushed.
+        #
         run: |
           for tag in "$VERSION" "$LONG" "$VERSION-debug" "$LONG-debug"; do
-            case "$tag" in *-debug) base=${tag%-debug}; arm="$IMG:$base-arm64-debug" ;; *) arm="$IMG:$tag-arm64" ;; esac
-            docker buildx imagetools create -t "$IMG:$tag" "$IMG:$tag" "$arm"
-            docker buildx imagetools inspect "$IMG:$tag" | sed -n 1,12p
+            case "$tag" in
+              *-debug) base=${tag%-debug}; amd="$IMG:$base-amd64-debug"; arm="$IMG:$base-arm64-debug" ;;
+              *)       amd="$IMG:$tag-amd64";       arm="$IMG:$tag-arm64" ;;
+            esac
+            docker buildx imagetools create -t "$IMG:$tag" "$amd" "$arm"
+            docker buildx imagetools inspect --raw "$IMG:$tag" > index.json
+            python3 - "$IMG:$tag" index.json <<'PY'
+          import json, sys
+          archs = [m.get("platform", {}).get("architecture") for m in json.load(open(sys.argv[2]))["manifests"]]
+          images = sorted(a for a in archs if a != "unknown")
+          print(sys.argv[1], images)
+          sys.exit(0 if images == ["amd64", "arm64"] else "%s: not exactly one amd64 and one arm64: %s" % (sys.argv[1], images))
+          PY
           done
           echo "### $VERSION: linux/amd64 + linux/arm64 (arm64 without the DDS bridge)" >> "$GITHUB_STEP_SUMMARY"
 
