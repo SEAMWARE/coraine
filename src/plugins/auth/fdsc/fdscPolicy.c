@@ -131,6 +131,7 @@ typedef struct Policy
 {
   const char*  uid;
   Rule         all;                                  // RuleAnd over every rule of every permission
+  int          methods;                              // the methods it can allow at all: its actions' (ANDed, as its rules are) - a request of another is not evaluated
 } Policy;
 
 typedef struct PolicySet
@@ -1002,6 +1003,21 @@ static bool policyParse(PolicySet* psP, CorNode* policyP, char* errorBuf, int er
   policyEntryP->uid = uid;
   memset(&policyEntryP->all, 0, sizeof(Rule));
   ruleSet(&policyEntryP->all, RuleAnd, &rules);
+
+  //
+  // The methods it can allow: every action rule must hold, so the intersection of theirs; an action that
+  // reads what an HTTP request does not have (RuleUndef) allows none
+  //
+  policyEntryP->methods = M_GET | M_POST | M_PUT | M_PATCH | M_DELETE;
+
+  for (int i = 0; i < rules.n; i++)
+  {
+    if (rules.v[i].kind == RuleAction)
+      policyEntryP->methods &= rules.v[i].methods;
+    else if (rules.v[i].kind == RuleUndef)
+      policyEntryP->methods = 0;
+  }
+
   return true;
 }
 
@@ -2040,8 +2056,10 @@ static int methodOf(const char* method)
 // decide - every policy, as OPA evaluates every 'allow if' of policy.main - an error in any one of them
 // (eval_conflict_error) is the decision's error, whatever the others say
 //
-static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP)
+static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, AuthAnswer* answerP)
 {
+  FdscIdentity* idP = (hP != NULL) ? hP->idP : NULL;
+
   CorAlloc         ka;
   char             buf[4096];
   Ctx              ctx;
@@ -2063,7 +2081,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
     ctx.method = (entityP->stored == true) ? M_PATCH : M_POST;
   ctx.nowMs   = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
   ctx.entityP = entityP;
-  ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (idP != NULL);
+  ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (hP != NULL);
 
   bool allowed = false;
   bool pending = false;
@@ -2072,6 +2090,9 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
 
   for (int i = 0; (setP != NULL) && (i < setP->policies); i++)
   {
+    if ((ctx.method & setP->policyV[i].methods) == 0)   // none of its actions is this request's: its action rule fails - nothing else to evaluate
+      continue;
+
     Tri t = policyAllows(&ctx, &setP->policyV[i]);
 
     if (t == TriTrue)
@@ -2093,8 +2114,8 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
   // authorize: a policy that holds whatever the entity - entity() has nothing left to ask; one that holds
   // depending on the entity - entity() decides
   //
-  if ((entityP == NULL) && (idP != NULL))
-    idP->entityFree = allowed;
+  if ((entityP == NULL) && (hP != NULL))
+    hP->entityFree = allowed;
 
   if ((allowed == true) || (pending == true))
     return AuthAllow;
@@ -2109,9 +2130,9 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscIdentity* idP, const Auth
 //
 // fdscPolicyDecide -
 //
-AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAnswer* answerP)
+AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscHandle* hP, AuthAnswer* answerP)
 {
-  return decide(reqP, idP, NULL, answerP);
+  return decide(reqP, hP, NULL, answerP);
 }
 
 
@@ -2120,12 +2141,12 @@ AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscIdentity* idP, AuthAns
 //
 // fdscPolicyEntity -
 //
-AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscIdentity* idP, const AuthEntity* entityP, AuthAnswer* answerP)
+AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, AuthAnswer* answerP)
 {
-  if ((ngsild == false) || ((idP != NULL) && (idP->entityFree == true)))
+  if ((ngsild == false) || ((hP != NULL) && (hP->entityFree == true)))
     return AuthAllow;
 
-  return decide(reqP, idP, entityP, answerP);
+  return decide(reqP, hP, entityP, answerP);
 }
 
 

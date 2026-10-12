@@ -63,7 +63,7 @@ ones the owner may not read are left out, and a notification left with none is n
 known (none kept, or one that no longer holds) leaves out every entity: fail closed. A PATCH of the
 subscription makes whoever sent it the owner - how an owner takes a subscription back. A restored owner is
 cached for 30 s: an owner a broker of an HA set stores is seen by the others within that, through the
-shared store.
+shared store (HA runs on MongoDB - [High Availability](high-availability.md)).
 
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
@@ -336,8 +336,6 @@ bounds how long a revoked credential still receives notifications.
 
 ## 7. Next
 
-- A subscription's owner kept in the store with **haaux** (corDB HA): the owners are not among what haaux
-  syncs - with MongoDB the store is shared, and they are.
 - The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
 - A request's `@context` (its `Link` header, its body's `@context`) is fetched before `authorize`: an
   authenticated client - anyone, with `--fdscAnonymous` - can have the broker fetch a URL of its choice,

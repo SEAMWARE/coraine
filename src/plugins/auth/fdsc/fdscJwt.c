@@ -18,7 +18,6 @@
 
 #include "fdscBase64.h"                              // fdscBase64UrlDecode
 #include "fdscKeys.h"                                // fdscKeysVerify
-#include "fdscTokenCache.h"                          // fdscTokenCacheHas, fdscTokenCacheAdd
 #include "fdscJwt.h"                                 // Own interface
 
 
@@ -129,36 +128,28 @@ FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorA
     return FdscJwtMalformed;
 
   //
-  // The signature - unless this very token's has been checked already, with the key set in use
+  // The signature (a token checked before is not seen here: fdsc.c finds its identity in the cache)
   //
-  int tokenLen = strlen(token);
+  const char*    sigText = dot2 + 1;
+  int            sigLen  = strlen(sigText);
+  unsigned char* sig     = (unsigned char*) corAlloc(kaP, sigLen * 3 / 4 + 4);
 
-  if (fdscTokenCacheHas(token, tokenLen) == false)
-  {
-    unsigned int   generation = fdscTokenCacheGeneration();
-    const char*    sigText = dot2 + 1;
-    int            sigLen  = strlen(sigText);
-    unsigned char* sig     = (unsigned char*) corAlloc(kaP, sigLen * 3 / 4 + 4);
+  if (sig == NULL)
+    return FdscJwtMalformed;
 
-    if (sig == NULL)
-      return FdscJwtMalformed;
+  int n = fdscBase64UrlDecode(sigText, sigLen, sig);
 
-    int n = fdscBase64UrlDecode(sigText, sigLen, sig);
+  if (n <= 0)
+    return FdscJwtMalformed;
 
-    if (n <= 0)
-      return FdscJwtMalformed;
+  FdscKeyCheck keyCheck = fdscKeysVerify(kid, alg, token, dot2 - token, sig, n);
 
-    FdscKeyCheck keyCheck = fdscKeysVerify(kid, alg, token, dot2 - token, sig, n);
-
-    if (keyCheck == FdscKeyUnknown)
-      return FdscJwtUnknownKey;
-    if (keyCheck == FdscKeyBadAlg)
-      return FdscJwtBadAlg;
-    if (keyCheck != FdscKeyOk)
-      return FdscJwtBadSignature;
-
-    fdscTokenCacheAdd(token, tokenLen, generation);
-  }
+  if (keyCheck == FdscKeyUnknown)
+    return FdscJwtUnknownKey;
+  if (keyCheck == FdscKeyBadAlg)
+    return FdscJwtBadAlg;
+  if (keyCheck != FdscKeyOk)
+    return FdscJwtBadSignature;
 
   //
   // The claims - only once the signature holds: what an unsigned token says is nothing

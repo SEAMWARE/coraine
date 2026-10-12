@@ -11,6 +11,7 @@
 #include <stdlib.h>                                  // malloc, free
 #include <string.h>                                  // memcmp, memcpy
 
+#include "fdscIdentity.h"                            // FdscIdentity, fdscIdentityRef, fdscIdentityUnref
 #include "fdscTokenCache.h"                          // Own interface
 
 
@@ -24,9 +25,10 @@
 
 typedef struct Slot
 {
-  uint64_t  hash;
-  char*     token;
-  int       len;
+  uint64_t       hash;
+  char*          token;
+  int            len;
+  FdscIdentity*  idP;                                // the cache's reference
 } Slot;
 
 static Slot              slotV[SLOTS];
@@ -56,26 +58,31 @@ static uint64_t hashOf(const char* s, int len)
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheHas -
+// fdscTokenCacheGet -
 //
-bool fdscTokenCacheHas(const char* token, int len)
+FdscIdentity* fdscTokenCacheGet(const char* token, int len)
 {
-  uint64_t h     = hashOf(token, len);
-  Slot*    sP    = &slotV[h % SLOTS];
-  bool     found = false;
+  uint64_t      h   = hashOf(token, len);
+  Slot*         sP  = &slotV[h % SLOTS];
+  FdscIdentity* idP = NULL;
 
   pthread_rwlock_rdlock(&lock);
-  found = (sP->token != NULL) && (sP->hash == h) && (sP->len == len) && (memcmp(sP->token, token, len) == 0);
-  pthread_rwlock_unlock(&lock);
 
-  return found;
+  if ((sP->token != NULL) && (sP->hash == h) && (sP->len == len) && (memcmp(sP->token, token, len) == 0))
+  {
+    idP = sP->idP;
+    fdscIdentityRef(idP);
+  }
+
+  pthread_rwlock_unlock(&lock);
+  return idP;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheAdd -
+// fdscTokenCacheGeneration -
 //
 unsigned int fdscTokenCacheGeneration(void)
 {
@@ -92,9 +99,9 @@ unsigned int fdscTokenCacheGeneration(void)
 //
 // fdscTokenCacheAdd -
 //
-void fdscTokenCacheAdd(const char* token, int len, unsigned int checkedWith)
+void fdscTokenCacheAdd(const char* token, int len, FdscIdentity* idP, unsigned int checkedWith)
 {
-  if (len > TOKEN_MAX)
+  if ((len > TOKEN_MAX) || (idP == NULL))
     return;
 
   char* copy = (char*) malloc(len);
@@ -116,13 +123,18 @@ void fdscTokenCacheAdd(const char* token, int len, unsigned int checkedWith)
     return;
   }
 
-  char* oldP = sP->token;
+  char*         oldP   = sP->token;
+  FdscIdentity* oldIdP = sP->idP;
+
+  fdscIdentityRef(idP);
   sP->hash  = h;
   sP->token = copy;
   sP->len   = len;
+  sP->idP   = idP;
   pthread_rwlock_unlock(&lock);
 
   free(oldP);
+  fdscIdentityUnref(oldIdP);
 }
 
 
@@ -138,8 +150,10 @@ void fdscTokenCacheClear(void)
   for (int i = 0; i < SLOTS; i++)
   {
     free(slotV[i].token);
+    fdscIdentityUnref(slotV[i].idP);
     slotV[i].token = NULL;
     slotV[i].len   = 0;
+    slotV[i].idP   = NULL;
   }
 
   generation += 1;

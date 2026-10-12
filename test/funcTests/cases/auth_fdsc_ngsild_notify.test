@@ -67,7 +67,18 @@ while i < len(text):
 print('\\n'.join(sorted(out)) if out else '(none)')"
 }
 sub() { echo "{\"id\": \"urn:ngsi-ld:Subscription:$1\", \"type\": \"Subscription\", \"entities\": [{\"type\": \"EnergyReport\"}, {\"type\": \"Building\"}], \"notification\": {\"format\": \"keyValues\", \"endpoint\": {\"uri\": \"http://localhost:7711/$1\"}}}"; }
+#
+# ready - after a (re)start: until the broker has its keys and policies (503 until then - slow under valgrind)
+#
+ready() {
+  for i in $(seq 1 100); do
+    corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $WRITER" | head -1 | grep -q " 503 " || return 0
+    sleep 0.1
+  done
+}
 write() { corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"v": {"type": "Property", "value": '$1'}}' -H "Authorization: Bearer $WRITER" | head -1; corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs --payload '{"v": {"type": "Property", "value": '$1'}}' -H "Authorization: Bearer $BUILDER" | head -1; }
+
+ready                                              # the broker started in INIT: its keys and policies loaded
 
 echo "01. A user subscribes to EnergyReports and Buildings (/user), the builder too (/builder); a GET of the user's shows no owner"
 echo "=========================================================================================================================="
@@ -91,6 +102,7 @@ echo
 echo "03. The broker restarts: the owners are read back from the store - the same notifications"
 echo "========================================================================================="
 coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+ready
 write 1
 ftClientWait 3 --port 7711 > /dev/null
 notified
@@ -101,6 +113,7 @@ echo
 echo "04. Restarted with --fdscOwnerMaxAge 1: both owners have expired - the notifications go without entities, none is sent"
 echo "====================================================================================================================="
 coraineStart --auth fdsc --fdscNgsild --fdscOwnerMaxAge 1 --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/ngsild.json --fdscIssuer http://verifier.ft
+ready
 sleep 2.5                                          # whole seconds: an owner saved in second N is older than 1 s from N+2 on
 write 2
 ftClientSettle 1000
