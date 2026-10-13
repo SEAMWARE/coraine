@@ -1924,12 +1924,67 @@ a batch, every notification, and the stored entity's types before a write. The s
   Profiled, 20 policies: a 20-entity query 8 824 -> 23 552 requests/s, a batch update 5 107 -> 8 507.
 - **Notifications**: `patch_subs_c50` -13.7 % -> -9.7 %, `patch_10subs_c50` (10.2 notifications per PATCH)
   -8.6 % -> -2.3 %.
-- **What is left is the stored entity's types**: before a write the broker retrieves the whole entity to read
-  its types - one per PATCH, merge or delete, one per batch entry. `patch_c50` -21.2 %, `delete_c50` -22.2 %,
-  `batch20delete_c50` -36.5 %.
+- **The stored entity's types**: before a write the broker reads the stored entity's types - one per PATCH,
+  merge or delete, one per batch entry. In these two runs it retrieved the whole entity for them (below:
+  the types alone).
 - **The control**: the second no-auth run of each is within -5.3 to +5.6 % of the first, `patch_c1` within
   ±10.3 %. The deep-offset queries (`*_o*`) and `big_r01_l20_c50` read 11-26 % higher in the second, the
   position effect of a long run: their `n20` column is not a cost.
+
+### The stored entity's types alone (`DbDriver.entityTypes`)
+
+The types of the stored entity, for the decision before a write, read alone: corDB clones the entity's
+`type` node under the read lock, mongoc finds the document projected to `type` - no copy of the
+attributes. The same harness and `n20`; two builds, run in the order none, `n20` (before) and `n20`, none
+(after).
+
+| | |
+|---|---|
+| Builds | Release, libmicrohttpd 1.0.10. Before: main `594222a3`, corDB `643933a`. After: the same + `DbDriver.entityTypes` (coraine `a7053a3f`, corDB `05c2ea5`) |
+| Runs | 2026-10-13: before 11:41-12:10, after 12:10-12:40 |
+| Machine, placement, store, token, policies | as above (`n20`) |
+
+| requests/s | before: none | `n20` | after: `n20` | none | `n20`, after against before |
+|---|---:|---:|---:|---:|---:|
+| `query_c50` | 11 385 | 9 933 (-12.8 %) | 9 831 (-15.0 %) | 11 564 | -1.0 % |
+| `query_c200` | 11 366 | 9 865 (-13.2 %) | 9 808 (-14.2 %) | 11 428 | -0.6 % |
+| `query_l1_c50` | 78 812 | 66 298 (-15.9 %) | 66 657 (-14.6 %) | 78 075 | +0.5 % |
+| `query_l100_c50` | 2 496 | 2 156 (-13.6 %) | 2 156 (-13.9 %) | 2 503 | +0.0 % |
+| `retrieve_c50` | 88 480 | 73 290 (-17.2 %) | 75 587 (-13.5 %) | 87 403 | +3.1 % |
+| `patch_c50` | 111 050 | 82 813 (-25.4 %) | 88 644 (-19.9 %) | 110 632 | +7.0 % |
+| `patch_c1` | 50 061 | 42 931 (-14.2 %) | 44 333 (+13.7 %) | 38 979 | +3.3 % |
+| `batch20_c50` | 11 232 | 8 204 (-27.0 %) | 9 257 (-16.0 %) | 11 019 | +12.8 % |
+| `create_c50` | 63 147 | 54 462 (-13.8 %) | 52 787 (-20.1 %) | 66 083 | -3.1 % |
+| `create_c1` | 36 866 | 31 566 (-14.4 %) | 30 845 (+0.8 %) | 30 587 | -2.3 % |
+| `batch20create_c50` | 7 824 | 6 092 (-22.1 %) | 6 077 (-21.7 %) | 7 761 | -0.2 % |
+| `merge_c50` | 82 200 | 63 663 (-22.6 %) | 67 194 (-15.6 %) | 79 623 | +5.5 % |
+| `delete_c50` | 127 502 | 97 650 (-23.4 %) | 100 200 (-24.5 %) | 132 702 | +2.6 % |
+| `batch20delete_c50` | 24 990 | 16 323 (-34.7 %) | 19 446 (-22.4 %) | 25 052 | +19.1 % |
+| `patch_subs_c50` | 22 166 | 20 376 (-8.1 %) | 20 173 (-8.5 %) | 22 054 | -1.0 % |
+| `patch_manysubs_c50` | 21 277 | 19 473 (-8.5 %) | 19 113 (-6.9 %) | 20 519 | -1.8 % |
+| `patch_10subs_c50` | 3 024 | 2 944 (-2.6 %) | 2 901 (-2.0 %) | 2 961 | -1.5 % |
+| `rare_l20_c50` | 8 092 | 7 226 (-10.7 %) | 7 188 (-9.3 %) | 7 922 | -0.5 % |
+| `rare_l100_c50` | 1 764 | 1 585 (-10.1 %) | 1 579 (-9.7 %) | 1 748 | -0.4 % |
+| `rare_l20_o500_c50` | 554 | 557 (+0.5 %) | 555 (-1.1 %) | 561 | -0.4 % |
+| `big_r1_l20_c50` | 8 099 | 7 181 (-11.3 %) | 7 215 (-10.5 %) | 8 065 | +0.5 % |
+| `big_r1_l20_o1000_c50` | 148 | 147 (-0.7 %) | 144 (-0.7 %) | 145 | -2.0 % |
+| `big_r01_l20_c50` | 2 416 | 2 325 (-3.8 %) | 2 368 (-1.1 %) | 2 395 | +1.8 % |
+| `big_r01_l20_o200_c50` | 50 | 50 (+0.0 %) | 49 (-3.9 %) | 51 | -2.0 % |
+
+- **Writes**: `patch_c50` -25.4 % -> -19.9 %, `merge_c50` -22.6 % -> -15.6 %, `batch20_c50` -27.0 % -> -16.0 %,
+  `batch20delete_c50` -34.7 % -> -22.4 %. `delete_c50` -23.4 % -> -24.5 %: within the run-to-run spread.
+- **Reads** decided on the stored entity: `retrieve_c50` -17.2 % -> -13.5 %.
+- **Unchanged**, as nothing in them reads stored types: the queries, the creates, the notifications.
+- **The control**: none after against none before is within -3.6 to +4.6 %, except the single-connection
+  scenarios (`patch_c1` -22.1 %, `create_c1` -17.0 %), whose spread between runs is that large
+  ([Latency depends on how deep the CPU sleeps](#latency-depends-on-how-deep-the-cpu-sleeps)): their columns
+  are not a cost.
+
+**Where a PATCH's 3.1 µs go** (`patch_c50`, one core, 20 policies; before this change): no auth 9.0 µs; the
+client's 696-byte token received, no plugin, +1.0 µs (`token`, above); the decision without `--fdscNgsild`
++0.4 µs (`p20` against `token`); `--fdscNgsild` +1.7 µs - the stored types (0.8 µs of it: 12.1 -> 11.3 µs with this change), the
+entity's decision, the body's attribute names expanded for `ngsi-ld:attribute`. The token's share is the
+client's: its size, sent with every request.
 
 ## An open question: `--connectionPoolSize`
 
