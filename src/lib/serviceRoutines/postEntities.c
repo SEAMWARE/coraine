@@ -60,7 +60,7 @@
 #include "coraineTraceLevels.h"                     // CtDistOpRequest
 
 #if COR_FEATURE_AUTH
-#include "auth/auth.h"                               // authEntityTreeAllowed, authEntityDeny
+#include "auth/auth.h"                               // authEntityBatchAllowed, authEntityDeny
 #endif
 #include "serviceRoutines/postEntities.h"            // Own interface
 
@@ -359,7 +359,7 @@ bool postEntities(void)
   {
     const char* detail = NULL;
 
-    if (authEntityTreeAllowed(entityId, corTreeLookup(entityP, "type"), false, &detail) == false)
+    if (authEntityBatchAllowed(entityId, entityP, false, &detail) == false)   // its types and its attributes, as the body has them
     {
       authEntityDeny(detail);
       return true;

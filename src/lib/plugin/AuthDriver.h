@@ -42,7 +42,7 @@
 
 
 
-#define AUTH_ABI_VERSION  3
+#define AUTH_ABI_VERSION  4
 
 
 
@@ -133,6 +133,13 @@ typedef struct AuthAnswer
   const char*  title;                                // ProblemDetails title - default "Unauthorized" / "Forbidden" / "Service Unavailable"
   const char*  detail;                               // ProblemDetails detail
   const char*  wwwAuthenticate;                      // a 401's WWW-Authenticate (RFC 9110 § 11.6.1) - default: Bearer
+
+  //
+  // ABI 4: partial - entity() of a READ, AuthAllow: only some of the entity's attributes may be read. The broker
+  // then asks entity() again for each attribute (attrV one attribute) and leaves out the ones not allowed - of
+  // a retrieve, a query, a temporal read, a snapshot's entities, the entities of a notification.
+  //
+  bool         partial;
 } AuthAnswer;
 
 

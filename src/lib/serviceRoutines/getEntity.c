@@ -57,7 +57,7 @@
 #include "serviceExecution/seEntityServices.h"      // seEntityServicesAdd
 #endif
 #if COR_FEATURE_AUTH
-#include "auth/auth.h"                               // authEntityStoredCheck, authEntityArrayFilter, authEntityWanted, authEntityDeny
+#include "auth/auth.h"                               // authEntityStoredCheck, authEntityArrayFilter, authEntityAttrsFilter, authEntityWanted, authEntityDeny
 #endif
 #include "serviceRoutines/getEntity.h"               // Own interface
 
@@ -1025,6 +1025,9 @@ bool getEntity(void)
   // (primary + targets); join=inline nests targets as `entity` sub-
   // attributes on the originating Relationship. @none and absent
   // leave the response as the single entity.
+#if COR_FEATURE_AUTH
+  authEntityAttrsFilter(entityP);                     // the attributes no policy allows, left out (the entity itself was asked about at the start)
+#endif
   if (corNgsild.join != NULL)
   {
     int level = (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1;

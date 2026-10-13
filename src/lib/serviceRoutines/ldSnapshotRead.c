@@ -39,7 +39,7 @@
 
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #if COR_FEATURE_AUTH
-#include "auth/auth.h"                               // authEntityTreeAllowed, authEntityArrayFilter, authEntityDeny
+#include "auth/auth.h"                               // authEntityTreeAllowed, authEntityArrayFilter, authEntityAttrsFilter, authEntityDeny
 #endif
 #include "serviceRoutines/ldSnapshotRead.h"              // Own interface
 
@@ -137,6 +137,8 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
       authEntityDeny(detail);
       return true;
     }
+
+    authEntityAttrsFilter(entityP);                   // the attributes no policy allows, left out
   }
 #endif
 

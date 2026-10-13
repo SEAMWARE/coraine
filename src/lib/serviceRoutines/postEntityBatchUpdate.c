@@ -749,7 +749,7 @@ bool postEntityBatchUpdate(void)
     {
       const char* authDetail = NULL;
 
-      if (authEntityBatchAllowed(idP->value.s, corTreeLookup(inP, "type"), true, &authDetail) == false)
+      if (authEntityBatchAllowed(idP->value.s, inP, true, &authDetail) == false)
       {
         addBatchError(errorsP, idP->value.s, 403, "about:blank", "Forbidden", authDetail, NULL);
         continue;

@@ -398,6 +398,7 @@ static LeftKind leftOf(const char* name)
     { "tmf:lifecycleStatus",      LeftTmfLifecycle },
     { "tmf:resource",             LeftTmfResource  },
     { "ngsi-ld:tenant",           LeftTenant       },
+    { "ngsi-ld:attribute",        LeftAttribute    },
     { NULL,                       LeftLiteral      }
   };
 
@@ -2470,9 +2471,11 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
 
   bool read = (((actionOf(reqP->op) != 0) ? actionOf(reqP->op) : methodOf(reqP->method)) == M_GET);
 
-  //
-  // (the broker leaving attributes out of a read - AuthAnswer.partial - is not here yet: such a read is refused)
-  //
+  if ((read == true) && (partialOk == true))
+  {
+    answerP->partial = true;
+    return AuthAllow;
+  }
 
   answerP->detail = (read == true) ? "only some of its attributes may be read, and this broker cannot leave the others out" :
                                       "only some of its attributes may be written - not the entity whole";
