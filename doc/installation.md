@@ -225,6 +225,8 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--noInline` | off | hand every request to a worker thread. By default, with `corDB`, a request that waits on nothing runs on the thread that read it - about twice the throughput for retrieves and small queries. Metrics: `ngsild_requests_inline_total`, `ngsild_requests_worker_total` |
 | `--memoryLimit` | 85% of the container's limit | memory budget in MiB - see [Memory budget](#memory-budget) |
 | `--healthPort` | — (off) | TCP port for the health probes - see [Health port](#health-port) |
+| `--policyApiPort` | — (off) | TCP port for the ODRL-PAP's `/policy` API, the policies `fdsc.so` reads - see [Authorization § 7](authorization.md#7-the-policy-api---the-broker-as-its-own-pap) |
+| `--policyApiHost` | `127.0.0.1` | the address the policy API listens on - no authentication there, as on the PAP |
 | `--healthStallTimeout` | 30 | seconds a request may be in flight, with no request finishing, before `GET /live` answers 503 |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
 | `--httpConnectionMemory` / `-hcm` | 12 | kB of memory per HTTP connection, where a request's line and headers must fit - see [Request size](#request-size) (libmicrohttpd only) |

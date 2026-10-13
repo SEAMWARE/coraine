@@ -367,13 +367,56 @@ A credential kept as an owner is personal data at rest: it goes with its subscri
 it is never checked again for revocation - VCVerifier checks that when it issues a token. `--fdscOwnerMaxAge`
 bounds how long a revoked credential still receives notifications.
 
-## 7. Next
+## 7. The policy API - the broker as its own PAP
 
-- The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
+With **`--policyApiPort <port>`** the broker serves the ODRL-PAP's `/policy` API (odrl-pap 1.7.1,
+`api/odrl.yaml`) on a port of its own, and `fdsc.so` reads the policies from it as it reads the PAP's:
+`--fdscPap http://127.0.0.1:<port>`. The policies are documents of the default tenant's collection
+`odrlPolicies`, in the broker's store: they outlive the broker. Built with `COR_FEATURE_POLICY_API` (on by default); off unless the port is given.
+
+| | |
+|---|---|
+| `GET /policy?page&pageSize` | the policies in the order they were created - `[{"id", "odrl:uid", "odrl"}]`, `"odrl"` the policy as a string; `pageSize` 25 by default |
+| `POST /policy` | a policy: 200, `Location:` its id (ten letters) |
+| `PUT /policy/{id}` | creates or replaces policy `{id}`: 200, `Location: {id}` |
+| `GET /policy/{id}`, `GET /policy/odrl/{uid}` | one policy, by id or by `odrl:uid` - 404 |
+| `DELETE /policy/{id}`, `DELETE /policy/odrl/{uid}` | 204, whether there was one or not |
+
+A policy is a JSON object with a string `odrl:uid`, one policy to a uid. `fdsc.so` reads it as it reads the
+PAP's (§ 3.3): one it cannot read is skipped, with a log line.
+
+**The port has no authentication**, as the PAP has none - in the connector the PAP is reached only from
+inside the cluster. The auth plugin is not asked for its requests, and whoever reaches the port can change
+every policy. `--policyApiHost` (default `127.0.0.1`) is the address it listens on: the default keeps it to
+the machine; in Kubernetes, a Service of its own for the port, and a NetworkPolicy that lets in only what
+writes policies (contract-management).
+
+Each port serves its own routes: `/policy` is not on the NGSI-LD port, the NGSI-LD API is not on the policy
+port. The policy port has no WebSocket upgrade, and it needs libmicrohttpd - a broker built with the
+built-in HTTP server refuses `--policyApiPort` at startup.
+
+**Where it answers otherwise than the PAP:**
+
+| | PAP 1.7.1 | coraine |
+|---|---|---|
+| a body that is no JSON object, or has no `odrl:uid` | 500 | 400, a ProblemDetails |
+| a `odrl:uid` another policy has | 500 | 409 |
+| `PUT /policy/{id}` of a policy that exists | 500 (whatever the body) | replaced |
+| a create's body | the Rego it made, `text/plain` | empty: there is no Rego |
+| `"odrl"` | the policy rewritten - its `@context` replaced by the PAP's, an array of one made an object | the policy as it was given |
+| `"rego"` | the Rego | not there |
+| `/service/...`, `/template/...`, `/validate`, `/mappings`, the OPA bundles | served | not served |
+
+contract-management (FDSC) reads only a create's status and deletes by `odrl:uid`
+(`PAPAdapter.java`); the rest of the PAP's API is for its UI and for OPA.
+
+`auth_fdsc_policy_api` holds it.
+
+## 8. Next
+
 - A request a policy may allow - with `--fdscNgsild`, one whose decision depends on the entity (§ 6) - has
   its `@context` fetched before `entity()` decides it: a client with a right to some entity can have the
   broker fetch a URL of its choice.
-- Serving the PAP's `/policy` API from the broker.
 
 ## Sources (2026-10-12)
 

@@ -1,0 +1,250 @@
+#
+# FILE            auth_fdsc_policy_api.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# --policyApiPort: the ODRL-PAP's /policy API, served by the broker on a port of its own, and fdsc.so
+# reading its policies from it (--fdscPap) - the broker is its own PAP. A policy created there lets a
+# request in once fdsc has read it; deleted, it no longer does. The API answers as the PAP's (odrl-pap
+# 1.7.1): ids of ten letters in Location, "odrl" the policy as a string, a DELETE 204 whether there was
+# one or not - and 400 / 409 where the PAP answers 500. The two ports keep to their own routes, and the
+# policies outlive the broker.
+#
+# REQUIRE_FEATURE: AUTH POLICY_API
+#
+--NAME--
+The policy API (--policyApiPort): the broker serves the PAP's /policy API, and fdsc.so reads it
+
+--TAGS--
+auth policy
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+PAP=http://localhost:$((CB_PORT + 2100))
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPap $PAP --fdscRefresh 1 --fdscIssuer http://verifier.ft --policyApiPort $((CB_PORT + 2100))
+
+--RUN--
+
+#
+# 01. No policies - GET /policy is []; reading Vehicles is 403
+# 02. POST a policy that lets Vehicles be read - 200, Location: ten letters, no body
+# 03. POST one with the same odrl:uid - 409
+# 04. fdsc has read it: reading Vehicles is 200
+# 05. GET /policy - it, "odrl" the policy as a string; GET /policy/{id} and /policy/odrl/{uid} - the same
+# 06. PUT /policy/fixed - created (Location: fixed); PUT again - replaced; a PUT with a uid policy 02 has - 409
+# 07. DELETE /policy/odrl/{uid} - 204; again - 204; fdsc has read it: reading Vehicles is 403
+# 08. Bodies the PAP answers 500 for - no JSON, no odrl:uid - 400; a page out of range - []
+# 09. Each port its own routes: /policy on the NGSI-LD port is not served (401 - the auth plugin answers first
+#     there, as for any route), /ngsi-ld/v1/entities on the policy port is 404
+# 10. The policies outlive the broker: restarted, GET /policy lists policy 06's
+#
+
+PAP=http://localhost:$((CB_PORT + 2100))
+USER=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+readVehicles() { curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=Vehicle"; }
+policy() { echo '{"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "'"$1"'",
+                  "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:read"},
+                                      "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                                        {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": "'"$2"'"}]}}}'; }
+send() { curl -s -o /tmp/policyApi.body -D /tmp/policyApi.headers -w '%{http_code}\n' -H 'Content-Type: application/json' "$@"
+         sed -n 's/^Location: \(.*\)\r$/Location: \1/p' /tmp/policyApi.headers | sed 's/^Location: [a-z]\{10\}$/Location: <ten letters>/'
+         [ -s /tmp/policyApi.body ] && { cat /tmp/policyApi.body; echo; }; true; }
+papUp() { for i in $(seq 1 100); do curl -s -o /dev/null "$PAP/policy" && return 0; sleep 0.1; done; echo "the policy port did not open"; }   # it opens after the NGSI-LD port, coraineStart's wait
+listed() { curl -s "$PAP/policy$1" | python3 -c 'import json, sys
+for p in json.load(sys.stdin):
+    print(p["odrl:uid"], len(p["id"]), "letters,", "odrl:", json.loads(p["odrl"])["odrl:permission"]["odrl:target"]["odrl:refinement"][0]["odrl:rightOperand"])'; }
+
+echo "01. No policies - GET /policy is []; reading Vehicles is 403"
+echo "============================================================"
+papUp
+curl -s $PAP/policy; echo
+sleep 2.5                                          # fdsc's first read of the policies (503 until then)
+readVehicles
+echo
+echo
+
+
+echo "02. POST a policy that lets Vehicles be read - 200, Location: ten letters, no body"
+echo "=================================================================================="
+send -X POST $PAP/policy -d "$(policy urn:ft:vehicles Vehicle)"
+ID=$(sed -n 's/^Location: \(.*\)\r$/\1/p' /tmp/policyApi.headers)
+echo
+echo
+
+
+echo "03. POST one with the same odrl:uid - 409"
+echo "========================================="
+send -X POST $PAP/policy -d "$(policy urn:ft:vehicles Car)" | sed "s/$ID/<id>/"
+echo
+echo
+
+
+echo "04. fdsc has read it: reading Vehicles is 200"
+echo "============================================="
+sleep 2.5                                          # --fdscRefresh 1
+readVehicles
+echo
+echo
+
+
+echo "05. GET /policy, /policy/{id}, /policy/odrl/{uid}"
+echo "================================================="
+listed
+curl -s $PAP/policy/$ID | python3 -c 'import json, sys; p = json.load(sys.stdin); print(p["odrl:uid"], json.loads(p["odrl"])["@type"])'
+curl -s $PAP/policy/odrl/urn:ft:vehicles | python3 -c 'import json, sys; p = json.load(sys.stdin); print(p["odrl:uid"], json.loads(p["odrl"])["@type"])'
+echo
+echo
+
+
+echo "06. PUT /policy/fixed - created; again - replaced; with policy 02's uid - 409"
+echo "============================================================================="
+send -X PUT $PAP/policy/fixed -d "$(policy urn:ft:fixed Car)"
+send -X PUT $PAP/policy/fixed -d "$(policy urn:ft:fixed Bus)"
+send -X PUT $PAP/policy/fixed -d "$(policy urn:ft:vehicles Bus)" | sed "s/$ID/<id>/"
+listed
+echo
+echo
+
+
+echo "07. DELETE /policy/odrl/{uid} - 204; again - 204; reading Vehicles is 403"
+echo "========================================================================="
+send -X DELETE $PAP/policy/odrl/urn:ft:vehicles
+send -X DELETE $PAP/policy/odrl/urn:ft:vehicles
+sleep 2.5                                          # --fdscRefresh 1
+readVehicles
+echo
+echo
+
+
+echo "08. No JSON, no odrl:uid - 400; a page out of range - []"
+echo "========================================================"
+send -X POST $PAP/policy -d 'not json'
+send -X POST $PAP/policy -d '{"@type": "odrl:Policy"}'
+curl -s "$PAP/policy?page=5&pageSize=10"; echo
+echo
+echo
+
+
+echo "09. Each port its own routes - /policy on the NGSI-LD port 401 (auth first), the NGSI-LD API on the policy port 404"
+echo "==================================================================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:$CB_PORT/policy
+curl -s -o /dev/null -w '%{http_code}\n' $PAP/ngsi-ld/v1/entities?type=Vehicle
+echo
+echo
+
+
+echo "10. The policies outlive the broker"
+echo "==================================="
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPap $PAP --fdscRefresh 1 --fdscIssuer http://verifier.ft --policyApiPort $((CB_PORT + 2100))
+papUp
+listed
+rm -f /tmp/policyApi.body /tmp/policyApi.headers
+echo
+echo
+
+
+--EXPECT--
+01. No policies - GET /policy is []; reading Vehicles is 403
+============================================================
+[]
+
+403
+
+
+02. POST a policy that lets Vehicles be read - 200, Location: ten letters, no body
+==================================================================================
+200
+Location: <ten letters>
+
+
+03. POST one with the same odrl:uid - 409
+=========================================
+409
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "'odrl:uid' urn:ft:vehicles is policy <id>'s"
+}
+
+
+
+04. fdsc has read it: reading Vehicles is 200
+=============================================
+200
+
+
+05. GET /policy, /policy/{id}, /policy/odrl/{uid}
+=================================================
+urn:ft:vehicles 10 letters, odrl: Vehicle
+urn:ft:vehicles odrl:Policy
+urn:ft:vehicles odrl:Policy
+
+
+06. PUT /policy/fixed - created; again - replaced; with policy 02's uid - 409
+=============================================================================
+200
+Location: fixed
+200
+Location: fixed
+409
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "'odrl:uid' urn:ft:vehicles is policy <id>'s"
+}
+
+urn:ft:vehicles 10 letters, odrl: Vehicle
+urn:ft:fixed 5 letters, odrl: Bus
+
+
+07. DELETE /policy/odrl/{uid} - 204; again - 204; reading Vehicles is 403
+=========================================================================
+204
+204
+403
+
+
+08. No JSON, no odrl:uid - 400; a page out of range - []
+========================================================
+400
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "the body must be a JSON object - an ODRL policy"
+}
+
+400
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "the policy has no 'odrl:uid' (a string)"
+}
+
+[]
+
+
+
+09. Each port its own routes - /policy on the NGSI-LD port 401 (auth first), the NGSI-LD API on the policy port 404
+===================================================================================================================
+401
+404
+
+
+10. The policies outlive the broker
+===================================
+urn:ft:fixed 5 letters, odrl: Bus
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
