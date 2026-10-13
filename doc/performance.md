@@ -1986,6 +1986,63 @@ client's 696-byte token received, no plugin, +1.0 µs (`token`, above); the deci
 entity's decision, the body's attribute names expanded for `ngsi-ld:attribute`. The token's share is the
 client's: its size, sent with every request.
 
+### A decision skips what it already knows
+
+With `--fdscNgsild` a request is decided twice: once before it is run (authorize, the entity not yet known)
+and then for each entity. Three policies are not evaluated where their answer is already known:
+
+- **In authorize**, once one policy is pending on the entity, the other policies with an `ngsi-ld:entityType`
+  rule are left to the entity's decision.
+- **In the entity's decision**, a policy that did not hold in authorize, for the same action and the same
+  policy set, is not evaluated again (the first 64 policies of a set).
+- **A write of several attributes** is decided once for all of them when no policy of the set reads
+  `ngsi-ld:attribute`.
+
+A policy is skipped only where no conflict between policies is possible. The same harness and `n20`; main's
+plugin (A) and this change's (C) run in the order none, A, C, C, A.
+
+| | |
+|---|---|
+| Builds | Release, libmicrohttpd 1.0.10. A: main `caede0cd`. C: `d32a1490` - the plugin alone differs |
+| Runs | 2026-10-13: none 15:32, A 15:47, C 16:02, C 16:17, A 16:32-16:47 |
+| Machine, placement, store, token, policies | as above (`n20`) |
+
+| requests/s | none | main: `n20` | `n20` | this change: `n20` | `n20` | this change against main |
+|---|---:|---:|---:|---:|---:|---:|
+| `query_c50` | 11 517 | 9 911 | 9 725 | 10 154 | 10 209 | +3.7 % |
+| `query_c200` | 11 499 | 9 786 | 9 704 | 10 076 | 10 168 | +3.9 % |
+| `query_l1_c50` | 78 887 | 66 732 | 66 357 | 68 574 | 68 393 | +2.9 % |
+| `query_l100_c50` | 2 489 | 2 153 | 2 138 | 2 222 | 2 219 | +3.5 % |
+| `retrieve_c50` | 89 821 | 76 187 | 76 290 | 78 490 | 78 139 | +2.7 % |
+| `patch_c50` | 108 212 | 89 811 | 88 421 | 92 060 | 92 972 | +3.8 % |
+| `patch_c1` | 51 065 | 43 420 | 45 206 | 44 698 | 44 844 | +1.0 % |
+| `batch20_c50` | 11 149 | 9 253 | 9 083 | 9 544 | 9 684 | +4.9 % |
+| `create_c50` | 67 603 | 53 679 | 52 990 | 56 079 | 57 367 | +6.4 % |
+| `create_c1` | 33 878 | 30 341 | 31 496 | 33 013 | 32 293 | +5.6 % |
+| `batch20create_c50` | 7 891 | 6 075 | 6 063 | 7 053 | 7 099 | +16.6 % |
+| `merge_c50` | 82 952 | 67 501 | 66 552 | 71 332 | 70 061 | +5.5 % |
+| `delete_c50` | 130 050 | 101 862 | 101 117 | 105 227 | 97 895 | +0.1 % |
+| `batch20delete_c50` | 25 453 | 19 406 | 19 598 | 20 434 | 20 027 | +3.7 % |
+| `patch_subs_c50` | 22 030 | 20 467 | 20 511 | 20 629 | 20 768 | +1.0 % |
+| `patch_manysubs_c50` | 20 704 | 19 499 | 19 481 | 19 164 | 19 640 | -0.5 % |
+| `patch_10subs_c50` | 2 998 | 2 920 | 2 911 | 2 893 | 2 936 | -0.0 % |
+| `rare_l20_c50` | 7 996 | 7 182 | 7 155 | 7 401 | 7 269 | +2.3 % |
+| `rare_l100_c50` | 1 761 | 1 581 | 1 578 | 1 613 | 1 590 | +1.4 % |
+| `rare_l20_o500_c50` | 559 | 555 | 324 | 545 | 547 | +24.2 % |
+| `big_r1_l20_c50` | 8 091 | 7 173 | 7 266 | 7 335 | 7 370 | +1.8 % |
+| `big_r1_l20_o1000_c50` | 146 | 144 | 147 | 147 | 145 | +0.3 % |
+| `big_r01_l20_c50` | 2 439 | 2 325 | 2 340 | 2 368 | 2 371 | +1.6 % |
+| `big_r01_l20_o200_c50` | 51 | 49 | 50 | 50 | 50 | +1.0 % |
+
+- **Writes**: `patch_c50` +3.8 %, `merge_c50` +5.5 %, `create_c50` +6.4 %, `batch20_c50` +4.9 %,
+  `batch20create_c50` +16.6 % (-23.1 % -> -10.3 % against none). In each, both C runs are above both A runs.
+- **Reads**: the queries +2.9 to +3.9 %, `retrieve_c50` +2.7 %.
+- **Notifications**: `patch_subs_c50` +1.0 %, `patch_manysubs_c50` -0.5 %, `patch_10subs_c50` -0.0 % - within
+  the run-to-run spread.
+- **Not a cost or a gain**: `rare_l20_o500_c50` +24.2 % comes from one A run (324 against 555 in the other);
+  `delete_c50` +0.1 % has its C runs at 105 227 and 97 895; `patch_c1` and `create_c1` are single-connection
+  scenarios ([Latency depends on how deep the CPU sleeps](#latency-depends-on-how-deep-the-cpu-sleeps)).
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above
