@@ -169,7 +169,7 @@ easy to miss because the build succeeds — check `coraine --version` (or
 
 ### Every choice `coraine-build` offers
 
-One heading per choice, as c³'s Compile page shows them. **Size** is what the choice changes in what a
+One heading per choice, as c³'s Compile page shows them; the bridges are `coraine-build --bridges` (`--list-bridges`). **Size** is what the choice changes in what a
 build installs: the stripped programs and plugins (`coraine`, `coraine-import`, `plugins/`), and the
 libraries they load that a bare `ubuntu:26.04` does not have
 ([Size on disk](performance.md#size-on-disk--what-installing-coraine-adds)). Measured 2026-10-13 on main
@@ -233,6 +233,29 @@ built and its libraries not loaded. Size: **-6.8 MiB** - `mongoc.so` 145 KiB, li
 #### Store: corDB + mongoc
 
 The default: `--database mongoc` too, entities in a MongoDB.
+
+#### Bridge: MQTT
+
+`--bridges mqtt` (default on). `mqtt.so`: NGSI-LD over MQTT topics - a Channel maps a topic to an entity's
+attributes, both ways ([Bridges and Channels](bridge-channels.md)). Needs libmosquitto (`libmosquitto-dev` to build). Size:
+**+0.13 MiB** - the plugin 27 KiB, libmosquitto 0.10 MiB.
+
+#### Bridge: Modbus
+
+`--bridges modbus` (default on). `modbus.so`: values between Modbus TCP registers and entities. No library.
+Size: **+0.03 MiB**.
+
+#### Bridge: DDS
+
+`--bridges dds`. `dds.so`: topics, services and actions between DDS and entities ([DDS](dds.md)). Needs
+eProsima Fast DDS and the DDS Enabler installed; without them `coraine-build` says so and does not build.
+Size: **+23.6 MiB** - the plugin 123 KiB, and twelve libraries (Fast DDS, Fast CDR, the DDS Enabler and DDS
+Pipe, yaml-cpp, tinyxml2, foonathan memory) 23.5 MiB: five times the broker.
+
+#### Bridge: CKAN
+
+`--bridges ckan`. `ckan.so`: an open data portal's datasets (CKAN's API), discovered and read into
+entities. No library. Only when the source carries it. Size: **+0.03 MiB**.
 
 #### `SUBSCRIPTIONS`
 
