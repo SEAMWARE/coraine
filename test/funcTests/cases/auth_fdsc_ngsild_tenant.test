@@ -1,0 +1,137 @@
+#
+# FILE            auth_fdsc_ngsild_tenant.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# ngsi-ld:tenant - coraine's own word, with --fdscNgsild only: the NGSILD-Tenant header ("" for the default
+# tenant). A policy that lets Vehicles be created and read in tenant city-a lets nothing happen in another
+# tenant, nor in the default one - refused before the tenant is resolved, so none is created. Without
+# --fdscNgsild the policy is not read (the connector's PAP takes the word for a literal), and says so.
+#
+# REQUIRE_FEATURE: AUTH TENANTS
+#
+--NAME--
+fdsc --fdscNgsild: ngsi-ld:tenant decides on the request's tenant
+
+--TAGS--
+auth tenant
+
+--INIT--
+corDbDrop
+corDbDrop -tenant city-a
+corDbDrop -tenant city-b
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+cat > $FT_AUTH_DIR/tenant.json <<'EOF'
+[
+  {
+    "@context": {"odrl": "http://www.w3.org/ns/odrl/2/"},
+    "@type": "odrl:Policy",
+    "odrl:uid": "urn:ft:vehiclesOfCityA",
+    "odrl:permission": {
+      "odrl:assignee": {"@id": "vc:any"},
+      "odrl:action": {"@id": "odrl:use"},
+      "odrl:target": {
+        "@type": "odrl:AssetCollection",
+        "odrl:refinement": [
+          {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": "Vehicle"},
+          {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:tenant",     "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": "city-a"}
+        ]
+      }
+    }
+  }
+]
+EOF
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/tenant.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. Create a Vehicle in city-a - 201
+# 02. Create one in city-b - 403 (refused before the tenant is resolved: auth_fdsc_policies step 09)
+# 03. Create one in the default tenant - 403
+# 04. Read the city-a Vehicle in city-a - 200; in city-b - 403
+# 05. Without --fdscNgsild: the policy is not read (the log says why) - the create in city-a is 403
+#
+
+USER=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+create() { curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" -H 'Content-Type: application/json' ${1:+-H "NGSILD-Tenant: $1"} \
+                -d '{"id": "urn:ngsi-ld:Vehicle:'"$2"'", "type": "Vehicle"}' "http://localhost:$COR_PORT/ngsi-ld/v1/entities"; }
+read1()  { curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" ${1:+-H "NGSILD-Tenant: $1"} "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:$2"; }
+
+echo "01. Create a Vehicle in city-a - 201"
+echo "===================================="
+create city-a v1
+echo
+echo
+
+
+echo "02. Create one in city-b - 403"
+echo "=============================="
+create city-b v2
+echo
+echo
+
+
+echo "03. Create one in the default tenant - 403"
+echo "=========================================="
+create "" v3
+echo
+echo
+
+
+echo "04. Read the city-a Vehicle in city-a - 200; in city-b - 403"
+echo "============================================================"
+read1 city-a v1
+read1 city-b v1
+echo
+echo
+
+
+echo "05. Without --fdscNgsild: the policy is not read - the create in city-a is 403"
+echo "==============================================================================="
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/tenant.json --fdscIssuer http://verifier.ft
+sleep 1.5                                          # the policies' first read
+grep -o "policy 'urn:ft:vehiclesOfCityA' skipped: 'ngsi-ld:tenant' is coraine's own word - only with --fdscNgsild" /tmp/coraine.CB.log | head -1
+create city-a v4
+echo
+echo
+
+
+--EXPECT--
+01. Create a Vehicle in city-a - 201
+====================================
+201
+
+
+02. Create one in city-b - 403
+==============================
+403
+
+
+03. Create one in the default tenant - 403
+==========================================
+403
+
+
+04. Read the city-a Vehicle in city-a - 200; in city-b - 403
+============================================================
+200
+403
+
+
+05. Without --fdscNgsild: the policy is not read - the create in city-a is 403
+===============================================================================
+policy 'urn:ft:vehiclesOfCityA' skipped: 'ngsi-ld:tenant' is coraine's own word - only with --fdscNgsild
+403
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corDbDrop -tenant city-a
+corDbDrop -tenant city-b

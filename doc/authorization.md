@@ -337,6 +337,17 @@ decisions (`entity`, § 2.1). The policies are the same; what their words read i
 For an operation the broker does not decide entity by entity (`AuthRequest.entities` false - subscriptions,
 registrations, `/types`, ...), `--fdscNgsild` reads the entity type as the connector does.
 
+**coraine's own words**, read with `--fdscNgsild` only - the connector's PAP takes a word it does not map for
+a literal, and a rule on it is never true there. Without `--fdscNgsild` a policy that uses one is not read,
+and the log says why (`policy '<uid>' skipped: 'ngsi-ld:tenant' is coraine's own word - only with
+--fdscNgsild`):
+
+| word | reads |
+|---|---|
+| `ngsi-ld:tenant` | the request's `NGSILD-Tenant` - `""` for the default tenant; a notification: its subscription's tenant |
+
+`auth_fdsc_ngsild_tenant` holds it.
+
 `auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch`, `auth_fdsc_ngsild_query`, `auth_fdsc_ngsild_temporal` and
 `auth_fdsc_ngsild_notify` hold it; each of them fails without `--fdscNgsild`.
 

@@ -1876,6 +1876,61 @@ at 50 connections), the share of all the broker's cycles, a function with what i
 - **What is left**: 4.3-4.7 % of every request - with or without `--auth` - is libmicrohttpd zeroing its 32 kB
   connection pool (`MHD_pool_reset`, `MHD_pool_deallocate`).
 
+### With `--fdscNgsild`
+
+`--fdscNgsild` decides on each entity a request reads or writes: every entity of a query page, every entry of
+a batch, every notification, and the stored entity's types before a write. The same harness, configuration
+`nN`.
+
+| | |
+|---|---|
+| Builds | Release, libmicrohttpd 1.0.2. Before: main `a6e67e2f` + the harness. After: `c18b67a4` - the right operands and the type index below |
+| Policies | `n20`: 18 `odrl:use` policies for an entity type no request has, an `http:path` policy for `^/ngsi-ld/v1/(subscriptions\|types)`, and last `ngsi-ld:entityType odrl:isAnyOf [Vehicle, Common, Rare, R1, R01]` - perfRun's types |
+| Runs | before 2026-10-13 03:07-04:07 (none, `n20`, `p20`, none); after 04:17-05:02 (none, `n20`, none); the second `none` is the control for the position in the run |
+| Machine, placement, store, token | as above |
+
+| requests/s | before: none | `n20` | none again | after: none | `n20` | none again |
+|---|---:|---:|---:|---:|---:|---:|
+| `query_c50` | 11 489 | 6 234 (-45.7 %) | 11 507 (+0.2 %) | 11 527 | 9 831 (-14.7 %) | 11 418 (-0.9 %) |
+| `query_c200` | 11 247 | 6 087 (-45.9 %) | 11 577 (+2.9 %) | 11 373 | 9 734 (-14.4 %) | 11 453 (+0.7 %) |
+| `query_l1_c50` | 73 872 | 53 406 (-27.7 %) | 77 978 (+5.6 %) | 77 313 | 66 568 (-13.9 %) | 79 647 (+3.0 %) |
+| `query_l100_c50` | 2 494 | 1 295 (-48.1 %) | 2 508 (+0.6 %) | 2 482 | 2 139 (-13.8 %) | 2 498 (+0.6 %) |
+| `retrieve_c50` | 86 053 | 63 691 (-26.0 %) | 81 532 (-5.3 %) | 87 314 | 73 194 (-16.2 %) | 89 968 (+3.0 %) |
+| `patch_c50` | 107 984 | 71 681 (-33.6 %) | 107 807 (-0.2 %) | 105 400 | 83 049 (-21.2 %) | 110 653 (+5.0 %) |
+| `patch_c1` | 45 371 | 41 135 (-9.3 %) | 50 058 (+10.3 %) | 49 615 | 40 331 (-18.7 %) | 44 557 (-10.2 %) |
+| `batch20_c50` | 11 062 | 4 075 (-63.2 %) | 11 292 (+2.1 %) | 11 029 | 8 397 (-23.9 %) | 10 942 (-0.8 %) |
+| `create_c50` | 64 645 | 52 100 (-19.4 %) | 65 722 (+1.7 %) | 65 659 | 55 783 (-15.0 %) | 67 658 (+3.0 %) |
+| `create_c1` | 36 776 | 30 940 (-15.9 %) | 33 882 (-7.9 %) | 36 390 | 31 184 (-14.3 %) | 36 894 (+1.4 %) |
+| `batch20create_c50` | 7 852 | 6 064 (-22.8 %) | 7 959 (+1.4 %) | 7 755 | 7 305 (-5.8 %) | 7 868 (+1.5 %) |
+| `merge_c50` | 81 053 | 60 894 (-24.9 %) | 81 136 (+0.1 %) | 79 686 | 65 025 (-18.4 %) | 83 427 (+4.7 %) |
+| `delete_c50` | 123 727 | 81 307 (-34.3 %) | 119 899 (-3.1 %) | 128 808 | 100 182 (-22.2 %) | 128 958 (+0.1 %) |
+| `batch20delete_c50` | 25 059 | 10 857 (-56.7 %) | 24 116 (-3.8 %) | 24 694 | 15 683 (-36.5 %) | 24 612 (-0.3 %) |
+| `patch_subs_c50` | 22 312 | 19 263 (-13.7 %) | 22 335 (+0.1 %) | 21 949 | 19 812 (-9.7 %) | 22 425 (+2.2 %) |
+| `patch_manysubs_c50` | 20 913 | 18 019 (-13.8 %) | 21 081 (+0.8 %) | 20 610 | 18 665 (-9.4 %) | 21 391 (+3.8 %) |
+| `patch_10subs_c50` | 3 007 | 2 748 (-8.6 %) | 3 006 (+0.0 %) | 2 899 | 2 831 (-2.3 %) | 3 007 (+3.7 %) |
+| `rare_l20_c50` | 8 012 | 4 994 (-37.7 %) | 8 059 (+0.6 %) | 8 048 | 7 151 (-11.1 %) | 8 144 (+1.2 %) |
+| `rare_l100_c50` | 1 688 | 1 062 (-37.1 %) | 1 781 (+5.5 %) | 1 741 | 1 569 (-9.9 %) | 1 781 (+2.3 %) |
+| `rare_l20_o500_c50` | 570 | 457 (-19.8 %) | 573 (+0.5 %) | 480 | 479 (-0.2 %) | 581 (+21.0 %) |
+| `big_r1_l20_c50` | 7 986 | 5 076 (-36.4 %) | 8 145 (+2.0 %) | 8 020 | 7 137 (-11.0 %) | 8 187 (+2.1 %) |
+| `big_r1_l20_o1000_c50` | 121 | 120 (-0.8 %) | 151 (+24.8 %) | 121 | 121 (+0.0 %) | 153 (+26.4 %) |
+| `big_r01_l20_c50` | 2 260 | 2 063 (-8.7 %) | 2 505 (+10.8 %) | 2 147 | 2 025 (-5.7 %) | 2 495 (+16.2 %) |
+| `big_r01_l20_o200_c50` | 46 | 46 (+0.0 %) | 52 (+13.0 %) | 46 | 46 (+0.0 %) | 52 (+13.0 %) |
+
+- **Per entity decided: ~3.7 µs before, ~0.6 µs after.** A 20-entity page (`query_c50`) -45.7 % -> -14.7 %, 100
+  entities (`query_l100_c50`) -48.1 % -> -13.8 %, a 20-entry batch update (`batch20_c50`) -63.2 % -> -23.9 %.
+- **The cause**: `perf record` of a 20-entity query showed the policies' own types expanded again for every
+  entity (15 % of the broker's cycles), and every policy evaluated for every entity. Each rule's right operand
+  is now expanded once per policy set, and a policy for other types is skipped on the entity's expanded types.
+  Profiled, 20 policies: a 20-entity query 8 824 -> 23 552 requests/s, a batch update 5 107 -> 8 507.
+- **Notifications**: `patch_subs_c50` -13.7 % -> -9.7 %, `patch_10subs_c50` (10.2 notifications per PATCH)
+  -8.6 % -> -2.3 %.
+- **What is left is the stored entity's types**: before a write the broker retrieves the whole entity to read
+  its types - one per PATCH, merge or delete, one per batch entry. `patch_c50` -21.2 %, `delete_c50` -22.2 %,
+  `batch20delete_c50` -36.5 %.
+- **The control**: the second no-auth run of each is within -5.3 to +5.6 % of the first, `patch_c1` within
+  ±10.3 %. The deep-offset queries (`*_o*`) and `big_r01_l20_c50` read 11-26 % higher in the second, the
+  position effect of a long run: their `n20` column is not a cost.
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above

@@ -33,6 +33,7 @@
 #include "corLog/corLog.h"                           // COR_W
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeArray, corTreeBoolean, corTreeChildAdd
+#include "corTree/corTreeClone.h"                    // corTreeClone
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
 #include "corNgsild/LdOp.h"                          // LdOp*
@@ -94,6 +95,8 @@ typedef enum LeftKind
   LeftDomeRole,                                      // dome-op:role
   LeftTmfLifecycle,                                  // tmf:lifecycleStatus
   LeftTmfResource,                                   // tmf:resource
+  LeftTenant,                                        // ngsi-ld:tenant (coraine's, --fdscNgsild only): the NGSILD-Tenant header, "" for the default tenant
+  LeftAttribute,                                     // ngsi-ld:attribute (coraine's, --fdscNgsild only): the attribute decided, expanded - one at a time
   LeftLiteral,                                       // a word the PAP does not map: the word itself
   LeftUndef                                          // a word that reads what an HTTP request does not have, or makes a call of its own (dome-op:relatedParty)
 } LeftKind;
@@ -125,6 +128,7 @@ typedef struct Rule
   RightKind     right;
   CorNode*      rightP;
   regex_t*      regexP;                              // OpRegex, compiled once
+  CorNode*      expandedP;                           // the right operand's entity types / attributes expanded with the default context, once (rightExpandedOf)
 } Rule;
 
 typedef struct Policy
@@ -132,7 +136,7 @@ typedef struct Policy
   const char*  uid;
   Rule         all;                                  // RuleAnd over every rule of every permission
   int          methods;                              // the methods it can allow at all: its actions' (ANDed, as its rules are) - a request of another is not evaluated
-  const char*  typeKey;                              // a rule ANDed into it is ngsi-ld:entityType eq <typeKey> - a request of another type is not evaluated (decide)
+  Rule*        typeRuleP;                            // a rule ANDed into it is ngsi-ld:entityType eq <a type> / isAnyOf [<types>] - an entity of another type does not make it hold (decide)
 } Policy;
 
 typedef struct PolicySet
@@ -373,6 +377,9 @@ static bool logicalParse(PolicySet* psP, CorNode* cP, Rule* rP, bool* okP, char*
 //
 // leftOf - a leftOperand's word
 //
+static bool ngsild = false;                          // --fdscNgsild (fdscPolicyNgsildSet) - set before the first policy is read
+static bool partialOk = false;                       // the broker leaves the attributes no policy allows out of a read (ABI 4)
+
 static LeftKind leftOf(const char* name)
 {
   static const struct { const char* name; LeftKind kind; } leftV[] =
@@ -390,6 +397,7 @@ static LeftKind leftOf(const char* name)
     { "dome-op:role",             LeftDomeRole     },
     { "tmf:lifecycleStatus",      LeftTmfLifecycle },
     { "tmf:resource",             LeftTmfResource  },
+    { "ngsi-ld:tenant",           LeftTenant       },
     { NULL,                       LeftLiteral      }
   };
 
@@ -636,6 +644,17 @@ static bool constraintParse(PolicySet* psP, CorNode* cP, Rule* rP, char* errorBu
 
     main.left    = leftOf(name);
     main.leftArg = corAllocStrdup(&psP->ka, name);
+
+    //
+    // coraine's own words: decided by this broker only, and only on what --fdscNgsild sees. Without it the
+    // policy is not read - in the Data Space Connector the PAP takes the word for a literal, and the rule is
+    // never true: a policy that seems to say something and says nothing
+    //
+    if (((main.left == LeftTenant) || (main.left == LeftAttribute)) && (ngsild == false))
+    {
+      snprintf(errorBuf, errorBufSize, "'%.64s' is coraine's own word - only with --fdscNgsild", name);
+      return false;
+    }
   }
   else if ((leftP = corTreeLookup(cP, "http:bodyValue")) != NULL)
   {
@@ -952,16 +971,29 @@ static bool permissionParse(PolicySet* psP, CorNode* permP, CorNode* policyP, Ru
 
 // -----------------------------------------------------------------------------
 //
-// typeKeyOf - the entity type a policy is for: a rule ANDed into it (at the top, or in an AND under it) is
-// ngsi-ld:entityType eq <a string>. A request of another type fails that rule, so the policy whole - false or
-// undefined, never true. NULL: no such rule.
+// typeRuleOf - the entity types a policy is for: a rule ANDed into it (at the top, or in an AND under it) is
+// ngsi-ld:entityType eq <a string> or isAnyOf [<strings>]. An entity, or a request, of another type fails that
+// rule, so the policy whole - false or undefined, never true. NULL: no such rule.
 //
-static const char* typeKeyOf(Rule* rP)
+static Rule* typeRuleOf(Rule* rP)
 {
   if (rP->kind == RuleConstraint)
   {
-    if ((rP->left == LeftEntityType) && (rP->op == OpEq) && (rP->right == RightValue) && (rP->rightP != NULL) && (rP->rightP->type == CorString))
-      return rP->rightP->value.s;
+    if ((rP->left != LeftEntityType) || (rP->right != RightValue) || (rP->rightP == NULL))
+      return NULL;
+
+    if ((rP->op == OpEq) && (rP->rightP->type == CorString))
+      return rP;
+
+    if ((rP->op == OpIsAnyOf) && (rP->rightP->type == CorArray))
+    {
+      for (CorNode* eP = rP->rightP->value.head; eP != NULL; eP = eP->next)
+      {
+        if (eP->type != CorString)
+          return NULL;
+      }
+      return rP;
+    }
 
     return NULL;
   }
@@ -971,10 +1003,10 @@ static const char* typeKeyOf(Rule* rP)
 
   for (int i = 0; i < rP->children; i++)
   {
-    const char* key = typeKeyOf(&rP->childV[i]);
+    Rule* typeP = typeRuleOf(&rP->childV[i]);
 
-    if (key != NULL)
-      return key;
+    if (typeP != NULL)
+      return typeP;
   }
 
   return NULL;
@@ -1036,7 +1068,7 @@ static bool policyParse(PolicySet* psP, CorNode* policyP, char* errorBuf, int er
   policyEntryP->uid = uid;
   memset(&policyEntryP->all, 0, sizeof(Rule));
   ruleSet(&policyEntryP->all, RuleAnd, &rules);
-  policyEntryP->typeKey = typeKeyOf(&policyEntryP->all);
+  policyEntryP->typeRuleP = typeRuleOf(&policyEntryP->all);
 
   //
   // The methods it can allow: every action rule must hold, so the intersection of theirs; an action that
@@ -1254,9 +1286,14 @@ typedef struct Ctx
   //
   const AuthEntity*   entityP;
   bool                defer;
+
+  //
+  // ngsi-ld:attribute: the attribute decided (expanded), NULL: none yet - a rule on it is Pending (the entity is
+  // allowed attribute by attribute)
+  //
+  const char*         attr;
 } Ctx;
 
-static bool ngsild = false;                          // --fdscNgsild (fdscPolicyNgsildSet)
 
 
 
@@ -1665,6 +1702,12 @@ static CorNode* leftValue(Ctx* cP, Rule* rP)
       return (found != NULL) ? corTreeString(cP->kaP, NULL, found) : NULL;
     }
 
+  case LeftTenant:
+    return corTreeString(cP->kaP, NULL, (cP->reqP->tenant != NULL) ? cP->reqP->tenant : "");
+
+  case LeftAttribute:                                // constraintEval decides it: the attribute is the one decided
+    return NULL;
+
   case LeftLiteral:
     return corTreeString(cP->kaP, NULL, rP->leftArg);
 
@@ -1862,10 +1905,27 @@ static bool inPath(const char* l, const char* r)
 // constraintEval -
 //
 static Tri opEval(Ctx* cP, Rule* rP, CorNode* lP, CorNode* vP);
+static CorNode* rightExpandedOf(Ctx* cP, Rule* rP);
 static Tri entityTypeEval(Ctx* cP, Rule* rP);
 
 static Tri constraintEval(Ctx* cP, Rule* rP)
 {
+  if (rP->left == LeftAttribute)
+  {
+    //
+    // No attribute yet: Pending where it will be decided - the entity's attributes, entity by entity (entity(),
+    // or authorize of an operation the broker checks entity by entity). Elsewhere (POST /subscriptions,
+    // /types) nothing decides it later: the rule does not hold
+    //
+    if (cP->attr == NULL)
+      return ((cP->entityP != NULL) || (cP->defer == true)) ? TriPending : TriUndef;
+
+    if ((rP->right != RightValue) || (rP->rightP == NULL))
+      return TriUndef;
+
+    return opEval(cP, rP, corTreeString(cP->kaP, NULL, cP->attr), rightExpandedOf(cP, rP));
+  }
+
   if ((rP->left == LeftEntityType) && (ngsild == true))
   {
     if (cP->entityP != NULL)
@@ -1895,23 +1955,55 @@ static Tri constraintEval(Ctx* cP, Rule* rP)
 
 // -----------------------------------------------------------------------------
 //
-// rightExpanded - --fdscNgsild: an entity type of a policy as an IRI - a short name expanded with the
+// rightExpandedOf - --fdscNgsild: a rule's entity types (or attributes) as IRIs - short names expanded with the
 // broker's default context (what the policy's author meant by it, not the request's @context)
 //
-static CorNode* rightExpanded(Ctx* cP, CorNode* vP)
+static pthread_mutex_t expandMutex = PTHREAD_MUTEX_INITIALIZER;
+
+static CorNode* rightExpandedOf(Ctx* cP, Rule* rP)
 {
-  if (vP->type == CorString)
-    return corTreeString(cP->kaP, NULL, cP->reqP->expandDefault(vP->value.s));
+  CorNode* cachedP = __atomic_load_n(&rP->expandedP, __ATOMIC_ACQUIRE);
 
-  if (vP->type != CorArray)
-    return vP;
+  if (cachedP != NULL)
+    return cachedP;
 
-  CorNode* arrayP = corTreeArray(cP->kaP, NULL);
+  //
+  // Built in the policy set's own memory - the set in use, read-locked by decide, and written only here
+  // (under the mutex) once the refresh thread has committed it - and the strings copied: the expansion's are
+  // the request's
+  //
+  pthread_mutex_lock(&expandMutex);
 
-  for (CorNode* eP = vP->value.head; eP != NULL; eP = eP->next)
-    corTreeChildAdd(arrayP, (eP->type == CorString) ? corTreeString(cP->kaP, NULL, cP->reqP->expandDefault(eP->value.s)) : eP);
+  cachedP = rP->expandedP;
 
-  return arrayP;
+  if (cachedP == NULL)
+  {
+    CorAlloc* kaP = &setP->ka;
+    CorNode*  vP  = rP->rightP;
+
+    if (vP->type == CorString)
+      cachedP = corTreeString(kaP, NULL, corAllocStrdup(kaP, cP->reqP->expandDefault(vP->value.s)));
+    else if (vP->type == CorArray)
+    {
+      cachedP = corTreeArray(kaP, NULL);
+
+      for (CorNode* eP = vP->value.head; (cachedP != NULL) && (eP != NULL); eP = eP->next)
+      {
+        CorNode* itemP = (eP->type == CorString) ? corTreeString(kaP, NULL, corAllocStrdup(kaP, cP->reqP->expandDefault(eP->value.s))) : corTreeClone(kaP, eP);
+
+        if (itemP != NULL)
+          corTreeChildAdd(cachedP, itemP);
+      }
+    }
+    else
+      cachedP = vP;
+
+    if (cachedP != NULL)
+      __atomic_store_n(&rP->expandedP, cachedP, __ATOMIC_RELEASE);
+  }
+
+  pthread_mutex_unlock(&expandMutex);
+  return cachedP;
 }
 
 
@@ -1927,7 +2019,7 @@ static Tri entityTypeEval(Ctx* cP, Rule* rP)
   if ((rP->right != RightValue) || (rP->rightP == NULL) || (cP->entityP->types == 0))
     return TriUndef;
 
-  CorNode* vP       = rightExpanded(cP, rP->rightP);
+  CorNode* vP       = rightExpandedOf(cP, rP);
   bool     negative = (rP->op == OpNeq) || (rP->op == OpIsNoneOf);
   bool     any      = false;
   bool     all      = true;
@@ -2145,11 +2237,63 @@ static int methodOf(const char* method)
 
 // -----------------------------------------------------------------------------
 //
+// typeRuleFails - a policy's type rule (eq a type, isAnyOf types) cannot hold: byType 1 - the request's type as
+// sent against the types as written; 2 - the entity's types (expanded) against the rule's, expanded: it holds
+// when one of the entity's types is one of the rule's, as entityTypeEval decides
+//
+static bool typeRuleFails(Ctx* cP, Rule* tP, int byType, const char* reqType)
+{
+  if (byType == 1)
+  {
+    if (reqType == NULL)
+      return true;
+
+    if (tP->rightP->type == CorString)
+      return strcmp(tP->rightP->value.s, reqType) != 0;
+
+    for (CorNode* eP = tP->rightP->value.head; eP != NULL; eP = eP->next)
+    {
+      if (strcmp(eP->value.s, reqType) == 0)
+        return false;
+    }
+    return true;
+  }
+
+  CorNode* vP = rightExpandedOf(cP, tP);
+
+  if (vP == NULL)
+    return false;                                    // not known: evaluated, as without the index
+
+  for (int i = 0; i < cP->entityP->types; i++)
+  {
+    const char* t = cP->entityP->typeV[i];
+
+    if (vP->type == CorString)
+    {
+      if (strcmp(vP->value.s, t) == 0)
+        return false;
+      continue;
+    }
+
+    for (CorNode* eP = vP->value.head; eP != NULL; eP = eP->next)
+    {
+      if ((eP->type == CorString) && (strcmp(eP->value.s, t) == 0))
+        return false;
+    }
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // decide - the policies in the PAP's order, as OPA evaluates the 'allow if' rules of policy.main: the first
 // that allows decides (OPA's early exit - the rest are not evaluated), and an error in one evaluated before
 // it (eval_conflict_error) is the decision's error
 //
-static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, AuthAnswer* answerP)
+static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, const char* attr, bool* pendingOnlyP, AuthAnswer* answerP)
 {
   FdscIdentity* idP = (hP != NULL) ? hP->idP : NULL;
 
@@ -2176,14 +2320,16 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   ctx.nowMs   = (long long) now.tv_sec * 1000 + now.tv_nsec / 1000000;
   ctx.entityP = entityP;
   ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (hP != NULL);
+  ctx.attr    = attr;
 
   //
-  // A policy for another entity type (typeKey) fails, and is not evaluated - unless evaluating it could be
+  // A policy for another entity type (typeRuleP) fails, and is not evaluated - unless evaluating it could be
   // what ends the decision: a credential with two role lists for the organization is OPA's
-  // eval_conflict_error where vc:role is read, so a policy skipped could have been that one. With
-  // --fdscNgsild the type is the entity's (Pending here, entity() decides), so nothing is skipped either.
+  // eval_conflict_error where vc:role is read, so a policy skipped could have been that one. The type: the
+  // request's as sent (the connector's), or with --fdscNgsild the entity's in entity() - in authorize it is
+  // Pending there, and nothing is skipped
   //
-  int         byType  = -1;                         // -1: not known yet (the first policy with a typeKey asks), 0: no, 1: yes
+  int         byType  = -1;                         // -1: not known yet (the first policy with a type rule asks), 0: no skipping, 1: the request's type, 2: the entity's
   const char* reqType = NULL;
 
   bool allowed = false;
@@ -2200,17 +2346,27 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
     if (((ctx.method & setP->policyV[i].methods) == 0) && (conflictFree(&ctx) == true))
       continue;
 
-    const char* typeKey = setP->policyV[i].typeKey;
+    Rule* typeRuleP = setP->policyV[i].typeRuleP;
 
-    if ((typeKey != NULL) && (byType == -1))
+    if ((typeRuleP != NULL) && (byType == -1))
     {
-      byType = ((ngsild == false) && (conflictFree(&ctx) == true)) ? 1 : 0;
+      if (conflictFree(&ctx) == false)
+        byType = 0;
+      else if (ngsild == false)
+        byType = 1;
+      else if ((entityP != NULL) && (entityP->types > 0))
+        byType = 2;
+      else
+        byType = 0;
 
-      CorNode* typeP = (byType == 1) ? entityTypeOnce(&ctx) : NULL;
-      reqType = ((typeP != NULL) && (typeP->type == CorString)) ? typeP->value.s : NULL;   // another node: eq a string fails
+      if (byType == 1)
+      {
+        CorNode* typeP = entityTypeOnce(&ctx);
+        reqType = ((typeP != NULL) && (typeP->type == CorString)) ? typeP->value.s : NULL;   // another node: eq / isAnyOf strings fails
+      }
     }
 
-    if ((byType == 1) && (typeKey != NULL) && ((reqType == NULL) || (strcmp(typeKey, reqType) != 0)))
+    if ((byType != 0) && (typeRuleP != NULL) && (typeRuleFails(&ctx, typeRuleP, byType, reqType) == true))
       continue;
 
     Tri t = policyAllows(&ctx, &setP->policyV[i]);
@@ -2244,8 +2400,15 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   if ((entityP == NULL) && (hP != NULL))
     hP->entityFree = allowed;
 
-  if ((allowed == true) || (pending == true))
+  if (allowed == true)
     return AuthAllow;
+
+  if (pending == true)
+  {
+    if (pendingOnlyP != NULL)
+      *pendingOnlyP = true;
+    return AuthAllow;
+  }
 
   answerP->detail = (entityP != NULL) ? "no policy allows this entity" : "no policy allows the request";
   return AuthDeny;
@@ -2259,7 +2422,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
 //
 AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscHandle* hP, AuthAnswer* answerP)
 {
-  return decide(reqP, hP, NULL, answerP);
+  return decide(reqP, hP, NULL, NULL, NULL, answerP);
 }
 
 
@@ -2273,7 +2436,58 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
   if ((ngsild == false) || ((hP != NULL) && (hP->entityFree == true)))
     return AuthAllow;
 
-  return decide(reqP, hP, entityP, answerP);
+  //
+  // The attributes the operation touches: each one allowed by a policy - not necessarily the same one
+  //
+  if ((entityP->attrV != NULL) && (entityP->attrs > 0))
+  {
+    for (int i = 0; i < entityP->attrs; i++)
+    {
+      AuthVerdict v = decide(reqP, hP, entityP, entityP->attrV[i], NULL, answerP);
+
+      if (v != AuthAllow)
+      {
+        static __thread char detail[256];
+        snprintf(detail, sizeof(detail), "no policy allows the attribute '%.200s'", entityP->attrV[i]);
+        answerP->detail = detail;
+        return v;
+      }
+    }
+
+    return AuthAllow;
+  }
+
+  //
+  // The entity as a whole: a policy that holds whatever the attribute - allowed; one that holds for some
+  // attributes only - a read gets those (partial: the broker asks attribute by attribute), a write of the
+  // entity whole (a delete, a replace) is not allowed
+  //
+  bool        pendingOnly = false;
+  AuthVerdict v           = decide(reqP, hP, entityP, NULL, &pendingOnly, answerP);
+
+  if ((v != AuthAllow) || (pendingOnly == false))
+    return v;
+
+  bool read = (((actionOf(reqP->op) != 0) ? actionOf(reqP->op) : methodOf(reqP->method)) == M_GET);
+
+  //
+  // (the broker leaving attributes out of a read - AuthAnswer.partial - is not here yet: such a read is refused)
+  //
+
+  answerP->detail = (read == true) ? "only some of its attributes may be read, and this broker cannot leave the others out" :
+                                      "only some of its attributes may be written - not the entity whole";
+  return AuthDeny;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscPolicyPartialSet - the broker can leave attributes out (AuthAnswer.partial, ABI 4)
+//
+void fdscPolicyPartialSet(bool on)
+{
+  partialOk = on;
 }
 
 
