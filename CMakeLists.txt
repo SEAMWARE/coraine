@@ -12,35 +12,19 @@ endif()
 #
 # Feature flags for embedded / minimal-footprint builds.
 #
-# NOTE: as of the cmake migration the coraine sources do NOT yet carry the
-# corresponding #ifdefs, so these flags currently only gate which source files
-# are *compiled in* (per the per-component CMakeLists). They all default ON, so
-# a default build is identical to the old makefile build. Turning one OFF will
-# drop sources whose symbols are still referenced elsewhere until the matching
-# #ifdefs are added to the C code — treat the flags as scaffolding for now.
+# The feature switches, in groups. "# Group: <name> - <what>" heads each group, and every option() below
+# one is in it: coraine-build --list-features --json reports each switch's group (c3 shows them so). A new
+# switch goes into the group it belongs to.
 #
+# Group: NGSI-LD API - what the API offers beyond entities and their attributes
 option(COR_FEATURE_SUBSCRIPTIONS   "Enable Context Information Subscriptions + notifications"   ON)
 option(COR_FEATURE_REGISTRATIONS   "Enable Context Source Registration CRUD (§ 12)"            ON)
-option(COR_FEATURE_GEOQ            "Enable geo-query matching (requires GEOS)"                  ON)
+option(COR_FEATURE_TENANTS         "Enable multi-tenancy (NGSILD-Tenant header)"                ON)
 option(COR_FEATURE_SCOPES          "Enable entity scope + scopeQ filtering"                     ON)
 option(COR_FEATURE_DATASETID       "Enable multi-instance attributes via datasetId"             ON)
 option(COR_FEATURE_MULTI_TYPE      "Enable multi-type entities (type as array)"                 ON)
-option(COR_FEATURE_CONTEXT_DL      "Enable @context downloading from URLs (vs built-in only)"   ON)
-option(COR_FEATURE_CONTEXT_HOSTING "Enable /jsonldContexts CRUD endpoints + DB persistence"     ON)
-option(COR_FEATURE_TENANTS         "Enable multi-tenancy (NGSILD-Tenant header)"                ON)
-option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
-option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
-option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
-option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
-option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
-option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
-option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
-option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (NGSILD-Snapshot on /subscriptions, notified by writes on the snapshot - § 7.9.2)" ON)
-option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
-option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
-option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of its own (--policyApiPort): the policies fdsc.so reads, held by the broker (doc/authorization.md)" ON)
-option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
 option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query of more than one page - distributed by default, local too with --autoEntityMaps all - freezes its set of matches and serves its pages from it (--entityMapMemory)" ON)
+option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -49,9 +33,37 @@ option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query of more
 # drives both from one variable so they cannot drift.
 #
 option(COR_FEATURE_ICU_COLLATION   "orderBy string ordering via ICU root collation (needs libicu)" OFF)
+
+# Group: Snapshots - writes and subscriptions on a Snapshot (§ 7.9.2)
+option(COR_FEATURE_SNAPSHOT_WRITE "Enable writes on a Snapshot (NGSILD-Snapshot on an entity / temporal write, local scope - § 7.9.2)" ON)
+option(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS "Enable subscriptions on a Snapshot (NGSILD-Snapshot on /subscriptions, notified by writes on the snapshot - § 7.9.2)" ON)
+
+# Group: JSON-LD @context - where the broker's @contexts come from
+option(COR_FEATURE_CONTEXT_DL      "Enable @context downloading from URLs (vs built-in only)"   ON)
+option(COR_FEATURE_CONTEXT_HOSTING "Enable /jsonldContexts CRUD endpoints + DB persistence"     ON)
+
+# Group: Geo - geo-queries, and geo-aware dispatch per GeoProperty
+option(COR_FEATURE_GEOQ            "Enable geo-query matching (requires GEOS)"                  ON)
 option(COR_FEATURE_LOCATION         "Enable geo-aware dispatch on the 'location' GeoProperty"          ON)
 option(COR_FEATURE_OBSERVATION_SPACE "Enable geo-aware dispatch on the 'observationSpace' GeoProperty" OFF)
 option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operationSpace' GeoProperty"    OFF)
+
+# Group: Security - who sent a request, whether it may, and the policies that decide
+option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
+option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of its own (--policyApiPort): the policies fdsc.so reads, held by the broker (doc/authorization.md)" ON)
+
+# Group: Beyond NGSI-LD - Service Execution, and the API over other protocols
+option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
+option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
+
+# Group: Operations - running the broker: its admin API, metrics and health probes
+option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
+option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
+option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
+
+# Group: Stores and tools - the plugins and programs built beside the broker
+option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
+option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 
 #
 # Emit a compile-time define for EVERY feature - 1 when on, 0 when off, never
@@ -70,6 +82,23 @@ set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CO
 #
 if (NOT COR_FEATURE_SUBSCRIPTIONS OR NOT COR_FEATURE_SNAPSHOT_WRITE)
   set(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS OFF)
+endif()
+
+#
+# The metrics are served by the admin API plugin (GET /admin/metrics, GET /metrics) and by nothing else:
+# without it, nothing could read them.
+#
+if (NOT COR_FEATURE_ADMIN_API)
+  set(COR_FEATURE_METRICS OFF)
+endif()
+
+#
+# The policy API listens on a port of its own, and only libmicrohttpd has a second listener (corRestListen):
+# with the built-in HTTP server it is off. COR_HTTP_SERVER is read here before its block below gives it its
+# default - unset is mhd.
+#
+if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
+  set(COR_FEATURE_POLICY_API OFF)
 endif()
 
 foreach(feature ${COR_FEATURES})
