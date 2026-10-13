@@ -1127,7 +1127,14 @@ static CorNode* storedTypes(const char* id)
 {
   CorNode* entityP = NULL;
 
-  if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
+  if ((corNgsild.tenantP != NULL) && (db.entityTypes != NULL))   // the types alone - no copy of the attributes
+  {
+    CorNode* typeP = NULL;
+
+    if ((db.entityTypes((Tenant*) corNgsild.tenantP, id, &typeP) == DB_OK) && (typeP != NULL))
+      return typeP;
+  }
+  else if ((corNgsild.tenantP != NULL) && (db.entityRetrieve != NULL) &&
       (db.entityRetrieve((Tenant*) corNgsild.tenantP, id, &entityP) == DB_OK) && (entityP != NULL))
     return corTreeLookup(entityP, "type");
 
