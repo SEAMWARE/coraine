@@ -1702,6 +1702,73 @@ The scenarios that moved by more than the run's spread, measured again (2026-10-
 - **PATCH, retrieve, query, notifications**: within -1.4 ... +5.5 % in perfRun and the direct comparisons.
 - 1.0.10 is what 1.0.4 / 1.0.5 (HTTP request smuggling, CWE-444) and 1.0.7-1.0.9 (security fixes) are in.
 
+### The HTTP server's connection memory
+
+libmicrohttpd keeps a memory pool per connection - the request's line and headers, its own header table, the
+response's headers; a body passes through it in pieces - and **zeroes the whole pool at the end of every
+request** (`MHD_pool_reset`), and the read buffer's unused tail on the switch from receiving to sending
+(`MHD_pool_deallocate`). With its default 32 kB that `memset` was 4.3-4.7 % of every small request's cycles
+(`perf record`, PATCH and retrieve at 50 connections, with and without `--auth`), nearly all of it on memory
+never written. `--httpConnectionMemory` (kB, default 12) sets the pool - the zeroing stays.
+
+The pool size alone, libmicrohttpd 1.0.10 built with each default (`MHD_POOL_SIZE_DEFAULT`), PATCH / retrieve at
+50 connections, 10 s, broker on one core, the mean of three alternating rounds (2026-10-13 02:00):
+
+| pool | PATCH | retrieve | headers up to | URL up to |
+|---|---:|---:|---|---|
+| 32 kB | 100 560 | 123 133 | more than 20 kB | more than 18 kB |
+| 16 kB | 101 204 (+0.6 %) | 124 980 (+1.5 %) | 14 kB | 13 kB |
+| **12 kB** | 102 891 (+2.3 %) | 127 133 (+3.2 %) | 11 kB | 9 kB |
+| 8 kB | 103 583 (+3.0 %) | 127 192 (+3.3 %) | 7 kB | 6 kB |
+| no zeroing at all (measurement only) | +2.6 ... +6.3 % | +4.9 ... +6.4 % | | |
+
+The rounds spread by ±2 %: 12 kB and 8 kB are the same within it. A larger request than the limits is refused by
+libmicrohttpd itself - 431 / 414 - and said in the broker's log ([Request size](installation.md#request-size)); a
+1 000-entity response (477 kB) and 45 kB batch bodies pass at every size.
+
+perfRun, the same build and libmicrohttpd 1.0.10, `--httpConnectionMemory 32` and `12` (2026-10-13 02:05-02:33,
+12 kB last; the last column against libmicrohttpd 1.0.2 with 32 kB - today's):
+
+| requests/s | 32 kB | 12 kB | 12 kB, 1.0.10 vs 32 kB, 1.0.2 |
+|---|---:|---:|---:|
+| `query_c50` | 11 447 | 11 496 (+0.4 %) | +2.2 % |
+| `query_c200` | 11 470 | 11 411 (-0.5 %) | +1.6 % |
+| `query_l1_c50` | 76 885 | 79 129 (+2.9 %) | +6.7 % |
+| `query_l100_c50` | 2 528 | 2 528 (+0.0 %) | +0.6 % |
+| `retrieve_c50` | 88 548 | 90 267 (+1.9 %) | +7.6 % |
+| `patch_c50` | 110 459 | 111 395 (+0.8 %) | +2.4 % |
+| `patch_c1` | 49 585 | 51 258 (+3.4 %) | +2.6 % |
+| `batch20_c50` | 10 961 | 11 208 (+2.3 %) | +0.0 % |
+| `create_c50` | 65 854 | 67 181 (+2.0 %) | +1.9 % |
+| `create_c1` | 32 132 | 36 778 (+14.5 %) | +4.2 % |
+| `batch20create_c50` | 7 796 | 7 915 (+1.5 %) | -2.2 % |
+| `merge_c50` | 77 961 | 83 334 (+6.9 %) | +1.8 % |
+| `delete_c50` | 125 860 | 129 448 (+2.9 %) | +4.1 % |
+| `batch20delete_c50` | 24 893 | 25 106 (+0.9 %) | +0.8 % |
+| `patch_subs_c50` | 21 942 | 22 598 (+3.0 %) | +2.6 % |
+| `patch_manysubs_c50` | 21 005 | 20 822 (-0.9 %) | +0.4 % |
+| `rare_l20_c50` | 8 000 | 8 092 (+1.1 %) | -0.1 % |
+| `rare_l100_c50` | 1 759 | 1 756 (-0.2 %) | -1.0 % |
+| `rare_l20_o500_c50` | 566 | 426 (-24.7 %) | -26.2 % |
+| `big_r1_l20_c50` | 8 091 | 8 034 (-0.7 %) | -1.4 % |
+| `big_r1_l20_o1000_c50` | 146 | 114 (-21.9 %) | -24.5 % |
+| `big_r01_l20_c50` | 2 423 | 2 237 (-7.7 %) | -8.2 % |
+| `big_r01_l20_o200_c50` | 51 | 43 (-15.7 %) | -17.3 % |
+
+- **The small requests gain**: retrieve +1.9 % (+7.6 % with the version), `limit=1` query +2.9 % (+6.7 %),
+  PATCH +0.8 % (+2.4 %), notifying PATCH +3.0 % (+2.6 %).
+- **The deep pages** (`rare_l20_o500` -24.7 %, `big_r1_l20_o1000` -21.9 %, `big_r01_l20_o200` -15.7 %) are not the
+  pool: alternating 32 and 12 kB on the same 100 000-entity store (2026-10-13 02:40, three rounds each),
+  `type=Rare&limit=20&offset=500` runs at 439 / 440 / 473 and 442 / 462 / 452 requests/s, and `limit=20` at
+  7 919 / 7 882 / 7 540 and 7 894 / 7 878 / 8 036. Each of those requests walks the store for 2-20 ms; they are
+  perfRun's last scenarios, and the last configuration of a run, where they read low here and in
+  [What authorization costs](#what-authorization-costs)' first run.
+
+**Not done**: zeroing only what a request wrote. The pool's front is the read buffer and the write buffer, and
+the write buffer's writers go past the offset they commit (`get_date_header()` writes `header[37] = 0`, and on
+failure after a partial date; `MHD_uint16_to_str()` writes digits before it finds the buffer too small) - an exact
+high-water mark would mean instrumenting libmicrohttpd's writers one by one. Offered upstream instead.
+
 ## What authorization costs
 
 `--auth fdsc` ([Authorization](authorization.md)) against no `--auth`, every scenario of `perfRun.sh`, with

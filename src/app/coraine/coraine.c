@@ -29,7 +29,7 @@
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
 #include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
-#include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet
+#include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet, corRestConnectionMemorySet
 #include "corRest/corRestStop.h"                     // corRestStop
 #include "corRest/corRestClient.h"                  // corRestClientInit, corRestClientTlsInsecureSet
 #include "corJsonld/corJsonld.h"                    // corLdConcurrencySet, CORJSONLD_VERSION
@@ -190,6 +190,7 @@ bool           fg           = false;
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 0;
 int            httpLoops    = 0;   // 0: auto - see the corCpuCount call in main()
+int            httpConnectionMemory = 12;   // kB - libmicrohttpd's pool per connection (doc/performance.md)
 char*          corsOrigin   = NULL;
 int            corsMaxAge   = 86400;
 char*          defaultUserContext  = NULL;
@@ -242,6 +243,7 @@ static CorArg kargV[] =
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "MHD thread pool size (0: the cores, for a store that never waits; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "HTTP event loops sharing the port, 0: one per core, max 4 (built-in server only)" },
+  { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  CorArgInt,    _vp &corsMaxAge,   CorArgOpt, _vp 86400, _vp 0, _vp 864000, "preflight cache max age in seconds" },
@@ -1936,6 +1938,7 @@ int main(int argC, char* argV[])
   }
 
   corRestHttpLoopsSet(httpLoops);
+  corRestConnectionMemorySet(httpConnectionMemory);
 
   //
   // The worker pool. A request that waits - on mongod, on a forwarded request - holds its worker for the
