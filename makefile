@@ -213,6 +213,9 @@ src/app/coraine/coraineStack.h: FORCE
 # over /usr/local/bin/coraine.
 #
 CMAKE_FEATURES ?=
+ifneq ($(findstring COR_FEATURE_ICU_COLLATION,$(CMAKE_FEATURES)),)
+$(error ICU_COLLATION goes in COR_WITH_ICU=0|1, not CMAKE_FEATURES: it selects corNgsild's code path as well as the broker's link)
+endif
 
 #
 # src/app/coraine/coraineBuild.h - what produced this binary.
