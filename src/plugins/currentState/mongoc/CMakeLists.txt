@@ -13,6 +13,7 @@ SET(SOURCES
   mongocEntityBulkMerge.c
   mongocEntityBulkDelete.c
   mongocEntityRetrieve.c
+  mongocEntityTypes.c
   mongocEntityQuery.c
   mongocEntityDelete.c
   mongocEntityMerge.c

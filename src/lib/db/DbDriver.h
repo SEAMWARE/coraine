@@ -346,6 +346,13 @@ typedef int  (*DbHaWatchStartFunc)(HaApplyFunc applyF);
 //
 typedef int  (*DbPingFunc)(int timeoutMs);
 
+//
+// DbEntityTypesFunc - an entity's "type" member alone (a string, or an array of them), as entityRetrieve's
+// tree has it, allocated in corRest.kalloc; DB_NOT_FOUND. For what needs the types and not the entity (the
+// auth plugin's decision before a write): no copy of the attributes. NULL: the broker retrieves the entity.
+//
+typedef int  (*DbEntityTypesFunc)(Tenant* tenantP, const char* entityId, CorNode** typePP);
+
 
 
 // -----------------------------------------------------------------------------
@@ -433,6 +440,9 @@ typedef struct DbDriver
 
   // Appended, as the documents: NULL-allowed (see the typedef)
   DbPingFunc              ping;
+
+  // Appended: NULL-allowed (see the typedef)
+  DbEntityTypesFunc       entityTypes;
 } DbDriver;
 
 
