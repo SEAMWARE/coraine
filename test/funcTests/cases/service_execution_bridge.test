@@ -87,6 +87,12 @@ echo "==========================================================================
 invoke progress
 P=$(lastId)
 awaitStatus $P completed
+for i in $(seq 1 50); do                           # the completed notification goes out after the status is stored
+  ftExecNotifications | python3 -c "
+import json,sys
+sys.exit(0 if any((n['data'][0]['id'] == '$P') and (n['data'][0]['executionStatus'] == 'completed') for n in json.load(sys.stdin)) else 1)" && break
+  sleep 0.1
+done
 ftExecNotifications | python3 -c "
 import json,sys
 for n in json.load(sys.stdin):
