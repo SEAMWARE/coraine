@@ -1646,6 +1646,55 @@ databases in containers on the host network, 2026-10-05:
   names. And a corDB record decodes on its own, so each one carries its attributes' expanded IRIs
   (`https://uri.etsi.org/ngsi-ld/default-context/speed`) again: most of its 744 bytes.
 
+## The HTTP server
+
+### libmicrohttpd 1.0.10 against 1.0.2
+
+The same release build of coraine (`ef19b7e1`), libmicrohttpd swapped under it (`LD_LIBRARY_PATH`; both built by
+corLibs' `tools/mhd/mhdBuild.sh`, the broker mapping `libmicrohttpd.so.12.62.2` / `.12.62.8`), corDB in RAM,
+`perfRun.sh` with the broker on one physical core (`PERF_BROKER_CORES=1`), AMD Ryzen 9 8940HX; 2026-10-13
+01:50-02:20, 1.0.2 first.
+
+| requests/s | 1.0.2 | 1.0.10 | p99 µs 1.0.2 / 1.0.10 |
+|---|---:|---:|---:|
+| `query_c50` | 11 254 | 11 447 (+1.7 %) | 4614 / 4258 |
+| `query_c200` | 11 234 | 11 470 (+2.1 %) | 19238 / 17675 |
+| `query_l1_c50` | 74 173 | 76 885 (+3.7 %) | 735 / 704 |
+| `query_l100_c50` | 2 514 | 2 528 (+0.6 %) | 19287 / 19082 |
+| `retrieve_c50` | 83 912 | 88 548 (+5.5 %) | 644 / 603 |
+| `patch_c50` | 108 766 | 110 459 (+1.6 %) | 523 / 482 |
+| `patch_c1` | 49 968 | 49 585 (-0.8 %) | 24 / 24 |
+| `batch20_c50` | 11 204 | 10 961 (-2.2 %) | 4435 / 4546 |
+| `create_c50` | 65 923 | 65 854 (-0.1 %) | 832 / 836 |
+| `create_c1` | 35 308 | 32 132 (-9.0 %) | 34 / 100 |
+| `batch20create_c50` | 8 089 | 7 796 (-3.6 %) | 6210 / 6899 |
+| `merge_c50` | 81 833 | 77 961 (-4.7 %) | 610 / 710 |
+| `delete_c50` | 124 293 | 125 860 (+1.3 %) | 433 / 445 |
+| `batch20delete_c50` | 24 898 | 24 893 (-0.0 %) | 3523 / 3009 |
+| `patch_subs_c50` | 22 020 | 21 942 (-0.4 %) | 2336 / 2384 |
+| `patch_manysubs_c50` | 20 732 | 21 005 (+1.3 %) | 2526 / 2529 |
+| `rare_l20_c50` | 8 103 | 8 000 (-1.3 %) | 6010 / 6052 |
+| `rare_l100_c50` | 1 773 | 1 759 (-0.8 %) | 27210 / 27490 |
+| `rare_l20_o500_c50` | 577 | 566 (-1.9 %) | 129394 / 89294 |
+| `big_r1_l20_c50` | 8 150 | 8 091 (-0.7 %) | 5948 / 5968 |
+| `big_r1_l20_o1000_c50` | 151 | 146 (-3.3 %) | 721278 / 757690 |
+| `big_r01_l20_c50` | 2 438 | 2 423 (-0.6 %) | 19786 / 19903 |
+| `big_r01_l20_o200_c50` | 52 | 51 (-1.9 %) | 1939536 / 1950114 |
+
+The scenarios that moved by more than the run's spread, measured again alternating the two (three rounds each,
+10 s, 2026-10-13 02:45):
+
+| requests/s | 1.0.2 | 1.0.10 |
+|---|---|---|
+| `merge_c50` | 96 790 / 96 751 / 96 693 | 95 271 / 95 210 / 94 426 (**-1.8 %**) |
+| `create_c1` | 35 544 / 36 677 / 34 763 (p99 91 / 39 / 61 µs) | 35 821 / 33 594 / 35 718 (p99 45 / 40 / 36 µs) |
+
+- **PATCH, retrieve, query, notifications: no cost** - within -1.4 ... +5.5 % in perfRun and in the direct
+  comparisons (PATCH / retrieve, 50 connections, three rounds: 1.0.10 -1.4 / -0.5 %).
+- **A merge costs 1.8 %**, repeatably (the spread of each three is under 1 %). `create_c1`, -9.0 % in the run,
+  is the single connection's spread: the two overlap when alternated.
+- 1.0.10 is what 1.0.4 / 1.0.5 (HTTP request smuggling, CWE-444) and 1.0.7-1.0.9 (security fixes) are in.
+
 ## What authorization costs
 
 `--auth fdsc` ([Authorization](authorization.md)) against no `--auth`, every scenario of `perfRun.sh`, with
