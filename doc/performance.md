@@ -1774,6 +1774,170 @@ high-water mark would mean instrumenting libmicrohttpd's writers one by one. Off
 `--auth fdsc` ([Authorization](authorization.md)) against no `--auth`, every scenario of `perfRun.sh`, with
 [`test/perf/authOverhead.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/authOverhead.sh).
 
+### Security off and on, 1 to 20 policies - main, one sitting
+
+Every configuration below in one sitting on one build, ten `perfRun.sh` runs in this order: none, `token`,
+`p1`, `p10`, `p20`, none, `n2`, `n10`, `n20`, none. The three no-auth runs are the control for the 2.5 hours:
+every percentage is against their median, and their spread is the third column.
+
+| | |
+|---|---|
+| Build | Release (`-O2`), coraine main `c44d4b4e`; libmicrohttpd 1.0.10 with corLibs' header patch (`tools/mhd/patches/1.0.10/0001-header-value-fastpath.patch`, [The token's size](#the-tokens-size)) |
+| Machine, placement | AMD Ryzen 9 8940HX; the broker pinned to one physical core (`PERF_BROKER_CORES=1`), wrk and the notification receiver on the other fifteen; nothing else running |
+| Store | corDB in RAM (`--troe none`); perfRun's fixture - 100 entities of type `Vehicle`, five attributes, ~550 bytes each - and its larger stores for the `rare_*` and `big_*` scenarios |
+| Token | one RS256 access token as VCVerifier issues it - a `UserCredential`, 696 bytes (`test/funcTests/tools/ftJwt.py`) - on every request of every configuration but none |
+| Runs | 2026-10-13 18:06-20:36, 15 minutes per configuration; perfRun's 5 s x 3 per scenario, the median. Every answer of every run was a 2xx: `perfRun.sh` stops a run on the first that is not |
+
+**The configurations.** "0 policies" is security off: with `--auth fdsc` and no policy, nothing is allowed
+([How a decision is made](authorization.md#42-how-a-decision-is-made)) - there is no run "on, with 0 policies"
+to make.
+
+| | `--auth` | decided | the policies, in their order |
+|---|---|---|---|
+| none | - | - | - (no `Authorization` header either) |
+| `token` | - | - | - : the token sent, never read - what receiving it costs |
+| `p1` | `fdsc` | per request, as the Data Space Connector decides | `allowAll` |
+| `p10`, `p20` | `fdsc` | per request | `other1` ... `other9` (`other19`), then `allowAll` |
+| `n2` | `fdsc --fdscNgsild` | on each entity a request reads or writes, and each notification for its subscription's owner ([§ 6](authorization.md#6---fdscngsild---decided-on-the-entity)) | `endpoints`, `storeTypes` |
+| `n10`, `n20` | `fdsc --fdscNgsild` | on each entity | `other1` ... `other8` (`other18`), then `endpoints`, `storeTypes` |
+
+Every policy is an `odrl:use` permission (every method: the method mask skips none of them) for
+`vc:any` (any holder of a token that verifies), on an `odrl:AssetCollection` - what it allows is its one
+refinement:
+
+- **`other<K>`** - `ngsi-ld:entityType` `odrl:eq` `"Other<K>"`, a type nothing in the store has. It never
+  holds for a measured request: a set of N puts the allowing one last, so each request is checked against
+  all N before one lets it in - the most N policies cost a request that is allowed. It is the per-type
+  policy a data space deploys, one per entity type a consumer may use.
+  ```json
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:perf:policy:other1",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:use"},
+     "odrl:target": {"@type": "odrl:AssetCollection",
+       "odrl:refinement": [{"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType",
+                            "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": "Other1"}]}}}
+  ```
+- **`allowAll`** - `http:path` `odrl:regex` `"^/"`: every path, so every request.
+  ```json
+  "odrl:target": {"@type": "odrl:AssetCollection", "odrl:source": "urn:asset",
+    "odrl:refinement": [{"@type": "odrl:Constraint", "odrl:leftOperand": "http:path",
+                         "odrl:operator": {"@id": "odrl:regex"}, "odrl:rightOperand": "^/"}]}
+  ```
+- **`endpoints`** - `http:path` `odrl:regex` `"^/ngsi-ld/v1/(subscriptions|types)"`: the operations
+  `--fdscNgsild` does not decide entity by entity - perfRun's subscriptions and its readiness probe
+  (`GET /types`).
+  ```json
+  "odrl:refinement": [{"@type": "odrl:Constraint", "odrl:leftOperand": "http:path",
+                       "odrl:operator": {"@id": "odrl:regex"}, "odrl:rightOperand": "^/ngsi-ld/v1/(subscriptions|types)"}]
+  ```
+- **`storeTypes`** - `ngsi-ld:entityType` `odrl:isAnyOf` `["Vehicle", "Common", "Rare", "R1", "R01"]`, the
+  types of perfRun's stores: every entity, decided on its stored type (a create: the body's), expanded.
+  ```json
+  "odrl:refinement": [{"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType",
+                       "odrl:operator": {"@id": "odrl:isAnyOf"}, "odrl:rightOperand": ["Vehicle", "Common", "Rare", "R1", "R01"]}]
+  ```
+
+There is no `n1`: without `endpoints` perfRun's subscriptions are refused, without `storeTypes` every entity.
+`test/perf/authOverhead.sh` writes each set to `<outDir>/policies-<N>.json`.
+
+**The scenarios** (`test/perf/perfRun.sh`; paths under `/ngsi-ld/v1`; `_c50` = 50 connections):
+
+| scenario | each request |
+|---|---|
+| `query_c50`, `query_c200` | `GET /entities?type=Vehicle&limit=20` - a 20-entity page; 50 / 200 connections |
+| `query_l1_c50`, `query_l100_c50` | the same, `limit=1` / `limit=100` |
+| `retrieve_c50` | `GET /entities/urn:ngsi-ld:Vehicle:7` |
+| `patch_c50`, `patch_c1` | `PATCH /entities/{id}/attrs`, one attribute; 50 / 1 connection |
+| `batch20_c50` | `POST /entityOperations/update`, 20 entities |
+| `create_c50`, `create_c1` | `POST /entities` |
+| `batch20create_c50` | `POST /entityOperations/create`, 20 entities |
+| `merge_c50` | `PATCH /entities/{id}` |
+| `delete_c50`, `batch20delete_c50` | `DELETE /entities/{id}` / `POST /entityOperations/delete` of 20, from a pool of 40 000 entities |
+| `patch_subs_c50` | the PATCH, one subscription per entity: each PATCH notifies one subscriber |
+| `patch_manysubs_c50` | the same past 110 more subscriptions that do not match (100 to other types, 10 to `Vehicle` whose `q` does not hold) |
+| `patch_10subs_c50` | 9 more to `Vehicle`: ten notifications per PATCH (10.0-10.2 received in every run) |
+| `rare_l20_c50`, `rare_l100_c50`, `rare_l20_o500_c50` | 100 000 entities, 1 % of type `Rare`: its first page of 20, of 100, and `offset=500` |
+| `big_r1_*`, `big_r01_*` | 300 000 entities, 1 % `R1` and 0.1 % `R01`: a first page and a deep one (`offset=1000` / `offset=200`) |
+
+
+**requests/s** - the median of the three no-auth runs, its spread, and each configuration against it:
+
+| requests/s | none (median of 3) | the 3 none runs | `token` | `p1` | `p10` | `p20` | `n2` | `n10` | `n20` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `query_c50` | 11 447 | -0.7 .. +1.7 % | 11 401 (-0.4 %) | 11 451 (+0.0 %) | 11 296 (-1.3 %) | 11 327 (-1.0 %) | 10 399 (-9.2 %) | 10 322 (-9.8 %) | 10 219 (-10.7 %) |
+| `query_c200` | 11 346 | -1.5 .. +1.0 % | 11 336 (-0.1 %) | 11 244 (-0.9 %) | 11 190 (-1.4 %) | 11 229 (-1.0 %) | 10 367 (-8.6 %) | 10 347 (-8.8 %) | 10 150 (-10.5 %) |
+| `query_l1_c50` | 79 029 | -2.9 .. +1.9 % | 77 726 (-1.6 %) | 75 136 (-4.9 %) | 74 059 (-6.3 %) | 74 800 (-5.4 %) | 71 065 (-10.1 %) | 71 141 (-10.0 %) | 70 611 (-10.7 %) |
+| `query_l100_c50` | 2 476 | -16.4 .. +0.3 % | 2 511 (+1.4 %) | 2 492 (+0.6 %) | 2 483 (+0.3 %) | 2 480 (+0.2 %) | 2 284 (-7.8 %) | 2 273 (-8.2 %) | 2 235 (-9.7 %) |
+| `retrieve_c50` | 89 975 | -3.8 .. +1.4 % | 86 909 (-3.4 %) | 85 018 (-5.5 %) | 83 954 (-6.7 %) | 84 864 (-5.7 %) | 80 203 (-10.9 %) | 80 372 (-10.7 %) | 81 253 (-9.7 %) |
+| `patch_c50` | 110 348 | -0.3 .. +2.4 % | 108 029 (-2.1 %) | 103 062 (-6.6 %) | 100 993 (-8.5 %) | 100 970 (-8.5 %) | 95 376 (-13.6 %) | 96 704 (-12.4 %) | 95 327 (-13.6 %) |
+| `patch_c1` | 49 268 | -1.8 .. +1.1 % | 49 289 (+0.0 %) | 47 025 (-4.6 %) | 42 663 (-13.4 %) | 46 712 (-5.2 %) | 45 940 (-6.8 %) | 43 825 (-11.0 %) | 46 799 (-5.0 %) |
+| `batch20_c50` | 11 183 | -8.7 .. +0.2 % | 11 171 (-0.1 %) | 10 915 (-2.4 %) | 10 824 (-3.2 %) | 10 767 (-3.7 %) | 9 955 (-11.0 %) | 9 686 (-13.4 %) | 9 625 (-13.9 %) |
+| `create_c50` | 66 576 | -0.1 .. +0.1 % | 64 317 (-3.4 %) | 63 047 (-5.3 %) | 60 138 (-9.7 %) | 60 310 (-9.4 %) | 60 890 (-8.5 %) | 59 892 (-10.0 %) | 59 526 (-10.6 %) |
+| `create_c1` | 36 350 | -0.4 .. +2.0 % | 35 576 (-2.1 %) | 34 637 (-4.7 %) | 33 646 (-7.4 %) | 33 390 (-8.1 %) | 32 962 (-9.3 %) | 33 240 (-8.6 %) | 33 590 (-7.6 %) |
+| `batch20create_c50` | 7 807 | -0.3 .. +0.7 % | 7 623 (-2.4 %) | 7 713 (-1.2 %) | 7 622 (-2.4 %) | 7 545 (-3.4 %) | 7 235 (-7.3 %) | 7 145 (-8.5 %) | 7 109 (-8.9 %) |
+| `merge_c50` | 79 120 | -1.2 .. +3.1 % | 77 533 (-2.0 %) | 76 722 (-3.0 %) | 76 827 (-2.9 %) | 75 312 (-4.8 %) | 73 515 (-7.1 %) | 71 459 (-9.7 %) | 71 848 (-9.2 %) |
+| `delete_c50` | 129 156 | -0.2 .. +1.3 % | 125 729 (-2.7 %) | 121 446 (-6.0 %) | 116 133 (-10.1 %) | 113 273 (-12.3 %) | 113 234 (-12.3 %) | 111 476 (-13.7 %) | 105 177 (-18.6 %) |
+| `batch20delete_c50` | 25 300 | -2.3 .. +0.5 % | 24 811 (-1.9 %) | 24 481 (-3.2 %) | 24 688 (-2.4 %) | 24 604 (-2.8 %) | 21 532 (-14.9 %) | 20 958 (-17.2 %) | 20 449 (-19.2 %) |
+| `patch_subs_c50` | 22 323 | -0.7 .. +1.3 % | 21 977 (-1.5 %) | 21 907 (-1.9 %) | 21 604 (-3.2 %) | 21 519 (-3.6 %) | 21 000 (-5.9 %) | 21 067 (-5.6 %) | 21 014 (-5.9 %) |
+| `patch_manysubs_c50` | 20 858 | -0.2 .. +2.0 % | 20 794 (-0.3 %) | 20 520 (-1.6 %) | 20 447 (-2.0 %) | 20 018 (-4.0 %) | 20 136 (-3.5 %) | 19 941 (-4.4 %) | 19 924 (-4.5 %) |
+| `patch_10subs_c50` | 2 995 | -0.1 .. +1.2 % | 2 919 (-2.5 %) | 2 967 (-0.9 %) | 2 993 (-0.1 %) | 2 979 (-0.5 %) | 2 938 (-1.9 %) | 2 910 (-2.8 %) | 2 912 (-2.8 %) |
+| `rare_l20_c50` | 8 045 | -1.3 .. +0.6 % | 7 889 (-1.9 %) | 7 996 (-0.6 %) | 7 954 (-1.1 %) | 7 905 (-1.7 %) | 7 545 (-6.2 %) | 7 443 (-7.5 %) | 7 369 (-8.4 %) |
+| `rare_l100_c50` | 1 764 | -0.2 .. +0.5 % | 1 726 (-2.2 %) | 1 773 (+0.5 %) | 1 766 (+0.1 %) | 1 759 (-0.3 %) | 1 661 (-5.8 %) | 1 647 (-6.6 %) | 1 627 (-7.8 %) |
+| `rare_l20_o500_c50` | 561 | -0.9 .. +1.4 % | 549 (-2.1 %) | 551 (-1.8 %) | 563 (+0.4 %) | 554 (-1.2 %) | 567 (+1.1 %) | 555 (-1.1 %) | 533 (-5.0 %) |
+| `big_r1_l20_c50` | 8 097 | -0.9 .. +0.5 % | 8 052 (-0.6 %) | 7 916 (-2.2 %) | 8 029 (-0.8 %) | 7 944 (-1.9 %) | 7 579 (-6.4 %) | 7 522 (-7.1 %) | 7 419 (-8.4 %) |
+| `big_r1_l20_o1000_c50` | 146 | -4.8 .. +1.4 % | 145 (-0.7 %) | 148 (+1.4 %) | 147 (+0.7 %) | 146 (+0.0 %) | 146 (+0.0 %) | 145 (-0.7 %) | 144 (-1.4 %) |
+| `big_r01_l20_c50` | 2 427 | -6.6 .. +0.0 % | 2 413 (-0.6 %) | 2 413 (-0.6 %) | 2 387 (-1.6 %) | 2 435 (+0.3 %) | 2 368 (-2.4 %) | 2 357 (-2.9 %) | 2 371 (-2.3 %) |
+| `big_r01_l20_o200_c50` | 49 | +0.0 .. +4.1 % | 50 (+2.0 %) | 50 (+2.0 %) | 50 (+2.0 %) | 49 (+0.0 %) | 49 (+0.0 %) | 50 (+2.0 %) | 50 (+2.0 %) |
+
+The broker's time per request on its one core (1 / requests/s), and what each configuration adds to it:
+
+| µs per request, added to none's | none | `token` | `p1` | `p10` | `p20` | `n2` | `n10` | `n20` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `patch_c50` | 9.06 | +0.19 | +0.64 | +0.84 | +0.84 | +1.42 | +1.28 | +1.43 |
+| `merge_c50` | 12.64 | +0.26 | +0.40 | +0.38 | +0.64 | +0.96 | +1.36 | +1.28 |
+| `retrieve_c50` | 11.11 | +0.39 | +0.65 | +0.80 | +0.67 | +1.35 | +1.33 | +1.19 |
+| `query_l1_c50` - 1 entity | 12.65 | +0.21 | +0.66 | +0.85 | +0.72 | +1.42 | +1.40 | +1.51 |
+| `create_c50` | 15.02 | +0.53 | +0.84 | +1.61 | +1.56 | +1.40 | +1.68 | +1.78 |
+| `query_c50` - 20 entities | 87.36 | +0.35 | -0.03 | +1.17 | +0.93 | +8.80 | +9.52 | +10.50 |
+| `batch20_c50` - 20 entries | 89.42 | +0.10 | +2.20 | +2.97 | +3.45 | +11.03 | +13.82 | +14.47 |
+| `query_l100_c50` - 100 entities | 403.88 | -5.63 | -2.59 | -1.14 | -0.65 | +33.95 | +36.07 | +43.55 |
+
+- **Receiving the token**: +0.2-0.5 µs per request (`token`; `patch_c50` -2.1 %, `retrieve_c50` -3.4 %). On
+  libmicrohttpd without the header patch it was ~1.0 µs (run 2 below: -10.2 %).
+- **Per request (`pN`)**: +0.4-0.9 µs on a one-entity request at 1, 10 and 20 policies, the token's
+  reception included - `patch_c50` -6.6 / -8.5 / -8.5 %, `retrieve_c50` -5.5 / -6.7 / -5.7 %, `merge_c50`
+  -3.0 / -2.9 / -4.8 %, `query_l1_c50` -4.9 / -6.3 / -5.4 %; `create_c50` +0.8-1.6 µs (-5.3 / -9.7 / -9.4 %).
+  From 10 policies to 20 adds nothing measurable but on the deletes (below): an `other<K>` is not evaluated
+  for a request of another type.
+  A request that carries more work - a 20-entity page, a batch, a deep page - pays the same per request:
+  `query_c50` 0 to -1.3 %, `batch20_c50` -2.4 to -3.7 %.
+- **On the entity (`nN`)**: +1.0-1.5 µs on a one-entity request (`patch_c50` -13.6 / -12.4 / -13.6 %,
+  `retrieve_c50` -10.9 / -10.7 / -9.7 %, `merge_c50` -7.1 / -9.7 / -9.2 %), and **0.3-0.7 µs for each further
+  entity**: a 20-entity page +8.8-10.5 µs (`query_c50` -9.2 to -10.7 %), 100 entities +34-44 µs
+  (`query_l100_c50` -7.8 to -9.7 %), a 20-entry batch update +11.0-14.5 µs (`batch20_c50` -11.0 to -13.9 %) -
+  each entry's stored types read before its write. `batch20delete_c50` -14.9 / -17.2 / -19.2 %. 2, 10 or 20
+  policies: within 3.0 points of each other on every scenario but `delete_c50` (6.2), `rare_l20_o500_c50`
+  (6.1), `patch_c1` (6.0) and `batch20delete_c50` (4.3).
+- **Deletes grow with the policies**, per request and on the entity: `delete_c50` -6.0 / -10.1 / -12.3 % at
+  `p1` / `p10` / `p20`, -12.3 / -13.7 / -18.6 % at `n2` / `n10` / `n20`; `batch20delete_c50` on the entity
+  (above). Not looked into.
+- **Notifications**: per request, a notification is not decided - `patch_subs_c50` -1.9 / -3.2 / -3.6 %, the
+  PATCH's own decision. On the entity each is decided for its subscription's owner: `patch_subs_c50` -5.6 to
+  -5.9 %, `patch_manysubs_c50` -3.5 to -4.5 %, `patch_10subs_c50` (ten per PATCH) -1.9 to -2.8 %.
+- **Latency**, `patch_c50` p50 / p99: none 421-431 / 469-493 µs, `pN` 460-471 / 517-540 µs, `nN` 491-499 /
+  550-580 µs.
+- **The control**: the three no-auth runs are within -3.8 to +3.1 % of their median on every scenario but five,
+  where one of them is off: `batch20_c50` (the first, -8.7 %), `query_l100_c50` (the third, -16.4 %),
+  `big_r01_l20_c50` (the first, -6.6 %), `big_r1_l20_o1000_c50` (the first, -4.8 %), `big_r01_l20_o200_c50`
+  (49 / 49 / 51 requests/s). The median leaves each out.
+  `patch_c1`'s -13.4 % at `p10` (-4.6 % at `p1`, -5.2 % at `p20`) and -11.0 % at `n10` (-6.8 / -5.0 %) are the
+  single-connection spread
+  ([Latency depends on how deep the CPU sleeps](#latency-depends-on-how-deep-the-cpu-sleeps)).
+- **Against the sections below** (the same harness, libmicrohttpd without the header patch, before the decision
+  skips of [A decision skips what it already knows](#a-decision-skips-what-it-already-knows)): `patch_c50` at
+  `p20` -14.0 % (run 2) -> -8.5 %, at `n20` -19.9 % ([the stored types alone](#the-stored-entitys-types-alone-dbdriverentitytypes)) -> -13.6 %.
+
+### Runs 1 and 2 - the token cache and the policy evaluation
+
 | | |
 |---|---|
 | Builds | Release, libmicrohttpd 1.0.2, every library release (corRest `073a70c`, corNgsild `5839d84`, corDB `643933a`). Run 1: coraine `aab81efe` (main `6aa2eb79` + the harness). Run 2: `f4a59fdc` - the token cache and the policy evaluation below |
