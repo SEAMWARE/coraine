@@ -20,6 +20,11 @@
 #   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
+#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan - or none
+#                      (default mqtt,modbus). A bridge the source does not carry, or whose libraries are
+#                      not installed here, stops the build and says which (--list-bridges)
+#   --list-bridges     print every bridge, whether it can be built here and why not, and exit; with
+#                      --json a JSON array of {name, default, description, available, why}
 #   --list-features    print every feature switch, its default and what it is, and exit
 #   --json             with --list-features: the same as a JSON array of {name, default, description,
 #                      group, requires} - "group" the CMakeLists.txt group it is in ("# Group: <name> -
@@ -50,7 +55,9 @@ FEATURES=
 HTTP_SERVER=mhd
 DIR=
 LIST=0
+LISTB=0
 JSON=0
+BRIDGES=mqtt,modbus
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
 usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
@@ -66,6 +73,9 @@ while [ $# -gt 0 ]; do
     --http-server)    HTTP_SERVER=${2:?--http-server needs mhd or builtin}; shift ;;
     --http-server=*)  HTTP_SERVER=${1#--http-server=} ;;
     --list-features)  LIST=1 ;;
+    --list-bridges)   LISTB=1 ;;
+    --bridges)        BRIDGES=${2:?--bridges needs a list (or none)}; shift ;;
+    --bridges=*)      BRIDGES=${1#--bridges=} ;;
     --json)           JSON=1 ;;
     --source)         SOURCE=${2:?--source needs a file}; shift ;;
     -h|--help)        usage; exit 0 ;;
@@ -75,7 +85,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-[ -n "$DIR" ] || { [ "$LIST" = 1 ] || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
+[ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
 
 #
 # The source: unpacked once
@@ -136,6 +146,68 @@ if [ "$LIST" = 1 ]; then
   sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
     | while read -r name def desc; do printf '  %-24s %-4s %s\n' "$name" "$def" "$desc"; done
   exit 0
+fi
+
+#
+# The bridges - plugins built from repositories of their own, beside the broker's. name, repository,
+# default, what it is
+#
+BRIDGE_TABLE="mqtt	corMqttBridge	1	MQTT - NGSI-LD over MQTT topics (mqtt.so, libmosquitto)
+modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
+dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
+ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)"
+
+#
+# bridgeWhy <name> <repository> - why it cannot be built here; nothing when it can
+#
+bridgeWhy() {
+  [ -f "$DIR/$2/makefile" ] || { echo "not in this source"; return; }
+  case "$1" in
+    ckan) # its Channels are record Channels: a broker without them loads ckan.so and makes no entity of it
+          grep -q "^option(COR_FEATURE_BRIDGE_RECORDS " "$DIR/coraine/CMakeLists.txt" \
+            || echo "it needs record Channels (COR_FEATURE_BRIDGE_RECORDS), which this source's broker does not have" ;;
+    mqtt) echo '#include <mosquitto.h>' | ${CC:-cc} -E - > /dev/null 2>&1 || echo "libmosquitto's headers are not installed (libmosquitto-dev)" ;;
+    dds)  # the bridge's own makefile decides (COR_BRIDGE_DDS=auto: the Enabler's headers and libraries)
+          [ "$(make -s -C "$DIR/$2" -p -n all 2>/dev/null | awk '$1 == "COR_BRIDGE_DDS" { v = $3 } END { print v }')" = ON ] \
+            || echo "the DDS Enabler and eProsima Fast DDS are not installed (doc/dds.md)" ;;
+  esac
+}
+
+if [ "$LISTB" = 1 ]; then
+  esc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<< "$1"; }
+  first=1
+  [ "$JSON" = 1 ] && echo "[" || echo "coraine $version - bridges (--bridges NAME,...):"
+  while IFS='	' read -r name repo def desc; do
+    why=$(bridgeWhy "$name" "$repo")
+    if [ "$JSON" = 1 ]; then
+      [ "$first" = 1 ] || printf ',\n'
+      first=0
+      printf '  {"name": "%s", "default": %s, "description": "%s", "available": %s, "why": %s}' "$name" \
+        "$([ "$def" = 1 ] && echo true || echo false)" "$(esc "$desc")" "$([ -z "$why" ] && echo true || echo false)" \
+        "$([ -z "$why" ] && echo null || echo "\"$(esc "$why")\"")"
+    else
+      printf '  %-8s %-8s %s%s\n' "$name" "$([ "$def" = 1 ] && echo default || echo '')" "$desc" "${why:+ - not here: $why}"
+    fi
+  done <<< "$BRIDGE_TABLE"
+  [ "$JSON" = 1 ] && printf '\n]\n'
+  exit 0
+fi
+
+#
+# --bridges: each one named, in the source and buildable here - or the build does not start
+#
+BRIDGE_REPOS=()
+if [ "$BRIDGES" != none ]; then
+  IFS=, read -r -a wanted <<< "$BRIDGES"
+  for b in "${wanted[@]}"; do
+    [ -n "$b" ] || continue
+    line=$(awk -F'\t' -v n="$b" '$1 == n' <<< "$BRIDGE_TABLE")
+    [ -n "$line" ] || die "--bridges: no bridge '$b' (--list-bridges)"
+    repo=$(cut -f2 <<< "$line")
+    why=$(bridgeWhy "$b" "$repo")
+    [ -z "$why" ] || die "--bridges: $b cannot be built here - $why"
+    BRIDGE_REPOS+=("$repo")
+  done
 fi
 
 #
@@ -284,10 +356,11 @@ find "$B/src/plugins" -name '*.so' | while read -r so; do
 done
 
 phase bridges
-# the bridges that are not the broker's: MQTT and Modbus (DDS needs the eProsima stack - not here)
-for br in corMqttBridge corModbusBridge; do
+# the bridges that are not the broker's, as --bridges named them (default MQTT and Modbus)
+for br in "${BRIDGE_REPOS[@]}"; do
   flavour=release; [ "$MODE" = debug ] && flavour=debug
-  make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" install > /dev/null
+  extra=(); [ "$br" = corDdsBridge ] && extra=(COR_BRIDGE_DDS=ON)
+  make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" "${extra[@]}" install > /dev/null
 done
 
 installFile "$C/etc/contextSourceExtras.json" "$INST/etc"
