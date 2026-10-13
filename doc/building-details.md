@@ -219,15 +219,15 @@ Everything builds.
 
 #### HTTP server: corHttp (built in)
 
-`--http-server builtin`. The broker's own epoll server, 12 KiB, no external library: 7.29 MiB and nine
-libraries less than libmicrohttpd. One listener: `POLICY_API` (a port of its own) is not built. Not with
+`--http-server builtin`. The broker's own epoll server, no external library. Size: **-7.3 MiB** - nine
+libraries less than libmicrohttpd, for 12 KiB of corHttp. One listener: `POLICY_API` (a port of its own) is not built. Not with
 Profile-guided or Tuned yet. [Choosing the HTTP server](#choosing-the-http-server).
 
 #### Store: corDB only
 
 `--features MONGOC=OFF`. Entities in the broker's own memory, on disk with `--dbDir`. `mongoc.so` is not
-built and its libraries not loaded. Size: -145 KiB, and libmongoc 5.59 MiB + libbson 1.08 MiB; libsasl2
-(0.10 MiB) goes too when `timescale.so` is not installed (libpq needs it).
+built and its libraries not loaded. Size: **-6.8 MiB** - `mongoc.so` 145 KiB, libmongoc 5.59 MiB, libbson
+1.08 MiB; libsasl2 (0.10 MiB) goes too when `timescale.so` is not installed (libpq needs it).
 
 #### Store: corDB + mongoc
 
