@@ -163,6 +163,9 @@ ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read 
 bridgeWhy() {
   [ -f "$DIR/$2/makefile" ] || { echo "not in this source"; return; }
   case "$1" in
+    ckan) # its Channels are record Channels: a broker without them loads ckan.so and makes no entity of it
+          grep -q "^option(COR_FEATURE_BRIDGE_RECORDS " "$DIR/coraine/CMakeLists.txt" \
+            || echo "it needs record Channels (COR_FEATURE_BRIDGE_RECORDS), which this source's broker does not have" ;;
     mqtt) echo '#include <mosquitto.h>' | ${CC:-cc} -E - > /dev/null 2>&1 || echo "libmosquitto's headers are not installed (libmosquitto-dev)" ;;
     dds)  # the bridge's own makefile decides (COR_BRIDGE_DDS=auto: the Enabler's headers and libraries)
           [ "$(make -s -C "$DIR/$2" -p -n all 2>/dev/null | awk '$1 == "COR_BRIDGE_DDS" { v = $3 } END { print v }')" = ON ] \
