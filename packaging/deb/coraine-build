@@ -143,6 +143,7 @@ fi
 #
 CMAKE_FEATURES=
 MONGOC=ON
+ICU=0
 IFS=, read -r -a items <<< "$FEATURES"
 for item in "${items[@]}"; do
   [ -n "$item" ] || continue
@@ -151,9 +152,18 @@ for item in "${items[@]}"; do
   [ "$name" != "$item" ] || die "--features: '$item' is not NAME=ON|OFF"
   case "$value" in ON|on|1) value=ON ;; OFF|off|0) value=OFF ;; *) die "--features: $name=$value - ON or OFF" ;; esac
   grep -q "^option(COR_FEATURE_$name " "$DIR/coraine/CMakeLists.txt" || die "--features: no feature '$name' (--list-features)"
-  CMAKE_FEATURES="$CMAKE_FEATURES -DCOR_FEATURE_$name=$value"
   [ "$name" = MONGOC ] && MONGOC=$value
+  # ICU_COLLATION is two flags - corNgsild's code path and the broker's link - and the makefile's
+  # COR_WITH_ICU sets both; as a cmake -D alone the broker says ICU and sorts without it
+  if [ "$name" = ICU_COLLATION ]; then
+    [ "$value" = ON ] && ICU=1 || ICU=0
+    continue
+  fi
+  CMAKE_FEATURES="$CMAKE_FEATURES -DCOR_FEATURE_$name=$value"
 done
+if [ "$ICU" = 1 ] && ! pkg-config --exists icu-i18n icu-uc; then
+  die "ICU_COLLATION=ON needs ICU's headers and libraries (libicu-dev)"
+fi
 
 #
 # mongo-c driver v2, for the mongoc plugin: the distribution's (Ubuntu 26.04: libmongoc-dev), or the one
@@ -197,7 +207,7 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_WITH_ICU="$ICU")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output
