@@ -15,6 +15,8 @@
 -- Compare `batch20delete_c50 x 20` against `delete_c50`, both entities/s: what batching is worth
 -- on the way out.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local pool    = tonumber(os.getenv("PERF_POOL")) or 10000
 local nthread = tonumber(os.getenv("PERF_THREADS")) or 1
 local batch   = tonumber(os.getenv("PERF_BATCH")) or 20
@@ -68,7 +70,7 @@ request = function()
   end
   next_id = next_id + batch
   return wrk.format("POST", "/ngsi-ld/v1/entityOperations/delete",
-                    {["Content-Type"] = "application/json"},
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth},
                     "[" .. table.concat(ids, ",") .. "]")
 end
 

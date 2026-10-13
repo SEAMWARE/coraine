@@ -480,6 +480,99 @@
   "headers": {}
  },
  {
+  "name": "two role entries, another type",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:r1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      },
+      {
+       "target": "did:web:provider",
+       "names": [
+        "READER"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "two role entries, Clock",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Clock:k1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      },
+      {
+       "target": "did:web:provider",
+       "names": [
+        "READER"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
+  "name": "two role entries, Shop",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Shop:s1",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      },
+      {
+       "target": "did:web:provider",
+       "names": [
+        "READER"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": null,
+  "headers": {}
+ },
+ {
   "name": "vc.type a string",
   "method": "GET",
   "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:K8SCluster:c1",
