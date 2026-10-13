@@ -23,7 +23,9 @@
 #include "corNgsild/LdForwarding.h"                     // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
 #include "corNgsild/ldForwarding.h"                     // ldForwardingRegister
 
+#if COR_FEATURE_METRICS
 #include "metrics/metrics.h"                           // metricsDistopForward
+#endif
 
 #include "forwarding/forwardingHttp.h"                 // Own interface
 
@@ -97,18 +99,24 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
   if (req->connectTimeoutMs > 0 || req->requestTimeoutMs > 0)
     corRestClientRequestTimeout(&cReq, req->connectTimeoutMs, req->requestTimeoutMs);
 
+#if COR_FEATURE_METRICS
   struct timespec t0;
   clock_gettime(CLOCK_MONOTONIC, &t0);
+#endif
 
   int rc = corRestClientSend(&cReq, &cResp);
 
+#if COR_FEATURE_METRICS
   struct timespec t1;
   clock_gettime(CLOCK_MONOTONIC, &t1);
   double latency = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+#endif
 
   if (rc != 0 || cResp.error != 0)
   {
+#if COR_FEATURE_METRICS
     metricsDistopForward(latency, false);
+#endif
     resp->error      = (cResp.error != 0) ? cResp.error : rc;
     resp->statusCode = 0;
     strncpy(resp->errorDetail, cResp.errorDetail[0] != 0 ? cResp.errorDetail : "http forwarding failed",
@@ -118,7 +126,9 @@ static int httpSend(LdForwardRequest* req, LdForwardResponse* resp)
     return resp->error;
   }
 
+#if COR_FEATURE_METRICS
   metricsDistopForward(latency, cResp.statusCode >= 200 && cResp.statusCode < 300);
+#endif
 
   resp->error      = 0;
   resp->statusCode = cResp.statusCode;

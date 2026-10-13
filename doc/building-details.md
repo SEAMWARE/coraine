@@ -31,17 +31,34 @@ coraine/
 
 ## Compiling out what you don't need
 
-`CMakeLists.txt` exposes `COR_FEATURE_*` options — subscriptions, registrations,
-geoq, scopes, datasetId, multi-type, context download/hosting, tenants, mongoc,
-admin API, metrics, ICU collation, geo-dispatch on
-location/observationSpace/operationSpace. All default ON except the
-observation/operation-space dispatch; toggle with `cmake -DCOR_FEATURE_X=OFF`.
+`CMakeLists.txt` exposes `COR_FEATURE_*` options, toggled with `cmake -DCOR_FEATURE_X=OFF` (or
+`coraine-build --features X=OFF`), in groups - a `# Group: <name> - <what>` line heads each, and
+`coraine-build --list-features --json` reports every switch's group:
+
+| group | switches |
+|---|---|
+| NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `TENANTS`, `SCOPES`, `DATASETID`, `MULTI_TYPE`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `ICU_COLLATION` |
+| Snapshots | `SNAPSHOT_WRITE`, `SNAPSHOT_SUBSCRIPTIONS` |
+| JSON-LD @context | `CONTEXT_DL`, `CONTEXT_HOSTING` |
+| Geo | `GEOQ`, `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE` |
+| Security | `AUTH`, `POLICY_API` |
+| Beyond NGSI-LD | `SERVICE_EXECUTION`, `TRANSPORTS` |
+| Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
+| Stores and tools | `MONGOC`, `MIGRATE` |
+
+All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Three are turned off
+by what they need - `coraine-build --list-features --json` gives them as `requires`:
+
+| switch | off when | why |
+|---|---|---|
+| `SNAPSHOT_SUBSCRIPTIONS` | `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is off | a subscription, notified by a Snapshot's writes |
+| `METRICS` | `ADMIN_API` is off | the admin API plugin serves them (`/admin/metrics`, `/metrics`), nothing else does |
+| `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
 
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
-no subscription engine on a read-only edge node, no geo, no tenants, no Mongo.
-
-Where it stands today, honestly: **four of them work, the rest are declared and
-not implemented.**
+no subscription engine on a read-only edge node, no geo, no tenants, no Mongo. What each switch
+removes is in the table below; `LOCATION`, `OBSERVATION_SPACE` and `OPERATION_SPACE` are declared and
+reported, and nothing in the code tests them yet.
 
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
 build host, run `--database corDB`).
@@ -231,6 +248,9 @@ combinations nobody has tried are exactly the ones worth hearing about.
 cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
 cmake -DCOR_HTTP_SERVER=builtin    # corHttp, no external HTTP dependency
 ```
+
+From a package: `coraine-build --http-server builtin` (not with `--pgo` / `--tune` yet). With `builtin`,
+`POLICY_API` is off: its port is a second listener, and corHttp has one.
 
 Not a `COR_FEATURE_*` boolean, because those answer "is this feature in the
 build" and the HTTP server is always in it — what varies is which one. The value

@@ -142,7 +142,10 @@ there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/
 `CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
 
 `coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
-`description`, and `requires`: the switches it is turned off without. While it builds, coraine-build
+`description`, `group` (its group in `CMakeLists.txt`), and `requires`: the switches it is turned off
+without, and a build setting as `NAME=value` (`HTTP_SERVER=mhd`). `--http-server builtin` builds the
+broker with corHttp, the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
+the switches that need libmicrohttpd off (`POLICY_API`); not with `--pgo` or `--tune` yet. While it builds, coraine-build
 prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
 front-end to follow.
 

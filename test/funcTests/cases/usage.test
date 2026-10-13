@@ -33,6 +33,10 @@ usage
 # instrumented plugins. This test pins the DEFAULT, so it clears the variable
 # for its own invocations rather than reporting whatever the environment had.
 #
+# The policy API's two options (--policyApiPort, --policyApiHost) are left out of what is compared: they
+# are there with libmicrohttpd and not with the built-in HTTP server (POLICY_API needs a second listener).
+# auth_fdsc_policy_api (libmicrohttpd only) checks that they are listed.
+#
 # -U used to SEGFAULT before printing a single line: its column-width helper
 # ran strlen() over every longName, and a CORARGS_SEPARATOR (the section headings
 # in the -u listing) legitimately has none. Separators are skipped here — they
@@ -42,28 +46,28 @@ usage
 
 echo "01. Usage with corDB plugin (no extra CLI args)"
 echo "=================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db corDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db corDB 2>&1 | grep -v policyApi
 echo
 echo
 
 
 echo "02. Usage with mongoc plugin (shows DB connection args)"
 echo "======================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db mongoc 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db mongoc 2>&1 | grep -v policyApi
 echo
 echo
 
 
 echo "03. Usage with non-existent plugin (error + usage)"
 echo "==================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db dummy2 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u -db dummy2 2>&1 | grep -v policyApi
 echo
 echo
 
 
 echo "04. Extended usage (-U) - one aligned row per option, no separator rows"
 echo "======================================================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U -db corDB 2>&1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U -db corDB 2>&1 | grep -v policyApi
 echo
 echo
 
@@ -116,8 +120,6 @@ Usage: coraine  [--usage/-u (usage)]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
-                [--policyApiPort/-policyApiPort <TCP port for the ODRL-PAP's /policy API - the policies fdsc.so reads (--fdscPap), held by the broker; no authentication, as the PAP's (0: off)>]
-                [--policyApiHost/-policyApiHost <the address the policy API listens on - the default keeps it to this machine>]
                 [--healthPort/-healthPort <TCP port for the health probes - GET /live, GET /ready and a JSON report, served outside the HTTP server (0: off)>]
                 [--healthStallTimeout/-healthStallTimeout <seconds a request may be in flight, with no request finishing, before GET /live on the health port answers 503>]
                 [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
@@ -180,8 +182,6 @@ Usage: coraine  [--usage/-u (usage)]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
-                [--policyApiPort/-policyApiPort <TCP port for the ODRL-PAP's /policy API - the policies fdsc.so reads (--fdscPap), held by the broker; no authentication, as the PAP's (0: off)>]
-                [--policyApiHost/-policyApiHost <the address the policy API listens on - the default keeps it to this machine>]
                 [--healthPort/-healthPort <TCP port for the health probes - GET /live, GET /ready and a JSON report, served outside the HTTP server (0: off)>]
                 [--healthStallTimeout/-healthStallTimeout <seconds a request may be in flight, with no request finishing, before GET /live on the health port answers 503>]
                 [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
@@ -247,8 +247,6 @@ Usage: coraine  [--usage/-u (usage)]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
-                [--policyApiPort/-policyApiPort <TCP port for the ODRL-PAP's /policy API - the policies fdsc.so reads (--fdscPap), held by the broker; no authentication, as the PAP's (0: off)>]
-                [--policyApiHost/-policyApiHost <the address the policy API listens on - the default keeps it to this machine>]
                 [--healthPort/-healthPort <TCP port for the health probes - GET /live, GET /ready and a JSON report, served outside the HTTP server (0: off)>]
                 [--healthStallTimeout/-healthStallTimeout <seconds a request may be in flight, with no request finishing, before GET /live on the health port answers 503>]
                 [--high-availability/-ha <keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)>]
@@ -303,8 +301,6 @@ Usage: coraine  [--usage/-u (usage)]
   --insecureNotif         (-insecureNotif)      CORAINE_INSECURENOTIF         Optional   Bool     Default Value  
   --noInline              (-noInline)           CORAINE_NOINLINE              Optional   Bool     Default Value  
   --memoryLimit           (-memoryLimit)        CORAINE_MEMORYLIMIT           Optional   Int      Default Value  
-  --policyApiPort         (-policyApiPort)      CORAINE_POLICYAPIPORT         Optional   UShort   Default Value  
-  --policyApiHost         (-policyApiHost)      CORAINE_POLICYAPIHOST         Optional   String   Default Value  
   --healthPort            (-healthPort)         CORAINE_HEALTHPORT            Optional   UShort   Default Value  
   --healthStallTimeout    (-healthStallTimeout) CORAINE_HEALTHSTALLTIMEOUT    Optional   Int      Default Value  
   --high-availability     (-ha)                 CORAINE_HIGH_AVAILABILITY     Optional   String   Default Value  

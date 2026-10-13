@@ -17,9 +17,14 @@
 #                      kept in <dir>/install/etc/tune.env (doc/extreme-performance.md)
 #   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
 #                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
+#   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
+#                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
+#                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
 #   --list-features    print every feature switch, its default and what it is, and exit
 #   --json             with --list-features: the same as a JSON array of {name, default, description,
-#                      requires} - "requires" names the switches it is turned off without
+#                      group, requires} - "group" the CMakeLists.txt group it is in ("# Group: <name> -
+#                      ..."); "requires" names the switches it is turned off without, and a build
+#                      setting as NAME=value (HTTP_SERVER=mhd: libmicrohttpd, not the built-in server)
 #   --source <file>    the source tarball (default /usr/share/coraine/src/coraine-src.tar.xz - coraine-dev)
 #   -h, --help
 #
@@ -42,6 +47,7 @@ SOURCE=/usr/share/coraine/src/coraine-src.tar.xz
 MODE=release
 WORKLOAD=
 FEATURES=
+HTTP_SERVER=mhd
 DIR=
 LIST=0
 JSON=0
@@ -57,6 +63,8 @@ while [ $# -gt 0 ]; do
     --tune)           MODE=tune; WORKLOAD=${2:?--tune needs a workload file}; shift ;;
     --features)       FEATURES=${2:?--features needs a list}; shift ;;
     --features=*)     FEATURES=${1#--features=} ;;
+    --http-server)    HTTP_SERVER=${2:?--http-server needs mhd or builtin}; shift ;;
+    --http-server=*)  HTTP_SERVER=${1#--http-server=} ;;
     --list-features)  LIST=1 ;;
     --json)           JSON=1 ;;
     --source)         SOURCE=${2:?--source needs a file}; shift ;;
@@ -88,23 +96,35 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   # requires: CMakeLists.txt turns a switch off when another is off -
   #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)
   #     set(COR_FEATURE_C OFF)
+  #   if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
+  #     set(COR_FEATURE_C OFF)                                  - requires HTTP_SERVER=mhd
   awk '
     /^if *\( *NOT COR_FEATURE_/ { n = split($0, w, /COR_FEATURE_/); req = "";
                                    for (i = 2; i <= n; i++) { split(w[i], x, /[^A-Z_]/); req = req (req ? " " : "") x[1] }
                                    next }
+    /^if *\(.*NOT COR_HTTP_SERVER STREQUAL "[a-z]*"/ { match($0, /STREQUAL "[a-z]*"/); req = "HTTP_SERVER=" substr($0, RSTART + 10, RLENGTH - 11); next }
     req != "" && /set\(COR_FEATURE_[A-Z_]* OFF\)/ { match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), req; req = ""; next }
     /^endif/ { req = "" }
   ' "$DIR/coraine/CMakeLists.txt" > "$DIR/.requires"
   esc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<< "$1"; }
   first=1
   echo "["
-  sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
-    | while read -r name def desc; do
+  # name, default, group (the "# Group: <name> - " above it, "" before the first) and description - tab-separated
+  awk '
+    /^# Group: / { g = substr($0, 10); sub(/ - .*/, "", g); next }
+    match($0, /^option\(COR_FEATURE_[A-Z_]+ +"/) {
+      name = substr($0, 20, RLENGTH - 20); sub(/ +$/, "", name)
+      rest = substr($0, RLENGTH + 1)
+      def  = (rest ~ /" *ON\)$/) ? "ON" : "OFF"; desc = rest; sub(/" *(ON|OFF)\)$/, "", desc)
+      printf "%s\t%s\t%s\t%s\n", name, def, g, desc
+    }
+  ' "$DIR/coraine/CMakeLists.txt" \
+    | while IFS=$'\t' read -r name def group desc; do
         req=$(awk -v n="$name" '$1 == n { for (i = 2; i <= NF; i++) printf "%s\"%s\"", (i > 2 ? ", " : ""), $i }' "$DIR/.requires")
         [ "$first" = 1 ] || echo ","
         first=0
-        printf '  {"name": "%s", "default": %s, "description": "%s", "requires": [%s]}' \
-          "$name" "$([ "$def" = ON ] && echo true || echo false)" "$(esc "$desc")" "$req"
+        printf '  {"name": "%s", "default": %s, "description": "%s", "group": "%s", "requires": [%s]}' \
+          "$name" "$([ "$def" = ON ] && echo true || echo false)" "$(esc "$desc")" "$(esc "$group")" "$req"
       done
   printf '\n]\n'
   rm -f "$DIR/.requires"
@@ -154,6 +174,11 @@ if [ "$MONGOC" = ON ] && ! pkg-config --exists mongoc2; then
   fi
 fi
 
+case "$HTTP_SERVER" in mhd|builtin) ;; *) die "--http-server: '$HTTP_SERVER' - mhd or builtin" ;; esac
+if [ "$HTTP_SERVER" = builtin ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
+  die "--http-server builtin: not with --$MODE yet (its training tools are built and tried with libmicrohttpd only)"
+fi
+
 if [ "$MODE" = pgo ] || [ "$MODE" = tune ]; then
   for t in curl wrk python3; do command -v $t > /dev/null || die "--$MODE needs $t"; done
 fi
@@ -172,14 +197,14 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output
 #
 phase() { echo "coraine-build: phase $1"; }
 
-echo "coraine-build: coraine $version ($MODE${FEATURES:+, $FEATURES}) in $DIR"
+echo "coraine-build: coraine $version ($MODE, HTTP server $HTTP_SERVER${FEATURES:+, $FEATURES}) in $DIR"
 make -C "$C" clean > /dev/null
 phase build
 
