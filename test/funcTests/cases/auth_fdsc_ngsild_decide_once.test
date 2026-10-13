@@ -1,0 +1,141 @@
+#
+# FILE            auth_fdsc_ngsild_decide_once.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# --fdscNgsild: what a decision skips, and that the answers stay the same. In authorize, once one policy is
+# Pending the other policies with a type rule are left to entity(); in entity(), a policy that did not hold
+# in authorize is not evaluated again (the same action); with no policy reading ngsi-ld:attribute, a write
+# of several attributes is decided once. The policies that allow come after the ones that are skipped.
+#
+# REQUIRE_FEATURE: AUTH
+#
+--NAME--
+fdsc --fdscNgsild: a decision skips what it already knows - the answers stay the same
+
+--TAGS--
+auth
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+policy() { echo '{"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:'"$1"'",
+                  "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "'"$2"'"},
+                                      "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": ['"$3"']}}}'; }
+typeIs()  { echo '{"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:'"$1"'"}, "odrl:rightOperand": '"$2"'}'; }
+cat > $FT_AUTH_DIR/decideOnce.json <<EOF
+[
+  $(policy other1    odrl:use      "$(typeIs eq '"Other1"')"),
+  $(policy other2    odrl:use      "$(typeIs eq '"Other2"')"),
+  $(policy subsOnly  odrl:use      '{"@type": "odrl:Constraint", "odrl:leftOperand": "http:path", "odrl:operator": {"@id": "odrl:regex"}, "odrl:rightOperand": "^/ngsi-ld/v1/subscriptions"}'),
+  $(policy create    ngsild:create "$(typeIs isAnyOf '["Vehicle", "Car"]')"),
+  $(policy modifyVeh odrl:modify   "$(typeIs eq '"Vehicle"')")
+]
+EOF
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/decideOnce.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. Create a Vehicle and a Car - 201, 201 (policy 4 - after two typed policies Pending in authorize)
+# 02. PATCH three attributes of the Vehicle - 204 (policy 5 allows it, decided once for the three)
+# 03. PATCH three attributes of the Car - 403 (no policy modifies Cars)
+# 04. An upsert: the Vehicle (an update - policy 5) and a new Car (a create - policy 4) - 201; the Car updated - 207 (refused)
+# 05. GET the Vehicle - 403 (no policy reads)
+# 06. The Vehicle's attributes are the PATCH's and the upsert's
+#
+
+USER=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+AUTH="Authorization: Bearer $USER"
+U=http://localhost:$COR_PORT/ngsi-ld/v1
+status() { curl -s -o /dev/null -w '%{http_code}\n' -H "$AUTH" "$@"; }
+three='{"speed": {"type": "Property", "value": 1}, "brand": {"type": "Property", "value": "Volvo"}, "owner": {"type": "Property", "value": "Ann"}}'
+
+echo "01. Create a Vehicle and a Car - 201, 201"
+echo "========================================="
+status -X POST $U/entities -H 'Content-Type: application/json' -d '{"id": "urn:ngsi-ld:Vehicle:v1", "type": "Vehicle", "speed": {"type": "Property", "value": 0}}'
+status -X POST $U/entities -H 'Content-Type: application/json' -d '{"id": "urn:ngsi-ld:Car:c1", "type": "Car", "speed": {"type": "Property", "value": 0}}'
+echo
+echo
+
+
+echo "02. PATCH three attributes of the Vehicle - 204"
+echo "==============================================="
+status -X PATCH $U/entities/urn:ngsi-ld:Vehicle:v1/attrs -H 'Content-Type: application/json' -d "$three"
+echo
+echo
+
+
+echo "03. PATCH three attributes of the Car - 403"
+echo "==========================================="
+status -X PATCH $U/entities/urn:ngsi-ld:Car:c1/attrs -H 'Content-Type: application/json' -d "$three"
+echo
+echo
+
+
+echo "04. Upsert the Vehicle and a new Car - 201; the Car again - 207"
+echo "==============================================================="
+status -X POST "$U/entityOperations/upsert?options=update" -H 'Content-Type: application/json' -d '[{"id": "urn:ngsi-ld:Vehicle:v1", "type": "Vehicle", "speed": {"type": "Property", "value": 2}}, {"id": "urn:ngsi-ld:Car:c2", "type": "Car", "speed": {"type": "Property", "value": 0}}]'
+curl -s -o /dev/null -w '%{http_code}\n' -H "$AUTH" -X POST "$U/entityOperations/upsert?options=update" -H 'Content-Type: application/json' -d '[{"id": "urn:ngsi-ld:Car:c2", "type": "Car", "speed": {"type": "Property", "value": 3}}]'
+echo
+echo
+
+
+echo "05. GET the Vehicle - 403"
+echo "========================="
+status $U/entities/urn:ngsi-ld:Vehicle:v1
+echo
+echo
+
+
+echo "06. The Vehicle's attributes are the PATCH's and the upsert's"
+echo "============================================================="
+coraineStart
+curl -s $U/entities/urn:ngsi-ld:Vehicle:v1?options=keyValues | python3 -c 'import json, sys; e = json.load(sys.stdin); print(e["speed"], e["brand"], e["owner"])'
+curl -s $U/entities/urn:ngsi-ld:Car:c2?options=keyValues | python3 -c 'import json, sys; e = json.load(sys.stdin); print(e["speed"])'
+echo
+echo
+
+
+--EXPECT--
+01. Create a Vehicle and a Car - 201, 201
+=========================================
+201
+201
+
+
+02. PATCH three attributes of the Vehicle - 204
+===============================================
+204
+
+
+03. PATCH three attributes of the Car - 403
+===========================================
+403
+
+
+04. Upsert the Vehicle and a new Car - 201; the Car again - 207
+===============================================================
+201
+207
+
+
+05. GET the Vehicle - 403
+=========================
+403
+
+
+06. The Vehicle's attributes are the PATCH's and the upsert's
+=============================================================
+2 Volvo Ann
+0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

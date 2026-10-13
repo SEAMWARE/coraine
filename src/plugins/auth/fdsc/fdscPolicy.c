@@ -149,6 +149,7 @@ typedef struct PolicySet
   regex_t**    regexV;                               // to regfree
   int          regexes;
   int          regexSize;
+  bool         attrRules;                            // a policy reads ngsi-ld:attribute: an entity's attributes are decided one by one
 } PolicySet;
 
 static pthread_rwlock_t  setLock       = PTHREAD_RWLOCK_INITIALIZER;
@@ -657,6 +658,9 @@ static bool constraintParse(PolicySet* psP, CorNode* cP, Rule* rP, char* errorBu
       snprintf(errorBuf, errorBufSize, "'%.64s' is coraine's own word - only with --fdscNgsild", name);
       return false;
     }
+
+    if (main.left == LeftAttribute)
+      psP->attrRules = true;
   }
   else if ((leftP = corTreeLookup(cP, "http:bodyValue")) != NULL)
   {
@@ -2296,7 +2300,7 @@ static bool typeRuleFails(Ctx* cP, Rule* tP, int byType, const char* reqType)
 // that allows decides (OPA's early exit - the rest are not evaluated), and an error in one evaluated before
 // it (eval_conflict_error) is the decision's error
 //
-static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, const char* attr, bool* pendingOnlyP, AuthAnswer* answerP)
+static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, const char* attr, bool* pendingOnlyP, bool* attrFreeP, AuthAnswer* answerP)
 {
   FdscIdentity* idP = (hP != NULL) ? hP->idP : NULL;
 
@@ -2340,6 +2344,12 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   uint64_t falseMask = 0;                            // the policies that did not hold (the first 64)
 
   pthread_rwlock_rdlock(&setLock);
+
+  //
+  // No policy reads ngsi-ld:attribute: the attribute decided changes nothing - this decision is every one's
+  //
+  if (attrFreeP != NULL)
+    *attrFreeP = (setP != NULL) && (setP->attrRules == false);
 
   //
   // For an entity: the policies that did not hold in authorize - for this request, this action, this policy
@@ -2458,7 +2468,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
 //
 AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscHandle* hP, AuthAnswer* answerP)
 {
-  return decide(reqP, hP, NULL, NULL, NULL, answerP);
+  return decide(reqP, hP, NULL, NULL, NULL, NULL, answerP);
 }
 
 
@@ -2479,7 +2489,8 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
   {
     for (int i = 0; i < entityP->attrs; i++)
     {
-      AuthVerdict v = decide(reqP, hP, entityP, entityP->attrV[i], NULL, answerP);
+      bool        attrFree = false;
+      AuthVerdict v        = decide(reqP, hP, entityP, entityP->attrV[i], NULL, &attrFree, answerP);
 
       if (v != AuthAllow)
       {
@@ -2488,6 +2499,9 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
         answerP->detail = detail;
         return v;
       }
+
+      if (attrFree == true)                          // the same for the others
+        break;
     }
 
     return AuthAllow;
@@ -2499,7 +2513,7 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
   // entity whole (a delete, a replace) is not allowed
   //
   bool        pendingOnly = false;
-  AuthVerdict v           = decide(reqP, hP, entityP, NULL, &pendingOnly, answerP);
+  AuthVerdict v           = decide(reqP, hP, entityP, NULL, &pendingOnly, NULL, answerP);
 
   if ((v != AuthAllow) || (pendingOnly == false))
     return v;
