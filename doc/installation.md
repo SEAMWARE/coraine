@@ -227,6 +227,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--healthPort` | — (off) | TCP port for the health probes - see [Health port](#health-port) |
 | `--healthStallTimeout` | 30 | seconds a request may be in flight, with no request finishing, before `GET /live` answers 503 |
 | `--maxRequestSize` / `-mrs` | 2 | max request body, MiB (0 = no cap, § 6.3.2) |
+| `--httpConnectionMemory` / `-hcm` | 12 | kB of memory per HTTP connection, where a request's line and headers must fit - see [Request size](#request-size) (libmicrohttpd only) |
 | `--maxResponseSize` | 1/16 of the memory budget; none without one | byte budget of an entity query, MiB (0 = no budget) - see [Response size](#response-size) |
 | `--entityMapMemory` | 64 | memory all EntityMaps may hold together, MiB (0 = no cap, and no automatic EntityMaps) - see [EntityMaps](#entitymaps) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
@@ -394,6 +395,38 @@ of its log.
 Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compared with the budget),
 `ngsild_memory_resident_bytes` (the whole resident set, file-backed pages included),
 `ngsild_requests_refused_memory_total`.
+
+## Request size
+
+A request's **body** is limited by `--maxRequestSize` (2 MiB; 413 above it). Its **line and headers** - the
+method, the URL with its query, every header - must fit in the HTTP server's memory for the connection,
+**`--httpConnectionMemory <kB>`** (default 12, at least 4, at most 1024; the libmicrohttpd server only - the
+built-in one ignores it):
+
+| `--httpConnectionMemory` | headers up to | URL up to |
+|---|---|---|
+| 8 | 7 kB | 6 kB |
+| **12** (the default) | 11 kB | 9 kB |
+| 16 | 14 kB | 13 kB |
+| 32 (libmicrohttpd's own default) | more than 20 kB | more than 18 kB |
+
+A request that does not fit is refused by the HTTP server itself, before it reaches the broker: **431**
+(Request Header Fields Too Large) for its headers, **414** (URI Too Long) for its URL - with the server's own
+short HTML body, not an NGSI-LD error. The broker's log says it, at most once a second:
+
+```
+a request was refused with 414 by the HTTP server: its URL exceeds the connection memory (12 kB,
+--httpConnectionMemory) - a long query fits in the body of POST /ngsi-ld/v1/entityOperations/query; or raise
+--httpConnectionMemory
+```
+
+- **A long query** (`id=` with hundreds of ids, a long `q`): `POST /ngsi-ld/v1/entityOperations/query` takes
+  the same query in its body, with no URL limit - the operation exists for gateways that take a URL of a
+  kB or two.
+- **Large access tokens**: a VCVerifier token is 1.5-4 kB; 12 kB leaves room for one with every other header.
+- The memory is cleared at the end of every request, so it is a cost on every request: 12 kB instead of
+  libmicrohttpd's 32 kB is worth 2-3 % of a core on small requests
+  ([The HTTP server's connection memory](performance.md#the-http-servers-connection-memory)).
 
 ## Response size
 
