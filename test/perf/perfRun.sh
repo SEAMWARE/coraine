@@ -18,6 +18,11 @@ set -euo pipefail
 
 DB=${1:?usage: perfRun.sh <mongoc|corDB|ramDB> [port]}
 PORT=${2:-1029}
+#
+# PERF_LOAD_PORT - where every request goes (wrk, the fixture, the probes): a gateway in front of the broker
+# (gatewayCompare.sh: APISIX on its own port, the broker behind it on $PORT). Unset: the broker's own port
+#
+LOAD_PORT=${PERF_LOAD_PORT:-$PORT}
 HOST=${COR_MONGO_HOST:-localhost}
 #
 # PERF_MONGO_PORT - a MongoDB on a port of its own (a container pinned with the broker, say): the
@@ -61,6 +66,12 @@ authH=()
 # from sysfs rather than assumed.
 #
 BROKER_CORES=${PERF_BROKER_CORES:-}
+#
+# PERF_RESERVED_CORES - with PERF_BROKER_CORES: this many physical cores after the broker's are given to
+# neither the broker nor the load - a gateway's (gatewayCompare.sh). Every configuration of a comparison
+# reserves the same, so that the load generator is the same in each
+#
+RESERVED_CORES=${PERF_RESERVED_CORES:-0}
 brokerPin=() ; loadPin=()
 if [ -n "$BROKER_CORES" ]; then
   mapfile -t physCpus < <(
@@ -71,7 +82,7 @@ if [ -n "$BROKER_CORES" ]; then
     done | sort -n
   )
   physical=${#physCpus[@]}
-  if [ "$BROKER_CORES" -ge "$physical" ]; then
+  if [ $((BROKER_CORES + RESERVED_CORES)) -ge "$physical" ]; then
     echo "perfRun.sh: PERF_BROKER_CORES=$BROKER_CORES leaves nothing to drive the load ($physical physical cores)" >&2
     exit 1
   fi
@@ -81,8 +92,9 @@ if [ -n "$BROKER_CORES" ]; then
   # so the broker is if anything understated - never flattered.
   #
   brokerPin=( taskset -c "$(IFS=,; echo "${physCpus[*]:0:BROKER_CORES}")" )
-  loadPin=(   taskset -c "$(IFS=,; echo "${physCpus[*]:BROKER_CORES}")" )
+  loadPin=(   taskset -c "$(IFS=,; echo "${physCpus[*]:BROKER_CORES+RESERVED_CORES}")" )
   echo "perfRun.sh: broker on ${brokerPin[2]}, load generator on ${loadPin[2]}" >&2
+  [ "$RESERVED_CORES" = 0 ] || echo "perfRun.sh: reserved: $(IFS=,; echo "${physCpus[*]:BROKER_CORES:RESERVED_CORES}")" >&2
 fi
 
 case "$DB" in
@@ -220,7 +232,7 @@ startBroker() {
     #
     kill -0 "$brokerPid" 2>/dev/null \
       || { echo "perfRun.sh: the broker exited during startup" >&2; cat /tmp/perf-broker.log >&2; exit 1; }
-    curl "${authH[@]}" -sf "http://localhost:$PORT/ngsi-ld/v1/types" > /dev/null && return 0
+    curl "${authH[@]}" -sf "http://localhost:$LOAD_PORT/ngsi-ld/v1/types" > /dev/null && return 0
     sleep 0.5
   done
   echo "perfRun.sh: broker never came up" >&2; cat /tmp/perf-broker.log >&2; exit 1
@@ -267,7 +279,7 @@ fixture() {
     #
     local code
     code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST \
-                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                "http://localhost:$LOAD_PORT/ngsi-ld/v1/entityOperations/create" \
                 -H 'Content-Type: application/json' --data-binary "$body")
     case "$code" in
       201|207) ;;
@@ -280,7 +292,7 @@ fixture() {
   # number below is real, reproducible, and about a store nobody described.
   #
   local have
-  have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=0&count=true" \
+  have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Vehicle&limit=0&count=true" \
          | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
   if [ "${have:-0}" != "$ENTITIES" ]; then
     echo "perfRun.sh: the store holds ${have:-0} entities, not $ENTITIES" >&2
@@ -440,9 +452,9 @@ measure() {
 measureScript() {
   local script="$1" conns="$2" rpsList=() t
   t=$(wrkThreads "$conns")
-  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "warmup $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null
+  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "warmup $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$LOAD_PORT" > /dev/null
   for _ in $(seq 1 "$REPEATS"); do
-    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT")" )
+    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$LOAD_PORT")" )
   done
   median "-t$t -c$conns -s $(basename "$script")" "${rpsList[@]}"
 }
@@ -460,9 +472,9 @@ measureScript() {
 #
 scen() { SCEN=$("$@"); }
 
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50 ; read -r queryC50    queryC50P99 queryC50P50 queryC50P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200 ; read -r queryC200   queryC200P99 queryC200P50 queryC200P95 <<< "$SCEN"
-scen measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50 ; read -r retrieve    retrieveP99 retrieveP50 retrieveP95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 50 ; read -r queryC50    queryC50P99 queryC50P50 queryC50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Vehicle&limit=20" 200 ; read -r queryC200   queryC200P99 queryC200P50 queryC200P95 <<< "$SCEN"
+scen measure  "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7" 50 ; read -r retrieve    retrieveP99 retrieveP50 retrieveP95 <<< "$SCEN"
 
 #
 # THE PAGE SIZE, held at one concurrency so the three are comparable.
@@ -479,8 +491,8 @@ scen measure  "http://localhost:$PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:7"
 #   limit=20    a realistic page
 #   limit=100   where per-entity serialisation dominates and the servers diverge
 #
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=1" 50 ; read -r queryL1C50   queryL1C50P99 queryL1C50P50 queryL1C50P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100" 50 ; read -r queryL100C50 queryL100C50P99 queryL100C50P50 queryL100C50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Vehicle&limit=1" 50 ; read -r queryL1C50   queryL1C50P99 queryL1C50P50 queryL1C50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Vehicle&limit=100" 50 ; read -r queryL100C50 queryL100C50P99 queryL100C50P50 queryL100C50P95 <<< "$SCEN"
 
 #
 # WRITES. Until 2026-09-15 this script measured three request shapes and every
@@ -539,10 +551,10 @@ measureGrowing() {
   local script="$1" conns="$2" rpsList=() t
   t=$(wrkThreads "$conns")
   resetStore
-  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "warmup $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$PORT" > /dev/null
+  PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "warmup $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d2s -s "$script" "http://localhost:$LOAD_PORT" > /dev/null
   for _ in $(seq 1 "$REPEATS"); do
     resetStore
-    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$PORT")" )
+    rpsList+=( "$(PERF_ENTITIES="$ENTITIES" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script")" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d"$DURATION" -s "$script" "http://localhost:$LOAD_PORT")" )
   done
   #
   # And once more afterwards, so whatever runs next sees the store this script
@@ -583,7 +595,7 @@ poolFill() {
   local code line from=1
   while IFS= read -r line; do
     code=$(printf '%s' "$line" | curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST \
-                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                "http://localhost:$LOAD_PORT/ngsi-ld/v1/entityOperations/create" \
                 -H 'Content-Type: application/json' --data-binary @-)
     [ "$code" = 201 ] || { echo "perfRun.sh: the delete pool got HTTP $code creating a batch from del-$from" >&2; exit 1; }
     from=$(( from + FIXTURE_CHUNK ))
@@ -606,7 +618,7 @@ measureConsuming() {
   for _ in $(seq 1 "$REPEATS"); do
     resetStore
     poolFill
-    rpsList+=( "$(PERF_POOL="$POOL" PERF_THREADS="$t" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script") (pool $POOL)" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d60s -s "$script" "http://localhost:$PORT")" )
+    rpsList+=( "$(PERF_POOL="$POOL" PERF_THREADS="$t" PERF_BATCH="${PERF_BATCH:-20}" wrkRun "-t$t -c$conns -s $(basename "$script") (pool $POOL)" "${loadPin[@]}" wrk "${authH[@]}" --latency -t"$t" -c"$conns" -d60s -s "$script" "http://localhost:$LOAD_PORT")" )
   done
   resetStore
   MEASURED=$(median "-t$t -c$conns -s $(basename "$script") (pool $POOL, refilled per repeat)" "${rpsList[@]}")
@@ -633,7 +645,7 @@ receiverPid=$!
 for _ in $(seq 1 50); do curl "${authH[@]}" -s -o /dev/null "http://localhost:$RECEIVER_PORT/count" && break; sleep 0.1; done
 
 for (( i=1; i<=ENTITIES; i++ )); do
-  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LOAD_PORT/ngsi-ld/v1/subscriptions" \
               -H 'Content-Type: application/json' \
               --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-'"$i"'","type":"Subscription","entities":[{"id":"urn:ngsi-ld:Vehicle:'"$i"'","type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
   [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: subscription $i got HTTP $code" >&2; exit 1; }
@@ -653,13 +665,13 @@ echo "perfRun.sh: patch_subs_c50: $notified notifications received" >&2
 # not: patchAttr.lua writes 42). Each PATCH still notifies one subscriber, past ~200 that do not match.
 #
 for (( i=1; i<=100; i++ )); do
-  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LOAD_PORT/ngsi-ld/v1/subscriptions" \
               -H 'Content-Type: application/json' \
               --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-type-'"$i"'","type":"Subscription","entities":[{"type":"Sensor'"$i"'"}],"q":"temp>25","notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
   [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: type subscription $i got HTTP $code" >&2; exit 1; }
 done
 for (( i=1; i<=10; i++ )); do
-  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LOAD_PORT/ngsi-ld/v1/subscriptions" \
               -H 'Content-Type: application/json' \
               --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-q-'"$i"'","type":"Subscription","entities":[{"type":"Vehicle"}],"q":"speed>200","notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
   [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: q subscription $i got HTTP $code" >&2; exit 1; }
@@ -679,7 +691,7 @@ echo "perfRun.sh: patch_manysubs_c50: $notified notifications received" >&2
 # did not measure what it says), and none at all stops the run.
 #
 for (( i=1; i<=9; i++ )); do
-  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$PORT/ngsi-ld/v1/subscriptions" \
+  code=$(curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LOAD_PORT/ngsi-ld/v1/subscriptions" \
               -H 'Content-Type: application/json' \
               --data-binary '{"id":"urn:ngsi-ld:Subscription:perf-ten-'"$i"'","type":"Subscription","entities":[{"type":"Vehicle"}],"watchedAttributes":["speed"],"notification":{"endpoint":{"uri":"http://localhost:'"$RECEIVER_PORT"'/notify"}}}')
   [ "$code" = 201 ] || { kill "$receiverPid"; echo "perfRun.sh: ten-subscriber subscription $i got HTTP $code" >&2; exit 1; }
@@ -711,7 +723,7 @@ rareFill() {
   local code line from=1
   while IFS= read -r line; do
     code=$(printf '%s' "$line" | curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST \
-                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                "http://localhost:$LOAD_PORT/ngsi-ld/v1/entityOperations/create" \
                 -H 'Content-Type: application/json' --data-binary @-)
     [ "$code" = 201 ] || { echo "perfRun.sh: the rare-type store got HTTP $code creating a batch from entity $from" >&2; exit 1; }
     from=$(( from + FIXTURE_CHUNK ))
@@ -731,13 +743,13 @@ rareFill() {
 
 resetStore
 rareFill
-have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=0&count=true" \
+have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Rare&limit=0&count=true" \
        | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
 [ "${have:-0}" = "$(( RARE_ENTITIES / 100 ))" ] || { echo "perfRun.sh: the rare-type store holds ${have:-0} Rare entities, not $(( RARE_ENTITIES / 100 ))" >&2; exit 1; }
 
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=20" 50 ; read -r rareL20C50 rareL20C50P99 rareL20C50P50 rareL20C50P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=100" 50 ; read -r rareL100C50 rareL100C50P99 rareL100C50P50 rareL100C50P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=Rare&limit=20&offset=500" 50 ; read -r rareO500C50 rareO500C50P99 rareO500C50P50 rareO500C50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Rare&limit=20" 50 ; read -r rareL20C50 rareL20C50P99 rareL20C50P50 rareL20C50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Rare&limit=100" 50 ; read -r rareL100C50 rareL100C50P99 rareL100C50P50 rareL100C50P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=Rare&limit=20&offset=500" 50 ; read -r rareO500C50 rareO500C50P99 rareO500C50P50 rareO500C50P95 <<< "$SCEN"
 
 #
 # RARE TYPES IN A LARGER STORE. With the rare-type store above (100 000 entities, 1 % Rare) mongoc's old
@@ -755,7 +767,7 @@ bigFill() {
   local code line from=1
   while IFS= read -r line; do
     code=$(printf '%s' "$line" | curl "${authH[@]}" -s -o /dev/null -w '%{http_code}' -X POST \
-                "http://localhost:$PORT/ngsi-ld/v1/entityOperations/create" \
+                "http://localhost:$LOAD_PORT/ngsi-ld/v1/entityOperations/create" \
                 -H 'Content-Type: application/json' --data-binary @-)
     [ "$code" = 201 ] || { echo "perfRun.sh: the larger store got HTTP $code creating a batch from entity $from" >&2; exit 1; }
     from=$(( from + FIXTURE_CHUNK ))
@@ -778,15 +790,15 @@ bigFill() {
 resetStore
 bigFill
 for t in R1:100 R01:1000; do
-  have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/entities?type=${t%%:*}&limit=0&count=true" \
+  have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=${t%%:*}&limit=0&count=true" \
          | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
   [ "${have:-0}" = "$(( BIG_ENTITIES / ${t##*:} ))" ] || { echo "perfRun.sh: the larger store holds ${have:-0} ${t%%:*} entities, not $(( BIG_ENTITIES / ${t##*:} ))" >&2; exit 1; }
 done
 
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R1&limit=20" 50 ; read -r bigR1L20 bigR1L20P99 bigR1L20P50 bigR1L20P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R1&limit=20&offset=1000" 50 ; read -r bigR1O1000 bigR1O1000P99 bigR1O1000P50 bigR1O1000P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R01&limit=20" 50 ; read -r bigR01L20 bigR01L20P99 bigR01L20P50 bigR01L20P95 <<< "$SCEN"
-scen measure "http://localhost:$PORT/ngsi-ld/v1/entities?type=R01&limit=20&offset=200" 50 ; read -r bigR01O200 bigR01O200P99 bigR01O200P50 bigR01O200P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R1&limit=20" 50 ; read -r bigR1L20 bigR1L20P99 bigR1L20P50 bigR1L20P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R1&limit=20&offset=1000" 50 ; read -r bigR1O1000 bigR1O1000P99 bigR1O1000P50 bigR1O1000P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R01&limit=20" 50 ; read -r bigR01L20 bigR01L20P99 bigR01L20P50 bigR01L20P95 <<< "$SCEN"
+scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R01&limit=20&offset=200" 50 ; read -r bigR01O200 bigR01O200P99 bigR01O200P50 bigR01O200P95 <<< "$SCEN"
 
 #
 # Every rate carries the tail it was measured with. A throughput number on its

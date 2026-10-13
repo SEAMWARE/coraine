@@ -1,0 +1,10 @@
+# The same route, through ngsild-pep: fdsc.so's decision in the gateway (SEAMWARE apisix-ngsild)
+routes:
+  - uri: /*
+    upstream:
+      nodes:
+        "127.0.0.1:1027": 1
+      type: roundrobin
+    plugins:
+      ngsild-pep: {}
+#END

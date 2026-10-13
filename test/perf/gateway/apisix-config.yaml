@@ -1,0 +1,15 @@
+# APISIX standalone (odrl-authorization 2.4.3 values.yaml: data_plane, config_provider yaml) with the chart's
+# custom opa plugin; ONE nginx worker - the gateway's core, as the broker has one (gatewayCompare.sh)
+apisix:
+  node_listen: 9080
+  extra_lua_path: "/opts/custom_plugins/?.lua"
+  enable_admin: false
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+nginx_config:
+  worker_processes: 1
+plugins:
+  - openid-connect
+  - opa
