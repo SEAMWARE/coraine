@@ -14,6 +14,9 @@
 # policies outlive the broker.
 #
 # REQUIRE_FEATURE: AUTH POLICY_API
+# REQUIRE_HTTPSERVER: mhd
+#
+# (libmicrohttpd only: the built-in HTTP server has one listener, and refuses --policyApiPort)
 #
 --NAME--
 The policy API (--policyApiPort): the broker serves the PAP's /policy API, and fdsc.so reads it
