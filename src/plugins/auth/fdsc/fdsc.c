@@ -335,14 +335,19 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
     return false;
   }
 
+  //
+  // What the policies are read and decided with - before the thread that reads them starts: a policy of
+  // --fdscNgsild's words read before it knows of --fdscNgsild is refused
+  //
+  fdscPolicyOrganizationSet(organization);
+  fdscPolicyNgsildSet(ngsildMode);
+  fdscPolicyStrippedPathSet(strippedPath);
+
   if (pthread_create(&refreshThread, NULL, refreshLoop, NULL) != 0)
   {
     snprintf(errorBuf, errorBufSize, "cannot start the refresh thread");
     return false;
   }
-
-  fdscPolicyOrganizationSet(organization);
-  fdscPolicyNgsildSet(ngsildMode);
 
   //
   // Without --fdscNgsild the connector decides alone - no entity(): the broker looks no entity up, filters
@@ -354,7 +359,6 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
     driverSelf->identitySave    = NULL;              // the connector does not decide notifications either
     driverSelf->identityRestore = NULL;
   }
-  fdscPolicyStrippedPathSet(strippedPath);
   refreshRunning = true;
   COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
   return true;

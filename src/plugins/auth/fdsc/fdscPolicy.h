@@ -83,6 +83,15 @@ extern AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, con
 
 // -----------------------------------------------------------------------------
 //
+// fdscPolicyPartialSet - the broker leaves out of a read the attributes no policy allows (AuthAnswer.partial,
+// ABI 4): ngsi-ld:attribute's reads are answered partial. false: such a read is refused (fail closed)
+//
+extern void        fdscPolicyPartialSet(bool on);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscPolicyLoaded / fdscPolicyCount / fdscPolicyRelease
 //
 extern bool fdscPolicyLoaded(void);                  // a set has been installed - even an empty one
