@@ -1681,18 +1681,25 @@ corLibs' `tools/mhd/mhdBuild.sh`, the broker mapping `libmicrohttpd.so.12.62.2` 
 | `big_r01_l20_c50` | 2 438 | 2 423 (-0.6 %) | 19786 / 19903 |
 | `big_r01_l20_o200_c50` | 52 | 51 (-1.9 %) | 1939536 / 1950114 |
 
-The scenarios that moved by more than the run's spread, measured again alternating the two (three rounds each,
-10 s, 2026-10-13 02:45):
+The scenarios that moved by more than the run's spread, measured again (2026-10-13 02:45-03:20):
 
-| requests/s | 1.0.2 | 1.0.10 |
+| | 1.0.2 | 1.0.10 |
 |---|---|---|
-| `merge_c50` | 96 790 / 96 751 / 96 693 | 95 271 / 95 210 / 94 426 (**-1.8 %**) |
-| `create_c1` | 35 544 / 36 677 / 34 763 (p99 91 / 39 / 61 µs) | 35 821 / 33 594 / 35 718 (p99 45 / 40 / 36 µs) |
+| `merge_c50`, requests/s, three rounds, 1.0.2 first in each | 96 790 / 96 751 / 96 693 | 95 271 / 95 210 / 94 426 |
+| `merge_c50`, requests/s, ABBA order (each version first and second) | 99 139 / 94 699 / 94 081 / 100 727 | 94 760 / 93 980 / 95 525 / 94 456 |
+| `patch_c50`, the same ABBA runs | 109 449 / 106 147 / 107 303 / 110 470 | 108 205 / 106 461 / 107 670 / 107 714 |
+| `create_c1`, requests/s (p99 µs) | 35 544 / 36 677 / 34 763 (91 / 39 / 61) | 35 821 / 33 594 / 35 718 (45 / 40 / 36) |
+| **user instructions per request** (`perf stat`, two broker starts each), merge | 63 815 / 63 708 | 64 054 / 64 161 |
+| **user instructions per request**, PATCH | 44 988 / 44 891 | 45 284 / 45 460 |
+| kernel instructions per request, both | 18 667-18 745 | 18 660-18 795 |
 
-- **PATCH, retrieve, query, notifications: no cost** - within -1.4 ... +5.5 % in perfRun and in the direct
-  comparisons (PATCH / retrieve, 50 connections, three rounds: 1.0.10 -1.4 / -0.5 %).
-- **A merge costs 1.8 %**, repeatably (the spread of each three is under 1 %). `create_c1`, -9.0 % in the run,
-  is the single connection's spread: the two overlap when alternated.
+- **1.0.10 runs ~400 more instructions per request** - the same for a merge (+346) and a PATCH (+432), as the
+  HTTP server's own work is: about 1 % of a PATCH's instructions, 0.5 % of a merge's, ~0.1 µs.
+- **The requests/s differences are the broker start's, not the library's**: one start of the same build and
+  library differs from the next by up to 6 % (`merge_c50` 94 081 ... 100 727 on 1.0.2) - a measurement that runs
+  one version first in every round reads that as a difference (`merge_c50` -1.8 % in the first three rounds).
+  `create_c1` overlaps.
+- **PATCH, retrieve, query, notifications**: within -1.4 ... +5.5 % in perfRun and the direct comparisons.
 - 1.0.10 is what 1.0.4 / 1.0.5 (HTTP request smuggling, CWE-444) and 1.0.7-1.0.9 (security fixes) are in.
 
 ### The HTTP server's connection memory
