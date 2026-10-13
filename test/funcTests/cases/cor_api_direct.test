@@ -10,6 +10,8 @@
 # the response comes back as the tree it built. Same broker, same service routines - HTTP sees what
 # cor:// wrote (step 05).
 #
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
 --NAME--
 cor:// - create, read, update and a 404, over the binary API alone
 

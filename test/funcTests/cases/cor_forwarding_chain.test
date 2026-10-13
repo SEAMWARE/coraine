@@ -14,6 +14,8 @@
 # the same, byte for byte. Over cor:// no broker in the chain renders or parses JSON for the forward:
 # the trees travel as they are.
 #
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
 --NAME--
 cor:// - a three-broker forwarding chain answers exactly as the same chain over http://
 

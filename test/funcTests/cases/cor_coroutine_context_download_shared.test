@@ -11,6 +11,8 @@
 # wait for it - not take it for its own (a cyclic @context: the download's owner was the thread), and
 # not stop the thread the download runs on (a usleep). Both answer 200.
 #
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
 --NAME--
 cor:// coroutines - two requests on one loop share one slow @context download
 

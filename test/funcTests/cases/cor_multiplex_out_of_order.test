@@ -17,6 +17,8 @@
 # (doc/cor-protocol-details.md § 5.3). With mongoc a request that waits cannot be one - the driver blocks - so the
 # connection moves to a thread of its own and is served one request at a time, as before step 5.
 #
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
 --NAME--
 cor:// multiplexing - one connection, a fast request answered before a slow one sent earlier
 

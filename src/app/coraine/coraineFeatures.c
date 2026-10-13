@@ -42,6 +42,7 @@ const CoraineFeature coraineFeatures[] =
   { "METRICS",           COR_FEATURE_METRICS           },
   { "AUTH",              COR_FEATURE_AUTH              },
   { "POLICY_API",        COR_FEATURE_POLICY_API        },
+  { "COR_PROTOCOL",      COR_FEATURE_COR_PROTOCOL      },
   { "TRANSPORTS",        COR_FEATURE_TRANSPORTS        },
   { "SERVICE_EXECUTION", COR_FEATURE_SERVICE_EXECUTION },
   { "SNAPSHOT_WRITE",    COR_FEATURE_SNAPSHOT_WRITE    },

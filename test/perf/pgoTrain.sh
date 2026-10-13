@@ -67,8 +67,13 @@ kill $R; wait $R 2>/dev/null
 # over cor://, its client HTTP and cor://
 #
 J='Content-Type: application/json'
-start() { "$B" --port $1 --corPort $2 --database corDB --troe none -dist --foreground > /dev/null 2>&1 & echo $!; }
-for hops in http cor; do
+#
+# A broker built without cor:// (COR_PROTOCOL=0 on --version) has no --corPort: the chain over HTTP only
+#
+HOPS="http cor"
+"$B" --version | grep -q "COR_PROTOCOL=0" && HOPS=http
+start() { "$B" --port $1 $([ "$HOPS" = http ] || echo --corPort $2) --database corDB --troe none -dist --foreground > /dev/null 2>&1 & echo $!; }
+for hops in $HOPS; do
   echo "pgoTrain: the three-broker chain, forwarding over $hops"
   PA=$(start 9201 9301); PB=$(start 9202 9302); PC=$(start 9203 9303)
   for p in 9201 9202 9203; do for i in $(seq 1 50); do curl -s -o /dev/null http://localhost:$p/version && break; sleep 0.1; done; done

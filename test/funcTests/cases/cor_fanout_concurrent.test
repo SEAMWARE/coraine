@@ -10,6 +10,8 @@
 # CP1 and CP2 forward in turn, over HTTP, each to a context source that answers after 1 s - so the query
 # takes ~1 s with the two in flight together, ~2 s one after the other.
 #
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
 --NAME--
 cor:// fan-out - two cor:// sources queried at the same time, not one after the other
 
