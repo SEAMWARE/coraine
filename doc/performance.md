@@ -1646,6 +1646,162 @@ databases in containers on the host network, 2026-10-05:
   names. And a corDB record decodes on its own, so each one carries its attributes' expanded IRIs
   (`https://uri.etsi.org/ngsi-ld/default-context/speed`) again: most of its 744 bytes.
 
+## The HTTP server
+
+### libmicrohttpd 1.0.10 against 1.0.2
+
+The same release build of coraine (`ef19b7e1`), libmicrohttpd swapped under it (`LD_LIBRARY_PATH`; both built by
+corLibs' `tools/mhd/mhdBuild.sh`, the broker mapping `libmicrohttpd.so.12.62.2` / `.12.62.8`), corDB in RAM,
+`perfRun.sh` with the broker on one physical core (`PERF_BROKER_CORES=1`), AMD Ryzen 9 8940HX; 2026-10-13
+01:50-02:20, 1.0.2 first.
+
+| requests/s | 1.0.2 | 1.0.10 | p99 µs 1.0.2 / 1.0.10 |
+|---|---:|---:|---:|
+| `query_c50` | 11 254 | 11 447 (+1.7 %) | 4614 / 4258 |
+| `query_c200` | 11 234 | 11 470 (+2.1 %) | 19238 / 17675 |
+| `query_l1_c50` | 74 173 | 76 885 (+3.7 %) | 735 / 704 |
+| `query_l100_c50` | 2 514 | 2 528 (+0.6 %) | 19287 / 19082 |
+| `retrieve_c50` | 83 912 | 88 548 (+5.5 %) | 644 / 603 |
+| `patch_c50` | 108 766 | 110 459 (+1.6 %) | 523 / 482 |
+| `patch_c1` | 49 968 | 49 585 (-0.8 %) | 24 / 24 |
+| `batch20_c50` | 11 204 | 10 961 (-2.2 %) | 4435 / 4546 |
+| `create_c50` | 65 923 | 65 854 (-0.1 %) | 832 / 836 |
+| `create_c1` | 35 308 | 32 132 (-9.0 %) | 34 / 100 |
+| `batch20create_c50` | 8 089 | 7 796 (-3.6 %) | 6210 / 6899 |
+| `merge_c50` | 81 833 | 77 961 (-4.7 %) | 610 / 710 |
+| `delete_c50` | 124 293 | 125 860 (+1.3 %) | 433 / 445 |
+| `batch20delete_c50` | 24 898 | 24 893 (-0.0 %) | 3523 / 3009 |
+| `patch_subs_c50` | 22 020 | 21 942 (-0.4 %) | 2336 / 2384 |
+| `patch_manysubs_c50` | 20 732 | 21 005 (+1.3 %) | 2526 / 2529 |
+| `rare_l20_c50` | 8 103 | 8 000 (-1.3 %) | 6010 / 6052 |
+| `rare_l100_c50` | 1 773 | 1 759 (-0.8 %) | 27210 / 27490 |
+| `rare_l20_o500_c50` | 577 | 566 (-1.9 %) | 129394 / 89294 |
+| `big_r1_l20_c50` | 8 150 | 8 091 (-0.7 %) | 5948 / 5968 |
+| `big_r1_l20_o1000_c50` | 151 | 146 (-3.3 %) | 721278 / 757690 |
+| `big_r01_l20_c50` | 2 438 | 2 423 (-0.6 %) | 19786 / 19903 |
+| `big_r01_l20_o200_c50` | 52 | 51 (-1.9 %) | 1939536 / 1950114 |
+
+The scenarios that moved by more than the run's spread, measured again alternating the two (three rounds each,
+10 s, 2026-10-13 02:45):
+
+| requests/s | 1.0.2 | 1.0.10 |
+|---|---|---|
+| `merge_c50` | 96 790 / 96 751 / 96 693 | 95 271 / 95 210 / 94 426 (**-1.8 %**) |
+| `create_c1` | 35 544 / 36 677 / 34 763 (p99 91 / 39 / 61 µs) | 35 821 / 33 594 / 35 718 (p99 45 / 40 / 36 µs) |
+
+- **PATCH, retrieve, query, notifications: no cost** - within -1.4 ... +5.5 % in perfRun and in the direct
+  comparisons (PATCH / retrieve, 50 connections, three rounds: 1.0.10 -1.4 / -0.5 %).
+- **A merge costs 1.8 %**, repeatably (the spread of each three is under 1 %). `create_c1`, -9.0 % in the run,
+  is the single connection's spread: the two overlap when alternated.
+- 1.0.10 is what 1.0.4 / 1.0.5 (HTTP request smuggling, CWE-444) and 1.0.7-1.0.9 (security fixes) are in.
+
+## What authorization costs
+
+`--auth fdsc` ([Authorization](authorization.md)) against no `--auth`, every scenario of `perfRun.sh`, with
+[`test/perf/authOverhead.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/authOverhead.sh).
+
+| | |
+|---|---|
+| Builds | Release, libmicrohttpd 1.0.2, every library release (corRest `073a70c`, corNgsild `5839d84`, corDB `643933a`). Run 1: coraine `aab81efe` (main `6aa2eb79` + the harness). Run 2: `f4a59fdc` - the token cache and the policy evaluation below |
+| Machine, placement | AMD Ryzen 9 8940HX (16 cores, 32 threads); the broker pinned to one physical core (`PERF_BROKER_CORES=1`), wrk and the notification receiver on the other fifteen; nothing else running |
+| Store | corDB in RAM (`--troe none`), perfRun's fixture |
+| Token | one RS256 access token as VCVerifier issues it (696 bytes; `test/funcTests/tools/ftJwt.py`), on every request |
+| Policies | `pN`: N policies - N-1 `odrl:use` policies for an entity type no request has, and `allowAll` (an `http:path` regex) last: each request is checked against all N before one lets it in |
+| `token` | no `--auth`, every request carrying the token anyway: what receiving it costs |
+| Runs | run 1 2026-10-12 22:08-23:06, run 2 2026-10-12 23:20 - 2026-10-13 00:35; perfRun's 5 s x 3, the median |
+
+| requests/s, run 1 (before) | none | p1 | p10 | p20 |
+|---|---:|---:|---:|---:|
+| `query_c50` | 11 649 | 11 398 (-2.2 %) | 11 236 (-3.5 %) | 11 136 (-4.4 %) |
+| `query_c200` | 11 446 | 11 382 (-0.6 %) | 11 254 (-1.7 %) | 11 055 (-3.4 %) |
+| `query_l1_c50` | 77 037 | 69 760 (-9.4 %) | 68 223 (-11.4 %) | 67 010 (-13.0 %) |
+| `query_l100_c50` | 2 470 | 2 512 (+1.7 %) | 2 492 (+0.9 %) | 2 489 (+0.8 %) |
+| `retrieve_c50` | 86 223 | 78 832 (-8.6 %) | 76 992 (-10.7 %) | 72 108 (-16.4 %) |
+| `patch_c50` | 107 067 | 94 606 (-11.6 %) | 90 260 (-15.7 %) | 85 479 (-20.2 %) |
+| `patch_c1` | 45 428 | 45 763 (+0.7 %) | 45 269 (-0.4 %) | 43 937 (-3.3 %) |
+| `batch20_c50` | 11 205 | 10 913 (-2.6 %) | 10 444 (-6.8 %) | 10 385 (-7.3 %) |
+| `create_c50` | 65 942 | 58 391 (-11.5 %) | 56 179 (-14.8 %) | 54 791 (-16.9 %) |
+| `create_c1` | 37 297 | 33 076 (-11.3 %) | 31 806 (-14.7 %) | 30 110 (-19.3 %) |
+| `batch20create_c50` | 7 945 | 7 732 (-2.7 %) | 7 366 (-7.3 %) | 7 284 (-8.3 %) |
+| `merge_c50` | 79 716 | 72 255 (-9.4 %) | 71 668 (-10.1 %) | 67 705 (-15.1 %) |
+| `delete_c50` | 128 599 | 106 072 (-17.5 %) | 103 085 (-19.8 %) | 92 707 (-27.9 %) |
+| `batch20delete_c50` | 24 914 | 23 809 (-4.4 %) | 23 398 (-6.1 %) | 22 904 (-8.1 %) |
+| `patch_subs_c50` | 22 307 | 21 473 (-3.7 %) | 20 878 (-6.4 %) | 20 275 (-9.1 %) |
+| `patch_manysubs_c50` | 20 932 | 20 176 (-3.6 %) | 19 740 (-5.7 %) | 18 743 (-10.5 %) |
+| `rare_l20_c50` | 8 065 | 8 032 (-0.4 %) | 7 944 (-1.5 %) | 7 749 (-3.9 %) |
+| `rare_l100_c50` | 1 788 | 1 789 (+0.1 %) | 1 782 (-0.3 %) | 1 716 (-4.0 %) |
+| `rare_l20_o500_c50` | 584 | 586 (+0.3 %) | 529 (-9.4 %) | 457 (-21.7 %) |
+| `big_r1_l20_c50` | 8 168 | 8 124 (-0.5 %) | 7 683 (-5.9 %) | 7 819 (-4.3 %) |
+| `big_r1_l20_o1000_c50` | 152 | 150 (-1.3 %) | 144 (-5.3 %) | 121 (-20.4 %) |
+| `big_r01_l20_c50` | 2 482 | 2 460 (-0.9 %) | 2 439 (-1.7 %) | 2 134 (-14.0 %) |
+| `big_r01_l20_o200_c50` | 51 | 51 (+0.0 %) | 47 (-7.8 %) | 47 (-7.8 %) |
+
+| requests/s, run 2 (after) | none | token | p1 | p10 | p20 |
+|---|---:|---:|---:|---:|---:|
+| `query_c50` | 11 532 | 11 213 (-2.8 %) | 11 330 (-1.8 %) | 11 307 (-2.0 %) | 11 275 (-2.2 %) |
+| `query_c200` | 11 534 | 11 113 (-3.7 %) | 11 058 (-4.1 %) | 11 238 (-2.6 %) | 11 302 (-2.0 %) |
+| `query_l1_c50` | 78 407 | 73 242 (-6.6 %) | 72 292 (-7.8 %) | 66 828 (-14.8 %) | 71 030 (-9.4 %) |
+| `query_l100_c50` | 2 533 | 2 455 (-3.1 %) | 2 523 (-0.4 %) | 2 512 (-0.8 %) | 2 502 (-1.2 %) |
+| `retrieve_c50` | 88 961 | 82 975 (-6.7 %) | 78 138 (-12.2 %) | 81 150 (-8.8 %) | 80 948 (-9.0 %) |
+| `patch_c50` | 111 984 | 100 562 (-10.2 %) | 96 862 (-13.5 %) | 95 292 (-14.9 %) | 96 322 (-14.0 %) |
+| `patch_c1` | 51 102 | 49 146 (-3.8 %) | 37 542 (-26.5 %) | 41 994 (-17.8 %) | 41 467 (-18.9 %) |
+| `batch20_c50` | 11 131 | 11 146 (+0.1 %) | 11 027 (-0.9 %) | 10 970 (-1.4 %) | 10 958 (-1.6 %) |
+| `create_c50` | 65 192 | 64 159 (-1.6 %) | 60 928 (-6.5 %) | 57 748 (-11.4 %) | 57 863 (-11.2 %) |
+| `create_c1` | 36 120 | 36 009 (-0.3 %) | 34 348 (-4.9 %) | 32 642 (-9.6 %) | 31 808 (-11.9 %) |
+| `batch20create_c50` | 7 988 | 7 758 (-2.9 %) | 7 794 (-2.4 %) | 7 821 (-2.1 %) | 7 862 (-1.6 %) |
+| `merge_c50` | 82 470 | 76 310 (-7.5 %) | 71 161 (-13.7 %) | 72 851 (-11.7 %) | 74 195 (-10.0 %) |
+| `delete_c50` | 128 151 | 114 340 (-10.8 %) | 112 662 (-12.1 %) | 111 023 (-13.4 %) | 106 673 (-16.8 %) |
+| `batch20delete_c50` | 24 337 | 23 961 (-1.5 %) | 23 892 (-1.8 %) | 24 372 (+0.1 %) | 23 534 (-3.3 %) |
+| `patch_subs_c50` | 22 058 | 21 475 (-2.6 %) | 21 795 (-1.2 %) | 21 214 (-3.8 %) | 20 967 (-4.9 %) |
+| `patch_manysubs_c50` | 20 979 | 19 962 (-4.8 %) | 19 128 (-8.8 %) | 19 776 (-5.7 %) | 19 591 (-6.6 %) |
+| `patch_10subs_c50` | 3 014 | 2 851 (-5.4 %) | 2 819 (-6.5 %) | 2 966 (-1.6 %) | 2 978 (-1.2 %) |
+| `rare_l20_c50` | 8 138 | 7 800 (-4.2 %) | 7 739 (-4.9 %) | 7 962 (-2.2 %) | 7 863 (-3.4 %) |
+| `rare_l100_c50` | 1 783 | 1 753 (-1.7 %) | 1 732 (-2.9 %) | 1 782 (-0.1 %) | 1 765 (-1.0 %) |
+| `rare_l20_o500_c50` | 577 | 568 (-1.6 %) | 550 (-4.7 %) | 580 (+0.5 %) | 561 (-2.8 %) |
+| `big_r1_l20_c50` | 8 233 | 7 941 (-3.5 %) | 8 000 (-2.8 %) | 8 071 (-2.0 %) | 8 011 (-2.7 %) |
+| `big_r1_l20_o1000_c50` | 151 | 141 (-6.6 %) | 153 (+1.3 %) | 154 (+2.0 %) | 153 (+1.3 %) |
+| `big_r01_l20_c50` | 2 518 | 2 424 (-3.7 %) | 2 456 (-2.5 %) | 2 471 (-1.9 %) | 2 441 (-3.1 %) |
+| `big_r01_l20_o200_c50` | 53 | 49 (-7.5 %) | 52 (-1.9 %) | 53 (+0.0 %) | 53 (+0.0 %) |
+
+
+- **Receiving the token costs about as much as deciding with it.** Without any plugin, a request carrying the
+  696-byte header is 0.8-1.0 µs slower: `patch_c50` -10.2 %, `retrieve_c50` -6.7 %, `query_l1_c50` -6.6 %. A
+  connector in front of a broker (APISIX) receives the same header.
+- **What the decision costs is now about 0.4 µs, whatever the number of policies.** Run 2 at 1, 10 and 20
+  policies: `patch_c50` -13.5 / -14.9 / -14.0 %, `retrieve_c50` -12.2 / -8.8 / -9.0 % - within the spread of the
+  run. Run 1 grew with the policies: `patch_c50` -11.6 / -15.7 / -20.2 %, `retrieve_c50` -8.6 / -10.7 / -16.4 %.
+- **Notifications**: `patch_subs_c50` -4.9 % at 20 policies (run 1 -9.1 %), `patch_manysubs_c50` -6.6 %
+  (-10.5 %). Without `--fdscNgsild` a notification is not checked; the PATCH that makes it is.
+  `patch_10subs_c50` - each PATCH notifies ten subscribers, 10.1 notifications per PATCH received - -1.2 %.
+- **Single connection**: `patch_c1` in run 2 reads -17.8 to -26.5 % for the plugin and -3.8 % for `token`. The
+  two builds' `fdsc.so` side by side on one broker setup (corDB, 100 entities, 1 policy; wrk `-t1 -c1`, 10 s
+  each, alternating, 2026-10-13 00:50): no `--auth` 48 679, `token` 46 624, run 1's plugin 44 289 / 45 203 /
+  45 154, run 2's 45 654 / 45 263 / 46 467 requests/s. The whole layer costs ~1.3 µs on one connection, the
+  token's reception ~1 µs of it; the run's `patch_c1` is the single-connection spread
+  ([Latency depends on how deep the CPU sleeps](#latency-depends-on-how-deep-the-cpu-sleeps)).
+
+**Where the time went** - `perf record` of the broker (20 policies, PATCH / retrieve / `limit=1` query, 10 s each
+at 50 connections), the share of all the broker's cycles, a function with what it calls:
+
+| | PATCH before | after | retrieve before | after | query `limit=1` before | after |
+|---|---:|---:|---:|---:|---:|---:|
+| `fdscAuthenticate` (the token cache lookup in it: 4.5 / 0.2 %) | 4.44 % | 0.33 % | 4.85 % | 0.43 % | 4.43 % | 0.42 % |
+| the decision (`decide`) | 1.31 % | 0.80 % | 2.50 % | 1.75 % | 1.59 % | 1.68 % |
+| requests/s while profiled | 79 307 | 86 959 | 85 884 | 96 664 | 79 310 | 83 056 |
+| the same without `--auth` | 96 937 | | 111 687 | | 96 427 | |
+
+- **The token cache's key** was an FNV-1a hash of the whole token, byte by byte: ~0.55 µs per request, three
+  times the 20 policies. Its key is the token's last 32 bytes - its signature - and its length, 8 bytes at a
+  time; `memcmp` of the whole token decides a hit, and only a token whose signature held is ever kept. 64
+  locks instead of one: every request of every thread looks a token up.
+- **A policy for one entity type** - a rule ANDed into it is `ngsi-ld:entityType odrl:eq "<type>"` - is not
+  evaluated for a request of another type; the request's type is read once per decision; a body that is no
+  object is not parsed for a `type` it cannot have.
+- **The first policy that allows decides**, as OPA's early exit does (a parity fix -
+  [How a decision is made](authorization.md#42-how-a-decision-is-made)).
+- **What is left**: 4.3-4.7 % of every request - with or without `--auth` - is libmicrohttpd zeroing its 32 kB
+  connection pool (`MHD_pool_reset`, `MHD_pool_deallocate`).
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above

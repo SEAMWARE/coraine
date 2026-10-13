@@ -14,6 +14,8 @@
 -- is already there - so the measurement is stable and repeatable, which a
 -- create benchmark is not.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local n = tonumber(os.getenv("PERF_ENTITIES")) or 100
 
 math.randomseed(os.time() + tonumber(tostring({}):sub(8)) % 1000)
@@ -22,7 +24,7 @@ request = function()
   local id = math.random(1, n)
   return wrk.format("PATCH",
                     "/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:" .. id .. "/attrs",
-                    {["Content-Type"] = "application/json"},
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth},
                     '{"speed":{"type":"Property","value":42,"observedAt":"2026-08-20T10:00:00Z"}}')
 end
 

@@ -9,6 +9,8 @@
 -- path, which reads the stored entity, merges the fragment into it and writes the result back.
 -- The store keeps its size, so no reset is needed between repeats.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local n = tonumber(os.getenv("PERF_ENTITIES")) or 100
 
 math.randomseed(os.time() + tonumber(tostring({}):sub(8)) % 1000)
@@ -17,7 +19,7 @@ request = function()
   local id = math.random(1, n)
   return wrk.format("PATCH",
                     "/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:" .. id,
-                    {["Content-Type"] = "application/json"},
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth},
                     '{"speed":{"type":"Property","value":43,"observedAt":"2026-08-20T10:00:01Z"},' ..
                     '"brand":{"type":"Property","value":"Mercedes-Benz"}}')
 end

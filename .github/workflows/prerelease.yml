@@ -151,7 +151,7 @@ jobs:
         httpServer: [mhd, builtin]
         db: [mongoc, corDB]
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
     services:
       #
       # A replica set, as in the nightly's valgrind jobs: ha_cache_sync.test needs a change stream
@@ -388,7 +388,7 @@ jobs:
       matrix:
         db: [mongoc, corDB]
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-08-26-dd3bf56
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
     services:
       mongo:
         image: quay.io/seamware/coraine-ci:mirror-mongo-8.0

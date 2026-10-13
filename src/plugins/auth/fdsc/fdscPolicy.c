@@ -132,6 +132,7 @@ typedef struct Policy
   const char*  uid;
   Rule         all;                                  // RuleAnd over every rule of every permission
   int          methods;                              // the methods it can allow at all: its actions' (ANDed, as its rules are) - a request of another is not evaluated
+  const char*  typeKey;                              // a rule ANDed into it is ngsi-ld:entityType eq <typeKey> - a request of another type is not evaluated (decide)
 } Policy;
 
 typedef struct PolicySet
@@ -951,6 +952,38 @@ static bool permissionParse(PolicySet* psP, CorNode* permP, CorNode* policyP, Ru
 
 // -----------------------------------------------------------------------------
 //
+// typeKeyOf - the entity type a policy is for: a rule ANDed into it (at the top, or in an AND under it) is
+// ngsi-ld:entityType eq <a string>. A request of another type fails that rule, so the policy whole - false or
+// undefined, never true. NULL: no such rule.
+//
+static const char* typeKeyOf(Rule* rP)
+{
+  if (rP->kind == RuleConstraint)
+  {
+    if ((rP->left == LeftEntityType) && (rP->op == OpEq) && (rP->right == RightValue) && (rP->rightP != NULL) && (rP->rightP->type == CorString))
+      return rP->rightP->value.s;
+
+    return NULL;
+  }
+
+  if (rP->kind != RuleAnd)
+    return NULL;
+
+  for (int i = 0; i < rP->children; i++)
+  {
+    const char* key = typeKeyOf(&rP->childV[i]);
+
+    if (key != NULL)
+      return key;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // policyParse - one policy into the set; false: the PAP would refuse it (errorBuf)
 //
 static bool policyParse(PolicySet* psP, CorNode* policyP, char* errorBuf, int errorBufSize)
@@ -1003,6 +1036,7 @@ static bool policyParse(PolicySet* psP, CorNode* policyP, char* errorBuf, int er
   policyEntryP->uid = uid;
   memset(&policyEntryP->all, 0, sizeof(Rule));
   ruleSet(&policyEntryP->all, RuleAnd, &rules);
+  policyEntryP->typeKey = typeKeyOf(&policyEntryP->all);
 
   //
   // The methods it can allow: every action rule must hold, so the intersection of theirs; an action that
@@ -1210,6 +1244,9 @@ typedef struct Ctx
   CorNode*            bodyP;
   bool                queryRead;
   CorNode*            queryP;
+  bool                typeRead;
+  CorNode*            typeP;                         // ngsi-ld:entityType, read out of the request (entityType)
+  int                 conflictFree;                  // -1: not known yet; 1: the credential has no two role lists for the organization (conflictFree)
 
   //
   // --fdscNgsild: the entity type is the entity's - its expanded types (entityP, in entity()); before it is
@@ -1408,9 +1445,39 @@ static CorNode* entityType(Ctx* cP)
   if (tP != NULL)
     return tP;
 
+  //
+  // The body's 'type' - an object's only: a body that is no object (a batch's array) is not parsed for it
+  //
+  int         len  = 0;
+  const char* text = cP->reqP->body(&len);
+  int         ix   = 0;
+
+  while ((ix < len) && ((text[ix] == ' ') || (text[ix] == '\t') || (text[ix] == '\r') || (text[ix] == '\n')))
+    ++ix;
+
+  if ((ix >= len) || (text[ix] != '{'))
+    return NULL;
+
   CorNode* bP = body(cP);
 
   return ((bP != NULL) && (bP->type == CorObject)) ? corTreeLookup(bP, "type") : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// entityTypeOnce - entityType, read once per decision: every rule on it reads the same
+//
+static CorNode* entityTypeOnce(Ctx* cP)
+{
+  if (cP->typeRead == false)
+  {
+    cP->typeP    = entityType(cP);
+    cP->typeRead = true;
+  }
+
+  return cP->typeP;
 }
 
 
@@ -1484,6 +1551,31 @@ static CorNode* roleNames(Ctx* cP, const char* listName, const char* namesName)
 
 // -----------------------------------------------------------------------------
 //
+// conflictFree - the credential cannot make the decision OPA's eval_conflict_error (two role lists for the
+// organization, vc:role / dome-op:role), whatever the policies read - so a policy left unevaluated cannot
+// have been the one that would. Asked once per decision; what the policies evaluated found is kept.
+//
+static bool conflictFree(Ctx* cP)
+{
+  if (cP->conflictFree == -1)
+  {
+    bool conflictSoFar = cP->conflict;
+
+    cP->conflict = false;
+    roleNames(cP, "roles", "names");
+    roleNames(cP, "rolesAndDuties", "roleNames");
+
+    cP->conflictFree = (cP->conflict == false) ? 1 : 0;
+    cP->conflict     = conflictSoFar;
+  }
+
+  return cP->conflictFree == 1;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // leftValue - what a constraint's leftOperand reads; NULL: undefined
 //
 static CorNode* leftValue(Ctx* cP, Rule* rP)
@@ -1493,7 +1585,7 @@ static CorNode* leftValue(Ctx* cP, Rule* rP)
   switch (rP->left)
   {
   case LeftEntityType:
-    return entityType(cP);
+    return entityTypeOnce(cP);
 
   case LeftVcRole:
     return roleNames(cP, "roles", "names");
@@ -2053,8 +2145,9 @@ static int methodOf(const char* method)
 
 // -----------------------------------------------------------------------------
 //
-// decide - every policy, as OPA evaluates every 'allow if' of policy.main - an error in any one of them
-// (eval_conflict_error) is the decision's error, whatever the others say
+// decide - the policies in the PAP's order, as OPA evaluates the 'allow if' rules of policy.main: the first
+// that allows decides (OPA's early exit - the rest are not evaluated), and an error in one evaluated before
+// it (eval_conflict_error) is the decision's error
 //
 static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, AuthAnswer* answerP)
 {
@@ -2069,6 +2162,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   corAllocBufferInit(&ka, buf, sizeof(buf), 8192, NULL, "fdsc decision");
 
   memset(&ctx, 0, sizeof(ctx));
+  ctx.conflictFree = -1;
   ctx.reqP    = reqP;
   ctx.idP     = idP;
   ctx.kaP     = &ka;
@@ -2083,6 +2177,15 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   ctx.entityP = entityP;
   ctx.defer   = (ngsild == true) && (entityP == NULL) && (reqP->entities == true) && (hP != NULL);
 
+  //
+  // A policy for another entity type (typeKey) fails, and is not evaluated - unless evaluating it could be
+  // what ends the decision: a credential with two role lists for the organization is OPA's
+  // eval_conflict_error where vc:role is read, so a policy skipped could have been that one. With
+  // --fdscNgsild the type is the entity's (Pending here, entity() decides), so nothing is skipped either.
+  //
+  int         byType  = -1;                         // -1: not known yet (the first policy with a typeKey asks), 0: no, 1: yes
+  const char* reqType = NULL;
+
   bool allowed = false;
   bool pending = false;
 
@@ -2090,14 +2193,38 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
 
   for (int i = 0; (setP != NULL) && (i < setP->policies); i++)
   {
-    if ((ctx.method & setP->policyV[i].methods) == 0)   // none of its actions is this request's: its action rule fails - nothing else to evaluate
+    //
+    // None of its actions is this request's: its action rule fails, nothing else to evaluate - unless the
+    // credential could make it OPA's error before that rule is reached (conflictFree)
+    //
+    if (((ctx.method & setP->policyV[i].methods) == 0) && (conflictFree(&ctx) == true))
+      continue;
+
+    const char* typeKey = setP->policyV[i].typeKey;
+
+    if ((typeKey != NULL) && (byType == -1))
+    {
+      byType = ((ngsild == false) && (conflictFree(&ctx) == true)) ? 1 : 0;
+
+      CorNode* typeP = (byType == 1) ? entityTypeOnce(&ctx) : NULL;
+      reqType = ((typeP != NULL) && (typeP->type == CorString)) ? typeP->value.s : NULL;   // another node: eq a string fails
+    }
+
+    if ((byType == 1) && (typeKey != NULL) && ((reqType == NULL) || (strcmp(typeKey, reqType) != 0)))
       continue;
 
     Tri t = policyAllows(&ctx, &setP->policyV[i]);
 
-    if (t == TriTrue)
+    if (ctx.conflict == true)                        // OPA's error ends the evaluation: the decision's error
+      break;
+
+    if (t == TriTrue)                                // OPA's early exit: the first that allows decides, the rest are not evaluated
+    {
       allowed = true;
-    else if (t == TriPending)
+      break;
+    }
+
+    if (t == TriPending)
       pending = true;
   }
 

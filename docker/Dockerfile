@@ -30,7 +30,7 @@
 # with the `container:` image in .github/workflows/ci.yml - the same image,
 # used for the two things the stack is for.
 #
-ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-09-22-f5a4eb4
+ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-10-13-f4804c2
 
 #
 # The Ubuntu every stage but the DDS one is FROM. Upstream's name here, for a build anywhere; CI's
@@ -75,7 +75,7 @@ FROM ${BASE_IMAGE} AS builder
 # than taking whatever apt has (apt's libmicrohttpd is a release behind, and
 # mongo-c v2 — which the mongoc plugin needs for mongoc2.pc — isn't packaged).
 ARG MONGOC_VERSION=2.2.2
-ARG MHD_VERSION=1.0.2
+ARG MHD_VERSION=1.0.10
 
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root
@@ -112,14 +112,12 @@ COPY --from=ddsstack /opt/dds/include/ /usr/local/include/
 COPY --from=ddsstack /opt/dds/lib/     /usr/local/lib/
 RUN ldconfig
 
-# libmicrohttpd — the HTTP server the REST layer sits on.
-RUN curl -fsSL "https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-${MHD_VERSION}.tar.gz" -o /tmp/mhd.tar.gz \
- && tar -xzf /tmp/mhd.tar.gz -C /tmp \
- && cd "/tmp/libmicrohttpd-${MHD_VERSION}" \
- && ./configure --disable-doc --disable-examples --disable-https \
- && make -j"$(nproc)" && make install \
- && ldconfig \
- && rm -rf "/tmp/libmicrohttpd-${MHD_VERSION}" /tmp/mhd.tar.gz
+# libmicrohttpd — the HTTP server the REST layer sits on. Built by corLibs' tools/mhd/mhdBuild.sh, as everywhere
+# in the stack (the tarball checked against its pinned SHA-256, the stack's patches applied); vendor-libs.sh
+# stages that directory as docker/vendor/mhd.
+COPY docker/vendor/mhd/ /tmp/mhd/
+RUN MHD_VERSION="${MHD_VERSION}" /tmp/mhd/mhdBuild.sh -- --disable-https \
+ && rm -rf /tmp/mhd
 
 # mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2).
 RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
