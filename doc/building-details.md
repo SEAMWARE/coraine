@@ -249,6 +249,9 @@ cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
 cmake -DCOR_HTTP_SERVER=builtin    # corHttp, no external HTTP dependency
 ```
 
+From a package: `coraine-build --http-server builtin` (not with `--pgo` / `--tune` yet). With `builtin`,
+`POLICY_API` is off: its port is a second listener, and corHttp has one.
+
 Not a `COR_FEATURE_*` boolean, because those answer "is this feature in the
 build" and the HTTP server is always in it — what varies is which one. The value
 reaches CMake **and** corRest's own make (the HTTP server lives in corRest,

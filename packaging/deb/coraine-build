@@ -17,6 +17,9 @@
 #                      kept in <dir>/install/etc/tune.env (doc/extreme-performance.md)
 #   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
 #                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
+#   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
+#                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
+#                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
 #   --list-features    print every feature switch, its default and what it is, and exit
 #   --json             with --list-features: the same as a JSON array of {name, default, description,
 #                      group, requires} - "group" the CMakeLists.txt group it is in ("# Group: <name> -
@@ -44,6 +47,7 @@ SOURCE=/usr/share/coraine/src/coraine-src.tar.xz
 MODE=release
 WORKLOAD=
 FEATURES=
+HTTP_SERVER=mhd
 DIR=
 LIST=0
 JSON=0
@@ -59,6 +63,8 @@ while [ $# -gt 0 ]; do
     --tune)           MODE=tune; WORKLOAD=${2:?--tune needs a workload file}; shift ;;
     --features)       FEATURES=${2:?--features needs a list}; shift ;;
     --features=*)     FEATURES=${1#--features=} ;;
+    --http-server)    HTTP_SERVER=${2:?--http-server needs mhd or builtin}; shift ;;
+    --http-server=*)  HTTP_SERVER=${1#--http-server=} ;;
     --list-features)  LIST=1 ;;
     --json)           JSON=1 ;;
     --source)         SOURCE=${2:?--source needs a file}; shift ;;
@@ -168,6 +174,11 @@ if [ "$MONGOC" = ON ] && ! pkg-config --exists mongoc2; then
   fi
 fi
 
+case "$HTTP_SERVER" in mhd|builtin) ;; *) die "--http-server: '$HTTP_SERVER' - mhd or builtin" ;; esac
+if [ "$HTTP_SERVER" = builtin ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
+  die "--http-server builtin: not with --$MODE yet (its training tools are built and tried with libmicrohttpd only)"
+fi
+
 if [ "$MODE" = pgo ] || [ "$MODE" = tune ]; then
   for t in curl wrk python3; do command -v $t > /dev/null || die "--$MODE needs $t"; done
 fi
@@ -186,14 +197,14 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output
 #
 phase() { echo "coraine-build: phase $1"; }
 
-echo "coraine-build: coraine $version ($MODE${FEATURES:+, $FEATURES}) in $DIR"
+echo "coraine-build: coraine $version ($MODE, HTTP server $HTTP_SERVER${FEATURES:+, $FEATURES}) in $DIR"
 make -C "$C" clean > /dev/null
 phase build
 
