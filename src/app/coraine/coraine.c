@@ -134,6 +134,9 @@
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
+#if COR_FEATURE_POLICY_API
+#include "policyApi/policyApi.h"                             // policyApiStart
+#endif
 #include "serviceRoutines/getEntities.h"                     // autoEntityMaps, AutoEntityMaps, GET_ENTITIES_PARAM_PAGE
 #if COR_FEATURE_RESPONSE_BUDGET
 #include "serviceRoutines/responseBudget.h"                  // responseBudgetBytes
@@ -205,6 +208,10 @@ bool           asyncSnapshot   = false;
 bool           insecureNotif   = false;     // accept self-signed certs on TLS notifications/forwards
 bool           noInline        = false;     // hand every request to a worker (see inlineDispatch.h)
 int            memoryLimit     = 0;         // MiB; 0: 85% of the cgroup limit, if there is one (see memoryBudget.h)
+#if COR_FEATURE_POLICY_API
+unsigned short policyApiPort   = 0;         // 0: no policy API (see policyApi.h)
+char*          policyApiHost   = NULL;      // where it listens - 127.0.0.1: this machine only
+#endif
 #if COR_FEATURE_HEALTH
 unsigned short healthPort      = 0;         // 0: no health port (see health.h)
 int            healthStallTimeout = 30;     // seconds a request may be in flight with none finishing before /live answers 503
@@ -271,6 +278,10 @@ static CorArg kargV[] =
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
   { "--memoryLimit",        "-memoryLimit", CorArgInt,   _vp &memoryLimit, CorArgOpt, _vp 0,     _vp 0,     _vp 1048576, "memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)" },
+#if COR_FEATURE_POLICY_API
+  { "--policyApiPort",      "-policyApiPort", CorArgUShort, _vp &policyApiPort, CorArgOpt, _vp 0,  _vp 0,     _vp 65535, "TCP port for the ODRL-PAP's /policy API - the policies fdsc.so reads (--fdscPap), held by the broker; no authentication, as the PAP's (0: off)" },
+  { "--policyApiHost",      "-policyApiHost", CorArgString, _vp &policyApiHost, CorArgOpt, _vp "127.0.0.1", NULL, NULL, "the address the policy API listens on - the default keeps it to this machine" },
+#endif
 #if COR_FEATURE_HEALTH
   { "--healthPort",         "-healthPort",  CorArgUShort, _vp &healthPort,   CorArgOpt, _vp 0,     _vp 0,     _vp 65535, "TCP port for the health probes - GET /live, GET /ready and a JSON report, served outside the HTTP server (0: off)" },
   { "--healthStallTimeout", "-healthStallTimeout", CorArgInt, _vp &healthStallTimeout, CorArgOpt, _vp 30, _vp 1, _vp 3600, "seconds a request may be in flight, with no request finishing, before GET /live on the health port answers 503" },
@@ -1955,6 +1966,11 @@ int main(int argC, char* argV[])
   free(allServices);   // corRestInit copied every entry into its per-verb tables
 
   COR_I("coraine running on port %u", port);
+
+#if COR_FEATURE_POLICY_API
+  if ((policyApiPort != 0) && (policyApiStart(policyApiHost, policyApiPort) == false))
+    COR_X(1, "cannot serve the policy API on %s port %u", policyApiHost, policyApiPort);
+#endif
 
   //
   // cor:// last, like HTTP: every service is registered and every cache loaded by now

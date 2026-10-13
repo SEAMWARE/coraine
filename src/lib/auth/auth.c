@@ -355,6 +355,16 @@ static bool admit(void)
     return true;
   }
 
+  //
+  // The second listener's - the policy API (--policyApiPort): no authentication, as the PAP's; whoever
+  // reaches its port may
+  //
+  if (corRest.listener != 0)
+  {
+    stateP->trusted = true;
+    return true;
+  }
+
   bodyKeep(stateP);
   pathKeep(stateP);
 
