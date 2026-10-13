@@ -46,6 +46,7 @@ coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPap $PAP --fdsc
 # 09. Each port its own routes: /policy on the NGSI-LD port is not served (401 - the auth plugin answers first
 #     there, as for any route), /ngsi-ld/v1/entities on the policy port is 404
 # 10. The policies outlive the broker: restarted, GET /policy lists policy 06's
+# 11. The usage lists both options (usage.test leaves them out: not there with the built-in HTTP server)
 #
 
 PAP=http://localhost:$((CB_PORT + 2100))
@@ -152,6 +153,13 @@ echo
 echo
 
 
+echo "11. The usage lists --policyApiPort and --policyApiHost"
+echo "======================================================="
+$COR_BROKER -u -db corDB 2>&1 | grep -o -e '--policyApiPort/-policyApiPort' -e '--policyApiHost/-policyApiHost' | sed 's/^/listed: /'   # a line of "--" is a section marker
+echo
+echo
+
+
 --EXPECT--
 01. No policies - GET /policy is []; reading Vehicles is 403
 ============================================================
@@ -246,6 +254,12 @@ urn:ft:fixed 5 letters, odrl: Bus
 10. The policies outlive the broker
 ===================================
 urn:ft:fixed 5 letters, odrl: Bus
+
+
+11. The usage lists --policyApiPort and --policyApiHost
+=======================================================
+listed: --policyApiPort/-policyApiPort
+listed: --policyApiHost/-policyApiHost
 
 
 --TEARDOWN--

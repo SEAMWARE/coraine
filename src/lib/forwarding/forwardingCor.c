@@ -24,7 +24,9 @@
 #include "corNgsild/LdForwarding.h"                    // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
 #include "corNgsild/ldForwarding.h"                    // ldForwardingRegister
 
+#if COR_FEATURE_METRICS
 #include "metrics/metrics.h"                           // metricsDistopForward
+#endif
 
 #include "forwarding/forwardingCor.h"                  // Own interface
 
@@ -48,21 +50,27 @@ static int corSend(LdForwardRequest* req, LdForwardResponse* resp)
   if (pathP == NULL)
     pathP = "/";
 
+#if COR_FEATURE_METRICS
   struct timespec t0;
   clock_gettime(CLOCK_MONOTONIC, &t0);
+#endif
 
   CorRestCorResponse cResp;
   const char*        error = NULL;
   bool               ok    = corRestCorSend(req->endpoint, req->verb, pathP, req->headerV, req->headerCount,
                                             NULL, req->body, req->requestTimeoutMs, resp->allocP, &cResp, &error);
 
+#if COR_FEATURE_METRICS
   struct timespec t1;
   clock_gettime(CLOCK_MONOTONIC, &t1);
   double latency = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+#endif
 
   if (ok == false)
   {
+#if COR_FEATURE_METRICS
     metricsDistopForward(latency, false);
+#endif
     resp->error      = -1;
     resp->statusCode = 0;
     strncpy(resp->errorDetail, (error != NULL) ? error : "cor:// forwarding failed", sizeof(resp->errorDetail) - 1);
@@ -70,7 +78,9 @@ static int corSend(LdForwardRequest* req, LdForwardResponse* resp)
     return resp->error;
   }
 
+#if COR_FEATURE_METRICS
   metricsDistopForward(latency, (cResp.status >= 200) && (cResp.status < 300));
+#endif
 
   resp->error       = 0;
   resp->statusCode  = cResp.status;
@@ -142,15 +152,19 @@ static int corWait(void* handle, LdForwardResponse* resp)
   const char*        error = NULL;
   bool               ok    = corRestCorWait(fP->callP, &cResp, &error);
 
+#if COR_FEATURE_METRICS
   struct timespec t1;
   clock_gettime(CLOCK_MONOTONIC, &t1);
   double latency = (t1.tv_sec - fP->t0.tv_sec) + (t1.tv_nsec - fP->t0.tv_nsec) / 1e9;
+#endif
 
   free(fP);
 
   if (ok == false)
   {
+#if COR_FEATURE_METRICS
     metricsDistopForward(latency, false);
+#endif
     resp->error      = -1;
     resp->statusCode = 0;
     strncpy(resp->errorDetail, (error != NULL) ? error : "cor:// forwarding failed", sizeof(resp->errorDetail) - 1);
@@ -158,7 +172,9 @@ static int corWait(void* handle, LdForwardResponse* resp)
     return resp->error;
   }
 
+#if COR_FEATURE_METRICS
   metricsDistopForward(latency, (cResp.status >= 200) && (cResp.status < 300));
+#endif
 
   resp->error       = 0;
   resp->statusCode  = cResp.status;

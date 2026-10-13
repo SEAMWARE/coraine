@@ -10,7 +10,7 @@
 
 #include "corRest/CorRestState.h"                       // corRest
 
-#include "metrics/subStatsFlushAll.h"                 // subStatsFlushAll
+#include "db/subStatsFlushAll.h"                 // subStatsFlushAll
 
 #include "api/admin/adminSubStats.h"                  // Own interface
 

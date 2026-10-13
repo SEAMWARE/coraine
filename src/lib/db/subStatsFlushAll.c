@@ -17,7 +17,7 @@
 #include "db/Tenant.h"                                // tenant0, tenantList
 #include "db/snapshotTenant.h"                        // snapshotTenantsVisit
 
-#include "metrics/subStatsFlushAll.h"                 // Own interface
+#include "db/subStatsFlushAll.h"                 // Own interface
 
 
 

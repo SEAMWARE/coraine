@@ -66,7 +66,7 @@
 #include "corNgsild/ldTenantCaches.h"              // LdTenantCaches, LdTenantCachesFn
 #include "corNgsild/ldCheckSubscription.h"         // ldSubEntityTypeExprsRelease
 #include "corNgsild/ldStatsFlushLoop.h"            // ldStatsFlushLoopStart
-#include "metrics/subStatsFlushAll.h"             // subStatsFlushAll
+#include "db/subStatsFlushAll.h"             // subStatsFlushAll
 #include "corNgsild/CorNgsild.h"                  // corNgsild, ldCsourceAliasBase
 #include "corNgsild/ldError.h"                     // ldError
 #include "corNgsild/LdProblem.h"                    // LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
@@ -124,7 +124,9 @@
 #include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                    // CorTermLast
 
+#if COR_FEATURE_METRICS
 #include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
+#endif
 
 #include "coraineFeatures.h"                      // coraineFeatures
 #include "ngsildServices.h"                       // ngsildCoreServices, serviceBuild
@@ -1218,7 +1220,9 @@ static bool brokerPreServiceHook(void)
     return false;
   if (!ldSnapshotWriteGuard())
     return false;
+#if COR_FEATURE_METRICS
   metricsPreService();
+#endif
   return true;
 }
 
@@ -1230,7 +1234,9 @@ static bool brokerPreServiceHook(void)
 //
 static void brokerPostResponseHook(void)
 {
+#if COR_FEATURE_METRICS
   metricsPostResponse();
+#endif
   ldNotifyDispatchPending();
   ldCsrSubDispatchPending();
   troeDispatchPending();
@@ -1250,6 +1256,7 @@ static void brokerPostResponseHook(void)
 
 
 
+#if COR_FEATURE_METRICS
 // -----------------------------------------------------------------------------
 //
 // brokerNotifyStatsHook - called by corNgsild when any notification is POSTed
@@ -1259,6 +1266,7 @@ static void brokerNotifyStatsHook(bool csrSub, bool success)
   if (csrSub) metricsCsrNotificationSent(success);
   else        metricsNotificationSent(success);
 }
+#endif
 
 
 
@@ -1701,15 +1709,19 @@ int main(int argC, char* argV[])
   ldSnapshotCacheDestroyHookSet(snapshotItemDestroy);
 
   tenantInit("cor");
+#if COR_FEATURE_METRICS
   metricsInit();
   ldNotifyStatsHookSet(brokerNotifyStatsHook);
+#endif
   ldLinkedEntitiesHookSet(brokerLinkedEntitiesHook);
   corRestSetServiceInitHook(ldUrlWildcardOptionsInit);
   corRestSetPreServiceHook(brokerPreServiceHook);
   corRestSetPostResponseHook(brokerPostResponseHook);
   inlineDispatchInit(dbName, troeName, noInline);
   memoryBudgetInit(memoryLimit);
+#if COR_FEATURE_METRICS
   metricsMemoryValuesSet(memoryBudgetValues);
+#endif
 
   //
   // The memory of the EntityMaps (ldEntityMap.h) - automatic ones and the ones clients ask for
