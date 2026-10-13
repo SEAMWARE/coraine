@@ -1,0 +1,150 @@
+#
+# FILE            jsonld_contexts_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build with COR_FEATURE_CONTEXT_HOSTING=OFF - the four /jsonldContexts routes stay in the service table
+# and answer 501 (corNotInThisBuild.h), as a compiled-out registry does (registrations_not_in_this_build).
+# Built off, the broker must also LINK: the four handlers are not compiled then, and the service table must
+# not name them.
+#
+# The last step: what CONTEXT_HOSTING does not gate still works - an entity with an inline @context.
+#
+# SKIP_FEATURE: CONTEXT_HOSTING
+#
+--NAME--
+@context hosting compiled out - every /jsonldContexts route answers 501, the rest of the API works
+
+--TAGS--
+features
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. The build says so itself - GET /build reports CONTEXT_HOSTING: false"
+echo "========================================================================="
+corCurl --url /build | grep '"CONTEXT_HOSTING"'
+echo
+echo
+
+
+echo "02. POST /ngsi-ld/v1/jsonldContexts -> 501"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload '{"@context": {"speed": "https://example.org/speed"}}'
+echo
+echo
+
+
+echo "03. GET /ngsi-ld/v1/jsonldContexts -> 501"
+echo "========================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts
+echo
+echo
+
+
+echo "04. GET /ngsi-ld/v1/jsonldContexts/<id> -> 501"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:ctx:1
+echo
+echo
+
+
+echo "05. DELETE /ngsi-ld/v1/jsonldContexts/<id> -> 501"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:ctx:1 -X DELETE
+echo
+echo
+
+
+echo "06. An entity with an inline @context - 201, read back with it"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entities -H 'Content-Type: application/ld+json' --payload '{"id": "urn:ngsi-ld:Vehicle:V1", "type": "Vehicle", "speed": {"type": "Property", "value": 42}, "@context": [{"speed": "https://example.org/speed"}, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"]}' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1?options=keyValues' | grep speed
+echo
+echo
+
+
+--EXPECT--
+01. The build says so itself - GET /build reports CONTEXT_HOSTING: false
+=========================================================================
+    "CONTEXT_HOSTING": false,
+
+
+02. POST /ngsi-ld/v1/jsonldContexts -> 501
+==========================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 232
+
+{
+  "detail": "'POST /ngsi-ld/v1/jsonldContexts' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+03. GET /ngsi-ld/v1/jsonldContexts -> 501
+=========================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 231
+
+{
+  "detail": "'GET /ngsi-ld/v1/jsonldContexts' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+04. GET /ngsi-ld/v1/jsonldContexts/<id> -> 501
+==============================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "'GET /ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:ctx:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+05. DELETE /ngsi-ld/v1/jsonldContexts/<id> -> 501
+=================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 252
+
+{
+  "detail": "'DELETE /ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:ctx:1' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+06. An entity with an inline @context - 201, read back with it
+==============================================================
+HTTP/1.1 201 Created
+  "https://example.org/speed": 42,
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
