@@ -22,7 +22,7 @@ on:
         description: 'Run just one of them - for trying a fix without paying for the rest'
         type: choice
         default: all
-        options: [all, coverage, valgrind, etsi, performance, dds, arm64, fdsc]
+        options: [all, coverage, valgrind, etsi, performance, dds, arm64, fdsc, switches]
   #
   # Callable: the pre-release campaign (prerelease.yml) runs these jobs on the ref it is given rather
   # than keeping a copy of them. Its call forces the run (no gate), and publishes nothing: the
@@ -246,7 +246,34 @@ jobs:
           retention-days: 14
 
   #
+  # Every feature switch turned from its default builds and links (.github/scripts/every-switch.sh) - one
+  # release tree per switch. The functests run one build, so a switch is otherwise only ever compiled in
+  # its default position: CONTEXT_HOSTING=OFF did not link, its routes naming handlers it compiled out.
+  #
+  switches:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && contains(fromJSON('["all", "switches"]'), needs.gate.outputs.only)
+    runs-on: ubuntu-latest
+    # pinned - see the note in ci.yml
+    container:
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+      - name: Clone and build the dependency stack
+        working-directory: stack/corLibs
+        run: ./bootstrap.sh
+      - name: Each switch turned from its default - a release build each
+        working-directory: stack/coraine
+        run: |
+          make release
+          .github/scripts/every-switch.sh
+
+  #
   # Publish the coverage report to GitHub Pages.
+  #
   #
   # ONLY from main. A branch dispatch (`gh workflow run nightly.yml --ref <branch>`)
   # is how a fix gets tried before it is merged, and those numbers must never
