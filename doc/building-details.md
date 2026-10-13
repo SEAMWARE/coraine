@@ -42,7 +42,8 @@ coraine/
 | JSON-LD @context | `CONTEXT_DL`, `CONTEXT_HOSTING` |
 | Geo | `GEOQ`, `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE` |
 | Security | `AUTH`, `POLICY_API` |
-| Beyond NGSI-LD | `SERVICE_EXECUTION`, `TRANSPORTS` |
+| Beyond NGSI-LD | `SERVICE_EXECUTION` |
+| Protocols | `COR_PROTOCOL`, `TRANSPORTS` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `MIGRATE` |
 
@@ -324,6 +325,15 @@ held by the broker. Off: no `--policyApiPort`. Needs libmicrohttpd. Size: -9 KiB
 
 Service registrations, executions and executors (ETSI GR CIM-055). Off: 17 routes answer 501. Size:
 -169 KiB.
+
+#### `COR_PROTOCOL`
+
+cor://, the binary NGSI-LD protocol: a listener next to HTTP (`--corPort`), and forwarding to a
+registration whose endpoint is `cor://` ([cor-protocol.md](cor-protocol.md)). Off: no `--corPort`; a cor://
+registration is not forwarded to (`NGSILD-Warning: 299`, the scheme not supported); corRest is built
+without its cor:// server and client. The cor format stays - corDB's log is written in it. Set with
+`COR_WITH_COR_PROTOCOL=0` (`make`) or `--features COR_PROTOCOL=OFF` (`coraine-build`), not as a cmake `-D`
+alone. Size: -24 KiB.
 
 #### `TRANSPORTS`
 
