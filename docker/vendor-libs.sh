@@ -71,5 +71,12 @@ for lib in "${LIBS[@]}"; do
     printf '%-10s %-24s %s%s\n' "$lib" "$branch" "$sha" "$note" >> "$MANIFEST"
 done
 
+#
+# libmicrohttpd's build (corLibs/tools/mhd: the script, its pinned checksums, the patches) on its own as well:
+# the image builds MHD before it unpacks the libs, and a layer that depended on all of corLibs would rebuild
+# the HTTP server at every change of any lib
+#
+tar -xf "$OUT/corLibs.tar" -C "$OUT" --strip-components=2 corLibs/tools/mhd
+
 echo "vendored $(printf '%s ' "${LIBS[@]}")-> $OUT"
 cat "$MANIFEST"
