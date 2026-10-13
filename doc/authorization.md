@@ -27,7 +27,7 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 3; append-only, as the bridge and
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 4; append-only, as the bridge and
 transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
 broker is too old to have.
 
@@ -37,7 +37,7 @@ broker is too old to have.
 |---|---|---|---|
 | `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
 | `authorize` | with `authorizeBeforeContext` (ABI 3; `fdsc.so` sets it): right after `authenticate`, **before** the request's `@context` is resolved - its `Link` header and its body's `@context` name URLs the client chooses, and the broker fetches them; `expand()` answers NULL there. Without it: once the `@context` is resolved. Either way **before** the tenant is resolved (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
-| `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
+| `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity - for a write, with the **attributes** it writes (`attrV`: the body's, or the path's `{attr}`); for a read of the entity whole, `AuthAnswer.partial` (ABI 4): only some of its attributes - the broker then asks about each attribute alone and leaves out the ones not allowed | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
 | `release` | the request is over, its response sent | - | - |
 
 `entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
@@ -345,8 +345,20 @@ and the log says why (`policy '<uid>' skipped: 'ngsi-ld:tenant' is coraine's own
 | word | reads |
 |---|---|
 | `ngsi-ld:tenant` | the request's `NGSILD-Tenant` - `""` for the default tenant; a notification: its subscription's tenant |
+| `ngsi-ld:attribute` | **one attribute at a time**, expanded (the policy's names with the broker's default context, as `ngsi-ld:entityType`'s) |
 
-`auth_fdsc_ngsild_tenant` holds it.
+`ngsi-ld:attribute`, decided attribute by attribute - an attribute is allowed when a policy allows it, not
+necessarily the one that allows another:
+
+| | |
+|---|---|
+| a read of entities - a retrieve, a query, a temporal read, a Snapshot's entities, a notification | the attributes no policy allows are **left out**; `id`, `type` and the entity's other members stay |
+| `GET /entities/{id}/attrs/{attr}` | 403 for an attribute no policy allows |
+| a write of attributes - a create, `PATCH`/`POST .../attrs`, a merge, `.../attrs/{attr}`, a batch entry, a temporal append | 403 (a batch: that entry's error) when one of them is not allowed |
+| a write of the entity whole - a delete, a replace, a batch delete | needs a policy that holds whatever the attribute: one that holds for some attributes only is not enough |
+| an operation not decided entity by entity (`/subscriptions`, `/types`) | a rule on `ngsi-ld:attribute` does not hold |
+
+`auth_fdsc_ngsild_tenant` and `auth_fdsc_ngsild_attribute` hold them.
 
 `auth_fdsc_ngsild_entity`, `auth_fdsc_ngsild_batch`, `auth_fdsc_ngsild_query`, `auth_fdsc_ngsild_temporal` and
 `auth_fdsc_ngsild_notify` hold it; each of them fails without `--fdscNgsild`.
@@ -361,8 +373,7 @@ bounds how long a revoked credential still receives notifications.
 - A request a policy may allow - with `--fdscNgsild`, one whose decision depends on the entity (§ 6) - has
   its `@context` fetched before `entity()` decides it: a client with a right to some entity can have the
   broker fetch a URL of its choice.
-- Attribute-level rules (read and write per attribute: `AuthEntity.attrV`); serving the PAP's `/policy`
-  API from the broker.
+- Serving the PAP's `/policy` API from the broker.
 
 ## Sources (2026-10-12)
 

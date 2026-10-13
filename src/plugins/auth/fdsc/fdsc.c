@@ -99,6 +99,7 @@ static CorArg fdscArgs[] =
 //
 // The refresh thread
 //
+static int              brokerAbiVersion = 0;       // the broker's AUTH_ABI_VERSION, as authRegister got it
 static AuthDriver*      driverSelf = NULL;         // the broker's struct, as authRegister got it - init takes entity() back without --fdscNgsild
 static pthread_t        refreshThread;
 static bool             refreshRunning = false;
@@ -342,6 +343,7 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
   fdscPolicyOrganizationSet(organization);
   fdscPolicyNgsildSet(ngsildMode);
   fdscPolicyStrippedPathSet(strippedPath);
+  fdscPolicyPartialSet(brokerAbiVersion >= 4);       // ngsi-ld:attribute's reads: the broker leaves out what may not be read
 
   if (pthread_create(&refreshThread, NULL, refreshLoop, NULL) != 0)
   {
@@ -753,6 +755,8 @@ void authRegister(AuthDriver* driverP)
   //
   if (brokerAbi >= 3)
     driverP->authorizeBeforeContext = true;
+
+  brokerAbiVersion = brokerAbi;
 
   driverSelf = driverP;
 }

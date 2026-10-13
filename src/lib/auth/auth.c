@@ -10,7 +10,7 @@
 #include <stdlib.h>                                  // malloc, free
 #include <time.h>                                    // time
 #include <stdio.h>                                   // snprintf
-#include <string.h>                                  // memset, strcasecmp
+#include <string.h>                                  // memset, strcasecmp, strcmp
 
 #include "corPlugin/corPlugin.h"                     // corPluginOpen, corPluginResolve, corPluginBaseDir
 #include "corLog/corLog.h"                           // COR_I, COR_W
@@ -30,6 +30,7 @@
 #include "corNgsild/CorNgsild.h"                     // corNgsild, ldDefaultContextUrl
 #include "corNgsild/ldSubscriptionNotify.h"          // ldNotifyFilterHook
 #include "corNgsild/LdOp.h"                          // LdOp, ldOpToString
+#include "corNgsild/ldIsEntityKeyword.h"             // ldIsNotAttribute
 
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
@@ -76,6 +77,8 @@ typedef struct AuthState
   int    bodyLen;
   char*  path;                                       // the URL path as sent (pathKeep)
   bool   authorized;                                 // authorize asked already, at admission (authorizeBeforeContext)
+  char*  checkedId;                                  // the entity authEntityStoredCheck asked about whole ...
+  bool   checkedPartial;                             // ... and whether only some of its attributes may be read
 } AuthState;
 
 
@@ -652,7 +655,37 @@ static bool notifyEntityAllowed(Tenant* tenantP, void* identity, CorNode* entity
   entity.attrV  = NULL;
   entity.attrs  = 0;
 
-  return driver.entity(&req, identity, &entity, &ans) == AuthAllow;
+  if (driver.entity(&req, identity, &entity, &ans) != AuthAllow)
+    return false;
+
+  if ((driver.abiVersion < 4) || (ans.partial == false))
+    return true;
+
+  //
+  // Only some of its attributes: each one asked about - the ones no policy allows left out of the notification
+  //
+  CorNode* aP = entityP->value.head;
+
+  while (aP != NULL)
+  {
+    CorNode* nextP = aP->next;
+
+    if (ldIsNotAttribute(aP) == false)
+    {
+      const char* one[1] = { aP->name };
+
+      memset(&ans, 0, sizeof(ans));
+      entity.attrV = one;
+      entity.attrs = 1;
+
+      if (driver.entity(&req, identity, &entity, &ans) != AuthAllow)
+        corTreeChildRemove(entityP, aP);
+    }
+
+    aP = nextP;
+  }
+
+  return true;
 }
 
 
@@ -902,11 +935,8 @@ bool authEntityWanted(void)
 //
 // authEntityAllowed -
 //
-bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, const char** detailP)
+static bool entityAsk(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, bool* partialP, const char** detailP)
 {
-  if (authEntityWanted() == false)
-    return true;
-
   AuthState*   stateP = (AuthState*) corNgsild.authP;
   AuthRequest  req;
   AuthAnswer   ans;
@@ -925,7 +955,11 @@ bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool
   AuthVerdict verdict = driver.entity(&req, stateP->identity, &entity, &ans);
 
   if (verdict == AuthAllow)
+  {
+    if (partialP != NULL)
+      *partialP = (driver.abiVersion >= 4) && (ans.partial == true);
     return true;
+  }
 
   if (detailP != NULL)
     *detailP = (ans.detail != NULL) ? corAllocStrdup(&corRest.kalloc, ans.detail) : "not allowed";
@@ -935,43 +969,140 @@ bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool
 
 
 
+bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool stored, const char* const* attrV, int attrs, const char** detailP)
+{
+  if (authEntityWanted() == false)
+    return true;
+
+  return entityAsk(id, typeV, types, stored, attrV, attrs, NULL, detailP);
+}
+
+
+
 // -----------------------------------------------------------------------------
 //
 // authEntityTreeAllowed - authEntityAllowed for an entity whose types are a tree: "T" or ["T1", "T2"],
 // expanded
 //
+static const char** typesOf(CorNode* typeP, int* typesP)
+{
+  *typesP = 0;
+
+  if (typeP == NULL)
+    return NULL;
+
+  int n = (typeP->type == CorString) ? 1 : 0;
+
+  if (typeP->type == CorArray)
+  {
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+      ++n;
+  }
+
+  const char** typeV = (const char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+
+  if (typeV == NULL)
+    return NULL;
+
+  if (typeP->type == CorString)
+    typeV[(*typesP)++] = typeP->value.s;
+  else if (typeP->type == CorArray)
+  {
+    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
+    {
+      if (tP->type == CorString)
+        typeV[(*typesP)++] = tP->value.s;
+    }
+  }
+
+  return typeV;
+}
+
+
+
+//
+// attrsOfBody - the attributes an entity's body (a create, a batch entry, a PATCH / POST /attrs, a merge)
+// writes: its members that are attributes, expanded with the request's @context
+//
+static const char** attrsOfBody(CorNode* bodyP, int* attrsP)
+{
+  *attrsP = 0;
+
+  if ((bodyP == NULL) || (bodyP->type != CorObject))
+    return NULL;
+
+  int n = 0;
+  for (CorNode* aP = bodyP->value.head; aP != NULL; aP = aP->next)
+  {
+    if (ldIsNotAttribute(aP) == false)
+      ++n;
+  }
+
+  if (n == 0)
+    return NULL;
+
+  const char** attrV = (const char**) corAlloc(&corRest.kalloc, n * sizeof(char*));
+
+  if (attrV == NULL)
+    return NULL;
+
+  for (CorNode* aP = bodyP->value.head; aP != NULL; aP = aP->next)
+  {
+    if (ldIsNotAttribute(aP) == false)
+      attrV[(*attrsP)++] = termExpand(aP->name);
+  }
+
+  return attrV;
+}
+
+
+
+//
+// requestAttrs - the attributes the bound request writes (or, GET .../attrs/{attr}, reads): the path's
+// attribute, else the body's for the routes whose body is attributes. NULL: the entity whole
+//
+static const char** requestAttrs(int* attrsP)
+{
+  *attrsP = 0;
+
+  const char* route = (corRest.serviceP != NULL) ? corRest.serviceP->url : NULL;
+
+  if (route == NULL)
+    return NULL;
+
+  if ((strstr(route, "/attrs/*") != NULL) && (corRest.in.wildcard[1] != NULL))
+  {
+    const char** attrV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*));
+
+    if (attrV == NULL)
+      return NULL;
+
+    attrV[0] = termExpand(corRest.in.wildcard[1]);
+    *attrsP  = 1;
+    return attrV;
+  }
+
+  size_t len       = strlen(route);
+  bool   attrsBody = (len >= 6) && (strcmp(&route[len - 6], "/attrs") == 0) && (corRest.in.verb != CorVerbGet);
+  bool   merge     = (corRest.in.verb == CorVerbPatch) && (strcmp(route, "/ngsi-ld/v1/entities/*") == 0);
+
+  if ((attrsBody == true) || (merge == true))
+    return attrsOfBody(corRest.in.requestTree, attrsP);
+
+  return NULL;
+}
+
+
+
 bool authEntityTreeAllowed(const char* id, CorNode* typeP, bool stored, const char** detailP)
 {
   if (authEntityWanted() == false)
     return true;
 
-  const char*  one[1];
-  const char** typeV = one;
   int          types = 0;
+  const char** typeV = typesOf(typeP, &types);
 
-  if ((typeP != NULL) && (typeP->type == CorString))
-  {
-    one[0] = typeP->value.s;
-    types  = 1;
-  }
-  else if ((typeP != NULL) && (typeP->type == CorArray))
-  {
-    int n = 0;
-    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
-      ++n;
-
-    typeV = (const char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
-    if (typeV == NULL)
-      return false;
-
-    for (CorNode* tP = typeP->value.head; tP != NULL; tP = tP->next)
-    {
-      if (tP->type == CorString)
-        typeV[types++] = tP->value.s;
-    }
-  }
-
-  return authEntityAllowed(id, typeV, types, stored, NULL, 0, detailP);
+  return entityAsk(id, typeV, types, stored, NULL, 0, NULL, detailP);
 }
 
 
@@ -1011,6 +1142,69 @@ static CorNode* storedTypes(const char* id)
 
 // -----------------------------------------------------------------------------
 //
+// authEntityAttrsFilter -
+//
+bool authEntityAttrsFilter(CorNode* entityP)
+{
+  if ((authEntityWanted() == false) || (entityP == NULL) || (entityP->type != CorObject))
+    return true;
+
+  CorNode* idP = corTreeLookup(entityP, "id");
+
+  if ((idP == NULL) || (idP->type != CorString))
+    return false;
+
+  AuthState* stateP  = (AuthState*) corNgsild.authP;
+  bool       checked = ((stateP->checkedId != NULL) && (strcmp(stateP->checkedId, idP->value.s) == 0));   // authEntityStoredCheck asked already
+
+  if ((checked == true) && (stateP->checkedPartial == false))
+    return true;
+
+  //
+  // Its types as the entity has them - or, when a projection (pick) took them out, as stored
+  //
+  CorNode* typeP = corTreeLookup(entityP, "type");
+
+  if (typeP == NULL)
+    typeP = storedTypes(idP->value.s);
+
+  int          types   = 0;
+  const char** typeV   = typesOf(typeP, &types);
+  bool         partial = checked;
+
+  if ((checked == false) && (entityAsk(idP->value.s, typeV, types, true, NULL, 0, &partial, NULL) == false))
+    return false;
+
+  if (partial == false)
+    return true;
+
+  //
+  // Only some of its attributes: each one asked about - the ones no policy allows left out
+  //
+  CorNode* aP = entityP->value.head;
+
+  while (aP != NULL)
+  {
+    CorNode* nextP = aP->next;
+
+    if (ldIsNotAttribute(aP) == false)
+    {
+      const char* one[1] = { aP->name };
+
+      if (entityAsk(idP->value.s, typeV, types, true, one, 1, NULL, NULL) == false)
+        corTreeChildRemove(entityP, aP);
+    }
+
+    aP = nextP;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authEntityStoredCheck -
 //
 bool authEntityStoredCheck(const char* id)
@@ -1022,13 +1216,27 @@ bool authEntityStoredCheck(const char* id)
   // The STORED entity's types - looked up here, before the routine forwards or writes anything. An entity
   // that is not here locally has no types: what depends on its type does not hold for it
   //
-  CorNode*    typeP  = storedTypes(id);
-  const char* detail = NULL;
+  CorNode*     typeP  = storedTypes(id);
+  const char*  detail = NULL;
+  int          types  = 0;
+  const char** typeV  = typesOf(typeP, &types);
+  int          attrs  = 0;
+  const char** attrV  = requestAttrs(&attrs);       // the attributes it writes (or reads, by name): each must be allowed
 
-  if (authEntityTreeAllowed(id, typeP, true, &detail) == false)
+  bool         partial = false;
+
+  if (entityAsk(id, typeV, types, true, attrV, attrs, &partial, &detail) == false)
   {
     authEntityDeny(detail);
     return false;
+  }
+
+  if (attrs == 0)                                    // asked about whole: authEntityAttrsFilter needs not ask again
+  {
+    AuthState* stateP = (AuthState*) corNgsild.authP;
+
+    stateP->checkedId      = corAllocStrdup(&corRest.kalloc, id);
+    stateP->checkedPartial = partial;
   }
 
   //
@@ -1054,25 +1262,31 @@ bool authEntityStoredCheck(const char* id)
 //
 // authEntityBatchAllowed -
 //
-bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP)
+bool authEntityBatchAllowed(const char* id, CorNode* entryP, bool lookup, const char** detailP)
 {
   if (authEntityWanted() == false)
     return true;
 
-  CorNode* storedP = (lookup == true) ? storedTypes(id) : NULL;
+  CorNode*     bodyTypeP = ((entryP != NULL) && (entryP->type == CorObject)) ? corTreeLookup(entryP, "type") : NULL;
+  int          attrs     = 0;
+  const char** attrV     = attrsOfBody(entryP, &attrs);   // the attributes the entry writes: each must be allowed (none - a delete: the entity whole)
+  CorNode*     storedP   = (lookup == true) ? storedTypes(id) : NULL;
+  int          types     = 0;
+  const char** typeV;
 
   if (storedP != NULL)
   {
-    if (authEntityTreeAllowed(id, storedP, true, detailP) == false)
+    typeV = typesOf(storedP, &types);
+
+    if (entityAsk(id, typeV, types, true, attrV, attrs, NULL, detailP) == false)
       return false;
 
-    //
-    // The types the body gives it, too: an update that changes or adds a type needs the right to that type
-    //
-    return (bodyTypeP == NULL) || authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+    if (bodyTypeP == NULL)                           // the types the body gives it, too: changing or adding a type needs the right to it
+      return true;
   }
 
-  return authEntityTreeAllowed(id, bodyTypeP, false, detailP);
+  typeV = typesOf(bodyTypeP, &types);
+  return entityAsk(id, typeV, types, false, attrV, attrs, NULL, detailP);
 }
 
 
@@ -1103,15 +1317,7 @@ bool authEntityArrayFilter(CorNode* arrayP)
     CorNode* nextP = eP->next;
     CorNode* idP   = (eP->type == CorObject) ? corTreeLookup(eP, "id") : NULL;
 
-    //
-    // Its types as the response has them - or, when a projection (pick) took them out, as stored
-    //
-    CorNode* typeP = (idP != NULL) ? corTreeLookup(eP, "type") : NULL;
-
-    if ((typeP == NULL) && (idP != NULL) && (idP->type == CorString))
-      typeP = storedTypes(idP->value.s);
-
-    if ((idP == NULL) || (idP->type != CorString) || (authEntityTreeAllowed(idP->value.s, typeP, true, NULL) == false))
+    if ((idP == NULL) || (idP->type != CorString) || (authEntityAttrsFilter(eP) == false))   // left out, or what of it may not be read
       corTreeChildRemove(arrayP, eP);
 
     eP = nextP;

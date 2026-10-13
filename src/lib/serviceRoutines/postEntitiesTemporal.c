@@ -167,7 +167,7 @@ bool postEntitiesTemporal(void)
   {
     const char* detail = NULL;
 
-    if (authEntityBatchAllowed(idP->value.s, typeP, true, &detail) == false)
+    if (authEntityBatchAllowed(idP->value.s, bodyP, true, &detail) == false)
     {
       authEntityDeny(detail);
       return true;

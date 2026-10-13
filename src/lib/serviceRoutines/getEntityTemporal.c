@@ -64,7 +64,7 @@
 
 #include "serviceRoutines/ldSnapshotRead.h"          // ldSnapshotItemFromHeader
 #if COR_FEATURE_AUTH
-#include "auth/auth.h"                               // authEntityStoredCheck
+#include "auth/auth.h"                               // authEntityStoredCheck, authEntityAttrsFilter
 #endif
 #include "serviceRoutines/getEntityTemporal.h"       // Own interface
 
@@ -712,6 +712,9 @@ bool getEntityTemporal(void)
     }
   }
 
+#if COR_FEATURE_AUTH
+  authEntityAttrsFilter(result);                      // the attributes no policy allows, left out (the entity itself was asked about at the start)
+#endif
   corRest.out.responseTree = result;
 
   // § 6.4.7.3: when instances remain beyond the returned page, emit

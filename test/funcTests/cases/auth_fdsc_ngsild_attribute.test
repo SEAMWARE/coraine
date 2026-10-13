@@ -1,0 +1,194 @@
+#
+# FILE            auth_fdsc_ngsild_attribute.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# ngsi-ld:attribute - coraine's own word, with --fdscNgsild only: one attribute at a time, expanded with the
+# broker's default context. A read returns the attributes a policy allows - the others are left out (a
+# retrieve, a query, a notification); a write of an attribute no policy allows is refused; a write of the
+# entity whole (a delete) needs a policy that holds whatever the attribute.
+#
+# REQUIRE_FEATURE: AUTH SUBSCRIPTIONS
+#
+--NAME--
+fdsc --fdscNgsild: ngsi-ld:attribute - reads filtered, writes refused attribute by attribute
+
+--TAGS--
+auth attribute
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+ftClientStart
+cat > $FT_AUTH_DIR/attribute.json <<'EOF'
+[
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:createVehicles",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "ngsild:create"},
+                       "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"}, "odrl:rightOperand": "Vehicle"}]}}},
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:readAllButOwner",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:read"},
+                       "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"},       "odrl:rightOperand": "Vehicle"},
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:attribute",  "odrl:operator": {"@id": "odrl:isNoneOf"}, "odrl:rightOperand": ["owner"]}]}}},
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:modifySpeed",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:modify"},
+                       "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"},      "odrl:rightOperand": "Vehicle"},
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:attribute",  "odrl:operator": {"@id": "odrl:isAnyOf"}, "odrl:rightOperand": ["speed"]}]}}},
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:deleteSpeed",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:delete"},
+                       "odrl:target": {"@type": "odrl:AssetCollection", "odrl:refinement": [
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:entityType", "odrl:operator": {"@id": "odrl:eq"},      "odrl:rightOperand": "Vehicle"},
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "ngsi-ld:attribute",  "odrl:operator": {"@id": "odrl:isAnyOf"}, "odrl:rightOperand": ["speed"]}]}}},
+  {"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:subscriptions",
+   "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:use"},
+                       "odrl:target": {"@type": "odrl:AssetCollection", "odrl:source": "urn:asset", "odrl:refinement": [
+                         {"@type": "odrl:Constraint", "odrl:leftOperand": "http:path", "odrl:operator": {"@id": "odrl:regex"}, "odrl:rightOperand": "^/ngsi-ld/v1/subscriptions"}]}}}
+]
+EOF
+coraineStart --auth fdsc --fdscNgsild --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/attribute.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. Create a Vehicle with speed and owner - 201 (a policy for creates, no attribute rule)
+# 02. Retrieve it - speed, no owner; query - the same
+# 03. GET .../attrs/owner - 403; .../attrs/speed - 200
+# 04. PATCH speed - 204; owner - 403; both - 403, and speed is still 60
+# 05. DELETE .../attrs/speed - 204; DELETE the entity - 403 (deletes are allowed for speed only)
+# 06. A subscription; a PATCH of speed: the notification has speed, and no owner
+# 07. Without --fdscNgsild: the policies with coraine's words are not read - the log says so
+#
+
+USER=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+AUTH="Authorization: Bearer $USER"
+U=http://localhost:$COR_PORT/ngsi-ld/v1
+status() { curl -s -o /dev/null -w '%{http_code}\n' -H "$AUTH" "$@"; }
+members() { python3 -c 'import json, sys
+d = json.load(sys.stdin)
+for e in (d if isinstance(d, list) else [d]):
+    print(sorted(k for k in e if k not in ("id", "type", "@context")))'; }
+
+echo "01. Create a Vehicle with speed and owner - 201"
+echo "==============================================="
+status -X POST $U/entities -H 'Content-Type: application/json' -d '{"id": "urn:ngsi-ld:Vehicle:v1", "type": "Vehicle", "speed": {"type": "Property", "value": 50}, "owner": {"type": "Property", "value": "Ann"}, "brand": {"type": "Property", "value": "Volvo"}}'
+echo
+echo
+
+
+echo "02. Retrieve it - speed, no owner; query - the same"
+echo "==================================================="
+curl -s -H "$AUTH" $U/entities/urn:ngsi-ld:Vehicle:v1 | members
+curl -s -H "$AUTH" "$U/entities?type=Vehicle" | members
+echo
+echo
+
+
+echo "03. GET .../attrs/owner - 403; .../attrs/speed - 200"
+echo "===================================================="
+status $U/entities/urn:ngsi-ld:Vehicle:v1/attrs/owner
+status $U/entities/urn:ngsi-ld:Vehicle:v1/attrs/speed
+echo
+echo
+
+
+echo "04. PATCH speed - 204; owner - 403; both - 403, and speed is still 60"
+echo "====================================================================="
+status -X PATCH $U/entities/urn:ngsi-ld:Vehicle:v1/attrs -H 'Content-Type: application/json' -d '{"speed": {"type": "Property", "value": 60}}'
+status -X PATCH $U/entities/urn:ngsi-ld:Vehicle:v1/attrs -H 'Content-Type: application/json' -d '{"owner": {"type": "Property", "value": "Bob"}}'
+status -X PATCH $U/entities/urn:ngsi-ld:Vehicle:v1/attrs -H 'Content-Type: application/json' -d '{"speed": {"type": "Property", "value": 61}, "owner": {"type": "Property", "value": "Bob"}}'
+curl -s -H "$AUTH" $U/entities/urn:ngsi-ld:Vehicle:v1/attrs/speed | python3 -c 'import json, sys; print("speed:", json.load(sys.stdin)["value"])'
+echo
+echo
+
+
+echo "05. DELETE .../attrs/speed - 204; DELETE the entity - 403"
+echo "========================================================="
+status -X DELETE $U/entities/urn:ngsi-ld:Vehicle:v1/attrs/speed
+status -X DELETE $U/entities/urn:ngsi-ld:Vehicle:v1
+echo
+echo
+
+
+echo "06. A subscription; a PATCH of speed: the notification has speed, and no owner"
+echo "=============================================================================="
+status -X POST $U/subscriptions -H 'Content-Type: application/json' -d '{"id": "urn:ngsi-ld:Subscription:s1", "type": "Subscription", "entities": [{"type": "Vehicle"}], "watchedAttributes": ["speed"], "notification": {"endpoint": {"uri": "http://localhost:'"$FT_CLIENT_PORT"'/notify"}}}'
+sleep 2.5                                          # the owner kept (savedAt, whole seconds) before the write
+status -X POST $U/entities/urn:ngsi-ld:Vehicle:v1/attrs -H 'Content-Type: application/json' -d '{"speed": {"type": "Property", "value": 70}}'
+ftClientWait 1 > /dev/null
+ftClientDump | python3 -c 'import json, sys
+for n in json.load(sys.stdin):
+    body = n.get("payload") or n.get("body") or n
+    if isinstance(body, str):
+        body = json.loads(body)
+    for e in body.get("data", []):
+        print(sorted(k for k in e if k not in ("id", "type", "@context")))'
+echo
+echo
+
+
+echo "07. Without --fdscNgsild: the policies with coraine's words are not read"
+echo "======================================================================="
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/attribute.json --fdscIssuer http://verifier.ft
+sleep 1.5                                          # the policies' first read
+grep -o "policy 'urn:ft:[a-zA-Z]*' skipped: 'ngsi-ld:attribute' is coraine's own word - only with --fdscNgsild" /tmp/coraine.CB.log | sort
+echo
+echo
+
+
+--EXPECT--
+01. Create a Vehicle with speed and owner - 201
+===============================================
+201
+
+
+02. Retrieve it - speed, no owner; query - the same
+===================================================
+['brand', 'speed']
+['brand', 'speed']
+
+
+03. GET .../attrs/owner - 403; .../attrs/speed - 200
+====================================================
+403
+200
+
+
+04. PATCH speed - 204; owner - 403; both - 403, and speed is still 60
+=====================================================================
+204
+403
+403
+speed: 60
+
+
+05. DELETE .../attrs/speed - 204; DELETE the entity - 403
+=========================================================
+204
+403
+
+
+06. A subscription; a PATCH of speed: the notification has speed, and no owner
+==============================================================================
+201
+204
+['brand', 'speed']
+
+
+07. Without --fdscNgsild: the policies with coraine's words are not read
+=======================================================================
+policy 'urn:ft:deleteSpeed' skipped: 'ngsi-ld:attribute' is coraine's own word - only with --fdscNgsild
+policy 'urn:ft:modifySpeed' skipped: 'ngsi-ld:attribute' is coraine's own word - only with --fdscNgsild
+policy 'urn:ft:readAllButOwner' skipped: 'ngsi-ld:attribute' is coraine's own word - only with --fdscNgsild
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

@@ -100,7 +100,7 @@ extern bool authEntityStoredCheck(const char* id);
 // or adds a type needs the right to it; an entity that does not exist (or no lookup: a create) - bodyTypeP.
 // false: *detailP says why - the entity's error in the 207.
 //
-extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool lookup, const char** detailP);
+extern bool authEntityBatchAllowed(const char* id, CorNode* entryP, bool lookup, const char** detailP);
 
 
 
@@ -111,6 +111,15 @@ extern bool authEntityBatchAllowed(const char* id, CorNode* bodyTypeP, bool look
 // set), its nested entities are not asked about.
 //
 extern bool authEntityArrayFilter(CorNode* arrayP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authEntityAttrsFilter - a read's entity (its attributes at the top, expanded): false - it may not be read; true
+// - it may, and the attributes no policy allows (ngsi-ld:attribute, AuthAnswer.partial) are taken out of it
+//
+extern bool authEntityAttrsFilter(CorNode* entityP);
 
 
 

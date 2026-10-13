@@ -686,7 +686,7 @@ bool postEntityBatchCreate(void)
     {
       const char* authDetail = NULL;
 
-      if (authEntityBatchAllowed(eid, corTreeLookup(inP, "type"), false, &authDetail) == false)
+      if (authEntityBatchAllowed(eid, inP, false, &authDetail) == false)
       {
         addBatchError(errorsP, eid, 403, "about:blank", "Forbidden", authDetail, NULL);
         inP = nextP;
