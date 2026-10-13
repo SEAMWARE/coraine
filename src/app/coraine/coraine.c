@@ -115,14 +115,18 @@
 
 #if COR_FEATURE_REGISTRATIONS
 #include "forwarding/forwardingHttp.h"            // forwardingHttpRegister
+#if COR_FEATURE_COR_PROTOCOL
 #include "forwarding/forwardingCor.h"             // forwardingCorRegister
+#endif
 #endif
 
 #include "corBase/corCo.h"                      // corCoCurrent
 #include "corRest/corRestWait.h"                // corRestWaitFd
+#if COR_FEATURE_COR_PROTOCOL
 #include "corRest/corRestCor.h"                   // corRestCorInit, corRestCorListen - cor:// serves with or without registrations
 #include "corNgsild/ldBinCodec.h"                 // ldBinCodec, ldBinNamespaceV
 #include "corNgsild/CorTerm.h"                    // CorTermLast
+#endif
 
 #if COR_FEATURE_METRICS
 #include "metrics/metrics.h"                      // metricsInit, metricsPreService, metricsPostResponse, metricsNotificationSent, metricsCsrNotificationSent
@@ -177,7 +181,9 @@ static void contextSleep(int ms)
 // Command line arguments
 //
 unsigned short port         = 1026;
+#if COR_FEATURE_COR_PROTOCOL
 unsigned short corPort      = 0;           // cor:// - the binary API (0: off)
+#endif
 char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
@@ -233,7 +239,9 @@ static CorArg kargV[] =
 {
   { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels" },
   { "--port",               "-p",           CorArgUShort, _vp &port,     CorArgOpt, _vp 1026, _vp 1, _vp 65535, "TCP port to listen on" },
+#if COR_FEATURE_COR_PROTOCOL
   { "--corPort",            "-corPort",     CorArgUShort, _vp &corPort,  CorArgOpt, _vp 0,    _vp 0, _vp 65535, "TCP port for cor:// - the binary API (0: off)" },
+#endif
   { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
@@ -1663,13 +1671,17 @@ int main(int argC, char* argV[])
 
 #if COR_FEATURE_REGISTRATIONS
   forwardingHttpRegister();
+#if COR_FEATURE_COR_PROTOCOL
   forwardingCorRegister();
 #endif
+#endif
 
+#if COR_FEATURE_COR_PROTOCOL
   //
   // cor:// - the codec both directions use, as a client (forwarding) and as a server (--corPort)
   //
   corRestCorInit(&ldBinCodec, ldBinNamespaceV, ldBinNamespaces, CorTermLast);
+#endif
 
   if (prettySpaces > 0)
     corRestSetPrettySpaces(prettySpaces);
@@ -1984,11 +1996,13 @@ int main(int argC, char* argV[])
     COR_X(1, "cannot serve the policy API on %s port %u", policyApiHost, policyApiPort);
 #endif
 
+#if COR_FEATURE_COR_PROTOCOL
   //
   // cor:// last, like HTTP: every service is registered and every cache loaded by now
   //
   if ((corPort != 0) && (corRestCorListen(corPort, httpLoops) == false))
     COR_X(1, "cannot listen for cor:// on port %u", corPort);
+#endif
 
 #if COR_FEATURE_HEALTH
   healthServing();   // every cache loaded, every port open: /ready may answer 200

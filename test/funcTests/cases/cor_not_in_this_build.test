@@ -1,0 +1,145 @@
+#
+# FILE            cor_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build without cor:// (COR_WITH_COR_PROTOCOL=0: COR_FEATURE_COR_PROTOCOL=OFF, corRest without
+# corRestCor.c). The build says so; --corPort is not an option, as --auth is not one without AUTH; a
+# registration whose endpoint is cor:// is accepted, and a request it would forward is not forwarded:
+# no forwarder for the scheme - NGSILD-Warning 299 says so (not 199's timeout: nothing was sent), the
+# warn-agent the endpoint's host:port; HTTP serves as before.
+#
+# SKIP_FEATURE: COR_PROTOCOL
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+cor:// compiled out - no --corPort, no cor:// forwarding, HTTP as before
+
+--TAGS--
+cor features
+
+--INIT--
+corDbDrop
+coraineStart -dist
+
+--RUN--
+
+echo "01. The build says so itself - GET /build reports COR_PROTOCOL: false"
+echo "====================================================================="
+corCurl --url /build | grep '"COR_PROTOCOL"'
+echo
+echo
+
+
+echo "02. --corPort is not an option - exit 1"
+echo "======================================="
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database corDB --corPort 9 > /tmp/corOff.$$ 2>&1
+echo "exit: $?"
+grep -m1 "^coraine:" /tmp/corOff.$$
+rm -f /tmp/corOff.$$
+echo
+echo
+
+
+echo "03. A registration whose endpoint is cor:// - 201"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:cor","type":"ContextSourceRegistration","endpoint":"cor://localhost:9","information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. GET an entity it registers - not forwarded: 404, and NGSILD-Warning 299 - the scheme is not supported"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:1
+echo
+echo
+
+
+echo "05. HTTP as before - POST /ngsi-ld/v1/entities -> 201"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Room:1","type":"Room","temperature":{"type":"Property","value":21}}'
+echo
+echo
+
+
+echo "06. GET it back"
+echo "==============="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Room:1
+echo
+echo
+
+
+--EXPECT--
+01. The build says so itself - GET /build reports COR_PROTOCOL: false
+=====================================================================
+    "COR_PROTOCOL": false,
+
+
+02. --corPort is not an option - exit 1
+=======================================
+exit: 1
+coraine: unrecognized option: --corPort
+
+
+03. A registration whose endpoint is cor:// - 201
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:ngsi-ld:CSR:cor
+Content-Length: 0
+
+
+
+
+04. GET an entity it registers - not forwarded: 404, and NGSILD-Warning 299 - the scheme is not supported
+========================================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Warning: 299 localhost:9 "The registration endpoint's scheme is not supported by this broker"
+Content-Length: 166
+
+{
+  "detail": "entity 'urn:ngsi-ld:Vehicle:1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. HTTP as before - POST /ngsi-ld/v1/entities -> 201
+======================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Room:1
+Content-Length: 0
+
+
+
+
+06. GET it back
+===============
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Warning: 299 localhost:9 "The registration endpoint's scheme is not supported by this broker"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 115
+
+{
+  "id": "urn:ngsi-ld:Room:1",
+  "temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "type": "Room"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

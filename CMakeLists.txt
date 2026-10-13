@@ -52,8 +52,16 @@ option(COR_FEATURE_OPERATION_SPACE  "Enable geo-aware dispatch on the 'operation
 option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
 option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of its own (--policyApiPort): the policies fdsc.so reads, held by the broker (doc/authorization.md)" ON)
 
-# Group: Beyond NGSI-LD - Service Execution, and the API over other protocols
+# Group: Beyond NGSI-LD - Service Execution
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
+
+# Group: Protocols - the API over something else than HTTP
+#
+# COR_PROTOCOL must match corRest's COR_WITH_COR_PROTOCOL (which leaves corRestCor.c out of the lib); the
+# makefile drives both from that one variable, as it does ICU_COLLATION. The codec stays either way:
+# corDB's log is written in it.
+#
+option(COR_FEATURE_COR_PROTOCOL    "Enable cor:// - the binary NGSI-LD protocol: served on --corPort, and forwarding to a registration whose endpoint is cor://" ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
 
 # Group: Operations - running the broker: its admin API, metrics and health probes
@@ -75,7 +83,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS AUTH POLICY_API TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

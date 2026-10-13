@@ -28,6 +28,14 @@ cor:// is a communication protocol, not a bridge: it reaches the broker's API, b
 | the functests | `COR_TRANSPORT=cor corTest ...` - every test that can runs over cor:// (each broker on its HTTP port + 1000); `doc/testing.md` |
 | the benchmark | `test/perf/corChain.sh <http\|cor\|cor-all>` - three brokers chained |
 
+**Compiled out**: `make COR_WITH_COR_PROTOCOL=0` (or `coraine-build --features COR_PROTOCOL=OFF`) builds a
+broker without cor:// - corRest without its cor:// server and client (`corRestCor.c`), the broker without
+`--corPort` and without the cor:// forwarder: 24 640 bytes less (stripped, 2026-10-13). `--version` and
+`GET /build` say `COR_PROTOCOL` 0 / false. A registration whose endpoint is cor:// is accepted and not
+forwarded to: the answer carries `NGSILD-Warning: 299 <host:port> "The registration endpoint's scheme is not
+supported by this broker"` (`cor_not_in_this_build.test`). The cor format stays: corDB's log and history are
+written in it.
+
 ## What it is
 
 - **One format, three uses**: cor://, and the bodies of the corDB log and snapshot records.
