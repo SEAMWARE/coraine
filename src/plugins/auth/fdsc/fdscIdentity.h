@@ -14,6 +14,8 @@
 // same token - so it is never written once filled, and counted (fdscIdentityRef / Unref). What a request
 // keeps of its own is its FdscHandle: the identity and the request's own state (AuthDriver's identity).
 //
+#include <stdint.h>                                  // uint64_t
+
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
 #include "corTree/CorNode.h"                         // CorNode
 
@@ -48,6 +50,9 @@ typedef struct FdscHandle
 {
   FdscIdentity*  idP;                                // NULL: no one (--fdscAnonymous)
   bool           entityFree;                         // --fdscNgsild: a policy allows the request whatever its entities (set by authorize)
+  uint64_t       falseSet;                           // --fdscNgsild: the policy set (its generation, 0: none) falseMask is of
+  int            falseMethod;                        // ... the action authorize decided for
+  uint64_t       falseMask;                          // ... the policies (the first 64) that did not hold there - nor will for an entity
 } FdscHandle;
 
 
