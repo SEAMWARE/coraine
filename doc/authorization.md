@@ -190,6 +190,11 @@ A token whose signature has been checked is kept (1024 of them): a client sends 
 request for its 30 minutes, and a signature check costs as much as a request. A kept token is its exact
 bytes; its claims are checked on every request. The kept tokens are dropped whenever the key set changes.
 
+The token's size is the client's, and a cost of every request: the broker receives the whole header before
+anything reads it - a 696-byte token, 0.31-0.86 µs of a 10 µs PATCH on one core
+([The token's size](performance.md#the-tokens-size)). With `--auth`, the broker says once in its log when
+requests carry an `Authorization` header over 512 bytes.
+
 ### 3.3 Keys and policies
 
 A thread of the plugin fetches the keys (the discovery document, then `jwks_uri`) and the policies (the

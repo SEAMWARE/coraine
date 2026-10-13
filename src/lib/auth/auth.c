@@ -94,6 +94,29 @@ static __thread bool trustNext = false;
 
 // -----------------------------------------------------------------------------
 //
+// headerSizeCheck - a large Authorization header, said once: received with every request, its size is a cost
+// of each, and the client's choice (doc/performance.md, "The token's size"). Looked at on a thread's first
+// request and every 1024th after it, until said.
+//
+static bool              headerSizeSaid = false;
+static __thread unsigned headerSizeSeen = 0;
+
+static void headerSizeCheck(void)
+{
+  if ((__atomic_load_n(&headerSizeSaid, __ATOMIC_RELAXED) == true) || ((headerSizeSeen++ & 1023) != 0))
+    return;
+
+  const char* value = corRestInHeader("Authorization");
+  size_t      len   = (value != NULL) ? strlen(value) : 0;
+
+  if ((len > 512) && (__atomic_exchange_n(&headerSizeSaid, true, __ATOMIC_RELAXED) == false))
+    COR_W("requests carry a %zu-byte Authorization header - received with every request, its size is a cost of each (doc/performance.md, \"The token's size\")", len);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bodyKeep - the body as the client sent it, kept at admission: the parse that follows works in place, and
 // applies the @context - by authorize, neither the text nor the tree is what was sent. A tree (cor://) is
 // rendered.
@@ -365,6 +388,7 @@ static bool admit(void)
     return true;
   }
 
+  headerSizeCheck();
   bodyKeep(stateP);
   pathKeep(stateP);
 
