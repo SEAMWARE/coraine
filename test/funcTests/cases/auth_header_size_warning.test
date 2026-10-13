@@ -1,0 +1,81 @@
+#
+# FILE            auth_header_size_warning.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# With --auth, the broker says once in its log that requests carry an Authorization header over 512 bytes:
+# received with every request, the token's size is a cost of each (doc/performance.md, "The token's size").
+# An ES256 token stays under it - nothing said; an RS256 token with a credential is over it - said once,
+# whatever the number of requests.
+#
+# REQUIRE_FEATURE: AUTH
+#
+--NAME--
+With --auth, an Authorization header over 512 bytes is said once in the log
+
+--TAGS--
+auth
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthKey k2 ES256
+ftAuthJwks k1 k2
+echo '[{"@context": {"odrl": "http://www.w3.org/ns/odrl/2/"}, "@type": "odrl:Policy", "odrl:uid": "urn:ft:allowAll",
+        "odrl:permission": {"odrl:assignee": {"@id": "vc:any"}, "odrl:action": {"@id": "odrl:use"},
+                            "odrl:target": {"@type": "odrl:AssetCollection", "odrl:source": "urn:asset", "odrl:refinement": [
+                              {"@type": "odrl:Constraint", "odrl:leftOperand": "http:path", "odrl:operator": {"@id": "odrl:regex"}, "odrl:rightOperand": "^/"}]}}}]' > $FT_AUTH_DIR/allowAll.json
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/allowAll.json --fdscIssuer http://verifier.ft
+
+--RUN--
+
+#
+# 01. Ten requests with an ES256 token - under 512 bytes: 200, nothing said
+# 02. Restarted; ten requests with an RS256 token and a credential - over 512 bytes: 200, said once, with its size
+#
+
+SMALL=$(ftAuthToken k2)
+BIG=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+said() { grep -o "requests carry a [0-9]*-byte Authorization header - received with every request, its size is a cost of each" /tmp/coraine.CB.log | sed "s/ $1-byte / <the header's size>-byte /"; }
+tenRequests() { for i in $(seq 1 10); do curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $1" "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=Vehicle"; done | sort | uniq -c | sed 's/^ *//'; }
+
+echo "01. Ten requests with an ES256 token - 200, nothing said"
+echo "========================================================"
+echo "under 512: $(( ${#SMALL} + 7 < 512 ))"
+tenRequests $SMALL
+said $(( ${#SMALL} + 7 ))
+echo
+echo
+
+
+echo "02. Ten requests with an RS256 token and a credential - 200, said once"
+echo "======================================================================"
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/allowAll.json --fdscIssuer http://verifier.ft
+echo "over 512: $(( ${#BIG} + 7 > 512 ))"
+tenRequests $BIG
+said $(( ${#BIG} + 7 ))
+echo
+echo
+
+
+--EXPECT--
+01. Ten requests with an ES256 token - 200, nothing said
+========================================================
+under 512: 1
+10 200
+
+
+02. Ten requests with an RS256 token and a credential - 200, said once
+======================================================================
+over 512: 1
+10 200
+requests carry a <the header's size>-byte Authorization header - received with every request, its size is a cost of each
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

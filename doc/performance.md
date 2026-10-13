@@ -2043,6 +2043,31 @@ plugin (A) and this change's (C) run in the order none, A, C, C, A.
   `delete_c50` +0.1 % has its C runs at 105 227 and 97 895; `patch_c1` and `create_c1` are single-connection
   scenarios ([Latency depends on how deep the CPU sleeps](#latency-depends-on-how-deep-the-cpu-sleeps)).
 
+### The token's size
+
+Every request carries the client's access token, and the broker receives the whole header before anything
+reads it. PATCH, 50 connections, the broker on one core, corDB, 100 entities, no `--auth`, 12 s per run, in
+the order stock, patched, patched, stock (2026-10-13):
+
+| requests/s | libmicrohttpd 1.0.10 | with `0001-header-value-fastpath.patch` |
+|---|---:|---:|
+| no `Authorization` header | 108 621 / 107 094 | 107 477 / 107 240 |
+| a 696-byte token | 99 366 / 98 127 (-8.5 %, 0.86 µs) | 104 632 / 103 365 (-3.2 %, 0.31 µs) |
+
+- **Where**: libmicrohttpd's header parser, `get_req_headers` - 2.0 % of the broker's cycles without the
+  header, 9.2 % with it (`perf record`, 10 s). It reads a value one character at a time; corRest's copy of
+  the header does not show.
+- **The patch** (corLibs `tools/mhd/patches/1.0.10/`, applied by `mhdBuild.sh` in every build of the stack)
+  skips a value's plain characters in a compare-only loop; line ends, folding, bare CR / LF and the client
+  discipline levels take libmicrohttpd's path unchanged. libmicrohttpd's `make check`: 180 of 180.
+- **The size is the client's**: VCVerifier's token for one `UserCredential` is 696 bytes; a credential with
+  more claims makes it larger. With `--auth` the broker says so once, on a thread's first request or every
+  1024th, when an `Authorization` header is over 512 bytes:
+
+```
+W: requests carry a 696-byte Authorization header - received with every request, its size is a cost of each (doc/performance.md, "The token's size")
+```
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above
