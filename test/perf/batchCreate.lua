@@ -19,6 +19,8 @@
 -- before concluding batching is worthless, and check whether wrk's own cores
 -- are saturated.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local batch = tonumber(os.getenv("PERF_BATCH")) or 20
 local base  = 0
 local head, tail
@@ -53,7 +55,7 @@ request = function()
   end
   base = base + batch
   return wrk.format("POST", "/ngsi-ld/v1/entityOperations/create",
-                    {["Content-Type"] = "application/json"},
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth},
                     "[" .. table.concat(parts, ",", 1, batch) .. "]")
 end
 

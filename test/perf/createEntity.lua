@@ -18,6 +18,8 @@
 -- every repeat. Without that, repeat 3 starts from a store a thousand times the
 -- size repeat 1 did, and the median is of three different experiments.
 --
+local auth = os.getenv("PERF_AUTH") and ("Bearer " .. os.getenv("PERF_AUTH"))   -- perfRun.sh PERF_AUTH; nil: no header
+
 local seq = 0
 local head, tail
 
@@ -55,7 +57,7 @@ end
 request = function()
   seq = seq + 1
   return wrk.format("POST", "/ngsi-ld/v1/entities",
-                    {["Content-Type"] = "application/json"},
+                    {["Content-Type"] = "application/json", ["Authorization"] = auth},
                     head .. seq .. tail)
 end
 
