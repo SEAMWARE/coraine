@@ -10,6 +10,8 @@
 # for an upsert that creates). An entity the request may not touch is that entity's 403 in the 207; the
 # others are done. (The Data Space Connector reads a batch's array body for one 'type' and finds none.)
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc --fdscNgsild - a batch is decided entity by entity: a denied one is its own 403 in the 207
 

@@ -9,6 +9,8 @@
 # auth plugin that is not there, or one that cannot work with the options it was given. An auth plugin's
 # options exist only with the plugin: without --auth they are unknown options.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin - the broker does not start without the security it was asked for (exit 1)
 

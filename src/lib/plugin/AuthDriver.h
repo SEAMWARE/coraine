@@ -42,7 +42,7 @@
 
 
 
-#define AUTH_ABI_VERSION  2
+#define AUTH_ABI_VERSION  3
 
 
 
@@ -194,6 +194,15 @@ typedef struct AuthDriver
   //
   char*        (*identitySave)(void* identity);
   void*        (*identityRestore)(const char* saved);
+
+  //
+  // ABI 3: authorizeBeforeContext - authorize is asked at the request's admission, with authenticate, before
+  // the broker resolves the request's @context (its Link header, its body's @context - URLs the CLIENT names,
+  // which the broker fetches): a request that may not is refused before the broker fetches anything for it.
+  // AuthRequest.expand answers NULL there (the request's @context is not known yet); everything else is as it
+  // is later. false (and a plugin of ABI 2): authorize is asked after the @context, before the tenant.
+  //
+  bool         authorizeBeforeContext;
 } AuthDriver;
 
 typedef void (*AuthRegisterFunc)(AuthDriver* driverP);

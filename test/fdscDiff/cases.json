@@ -1198,5 +1198,47 @@
    "Origin": "http://app",
    "Access-Control-Request-Method": "GET"
   }
+ },
+ {
+  "name": "denied, Link @context unreachable",
+  "method": "GET",
+  "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Forbidden:f1",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": null,
+  "headers": {
+   "Link": "<http://127.0.0.1:9/unreachable-context.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""
+  }
+ },
+ {
+  "name": "denied, body @context unreachable",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entities",
+  "token": {
+   "vc": {
+    "type": [
+     "VerifiableCredential",
+     "UserCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {}
+   }
+  },
+  "body": {
+   "@context": "http://127.0.0.1:9/unreachable-context.jsonld",
+   "id": "urn:ngsi-ld:Forbidden:f2",
+   "type": "Forbidden"
+  },
+  "headers": {
+   "Content-Type": "application/ld+json"
+  }
  }
 ]

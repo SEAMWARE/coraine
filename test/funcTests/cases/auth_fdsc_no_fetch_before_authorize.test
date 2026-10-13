@@ -1,0 +1,105 @@
+#
+# FILE            auth_fdsc_no_fetch_before_authorize.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# A request's @context - its Link header, its body's @context - names URLs the client chooses, and the broker
+# fetches them. fdsc decides before that (AuthDriver.authorizeBeforeContext, ABI 3): a request without a valid
+# token, or one no policy allows, is refused before the broker fetches anything for it. The "context server"
+# is corTestClient, which counts every request it gets.
+#
+# REQUIRE_FEATURE: AUTH
+#
+--NAME--
+fdsc: a request that may not is refused before its @context is fetched
+
+--TAGS--
+auth context
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1
+ftAuthJwks k1
+ftClientStart
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/papListing.json --fdscIssuer http://verifier.ft --fdscOrganization did:web:provider
+
+--RUN--
+
+#
+# 01. No token, a Link @context on the context server - 401, nothing fetched
+# 02. A token, a read no policy allows (type Forbidden), a Link @context - 403, nothing fetched
+# 03. A token, a create no policy allows, the @context in the body - 403, nothing fetched
+# 04. A token, a read a policy allows (type EnergyReport), a Link @context - fetched (the control)
+#
+
+USER=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
+CTX="http://localhost:$FT_CLIENT_PORT/context.jsonld"
+LINK="Link: <$CTX>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""
+fetched() { echo "requests to the context server: $(ftClientCount)"; }
+
+echo "01. No token, a Link @context - 401, nothing fetched"
+echo "====================================================="
+curl -s -o /dev/null -w '%{http_code}\n' -H "$LINK" "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:r1"
+fetched
+echo
+echo
+
+
+echo "02. A read no policy allows, a Link @context - 403, nothing fetched"
+echo "==================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" -H "$LINK" "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:Forbidden:f1"
+fetched
+echo
+echo
+
+
+echo "03. A create no policy allows, the @context in the body - 403, nothing fetched"
+echo "=============================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" -H 'Content-Type: application/ld+json' \
+     -d '{"@context": "'"$CTX"'", "id": "urn:ngsi-ld:Forbidden:f2", "type": "Forbidden"}' "http://localhost:$COR_PORT/ngsi-ld/v1/entities"
+fetched
+echo
+echo
+
+
+echo "04. A read a policy allows, a Link @context - fetched (the control)"
+echo "==================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $USER" -H "$LINK" "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:EnergyReport:r1"
+fetched
+echo
+echo
+
+
+--EXPECT--
+01. No token, a Link @context - 401, nothing fetched
+=====================================================
+401
+requests to the context server: 0
+
+
+02. A read no policy allows, a Link @context - 403, nothing fetched
+===================================================================
+403
+requests to the context server: 0
+
+
+03. A create no policy allows, the @context in the body - 403, nothing fetched
+==============================================================================
+403
+requests to the context server: 0
+
+
+04. A read a policy allows, a Link @context - fetched (the control)
+===================================================================
+504
+requests to the context server: 1
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

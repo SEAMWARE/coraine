@@ -11,6 +11,8 @@
 # request's @context makes of the same word. Where the Data Space Connector reads the type out of the id
 # string, here the id says nothing.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc --fdscNgsild - one entity: the type of the body for a create, the stored type for the rest, expanded
 

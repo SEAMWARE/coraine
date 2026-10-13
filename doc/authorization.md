@@ -27,7 +27,7 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 2; append-only, as the bridge and
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 3; append-only, as the bridge and
 transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
 broker is too old to have.
 
@@ -36,7 +36,7 @@ broker is too old to have.
 | | when | the plugin answers | not allowed |
 |---|---|---|---|
 | `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
-| `authorize` | once the `@context` is resolved, **before** the tenant is (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
+| `authorize` | with `authorizeBeforeContext` (ABI 3; `fdsc.so` sets it): right after `authenticate`, **before** the request's `@context` is resolved - its `Link` header and its body's `@context` name URLs the client chooses, and the broker fetches them; `expand()` answers NULL there. Without it: once the `@context` is resolved. Either way **before** the tenant is resolved (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
 | `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
 | `release` | the request is over, its response sent | - | - |
 
@@ -131,6 +131,10 @@ void authRegister(AuthDriver* driverP)
 
 Built as a shared object, put in `<plugins>/auth/apikey.so`, run with `--auth apikey`. A plugin that calls
 Cor-Lib functions is built against the same lib sources as its broker ([Plugin architecture](plugin-architecture.md)).
+
+A plugin whose `authorize` reads nothing of the request's own `@context` (no `expand()`) sets
+`driverP->authorizeBeforeContext = true` (ABI 3): a request it refuses is then refused before the broker fetches
+the `@context` URLs the client named.
 
 ## 3. `fdsc.so` - the Data Space Connector's security
 
@@ -272,7 +276,7 @@ in docker, beside coraine with `--auth fdsc`, both given the same verifier (a st
 discovery document and the JWK Set as VCVerifier does) and the same PAP. Each case of
 `test/fdscDiff/cases.json` - tokens, the vocabulary, the combination rules, the cases where the Rego is not
 what ODRL says - goes to both, and the answers are compared by class (401, 403, 503, let through).
-**62 cases, 0 differences** (2026-10-13), apart from the one decided below (`known.json`).
+**64 cases, 0 differences** (2026-10-13), apart from the one decided below (`known.json`).
 
 The functests (`auth_fdsc_*`, `auth_startup_refused`) hold the same behaviour without docker, against a
 stand-in PAP (`test/funcTests/tools/ftVerifier.py`).
@@ -343,10 +347,9 @@ bounds how long a revoked credential still receives notifications.
 ## 7. Next
 
 - The tenant (`NGSILD-Tenant`) is never examined by the connector's policies.
-- A request's `@context` (its `Link` header, its body's `@context`) is fetched before `authorize`: an
-  authenticated client - anyone, with `--fdscAnonymous` - can have the broker fetch a URL of its choice,
-  as it can through the connector's chain, which forwards the request to its broker. Deciding first needs
-  `authorize` without the expanded request.
+- A request a policy may allow - with `--fdscNgsild`, one whose decision depends on the entity (§ 6) - has
+  its `@context` fetched before `entity()` decides it: a client with a right to some entity can have the
+  broker fetch a URL of its choice.
 - Attribute-level rules (read and write per attribute: `AuthEntity.attrV`); serving the PAP's `/policy`
   API from the broker.
 

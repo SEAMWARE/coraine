@@ -75,6 +75,7 @@ typedef struct AuthState
   char*  body;                                       // the body as sent (bodyKeep)
   int    bodyLen;
   char*  path;                                       // the URL path as sent (pathKeep)
+  bool   authorized;                                 // authorize asked already, at admission (authorizeBeforeContext)
 } AuthState;
 
 
@@ -204,6 +205,12 @@ static const char* bodyText(int* lenP)
 //
 // termExpand - AuthRequest.expand: a term with the request's @context
 //
+static const char* termExpandNotYet(const char* term)
+{
+  (void) term;
+  return NULL;                                       // at admission: the request's @context is not resolved yet
+}
+
 static const char* termExpand(const char* term)
 {
   if (term == NULL)
@@ -238,7 +245,7 @@ static const char* termExpandDefault(const char* term)
 //
 // requestFill - the AuthRequest of the bound request
 //
-static void requestFill(AuthRequest* reqP, bool withTenant)
+static void requestFill(AuthRequest* reqP, bool withTenant, bool atAdmission)
 {
   uint64_t op = (corRest.serviceP != NULL) ? corRest.serviceP->ldOp : 0;
 
@@ -276,7 +283,7 @@ static void requestFill(AuthRequest* reqP, bool withTenant)
     const char* tenant = corRestInHeader("NGSILD-Tenant");
 
     reqP->tenant        = ((tenant != NULL) && (tenant[0] != 0)) ? tenant : NULL;
-    reqP->expand        = termExpand;
+    reqP->expand        = (atAdmission == true) ? termExpandNotYet : termExpand;
     reqP->expandDefault = termExpandDefault;
     reqP->entities      = (driver.abiVersion >= 2) && (driver.entity != NULL) && ((op & AUTH_ENTITY_OPS) != 0);
   }
@@ -352,18 +359,39 @@ static bool admit(void)
   AuthAnswer   ans;
   void*        identity = NULL;
 
-  requestFill(&req, false);
+  requestFill(&req, false, true);
   memset(&ans, 0, sizeof(ans));
 
   AuthVerdict verdict = driver.authenticate(&req, &identity, &ans);
 
   stateP->identity = identity;
 
-  if (verdict == AuthAllow)
+  if (verdict != AuthAllow)
+  {
+    answer(verdict, &ans);
+    return false;
+  }
+
+  //
+  // May it - here already, for a plugin that does not need the request's @context: before the broker
+  // resolves it, and fetches what the client named for it
+  //
+  if ((driver.abiVersion < 3) || (driver.authorizeBeforeContext == false) || (driver.authorize == NULL))
     return true;
 
-  answer(verdict, &ans);
-  return false;
+  requestFill(&req, true, true);
+  memset(&ans, 0, sizeof(ans));
+
+  verdict = driver.authorize(&req, stateP->identity, &ans);
+
+  if (verdict != AuthAllow)
+  {
+    answer(verdict, &ans);
+    return false;
+  }
+
+  stateP->authorized = true;
+  return true;
 }
 
 
@@ -834,13 +862,13 @@ bool authAuthorize(void)
   // No state: a request that was never admitted - an in-process forward (corRest does not ask for one,
   // its request was let in when it arrived). The broker's own: trusted.
   //
-  if ((stateP == NULL) || (stateP->trusted == true))
+  if ((stateP == NULL) || (stateP->trusted == true) || (stateP->authorized == true))
     return true;
 
   AuthRequest  req;
   AuthAnswer   ans;
 
-  requestFill(&req, true);
+  requestFill(&req, true, false);
   memset(&ans, 0, sizeof(ans));
 
   AuthVerdict verdict = driver.authorize(&req, stateP->identity, &ans);
@@ -884,7 +912,7 @@ bool authEntityAllowed(const char* id, const char* const* typeV, int types, bool
   AuthAnswer   ans;
   AuthEntity   entity;
 
-  requestFill(&req, true);
+  requestFill(&req, true, false);
   memset(&ans, 0, sizeof(ans));
 
   entity.id     = id;

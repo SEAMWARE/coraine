@@ -17,6 +17,8 @@
 #   - http:bodyValue compares the body's value as sent: the string "3" is not the number 3
 #   - a request no policy allows is a 403 - and a create on an unknown tenant leaves no tenant behind
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc - the ODRL-PAP's policies, decided as the Data Space Connector decides them
 

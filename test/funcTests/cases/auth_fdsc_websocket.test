@@ -11,6 +11,8 @@
 # header on it). When the connection closes, the broker deletes the subscriptions it made - its own
 # requests, let in without a token.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc - over a WebSocket each message carries its own token; the subscriptions of a closed connection still go
 
