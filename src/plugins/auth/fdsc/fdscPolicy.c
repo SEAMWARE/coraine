@@ -149,10 +149,12 @@ typedef struct PolicySet
   regex_t**    regexV;                               // to regfree
   int          regexes;
   int          regexSize;
+  bool         attrRules;                            // a policy reads ngsi-ld:attribute: an entity's attributes are decided one by one
 } PolicySet;
 
 static pthread_rwlock_t  setLock       = PTHREAD_RWLOCK_INITIALIZER;
 static PolicySet*        setP          = NULL;       // in use
+static uint64_t          setGeneration = 0;          // setP's: one more at each commit (FdscHandle.falseSet)
 static PolicySet*        buildP        = NULL;       // being built (the refresh thread's)
 static bool              loaded        = false;
 static char              organization[256] = "urn:ngsi-ld:organization:0b03975e-7ded-4fbd-9c3b-a5d6550df7e2";   // the PAP's default
@@ -656,6 +658,9 @@ static bool constraintParse(PolicySet* psP, CorNode* cP, Rule* rP, char* errorBu
       snprintf(errorBuf, errorBufSize, "'%.64s' is coraine's own word - only with --fdscNgsild", name);
       return false;
     }
+
+    if (main.left == LeftAttribute)
+      psP->attrRules = true;
   }
   else if ((leftP = corTreeLookup(cP, "http:bodyValue")) != NULL)
   {
@@ -1244,6 +1249,7 @@ void fdscPolicySetCommit(void)
   PolicySet* oldP = setP;
   setP   = buildP;
   loaded = true;
+  ++setGeneration;
   pthread_rwlock_unlock(&setLock);
 
   buildP = NULL;
@@ -2294,7 +2300,7 @@ static bool typeRuleFails(Ctx* cP, Rule* tP, int byType, const char* reqType)
 // that allows decides (OPA's early exit - the rest are not evaluated), and an error in one evaluated before
 // it (eval_conflict_error) is the decision's error
 //
-static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, const char* attr, bool* pendingOnlyP, AuthAnswer* answerP)
+static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEntity* entityP, const char* attr, bool* pendingOnlyP, bool* attrFreeP, AuthAnswer* answerP)
 {
   FdscIdentity* idP = (hP != NULL) ? hP->idP : NULL;
 
@@ -2333,10 +2339,27 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
   int         byType  = -1;                         // -1: not known yet (the first policy with a type rule asks), 0: no skipping, 1: the request's type, 2: the entity's
   const char* reqType = NULL;
 
-  bool allowed = false;
-  bool pending = false;
+  bool     allowed   = false;
+  bool     pending   = false;
+  uint64_t falseMask = 0;                            // the policies that did not hold (the first 64)
 
   pthread_rwlock_rdlock(&setLock);
+
+  //
+  // No policy reads ngsi-ld:attribute: the attribute decided changes nothing - this decision is every one's
+  //
+  if (attrFreeP != NULL)
+    *attrFreeP = (setP != NULL) && (setP->attrRules == false);
+
+  //
+  // For an entity: the policies that did not hold in authorize - for this request, this action, this policy
+  // set - fail here too. Everything an entity changes was Pending there (ngsi-ld:entityType, ngsi-ld:attribute):
+  // a policy that failed, failed on a rule no entity decides
+  //
+  uint64_t knownFalse = 0;
+
+  if ((entityP != NULL) && (hP != NULL) && (hP->falseSet == setGeneration) && (hP->falseMethod == ctx.method))
+    knownFalse = hP->falseMask;
 
   for (int i = 0; (setP != NULL) && (i < setP->policies); i++)
   {
@@ -2347,7 +2370,17 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
     if (((ctx.method & setP->policyV[i].methods) == 0) && (conflictFree(&ctx) == true))
       continue;
 
+    if ((i < 64) && ((knownFalse & (1ULL << i)) != 0) && (conflictFree(&ctx) == true))
+      continue;
+
     Rule* typeRuleP = setP->policyV[i].typeRuleP;
+
+    //
+    // authorize, deferring to entity(): a policy with a type rule is at best Pending here (the rule is), so once
+    // one policy is Pending, evaluating another such one changes nothing - entity() decides it
+    //
+    if ((ctx.defer == true) && (pending == true) && (typeRuleP != NULL) && (conflictFree(&ctx) == true))
+      continue;
 
     if ((typeRuleP != NULL) && (byType == -1))
     {
@@ -2383,6 +2416,18 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
 
     if (t == TriPending)
       pending = true;
+    else if (i < 64)
+      falseMask |= 1ULL << i;
+  }
+
+  //
+  // authorize, deferring to entity(): what did not hold, for entity() to skip
+  //
+  if ((ctx.defer == true) && (allowed == false) && (ctx.conflict == false))
+  {
+    hP->falseSet    = setGeneration;
+    hP->falseMethod = ctx.method;
+    hP->falseMask   = falseMask;
   }
 
   pthread_rwlock_unlock(&setLock);
@@ -2423,7 +2468,7 @@ static AuthVerdict decide(const AuthRequest* reqP, FdscHandle* hP, const AuthEnt
 //
 AuthVerdict fdscPolicyDecide(const AuthRequest* reqP, FdscHandle* hP, AuthAnswer* answerP)
 {
-  return decide(reqP, hP, NULL, NULL, NULL, answerP);
+  return decide(reqP, hP, NULL, NULL, NULL, NULL, answerP);
 }
 
 
@@ -2444,7 +2489,8 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
   {
     for (int i = 0; i < entityP->attrs; i++)
     {
-      AuthVerdict v = decide(reqP, hP, entityP, entityP->attrV[i], NULL, answerP);
+      bool        attrFree = false;
+      AuthVerdict v        = decide(reqP, hP, entityP, entityP->attrV[i], NULL, &attrFree, answerP);
 
       if (v != AuthAllow)
       {
@@ -2453,6 +2499,9 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
         answerP->detail = detail;
         return v;
       }
+
+      if (attrFree == true)                          // the same for the others
+        break;
     }
 
     return AuthAllow;
@@ -2464,7 +2513,7 @@ AuthVerdict fdscPolicyEntity(const AuthRequest* reqP, FdscHandle* hP, const Auth
   // entity whole (a delete, a replace) is not allowed
   //
   bool        pendingOnly = false;
-  AuthVerdict v           = decide(reqP, hP, entityP, NULL, &pendingOnly, answerP);
+  AuthVerdict v           = decide(reqP, hP, entityP, NULL, &pendingOnly, NULL, answerP);
 
   if ((v != AuthAllow) || (pendingOnly == false))
     return v;
@@ -2558,6 +2607,7 @@ void fdscPolicyRelease(void)
   PolicySet* oldP = setP;
   setP   = NULL;
   loaded = false;
+  ++setGeneration;
   pthread_rwlock_unlock(&setLock);
 
   setFree(oldP);

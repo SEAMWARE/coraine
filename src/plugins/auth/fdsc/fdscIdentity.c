@@ -84,8 +84,11 @@ FdscHandle* fdscHandleNew(FdscIdentity* idP)
     return NULL;
   }
 
-  hP->idP        = idP;
-  hP->entityFree = false;
+  hP->idP         = idP;
+  hP->entityFree  = false;
+  hP->falseSet    = 0;
+  hP->falseMethod = 0;
+  hP->falseMask   = 0;
   return hP;
 }
 
