@@ -166,6 +166,193 @@ command with a different feature keeps the previous one off as well, which is
 easy to miss because the build succeeds — check `coraine --version` (or
 `GET /build`) rather than assuming. Give each combination its own directory.
 
+### Every choice `coraine-build` offers
+
+One heading per choice, as c³'s Compile page shows them. **Size** is what the choice changes in what a
+build installs: the stripped programs and plugins (`coraine`, `coraine-import`, `plugins/`), and the
+libraries they load that a bare `ubuntu:26.04` does not have
+([Size on disk](performance.md#size-on-disk--what-installing-coraine-adds)). Measured 2026-10-13 on main
+`c44d4b4e`, release builds, one switch turned from its default at a time against the default build. A
+stripped file grows and shrinks in 4 KiB pages: a switch whose code is under a page reads 0 or 4 KiB.
+
+#### Build mode: Release
+
+`-O2`, traces compiled out (`--traceLevels` is not there), no training. `coraine-build`'s default
+(`--release`).
+
+#### Build mode: Profile-guided
+
+`--pgo`. Built instrumented, trained on
+[`test/perf/pgoTrain.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/pgoTrain.sh) - perfRun's
+request shapes on corDB in RAM and on disk with history, a write that notifies, the three-broker
+forwarding chain over HTTP and cor:// - and rebuilt with the profile, the libraries with it. +1-10 % per
+core against Release ([Profile-guided](performance.md#profile-guided-make-pgo)). Needs `curl`, `wrk` and
+`python3`; libmicrohttpd only. Size: none.
+
+#### Build mode: Tuned for a workload
+
+`--tune <workload.json>`. Profile-guided, trained on **your** workload instead of the general mix, and two
+more knobs measured on it - the ones that depend on the workload, not on the deployment:
+
+- **the profile** - the code laid out for the paths your workload runs;
+- **the memory allocator** - glibc's `malloc`, jemalloc or tcmalloc (`LD_PRELOAD`, no rebuild); on
+  concurrent creates into a durable corDB jemalloc is +11 %, tcmalloc +18 %;
+- **whom corDB's store lock lets in first** (`--dbLockPrefer reads|writes`) - writers first: creates +5 %,
+  batch creates +15 %, merges +7.5 %, reads and notifying PATCHes -3-6 %.
+
+The workload file says where the entities live, what a typical entity looks like and how many there are,
+who is notified, and what the broker is asked and how hard
+([The workload file](extreme-performance.md#the-workload-file)). The best of each knob goes to
+`etc/tune.env` in the install (`CORAINE_*` and `LD_PRELOAD`). ~15 minutes; needs what Profile-guided
+needs, and jemalloc and tcmalloc to compare them (`libjemalloc2`, `libtcmalloc-minimal4`; a missing one
+is left out). [Extreme performance](extreme-performance.md).
+
+#### Build mode: Debug
+
+`--debug`. `-g`, not optimised, traces compiled in: `--traceLevels` works. For reproducing a problem
+report, not for production.
+
+#### HTTP server: libmicrohttpd
+
+`--http-server mhd`, the default. libmicrohttpd 1.0.10, and GnuTLS behind it: nine libraries, 7.29 MiB.
+Everything builds.
+
+#### HTTP server: corHttp (built in)
+
+`--http-server builtin`. The broker's own epoll server, 12 KiB, no external library: 7.29 MiB and nine
+libraries less than libmicrohttpd. One listener: `POLICY_API` (a port of its own) is not built. Not with
+Profile-guided or Tuned yet. [Choosing the HTTP server](#choosing-the-http-server).
+
+#### Store: corDB only
+
+`--features MONGOC=OFF`. Entities in the broker's own memory, on disk with `--dbDir`. `mongoc.so` is not
+built and its libraries not loaded. Size: -145 KiB, and libmongoc 5.59 MiB + libbson 1.08 MiB; libsasl2
+(0.10 MiB) goes too when `timescale.so` is not installed (libpq needs it).
+
+#### Store: corDB + mongoc
+
+The default: `--database mongoc` too, entities in a MongoDB.
+
+#### `SUBSCRIPTIONS`
+
+Subscriptions and their notifications. Off: the 7 subscription routes answer 501, the
+subscription code leaves both store plugins, `SNAPSHOT_SUBSCRIPTIONS` goes with it. Size: -64 KiB.
+
+#### `REGISTRATIONS`
+
+Context Source Registrations and what they drive: distributed operations (forwarding), registration
+subscriptions, EntityMaps. Off: 15 routes answer 501, the forwarding library and both
+store plugins' registration code go. Size: -72 KiB.
+
+#### `TENANTS`
+
+Multi-tenancy (`NGSILD-Tenant`). **Declared, removes nothing**: a build without it serves tenants as
+before (below).
+
+#### `SCOPES`
+
+Entity `scope` and `scopeQ`. **Declared, removes nothing.**
+
+#### `DATASETID`
+
+Multi-attribute instances by `datasetId`. **Declared, removes nothing.**
+
+#### `MULTI_TYPE`
+
+An entity of more than one type. **Declared, removes nothing.**
+
+#### `AUTO_ENTITY_MAP`
+
+Automatic EntityMaps: a query of more than one page freezes its set of matches and serves its pages from
+it - distributed queries by default, local ones too with `--autoEntityMaps all`. Off: no
+`--autoEntityMaps`; pages by `offset` / `limit`; a map only when a client asks for one. Size: -4 KiB.
+[EntityMaps](installation.md#entitymaps).
+
+#### `RESPONSE_BUDGET`
+
+The byte budget of a query (`--maxResponseSize`): a shorter page, or 403 TooManyResults. Off: no budget.
+Size: -12 KiB. [Response size](installation.md#response-size).
+
+#### `ICU_COLLATION`
+
+Off by default. On: `orderBy` on strings by ICU root collation (§ 7.6.2.1), and `collation=<locale>`.
+Off: ASCII sorts the same; punctuation does not sort before digits, a non-ASCII letter sorts by its bytes,
+`collation=` is ignored. Size, on: **+39.2 MiB**, three libraries (`libicudata` 31.6 MiB). Needs
+`libicu-dev` to build.
+
+#### `SNAPSHOT_WRITE`
+
+Writes on a Snapshot (`NGSILD-Snapshot` on an entity or temporal write, § 7.9.2). Off: such a write answers
+422 - Snapshots are read-only. Size: under a page (568 bytes of code).
+
+#### `SNAPSHOT_SUBSCRIPTIONS`
+
+Subscriptions on a Snapshot, notified by its writes. Off: a subscription write naming a Snapshot answers
+422. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is. Size: under a page (1 491 bytes).
+
+#### `CONTEXT_DL`
+
+@contexts downloaded from their URLs. **Declared, removes nothing.**
+
+#### `CONTEXT_HOSTING`
+
+The `/jsonldContexts` API and its store. Off: its 4 routes answer 501; an inline @context and the core
+context work as before. Size: -20 KiB.
+
+#### `GEOQ`
+
+Geo-queries (`georel`, `geometry`, `coordinates`). **Declared, removes nothing.** GEOS (3.17 MiB, the
+largest library coraine installs) stays whatever the switch: `corDB.so` and `mongoc.so` link it.
+
+#### `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
+
+Geo-aware dispatch on each GeoProperty. **Declared, removes nothing**; `LOCATION` on, the other two off.
+
+#### `AUTH`
+
+Auth plugins: who sent a request and whether it may (`--auth`; `fdsc.so`, the FIWARE Data Space
+Connector's tokens and policies). Off: no `--auth`, every request let in, `fdsc.so` not built. Size:
+-113 KiB. [Authorization](authorization.md).
+
+#### `POLICY_API`
+
+The ODRL PAP's `/policy` API on a port of its own (`--policyApiPort`) - the policies `fdsc.so` reads,
+held by the broker. Off: no `--policyApiPort`. Needs libmicrohttpd. Size: -9 KiB.
+[Authorization § 7](authorization.md#7-the-policy-api---the-broker-as-its-own-pap).
+
+#### `SERVICE_EXECUTION`
+
+Service registrations, executions and executors (ETSI GR CIM-055). Off: 17 routes answer 501. Size:
+-169 KiB.
+
+#### `TRANSPORTS`
+
+Transport plugins - the API over another protocol (`--transports`; `ws.so`, WebSocket). Off: no
+`--transports`, `ws.so` not built. Size: -38 KiB.
+
+#### `ADMIN_API`
+
+The admin API plugin (`admin.so`). Off: not built; `METRICS` goes with it. Size: -40 KiB.
+
+#### `METRICS`
+
+Prometheus metrics (`/admin/metrics`, `/metrics`). Off: none. Size: -17 KiB.
+
+#### `HEALTH`
+
+The health port (`--healthPort`): `/live`, `/ready` and a report, on a thread of its own, and the store
+plugins' `ping`. Off: no `--healthPort`. Size: -8 KiB.
+
+#### `MONGOC`
+
+The mongoc store plugin: as [Store: corDB only](#store-cordb-only).
+
+#### `MIGRATE`
+
+`coraine-import`: another broker's database written into coraine's stores
+([migration.md](migration.md)). Off: not built; the broker carries no import code either way. Size:
+-1.3 MiB.
+
 ### ⚠️ Building a stripped-down broker is at your own risk
 
 Every `COR_FEATURE_*` option can be set to `OFF` and most of them will build.
@@ -173,7 +360,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These ten remove code from the broker and are covered by the test suite:**
+**These eleven remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -216,14 +403,9 @@ produces a broker that builds, starts, reports `"TENANTS": false` on `GET /build
 because nothing about it looks like a failure. If you are switching one of these
 off to remove a feature, you have not removed it.
 
-**⚠️ These two do not build:**
-
-`CONTEXT_HOSTING`, `METRICS`
-
-Their `CMakeLists.txt` drops the source files, and code that survives still
-references the symbols, so the link fails with `undefined reference to
-'getJsonldContexts'`, `'metricsPreService'` and friends. A failed link is the
-honest outcome of the two — it is the nine above that will mislead you.
+**Every switch builds**, turned from its default alone: the nightly's `switches` job builds each
+(`.github/scripts/every-switch.sh`) and checks that `--version` says so. `CONTEXT_HOSTING=OFF`: its 4
+routes answer 501 (`jsonld_contexts_not_in_this_build`); `METRICS=OFF`: no `/admin/metrics`, `/metrics`.
 
 **What to check.** After any reduced build, ask the binary what it thinks it is
 rather than assuming the flag took:
