@@ -743,5 +743,12 @@ void authRegister(AuthDriver* driverP)
     driverP->identityRestore = fdscIdentityRestore;
   }
 
+  //
+  // The connector's policies never read the request's @context (ngsi-ld:entityType is read as sent, or with
+  // the broker's default context): decided before the broker fetches a @context the client names
+  //
+  if (brokerAbi >= 3)
+    driverP->authorizeBeforeContext = true;
+
   driverSelf = driverP;
 }

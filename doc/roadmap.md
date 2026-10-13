@@ -171,7 +171,7 @@ in order:
    the whole suite on 2026-10-08.)
 5. **Security** - being built: auth plugins (`--auth`) and `fdsc.so`, the FIWARE Data Space Connector's
    tokens and policies decided as the connector 10.87.0 decides them ([Authorization](authorization.md)).
-   Built since: the comparison with a deployed connector (62 cases, a nightly job) and contract version 2 -
+   Built since: the comparison with a deployed connector (64 cases, a nightly job) and contract version 2 -
    per-entity decisions (create, retrieve, every write, batches, queries) and `--fdscNgsild`. Next:
    notifications decided for the subscriber (where its identity is kept is to decide), attribute-level rules.
 6. **One compound geo index** - prototype both variants, measure.

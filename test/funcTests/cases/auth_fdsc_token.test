@@ -12,6 +12,8 @@
 # taken, a CORS preflight is no exception (as APISIX's openid-connect, bearer_only). The policy here
 # allows any credential anything: what is tested is the token alone.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc - the access token: RS256, ES256, kid, iss, exp with 120 s leeway; 401 + WWW-Authenticate
 

@@ -11,6 +11,8 @@
 # (the Data Space Connector compares "A,B" as one string, and finds no 'type' in a POST query's body).
 # join=inline - entities nested in entities, not asked about one by one - is refused.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc --fdscNgsild - a query answers the entities the request may read, each on its stored type
 

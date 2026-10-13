@@ -12,6 +12,8 @@
 # no longer holds (--fdscOwnerMaxAge) leaves the notifications empty - not sent - until the owner updates
 # the subscription with a valid token.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc --fdscNgsild - notifications decided for the subscription's owner, kept in the store, re-taken by a PATCH
 

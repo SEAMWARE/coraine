@@ -40,6 +40,7 @@ const CoraineFeature coraineFeatures[] =
   { "MONGOC",            COR_FEATURE_MONGOC            },
   { "ADMIN_API",         COR_FEATURE_ADMIN_API         },
   { "METRICS",           COR_FEATURE_METRICS           },
+  { "AUTH",              COR_FEATURE_AUTH              },
   { "TRANSPORTS",        COR_FEATURE_TRANSPORTS        },
   { "SERVICE_EXECUTION", COR_FEATURE_SERVICE_EXECUTION },
   { "SNAPSHOT_WRITE",    COR_FEATURE_SNAPSHOT_WRITE    },

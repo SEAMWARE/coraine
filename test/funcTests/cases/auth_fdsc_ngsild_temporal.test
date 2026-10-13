@@ -11,6 +11,8 @@
 # rest is - on the entity's stored, expanded types; for an entity that has history and no current state,
 # its history's types. A query's entities each on their own; an upsert on the stored types and the body's.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc --fdscNgsild - the temporal API: retrieve, query, writes on the stored type - the history's when there is no current state
 

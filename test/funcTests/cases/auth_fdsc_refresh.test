@@ -11,6 +11,8 @@
 # both are - and a token signed by a key the set does not have makes it fetch the keys at once: VCVerifier
 # generates its key at every start.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc - 503 until keys and policies are there; a new verifier key fetched on its first token; new policies on the next refresh
 

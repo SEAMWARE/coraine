@@ -11,6 +11,8 @@
 # there are: read page by page until one is empty. The verifier and the PAP here are a stand-in
 # (tools/ftVerifier.py) answering those routes as VCVerifier 6.23.1 and odrl-pap 1.7.1 do.
 #
+# REQUIRE_FEATURE: AUTH
+#
 --NAME--
 Auth plugin fdsc - keys through the verifier's discovery document, policies from the PAP page by page
 
