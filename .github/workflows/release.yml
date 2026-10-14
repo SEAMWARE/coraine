@@ -69,6 +69,15 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME says $tagVersion, coraineVersion.h says $srcVersion"
             exit 1
           fi
+          #
+          # And the README's "Product version" line names it - the first thing a visitor reads, and it
+          # said 0.4 for the whole life of 0.5.0
+          #
+          majorMinor=$(echo "$tagVersion" | cut -d. -f1,2)
+          if ! grep -qF -- "- **Product version:** $majorMinor ($tagVersion, " README.md; then
+            echo "::error::README.md's Product version line does not name $tagVersion - '- **Product version:** $majorMinor ($tagVersion, <date>)'"
+            exit 1
+          fi
           echo "version=$tagVersion" >> "$GITHUB_OUTPUT"
           #
           # BUILD_AT from the commit itself. deploy.yml reads
