@@ -1,0 +1,89 @@
+#
+# FILE            service_execution_bridge_inline_report.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A bridge that reports on an execution from INSIDE serviceExecute, on the broker's own thread (the
+# loopback bridge's loopback://inline: progress, then completed, before serviceExecute returns). The
+# reports are kept and applied when serviceExecute returns, inside the request: the execution ends
+# completed, with its progress and output, and the request is answered as for any asynchronous service.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - a bridge's report from inside serviceExecute is applied when it returns
+
+--TAGS--
+service execution bridge
+
+--INIT--
+corDbDrop
+coraineStart --bridges loopback
+
+--RUN--
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:R1/services/inline" --payload '{}' > /tmp/se-inline.out
+  sed -n '1p' /tmp/se-inline.out
+  grep -i '^Service-Execution:' /tmp/se-inline.out | awk '{print $2}' | tr -d '\r' > /tmp/se-inline.id
+}
+show() {
+  corCurl --url /ngsi-ld/v1/services/$(cat /tmp/se-inline.id) | sed -n '/^{/,$p' | python3 -c "
+import json, sys
+e = json.load(sys.stdin)
+print(e['serviceName'], e['executionStatus'], 'progress', json.dumps(e.get('executionProgress')), 'output', json.dumps(e.get('executionOutput')))"
+}
+
+echo "01. Robot urn:R1, its service inline (asynchronous) - endpoint loopback://inline"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"loopback://inline","entities":[{"type":"Robot"}],"serviceInformation":{"serviceName":"inline","mode":"asynchronous"}}' | head -1
+echo
+echo
+
+
+echo "02. Invoke it, three times - 202 each, and each ends completed, progress 50, output inline - at once"
+echo "===================================================================================================="
+for i in 1 2 3; do
+  invoke
+  show
+done
+echo
+echo
+
+
+echo "03. The broker answers the next request as before"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R1 | head -1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+
+--EXPECT--
+01. Robot urn:R1, its service inline (asynchronous) - endpoint loopback://inline
+=================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Invoke it, three times - 202 each, and each ends completed, progress 50, output inline - at once
+====================================================================================================
+HTTP/1.1 202 Accepted
+inline completed progress {"percent": 50} output {"inline": true}
+HTTP/1.1 202 Accepted
+inline completed progress {"percent": 50} output {"inline": true}
+HTTP/1.1 202 Accepted
+inline completed progress {"percent": 50} output {"inline": true}
+
+
+03. The broker answers the next request as before
+=================================================
+HTTP/1.1 200 OK
+
+

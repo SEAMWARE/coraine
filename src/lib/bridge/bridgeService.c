@@ -25,6 +25,21 @@
 
 // -----------------------------------------------------------------------------
 //
+// Deferred - a report a bridge made from inside serviceExecute, on the thread that called it
+//
+typedef struct Deferred
+{
+  char*            status;
+  char*            progressJson;
+  char*            outputJson;
+  char*            errorJson;
+  struct Deferred* next;
+} Deferred;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // Running - an execution a bridge has, until its outcome
 //
 typedef struct Running
@@ -37,6 +52,9 @@ typedef struct Running
   char*            outputJson;
   char*            errorJson;
   pthread_cond_t   cond;
+  bool             inExecute;                         // the bridge's serviceExecute has not returned yet
+  pthread_t        executeThread;                     // the thread that called it
+  Deferred*        deferredP;                         // what the bridge reported on that thread, in order
   struct Running*  next;
 } Running;
 
@@ -124,8 +142,29 @@ static void runningRemove(Running* rP)
     *pP = rP->next;
 }
 
+static void deferredFree(Deferred* dP)
+{
+  while (dP != NULL)
+  {
+    Deferred* nextP = dP->next;
+
+    free(dP->status);
+    free(dP->progressJson);
+    free(dP->outputJson);
+    free(dP->errorJson);
+    free(dP);
+    dP = nextP;
+  }
+}
+
+static char* dupOrNull(const char* s)
+{
+  return (s != NULL) ? strdup(s) : NULL;
+}
+
 static void runningFree(Running* rP)
 {
+  deferredFree(rP->deferredP);
   pthread_cond_destroy(&rP->cond);
   free(rP->executionId);
   free(rP->tenantName);
@@ -172,6 +211,10 @@ void bridgeServiceResultRelease(BridgeServiceResult* resultP)
 
 
 
+static int updateApply(const char* bridgeName, const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson, bool bind);
+
+
+
 // -----------------------------------------------------------------------------
 //
 // bridgeServiceExecute -
@@ -195,7 +238,9 @@ int bridgeServiceExecute(const char* url, const char* executionId, const char* t
 
   rP->executionId = strdup(executionId);
   rP->tenantName  = ((tenantName != NULL) && (tenantName[0] != 0)) ? strdup(tenantName) : NULL;
-  rP->waiting     = (waitMs > 0);
+  rP->waiting       = (waitMs > 0);
+  rP->inExecute     = true;
+  rP->executeThread = pthread_self();
   pthread_cond_init(&rP->cond, NULL);
 
   pthread_mutex_lock(&mutex);
@@ -207,8 +252,15 @@ int bridgeServiceExecute(const char* url, const char* executionId, const char* t
 
   COR_T(CtService, "bridge '%s': serviceExecute(%s, %s) - %d", driverP->alias, url, executionId, r);
 
+  pthread_mutex_lock(&mutex);
+  Deferred* deferredP = rP->deferredP;
+  rP->deferredP = NULL;
+  rP->inExecute = false;
+  pthread_mutex_unlock(&mutex);
+
   if (r != BRIDGE_OK)
   {
+    deferredFree(deferredP);
     pthread_mutex_lock(&mutex);
     runningRemove(rP);
     pthread_mutex_unlock(&mutex);
@@ -217,7 +269,21 @@ int bridgeServiceExecute(const char* url, const char* executionId, const char* t
   }
 
   if (waitMs <= 0)
+  {
+    //
+    // What the bridge reported from inside serviceExecute, applied now - in the request, as its tenant
+    //
+    char* id = strdup(executionId);
+
+    for (Deferred* dP = deferredP; (dP != NULL) && (id != NULL); dP = dP->next)
+      updateApply(driverP->alias, id, dP->status, dP->progressJson, dP->outputJson, dP->errorJson, false);
+
+    free(id);
+    deferredFree(deferredP);
     return BRIDGE_OK;
+  }
+
+  deferredFree(deferredP);                            // a synchronous service: its waiter reads rP->done
 
   //
   // A synchronous service: its outcome, or the deadline
@@ -292,9 +358,10 @@ int bridgeServiceCancel(const char* url, const char* executionId)
 
 // -----------------------------------------------------------------------------
 //
-// bridgeServiceUpdateIn -
+// updateApply - a bridge's report: kept when it comes from inside serviceExecute, else applied - bound to
+// the execution's tenant first, unless the thread is already in that execution's request (bind false)
 //
-int bridgeServiceUpdateIn(const char* bridgeName, const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson)
+static int updateApply(const char* bridgeName, const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson, bool bind)
 {
   bool terminal = (status != NULL) && ((strcmp(status, "completed") == 0) || (strcmp(status, "failed") == 0));
 
@@ -310,6 +377,35 @@ int bridgeServiceUpdateIn(const char* bridgeName, const char* executionId, const
     pthread_mutex_unlock(&mutex);
     COR_W("bridge '%s': a report on Service Execution '%s', which it does not run", (bridgeName != NULL) ? bridgeName : "?", executionId);
     return BRIDGE_NOT_FOUND;
+  }
+
+  //
+  // From inside serviceExecute, on the thread that called it: that thread is in the middle of a request
+  // - it is not bound to anything else, and the execution is not answered yet. Kept, and applied when
+  // serviceExecute returns (bridgeServiceExecute).
+  //
+  if ((rP->inExecute == true) && (rP->waiting == false) && (pthread_equal(rP->executeThread, pthread_self()) != 0))
+  {
+    Deferred*  dP  = (Deferred*) calloc(1, sizeof(Deferred));
+    Deferred** pP  = &rP->deferredP;
+
+    if (dP == NULL)
+    {
+      pthread_mutex_unlock(&mutex);
+      return BRIDGE_ERR;
+    }
+
+    dP->status       = dupOrNull(status);
+    dP->progressJson = dupOrNull(progressJson);
+    dP->outputJson   = dupOrNull(outputJson);
+    dP->errorJson    = dupOrNull(errorJson);
+
+    while (*pP != NULL)
+      pP = &(*pP)->next;
+    *pP = dP;
+
+    pthread_mutex_unlock(&mutex);
+    return BRIDGE_OK;
   }
 
   if (rP->waiting == true)
@@ -350,8 +446,20 @@ int bridgeServiceUpdateIn(const char* bridgeName, const char* executionId, const
   if ((tenantP == NULL) || (applyFn == NULL))
     return BRIDGE_NOT_FOUND;
 
-  bridgeThreadBind(tenantP);
+  if (bind == true)
+    bridgeThreadBind(tenantP);
   applyFn(executionId, status, progressJson, outputJson, errorJson);
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bridgeServiceUpdateIn -
+//
+int bridgeServiceUpdateIn(const char* bridgeName, const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson)
+{
+  return updateApply(bridgeName, executionId, status, progressJson, outputJson, errorJson, true);
 }

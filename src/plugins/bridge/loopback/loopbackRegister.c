@@ -1583,6 +1583,8 @@ static const char* loopbackVersionInfo(void)
 //   fail      failed, a ProblemDetails
 //   hold      executing - until cancelled (serviceCancel: BRIDGE_OK)
 //   stuck     executing - and cannot be pre-empted (serviceCancel: BRIDGE_UNSUPPORTED)
+//   inline    progress {"percent": 50}, then completed {"inline": true} - both reported from INSIDE
+//             serviceExecute, on the broker's thread, before it returns
 //
 typedef struct LoopbackRun
 {
@@ -1591,7 +1593,7 @@ typedef struct LoopbackRun
   char* input;
 } LoopbackRun;
 
-static const char* loopbackBehaviours[] = { "echo", "progress", "fail", "hold", "stuck", NULL };
+static const char* loopbackBehaviours[] = { "echo", "progress", "fail", "hold", "stuck", "inline", NULL };
 
 
 
@@ -1654,6 +1656,13 @@ static int loopbackServiceExecute(const char* url, const char* executionId, cons
 
   if (behaviour == NULL)
     return BRIDGE_NOT_FOUND;
+
+  if (strcmp(behaviour, "inline") == 0)
+  {
+    loopbackServiceUpdate(executionId, "executing", "{\"percent\":50}", NULL, NULL);
+    loopbackServiceUpdate(executionId, "completed", NULL, "{\"inline\":true}", NULL);
+    return BRIDGE_OK;
+  }
 
   LoopbackRun* runP = (LoopbackRun*) calloc(1, sizeof(LoopbackRun));
   pthread_t    tid;
