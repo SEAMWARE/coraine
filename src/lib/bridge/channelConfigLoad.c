@@ -602,7 +602,7 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
       total += channelsLoad(alias, actionsP, BridgeChannelAction, BridgeDirectionOut, tenantP, &kalloc);
 
     //
-    // And the catch-all, which is off unless the file asks for it.
+    // And the catch-all.
     //
     //
     // ON unless the file says "defaultEntity": false - as Orion-LD does, whose

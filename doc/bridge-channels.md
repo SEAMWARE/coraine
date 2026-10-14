@@ -111,7 +111,7 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
   provisional until ETSI's Service Execution lands.
 - **No echo.** A sample that arrived on a transport is not published back out
   of it.
-- **Catch-all entity**, off unless asked (`"ngsild": { "defaultEntity": true }`):
+- **Catch-all entity**, on unless the file says `"ngsild": { "defaultEntity": false }`:
   endpoints no Channel claims are stored on `urn:ngsi-ld:<bridge>:default`
   (for DDS `urn:ngsi-ld:dds:default`, type `DDS`), one attribute per endpoint,
   inbound only. The attribute's IRI is `@vocab` + the endpoint
