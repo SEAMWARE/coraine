@@ -114,9 +114,11 @@ RUN ldconfig
 
 # libmicrohttpd — the HTTP server the REST layer sits on. Built by corLibs' tools/mhd/mhdBuild.sh, as everywhere
 # in the stack (the tarball checked against its pinned SHA-256, the stack's patches applied); vendor-libs.sh
-# stages that directory as docker/vendor/mhd.
+# stages that directory as docker/vendor/mhd. Run through bash, not by its mode: CI hands docker/vendor from the
+# job that stages it to the image builds as an artifact, and an artifact does not keep the execute bit
+# (deploy.yml failed "Permission denied" from 2026-10-13 01:03 until this).
 COPY docker/vendor/mhd/ /tmp/mhd/
-RUN MHD_VERSION="${MHD_VERSION}" /tmp/mhd/mhdBuild.sh -- --disable-https \
+RUN MHD_VERSION="${MHD_VERSION}" bash /tmp/mhd/mhdBuild.sh -- --disable-https \
  && rm -rf /tmp/mhd
 
 # mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2).
