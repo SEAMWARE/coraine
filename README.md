@@ -371,12 +371,15 @@ coraine implements in full. Every command-line option is listed by
 Next, in roughly this order - each in more detail in the [roadmap](doc/roadmap.md), and every idea,
 planned or not, in [Ideas](doc/ideas.md):
 
-- **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity.
-- **Automatic TRoE in corDB** - temporal history from the same log, by a boolean.
+- **Service Execution, following GR CIM-055 as it settles** - the status names, the query and discovery
+  parameters.
+- **Live public transport** - a GTFS-realtime bridge, and buses moving on c³'s map.
+- **Philips Hue** - the first FIWARE@Home plugin: lights, rooms, scenes and sensors as entities.
+- **Finish conditional compilation** - the switches that are declared and remove nothing yet.
+- **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl.
+- **corDB history: retention and a selector** - history kept for a time or a size, and only what it is
+  told to record.
 - **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam.
-- **Service Execution** - "do this" in the API, not a write to an attribute.
-- **Packages** - `apt-get install coraine`.
-- **Finish conditional compilation** - every feature flag reaches the code it names.
 - **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too.
 
 ---
