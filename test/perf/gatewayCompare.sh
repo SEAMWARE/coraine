@@ -9,7 +9,7 @@
 #   opa      the Data Space Connector's chain in front of the broker (no --auth): APISIX with openid-connect
 #            (the token) and the opa plugin, OPA deciding on the ODRL-PAP's policies
 #   plugin   APISIX in front of the broker (no --auth) with ngsild-pep: fdsc.so's own code deciding in the
-#            gateway (SEAMWARE apisix-ngsild - GW_NGSILD, default ../../../apisix-ngsild beside coraine: its
+#            gateway (SEAMWARE corApisixNgsild - GW_NGSILD, default ../../../corApisixNgsild beside coraine: its
 #            dist/debian-12/libngsildpep.so and lua/), one FFI call per request
 #
 # Usage:  gatewayCompare.sh <outDir> [config ...]     (default: none fdsc apisix opa plugin none)
@@ -48,7 +48,7 @@ ODRL_AUTHZ_TAG=odrl-authorization-2.4.3
 export GW_WORK=$OUT/work
 export PERF_BROKER_CORES=1 PERF_RESERVED_CORES=2
 export GW_ROUTES=$GW/routes-plain.yaml
-NGSILD=${GW_NGSILD:-$HERE/../../../apisix-ngsild}
+NGSILD=${GW_NGSILD:-$HERE/../../../corApisixNgsild}
 COMPOSE="docker compose -p gwcompare -f $GW/docker-compose.yml"
 PIDS=()
 
@@ -59,6 +59,14 @@ cleanup() {
   [ "${GW_KEEP:-0}" = 1 ] || $COMPOSE down -v > /dev/null 2>&1
 }
 trap cleanup EXIT
+
+#
+# Every port free before anything starts: a listener left from elsewhere (another APISIX on the host network) takes
+# a share of the load, and the numbers are a mix that looks plausible
+#
+for port in $BROKER_PORT 5440 7740 8080 8181 9001 9080; do
+  ss -Hltn "sport = :$port" | grep -q . && die "port $port is in use - $(ss -Hltnp "sport = :$port" | head -1)"
+done
 
 mkdir -p "$OUT" "$GW_WORK/plugins"
 
@@ -140,12 +148,17 @@ apisix() {
 coraine --port $BROKER_PORT --database corDB --troe none -fg > "$GW_WORK/check-broker.log" 2>&1 &
 checkPid=$!
 letThrough() { [ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" http://localhost:9080/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:x)" = 404 ]; }
+noToken() { curl -s -o /dev/null -w '%{http_code}' http://localhost:9080/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:x; }
+refused() { [ "$(noToken)" = 401 ]; }
 for r in opa ngsild; do
   [ $r = ngsild ] && [[ " ${CONFIGS[*]} " != *" plugin "* ]] && continue
   apisix $r
+  #
+  # No token first: APISIX answers 404 before it has read its routes, which letThrough cannot tell from the
+  # broker's - a 401 says the route, and its plugins, are in place
+  #
+  await 60 refused || { kill $checkPid; die "APISIX ($r) without a token answered $(noToken), not 401"; }
   await 90 letThrough || { kill $checkPid; die "APISIX ($r) does not let the token through - $COMPOSE logs apisix opa"; }
-  noToken=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9080/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:x)
-  [ "$noToken" = 401 ] || { kill $checkPid; die "APISIX ($r) without a token answered $noToken, not 401"; }
   echo "gatewayCompare.sh: APISIX ($r) lets the token through and refuses no token (401)" >&2
 done
 kill $checkPid; wait $checkPid 2>/dev/null

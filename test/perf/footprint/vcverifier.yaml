@@ -1,0 +1,13 @@
+# VCVerifier 6.23.1 - the README's defaults, a did and the trusted issuers registry - the TIL beside it (it refuses to start without either), and urlEncoded as the one request mode: the only one that needs no
+# signing key (the README, "Request modes"). Enough to start and serve; no wallet flow is measured
+server:
+  port: 8080
+logging:
+  level: "INFO"
+verifier:
+  did: did:web:provider
+  tirAddress: http://til:8080
+  supportedModes: ["urlEncoded"]
+  requestMode: urlEncoded
+configRepo:
+  configEndpoint: http://ccs:8080

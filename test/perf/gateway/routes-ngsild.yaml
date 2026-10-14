@@ -1,4 +1,4 @@
-# The same route, through ngsild-pep: fdsc.so's decision in the gateway (SEAMWARE apisix-ngsild)
+# The same route, through ngsild-pep: fdsc.so's decision in the gateway (SEAMWARE corApisixNgsild)
 routes:
   - uri: /*
     upstream:

@@ -1,0 +1,21 @@
+# The provider's data route - fdsc@10.87.0 k3s/provider.yaml:491-510: openid-connect (the verifier's JWKS) and
+# the opa plugin (OPA's policy/main, the body included), upstream the broker without --auth
+routes:
+  - uri: /*
+    upstream:
+      nodes:
+        "scorpio:9090": 1
+      type: roundrobin
+    plugins:
+      openid-connect:
+        bearer_only: true
+        use_jwks: true
+        client_id: data-service
+        client_secret: unused
+        ssl_verify: false
+        discovery: http://vcverifier:8080/services/data-service/.well-known/openid-configuration
+      opa:
+        host: http://opa:8181
+        policy: policy/main
+        with_body: true
+#END
