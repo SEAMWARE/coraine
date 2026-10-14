@@ -39,7 +39,7 @@ coraine/
 |---|---|
 | NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `TENANTS`, `SCOPES`, `DATASETID`, `MULTI_TYPE`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `ICU_COLLATION` |
 | Snapshots | `SNAPSHOT_WRITE`, `SNAPSHOT_SUBSCRIPTIONS` |
-| JSON-LD @context | `CONTEXT_DL`, `CONTEXT_HOSTING` |
+| JSON-LD @context | `CONTEXT_HOSTING` |
 | Geo | `GEOQ`, `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE` |
 | Security | `AUTH`, `POLICY_API` |
 | Beyond NGSI-LD | `SERVICE_EXECUTION` |
@@ -315,10 +315,6 @@ Writes on a Snapshot (`NGSILD-Snapshot` on an entity or temporal write, § 7.9.2
 Subscriptions on a Snapshot, notified by its writes. Off: a subscription write naming a Snapshot answers
 422. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is. Size: under a page (1 491 bytes).
 
-#### `CONTEXT_DL`
-
-@contexts downloaded from their URLs. **Declared, removes nothing.**
-
 #### `CONTEXT_HOSTING`
 
 The `/jsonldContexts` API and its store. Off: its 4 routes answer 501; an inline @context and the core
@@ -446,9 +442,9 @@ load:
 |---|---|
 | `COR_FEATURE_MIGRATE=OFF` | `coraine-import` is not built ([migration.md](migration.md)) - the broker carries no import code either way |
 
-**⚠️ These eight are declared and do nothing at all:**
+**⚠️ These seven are declared and do nothing at all:**
 
-`SCOPES`, `DATASETID`, `MULTI_TYPE`, `CONTEXT_DL`, `TENANTS`,
+`SCOPES`, `DATASETID`, `MULTI_TYPE`, `TENANTS`,
 `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
 
 The option exists, CMake emits the `-D`, **no source reads it**, and the

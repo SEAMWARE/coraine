@@ -34,7 +34,6 @@ const CoraineFeature coraineFeatures[] =
   { "SCOPES",            COR_FEATURE_SCOPES            },
   { "DATASETID",         COR_FEATURE_DATASETID         },
   { "MULTI_TYPE",        COR_FEATURE_MULTI_TYPE        },
-  { "CONTEXT_DL",        COR_FEATURE_CONTEXT_DL        },
   { "CONTEXT_HOSTING",   COR_FEATURE_CONTEXT_HOSTING   },
   { "TENANTS",           COR_FEATURE_TENANTS           },
   { "MONGOC",            COR_FEATURE_MONGOC            },
