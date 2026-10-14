@@ -1461,7 +1461,9 @@ static const char* lastSegment(const char* path)
 // -----------------------------------------------------------------------------
 //
 // entityType - ngsi-ld:entityType as the PAP's Rego finds it: the third ':' part of the last path segment
-// (urn:ngsi-ld:<Type>:...), else the query's 'type', else the body's 'type' - as sent, never expanded
+// (urn:ngsi-ld:<Type>:...), else the query's 'type', else the body's 'type' - as sent, never expanded -, else,
+// for a batch (an array of entities), the one type all of them have (odrl-pap 1.7.2, SEAMWARE/odrl-pap#64):
+// none when they have different types, one has no 'type' or one that is not a string, or the array is empty
 //
 static CorNode* entityType(Ctx* cP)
 {
@@ -1490,7 +1492,7 @@ static CorNode* entityType(Ctx* cP)
     return tP;
 
   //
-  // The body's 'type' - an object's only: a body that is no object (a batch's array) is not parsed for it
+  // The body's 'type' - an object's; or a batch's, an array's: the body is parsed only when it is one of the two
   //
   int         len  = 0;
   const char* text = cP->reqP->body(&len);
@@ -1499,12 +1501,33 @@ static CorNode* entityType(Ctx* cP)
   while ((ix < len) && ((text[ix] == ' ') || (text[ix] == '\t') || (text[ix] == '\r') || (text[ix] == '\n')))
     ++ix;
 
-  if ((ix >= len) || (text[ix] != '{'))
+  if ((ix >= len) || ((text[ix] != '{') && (text[ix] != '[')))
     return NULL;
 
   CorNode* bP = body(cP);
 
-  return ((bP != NULL) && (bP->type == CorObject)) ? corTreeLookup(bP, "type") : NULL;
+  if ((bP != NULL) && (bP->type == CorObject))
+    return corTreeLookup(bP, "type");
+
+  if ((bP == NULL) || (bP->type != CorArray) || (bP->value.head == NULL))
+    return NULL;
+
+  CorNode* oneP = NULL;
+
+  for (CorNode* eP = bP->value.head; eP != NULL; eP = eP->next)
+  {
+    CorNode* tP = (eP->type == CorObject) ? corTreeLookup(eP, "type") : NULL;
+
+    if ((tP == NULL) || (tP->type != CorString))
+      return NULL;
+
+    if (oneP == NULL)
+      oneP = tP;
+    else if (strcmp(oneP->value.s, tP->value.s) != 0)
+      return NULL;
+  }
+
+  return oneP;
 }
 
 

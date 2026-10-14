@@ -25,6 +25,7 @@
 // Each policy is a document of the default tenant's "odrlPolicies": { id, uid, seq, odrl }; seq keeps the
 // order of creation, which the PAP's listing has and fdsc.so decides by (the first policy that allows).
 //
+#include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // atoi, qsort
 #include <stdint.h>                                   // uint64_t
 #include <string.h>                                   // strcmp, strlen
@@ -212,6 +213,43 @@ static CorNode* rendered(CorNode* docP)
 
 // -----------------------------------------------------------------------------
 //
+// argumentMissing - a constraint whose leftOperand is a word that takes an argument (http:bodyValue,
+// ovc:leftOperand: a path), named without it - "odrl:leftOperand": "http:bodyValue" instead of
+// "http:bodyValue": "$.a.b". The PAP refuses such a policy since 1.7.2 (SEAMWARE/odrl-pap#63, for #58): its
+// Rego could not parse, and OPA then loaded no policy at all. The word, or NULL
+//
+static const char* argumentMissing(CorNode* nodeP)
+{
+  if ((nodeP == NULL) || ((nodeP->type != CorObject) && (nodeP->type != CorArray)))
+    return NULL;
+
+  if (nodeP->type == CorObject)
+  {
+    CorNode* leftP = corTreeLookup(nodeP, "odrl:leftOperand");
+
+    if ((leftP != NULL) && (leftP->type == CorObject))
+      leftP = corTreeLookup(leftP, "@id");
+
+    if ((leftP != NULL) && (leftP->type == CorString) &&
+        ((strcmp(leftP->value.s, "http:bodyValue") == 0) || (strcmp(leftP->value.s, "ovc:leftOperand") == 0)))
+      return leftP->value.s;
+  }
+
+  for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
+  {
+    const char* word = argumentMissing(childP);
+
+    if (word != NULL)
+      return word;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bodyUid - the body's odrl:uid; NULL: the 400 is set
 //
 static const char* bodyUid(void)
@@ -229,6 +267,21 @@ static const char* bodyUid(void)
   if ((uid == NULL) || (*uid == 0))
   {
     problem(400, "Bad Request", "the policy has no 'odrl:uid' (a string)");
+    return NULL;
+  }
+
+  //
+  // The PAP's own words (MappingException); it answers them as a 500 (its IllegalArgumentException handler
+  // does not get to say 400) - a 400 here, the policy refused as there
+  //
+  const char* word = argumentMissing(bodyP);
+
+  if (word != NULL)
+  {
+    char detail[256];
+
+    snprintf(detail, sizeof(detail), "The leftOperand `%s` requires 1 parameter(s), but the policy does not provide a value. Provide it as `\"%s\": \"<value>\"`.", word, word);
+    problem(400, "Bad Request", detail);
     return NULL;
   }
 

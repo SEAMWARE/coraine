@@ -773,6 +773,107 @@
   "headers": {}
  },
  {
+  "name": "batch create, one type (odrl-pap#64)",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entityOperations/create",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": [
+   {
+    "id": "urn:ngsi-ld:K8SCluster:b1",
+    "type": "K8SCluster"
+   },
+   {
+    "id": "urn:ngsi-ld:K8SCluster:b2",
+    "type": "K8SCluster"
+   }
+  ],
+  "headers": {}
+ },
+ {
+  "name": "batch upsert, two types",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entityOperations/upsert",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": [
+   {
+    "id": "urn:ngsi-ld:K8SCluster:b3",
+    "type": "K8SCluster"
+   },
+   {
+    "id": "urn:ngsi-ld:EnergyReport:b4",
+    "type": "EnergyReport"
+   }
+  ],
+  "headers": {}
+ },
+ {
+  "name": "batch create, one without type",
+  "method": "POST",
+  "path": "/ngsi-ld/v1/entityOperations/create",
+  "token": {
+   "vc": {
+    "type": [
+     "OperatorCredential"
+    ],
+    "issuer": "did:web:consumer",
+    "credentialSubject": {
+     "roles": [
+      {
+       "target": "did:web:provider",
+       "names": [
+        "OPERATOR"
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "body": [
+   {
+    "id": "urn:ngsi-ld:K8SCluster:b5",
+    "type": "K8SCluster"
+   },
+   {
+    "id": "urn:ngsi-ld:K8SCluster:b6"
+   }
+  ],
+  "headers": {}
+ },
+ {
   "name": "two permissions, both",
   "method": "GET",
   "path": "/ngsi-ld/v1/entities/urn:ngsi-ld:Car:1",

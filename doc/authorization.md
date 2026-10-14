@@ -213,8 +213,10 @@ collection without a refinement) is skipped and said in the log, as the PAP refu
 
 ## 4. Compatible with the Data Space Connector
 
-**Target: FIWARE Data Space Connector 10.87.0** (2026-10-09): VCVerifier 6.23.1, odrl-pap 1.7.1
-(`SEAMWARE/odrl-pap`), odrl-authorization 2.4.3 (APISIX 3.17.0, OPA 1.11.0).
+**Target: FIWARE Data Space Connector 10.87.0** (2026-10-09): VCVerifier 6.23.1, odrl-authorization 2.4.3
+(APISIX 3.17.0, OPA 1.11.0), and odrl-pap **1.7.3** (`SEAMWARE/odrl-pap`, 2026-10-14) - the connector's
+chart pins 1.7.1; 1.7.2 refuses a policy whose left operand lacks its argument, 1.7.3 finds the entity type
+of a batch, and the plugin decides as 1.7.3.
 
 The plugin decides as that chain decides - for every request, the same 401, 403 or pass - so that a
 deployment's tokens and policies need no change. That includes where the chain's Rego is not what ODRL
@@ -233,7 +235,7 @@ The words of the PAP's `mapping.json`, and what each reads:
 | assignee `odrl:PartyCollection` | its refinement - and no issuer check |
 | target `<uid>`, `odrl:Asset` | the last path segment is the uid |
 | target `odrl:AssetCollection` | its refinement |
-| `ngsi-ld:entityType`, `ngsi-ld:entityTypeGroup` | the third `:` part of the last path segment (`urn:ngsi-ld:<Type>:...`), else the `type` URL parameter, else the body's `type` - as sent, never expanded |
+| `ngsi-ld:entityType`, `ngsi-ld:entityTypeGroup` | the third `:` part of the last path segment (`urn:ngsi-ld:<Type>:...`), else the `type` URL parameter, else the body's `type` - as sent, never expanded -, else, for a batch (an array of entities), the one type all of them have: none when they differ, one has no `type` or one that is no string, or the array is empty (odrl-pap 1.7.3) |
 | `vc:role` | `credentialSubject.roles[]` whose `target` is the organisation: its `names` |
 | `vc:type` | the credential's `type` (a string as a one-element array) |
 | `vc:currentParty`, `dome-op:currentParty` | the credential's `issuer` |
@@ -276,7 +278,7 @@ Words of the PAP's other PEPs (`json:*`, `dspace:read`) and those that make a ca
 ### 4.3 Proven against the connector itself
 
 `test/fdscDiff/fdscDiff.sh` deploys the connector's chain - APISIX 3.17.0 with `openid-connect` and
-odrl-authorization 2.4.3's `opa` plugin (fetched from its tag), OPA 1.11.0, odrl-pap 1.7.1 on PostgreSQL -
+odrl-authorization 2.4.3's `opa` plugin (fetched from its tag), OPA 1.11.0, odrl-pap 1.7.3 on PostgreSQL -
 in docker, beside coraine with `--auth fdsc`, both given the same verifier (a stand-in serving the
 discovery document and the JWK Set as VCVerifier does) and the same PAP. Each case of
 `test/fdscDiff/cases.json` - tokens, the vocabulary, the combination rules, the cases where the Rego is not
@@ -298,11 +300,13 @@ Where the connector's chain does not work at all, coraine does not copy the fail
   client's on: a client sends `x-stripped-path: /allowed/path` and an `http:isInPath` rule holds for any
   request. coraine reads the request's path, and the header only with `--fdscStrippedPath` - behind a
   gateway that sets it and drops the client's.
-- **A policy whose Rego does not parse.** The PAP accepts `"odrl:leftOperand": "http:bodyValue"` (or
-  `ovc:leftOperand`) without the path - the key form `"http:bodyValue": "$.a.b"` is the one that works - and
-  generates Rego with the path's `%s` left in it. OPA then refuses the **whole** policies bundle: every
-  request of the deployment is denied, whatever the other policies say. coraine skips that one policy, says
-  so in its log, and decides with the others.
+- **A policy whose left operand lacks its argument.** `"odrl:leftOperand": "http:bodyValue"` (or
+  `ovc:leftOperand`) without the path - the key form `"http:bodyValue": "$.a.b"` is the one that works.
+  odrl-pap 1.7.1 accepted it and generated Rego with the path's `%s` left in it, and OPA then refused the
+  **whole** policies bundle: every request of the deployment denied. Since 1.7.2 the PAP refuses the policy
+  (its message: "The leftOperand `http:bodyValue` requires 1 parameter(s)..."; the status it answers is a
+  500). coraine's `/policy` API refuses it too, with that message and a 400; a policy file or an older PAP
+  that has one: coraine skips that one policy, says so in its log, and decides with the others.
   ([SEAMWARE/odrl-pap#58](https://github.com/SEAMWARE/odrl-pap/issues/58))
 
 ## 5. Inside a Data Space Connector
@@ -374,7 +378,7 @@ bounds how long a revoked credential still receives notifications.
 
 ## 7. The policy API - the broker as its own PAP
 
-With **`--policyApiPort <port>`** the broker serves the ODRL-PAP's `/policy` API (odrl-pap 1.7.1,
+With **`--policyApiPort <port>`** the broker serves the ODRL-PAP's `/policy` API (odrl-pap 1.7.3,
 `api/odrl.yaml`) on a port of its own, and `fdsc.so` reads the policies from it as it reads the PAP's:
 `--fdscPap http://127.0.0.1:<port>`. The policies are documents of the default tenant's collection
 `odrlPolicies`, in the broker's store: they outlive the broker. Built with `COR_FEATURE_POLICY_API` (on by default); off unless the port is given.
@@ -402,9 +406,10 @@ built-in HTTP server refuses `--policyApiPort` at startup.
 
 **Where it answers otherwise than the PAP:**
 
-| | PAP 1.7.1 | coraine |
+| | PAP 1.7.3 | coraine |
 |---|---|---|
 | a body that is no JSON object, or has no `odrl:uid` | 500 | 400, a ProblemDetails |
+| a left operand without its argument (`"odrl:leftOperand": "http:bodyValue"`) | 500, not stored | 400, the PAP's message, not stored |
 | a `odrl:uid` another policy has | 500 | 409 |
 | `PUT /policy/{id}` of a policy that exists | 500 (whatever the body) | replaced |
 | a create's body | the Rego it made, `text/plain` | empty: there is no Rego |
@@ -429,7 +434,7 @@ contract-management (FDSC) reads only a create's status and deletes by `odrl:uid
   `it/src/test/resources/policies/*.json`, `doc/deployment-integration/local-deployment/LOCAL.MD`
 - `FIWARE/odrl-authorization` 2.4.3: `charts/odrl-authorization` (`files/apixis-opa.lua`, `files/apixis-helper.lua`,
   `templates/opa-cm.yaml`, `templates/routes.yaml`)
-- `SEAMWARE/odrl-pap` 1.7.1: `src/main/resources/mapping.json`, `rego/ngsi-ld/*.rego`, `rego/vc/*.rego`,
+- `SEAMWARE/odrl-pap` 1.7.3: `src/main/resources/mapping.json`, `rego/ngsi-ld/*.rego`, `rego/vc/*.rego`,
   `rego/odrl/*.rego`, `rego/utils/apisix.rego`, `mapping/OdrlMapper.java`, `mapping/MappingResult.java`,
   `BundleResource.java`, `api/odrl.yaml`
 - `FIWARE/VCVerifier` 6.23.1: `verifier/verifier.go`, `openapi/routers.go`, `openapi/api_api.go`, `config/config.go`
