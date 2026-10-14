@@ -1,0 +1,86 @@
+#
+# FILE            context_own_hosted_no_self_request.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A @context this broker hosts (POST /jsonldContexts), named by the URL the broker gives it, is read from
+# the broker's own cache or store - the broker sends no request to itself for it. The request counters show
+# it: creating an entity with that Link costs the create, and the scrape, nothing more.
+#
+# REQUIRE_FEATURE: CONTEXT_HOSTING
+#
+--NAME--
+A hosted @context named by its own URL is read from the broker's store, not fetched from itself
+
+--TAGS--
+context metrics
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+lk() { echo "Link: <$1>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""; }
+total() { corCurl --url /metrics --out raw | grep -E '^ngsild_requests_(inline|worker)_total' | awk '{ n += $2 } END { print n }'; }
+
+echo "01. Host a context, and find the URL the broker gives it"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/jsonldContexts --payload '{ "@context": { "Thing": "http://example.org/Thing", "size": "http://example.org/size" } }' | head -1
+URL=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/jsonldContexts?details=true" | python3 -c 'import json, sys; print([c["URL"] for c in json.load(sys.stdin) if c["kind"] == "Hosted"][0])')
+echo "$URL" | sed -E 's/[0-9]+-[0-9]+$/<id>/'
+echo
+echo
+
+
+echo "02. Create an entity with a Link to that URL - the requests counted: the create and the two scrapes, no GET of the context"
+echo "========================================================================================================================"
+before=$(total)
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Thing:1", "type": "Thing", "size": { "type": "Property", "value": 7 } }' -H "$(lk $URL)" | head -1
+after=$(total)
+echo "requests between the scrapes: $((after - before))"
+echo
+echo
+
+
+echo "03. Read it back with the same Link - compacted by the hosted context"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Thing:1?options=keyValues' -H "$(lk $URL)"
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. Host a context, and find the URL the broker gives it
+========================================================
+HTTP/1.1 201 Created
+http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:<id>
+
+
+02. Create an entity with a Link to that URL - the requests counted: the create and the two scrapes, no GET of the context
+========================================================================================================================
+HTTP/1.1 201 Created
+requests between the scrapes: 2
+
+
+03. Read it back with the same Link - compacted by the hosted context
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:REGEX([0-9]+-[0-9]+)>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 66
+
+{
+  "id": "urn:ngsi-ld:Thing:1",
+  "size": 7,
+  "type": "Thing"
+}
+
+
+
