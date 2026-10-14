@@ -186,10 +186,14 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
   corTreeChildAdd(bodyP, entityP);
 
   corTreeChildAdd(bodyP, corTreeString(allocP, "entityAttribute", (char*) shortOrSelf(contextP, channelP->attrName)));
-  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (channelP->status == ChannelStatusAvailable) ? "available" : "dormant"));
 
-  if (channelP->statusReason != NULL)
-    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", channelP->statusReason));
+  ChannelStatus status = __atomic_load_n(&channelP->status, __ATOMIC_ACQUIRE);       // channelStatusSet, on a plugin thread
+  char*         reason = __atomic_load_n(&channelP->statusReason, __ATOMIC_ACQUIRE);
+
+  corTreeChildAdd(bodyP, corTreeString(allocP, "status", (status == ChannelStatusAvailable) ? "available" : "dormant"));
+
+  if (reason != NULL)
+    corTreeChildAdd(bodyP, corTreeString(allocP, "statusReason", reason));
 
   //
   // endpointDiscovered only once the transport said so (endpointDiscoveredIn): absent means not

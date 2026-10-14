@@ -1570,6 +1570,7 @@ bridgeConfig() {
   local -a goalModes
   local -a discovers
   local -a topicModes
+  local -a statusIns
   local -a actionNotifies
   local -a metas
   local -a echoRequests
@@ -1604,6 +1605,12 @@ bridgeConfig() {
       # value that does not fit (400), unannounced one that cannot be sent (503)
       #
       --topicMode) topicModes+=("$2"); shift ;;
+      #
+      # --statusIn "<endpoint>=<reports>" - what the loopback bridge says about that Channel (ABI 12,
+      # channelStatusIn): "refuse:<reason>" in channelAdd, or "dormant:<reason>;available" - reports
+      # 2 s after channelAdd, then 2 s apart (loopbackRegister.c, loopbackStatusInPair)
+      #
+      --statusIn) statusIns+=("$2"); shift ;;
       #
       # Default goal endpoints, for goals that name none: --actionNotify
       # "<endpoint>=<uri>" is that action Channel's, --notify "<uri>" the
@@ -1736,6 +1743,19 @@ bridgeConfig() {
         i=$((i + 1))
         local comma=","
         [ $i -eq ${#topicModes[@]} ] && comma=""
+        echo "      \"${g%%=*}\": \"${g#*=}\"$comma"
+      done
+      echo "    },"
+    fi
+
+    if [ ${#statusIns[@]} -gt 0 ]; then
+      echo "    \"statusIn\": {"
+      local i=0
+      local g
+      for g in "${statusIns[@]}"; do
+        i=$((i + 1))
+        local comma=","
+        [ $i -eq ${#statusIns[@]} ] && comma=""
         echo "      \"${g%%=*}\": \"${g#*=}\"$comma"
       done
       echo "    },"
