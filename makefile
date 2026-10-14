@@ -454,7 +454,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 # sits in /opt/seamware - an ordinary build with no counters - and every plugin
 # source then reports as unexecuted while the run appears to have covered it.
 #
-	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge $(COV_PLUGIN_DIR)/transport
+	@mkdir -p $(COV_PLUGIN_DIR)/db/currentState $(COV_PLUGIN_DIR)/troe/temporal $(COV_PLUGIN_DIR)/api $(COV_PLUGIN_DIR)/bridge $(COV_PLUGIN_DIR)/transport $(COV_PLUGIN_DIR)/auth
 	@cp -p $(BUILD_COVERAGE)/src/plugins/currentState/*/*.so $(COV_PLUGIN_DIR)/db/currentState/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/temporal/*/*.so     $(COV_PLUGIN_DIR)/troe/temporal/
 #
@@ -467,6 +467,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@cp -p $(BUILD_COVERAGE)/src/plugins/api/*/*.so          $(COV_PLUGIN_DIR)/api/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/transport/*/*.so    $(COV_PLUGIN_DIR)/transport/
+	@if [ -f $(BUILD_COVERAGE)/src/plugins/auth/fdsc/fdsc.so ]; then cp -p $(BUILD_COVERAGE)/src/plugins/auth/fdsc/fdsc.so $(COV_PLUGIN_DIR)/auth/; fi   # COR_FEATURE_AUTH - without it every auth test's broker fails to start
 #
 # The bridges from their own repositories (mqtt.so, modbus.so, dds.so) are not built here: staged
 # as installed, without counters - their code is not coraine's and not in this report. Without
