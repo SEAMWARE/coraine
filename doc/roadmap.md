@@ -122,6 +122,7 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **One compound geo index** - one index for every GeoProperty, both variants prototyped and measured.
 -   **Hot and cold entity segments** - the entities written often apart from the rest (a design note first).
 -   **Our own @context server** - the JSON-LD context hosting API (`/jsonldContexts`) as a small C server on our own libraries, native on every architecture; it replaces the Java `wistefan/context-server` (amd64 only) in the tests and CI, and can host the contexts a deployment publishes.
+-   **Removing what nobody reads** - garbage collection of expired transient Entities, and of the entities a bridge's source no longer has; to be discussed in ETSI first. ([more](#19-removing-what-nobody-reads))
 
 ## Long term
 
@@ -1095,6 +1096,31 @@ talking to a broker is.
 2. Boot on NuttX or Zephyr in QEMU (1-2 weeks).
 3. A "coraine-micro" profile on a fat MCU - ESP32-S3 with 8 MB PSRAM, STM32H7 with 1 MB (1-2 months,
    most of it the memory diet).
+
+---
+
+### 19. Removing what nobody reads
+
+Medium term (KZ, 2026-10-14). Discussed in ETSI before it is built.
+
+**Today.** A transient Entity (entity-level `expiresAt`, § 5.2.4) expires lazily
+(`dbExpiredEntities.c`): once past its `expiresAt` it is never served, and it is
+deleted by the first read that walks over it. An expired Entity that no read
+reaches stays in the store.
+
+**Where it shows.** A DataChannel (a CKAN resource read in mode `once`) writes the
+rows the source has. A row deleted at the source leaves its entities in the
+broker. `expiresAt` alone does not remove them, as rows still in the source
+expire too unless the resource is read again, and an expired entity is removed
+only by a read.
+
+**What is needed.**
+
+- Garbage collection of expired Entities: a pass that deletes them whether or not
+  a read reaches them, with the notifications and TRoE events of a delete.
+- A way for a source to say which of its entities are gone: a re-read that
+  removes the entities a DataChannel wrote earlier and no longer writes, or a
+  refreshed `expiresAt` per read.
 
 ---
 
