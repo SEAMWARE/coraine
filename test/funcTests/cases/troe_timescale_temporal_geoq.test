@@ -17,6 +17,8 @@
 # geoQ is NOT in § 6.19.3.1's URL-param table (single-entity retrieve)
 # so this test only covers the multi-entity GET.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 TRoE timescale - temporal geoQ filter
 

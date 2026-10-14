@@ -25,6 +25,9 @@
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp
 #include "bridge/bridgeService.h"                     // bridgeServiceHas
 #include "serviceExecution/seRegistrationCheck.h"     // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -162,6 +165,11 @@ bool seRegistrationCheck(CorNode* regP)
 {
   if ((regP == NULL) || (regP->type != CorObject))
     return bad("a Service Registration is a JSON object");
+
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(regP))
+    return false;
+#endif
 
   CorNode* typeP     = NULL;
   CorNode* endpointP = NULL;

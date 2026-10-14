@@ -18,6 +18,8 @@
 #     an entity must satisfy the scope filter AND the q filter AND the geo
 #     filter to be returned.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 scopeQ exact non-leaf is not a prefix match; scopeQ composes with q + geo
 

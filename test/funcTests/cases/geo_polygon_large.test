@@ -9,6 +9,8 @@
 # matched like a small one. The geometry is handed to GEOS as GeoJSON text; built in a fixed 4 KB
 # buffer, a longer one was cut short, failed to parse, and the entity silently matched nothing.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Geo-query on a polygon of over 4 KB of coordinates
 

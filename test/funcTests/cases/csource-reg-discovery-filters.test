@@ -16,7 +16,7 @@
 #   georel/geometry/coordinates/geoproperty (geoQ on CSR location)
 #   timerel/timeAt/endTimeAt (temporal query on observationInterval)
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS GEOQ
 #
 --NAME--
 GET /csourceRegistrations — scopeQ / csf / omit / lang filters

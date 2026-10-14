@@ -48,6 +48,9 @@
 
 #include "corNgsild/ldIdGenerate.h"                    // ldIdGenerate
 #include "serviceRoutines/postCsourceSubscriptions.h"  // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -63,6 +66,11 @@ bool postCsourceSubscriptions(void)
   CorNode* subP = corRest.in.requestTree;
 
   LdFormat notifFormat = LdFormatNone;
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(subP))
+    return true;
+#endif
+
   if (ldCheckSubscription(subP, LdOpCreateCsourceSubscription, /*merged*/false, &notifFormat, &corRest.kalloc) == false)
     return true;
 

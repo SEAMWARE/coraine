@@ -177,6 +177,9 @@ static void contextSleep(int ms)
 
 
 #include "coraineVersion.h"                      // CORAINE_VERSION
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -1295,6 +1298,13 @@ static bool brokerPreServiceHook(void)
   // request that may not must leave nothing behind
   //
   if (!authAuthorize())
+    return false;
+#endif
+#if !COR_FEATURE_GEOQ
+  //
+  // No geo-queries in this build: a georel in the URL is refused, before the tenant (which a create would make)
+  //
+  if (geoQueryRefused())
     return false;
 #endif
   if (!tenantPreServiceHook())

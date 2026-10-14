@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Empty / missing geo coordinates URI param errors cleanly
 

@@ -12,7 +12,7 @@
 # on BOTH create and PATCH — otherwise an unusable geoQ is persisted and the
 # subscription silently matches nothing, an inconsistent state.
 #
-# REQUIRE_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS GEOQ
 #
 --NAME--
 Subscription geoQ validation — geometry/coordinates mismatch rejected (create + PATCH)

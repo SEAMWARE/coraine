@@ -17,7 +17,7 @@
 # the remote side, so pushing it down would drop the Entity, and never checking it after assembly
 # would return Entities that are nowhere near the area.
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS GEOQ
 #
 --NAME--
 Split entities - a filter on a local Attribute keeps the remote half, geoquery included

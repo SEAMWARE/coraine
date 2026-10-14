@@ -13,7 +13,7 @@
 # (the broker re-applies the bound values) or re-send the same values, but
 # may not modify them (→ 400).
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS GEOQ
 #
 --NAME--
 EntityMap creation — filter params shape the map at create time

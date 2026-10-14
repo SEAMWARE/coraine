@@ -28,6 +28,9 @@
 
 #include "serviceRoutines/getEntitiesTemporal.h"     // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h"  // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -37,6 +40,11 @@ bool postTemporalEntityBatchQuery(void)
 
   if (!ldQueryBodyToParams(bodyP))
     return true;
+
+#if !COR_FEATURE_GEOQ
+  if (geoQueryRefused())                              // the body's geoQ, now in the request's georel
+    return true;
+#endif
 
   return getEntitiesTemporal();
 }

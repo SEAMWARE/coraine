@@ -18,6 +18,8 @@
 #
 # REQUIRE_DB: corDB
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Migration import into corDB with --troe corDB - the source's history as it was, nothing on top
 

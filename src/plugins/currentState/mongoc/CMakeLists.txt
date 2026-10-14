@@ -81,6 +81,10 @@ ADD_DEPENDENCIES(mongoc dbAbiStamp)                 # dbAbiStamp.h - dbPluginAbi
 TARGET_COMPILE_DEFINITIONS(mongoc PRIVATE MONGOC_PLUGIN_VERSION="0.1.0")
 TARGET_INCLUDE_DIRECTORIES(mongoc PRIVATE ${MONGOC2_INCLUDE_DIRS})
 # Plugin .so resolves NGSI-LD/k-lib symbols from the (rdynamic) broker at dlopen.
-TARGET_LINK_LIBRARIES(mongoc ${MONGOC2_LIBRARIES} geos_c m)
+IF (COR_FEATURE_GEOQ)
+  TARGET_LINK_LIBRARIES(mongoc ${MONGOC2_LIBRARIES} geos_c m)
+ELSE()
+  TARGET_LINK_LIBRARIES(mongoc ${MONGOC2_LIBRARIES} m)       # no geo-queries: shared/geoMatch.c without GEOS
+ENDIF()
 
 SET_TARGET_PROPERTIES(mongoc PROPERTIES OUTPUT_NAME "mongoc" PREFIX "")

@@ -43,6 +43,9 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/patchCsourceSubscription.h"  // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -53,6 +56,11 @@ bool patchCsourceSubscription(void)
 
   // The fragment first; the complete result once applied (below). The format is re-derived from the
   // tree at cache time (LdFormatUnset below).
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(fragment))
+    return true;
+#endif
+
   if (ldCheckSubscription(fragment, LdOpUpdateCsourceSubscription, /*merged*/false, NULL, &corRest.kalloc) == false)
     return true;
 

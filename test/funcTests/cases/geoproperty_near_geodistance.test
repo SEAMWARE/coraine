@@ -19,6 +19,8 @@
 # A near query returns matches nearest-first (mongoc $geoNear and the in-memory
 # store both sort by distance), so this test asserts the distance ordering too.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 georel=near annotates matches with a non-reified geoDistance number (metres)
 

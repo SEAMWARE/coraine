@@ -5,6 +5,8 @@
 #
 # Copyright 2026 Seamware
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 GET /ngsi-ld/v1/entities - Error handling
 

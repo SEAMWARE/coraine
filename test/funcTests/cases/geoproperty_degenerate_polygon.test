@@ -10,6 +10,8 @@
 # passed to the storage backend with a leaked backend error — and a near-point
 # geo-query must still work against a valid Point GeoProperty.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 GeoProperty — reject a degenerate Polygon (4 identical points); near-point geo-query
 

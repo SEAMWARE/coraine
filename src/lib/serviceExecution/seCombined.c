@@ -37,6 +37,9 @@
 #include "db/Tenant.h"                                // Tenant
 #include "serviceExecution/seExecution.h"             // seExecutionBuild, seExecutionStart, seExecutionStore, ...
 #include "serviceExecution/seCombined.h"              // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -498,6 +501,11 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 
   if (membersCheck(bodyP, groupedMemberV, "a Grouped Service Execution") == false)
     return NULL;
+
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(bodyP))
+    return NULL;
+#endif
 
   if (methodOk(methodP) == false)
     return NULL;

@@ -13,7 +13,9 @@
 #include <stdbool.h>                                     // bool
 
 #include <pthread.h>                                     // pthread_mutex_t
+#if COR_FEATURE_GEOQ
 #include <geos_c.h>                                      // GEOS C API
+#endif
 
 #include "corTree/CorNode.h"                             // CorNode
 #include "corTree/corTreeLookup.h"                       // corTreeLookup
@@ -23,6 +25,27 @@
 #include "db/DbQueryFilter.h"                            // DbQueryFilter
 
 #include "shared/geoMatch.h"                             // Own interface
+
+
+
+#if !COR_FEATURE_GEOQ
+// -----------------------------------------------------------------------------
+//
+// Built without geo-queries (COR_FEATURE_GEOQ=OFF): no GEOS. The broker refuses every request that asks
+// for a geo-query (geoNotInThisBuild.h), so nothing here is asked to match; a subscription made with a geoQ
+// by a full build, then read by this one, matches nothing. geoEntityValidate accepts every geometry: the
+// check that a degenerate or self-intersecting polygon is refused - as a 2dsphere index refuses it - needs
+// GEOS. CMake and corDB's makefile link without libgeos_c.
+//
+void geoMatchInit(void)  {}
+void geoMatchClose(void) {}
+
+bool geoEntityValidate(CorNode* entityP)                                                         { (void) entityP; return true; }
+bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)                       { (void) entityP; (void) filterP; (void) distanceP; return false; }
+bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates) { (void) csrGeoP; (void) geoRel; (void) geometry; (void) coordinates; return false; }
+bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)   { (void) csrGeoP; (void) geoRel; (void) geometry; (void) coordinates; return false; }
+
+#else
 
 
 
@@ -944,3 +967,5 @@ bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, 
   geosCtxGive(ctxP);
   return r;
 }
+
+#endif  // COR_FEATURE_GEOQ

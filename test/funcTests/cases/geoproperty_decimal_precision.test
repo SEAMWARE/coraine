@@ -10,6 +10,8 @@
 # real positioning need). The high-precision input is accepted; the response is
 # the 9-decimal form.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 GeoProperty coordinates render rounded to 9 decimals
 

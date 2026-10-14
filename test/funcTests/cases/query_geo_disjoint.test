@@ -21,6 +21,8 @@
 # of this test pins corDB's answers
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Entity geo-query — georel=disjoint (Point / LineString / Polygon vs a rectangle)
 

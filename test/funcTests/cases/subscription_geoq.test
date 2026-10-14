@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS GEOQ
 #
 --NAME--
 Subscription with geoQ filter — near point

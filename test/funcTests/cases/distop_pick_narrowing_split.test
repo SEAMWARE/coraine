@@ -19,7 +19,7 @@
 # (real CP would only show the visible response, which is identical
 # whether or not pick is narrowed at the wire).
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS GEOQ
 #
 --NAME--
 DistOp pick narrowing — split-entities mode
