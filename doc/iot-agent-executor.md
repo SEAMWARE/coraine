@@ -143,7 +143,12 @@ The second needs Service Execution on the central broker - coraine has it; other
    the native path?
 4. **The southbound HTTP listener** (port 7896) - pull commands need it, and so do HTTP measures. A
    plugin with its own listener, or a route on the broker's port?
-5. **Measures and lazy attributes** - the other two jobs: their own notes.
+5. **Measures and lazy attributes** - their own notes. Decided (2026-10-14): commands are Service
+   Executions, lazy attributes stay a Context Source Registration - a read of data that lives in the
+   device, with `attrs`, `q` and the rest of a query. iotagent-json has no lazy attribute that reaches
+   a device: it sets no query handler, and iotagent-node-lib's default answers each lazy attribute with
+   an empty value of its type (`contextServer-NGSI-LD.js` `defaultQueryHandlerNgsiLD`, iotagent-json
+   736b443); its update handler for them is empty.
 
 ## 6. The first PR, if the above holds
 
