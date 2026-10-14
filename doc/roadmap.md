@@ -66,6 +66,20 @@ Recently built, and documented where it lives:
 -   **Running on Kubernetes** - a memory budget that refuses work instead of being killed for it, a
     health port answering `/live` and `/ready` outside the HTTP queue, and a byte budget per query
     response - entity, temporal and distributed queries ([Kubernetes](kubernetes.md)).
+-   **Authorization in the broker** - `--auth`: auth plugins, and `fdsc.so`, the FIWARE Data Space
+    Connector's access tokens and ODRL policies decided inside the broker as the connector decides them -
+    64 cases against a deployed connector, 0 differences; per entity, per attribute and per tenant with
+    `--fdscNgsild`, notifications decided for the subscription's owner; the ODRL-PAP's `/policy` API served
+    by the broker (`--policyApiPort`) ([Authorization](authorization.md)).
+-   **The CKAN bridge and DataChannels** - a CKAN portal's DataStore resources read into entities
+    (`ckan.so`, corCkanBridge); a DataChannel makes each record (a row) into the entities its mapping
+    names ([DataChannels](bridge-channels.md#datachannels)). A bridge reports a Channel's status, and why,
+    at any time (`channelStatusIn`).
+-   **c³, the coraine Control Center - Compile** - a broker built for a deployment from a web page: the
+    features in or out, each with its size, the bridges, the build mode (release, PGO, `make tune`,
+    debug), on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
+-   **corDB persistence, cheaper writes** - a write that updates attributes logs those attributes, not the
+    entity: PATCH +11-13 % on disk ([Performance](performance.md)).
 -   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
@@ -77,6 +91,11 @@ coraine implements its own objects now and adapts to whatever TC DATA settles on
 
 ## In progress
 
+-   **An NGSI-LD plugin for APISIX** - `ngsild-pep` (corApisixNgsild): `fdsc.so`'s own decision in the gateway
+    the FIWARE Data Space Connector already uses, in front of any NGSI-LD broker. Built, and deciding as
+    `--auth fdsc` does on the same 64 cases; made public once it is complete.
+    ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
+
 ## Short term
 
 The following features are planned to be addressed in the short term and
@@ -84,8 +103,6 @@ incorporated in the next release of the product, in roughly this order:
 
 -   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
     discovery parameters.
--   **Finish conditional compilation** - every feature flag reaches the code it names. ([more](ideas.md#finish-conditional-compilation))
--   **c³, the coraine Control Center - Compile** - a web application (a small C backend on the build machine) to build a broker for a deployment: the features compiled in or out, the profile training (PGO) and `make tune` on a workload, the target hardware - and the result as a binary, an image or a package; on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
 -   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
     routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
@@ -94,13 +111,10 @@ incorporated in the next release of the product, in roughly this order:
 -   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
     NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
     plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
--   **An NGSI-LD plugin for APISIX** - an NGSI-LD-aware enforcement point in the gateway the FIWARE
-    Data Space Connector already uses, in front of any NGSI-LD broker. ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
--   **Authorisation inside the broker** - per entity, per type after expansion, per tenant, per attribute; ODRL,
-    verifiable credentials. ([more](ideas.md#authorisation-inside-the-broker))
+-   **Finish conditional compilation, the rest** - six switches (`GEOQ`, `TENANTS`, `SCOPES`, `DATASETID`,
+    `MULTI_TYPE`, `CONTEXT_DL`) are declared and remove nothing yet ([Building](building-details.md)).
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
--   **corDB persistence, cheaper writes** - a PATCH logs the attributes it touched, not the entity. ([more](ideas.md#cordb-persistence---cheaper-writes))
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
     what it is told to (entities, attributes - subscription-shaped). ([more](ideas.md#cordb-history-retention-and-a-selector))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
@@ -113,7 +127,8 @@ typically within the subsequent release(s) generated in the next **9 months**:
 
 -   **c³ - Configure** - the mapping tools in the Control Center: DDS topics, services and actions to entities and attributes, and the same for OPC UA. ([more](ideas.md#c-the-coraine-control-center))
 -   **The IoT Agents as cor-agent plugins** - all seven FIWARE IoT Agents (JSON, UltraLight, LWM2M, OPC UA, LoRaWAN, Sigfox, ISOXML) as device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
--   **A CKAN bridge and a CSV bridge** - open-data datasets from a CKAN portal, and CSV files, ingested as NGSI-LD entities through the Bridge/Channel seam - new: FIWARE only stores into CKAN, never reads from it; real data for c³ Connect and the demos. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
+-   **A CSV bridge, and CKAN beyond `once`** - CSV files as DataChannels, as CKAN resources are; CKAN's `poll` (the dataset's activity stream) and `push` (a webhook) modes. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
+-   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **Scaling out: sharding by tenant, then by entity type** - corDB stays linked into every broker; tenants routed by APISIX on `NGSILD-Tenant`, types by routing coraines over distributed operations - no load balancer of our own. ([more](ideas.md#scaling-out-sharding-by-tenant-and-by-entity-type))
@@ -138,7 +153,6 @@ product is heading and may wish to get involved.
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
 -   **c³ - Connect** - the Control Center connected live to a running broker over its WebSocket transport (queries, then a subscription's notifications): its entities, their relationships as a graph (boxes and arrows, zoom, pan, entities dragged into place), the GeoProperty entities on a map, their values as they change; also as an API plugin of the broker itself. ([more](ideas.md#c-the-coraine-control-center))
--   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
 -   **Broader performance regression coverage** - more scenarios, nightly. ([more](ideas.md#broader-performance-regression-coverage))
@@ -152,32 +166,29 @@ Everything else - open questions, smaller improvements, proposals to ETSI - is i
 The things **not done yet**, with what there is to say about each. Finished work lives in git history,
 not here.
 
-### The short-term list, in the order of work (2026-10-08)
+### The short-term list, in the order of work (2026-10-14)
 
-Done from it: `cor://`, coroutines (with multiplexing and PGO), corDB persistence, system timestamps once
-per entity (corDB and mongoc), the attribute type in the node (`CorNode.kind`), Service Execution, array
-reduction of entity data, tenants created only by a creation, Snapshots on corDB (writes and
-subscriptions included), the WebSocket transport, `make tune`, the subscription candidate index. Open,
-in order:
+Done from it: `cor://` (now a build choice too), coroutines (with multiplexing and PGO), corDB persistence
+(and its cheaper writes), system timestamps once per entity (corDB and mongoc), the attribute type in the
+node (`CorNode.kind`), Service Execution, array reduction of entity data, tenants created only by a
+creation, Snapshots on corDB (writes and subscriptions included), the WebSocket transport, `make tune`, the
+subscription candidate index, migrating from Orion-LD (`coraine-import`), linux/arm64 (images and the
+nightly suite on native ARM runners), the memory budget and admission control, security (`--auth fdsc`:
+per entity, per attribute, per tenant, notifications for the subscription's owner, the `/policy` API), the
+CKAN bridge with DataChannels, and c³ Compile. Open, in order:
 
-1. **Migrating from Orion-LD** - being built (below).
-2. **The rest of the CorNode prefix layout** - after the attribute type in the node: smaller nodes, fewer
+1. **The rest of the CorNode prefix layout** - after the attribute type in the node: smaller nodes, fewer
    cache misses walking trees; `perf stat` cache-misses on the GET scenarios before and after.
-3. **A memory budget and admission control** - refuse work rather than be OOM-killed (§ 12 below is the
-   byte budget for the entity count).
-4. **linux/arm64** - underway: the images built and published for both architectures from the next
-   merge on (deploy.yml, release.yml), the functional suite on GitHub's native ARM runners every night
-   (the job is being brought up - its first run found a C23-only construct, corJsonld#28); then the
-   other diversity builds: ASan + UBSan, clang, Alpine / musl. (`-funsigned-char`, ARM's `char`, passed
-   the whole suite on 2026-10-08.)
-5. **Security** - being built: auth plugins (`--auth`) and `fdsc.so`, the FIWARE Data Space Connector's
-   tokens and policies decided as the connector 10.87.0 decides them ([Authorization](authorization.md)).
-   Built since: the comparison with a deployed connector (64 cases, a nightly job) and contract version 2 -
-   per-entity decisions (create, retrieve, every write, batches, queries) and `--fdscNgsild`. Next:
-   notifications decided for the subscriber (where its identity is kept is to decide), attribute-level rules.
-6. **One compound geo index** - prototype both variants, measure.
-7. **Hot and cold entity segments** - a design note.
-8. **The batch-delete regression** - low priority (attribute updates matter far more).
+2. **The other diversity builds** - ASan + UBSan, clang, Alpine / musl, every night. (`-funsigned-char`,
+   ARM's `char`, passed the whole suite on 2026-10-08.)
+3. **Security, what is left** - `join=inline` in a notification decided for its owner; the APISIX plugin
+   made public; the connector's own rules as its team settles them (SEAMWARE/odrl-pap#59-#61: attribute paths, batch
+   operations - a PR, odrl-pap#64 -, the actions).
+4. **One compound geo index** - prototype both variants, measure.
+5. **Hot and cold entity segments** - a design note.
+6. **The batch-delete regression** - low priority (attribute updates matter far more); the delete cost
+   also grows with the number of policies (-18.6 % at 20 per entity, [Performance](performance.md)), not
+   looked into.
 
 Smaller, alongside:
 
@@ -191,9 +202,9 @@ Smaller, alongside:
 
 #### Migrating from Orion-LD
 
-An executable that converts an Orion-LD database to coraine's format - entities, subscriptions,
-registrations; MongoDB for `mongoc` and the files of a persistent corDB. Needed before coraine can
-be offered to Orion-LD's users as the way forward: they must be able to take their data with them.
+Built: `coraine-import` converts an Orion-LD database to coraine's - entities, subscriptions,
+registrations and the temporal history, MongoDB for `mongoc` and the files of a persistent corDB
+([Migrating a database to coraine](migration.md)).
 
 **The longer road** (ETSI TC DATA): a broker saves its data to a **neutral format** - possibly a set
 of CSV files, no details discussed yet. KZ pushes it in Athens (20-22 October 2026). Once it exists,
