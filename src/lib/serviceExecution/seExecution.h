@@ -62,7 +62,7 @@ typedef struct SeForward
 
 // -----------------------------------------------------------------------------
 //
-// seExecutionRetentionNs - how long a finished execution is kept (--serviceExecutionRetention)
+// seExecutionRetentionNs - how long a finished execution is kept: 24 hours (no option sets it)
 //
 extern int64_t seExecutionRetentionNs;
 
