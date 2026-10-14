@@ -27,7 +27,7 @@ startup as shared libraries:
 The core broker speaks NGSI-LD; the plugins decide *where data lives*, *what extra
 endpoints exist* and *how the broker talks to the world*.
 
-- **Product version:** 0.4 — see the [release notes](https://github.com/SEAMWARE/coraine/releases)
+- **Product version:** 0.5 (0.5.0, 2026-10-10) — see the [release notes](https://github.com/SEAMWARE/coraine/releases)
   and the [changelog](CHANGELOG.md)
 - **Spec:** ETSI GS CIM 009 v1.9.1 (NGSI-LD) — fully implemented
 - **Language / build:** C, CMake (wrapped by a convenience `makefile`)
