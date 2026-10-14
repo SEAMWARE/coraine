@@ -142,8 +142,10 @@ The second needs Service Execution on the central broker - coraine has it; other
    provisioning PR.
 3. **Drop-in provisioning** - decided (2026-10-14): after the native path, in a PR of its own. A device
    provisioned with commands becomes one Service Registration per command, its endpoint as in § 3.
-4. **The southbound HTTP listener** (port 7896) - pull commands need it, and so do HTTP measures. A
-   plugin with its own listener, or a route on the broker's port?
+4. **The southbound HTTP listener** (port 7896: HTTP measures, pull commands - the device is the
+   client) - decided (2026-10-14): the broker opens it for the plugin, `BridgeBroker.httpListen(port,
+   handler)` - its own HTTP code, no auth plugin and no NGSI-LD route on that port, opened only when the
+   bridge config names the port.
 5. **Measures and lazy attributes** - their own notes. Decided (2026-10-14): commands are Service
    Executions, lazy attributes stay a Context Source Registration - a read of data that lives in the
    device, with `attrs`, `q` and the rest of a query. iotagent-json has no lazy attribute that reaches
