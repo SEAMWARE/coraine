@@ -24,6 +24,8 @@
 #
 # (?georel=near is covered by troe_timescale_temporal_geoq.)
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 TRoE timescale - temporal geoQ topological relations
 

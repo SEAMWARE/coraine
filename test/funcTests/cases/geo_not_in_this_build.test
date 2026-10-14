@@ -1,0 +1,223 @@
+#
+# FILE            geo_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build without geo-queries (COR_WITH_GEOQ=0: COR_FEATURE_GEOQ=OFF, shared/geoMatch.c without GEOS in the
+# broker's mongoc.so and in corDB.so). The build says so; a request that asks for a geo-query is answered 501
+# "not in this build" - a georel in the URL, a geoQ in a query body or a subscription, an ordering by
+# distance - not as if nothing
+# matched; GeoProperty data is stored, served and queried by everything else as before.
+#
+# SKIP_FEATURE: GEOQ
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Geo-queries compiled out - georel and geoQ answered 501, GeoProperty data as before
+
+--TAGS--
+geo features
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. The build says so itself - GET /build reports GEOQ: false"
+echo "============================================================="
+corCurl --url /build | grep '"GEOQ"'
+echo
+echo
+
+
+echo "02. An entity with a GeoProperty - created, and served with its location"
+echo "========================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Bus:1", "type": "Bus", "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ -71.05, 42.35 ] } } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Bus:1
+echo
+echo
+
+
+echo "03. A query by type - as before"
+echo "==============================="
+corCurl --url '/ngsi-ld/v1/entities?type=Bus&attrs=location'
+echo
+echo
+
+
+echo "04. A geo-query in the URL - 501"
+echo "================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Bus&georel=near;maxDistance==1000&geometry=Point&coordinates=%5B-71.05,42.35%5D'
+echo
+echo
+
+
+echo "05. A geoQ in a query body (POST /entityOperations/query) - 501"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{ "type": "Query", "entities": [ { "type": "Bus" } ], "geoQ": { "georel": "near;maxDistance==1000", "geometry": "Point", "coordinates": [ -71.05, 42.35 ] } }'
+echo
+echo
+
+
+echo "06. Ordering by distance (orderBy=location;dist-asc, orderFrom - § 7.6.2.2) - 501"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Bus&orderBy=location;dist-asc&orderFrom=%5B-71.05,42.35%5D'
+echo
+echo
+
+
+echo "07. A subscription with a geoQ - 501, and none made"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "type": "Subscription", "entities": [ { "type": "Bus" } ], "geoQ": { "georel": "near;maxDistance==1000", "geometry": "Point", "coordinates": [ -71.05, 42.35 ] }, "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } } }'
+echo
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. The build says so itself - GET /build reports GEOQ: false
+=============================================================
+    "GEOQ": false,
+
+
+02. An entity with a GeoProperty - created, and served with its location
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Bus:1
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 202
+
+{
+  "id": "urn:ngsi-ld:Bus:1",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        -71.05,
+        42.35
+      ],
+      "type": "Point"
+    }
+  },
+  "type": "Bus"
+}
+
+
+
+03. A query by type - as before
+===============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 234
+
+[
+  {
+    "id": "urn:ngsi-ld:Bus:1",
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          -71.05,
+          42.35
+        ],
+        "type": "Point"
+      }
+    },
+    "type": "Bus"
+  }
+]
+
+
+
+04. A geo-query in the URL - 501
+================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 243
+
+{
+  "detail": "geo-queries (georel, geometry, coordinates) are not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+05. A geoQ in a query body (POST /entityOperations/query) - 501
+===============================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 243
+
+{
+  "detail": "geo-queries (georel, geometry, coordinates) are not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+06. Ordering by distance (orderBy=location;dist-asc, orderFrom - § 7.6.2.2) - 501
+==================================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 244
+
+{
+  "detail": "geo-queries (orderBy by distance, orderFrom) are not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+
+07. A subscription with a geoQ - 501, and none made
+===================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "geo-queries (geoQ) are not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+

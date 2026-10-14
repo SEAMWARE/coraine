@@ -12,7 +12,7 @@
 # complete geoQ replaces it. The fragment itself need not carry all of geometry/coordinates/georel -
 # the complete result is what is validated - and any member it does carry is (an invalid georel: 400).
 #
-# REQUIRE_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS GEOQ
 #
 --NAME--
 Partial geoQ fragment merges on Update Subscription (not wrongly rejected)

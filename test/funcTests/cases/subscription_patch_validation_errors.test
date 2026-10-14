@@ -12,7 +12,7 @@
 # entity/attribute selector (leaving the subscription with nothing to match),
 # and the read-only 'id' may not appear in the body at all.
 #
-# REQUIRE_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS GEOQ
 #
 --NAME--
 Subscription PATCH body validation errors (§ 5.8.3)

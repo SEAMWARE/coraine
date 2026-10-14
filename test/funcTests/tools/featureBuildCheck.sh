@@ -35,7 +35,7 @@ mkdir -p "$WORK"
 #
 # The configurations. Each is a label plus the cmake flags that define it.
 #
-# Only the flags that actually DO something are here. Nine of the twenty-one
+# Only the flags that actually DO something are here. Eight of the
 # features are declared and unread (see doc/building-details.md), so a case for one of
 # them would build a byte-identical binary and assert nothing; and three do not
 # link at all, which is a known state rather than something to pin.
@@ -59,6 +59,7 @@ CONFIGS=(
   "AUTO_ENTITY_MAP=OFF|-DCOR_FEATURE_AUTO_ENTITY_MAP=OFF"
   "CHANNEL_STATUS_IN=OFF|-DCOR_FEATURE_CHANNEL_STATUS_IN=OFF"
   "DATA_CHANNELS=OFF|-DCOR_FEATURE_DATA_CHANNELS=OFF"
+  "GEOQ=OFF|-DCOR_FEATURE_GEOQ=OFF"
 )
 
 rc=0
@@ -91,8 +92,11 @@ for cfg in "${CONFIGS[@]}"; do
   # corDB is a repo of its own (../corDB): built for this configuration too - a plugin carries the
   # broker's feature switches - in a directory of its own, the tree's own builds untouched.
   #
-  dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | tr '\n' ' ')
-  if ! make -C "$SRC/../corDB" OBJDIR="$d.corDB" $dbFlags > "$d.corDB.log" 2>&1; then
+  # GEOQ is corDB's COR_WITH_GEOQ, as the broker's makefile passes it. CORAINE: this tree's shared sources
+  # (geoMatch.c, dbPluginAbi.c) - by default corDB compiles ../coraine's, another checkout's
+  #
+  dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | sed 's/^COR_FEATURE_GEOQ=0$/COR_WITH_GEOQ=0/' | tr '\n' ' ')
+  if ! make -C "$SRC/../corDB" OBJDIR="$d.corDB" CORAINE="$SRC" $dbFlags > "$d.corDB.log" 2>&1; then
     echo "$label: corDB build FAILED"
     grep -E "error:|undefined reference" "$d.corDB.log" | head -5
     rc=1

@@ -32,6 +32,8 @@
 # of this test pins corDB's behaviour)
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 A GeoProperty and another Attribute type cannot share one Attribute name (mongoc)
 

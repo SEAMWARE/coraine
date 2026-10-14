@@ -10,6 +10,8 @@
 # with a clean 400 Invalid geo-query. A follow-up GET confirms ordinary queries
 # still work.
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 GeoQuery with empty or missing coordinates URI-param — 400
 

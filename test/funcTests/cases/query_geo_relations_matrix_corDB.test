@@ -18,6 +18,8 @@
 #
 # REQUIRE_DB: corDB
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Entity geo-query — the georel matrix, GEOS/in-memory (exact § 7.2.4 answers)
 

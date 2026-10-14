@@ -16,6 +16,8 @@
 # suppresses the query-breadth gate so each structural error surfaces (Coraine checks
 # breadth before body structure).
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 POST /entityOperations/query payload validation — 29 malformed bodies all 400, 2 valid 200
 

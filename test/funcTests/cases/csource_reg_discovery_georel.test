@@ -28,7 +28,7 @@
 #   urn:R:NoGeo        no location at all - unrestricted, so it covers this area
 #                      and every other one, and appears in EVERY answer below
 #
-# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: REGISTRATIONS GEOQ
 #
 --NAME--
 CSourceRegistration Discovery — every georel means what it says

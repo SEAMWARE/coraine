@@ -39,6 +39,9 @@
 #include "auth/auth.h"                               // authSubscriptionOwnerKeep
 #endif
 #include "serviceRoutines/patchSubscription.h"       // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -117,6 +120,11 @@ bool patchSubscription(void)
   // Fragment validation only (well-formedness). The format value isn't parsed
   // here — it's validated and captured from the merged result below, so the
   // string is matched once. NULL: nothing to capture from the fragment.
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(fragment))
+    return true;
+#endif
+
   if (ldCheckSubscription(fragment, LdOpUpdateSubscription, /*merged*/false, NULL, &corRest.kalloc) == false)
     return true;
 

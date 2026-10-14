@@ -17,6 +17,8 @@
 #
 # REQUIRE_DB: corDB
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Entity geo-query — georel=disjoint, GEOS/in-memory (boundary contact = not disjoint)
 

@@ -16,7 +16,7 @@
 # timeInterval 3600 - its first notification comes at once, the next in an hour, so exactly one
 # arrives - and counts the entities in it.
 #
-# REQUIRE_FEATURE: SUBSCRIPTIONS
+# REQUIRE_FEATURE: SUBSCRIPTIONS GEOQ
 #
 --NAME--
 Periodic subscription: every selector, q, scopeQ, geoQ, idPattern, and more than 20 entities

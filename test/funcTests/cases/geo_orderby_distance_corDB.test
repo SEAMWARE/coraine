@@ -17,6 +17,8 @@
 #
 # REQUIRE_DB: corDB
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 orderBy dist-asc/dist-desc on the corDB backend (§ 7.6.2.2)
 

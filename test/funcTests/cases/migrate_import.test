@@ -25,6 +25,8 @@
 # REQUIRE_DB: mongoc corDB
 # REQUIRE_TROEDB: timescale
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Migration import - a stream written into the stores, ids and system timestamps as they were
 

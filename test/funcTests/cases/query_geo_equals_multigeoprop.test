@@ -13,6 +13,8 @@
 #   - georel=equals on the Polygon geoproperty (the second geoproperty)
 #   - georel=within selecting the Polygon geoproperty (per-geoproperty selection)
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 POST query — georel=equals (Point/Polygon) and an entity with multiple GeoProperties
 

@@ -21,6 +21,8 @@
 #
 # REQUIRE_DB: corDB
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 A GeoProperty may share an Attribute name with another type on corDB (§ 5.2.6.6)
 

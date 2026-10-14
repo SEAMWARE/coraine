@@ -24,6 +24,8 @@
 # of this test pins corDB's answers
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 Entity geo-query — the georel matrix (mongoc pushdown, with its approximations)
 

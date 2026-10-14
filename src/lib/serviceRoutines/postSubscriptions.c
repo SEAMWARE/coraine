@@ -56,6 +56,9 @@ extern CorLdContextCache* corLdCacheGet(void);
 #include "auth/auth.h"                               // authSubscriptionOwnerKeep
 #endif
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
+#if !COR_FEATURE_GEOQ
+#include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
+#endif
 
 
 
@@ -154,6 +157,11 @@ bool postSubscriptions(void)
   // carried to ldSubCacheItemAdd below, so the string is matched only once.
   //
   LdFormat notifFormat = LdFormatNone;
+#if !COR_FEATURE_GEOQ
+  if (geoQRefused(subP))
+    return true;
+#endif
+
   if (ldCheckSubscription(subP, LdOpCreateSubscription, /*merged*/false, &notifFormat, &corRest.kalloc) == false)
     return true;
 

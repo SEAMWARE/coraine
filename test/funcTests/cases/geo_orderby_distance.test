@@ -24,6 +24,8 @@
 # of this test pins corDB's answers
 # REQUIRE_DB: mongoc
 #
+# REQUIRE_FEATURE: GEOQ
+#
 --NAME--
 orderBy dist-asc/dist-desc — sort entities by distance from orderFrom (§ 7.6.2.2)
 

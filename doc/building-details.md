@@ -326,8 +326,14 @@ context work as before. Size: -20 KiB.
 
 #### `GEOQ`
 
-Geo-queries (`georel`, `geometry`, `coordinates`). **Declared, removes nothing.** GEOS (3.17 MiB, the
-largest library coraine installs) stays whatever the switch: `corDB.so` and `mongoc.so` link it.
+Geo-queries (`georel`, `geometry`, `coordinates`, and `geoQ` in a query body, a subscription or a Service
+Execution object). Off (`COR_WITH_GEOQ=0` - `coraine-build` maps the switch to it, `CMAKE_FEATURES` refuses it):
+the geo matcher (`shared/geoMatch.c`) is built without GEOS in `mongoc.so` and in `corDB.so`, neither links
+libgeos_c, and a request asking for a geo-query is answered **501** "not in this build" - not as if nothing
+matched. GeoProperty data is stored, served and queried as before. corDB no longer refuses a degenerate or
+self-intersecting polygon (the check that mirrors a 2dsphere index is GEOS's). Size: **-3.19 MiB** - GEOS
+(`libgeos_c` 1.20.5 and `libgeos` 3.14.1, 3.17 MiB) no longer loaded, `mongoc.so` -16 KiB, `corDB.so`
+-12 KiB, `ramDB.so` -4 KiB; the broker +8 KiB, its 501s (measured 2026-10-14).
 
 #### `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
 
@@ -406,7 +412,7 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These eleven remove code from the broker and are covered by the test suite:**
+**These twelve remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
@@ -421,6 +427,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_HEALTH=OFF` | 5,312 bytes (and 432 from `mongoc.so`, 782 from `timescale.so`) | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
 | `COR_FEATURE_RESPONSE_BUDGET=OFF` | 5,056 bytes (and 256 from `mongoc.so`, 1,472 from `timescale.so`; release build. `corDB.so`, built in its own repository, keeps its counting, which nothing then turns on) | no `--maxResponseSize` - no byte budget on an entity query, a temporal query or the forwarded part of a distributed one ([Response size](installation.md#response-size)) |
 | `COR_FEATURE_AUTO_ENTITY_MAP=OFF` | 3,680 bytes (release build) | no automatic EntityMaps and no `--autoEntityMaps` - a query paginated past its first page is paged by `offset` / `limit`, locally and forwarded; a map only when a client asks for one (`--entityMapMemory` still caps those) ([EntityMaps](installation.md#entitymaps)) |
+| `COR_WITH_GEOQ=0` (`GEOQ`) | in `mongoc.so`, `corDB.so` and `ramDB.so` 33 KiB stripped, and GEOS: libgeos_c and libgeos are not loaded (3.17 MiB); the broker grows 8 KiB (its refusals) | no geo-queries - `georel`, a `geoQ` in a query body, a subscription or a Service Execution object, ordering by distance are answered 501; corDB accepts any polygon |
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
 
@@ -439,9 +446,9 @@ load:
 |---|---|
 | `COR_FEATURE_MIGRATE=OFF` | `coraine-import` is not built ([migration.md](migration.md)) - the broker carries no import code either way |
 
-**⚠️ These nine are declared and do nothing at all:**
+**⚠️ These eight are declared and do nothing at all:**
 
-`GEOQ`, `SCOPES`, `DATASETID`, `MULTI_TYPE`, `CONTEXT_DL`, `TENANTS`,
+`SCOPES`, `DATASETID`, `MULTI_TYPE`, `CONTEXT_DL`, `TENANTS`,
 `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
 
 The option exists, CMake emits the `-D`, **no source reads it**, and the
