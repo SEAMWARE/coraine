@@ -11,7 +11,7 @@
 # tenant, nor in the default one - refused before the tenant is resolved, so none is created. Without
 # --fdscNgsild the policy is not read (the connector's PAP takes the word for a literal), and says so.
 #
-# REQUIRE_FEATURE: AUTH TENANTS
+# REQUIRE_FEATURE: AUTH
 #
 --NAME--
 fdsc --fdscNgsild: ngsi-ld:tenant decides on the request's tenant
