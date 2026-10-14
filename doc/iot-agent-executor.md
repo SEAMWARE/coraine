@@ -136,8 +136,7 @@ The second needs Service Execution on the central broker - coraine has it; other
 
 ## 5. Open decisions
 
-1. **The input**: the device gets `{"<cmd>": input.value}` (iotagent-json's shape) - or the input object
-   as it is?
+1. **The input** - decided: what iotagent-json sends, `{"<cmd>": input.value}` (§ 4).
 2. **The endpoint carries the delivery** (no registry) - or the plugin keeps a device registry and the
    endpoint is `iota-json://<apikey>/<deviceId>/<cmd>` only?
 3. **Drop-in provisioning** (`/iot/devices`, `/iot/groups` on port 4041) - in the first PR, or after
