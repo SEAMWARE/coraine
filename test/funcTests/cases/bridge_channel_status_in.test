@@ -1,0 +1,231 @@
+#
+# FILE            bridge_channel_status_in.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# BridgeBroker.channelStatusIn (bridge ABI 12) - a bridge plugin says whether a Channel carries, and why
+# not, and GET /ngsi-ld/v1/channels shows it as the Channel's status and statusReason.
+#
+# The loopback bridge's "statusIn" (bridgeConfig --statusIn) makes it say so:
+#   P1  added, then reported dormant (2 s after channelAdd) and available again (2 s later), each with a reason
+#   P2  refused in channelAdd, the plugin giving its own reason inside the call - the one GET shows
+#   P4  nothing said - available
+#
+# REQUIRE_FEATURE: CHANNEL_STATUS_IN
+#
+--NAME--
+Bridges: channelStatusIn - a plugin reports a Channel dormant or available, and why, at any time
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig \
+  --topic  "P1,Machine,urn:M:1,temperature" \
+  --topic  "P2,Machine,urn:M:1,pressure" \
+  --topic  "P4,Machine,urn:M:1,speed" \
+  --statusIn "P1=dormant:the peer has no P1;available:the peer has P1 again" \
+  --statusIn "P2=refuse:P2 is not on this bus")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG -v    # -v: the 'available' report is an info line
+
+--RUN--
+
+echo "01. Right after the start: P1 and P4 available; P2 dormant with the plugin's reason"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P1
+echo
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P2
+echo
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P4
+echo
+echo
+
+
+echo "02. 3 s later: P1 reported dormant, with the reason"
+echo "==================================================="
+sleep 3
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P1
+echo
+echo
+
+
+echo "03. 2 s later: P1 reported available again - the new reason replaces the old one"
+echo "================================================================================="
+sleep 2
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P1
+echo
+echo
+
+
+echo "04. The broker's log: each report, once - dormant a warning, available information"
+echo "===================================================================================="
+grep -c "^W: .*bridge 'loopback': channel 'P1' is dormant: the peer has no P1" /tmp/coraine.CB.log
+grep -c "^I: .*bridge 'loopback': channel 'P1' is available: the peer has P1 again" /tmp/coraine.CB.log
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. Right after the start: P1 and P4 available; P2 dormant with the plugin's reason
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 435
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "both",
+  "channelKind": "topic",
+  "channelTarget": "P1",
+  "entity": {
+    "id": "urn:M:1",
+    "type": "Machine"
+  },
+  "entityAttribute": "temperature",
+  "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
+  "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
+  "status": "available",
+  "type": "Channel"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 473
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "both",
+  "channelKind": "topic",
+  "channelTarget": "P2",
+  "entity": {
+    "id": "urn:M:1",
+    "type": "Machine"
+  },
+  "entityAttribute": "pressure",
+  "id": "urn:ngsi-ld:Channel:loopback:P2",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
+  "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
+  "status": "dormant",
+  "statusReason": "P2 is not on this bus",
+  "type": "Channel"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 429
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "both",
+  "channelKind": "topic",
+  "channelTarget": "P4",
+  "entity": {
+    "id": "urn:M:1",
+    "type": "Machine"
+  },
+  "entityAttribute": "speed",
+  "id": "urn:ngsi-ld:Channel:loopback:P4",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
+  "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
+  "status": "available",
+  "type": "Channel"
+}
+
+
+
+02. 3 s later: P1 reported dormant, with the reason
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 473
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "both",
+  "channelKind": "topic",
+  "channelTarget": "P1",
+  "entity": {
+    "id": "urn:M:1",
+    "type": "Machine"
+  },
+  "entityAttribute": "temperature",
+  "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
+  "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
+  "status": "dormant",
+  "statusReason": "the peer has no P1",
+  "type": "Channel"
+}
+
+
+
+03. 2 s later: P1 reported available again - the new reason replaces the old one
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 478
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelDirection": "both",
+  "channelKind": "topic",
+  "channelTarget": "P1",
+  "entity": {
+    "id": "urn:M:1",
+    "type": "Machine"
+  },
+  "entityAttribute": "temperature",
+  "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "requestsNotWaited": 0,
+  "requestsWaiting": 0,
+  "retention": "mirror",
+  "samplesIn": 0,
+  "samplesOut": 0,
+  "status": "available",
+  "statusReason": "the peer has P1 again",
+  "type": "Channel"
+}
+
+
+
+04. The broker's log: each report, once - dormant a warning, available information
+====================================================================================
+1
+1
+
+

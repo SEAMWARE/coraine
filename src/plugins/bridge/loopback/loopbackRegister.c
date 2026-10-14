@@ -88,6 +88,8 @@ typedef struct LoopbackSample
   bool        goalFinal;                              // the goal's last event
   bool        discover;                               // not a payload: "the transport found this endpoint" (ABI 8)
   int         discoverKind;                           // BridgeChannelKind of what was found
+  bool        status;                                 // not a payload: the Channel's status, reported (ABI 12, channelStatusIn); json is the reason
+  int         statusValue;                            // BridgeChannelStatus
 } LoopbackSample;
 
 
@@ -289,6 +291,9 @@ static const char* loopbackMeta(const char* endpoint)
 // requests does (DDS: "request" beside "reply"). The loopback's reply is its
 // request, so what was asked is simply the payload again.
 //
+static LoopbackMeta  statusIns[LOOPBACK_CHANNELS_MAX];   // endpoint -> "statusIn" (loopbackStatusInPair)
+static int           statusInCount = 0;
+
 static LoopbackMeta  echoes[LOOPBACK_CHANNELS_MAX];   // endpoint -> the request's sub-attribute name
 static int           echoCount = 0;
 
@@ -435,7 +440,17 @@ static void* loopbackDelivery(void* vP)
     }
     pthread_mutex_unlock(&queueMutex);
 
-    if ((sample.endpoint != NULL) && (sample.discover == true))
+    if ((sample.endpoint != NULL) && (sample.status == true))
+    {
+      if ((brokerP->abiVersion >= 12) && (brokerP->channelStatusIn != NULL))
+        brokerP->channelStatusIn("loopback", sample.endpoint, sample.statusValue, (sample.json[0] != 0) ? sample.json : NULL);
+      else
+        COR_W("loopback: a status for '%s', but the host predates ABI 12 - not reported", sample.endpoint);
+
+      free(sample.endpoint);
+      free(sample.json);
+    }
+    else if ((sample.endpoint != NULL) && (sample.discover == true))
     {
       if ((brokerP->abiVersion >= 8) && (brokerP->endpointDiscoveredIn != NULL))
         brokerP->endpointDiscoveredIn("loopback", sample.endpoint, sample.discoverKind);
@@ -583,6 +598,7 @@ static void loopbackEchoesLoad(void);
 static void loopbackSampleFromsLoad(void);
 static void loopbackGoalModesLoad(void);
 static void loopbackTopicModesLoad(void);
+static void loopbackStatusInsLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -622,6 +638,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackSampleFromsLoad();
   loopbackGoalModesLoad();
   loopbackTopicModesLoad();
+  loopbackStatusInsLoad();
   loopbackEmitAtStart();
   loopbackDiscoverAtStart();
 
@@ -650,6 +667,7 @@ static bool loopbackQueue(const char* endpoint, const char* json, const char* su
     queue[queueCount].goalState   = 0;
     queue[queueCount].goalFinal   = false;
     queue[queueCount].discover    = false;
+    queue[queueCount].status      = false;
     queueCount++;
     queued = true;
   }
@@ -683,7 +701,41 @@ static bool loopbackDiscoverQueue(const char* endpoint, int kind)
     queue[queueCount].goalState    = 0;
     queue[queueCount].goalFinal    = false;
     queue[queueCount].discover     = true;
+    queue[queueCount].status       = false;
     queue[queueCount].discoverKind = kind;
+    queueCount++;
+    queued = true;
+  }
+  pthread_mutex_unlock(&queueMutex);
+
+  return queued;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackStatusQueue - queue a Channel status report (channelStatusIn), due delayMs from now
+//
+static bool loopbackStatusQueue(const char* endpoint, int status, const char* reason, int delayMs)
+{
+  bool queued = false;
+
+  pthread_mutex_lock(&queueMutex);
+  if (queueCount < LOOPBACK_CHANNELS_MAX)
+  {
+    queue[queueCount].endpoint     = strdup(endpoint);
+    queue[queueCount].json         = strdup((reason != NULL) ? reason : "");
+    queue[queueCount].subAttrName  = NULL;
+    queue[queueCount].token        = 0;
+    queue[queueCount].dueMs        = loopbackNowMs() + delayMs;
+    queue[queueCount].goal         = false;
+    queue[queueCount].goalState    = 0;
+    queue[queueCount].goalFinal    = false;
+    queue[queueCount].discover     = false;
+    queue[queueCount].discoverKind = 0;
+    queue[queueCount].status       = true;
+    queue[queueCount].statusValue  = status;
     queueCount++;
     queued = true;
   }
@@ -714,6 +766,7 @@ static bool loopbackGoalEvent(const char* endpoint, uint64_t token, int state, b
     queue[queueCount].goalState   = state;
     queue[queueCount].goalFinal   = final;
     queue[queueCount].discover    = false;
+    queue[queueCount].status      = false;
     queueCount++;
     queued = true;
   }
@@ -1029,6 +1082,80 @@ static const char* loopbackTopicMode(const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// loopbackStatusInPair / loopbackStatusInsLoad - "statusIn": what the transport says about a Channel (ABI 12)
+//
+//   "statusIn": { "P1": "dormant:the peer has no P1;available",
+//                 "P2": "refuse:P2 is not on this bus" }
+//
+// refuse:<reason>   channelAdd reports the Channel dormant with the reason, in the call, and refuses it
+// otherwise         a list, ';' between the reports: <available|dormant>[:<reason>]; once the Channel is
+//                   added, the first is reported after 2 s, each further one 2 s after the one before
+//
+static void loopbackStatusInPair(const char* endpoint, const char* value)
+{
+  if (statusInCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  statusIns[statusInCount].endpoint = strdup(endpoint);
+  statusIns[statusInCount].meta     = strdup(value);
+  ++statusInCount;
+}
+
+static void loopbackStatusInsLoad(void)
+{
+  loopbackConfigPairs("\"statusIn\"", loopbackStatusInPair);
+}
+
+static const char* loopbackStatusIn(const char* endpoint)
+{
+  for (int ix = 0; ix < statusInCount; ix++)
+  {
+    if (strcmp(statusIns[ix].endpoint, endpoint) == 0)
+      return statusIns[ix].meta;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackStatusReports - the reports of a "statusIn" list, queued (see loopbackStatusInPair)
+//
+static void loopbackStatusReports(const char* endpoint, const char* list)
+{
+  char  buf[1024];
+  int   delayMs = 2000;
+
+  snprintf(buf, sizeof(buf), "%s", list);
+
+  char* saveP = NULL;
+
+  for (char* itemP = strtok_r(buf, ";", &saveP); itemP != NULL; itemP = strtok_r(NULL, ";", &saveP))
+  {
+    char* reason = strchr(itemP, ':');
+    if (reason != NULL)
+      *reason++ = 0;
+
+    int status;
+    if      (strcmp(itemP, "available") == 0) status = BridgeChannelAvailable;
+    else if (strcmp(itemP, "dormant")   == 0) status = BridgeChannelDormant;
+    else
+    {
+      COR_W("loopback: statusIn '%s': '%s' is neither 'available' nor 'dormant' - ignored", endpoint, itemP);
+      continue;
+    }
+
+    loopbackStatusQueue(endpoint, status, reason, delayMs);
+    delayMs += 2000;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackClose -
 //
 // Joins the delivery thread before returning. The broker tears down what
@@ -1123,6 +1250,15 @@ static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, Brid
   if ((endpoint == NULL) || (*endpoint == 0))
     return BRIDGE_BAD_INPUT;
 
+  const char* statusIn = loopbackStatusIn(endpoint);
+
+  if ((statusIn != NULL) && (strncmp(statusIn, "refuse:", 7) == 0))
+  {
+    if ((brokerP->abiVersion >= 12) && (brokerP->channelStatusIn != NULL))
+      brokerP->channelStatusIn("loopback", endpoint, BridgeChannelDormant, &statusIn[7]);
+    return BRIDGE_BAD_INPUT;
+  }
+
   int rc = BRIDGE_ERR;
 
   pthread_mutex_lock(&channelMutex);
@@ -1143,6 +1279,9 @@ static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, Brid
     }
   }
   pthread_mutex_unlock(&channelMutex);
+
+  if ((rc == BRIDGE_OK) && (statusIn != NULL))
+    loopbackStatusReports(endpoint, statusIn);
 
   return rc;
 }

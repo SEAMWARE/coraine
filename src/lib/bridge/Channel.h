@@ -90,6 +90,8 @@ typedef struct Channel
   char*              notifyUri;                       // action: where a goal naming no endpoint is notified. NULL: the Bridge's default
   char*              notifyAccept;                    // its accept - application/json unless the file said otherwise
   char*              info;                            // channelInfo as JSON text (an array of {key, value}), NULL if none - for the plugin (channelAddInfo, ABI 9)
+  char**             retiredReasonV;                  // statusReasons replaced while the Channel was read (channelStatusSet) - freed with the Channel
+  int                retiredReasons;
 
   //
   // What the transport said, and what crossed - rendered by GET /channels. A test waits on THESE,

@@ -84,7 +84,10 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
   was not named on `--bridges`; a Channel is `available`, or `dormant` when it
   cannot carry (its Bridge is unavailable, or the transport refused it). A
   degraded object never stops the broker from starting; *"why is nothing
-  arriving?"* is a `GET`, not a log hunt.
+  arriving?"* is a `GET`, not a log hunt. A plugin can say so later, too, and
+  why, in its own words (`channelStatusIn`, bridge ABI 12 -
+  `COR_FEATURE_CHANNEL_STATUS_IN`): a resource its peer does not have, a peer
+  that cannot be reached, a peer that is back.
 - **Counters** - `samplesIn`, `samplesOut`, `requestsWaiting`,
   `requestsNotWaited`; on action Channels `goalsSent`, `goalCancelsSent`;
   `endpointDiscovered: true` once the transport found the endpoint (absent

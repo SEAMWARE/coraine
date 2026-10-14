@@ -16,6 +16,7 @@
 #include "corLog/corLog.h"                            // COR_I, COR_T
 
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
+#include "corBridge/BridgeBroker.h"                   // BRIDGE_*, BridgeChannelStatus
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // Own interface
@@ -324,7 +325,7 @@ static int createLocked
     free(channelP->statusReason);
     free(channelP->notifyUri);
     free(channelP->notifyAccept);
-  free(channelP->info);
+    free(channelP->info);
     free(channelP);
     return CHANNEL_ERR;
   }
@@ -370,6 +371,90 @@ int channelCreate
 
   return r;
 }
+
+
+
+#if COR_FEATURE_CHANNEL_STATUS_IN
+// -----------------------------------------------------------------------------
+//
+// bridgeChannelStatusIn - BridgeBroker.channelStatusIn, ABI 12
+//
+int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, int status, const char* reason)
+{
+  if ((bridgeName == NULL) || (endpoint == NULL))
+    return BRIDGE_BAD_INPUT;
+
+  if ((status != BridgeChannelAvailable) && (status != BridgeChannelDormant))
+    return BRIDGE_BAD_INPUT;
+
+  ChannelStatus channelStatus = (status == BridgeChannelAvailable) ? ChannelStatusAvailable : ChannelStatusDormant;
+
+  if (channelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
+    return BRIDGE_NOT_FOUND;
+
+  //
+  // Dormant is a warning - what the Channel carries stops arriving; available again is information
+  //
+  if (channelStatus == ChannelStatusDormant)
+    COR_W("bridge '%s': channel '%s' is dormant%s%s", bridgeName, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
+  else
+    COR_I("bridge '%s': channel '%s' is available%s%s", bridgeName, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
+
+  return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// channelStatusSet - see channelCache.h
+//
+// A GET /channels on a worker thread may be rendering the reason being replaced, so the old one is
+// not freed here: it is kept with the Channel and freed with it. A status changes a handful of times
+// in a Channel's life, not per sample.
+//
+int channelStatusSet(const char* bridgeName, const char* endpoint, ChannelStatus status, const char* reason)
+{
+  if ((endpointHash == NULL) || (bridgeName == NULL) || (endpoint == NULL))
+    return CHANNEL_ERR;
+
+  char* newReason = (reason != NULL) ? strdup(reason) : NULL;
+
+  //
+  // Looked up under the write lock: a DELETE between a lookup and the lock would free the Channel
+  //
+  pthread_rwlock_wrlock(&cacheLock);
+
+  Channel* channelP = lookupLocked(bridgeName, endpoint);
+
+  if (channelP == NULL)
+  {
+    pthread_rwlock_unlock(&cacheLock);
+    free(newReason);
+    return CHANNEL_ERR;
+  }
+
+  char*  oldReason = channelP->statusReason;
+  char** retiredV  = (oldReason != NULL) ? (char**) realloc(channelP->retiredReasonV, (channelP->retiredReasons + 1) * sizeof(char*)) : NULL;
+
+  if (retiredV != NULL)
+  {
+    retiredV[channelP->retiredReasons++] = oldReason;
+    channelP->retiredReasonV             = retiredV;
+  }
+
+  if ((oldReason == NULL) || (retiredV != NULL))
+    __atomic_store_n(&channelP->statusReason, newReason, __ATOMIC_RELEASE);
+  else
+    free(newReason);                                  // out of memory: the old reason stays rather than be freed under a reader
+
+  __atomic_store_n(&channelP->status, status, __ATOMIC_RELEASE);
+
+  pthread_rwlock_unlock(&cacheLock);
+
+  return CHANNEL_OK;
+}
+#endif
 
 
 
@@ -419,6 +504,12 @@ static int deleteLocked(const char* bridgeName, const char* endpoint)
   free(channelP->statusReason);
   free(channelP->notifyUri);
   free(channelP->notifyAccept);
+  free(channelP->info);
+
+  for (int ix = 0; ix < channelP->retiredReasons; ix++)
+    free(channelP->retiredReasonV[ix]);
+  free(channelP->retiredReasonV);
+
   free(channelP);
 
   channelCounter--;
