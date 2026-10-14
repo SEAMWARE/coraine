@@ -9,7 +9,7 @@
 #
 # fdsc.so against the Data Space Connector itself (doc/authorization.md § 4.3): the connector's provider-side
 # chain as FDSC 10.87.0 deploys it - APISIX 3.17.0 with openid-connect and odrl-authorization 2.4.3's opa
-# plugin, OPA 1.11.0, odrl-pap 1.7.1 - and coraine with --auth fdsc, given the same verifier and the same
+# plugin, OPA 1.11.0, odrl-pap 1.7.3 - and coraine with --auth fdsc, given the same verifier and the same
 # PAP; every case of cases.json sent to both, the answers compared by class (fdscDiff.py).
 #
 # The verifier is a stand-in (test/funcTests/tools/ftVerifier.py: the discovery document and JWK Set,

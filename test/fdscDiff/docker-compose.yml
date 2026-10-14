@@ -2,7 +2,7 @@
 #
 # The Data Space Connector's provider-side PEP/PDP chain, as FDSC 10.87.0 deploys it - for fdscDiff.sh:
 # APISIX 3.17.0 (openid-connect + odrl-authorization 2.4.3's opa plugin), OPA 1.11.0 polling the ODRL-PAP's
-# bundles, odrl-pap 1.7.1 on PostgreSQL. Host networking, as the chart's OPA is APISIX's sidecar
+# bundles, odrl-pap 1.7.3 on PostgreSQL. Host networking, as the chart's OPA is APISIX's sidecar
 # (localhost:8181); the verifier (ftVerifier.py) and the brokers run on the host.
 #
 services:
@@ -15,7 +15,7 @@ services:
       POSTGRES_DB: pap
 
   pap:
-    image: quay.io/fiware/odrl-pap:1.7.1
+    image: quay.io/fiware/odrl-pap:1.7.3
     network_mode: host
     depends_on: [postgres]
     environment:

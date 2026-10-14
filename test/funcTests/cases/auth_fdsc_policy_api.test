@@ -126,10 +126,15 @@ echo
 echo
 
 
-echo "08. No JSON, no odrl:uid - 400; a page out of range - []"
-echo "========================================================"
+echo "08. No JSON, no odrl:uid, a leftOperand without its argument (as odrl-pap 1.7.2 on) - 400; a page out of range - []"
+echo "======================================================================================================================"
 send -X POST $PAP/policy -d 'not json'
 send -X POST $PAP/policy -d '{"@type": "odrl:Policy"}'
+send -X POST $PAP/policy -d '{ "@context": { "odrl": "http://www.w3.org/ns/odrl/2/" }, "odrl:uid": "urn:ft:noPath", "@type": "odrl:Policy",
+  "odrl:permission": { "odrl:assignee": { "@id": "vc:any" }, "odrl:action": { "@id": "odrl:use" },
+    "odrl:target": { "@type": "odrl:AssetCollection", "odrl:refinement": [
+      { "@type": "odrl:Constraint", "odrl:leftOperand": "http:bodyValue", "odrl:operator": { "@id": "odrl:neq" }, "odrl:rightOperand": "x" } ] } } }'
+send $PAP/policy/odrl/urn:ft:noPath
 curl -s "$PAP/policy?page=5&pageSize=10"; echo
 echo
 echo
@@ -223,8 +228,8 @@ urn:ft:fixed 5 letters, odrl: Bus
 403
 
 
-08. No JSON, no odrl:uid - 400; a page out of range - []
-========================================================
+08. No JSON, no odrl:uid, a leftOperand without its argument (as odrl-pap 1.7.2 on) - 400; a page out of range - []
+======================================================================================================================
 400
 {
   "type": "about:blank",
@@ -239,6 +244,22 @@ urn:ft:fixed 5 letters, odrl: Bus
   "title": "Bad Request",
   "status": 400,
   "detail": "the policy has no 'odrl:uid' (a string)"
+}
+
+400
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "The leftOperand `http:bodyValue` requires 1 parameter(s), but the policy does not provide a value. Provide it as `\"http:bodyValue\": \"<value>\"`."
+}
+
+404
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "no such policy"
 }
 
 []
