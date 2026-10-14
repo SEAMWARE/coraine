@@ -139,8 +139,8 @@ The second needs Service Execution on the central broker - coraine has it; other
 1. **The input** - decided: what iotagent-json sends, `{"<cmd>": input.value}` (§ 3).
 2. **The endpoint carries the delivery** (no registry) - or the plugin keeps a device registry and the
    endpoint is `iota-json://<apikey>/<deviceId>/<cmd>` only?
-3. **Drop-in provisioning** (`/iot/devices`, `/iot/groups` on port 4041) - in the first PR, or after
-   the native path?
+3. **Drop-in provisioning** - decided (2026-10-14): after the native path, in a PR of its own. A device
+   provisioned with commands becomes one Service Registration per command, its endpoint as in § 3.
 4. **The southbound HTTP listener** (port 7896) - pull commands need it, and so do HTTP measures. A
    plugin with its own listener, or a route on the broker's port?
 5. **Measures and lazy attributes** - their own notes. Decided (2026-10-14): commands are Service
