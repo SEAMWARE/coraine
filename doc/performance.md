@@ -2248,6 +2248,135 @@ a measure, not requests/s:
 W: requests carry a 696-byte Authorization header - received with every request, its size is a cost of each (doc/performance.md, "The token's size")
 ```
 
+## The decision in the broker, or in a gateway
+
+The same access decision - the Data Space Connector's tokens and ODRL policies, 20 of them - made in four
+places, and the throughput a client gets:
+
+| configuration | where the decision is made |
+|---|---|
+| none | nowhere: the broker alone, no token |
+| `--auth fdsc` | in the broker (`fdsc.so`) |
+| APISIX | nowhere: APISIX 3.17.0 in front, no plugin - the cost of the hop alone |
+| APISIX + OPA | the connector's chain today: `openid-connect` (the token), odrl-authorization 2.4.3's `opa` plugin, OPA 1.11.0 with the Rego odrl-pap 1.7.1 makes of the policies |
+| APISIX + ngsild-pep | in APISIX, by `fdsc.so`'s own code: the plugin `ngsild-pep` (corApisixNgsild) - a Lua plugin calling, through LuaJIT's FFI, a library built from `fdsc.so`'s sources. On the 64 cases of `test/fdscDiff` it decides as `--auth fdsc` does, case for case |
+
+Behind every gateway the broker runs without `--auth`. The same token (RS256, a `UserCredential`) and the same
+policies everywhere (`perfPolicies.py 20`: 19 that never match, then one that allows all).
+
+**Placement** (`test/perf/gatewayCompare.sh`): the broker on physical core 0, APISIX - one nginx worker - on core
+1, OPA - `GOMAXPROCS=1` - on core 2, and the load generator on cores 3-15, in **every** configuration
+(`PERF_RESERVED_CORES=2`), so that the load is the same whether a gateway runs or not. APISIX's
+`client_body_buffer_size` is `1m` (below). AMD Ryzen 9 8940HX, 16 cores / 32 threads; coraine main of
+2026-10-13 (release build, corDB in RAM, `--troe none`), libmicrohttpd 1.0.10; 2026-10-14, Chrome closed.
+
+### Requests a second
+
+`perfRun.sh`'s scenarios, the median of its repeats; the percentages against the mean of the two runs without
+security (they differ by 4 % or less in 20 of the 24 scenarios; `patch_c1`, `delete_c50` and
+`rare_l20_o500_c50` by 11-19 %):
+
+| scenario | none | `--auth fdsc` | APISIX | APISIX + OPA | APISIX + ngsild-pep | none again | fdsc | APISIX | ngsild-pep | OPA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `query_c50` | 11 293 | 11 045 | 11 142 | 2 854 | 11 051 | 11 412 | -2.7 % | -1.9 % | -2.7 % | -74.9 % |
+| `query_c200` | 11 333 | 11 170 | 11 082 | 2 710 | 11 042 | 11 363 | -1.6 % | -2.3 % | -2.7 % | -76.1 % |
+| `query_l1_c50` | 70 155 | 64 203 | 40 309 | 2 694 | 32 727 | 68 473 | -7.4 % | -41.8 % | -52.8 % | -96.1 % |
+| `query_l100_c50` | 2 453 | 2 469 | 2 486 | 2 312 | 2 449 | 2 496 | -0.2 % | +0.5 % | -1.0 % | -6.6 % |
+| `retrieve_c50` | 78 619 | 72 615 | 36 338 | 2 890 | 34 174 | 77 761 | -7.1 % | -53.5 % | -56.3 % | -96.3 % |
+| `patch_c50` | 106 194 | 98 928 | 40 724 | 2 069 | 34 185 | 110 952 | -8.9 % | -62.5 % | -68.5 % | -98.1 % |
+| `patch_c1` | 44 270 | 37 388 | 18 256 | 1 668 | 16 302 | 39 555 | -10.8 % | -56.4 % | -61.1 % | -96.0 % |
+| `batch20_c50` | 10 256 | 10 053 | 11 003 | 1 720 | 11 103 | 10 025 | -0.9 % | +8.5 % | +9.5 % | -83.0 % |
+| `create_c50` | 57 819 | 53 374 | 37 976 | 2 780 | 28 546 | 59 612 | -9.1 % | -35.3 % | -51.4 % | -95.3 % |
+| `create_c1` | 30 038 | 28 043 | 16 240 | 1 868 | 13 699 | 30 671 | -7.6 % | -46.5 % | -54.9 % | -93.8 % |
+| `batch20create_c50` | 7 628 | 7 364 | 7 811 | 1 200 | 7 722 | 7 794 | -4.5 % | +1.3 % | +0.1 % | -84.4 % |
+| `merge_c50` | 72 385 | 68 367 | 40 873 | 2 996 | 33 357 | 71 934 | -5.3 % | -43.4 % | -53.8 % | -95.8 % |
+| `delete_c50` | 105 001 | 113 491 | 39 030 | 3 057 | 31 466 | 118 911 | +1.4 % | -65.1 % | -71.9 % | -97.3 % |
+| `batch20delete_c50` | 24 659 | 23 596 | 25 042 | 2 048 | 24 255 | 24 725 | -4.4 % | +1.4 % | -1.8 % | -91.7 % |
+| `patch_subs_c50` | 21 139 | 20 192 | 21 262 | 2 158 | 20 729 | 21 606 | -5.5 % | -0.5 % | -3.0 % | -89.9 % |
+| `patch_manysubs_c50` | 19 968 | 18 818 | 19 336 | 2 134 | 19 808 | 20 106 | -6.1 % | -3.5 % | -1.1 % | -89.3 % |
+| `patch_10subs_c50` | 2 941 | 2 805 | 2 886 | 2 077 | 2 920 | 3 003 | -5.6 % | -2.9 % | -1.7 % | -30.1 % |
+| `rare_l20_c50` | 7 865 | 7 767 | 7 728 | 3 006 | 7 653 | 8 015 | -2.2 % | -2.7 % | -3.6 % | -62.1 % |
+| `rare_l100_c50` | 1 713 | 1 732 | 1 726 | 1 681 | 1 732 | 1 768 | -0.5 % | -0.8 % | -0.5 % | -3.4 % |
+| `rare_l20_o500_c50` | 476 | 470 | 419 | 432 | 431 | 573 | -10.4 % | -20.1 % | -17.8 % | -17.6 % |
+| `big_r1_l20_c50` | 8 039 | 7 906 | 7 721 | 3 065 | 7 759 | 8 123 | -2.2 % | -4.5 % | -4.0 % | -62.1 % |
+| `big_r1_l20_o1000_c50` | 144 | 146 | 118 | 135 | 127 | 149 | -0.3 % | -19.5 % | -13.3 % | -7.8 % |
+| `big_r01_l20_c50` | 2 459 | 2 405 | 2 422 | 2 180 | 2 357 | 2 453 | -2.1 % | -1.4 % | -4.0 % | -11.2 % |
+| `big_r01_l20_o200_c50` | 49 | 50 | 45 | 49 | 44 | 50 | +1.0 % | -9.1 % | -11.1 % | -1.0 % |
+
+### What a request costs each process
+
+CPU time a request, in µs: 10 s of retrieve, then 10 s of PATCH, at 50 connections, each process's core read
+from `/proc/stat` (busy ticks over requests; `<label>-cost.json`):
+
+| configuration | retrieve: broker | APISIX | OPA | PATCH: broker | APISIX | OPA |
+|---|---:|---:|---:|---:|---:|---:|
+| none | 7.5 | - | - | 8.8 | - | - |
+| `--auth fdsc` | 8.3 | - | - | 9.4 | - | - |
+| APISIX | 7.0 | 24.9 | - | 8.8 | 25.5 | - |
+| APISIX + OPA | 12.7 | 212.7 | 324.2 | 16.3 | 208.8 | 495.8 |
+| APISIX + ngsild-pep | 4.6 | 29.3 | - | 7.4 | 29.3 | - |
+| none again | 7.4 | - | - | 8.5 | - | - |
+
+- **In the broker** the decision costs 0.8 µs on a retrieve and 0.6-0.9 µs on a PATCH: -5 % to -11 % of the
+  requests a second on the one-entity scenarios (`delete_c50` within the spread), up to -7 % on queries and
+  notifications.
+- **APISIX alone** takes 25 µs a request on its core: one nginx worker carries about 40 000 requests a second,
+  so every scenario the broker serves faster than that (retrieve, PATCH, create, merge, delete) is APISIX's
+  number behind it, -35 % to -65 %. The scenarios slower than that (queries, batches, notifications) do not
+  notice it.
+- **ngsild-pep** adds 4 µs to APISIX's 25: the decision in the gateway costs about what it costs in the
+  broker, plus the request's way across the FFI line. Up to -25 % against APISIX alone where APISIX is the
+  limit - the most on a create, whose body the plugin hands over; within the spread elsewhere.
+- **APISIX + OPA** takes 210 µs in APISIX and 320-500 µs in OPA a request: about 3 000 requests a second
+  at most, -75 % to -98 % where the broker is faster than that.
+- The broker's own µs a request behind a gateway (4.6-16 µs) moves with the rate it is offered: at the lower
+  rates a request finds it less warm.
+
+### Run 1 - the request body on disk
+
+The first run (08:14-09:50) used APISIX's default `client_body_buffer_size`. A body larger than it (8 KiB here)
+goes to a temporary file, and the request takes 41 ms more: `batch20create_c50` (20 entities, 11.6 KB a
+request) was 1 153 a second through APISIX, with and without a plugin (p50 41.0 ms), against 7 764 direct.
+One 11.6 KB create: 0.5 ms direct, 41 ms through APISIX, 0.7 ms with `client_body_buffer_size 1m`. With
+`1m` (run 3): 7 811 through APISIX, 7 722 with ngsild-pep. Every other scenario of run 1 was within the
+spread of run 3. Run 2 is not used: another APISIX was listening on the same port (host networking) and took
+part of the load; `gatewayCompare.sh` now refuses to start when a port it needs is in use.
+
+### The connector's provider side, and coraine - memory, start, store
+
+`test/perf/footprint/footprint.sh`: the Data Space Connector's provider side as its charts deploy it
+(data-space-connector 10.10.3: decentralized-iam 2.1.27), one container each, the images its charts pin, the
+settings their READMEs give - against one coraine with `--auth fdsc` (the same 20 policies) and the PAP's
+`/policy` API (`--policyApiPort`), on its durable store (corDB `--dbDir`). Memory: each process's cgroup,
+`memory.current` less `inactive_file` (what `docker stats` shows), 60 s after start, and 30 s after the same
+10 000 entities (100 batch creates of 100, five attributes each) went in through the broker's own port.
+
+| process | what it is | idle MiB | 10 000 entities MiB |
+|---|---|---:|---:|
+| Scorpio java-4.1.10 | the broker | 303 | 1 157 |
+| PostGIS 16 | Scorpio's database | 46 | 166 |
+| Trusted Issuers List 0.9.1 | which issuers may issue which credentials | 297 | 295 |
+| Credentials Config Service 3.4.2 | which credentials each service takes | 365 | 364 |
+| VCVerifier 6.23.1 | the token: a credential exchanged for a JWT | 14 | 14 |
+| APISIX 3.17.0 (one worker) | the gateway | 31 | 32 |
+| OPA 1.11.0 | the policy decision | 19 | 16 |
+| odrl-pap 1.7.1 | the policies' API | 26 | 26 |
+| PostgreSQL 16 | the TIL's, the CCS's and the PAP's database | 69 | 71 |
+| **the connector's provider side** | 9 processes | **1 170** | **2 141** |
+| **coraine** | the broker, `--auth fdsc`, `/policy` | **31** | **67** |
+
+| | the connector's provider side | coraine |
+|---|---:|---:|
+| until the broker answers | 4.2 s (from `docker compose up`, images pulled) | 0.54 s |
+| 10 000 entities in | 3.3 s | 0.2 s |
+| the store on disk | 126 MiB (`pg_database_size`) | 8.0 MiB (`du` of `--dbDir`) |
+| images, compressed (amd64) | Scorpio 281, APISIX 132, OPA 35, odrl-pap 44, VCVerifier 14, CCS 191, TIL 168, PostgreSQL 16-alpine 111, PostGIS 203 MiB | 69 MiB (`quay.io/seamware/coraine:0.5.0`) |
+
+coraine does not do what the TIL, the CCS and VCVerifier do (rows 3-5): the 31 and 67 MiB stand for the broker,
+the gateway, OPA, the PAP and the two databases of rows 1-2 and 6-9 (494 MiB idle, 1 468 MiB with the
+entities). APISIX's chart default is one nginx worker a core (`worker_processes: auto`); with one worker the
+row is the smallest it can be.
+
 ## An open question: `--connectionPoolSize`
 
 `corHttp` came out **slower than libmicrohttpd on one core** in the table above

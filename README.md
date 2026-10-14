@@ -347,6 +347,7 @@ repository, which is where to read them offline or alongside a checkout:
 | **Running it** | |
 | [Plugin architecture](doc/plugin-architecture.md) | the plugin categories, the loader, the driver interfaces, writing your own |
 | [Authorization](doc/authorization.md) | security inside the broker - the auth plugin contract, and `fdsc`: the Data Space Connector's tokens and policies, as the connector decides them (`--auth fdsc`) |
+| ↳ [A Cor Data Space Connector](doc/cor-data-space-connector.md) | a proposal: an alternative provider side for the Data Space Connector, on coraine - what is built, what it would gain |
 | [High Availability](doc/high-availability.md) | several instances behind a load balancer: requirements, MongoDB privileges, troubleshooting |
 | [Migrating a database to coraine](doc/migration.md) | another broker's data - entities, subscriptions, registrations, history - with its ids and timestamps; Orion-LD today |
 | [Performance and footprint](doc/performance.md) | what it costs on disk and in RAM, per-core throughput, and how each number was measured |

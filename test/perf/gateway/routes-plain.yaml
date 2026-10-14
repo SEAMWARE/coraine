@@ -1,0 +1,8 @@
+# The same route with no plugin: what APISIX alone costs, proxying to the broker
+routes:
+  - uri: /*
+    upstream:
+      nodes:
+        "127.0.0.1:1027": 1
+      type: roundrobin
+#END

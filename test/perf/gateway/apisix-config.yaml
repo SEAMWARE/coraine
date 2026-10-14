@@ -1,0 +1,20 @@
+# APISIX standalone (odrl-authorization 2.4.3 values.yaml: data_plane, config_provider yaml) with the chart's
+# custom opa plugin; ONE nginx worker - the gateway's core, as the broker has one (gatewayCompare.sh)
+apisix:
+  node_listen: 9080
+  extra_lua_path: "/opts/custom_plugins/?.lua"
+  enable_admin: false
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+nginx_config:
+  worker_processes: 1
+  # A request body larger than nginx's client_body_buffer_size (8 KiB here) goes to a temporary file, and
+  # the request then takes a constant 41 ms more (an 11.6 KB batch create: 0.5 ms direct, 41 ms through
+  # APISIX; 0.7 ms with 1m). NGSI-LD batches are routinely past 8 KiB.
+  http_server_configuration_snippet: |
+    client_body_buffer_size 1m;
+plugins:
+  - openid-connect
+  - opa

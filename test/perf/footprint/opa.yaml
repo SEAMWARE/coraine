@@ -1,0 +1,19 @@
+# odrl-authorization 2.4.3 templates/opa-cm.yaml, the PAP at pap:8080; bundles polled every 30-60 s - the
+# policies do not change during a measure, and a poll is work on OPA's one core
+services:
+  - name: bundle-server
+    url: http://pap:8080/bundles/service/v1
+bundles:
+  policies:
+    service: bundle-server
+    resource: policies.tar.gz
+    polling: { min_delay_seconds: 30, max_delay_seconds: 60 }
+  methods:
+    service: bundle-server
+    resource: methods.tar.gz
+    polling: { min_delay_seconds: 30, max_delay_seconds: 60 }
+  data:
+    service: bundle-server
+    resource: data.tar.gz
+    polling: { min_delay_seconds: 30, max_delay_seconds: 60 }
+default_decision: /policy/main/allow
