@@ -50,6 +50,11 @@
 #include "bridge/channelCache.h"                      // channelLookup, channelLookupByTarget, channelCreate
 #include "bridge/channelPrePopulate.h"                 // channelPrePopulate
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntityGet, bridgeDefaultEntityCreated
+#if COR_FEATURE_DATA_CHANNELS
+#include "bridge/DataChannel.h"                       // DataChannel
+#include "bridge/dataChannelCache.h"                  // dataChannelLookup
+#include "bridge/dataChannelRecordIn.h"               // dataChannelRecordIn
+#endif
 #include "bridge/bridgeSampleIn.h"                    // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -495,6 +500,32 @@ static int sampleIn(const char* bridgeName,
   const char* entityType = NULL;
   const char* attrName   = NULL;
   bool        catchAll   = false;
+
+#if COR_FEATURE_DATA_CHANNELS
+  //
+  // No Channel: perhaps a DataChannel - the sample is then a record, made into entities, and nothing of what
+  // follows applies. Looked for only here: an endpoint is a Channel's or a DataChannel's, never both, so a
+  // Channel's sample never pays for it
+  //
+  if (channelP == NULL)
+  {
+    DataChannel* dcP = dataChannelLookup(bridgeName, endpoint);
+
+    if (dcP != NULL)
+    {
+      if ((subAttrName != NULL) || (datasetId != NULL) || (goal == true) || (requestP != NULL))
+      {
+        COR_W("bridge '%s': '%s' is a DataChannel - a reply or a goal event on it is dropped", bridgeName, endpoint);
+        return BRIDGE_BAD_INPUT;
+      }
+
+      if ((meta != NULL) && (*meta != 0))
+        COR_T(CtBridge, "bridge '%s': the meta of a record on DataChannel '%s' is not kept", bridgeName, endpoint);
+
+      return dataChannelRecordIn(dcP, json, publishTime);
+    }
+  }
+#endif
 
   if (channelP != NULL)
   {

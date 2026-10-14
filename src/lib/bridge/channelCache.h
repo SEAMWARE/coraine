@@ -84,6 +84,14 @@ extern int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, i
 
 // -----------------------------------------------------------------------------
 //
+// bridgeLookup - the loaded bridge plugin answering to this alias, or NULL
+//
+extern BridgeDriver* bridgeLookup(const char* bridgeName);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // channelLookup - find the Channel carrying (bridgeName, endpoint)
 //
 // ⚠ THE HOT PATH: called once per arriving sample, from a plugin thread.

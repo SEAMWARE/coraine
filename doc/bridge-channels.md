@@ -123,6 +123,72 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
   `redirect` registration may not claim the same attribute; `inclusive` and
   `auxiliary` never conflict.
 
+## DataChannels
+
+A Channel is one endpoint, one attribute of one entity. A **DataChannel** is
+one endpoint whose samples are **records** - a row of a CKAN resource, a line
+of a CSV file: a JSON object, one member per column - and each record becomes
+one or more entities, the entity id taken from a column. It is not a Channel:
+it names no entity and no attribute, claims none, and has its own listing.
+Inbound only. In the file, a bridge's `dataChannels` section, one entry per
+endpoint:
+
+```json
+{ "ckan": { "server": { "url": "https://data.boston.gov" },
+            "ngsild": { "dataChannels": {
+              "44c931aa-4577-4caa-a8f2-ed1e38263e70": {
+                "channelInfo": [ { "key": "pageSize", "value": "100" } ],
+                "idEncoding": "merge",
+                "entities": [
+                  { "type": "BikeStation", "id": "urn:ngsi-ld:BikeStation:{Number}",
+                    "attributes": {
+                      "name":       { "column": "Name" },
+                      "totalDocks": { "column": "Total_docks", "as": "number" },
+                      "location":   { "point": { "longitude": "Longitude", "latitude": "Latitude" } },
+                      "inDistrict": { "relationship": "urn:ngsi-ld:District:{District}" } } },
+                  { "type": "District", "id": "urn:ngsi-ld:District:{District}",
+                    "attributes": { "name": { "column": "District" } } } ] } } } } }
+```
+
+- **`id`** is a template: `{Column}` is the column's value. A record with no
+  value in a column the id names makes no entity of that kind; the others it
+  names are still made.
+- **`idEncoding`** - how a value goes into an id or a Relationship's object:
+  - `merge` (the default): each character outside `[A-Za-z0-9._-]` becomes
+    `_` (`South Boston` -> `South_Boston`). Values that differ only there name
+    one entity, and their records are merged into it.
+  - `percent`: each byte outside `[A-Za-z0-9._-]` becomes `%XX`
+    (`South Boston` -> `South%20Boston`). Two different values never name the
+    same entity.
+- **`attributes`**: `{ "column": ... }` a Property, `"as"` `number`, `boolean`
+  (`yes`/`true`/`y`/`1`, `no`/`false`/`n`/`0`) or `string` converting the
+  value; `{ "point": { "longitude": ..., "latitude": ... } }` a GeoProperty
+  Point; `{ "relationship": <template> }` a Relationship. An absent, null or
+  empty column, or a value that does not convert, leaves the attribute out.
+  Names and types are expanded as a Channel's are.
+- **The write** is one batch upsert per record, `options=update`, local: the
+  entities are created when they are not there, their mapped attributes
+  replaced, other attributes left alone - with the checks, notifications and
+  temporal events of `POST /entityOperations/upsert`, each entity on its own:
+  one the broker refuses does not take the record's others with it.
+- **`observedAt`** is the record's time, when its bridge gives one (CKAN: the
+  `timeColumn`); without one, no `observedAt`.
+- **No owner.** A DataChannel claims no attribute: two DataChannels, or a
+  DataChannel and a Channel, may write the same attribute, and the last write
+  wins (TRoE keeps the earlier values). One endpoint is a Channel's or a
+  DataChannel's, never both - naming it as both is fatal at start.
+- **`GET /ngsi-ld/v1/dataChannels`** (and `/{id}`, the id
+  `urn:ngsi-ld:DataChannel:<bridge>:<endpoint>`): the bridge, the endpoint,
+  `channelInfo`, `idEncoding`, the mapping as the file wrote it
+  (`recordEntities`), `status` and `statusReason` (a bridge reports them with
+  `channelStatusIn`), and `recordsIn` (records that wrote an entity),
+  `recordsRefused` (not an object, no entity id, every entity refused) and
+  `entitiesWritten`.
+
+`COR_FEATURE_DATA_CHANNELS`; without it, a `dataChannels` section is warned
+about and ignored, and `GET /dataChannels` answers 501. The first bridge built
+on it is CKAN's (`ckan.so`, `corCkanBridge`).
+
 ## Key limits
 
 - Client side only: the broker never answers a DDS request or executes a goal.

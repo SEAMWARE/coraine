@@ -54,6 +54,7 @@ option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of
 
 # Group: Beyond NGSI-LD - Service Execution, and what a bridge plugin can do in the broker
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
+option(COR_FEATURE_DATA_CHANNELS "Enable DataChannels - a bridge endpoint whose samples are records (a CKAN row), each made into entities by its mapping (\"dataChannels\" in --bridgeConfig, GET /ngsi-ld/v1/dataChannels, doc/bridge-channels.md)" ON)
 option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridge ABI 12) - a bridge plugin reports whether a Channel carries, and why not, as the Channel's status and statusReason" ON)
 
 # Group: Protocols - the API over something else than HTTP
@@ -84,7 +85,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ SCOPES DATASETID MULTI_TYPE CONTEXT_DL CONTEXT_HOSTING TENANTS MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN DATA_CHANNELS ICU_COLLATION LOCATION OBSERVATION_SPACE OPERATION_SPACE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

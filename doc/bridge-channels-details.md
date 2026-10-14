@@ -1123,7 +1123,11 @@ bundle source**:
   and the attribute names from what arrives.
 
 Same concept one level up. It does not bind a value; it says how to *derive*
-channels from traffic. Which explains what otherwise looks like a coincidence:
+channels from traffic. **Built for one family: the DataChannel**
+(`COR_FEATURE_DATA_CHANNELS`, [DataChannels](bridge-channels.md#datachannels)) - a source whose
+messages are records (a CKAN row, a CSV line), each naming its entity in a column: the DataChannel names
+the endpoint, and a mapping from columns to entity ids, Properties, a `location` Point and
+Relationships. Which explains what otherwise looks like a coincidence:
 DDS integrations need no provisioning API and every device-protocol agent has
 one. That was never a maturity difference. It is whether the endpoint addresses
 a value or a stream of them.

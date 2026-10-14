@@ -114,6 +114,13 @@ IF (COR_FEATURE_RESPONSE_BUDGET)
   )
 ENDIF()
 
+IF (COR_FEATURE_DATA_CHANNELS)
+  LIST(APPEND SOURCES
+    getDataChannels.c
+    getDataChannel.c
+  )
+ENDIF()
+
 IF (COR_FEATURE_SERVICE_EXECUTION)
   LIST(APPEND SOURCES
     postServiceRegistration.c

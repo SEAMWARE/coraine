@@ -35,6 +35,11 @@
 
 #include "bridge/Channel.h"                           // Channel
 #include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
+#if COR_FEATURE_DATA_CHANNELS
+#include "bridge/RecordMap.h"                         // RecordMap
+#include "bridge/recordMap.h"                         // recordMapParse, recordMapFree
+#include "bridge/dataChannelCache.h"                  // dataChannelCreate
+#endif
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
@@ -361,6 +366,69 @@ static int channelsLoad(const char*        alias,
 
 
 
+#if COR_FEATURE_DATA_CHANNELS
+// -----------------------------------------------------------------------------
+//
+// dataChannelsLoad - a bridge's "dataChannels" section: one DataChannel (DataChannel.h) per endpoint
+//
+//   "dataChannels": { "<endpoint>": { "entities": [ ... ], "idEncoding": "merge", "channelInfo": [ ... ] } }
+//
+// What "entities" and "idEncoding" say is RecordMap.h's. An entry that cannot be used is warned about and
+// skipped, as an incomplete topic is; an endpoint that is also a Channel's, or named twice, is fatal, as it
+// is for topics.
+//
+static int dataChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenantP, CorAlloc* kaP)
+{
+  if (sectionP->type != CorObject)
+  {
+    COR_W("bridge '%s': 'dataChannels' is not an object (one member per endpoint) - no DataChannels", alias);
+    return 0;
+  }
+
+  int created = 0;
+
+  for (CorNode* entryP = sectionP->value.head; entryP != NULL; entryP = entryP->next)
+  {
+    const char* endpoint = entryP->name;
+    const char* why      = NULL;
+    RecordMap*  mapP     = recordMapParse(entryP, kaP, &why);
+
+    if (mapP == NULL)
+    {
+      COR_W("bridge '%s': DataChannel '%s' - %s - skipped", alias, endpoint, (why != NULL) ? why : "?");
+      continue;
+    }
+
+    bool  infoOk;
+    char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
+
+    if (infoOk == false)
+    {
+      recordMapFree(mapP);
+      continue;
+    }
+
+    int r = dataChannelCreate(alias, endpoint, tenantP, mapP, info);
+
+    if (r == CHANNEL_DUP_ENDPOINT)
+      COR_X(1, "bridge '%s': endpoint '%s' appears twice in the configuration - the DataChannel could never be reached, a Channel or DataChannel already claims it",
+            alias, endpoint);
+
+    if (r == CHANNEL_BAD_INPUT)
+      COR_X(1, "bridge '%s': endpoint '%s' is not a usable endpoint name", alias, endpoint);
+
+    if (r != CHANNEL_OK)
+      COR_X(1, "bridge '%s': DataChannel '%s' could not be added (%d)", alias, endpoint, r);
+
+    ++created;
+  }
+
+  return created;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // defaultEntityLoad - one bridge's catch-all, if it asked for one
@@ -600,6 +668,24 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
     CorNode* actionsP = corTreeLookup(ngsildP, "actions");
     if (actionsP != NULL)
       total += channelsLoad(alias, actionsP, BridgeChannelAction, BridgeDirectionOut, tenantP, &kalloc);
+
+    //
+    // DataChannels - an endpoint whose samples are records, each made into entities. Not Channels: not
+    // counted with them
+    //
+    CorNode* dataChannelsP = corTreeLookup(ngsildP, "dataChannels");
+#if COR_FEATURE_DATA_CHANNELS
+    if (dataChannelsP != NULL)
+    {
+      int dataChannels = dataChannelsLoad(alias, dataChannelsP, tenantP, &kalloc);
+
+      if (dataChannels > 0)
+        COR_I("bridge '%s': %d DataChannel%s configured", alias, dataChannels, (dataChannels == 1) ? "" : "s");
+    }
+#else
+    if (dataChannelsP != NULL)
+      COR_W("bridge '%s': 'dataChannels' - DataChannels are not in this build (COR_FEATURE_DATA_CHANNELS) - ignored", alias);
+#endif
 
     //
     // And the catch-all.
