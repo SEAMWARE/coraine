@@ -35,8 +35,8 @@ The status values: `PENDING` (sent, or stored for a pull), `DELIVERED` (a pull h
 ## 2. What coraine already has
 
 **Service Execution** ([GR CIM-055](roadmap.md#1-service-execution)): Service Registrations
-(`serviceName`, the entities it applies to, `mode`, `inputSchema` / `outputSchema`, the executor's
-`endpoint`), executions (`POST /ngsi-ld/v1/entities/{id}/services/{name}`, `GET /ngsi-ld/v1/services`),
+(the entities they apply to, `serviceInformation` - `serviceName`, `mode`, `inputSchema` / `outputSchema` -
+`executionTimeout`, the executor's `endpoint`), executions (`POST /ngsi-ld/v1/entities/{id}/services/{name}`, `GET /ngsi-ld/v1/services`),
 their status (`executing`, `completed`, `failed`, `cancelled`), progress, output and error.
 
 **An executor inside the broker.** A Service Registration whose endpoint has a scheme a loaded bridge
@@ -62,9 +62,8 @@ One per device command:
 {
   "id": "urn:ngsi-ld:ServiceRegistration:lamp1-switch",
   "type": "ServiceRegistration",
-  "serviceName": "switch",
   "entities": [ { "id": "urn:ngsi-ld:Lamp:lamp1", "type": "Lamp" } ],
-  "mode": "asynchronous",
+  "serviceInformation": { "serviceName": "switch", "mode": "asynchronous" },
   "executionTimeout": "PT5M",
   "endpoint": "iota-json+mqtt://lamp-key/lamp1/switch"
 }
