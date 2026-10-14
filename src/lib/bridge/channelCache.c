@@ -19,6 +19,9 @@
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_*, BridgeChannelStatus
 
 #include "bridge/Channel.h"                           // Channel
+#if COR_FEATURE_DATA_CHANNELS
+#include "bridge/dataChannelCache.h"                  // dataChannelLookup, dataChannelStatusSet
+#endif
 #include "bridge/channelCache.h"                      // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -198,7 +201,7 @@ Channel* channelLookupByTarget(Tenant* tenantP, const char* entityId, const char
 //
 // bridgeLookup - which loaded plugin answers to this name
 //
-static BridgeDriver* bridgeLookup(const char* bridgeName)
+BridgeDriver* bridgeLookup(const char* bridgeName)
 {
   for (int i = 0; i < bridgeCount; i++)
   {
@@ -262,6 +265,14 @@ static int createLocked
       *clashPP = clashP;
     return CHANNEL_DUP_ENDPOINT;
   }
+
+#if COR_FEATURE_DATA_CHANNELS
+  //
+  // ... or by a DataChannel - its samples are records, and go nowhere else
+  //
+  if (dataChannelLookup(bridgeName, endpoint) != NULL)
+    return CHANNEL_DUP_ENDPOINT;
+#endif
 
   //
   // Check 2 - is this attribute already written by another Channel?
@@ -389,16 +400,26 @@ int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, int stat
 
   ChannelStatus channelStatus = (status == BridgeChannelAvailable) ? ChannelStatusAvailable : ChannelStatusDormant;
 
+  const char* what = "channel";
+
   if (channelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
+  {
+#if COR_FEATURE_DATA_CHANNELS
+    if (dataChannelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
+      return BRIDGE_NOT_FOUND;
+    what = "DataChannel";
+#else
     return BRIDGE_NOT_FOUND;
+#endif
+  }
 
   //
   // Dormant is a warning - what the Channel carries stops arriving; available again is information
   //
   if (channelStatus == ChannelStatusDormant)
-    COR_W("bridge '%s': channel '%s' is dormant%s%s", bridgeName, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
+    COR_W("bridge '%s': %s '%s' is dormant%s%s", bridgeName, what, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
   else
-    COR_I("bridge '%s': channel '%s' is available%s%s", bridgeName, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
+    COR_I("bridge '%s': %s '%s' is available%s%s", bridgeName, what, endpoint, (reason != NULL) ? ": " : "", (reason != NULL) ? reason : "");
 
   return BRIDGE_OK;
 }

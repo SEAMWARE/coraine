@@ -13,4 +13,8 @@ SET(SOURCES
   bridgeService.c
 )
 
+IF (COR_FEATURE_DATA_CHANNELS)
+  LIST(APPEND SOURCES recordMap.c dataChannelCache.c dataChannelRecordIn.c dataChannelRender.c)
+ENDIF()
+
 ADD_LIBRARY(bridge STATIC ${SOURCES})

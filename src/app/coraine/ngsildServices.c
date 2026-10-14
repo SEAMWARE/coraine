@@ -41,6 +41,10 @@
 #include "serviceRoutines/getBridge.h"           // getBridge
 #include "serviceRoutines/getChannels.h"         // getChannels
 #include "serviceRoutines/getChannel.h"          // getChannel
+#if COR_FEATURE_DATA_CHANNELS
+#include "serviceRoutines/getDataChannels.h"     // getDataChannels
+#include "serviceRoutines/getDataChannel.h"      // getDataChannel
+#endif
 #include "serviceRoutines/postChannelGoals.h"    // postChannelGoals
 #include "serviceRoutines/getChannelGoals.h"     // getChannelGoals
 #include "serviceRoutines/getChannelGoal.h"      // getChannelGoal
@@ -157,6 +161,12 @@
 #  define CTXH(handler)   corNotInThisBuild
 #endif
 
+#if COR_FEATURE_DATA_CHANNELS
+#  define DCHN(handler)   handler
+#else
+#  define DCHN(handler)   corNotInThisBuild
+#endif
+
 //
 // Context Source Registration Subscriptions are subscriptions ON registrations,
 // so they need both features - as does the CMakeLists that builds them.
@@ -227,6 +237,8 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals",   getChannelGoals,   0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals/*", getChannelGoal,    0, LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/channels/*/goals/*", deleteChannelGoal, 0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/dataChannels",     DCHN(getDataChannels), 0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/dataChannels/*",   DCHN(getDataChannel),  0, LdOpNone },
 
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts",   CTXH(getJsonldContexts), LD_PARAMS_GET_JSONLD_CONTEXTS, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/jsonldContexts/**", CTXH(getJsonldContext), LD_PARAMS_GET_JSONLD_CONTEXT,  LdOpNone },

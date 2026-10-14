@@ -106,6 +106,10 @@
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
 #endif
 #include "bridge/channelCache.h"                  // channelCacheInit, channelCacheFirst, Channel
+#if COR_FEATURE_DATA_CHANNELS
+#include "bridge/DataChannel.h"                   // DataChannel
+#include "bridge/dataChannelCache.h"              // dataChannelFirst, dataChannelStatusSet, dataChannelsRelease
+#endif
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad, channelConfigPath
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
@@ -827,6 +831,58 @@ static void bridgesInit(void)
       break;
     }
   }
+
+#if COR_FEATURE_DATA_CHANNELS
+  //
+  // And each DataChannel: to its bridge, its endpoint is a topic it carries inbound - what the broker makes
+  // of a sample there is the broker's
+  //
+  for (DataChannel* dcP = dataChannelFirst(); dcP != NULL; dcP = dcP->next)
+  {
+    if (dcP->status != ChannelStatusAvailable)
+    {
+      COR_I("DataChannel '%s' is dormant: %s", dcP->endpoint, (dcP->statusReason != NULL) ? dcP->statusReason : "?");
+      continue;
+    }
+
+    for (int i = 0; i < bridgeCount; i++)
+    {
+      if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, dcP->bridgeName) != 0))
+        continue;
+
+      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
+
+      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
+        break;
+
+      if ((withInfo == false) && (dcP->info != NULL))
+        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for DataChannel '%s'", dcP->bridgeName, bridges[i].abiVersion, dcP->endpoint);
+
+      char* reasonBefore = dcP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
+
+      int r = (withInfo == true) ? bridges[i].channelAddInfo(dcP->endpoint, BridgeChannelTopic, BridgeDirectionIn, dcP->info)
+                                 : bridges[i].channelAdd(dcP->endpoint, BridgeChannelTopic, BridgeDirectionIn);
+
+      if (r != BRIDGE_OK)
+      {
+        COR_W("bridge '%s' would not carry DataChannel '%s' (%d)", dcP->bridgeName, dcP->endpoint, r);
+
+        if (dcP->statusReason != reasonBefore)      // the plugin said why, in its own words
+          dcP->status = ChannelStatusDormant;
+        else
+        {
+          char reason[128];
+          snprintf(reason, sizeof(reason), "the bridge would not carry it: %s",
+                   (r == BRIDGE_BAD_INPUT)   ? "its address or channelInfo does not fit the transport" :
+                   (r == BRIDGE_UNSUPPORTED) ? "the transport does not support this kind of channel"   : "refused");
+          dataChannelStatusSet(dcP->bridgeName, dcP->endpoint, ChannelStatusDormant, reason);
+        }
+      }
+
+      break;
+    }
+  }
+#endif
 }
 
 
@@ -848,6 +904,10 @@ static void bridgesClose(void)
     if (bridges[i].close != NULL)
       bridges[i].close();
   }
+
+#if COR_FEATURE_DATA_CHANNELS
+  dataChannelsRelease();                              // no bridge thread is left to deliver a record
+#endif
 }
 
 

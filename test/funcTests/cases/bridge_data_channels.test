@@ -1,0 +1,579 @@
+#
+# FILE            bridge_data_channels.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# DataChannels - a bridge endpoint whose samples are records, each made into entities by the
+# DataChannel's mapping ("dataChannels" in --bridgeConfig, GET /ngsi-ld/v1/dataChannels).
+#
+# The loopback bridge emits one record per endpoint at start (emitAtStart):
+#   D1  a full record: a BikeStation (Properties, a Point, a Relationship) and its District
+#   D2  no Number: the BikeStation is not made, the District is - and "South_Boston" names the same District as
+#       D1's "South Boston" (idEncoding merge, the default): one entity, its name the last one written
+#   D3  idEncoding percent: "South Boston" -> South%20Boston, a District of its own; "many" docks is no number,
+#       so totalDocks is left out
+#   D4  not a JSON object - refused
+#   D5  no column an id needs - refused
+#   D6  reported dormant by the bridge (channelStatusIn)
+# No record carries a time: no observedAt anywhere.
+#
+# REQUIRE_FEATURE: DATA_CHANNELS CHANNEL_STATUS_IN
+#
+--NAME--
+Bridges: DataChannels - records made into entities by a mapping; idEncoding merge and percent; refused records; GET /dataChannels
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+STATION='{ "type": "BikeStation", "id": "urn:ngsi-ld:BikeStation:{Number}",
+           "attributes": { "name":       { "column": "Name" },
+                           "totalDocks": { "column": "Docks", "as": "number" },
+                           "public":     { "column": "Public", "as": "boolean" },
+                           "location":   { "point": { "longitude": "Lon", "latitude": "Lat" } },
+                           "inDistrict": { "relationship": "urn:ngsi-ld:District:{District}" } } }'
+DISTRICT='{ "type": "District", "id": "urn:ngsi-ld:District:{District}", "attributes": { "name": { "column": "District" } } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "D1": { "Number": 1, "Name": "Station A", "Docks": "15", "Public": "Yes", "Lon": "-71.05", "Lat": "42.35", "District": "South Boston" },
+      "D2": { "Name": "no number", "District": "South_Boston" },
+      "D3": { "Number": 3, "Name": "Station C", "Docks": "many", "District": "South Boston" },
+      "D4": 42,
+      "D5": { "Foo": 1 }
+    },
+    "statusIn": {
+      "D6": "dormant:the portal has no D6"
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "dataChannels": {
+        "D1": { "entities": [ $STATION, $DISTRICT ] },
+        "D2": { "entities": [ $STATION, $DISTRICT ], "idEncoding": "merge" },
+        "D3": { "entities": [ $STATION, $DISTRICT ], "idEncoding": "percent", "channelInfo": [ { "key": "pageSize", "value": "100" } ] },
+        "D4": { "entities": [ $STATION ] },
+        "D5": { "entities": [ $STATION ] },
+        "D6": { "entities": [ $STATION ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. The BikeStations: 1 (from D1) and 3 (from D3, no totalDocks - 'many' is no number); none from D2"
+echo "===================================================================================================="
+sleep 3
+corCurl --url '/ngsi-ld/v1/entities?type=BikeStation'
+echo
+echo
+
+
+echo "02. The Districts: South_Boston (D1 and D2, merged - its name the last written) and South%20Boston (D3)"
+echo "======================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=District'
+echo
+echo
+
+
+echo "03. GET /dataChannels - the mappings, the counters, D6 dormant with the bridge's reason"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/dataChannels
+echo
+echo
+
+
+echo "04. GET /dataChannels/urn:ngsi-ld:DataChannel:loopback:D3"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/dataChannels/urn:ngsi-ld:DataChannel:loopback:D3
+echo
+echo
+
+
+echo "05. GET /dataChannels/urn:ngsi-ld:DataChannel:loopback:D9 - 404"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/dataChannels/urn:ngsi-ld:DataChannel:loopback:D9
+echo
+echo
+
+
+echo "06. GET /channels - a DataChannel is not a Channel: none"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/channels
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The BikeStations: 1 (from D1) and 3 (from D3, no totalDocks - 'many' is no number); none from D2
+====================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 832
+
+[
+  {
+    "id": "urn:ngsi-ld:BikeStation:1",
+    "inDistrict": {
+      "object": "urn:ngsi-ld:District:South_Boston",
+      "type": "Relationship"
+    },
+    "location": {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          -71.05,
+          42.35
+        ],
+        "type": "Point"
+      }
+    },
+    "name": {
+      "type": "Property",
+      "value": "Station A"
+    },
+    "public": {
+      "type": "Property",
+      "value": true
+    },
+    "totalDocks": {
+      "type": "Property",
+      "value": 15
+    },
+    "type": "BikeStation"
+  },
+  {
+    "id": "urn:ngsi-ld:BikeStation:3",
+    "inDistrict": {
+      "object": "urn:ngsi-ld:District:South%20Boston",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Station C"
+    },
+    "type": "BikeStation"
+  }
+]
+
+
+
+02. The Districts: South_Boston (D1 and D2, merged - its name the last written) and South%20Boston (D3)
+======================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 317
+
+[
+  {
+    "id": "urn:ngsi-ld:District:South_Boston",
+    "name": {
+      "type": "Property",
+      "value": "South_Boston"
+    },
+    "type": "District"
+  },
+  {
+    "id": "urn:ngsi-ld:District:South%20Boston",
+    "name": {
+      "type": "Property",
+      "value": "South Boston"
+    },
+    "type": "District"
+  }
+]
+
+
+
+03. GET /dataChannels - the mappings, the counters, D6 dormant with the bridge's reason
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 6396
+
+[
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "D1",
+    "entitiesWritten": 2,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D1",
+    "idEncoding": "merge",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      },
+      {
+        "attributes": {
+          "name": {
+            "column": "District"
+          }
+        },
+        "id": "urn:ngsi-ld:District:{District}",
+        "type": "District"
+      }
+    ],
+    "recordsIn": 1,
+    "recordsRefused": 0,
+    "status": "available",
+    "type": "DataChannel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "D2",
+    "entitiesWritten": 1,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D2",
+    "idEncoding": "merge",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      },
+      {
+        "attributes": {
+          "name": {
+            "column": "District"
+          }
+        },
+        "id": "urn:ngsi-ld:District:{District}",
+        "type": "District"
+      }
+    ],
+    "recordsIn": 1,
+    "recordsRefused": 0,
+    "status": "available",
+    "type": "DataChannel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelInfo": [
+      {
+        "key": "pageSize",
+        "value": "100"
+      }
+    ],
+    "channelTarget": "D3",
+    "entitiesWritten": 2,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D3",
+    "idEncoding": "percent",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      },
+      {
+        "attributes": {
+          "name": {
+            "column": "District"
+          }
+        },
+        "id": "urn:ngsi-ld:District:{District}",
+        "type": "District"
+      }
+    ],
+    "recordsIn": 1,
+    "recordsRefused": 0,
+    "status": "available",
+    "type": "DataChannel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "D4",
+    "entitiesWritten": 0,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D4",
+    "idEncoding": "merge",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      }
+    ],
+    "recordsIn": 0,
+    "recordsRefused": 1,
+    "status": "available",
+    "type": "DataChannel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "D5",
+    "entitiesWritten": 0,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D5",
+    "idEncoding": "merge",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      }
+    ],
+    "recordsIn": 0,
+    "recordsRefused": 1,
+    "status": "available",
+    "type": "DataChannel"
+  },
+  {
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "D6",
+    "entitiesWritten": 0,
+    "id": "urn:ngsi-ld:DataChannel:loopback:D6",
+    "idEncoding": "merge",
+    "recordEntities": [
+      {
+        "attributes": {
+          "inDistrict": {
+            "relationship": "urn:ngsi-ld:District:{District}"
+          },
+          "location": {
+            "point": {
+              "latitude": "Lat",
+              "longitude": "Lon"
+            }
+          },
+          "name": {
+            "column": "Name"
+          },
+          "public": {
+            "as": "boolean",
+            "column": "Public"
+          },
+          "totalDocks": {
+            "as": "number",
+            "column": "Docks"
+          }
+        },
+        "id": "urn:ngsi-ld:BikeStation:{Number}",
+        "type": "BikeStation"
+      }
+    ],
+    "recordsIn": 0,
+    "recordsRefused": 0,
+    "status": "dormant",
+    "statusReason": "the portal has no D6",
+    "type": "DataChannel"
+  }
+]
+
+
+
+04. GET /dataChannels/urn:ngsi-ld:DataChannel:loopback:D3
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1126
+
+{
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelInfo": [
+    {
+      "key": "pageSize",
+      "value": "100"
+    }
+  ],
+  "channelTarget": "D3",
+  "entitiesWritten": 2,
+  "id": "urn:ngsi-ld:DataChannel:loopback:D3",
+  "idEncoding": "percent",
+  "recordEntities": [
+    {
+      "attributes": {
+        "inDistrict": {
+          "relationship": "urn:ngsi-ld:District:{District}"
+        },
+        "location": {
+          "point": {
+            "latitude": "Lat",
+            "longitude": "Lon"
+          }
+        },
+        "name": {
+          "column": "Name"
+        },
+        "public": {
+          "as": "boolean",
+          "column": "Public"
+        },
+        "totalDocks": {
+          "as": "number",
+          "column": "Docks"
+        }
+      },
+      "id": "urn:ngsi-ld:BikeStation:{Number}",
+      "type": "BikeStation"
+    },
+    {
+      "attributes": {
+        "name": {
+          "column": "District"
+        }
+      },
+      "id": "urn:ngsi-ld:District:{District}",
+      "type": "District"
+    }
+  ],
+  "recordsIn": 1,
+  "recordsRefused": 0,
+  "status": "available",
+  "type": "DataChannel"
+}
+
+
+
+05. GET /dataChannels/urn:ngsi-ld:DataChannel:loopback:D9 - 404
+===============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 185
+
+{
+  "detail": "DataChannel 'urn:ngsi-ld:DataChannel:loopback:D9' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. GET /channels - a DataChannel is not a Channel: none
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
