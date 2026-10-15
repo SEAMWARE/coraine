@@ -12,9 +12,8 @@
 // (with a § 5.2.21 TemporalQuery sub-object). Useful when the query
 // is too big to fit in a URL.
 //
-// Implementation: translate the body via ldQueryBodyToParams (the same
-// translator the non-temporal entityOperations/query uses, now extended
-// to flatten temporalQ) and delegate to getEntitiesTemporal.
+// The route's payload check (pCheckQuery) validates the body and makes it the request's params, temporalQ
+// flattened, expanded as the URL's are (ldQueryBodyToParams) - this routine delegates to getEntitiesTemporal.
 //
 
 #include <stddef.h>                                  // NULL
@@ -24,7 +23,6 @@
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
-#include "corNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
 
 #include "serviceRoutines/getEntitiesTemporal.h"     // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h"  // Own interface
@@ -36,11 +34,9 @@
 
 bool postTemporalEntityBatchQuery(void)
 {
-  CorNode* bodyP = corRest.in.requestTree;
-
-  if (!ldQueryBodyToParams(bodyP))
-    return true;
-
+  //
+  // The body is params already, expanded: the payload check (pCheckQuery) made them
+  //
 #if !COR_FEATURE_GEOQ
   if (geoQueryRefused())                              // the body's geoQ, now in the request's georel
     return true;

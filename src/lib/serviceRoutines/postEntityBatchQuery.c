@@ -12,8 +12,8 @@
 // the query is too big to fit in a URL or contains characters that
 // would need aggressive URL-encoding.
 //
-// Implementation: translate the body via ldQueryBodyToParams (shared
-// with POST /entityMaps) and delegate to getEntities.
+// The route's payload check (pCheckQuery) validates the body and makes it the request's params, expanded
+// as the URL's are (ldQueryBodyToParams) - this routine delegates to getEntities.
 //
 
 #include <stddef.h>                                  // NULL
@@ -23,7 +23,6 @@
 #include "corTree/CorNode.h"                         // CorNode
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
-#include "corNgsild/ldQueryBody.h"                    // ldQueryBodyToParams
 
 #include "serviceRoutines/getEntities.h"             // getEntities
 #include "serviceRoutines/postEntityBatchQuery.h"    // Own interface
@@ -35,11 +34,9 @@
 
 bool postEntityBatchQuery(void)
 {
-  CorNode* bodyP = corRest.in.requestTree;
-
-  if (!ldQueryBodyToParams(bodyP))
-    return true;
-
+  //
+  // The body is params already, expanded: the payload check (pCheckQuery) made them
+  //
 #if !COR_FEATURE_GEOQ
   if (geoQueryRefused())                              // the body's geoQ, now in the request's georel
     return true;
