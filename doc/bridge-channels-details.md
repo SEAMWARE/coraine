@@ -217,7 +217,7 @@ binary**. The flag existed and compiled nothing out.
 So an edge build is a direction, not a switch anyone can throw today. What it
 needs is the unglamorous half - going feature by feature and actually excluding
 the code, with a size measurement per flag to prove it. An edge build is roughly `SUBSCRIPTIONS=OFF REGISTRATIONS=OFF
-CONTEXT_HOSTING=OFF TENANTS=OFF MONGOC=OFF METRICS=OFF GEOQ=OFF`, TRoE simply
+CONTEXT_HOSTING=OFF MONGOC=OFF METRICS=OFF GEOQ=OFF`, TRoE simply
 not shipped (it is a plugin - `--troe none` costs nothing).
 
 ⚠️ `REGISTRATIONS=OFF` needs care rather than being obvious, given the paragraph

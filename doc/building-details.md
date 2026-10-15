@@ -37,10 +37,10 @@ coraine/
 
 | group | switches |
 |---|---|
-| NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `TENANTS`, `SCOPES`, `DATASETID`, `MULTI_TYPE`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `ICU_COLLATION` |
+| NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `ICU_COLLATION` |
 | Snapshots | `SNAPSHOT_WRITE`, `SNAPSHOT_SUBSCRIPTIONS` |
-| JSON-LD @context | `CONTEXT_DL`, `CONTEXT_HOSTING` |
-| Geo | `GEOQ`, `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE` |
+| JSON-LD @context | `CONTEXT_HOSTING` |
+| Geo | `GEOQ` |
 | Security | `AUTH`, `POLICY_API` |
 | Beyond NGSI-LD | `SERVICE_EXECUTION` |
 | Protocols | `COR_PROTOCOL`, `TRANSPORTS` |
@@ -57,9 +57,9 @@ by what they need - `coraine-build --list-features --json` gives them as `requir
 | `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
 
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
-no subscription engine on a read-only edge node, no geo, no tenants, no Mongo. What each switch
-removes is in the table below; `LOCATION`, `OBSERVATION_SPACE` and `OPERATION_SPACE` are declared and
-reported, and nothing in the code tests them yet.
+no subscription engine on a read-only edge node, no geo, no Mongo. What each switch
+removes is in the table below. Tenants, entity scope, `datasetId` and multi-type entities have no switch: they
+are always in the broker, and compiled out each would save a few KiB.
 
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
 build host, run `--database corDB`).
@@ -269,23 +269,6 @@ Context Source Registrations and what they drive: distributed operations (forwar
 subscriptions, EntityMaps. Off: 15 routes answer 501, the forwarding library and both
 store plugins' registration code go. Size: -72 KiB.
 
-#### `TENANTS`
-
-Multi-tenancy (`NGSILD-Tenant`). **Declared, removes nothing**: a build without it serves tenants as
-before (below).
-
-#### `SCOPES`
-
-Entity `scope` and `scopeQ`. **Declared, removes nothing.**
-
-#### `DATASETID`
-
-Multi-attribute instances by `datasetId`. **Declared, removes nothing.**
-
-#### `MULTI_TYPE`
-
-An entity of more than one type. **Declared, removes nothing.**
-
 #### `AUTO_ENTITY_MAP`
 
 Automatic EntityMaps: a query of more than one page freezes its set of matches and serves its pages from
@@ -315,10 +298,6 @@ Writes on a Snapshot (`NGSILD-Snapshot` on an entity or temporal write, § 7.9.2
 Subscriptions on a Snapshot, notified by its writes. Off: a subscription write naming a Snapshot answers
 422. Off by itself when `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is. Size: under a page (1 491 bytes).
 
-#### `CONTEXT_DL`
-
-@contexts downloaded from their URLs. **Declared, removes nothing.**
-
 #### `CONTEXT_HOSTING`
 
 The `/jsonldContexts` API and its store. Off: its 4 routes answer 501; an inline @context and the core
@@ -334,10 +313,6 @@ matched. GeoProperty data is stored, served and queried as before. corDB no long
 self-intersecting polygon (the check that mirrors a 2dsphere index is GEOS's). Size: **-3.19 MiB** - GEOS
 (`libgeos_c` 1.20.5 and `libgeos` 3.14.1, 3.17 MiB) no longer loaded, `mongoc.so` -16 KiB, `corDB.so`
 -12 KiB, `ramDB.so` -4 KiB; the broker +8 KiB, its 501s (measured 2026-10-14).
-
-#### `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
-
-Geo-aware dispatch on each GeoProperty. **Declared, removes nothing**; `LOCATION` on, the other two off.
 
 #### `AUTH`
 
@@ -445,18 +420,6 @@ load:
 | flag | effect |
 |---|---|
 | `COR_FEATURE_MIGRATE=OFF` | `coraine-import` is not built ([migration.md](migration.md)) - the broker carries no import code either way |
-
-**⚠️ These eight are declared and do nothing at all:**
-
-`SCOPES`, `DATASETID`, `MULTI_TYPE`, `CONTEXT_DL`, `TENANTS`,
-`LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`
-
-The option exists, CMake emits the `-D`, **no source reads it**, and the
-compiled binary is byte-for-byte the same as a full build. `-DCOR_FEATURE_TENANTS=OFF`
-produces a broker that builds, starts, reports `"TENANTS": false` on `GET /build`
-— and serves tenants exactly as before. This is the failure mode to watch for,
-because nothing about it looks like a failure. If you are switching one of these
-off to remove a feature, you have not removed it.
 
 **Every switch builds**, turned from its default alone: the nightly's `switches` job builds each
 (`.github/scripts/every-switch.sh`) and checks that `--version` says so. `CONTEXT_HOSTING=OFF`: its 4

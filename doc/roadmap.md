@@ -111,9 +111,6 @@ incorporated in the next release of the product, in roughly this order:
 -   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
     NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
     plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
--   **Finish conditional compilation, the rest** - eight switches (`TENANTS`, `SCOPES`, `DATASETID`,
-    `MULTI_TYPE`, `CONTEXT_DL`, `LOCATION`, `OBSERVATION_SPACE`, `OPERATION_SPACE`) are declared and remove
-    nothing yet ([Building](building-details.md)).
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
