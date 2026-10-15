@@ -11,6 +11,7 @@
 #   - a GeoJSON value fragment without its "type" (coordinates only)                           -> 204
 #   - the merged entity keeps the values the fragments did not carry
 #   - a NEW attribute, or a NEW instance (datasetId), without a value                          -> 400
+#   - a NEW attribute as a type-less fragment (sub-attributes only) - was stored without a value -> 400
 #   - a new attribute in simplified form ("weight": 12) - its value is implicit                -> 204
 #   - a GeoJSON fragment that merges into an invalid geometry                                  -> 400
 #   - partial update (PATCH /attrs, § 8.4.2) still wants the value: it replaces the attribute -> 400
@@ -91,6 +92,14 @@ echo
 echo
 
 
+echo "07b. Merge: a NEW attribute as a type-less fragment - 400"
+echo "========================================================="
+payload='{ "size": { "unitCode": "MTR" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
 echo "08. Merge: a new attribute in simplified form - its value is implicit - 204"
 echo "==========================================================================="
 payload='{ "weight": 12 }'
@@ -115,8 +124,8 @@ echo
 echo
 
 
-echo "11. GET - weight 12 added; nothing of 06, 07, 09 or 10 stored"
-echo "============================================================="
+echo "11. GET - weight 12 added; nothing of 06, 07, 07b, 09 or 10 stored"
+echo "=================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
 echo
 echo
@@ -234,6 +243,22 @@ Content-Length: 271
 
 
 
+07b. Merge: a NEW attribute as a type-less fragment - 400
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 249
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/size' is not in the entity - a merge that adds it gives its value",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
 08. Merge: a new attribute in simplified form - its value is implicit - 204
 ===========================================================================
 HTTP/1.1 204 No Content
@@ -274,8 +299,8 @@ Content-Length: 225
 
 
 
-11. GET - weight 12 added; nothing of 06, 07, 09 or 10 stored
-=============================================================
+11. GET - weight 12 added; nothing of 06, 07, 07b, 09 or 10 stored
+==================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
