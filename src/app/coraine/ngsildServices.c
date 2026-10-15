@@ -14,7 +14,7 @@
 #include "corNgsild/ldParams.h"                   // LD_PARAMS_GET_ENTITIES, LD_PARAMS_GET_ENTITY, LD_PARAMS_POST_ENTITIES, LD_PARAMS_DELETE_ENTITY, LD_PARAMS_PATCH_ENTITY
 #include "bridge/bridgeServiceSync.h"                  // BRIDGE_PARAM_DDS_SYNC
 #include "corNgsild/LdOp.h"                       // LdOp*
-#include "corNgsild/ldPCheckQuery.h"              // pCheckQuery
+#include "corNgsild/ldQueryBodyCheck.h"           // ldQueryBodyCheck
 
 #include "serviceRoutines/getEntities.h"         // getEntities
 #include "serviceRoutines/getEntity.h"           // getEntity
@@ -294,7 +294,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbPost,   "/ngsi-ld/v1/entityOperations/upsert", postEntityBatchUpsert, LD_PARAM_OPTIONS | LD_PARAM_LOCAL, LdOpBatchUpsert, NULL, { .features.entityArrayBody = 1 } },
   { CorVerbPost,   "/ngsi-ld/v1/entityOperations/merge",  postEntityBatchMerge,  LD_PARAM_LOCAL,         LdOpBatchMerge, NULL, { .features.entityArrayBody = 1 } },
   { CorVerbPost,   "/ngsi-ld/v1/entityOperations/delete", postEntityBatchDelete, LD_PARAM_LOCAL,         LdOpBatchDelete },
-  { CorVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery, pCheckQuery },
+  { CorVerbPost,   "/ngsi-ld/v1/entityOperations/query",  postEntityBatchQuery,  LD_PARAMS_GET_ENTITIES, LdOpBatchQuery, ldQueryBodyCheck },
 
   // Context Source Identity (§ 5.15 / § 6.33)
   { CorVerbGet,    "/ngsi-ld/v1/info/sourceIdentity", getSourceIdentity, 0, LdOpNone },
@@ -315,7 +315,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
   // read the store), join (the linked entities would be today's).
   { CorVerbGet,    "/ngsi-ld/v1/temporal/timepoint/entities/*",               getEntityTimepoint,             TIMEPOINT_PARAMS_GET_ENTITY,   LdOpRetrieveEntityTimepoint },
   { CorVerbGet,    "/ngsi-ld/v1/temporal/timepoint/entities",                 getEntitiesTimepoint,           TIMEPOINT_PARAMS_GET_ENTITIES, LdOpQueryEntityTimepoint },
-  { CorVerbPost,   "/ngsi-ld/v1/temporal/timepoint/entityOperations/query",   postEntityBatchQueryTimepoint,  TIMEPOINT_PARAMS_GET_ENTITIES, LdOpQueryEntityTimepoint, pCheckQuery },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/timepoint/entityOperations/query",   postEntityBatchQueryTimepoint,  TIMEPOINT_PARAMS_GET_ENTITIES, LdOpQueryEntityTimepoint, ldQueryBodyCheck },
 #endif
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
@@ -328,7 +328,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbDelete, "/ngsi-ld/v1/temporal/entities/*",                deleteEntityTemporal,          0,                                 LdOpDeleteTemporal },
   { CorVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpUpsertTemporal },
-  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal, pCheckQuery },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal, ldQueryBodyCheck },
 
   // Snapshots — § 5.16
   { CorVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  LD_PARAMS_POST_SNAPSHOT,           LdOpCreateSnapshot   },

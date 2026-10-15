@@ -118,8 +118,8 @@ bool getEntitiesTimepoint(void)
 //
 // postEntityBatchQueryTimepoint - POST /temporal/timepoint/entityOperations/query
 //
-// timeAt in the body - a member of the Query, or of its temporalQ: the route's payload check (pCheckQuery)
-// made the body the request's params, timeAt among them, before this routine runs.
+// timeAt in the body - a member of the Query (a temporalQ is refused): the route's payload check made the
+// body the request's params, timeAt among them, before this routine runs.
 //
 bool postEntityBatchQueryTimepoint(void)
 {

@@ -14,9 +14,10 @@ Entity array - never the temporal representation of `/temporal/entities`.
 
 Mandatory: a missing or invalid `timeAt` is a 400 BadRequestData.
 - `GET`: the URL parameter `timeAt`.
-- `POST`: a member of the Query, or of its `temporalQ` - `{ "type": "Query", ..., "timeAt": "..." }` or
-  `{ "type": "Query", ..., "temporalQ": { "timeAt": "..." } }`. A Core API POST query with a `timeAt` member
-  is a 400: a Query has none.
+- `POST`: a member of the Query - `{ "type": "Query", ..., "timeAt": "..." }`. Not of a `temporalQ`: a
+  `temporalQ` selects entities by their history (`timerel`, its own `timeAt`), while the timepoint's `timeAt`
+  picks the instance of each attribute an entity had then. A timepoint query with a `temporalQ` is a 400,
+  and so is a Core API POST query with a `timeAt` member: a Query has none.
 
 `timeAt` is on system time: the entity as the broker held it at `timeAt` - each attribute's last write at
 or before it. An entity created after `timeAt`, or deleted at it, is not there (404 for a retrieve). An

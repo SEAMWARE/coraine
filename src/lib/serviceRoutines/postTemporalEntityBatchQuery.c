@@ -12,7 +12,7 @@
 // (with a § 5.2.21 TemporalQuery sub-object). Useful when the query
 // is too big to fit in a URL.
 //
-// The route's payload check (pCheckQuery) validates the body and makes it the request's params, temporalQ
+// The route's payload check (ldQueryBodyCheck) validates the body and makes it the request's params, temporalQ
 // flattened, expanded as the URL's are (ldQueryBodyToParams) - this routine delegates to getEntitiesTemporal.
 //
 
@@ -35,7 +35,7 @@
 bool postTemporalEntityBatchQuery(void)
 {
   //
-  // The body is params already, expanded: the payload check (pCheckQuery) made them
+  // The body is params already, expanded: the payload check (ldQueryBodyCheck) made them
   //
 #if !COR_FEATURE_GEOQ
   if (geoQueryRefused())                              // the body's geoQ, now in the request's georel
