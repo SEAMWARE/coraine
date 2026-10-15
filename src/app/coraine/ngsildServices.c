@@ -88,6 +88,9 @@
 #include "serviceRoutines/getVersion.h"                // getVersion
 #include "serviceRoutines/getBuild.h"                  // getBuild
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
+#if COR_FEATURE_TIMEPOINT
+#include "serviceRoutines/timepoint.h"                 // getEntityTimepoint, getEntitiesTimepoint, postEntityBatchQueryTimepoint
+#endif
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
 #include "serviceRoutines/deleteEntityTemporal.h"      // deleteEntityTemporal
@@ -305,6 +308,15 @@ CorRestServiceSimplified ngsildCoreServices[] =
   // and the endpoint that reports what a build contains must not be one of the
   // things a build can leave out.
   { CorVerbGet,    "/build",                    getBuild,          0, LdOpNone },
+
+#if COR_FEATURE_TIMEPOINT
+  // The entity as it was at a point in time (NGSI-LD v2.1 - timeAt mandatory): the Core API's retrieve and
+  // query on the history. Its parameters but the ones whose answer would be today's: entityMap (its pages
+  // read the store), join (the linked entities would be today's).
+  { CorVerbGet,    "/ngsi-ld/v1/temporal/timepoint/entities/*",               getEntityTimepoint,             TIMEPOINT_PARAMS_GET_ENTITY,   LdOpRetrieveEntityTimepoint },
+  { CorVerbGet,    "/ngsi-ld/v1/temporal/timepoint/entities",                 getEntitiesTimepoint,           TIMEPOINT_PARAMS_GET_ENTITIES, LdOpQueryEntityTimepoint },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/timepoint/entityOperations/query",   postEntityBatchQueryTimepoint,  TIMEPOINT_PARAMS_GET_ENTITIES, LdOpQueryEntityTimepoint, pCheckQuery },
+#endif
 
   // Temporal Operations (§ 5.6.11-§ 5.6.16, § 5.7.3, § 5.7.4).
   // More-specific routes first — the router matches in registration order.

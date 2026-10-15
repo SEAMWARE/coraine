@@ -1,0 +1,300 @@
+#
+# FILE            timepoint_query.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: corDB
+# REQUIRE_FEATURE: TIMEPOINT
+#
+# GET /temporal/timepoint/entities and POST /temporal/timepoint/entityOperations/query - the Core API's query,
+# evaluated on the entities as they were at timeAt: q, count and scopeQ on their values then, pick and omit
+# as in the Core API. In the POST body, timeAt is a member of the Query or of its temporalQ.
+#
+--NAME--
+Timepoint query - GET and POST: the entities as they were at timeAt, q and count on their values then
+--TAGS--
+temporal timepoint query
+--INIT--
+corDbDrop
+coraineStart --troe corDB
+--RUN--
+#
+# at - now, as an ISO 8601 UTC time to the microsecond, between two short sleeps: a time between two writes.
+# Not date's %N: uutils' date drops its leading zeros (0.048 s printed as .48...).
+#
+at() { sleep 0.05; python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"))'; sleep 0.05; }
+
+echo "01. Create E1 (speed 50) and E2 (speed 40, scope /Madrid)"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
+  { "id": "urn:ngsi-ld:T:E1", "type": "T", "speed": { "type": "Property", "value": 50 } },
+  { "id": "urn:ngsi-ld:T:E2", "type": "T", "scope": "/Madrid", "speed": { "type": "Property", "value": 40 } }
+]'
+echo
+echo
+T1=$(at)
+
+echo "02. E1 slows to 5, E2 speeds up to 90"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[
+  { "id": "urn:ngsi-ld:T:E1", "type": "T", "speed": { "type": "Property", "value": 5 } },
+  { "id": "urn:ngsi-ld:T:E2", "type": "T", "speed": { "type": "Property", "value": 90 } }
+]'
+echo
+echo
+T2=$(at)
+
+echo "03. At T1, speed>45, count - E1 alone, count 1"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities --urlParams "type=T&timeAt=$T1&q=speed%3E45&count=true"
+echo
+echo
+
+echo "04. At T2, speed>45, count - E2 alone, count 1"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities --urlParams "type=T&timeAt=$T2&q=speed%3E45&count=true"
+echo
+echo
+
+echo "05. At T1, scopeQ /Madrid, pick speed - E2's speed then: 40"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities --urlParams "timeAt=$T1&scopeQ=/Madrid&pick=id,speed"
+echo
+echo
+
+echo "06. POST, timeAt a member of the Query - at T1, pick speed (a short name, expanded): 50 and 40"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entityOperations/query --payload "{ \"type\": \"Query\", \"entities\": [ { \"type\": \"T\" } ], \"timeAt\": \"$T1\", \"pick\": [ \"id\", \"speed\" ] }"
+echo
+echo
+
+echo "07. POST, timeAt in the temporalQ - at T2, q speed>45: E2"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entityOperations/query --payload "{ \"type\": \"Query\", \"entities\": [ { \"type\": \"T\" } ], \"q\": \"speed>45\", \"temporalQ\": { \"timeAt\": \"$T2\" }, \"pick\": [ \"id\" ] }"
+echo
+echo
+
+echo "08. POST without timeAt - 400"
+echo "============================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entityOperations/query --payload '{ "type": "Query", "entities": [ { "type": "T" } ] }'
+echo
+echo
+
+echo "09. A Core API POST query with a timeAt member - 400: a Query has none"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "{ \"type\": \"Query\", \"entities\": [ { \"type\": \"T\" } ], \"timeAt\": \"$T1\" }"
+echo
+echo
+
+echo "10. GET without timeAt - 400"
+echo "============================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities --urlParams "type=T"
+echo
+echo
+
+echo "11. entityMap - not a timepoint parameter (its pages would be today's): 400"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities --urlParams "type=T&timeAt=$T1&entityMap=true"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (speed 50) and E2 (speed 40, scope /Madrid)
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 47
+
+[
+  "urn:ngsi-ld:T:E1",
+  "urn:ngsi-ld:T:E2"
+]
+
+
+
+02. E1 slows to 5, E2 speeds up to 90
+=====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. At T1, speed>45, count - E1 alone, count 1
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    },
+    "type": "T"
+  }
+]
+
+
+
+04. At T2, speed>45, count - E2 alone, count 1
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 148
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E2",
+    "scope": "/Madrid",
+    "speed": {
+      "type": "Property",
+      "value": 90
+    },
+    "type": "T"
+  }
+]
+
+
+
+05. At T1, scopeQ /Madrid, pick speed - E2's speed then: 40
+===========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 107
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E2",
+    "speed": {
+      "type": "Property",
+      "value": 40
+    }
+  }
+]
+
+
+
+06. POST, timeAt a member of the Query - at T1, pick speed (a short name, expanded): 50 and 40
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 211
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    }
+  },
+  {
+    "id": "urn:ngsi-ld:T:E2",
+    "speed": {
+      "type": "Property",
+      "value": 40
+    }
+  }
+]
+
+
+
+07. POST, timeAt in the temporalQ - at T2, q speed>45: E2
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 41
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E2"
+  }
+]
+
+
+
+08. POST without timeAt - 400
+=============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "timeAt is mandatory - the point in time the entities are as they were",
+  "status": 400,
+  "title": "Missing timeAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. A Core API POST query with a timeAt member - 400: a Query has none
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 144
+
+{
+  "detail": "timeAt",
+  "status": 400,
+  "title": "Invalid field for query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. GET without timeAt - 400
+============================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "timeAt is mandatory - the point in time the entities are as they were",
+  "status": 400,
+  "title": "Missing timeAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. entityMap - not a timepoint parameter (its pages would be today's): 400
+===========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 174
+
+{
+  "detail": "Unknown/unsupported URL parameter: entityMap",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+coraineStop

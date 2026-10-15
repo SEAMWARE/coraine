@@ -2229,7 +2229,8 @@ static int actionOf(uint64_t op)
   const uint64_t reads   = LdOpRetrieveEntity | LdOpQueryEntities | LdOpBatchQuery |
                            LdOpRetrieveEntityTypes | LdOpRetrieveEntityTypeDetails | LdOpRetrieveEntityTypeInfo |
                            LdOpRetrieveAttrTypes   | LdOpRetrieveAttrTypeDetails   | LdOpRetrieveAttrTypeInfo |
-                           LdOpRetrieveTemporal    | LdOpQueryTemporal;
+                           LdOpRetrieveTemporal    | LdOpQueryTemporal |
+                           LdOpRetrieveEntityTimepoint | LdOpQueryEntityTimepoint;   // a timepoint read - POST query too
   const uint64_t creates = LdOpCreateEntity | LdOpBatchCreate;
   const uint64_t updates = LdOpUpdateEntity | LdOpAppendAttrs | LdOpUpdateAttrs | LdOpMergeEntity | LdOpReplaceEntity |
                            LdOpReplaceAttr  | LdOpBatchUpdate | LdOpBatchMerge  |
