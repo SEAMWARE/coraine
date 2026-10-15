@@ -34,6 +34,8 @@ cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 | see every idea, planned or only possible | [Ideas](ideas.md) |
 | connect it to DDS or ROS 2 | [DDS and ROS 2](dds.md) |
 | see how it will reach devices without an IoT Agent | [Speaking to devices directly](device-protocols.md) |
+| see how an IoT Agent's commands become Service Executions (design) | [IoT Agents as Service Executors](iot-agent-executor.md) |
+| see how an IoT Agent's measures become DataChannel records (design) | [IoT Agent measures as DataChannel records](iot-agent-measures.md) |
 | read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
 | send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
 | secure it - the Data Space Connector's tokens and policies, or your own security layer, inside the broker | [Authorization in the broker](authorization.md) |
