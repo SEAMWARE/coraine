@@ -12,6 +12,11 @@
 #include <string.h>                                  // memset, strcmp, strncmp, strlen, strrchr, strncpy, strtok_r
 #include <strings.h>                                 // strcasecmp
 
+#include <stdint.h>                                 // uint8_t, uint64_t
+#include <sys/random.h>                             // getrandom
+#include <unistd.h>                                 // getpid
+#include <time.h>                                   // time
+
 #include "corPlugin/corPlugin.h"                     // corPluginOpen, corPluginResolve, corPluginBaseDir
 #include "corLog/corLog.h"                           // COR_I, COR_W, COR_E
 #include "corAlloc/CorAlloc.h"                       // CorAlloc
@@ -81,8 +86,22 @@ typedef struct Conn
   Owned*            ownV;                            // the subscriptions it created - deleted when it closes
   int               ownN;
   int               ownSize;
+  bool              running;                         // a request of its own runs, on runThread (hostMessage)
+  pthread_t         runThread;
   struct Conn*      next;
 } Conn;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bootId - this broker's run, in every connection's id: urn:ngsi-ld:WebSocket:<bootId>-<n>
+//
+// The <n> start again at 1 with every run, and every instance on one store has its own. An id of another
+// run - a subscription a killed broker never deleted - or of another instance names no connection here:
+// nothing is ever delivered to whoever is connection <n> now. Random, set by transportInit.
+//
+static char bootId[17];
 
 static pthread_mutex_t  connMutex = PTHREAD_MUTEX_INITIALIZER;
 static Conn*            connList  = NULL;
@@ -109,17 +128,44 @@ static Conn* connFind(int connId)
 
 // -----------------------------------------------------------------------------
 //
-// connIdOf - the connection a URI names (urn:ngsi-ld:WebSocket:<n>), -1 if none
+// runMark - the connection runs a request of its own on this thread (on), or no longer (off)
+//
+static void runMark(int connId, bool on)
+{
+  pthread_mutex_lock(&connMutex);
+
+  Conn* cP = connFind(connId);
+
+  if (cP != NULL)
+  {
+    cP->running   = on;
+    cP->runThread = pthread_self();
+  }
+
+  pthread_mutex_unlock(&connMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// connIdOf - the connection a URI names (urn:ngsi-ld:WebSocket:<bootId>-<n>), -1 if none - and none for an id
+// of another run or another instance (bootId)
 //
 static int connIdOf(const char* uri)
 {
   if ((uri == NULL) || (strncmp(uri, CONN_PREFIX, CONN_PREFIX_LEN) != 0))
     return -1;
 
-  char* end = NULL;
-  long  n   = strtol(&uri[CONN_PREFIX_LEN], &end, 10);
+  const char* p = &uri[CONN_PREFIX_LEN];
 
-  return ((end != NULL) && (*end == 0) && (n >= 0)) ? (int) n : -1;
+  if ((strncmp(p, bootId, 16) != 0) || (p[16] != '-'))
+    return -1;
+
+  char* end = NULL;
+  long  n   = strtol(&p[17], &end, 10);
+
+  return ((end != NULL) && (end != &p[17]) && (*end == 0) && (n >= 0)) ? (int) n : -1;
 }
 
 
@@ -416,7 +462,7 @@ static void hostOpened(int connId)
 {
   char hello[128];
 
-  snprintf(hello, sizeof(hello), "{\"metadata\":{\"connection\":\"" CONN_PREFIX "%d\"}}", connId);
+  snprintf(hello, sizeof(hello), "{\"metadata\":{\"connection\":\"" CONN_PREFIX "%s-%d\"}}", bootId, connId);
 
   pthread_mutex_lock(&connMutex);
   Conn*            cP      = connFind(connId);
@@ -545,7 +591,7 @@ static void hostMessage(int connId, const char* text, int len)
   {
     char detail[256];
 
-    snprintf(detail, sizeof(detail), "a subscription made over a WebSocket notifies its own connection, " CONN_PREFIX "%d", connId);
+    snprintf(detail, sizeof(detail), "a subscription made over a WebSocket notifies its own connection, " CONN_PREFIX "%s-%d", bootId, connId);
     replyError(connId, requestId, 403, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported", "Forbidden", detail);
     corAllocBufferReset(&ka, false);
     return;
@@ -598,7 +644,13 @@ static void hostMessage(int connId, const char* text, int len)
 
   RunCtx run = { connId, requestId, methodP->value.s, path, tenant };
 
+  //
+  // The connection runs a request of its own, on this thread: what transportEndpointOwn asks, when the
+  // request makes a subscription that names a connection
+  //
+  runMark(connId, true);
   corRestRunJson(methodP->value.s, path, headerV, headers, body, bodyLen, runRespond, &run);
+  runMark(connId, false);
   corAllocBufferReset(&ka, false);
 }
 
@@ -791,6 +843,17 @@ bool transportInit(void)
   if (transportCount == 0)
     return true;
 
+  uint8_t r[8];
+
+  if (getrandom(r, sizeof(r), 0) != (ssize_t) sizeof(r))
+  {
+    uint64_t v = (uint64_t) time(NULL) ^ ((uint64_t) getpid() << 32);
+    memcpy(r, &v, sizeof(r));
+  }
+
+  for (int i = 0; i < 8; i++)
+    snprintf(&bootId[i * 2], 3, "%02x", r[i]);
+
   host.abiVersion = TRANSPORT_ABI_VERSION;
   host.opened     = hostOpened;
   host.message    = hostMessage;
@@ -829,6 +892,39 @@ bool transportNotifyHas(const char* uri)
   pthread_mutex_unlock(&connMutex);
 
   return open;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportUri - a URI that names a transport connection - of this run or not
+//
+bool transportUri(const char* uri)
+{
+  return (uri != NULL) && (strncmp(uri, CONN_PREFIX, CONN_PREFIX_LEN) == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportEndpointOwn - the URI names the connection whose request runs on this thread: a subscription
+// made over a connection may notify it - one made over HTTP, cor:// or another connection may not
+//
+bool transportEndpointOwn(const char* uri)
+{
+  int connId = connIdOf(uri);
+
+  if (connId < 0)
+    return false;
+
+  pthread_mutex_lock(&connMutex);
+  Conn* cP  = connFind(connId);
+  bool  own = (cP != NULL) && cP->running && pthread_equal(cP->runThread, pthread_self());
+  pthread_mutex_unlock(&connMutex);
+
+  return own;
 }
 
 

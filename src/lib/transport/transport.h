@@ -37,11 +37,22 @@ extern bool transportInit(void);
 // -----------------------------------------------------------------------------
 //
 // transportNotifyHas / transportNotifySend - a notification endpoint that names a transport connection
-// (urn:ngsi-ld:WebSocket:<n>): does it exist, and the envelope to it. corNgsild's transport hook asks
+// (urn:ngsi-ld:WebSocket:<bootId>-<n>): does it exist, and the envelope to it. corNgsild's transport hook asks
 // these before the bridges (bridgeNotify.c).
 //
 extern bool transportNotifyHas(const char* uri);
 extern bool transportNotifySend(const char* uri, const char* payload);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportUri / transportEndpointOwn - a URI that names a transport connection (of this run or not), and
+// whether it names the connection whose own request runs on this thread - the only one a subscription may
+// name as its endpoint (bridgeNotify.c, at create and update)
+//
+extern bool transportUri(const char* uri);
+extern bool transportEndpointOwn(const char* uri);
 
 
 

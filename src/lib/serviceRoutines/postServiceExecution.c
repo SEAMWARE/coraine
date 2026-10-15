@@ -15,6 +15,7 @@
 #include "corRest/CorRestState.h"                     // corRest
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
+#include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp, ldNotifyTransportHas
 #include "corNgsild/CorNgsild.h"                      // corNgsild, ldContextResolve
 #include "corNgsild/ldError.h"                        // ldError
 #include "corNgsild/LdProblem.h"                      // LD_ERROR_*
@@ -94,6 +95,19 @@ bool postServiceExecution(void)
   if ((notificationP != NULL) && ((notificationP->type != CorObject) || (corTreeLookup(corTreeLookup(notificationP, "endpoint"), "uri") == NULL)))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'notification' needs an endpoint with a uri");
+    return true;
+  }
+
+  //
+  // An endpoint other than http(s) is a transport's or a bridge's - asked as for a subscription: a WebSocket
+  // connection only when this request came over it (another's would get the execution's notifications)
+  //
+  CorNode* uriP = (notificationP != NULL) ? corTreeLookup(corTreeLookup(notificationP, "endpoint"), "uri") : NULL;
+
+  if ((uriP != NULL) && ((uriP->type != CorString) || ((ldNotifyIsHttp(uriP->value.s) == false) && (ldNotifyTransportHas(uriP->value.s) == false))))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
+            "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), a bridge's scheme, or the WebSocket connection the request came over");
     return true;
   }
 
