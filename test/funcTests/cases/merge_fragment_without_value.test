@@ -1,0 +1,327 @@
+#
+# FILE            merge_fragment_without_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 8.4.3 Merge Entity merges "up to an arbitrary depth": the fragment carries what changes, and an
+# attribute's value only when the value changes. Covered:
+#   - a typed fragment with no value, touching only a sub-attribute (one deleted, one added)  -> 204
+#   - a GeoJSON value fragment without its "type" (coordinates only)                           -> 204
+#   - the merged entity keeps the values the fragments did not carry
+#   - a NEW attribute, or a NEW instance (datasetId), without a value                          -> 400
+#   - a new attribute in simplified form ("weight": 12) - its value is implicit                -> 204
+#   - a GeoJSON fragment that merges into an invalid geometry                                  -> 400
+#   - partial update (PATCH /attrs, § 8.4.2) still wants the value: it replaces the attribute -> 400
+#
+--NAME--
+Merge Entity - a fragment without its value; a new attribute or instance must have one
+
+--TAGS--
+entity patch merge
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed: speed with unitCode and observedAt, a location, an attribute with two instances"
+echo "========================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "speed": { "type": "Property", "value": 80, "unitCode": "KMH", "observedAt": "2026-10-15T12:00:00Z" },
+  "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [23.72, 37.98] } },
+  "s": [
+    { "type": "Property", "value": 1, "datasetId": "urn:ds:1" },
+    { "type": "Property", "value": 2 }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Merge: speed's unitCode deleted - the fragment has no value"
+echo "==============================================================="
+payload='{ "speed": { "type": "Property", "unitCode": "urn:ngsi-ld:null" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "03. Merge: a sub-attribute added to speed - the fragment has no value"
+echo "====================================================================="
+payload='{ "speed": { "type": "Property", "accuracy": { "type": "Property", "value": 0.5 } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "04. Merge: location's coordinates only - the GeoJSON fragment has no type"
+echo "========================================================================="
+payload='{ "location": { "type": "GeoProperty", "value": { "coordinates": [23.8, 38.0] } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "05. GET - speed 80 with observedAt and accuracy, no unitCode; location a Point at [23.8, 38.0]"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+echo
+echo
+
+
+echo "06. Merge: a NEW attribute without a value - 400"
+echo "================================================"
+payload='{ "color": { "type": "Property", "unitCode": "X" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "07. Merge: a NEW instance (datasetId urn:ds:9) without a value - 400"
+echo "===================================================================="
+payload='{ "s": { "type": "Property", "datasetId": "urn:ds:9", "unitCode": "X" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "08. Merge: a new attribute in simplified form - its value is implicit - 204"
+echo "==========================================================================="
+payload='{ "weight": 12 }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "09. Merge: coordinates that make the merged Point invalid - 400"
+echo "==============================================================="
+payload='{ "location": { "type": "GeoProperty", "value": { "coordinates": [23.8] } } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "10. Partial update (PATCH /attrs) without a value - still 400: it replaces the attribute"
+echo "========================================================================================"
+payload='{ "speed": { "type": "Property", "unitCode": "KMH" } }'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "11. GET - weight 12 added; nothing of 06, 07, 09 or 10 stored"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 --out application/json
+echo
+echo
+
+
+--EXPECT--
+01. Seed: speed with unitCode and observedAt, a location, an attribute with two instances
+=========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. Merge: speed's unitCode deleted - the fragment has no value
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. Merge: a sub-attribute added to speed - the fragment has no value
+=====================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. Merge: location's coordinates only - the GeoJSON fragment has no type
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET - speed 80 with observedAt and accuracy, no unitCode; location a Point at [23.8, 38.0]
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 520
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        23.8,
+        38
+      ],
+      "type": "Point"
+    }
+  },
+  "s": [
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "speed": {
+    "accuracy": {
+      "type": "Property",
+      "value": 0.5
+    },
+    "observedAt": "2026-10-15T12:00:00Z",
+    "type": "Property",
+    "value": 80
+  },
+  "type": "T"
+}
+
+
+
+06. Merge: a NEW attribute without a value - 400
+================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 250
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/color' is not in the entity - a merge that adds it gives its value",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Merge: a NEW instance (datasetId urn:ds:9) without a value - 400
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 271
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/s': the instance 'urn:ds:9' is not in the entity - a merge that adds it gives its value",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Merge: a new attribute in simplified form - its value is implicit - 204
+===========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. Merge: coordinates that make the merged Point invalid - 400
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 191
+
+{
+  "detail": "the merged entity carries an invalid GeoProperty geometry",
+  "status": 400,
+  "title": "Invalid GeoProperty",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Partial update (PATCH /attrs) without a value - still 400: it replaces the attribute
+========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 225
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/speed' of type Property must have 'value'",
+  "status": 400,
+  "title": "Missing Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. GET - weight 12 added; nothing of 06, 07, 09 or 10 stored
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 579
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        23.8,
+        38
+      ],
+      "type": "Point"
+    }
+  },
+  "s": [
+    {
+      "datasetId": "urn:ds:1",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "speed": {
+    "accuracy": {
+      "type": "Property",
+      "value": 0.5
+    },
+    "observedAt": "2026-10-15T12:00:00Z",
+    "type": "Property",
+    "value": 80
+  },
+  "type": "T",
+  "weight": {
+    "type": "Property",
+    "value": 12
+  }
+}
+
+
+
+--TEARDOWN--
+coraineStop
