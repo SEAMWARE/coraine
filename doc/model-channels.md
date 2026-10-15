@@ -29,14 +29,15 @@ Every channel type is the same base, and adds its own members:
 |---|---|
 | `id`, `type` | `urn:ngsi-ld:<Type>:<bridge>:<endpoint>`; `Channel`, `DataChannel`, `ModelChannel` |
 | `bridgeId` | the Bridge that carries it - every channel points to its Bridge |
-| `endpoint` | what the Bridge reads: a topic, a register, a resource id, a model root |
+| `channelTarget` | the endpoint the Bridge reads: a topic, a register, a resource id, a model root |
 | `channelInfo` | the endpoint's settings, the bridge's own (key, value) |
 | `status`, `statusReason` | `available`, `dormant`, and why (`channelStatusIn`) |
 | counters | what came in, what was refused - each type its own |
 
 In OpenAPI: one base schema, each type `allOf` it. The Bridge lists what it carries - its Channels,
 DataChannels and ModelChannels - so "everything this bridge does" is one request without one polymorphic
-collection. (Today Channel and DataChannel share these members by convention; the base makes it a rule.)
+collection. (Channel and DataChannel have these members today - `channelTarget` both - the base makes it a
+rule for every type.)
 
 ## 3. A ModelChannel
 
@@ -54,7 +55,7 @@ collection. (Today Channel and DataChannel share these members by convention; th
                "semanticIds": "subProperty" } } } } }
 ```
 
-- **`endpoint`** - the model's root: an AAS shell's or submodel's id; an OPC UA NodeId.
+- **The endpoint** (`channelTarget`) - the model's root: an AAS shell's or submodel's id; an OPC UA NodeId.
 - **`entities`** - which nodes become entities: by their kind (`shell`, `submodel`, `collection`, an OPC UA
   `object`) and optionally their meaning (`semanticId`; for OPC UA a `typeDefinition`). Each rule names the
   entity type. Nodes no rule names are not entities: their content goes into the entity above them.
@@ -115,7 +116,7 @@ OPC UA: the Call's result).
 
 ## 5. GET /ngsi-ld/v1/modelChannels
 
-The base (§ 2), and: `modelRoot` (the endpoint), the mapping as the file wrote it, `entitiesWritten`,
+The base (§ 2), and: the mapping as the file wrote it (`modelEntities`), `entitiesWritten`,
 `attributesWritten`, `valuesIn`, `nodesRefused`, `servicesRegistered`.
 
 ## 6. To decide
