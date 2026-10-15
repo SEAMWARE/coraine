@@ -189,6 +189,10 @@ endpoint:
 about and ignored, and `GET /dataChannels` answers 501. The first bridge built
 on it is CKAN's (`ckan.so`, `corCkanBridge`).
 
+A source whose data is a **model** - an Asset Administration Shell and its submodels, an OPC UA object and
+its components - is neither: one asset is a tree with types, meaning and references, and becomes a graph of
+entities. That is a third type, designed in [model-channels.md](model-channels.md) - not built.
+
 ## Key limits
 
 - Client side only: the broker never answers a DDS request or executes a goal.
