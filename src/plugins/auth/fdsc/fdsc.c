@@ -47,7 +47,7 @@
 #include "fdscIdentity.h"                            // FdscIdentity
 #include "authJwt.h"                                 // authJwtVerify, AuthJwtExpect
 #include "authKeys.h"                                // authKeysLoad, authKeysCount
-#include "fdscTokenCache.h"                          // fdscTokenCacheGet, fdscTokenCacheAdd, fdscTokenCacheGeneration
+#include "authTokenCache.h"                          // authTokenCacheInit, authTokenCacheGet, authTokenCacheAdd, authTokenCacheGeneration
 #include "fdscPolicy.h"                              // fdscPolicyLoad, fdscPolicyDecide, fdscPolicyCount
 
 
@@ -183,7 +183,7 @@ static void keysFetch(void)
 
   char* text = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
 
-  if ((text == NULL) || (authKeysLoad(text, fdscTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
+  if ((text == NULL) || (authKeysLoad(text, authTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
     COR_W("fdsc: the verifier's keys (%s): %s", where, errorBuf);
   else
     __atomic_store_n(&keysFetchedAt, time(NULL), __ATOMIC_RELAXED);
@@ -314,10 +314,21 @@ static void refreshAsk(void)
 
 // -----------------------------------------------------------------------------
 //
+// identityRef / identityUnref - the token cache's hold on an identity
+//
+static void identityRef(void* identity)   { fdscIdentityRef((FdscIdentity*) identity);   }
+static void identityUnref(void* identity) { fdscIdentityUnref((FdscIdentity*) identity); }
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscInit -
 //
 static bool fdscInit(char* errorBuf, int errorBufSize)
 {
+  authTokenCacheInit(identityRef, identityUnref);
+
   if ((discovery == NULL) && (jwks == NULL))
   {
     snprintf(errorBuf, errorBufSize, "no keys to check a token with: --fdscDiscovery or --fdscJwks");
@@ -423,7 +434,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   //
   int           tokenLen = strlen(token);
   long long     now      = (long long) time(NULL);
-  FdscIdentity* idP      = fdscTokenCacheGet(token, tokenLen);
+  FdscIdentity* idP      = (FdscIdentity*) authTokenCacheGet(token, tokenLen);
 
   if (idP != NULL)
   {
@@ -450,7 +461,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthAllow;
   }
 
-  unsigned int generation = fdscTokenCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
+  unsigned int generation = authTokenCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
 
   idP = fdscIdentityNew();
 
@@ -500,7 +511,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   }
 
   fdscIdentityFill(idP, claimsP);
-  fdscTokenCacheAdd(token, tokenLen, idP, generation);
+  authTokenCacheAdd(token, tokenLen, idP, generation);
 
   *identityP = fdscHandleNew(idP);
 
@@ -711,7 +722,7 @@ static void fdscClose(void)
     refreshRunning = false;
   }
 
-  authKeysRelease(fdscTokenCacheClear);
+  authKeysRelease(authTokenCacheClear);
   fdscPolicyRelease();
   free(jwksUrl);
   free(discoveredIss);
