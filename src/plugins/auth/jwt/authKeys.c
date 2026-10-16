@@ -1,5 +1,5 @@
 //
-// FILE            fdscKeys.c
+// FILE            authKeys.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -26,33 +26,32 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
-#include "fdscBase64.h"                              // fdscBase64UrlDecode
-#include "fdscTokenCache.h"                          // fdscTokenCacheClear
-#include "fdscKeys.h"                                // Own interface
+#include "authBase64.h"                              // authBase64UrlDecode
+#include "authKeys.h"                                // Own interface
 
 
 
 // -----------------------------------------------------------------------------
 //
-// FdscKey / FdscKeySet
+// AuthKey / AuthKeySet
 //
-typedef enum FdscKty { FdscKtyRsa, FdscKtyEc } FdscKty;
+typedef enum AuthKty { AuthKtyRsa, AuthKtyEc } AuthKty;
 
-typedef struct FdscKey
+typedef struct AuthKey
 {
   char       kid[128];                               // "" when the JWK has none
-  FdscKty    kty;
+  AuthKty    kty;
   EVP_PKEY*  pkeyP;
-} FdscKey;
+} AuthKey;
 
-typedef struct FdscKeySet
+typedef struct AuthKeySet
 {
   int      n;
-  FdscKey  keyV[];
-} FdscKeySet;
+  AuthKey  keyV[];
+} AuthKeySet;
 
 static pthread_rwlock_t  setLock = PTHREAD_RWLOCK_INITIALIZER;
-static FdscKeySet*       setP    = NULL;
+static AuthKeySet*       setP    = NULL;
 static char*             setText = NULL;             // the JWK Set the set in use was made from - the refresh thread's only
 
 
@@ -87,7 +86,7 @@ static unsigned char* decode(CorNode* jwkP, const char* name, int* lenP)
   if (buf == NULL)
     return NULL;
 
-  *lenP = fdscBase64UrlDecode(text, len, buf);
+  *lenP = authBase64UrlDecode(text, len, buf);
 
   if (*lenP <= 0)
   {
@@ -203,7 +202,7 @@ static EVP_PKEY* ecKey(CorNode* jwkP)
 //
 // setFree -
 //
-static void setFree(FdscKeySet* sP)
+static void setFree(AuthKeySet* sP)
 {
   if (sP == NULL)
     return;
@@ -218,12 +217,12 @@ static void setFree(FdscKeySet* sP)
 
 // -----------------------------------------------------------------------------
 //
-// fdscKeysLoad -
+// authKeysLoad -
 //
-bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
+bool authKeysLoad(char* jwksText, void (*changed)(void), char* errorBuf, int errorBufSize)
 {
   //
-  // The same JWK Set as the one in use (the refresh thread fetches it every --fdscRefresh): nothing to do -
+  // The same JWK Set as the one in use (a refresh thread fetches it again and again): nothing to do -
   // and the tokens checked with it stay checked
   //
   if ((setText != NULL) && (strcmp(setText, jwksText) == 0))
@@ -241,7 +240,7 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   char      buf[8 * 1024];
   CorJson   cj;
 
-  corAllocBufferInit(&ka, buf, sizeof(buf), 16 * 1024, NULL, "fdsc JWK Set");
+  corAllocBufferInit(&ka, buf, sizeof(buf), 16 * 1024, NULL, "JWK Set");
   corJsonCreate(&cj, &ka);
 
   CorNode* rootP = corJsonParse(&cj, jwksText);
@@ -259,7 +258,7 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   for (CorNode* jwkP = keysP->value.head; jwkP != NULL; jwkP = jwkP->next)
     ++n;
 
-  FdscKeySet* newP = (FdscKeySet*) calloc(1, sizeof(FdscKeySet) + n * sizeof(FdscKey));
+  AuthKeySet* newP = (AuthKeySet*) calloc(1, sizeof(AuthKeySet) + n * sizeof(AuthKey));
 
   if (newP == NULL)
   {
@@ -281,16 +280,16 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
     if ((use != NULL) && (strcmp(use, "sig") != 0))  // an encryption key never verifies a signature
       continue;
 
-    FdscKey* kP = &newP->keyV[newP->n];
+    AuthKey* kP = &newP->keyV[newP->n];
 
     if ((kty != NULL) && (strcmp(kty, "RSA") == 0))
     {
-      kP->kty   = FdscKtyRsa;
+      kP->kty   = AuthKtyRsa;
       kP->pkeyP = rsaKey(jwkP);
     }
     else if ((kty != NULL) && (strcmp(kty, "EC") == 0))
     {
-      kP->kty   = FdscKtyEc;
+      kP->kty   = AuthKtyEc;
       kP->pkeyP = ecKey(jwkP);
     }
 
@@ -306,12 +305,13 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
   corAllocBufferReset(&ka, false);
 
   pthread_rwlock_wrlock(&setLock);
-  FdscKeySet* oldP = setP;
+  AuthKeySet* oldP = setP;
   setP = newP;
   pthread_rwlock_unlock(&setLock);
 
   setFree(oldP);                                     // no reader left: they hold the read lock while they use it
-  fdscTokenCacheClear();                             // a token is checked again, with the new keys
+  if (changed != NULL)
+    changed();                                       // e.g. a token cache emptied: a token is checked again, with the new keys
 
   free(setText);
   setText = textCopy;
@@ -324,12 +324,12 @@ bool fdscKeysLoad(char* jwksText, char* errorBuf, int errorBufSize)
 //
 // sigCheck - RS256: PKCS#1 v1.5 over SHA-256; ES256: the raw r|s (RFC 7518 § 3.4) as the DER OpenSSL takes
 //
-static bool sigCheck(FdscKey* kP, const char* input, int inputLen, const unsigned char* sig, int sigLen)
+static bool sigCheck(AuthKey* kP, const char* input, int inputLen, const unsigned char* sig, int sigLen)
 {
   unsigned char*  der    = NULL;
   int             derLen = 0;
 
-  if (kP->kty == FdscKtyEc)
+  if (kP->kty == AuthKtyEc)
   {
     if (sigLen != 64)
       return false;
@@ -370,26 +370,26 @@ static bool sigCheck(FdscKey* kP, const char* input, int inputLen, const unsigne
 
 // -----------------------------------------------------------------------------
 //
-// fdscKeysVerify -
+// authKeysVerify -
 //
-FdscKeyCheck fdscKeysVerify(const char* kid, const char* alg, const char* input, int inputLen, const unsigned char* sig, int sigLen)
+AuthKeyCheck authKeysVerify(const char* kid, const char* alg, const char* input, int inputLen, const unsigned char* sig, int sigLen)
 {
-  FdscKty kty;
+  AuthKty kty;
 
   if (strcmp(alg, "RS256") == 0)
-    kty = FdscKtyRsa;
+    kty = AuthKtyRsa;
   else if (strcmp(alg, "ES256") == 0)
-    kty = FdscKtyEc;
+    kty = AuthKtyEc;
   else
-    return FdscKeyBadAlg;
+    return AuthKeyBadAlg;
 
-  FdscKeyCheck answer = FdscKeyUnknown;
+  AuthKeyCheck answer = AuthKeyUnknown;
 
   pthread_rwlock_rdlock(&setLock);
 
   for (int i = 0; (setP != NULL) && (i < setP->n); i++)
   {
-    FdscKey* kP = &setP->keyV[i];
+    AuthKey* kP = &setP->keyV[i];
 
     if ((kid != NULL) && (strcmp(kP->kid, kid) != 0))
       continue;
@@ -398,7 +398,7 @@ FdscKeyCheck fdscKeysVerify(const char* kid, const char* alg, const char* input,
     {
       if (kid != NULL)                               // the key named is of another kind: an alg confusion
       {
-        answer = FdscKeyBadAlg;
+        answer = AuthKeyBadAlg;
         break;
       }
       continue;
@@ -406,11 +406,11 @@ FdscKeyCheck fdscKeysVerify(const char* kid, const char* alg, const char* input,
 
     if (sigCheck(kP, input, inputLen, sig, sigLen) == true)
     {
-      answer = FdscKeyOk;
+      answer = AuthKeyOk;
       break;
     }
 
-    answer = FdscKeyBadSig;
+    answer = AuthKeyBadSig;
 
     if (kid != NULL)
       break;
@@ -424,9 +424,9 @@ FdscKeyCheck fdscKeysVerify(const char* kid, const char* alg, const char* input,
 
 // -----------------------------------------------------------------------------
 //
-// fdscKeysCount -
+// authKeysCount -
 //
-int fdscKeysCount(void)
+int authKeysCount(void)
 {
   pthread_rwlock_rdlock(&setLock);
   int n = (setP != NULL) ? setP->n : 0;
@@ -439,17 +439,18 @@ int fdscKeysCount(void)
 
 // -----------------------------------------------------------------------------
 //
-// fdscKeysRelease -
+// authKeysRelease -
 //
-void fdscKeysRelease(void)
+void authKeysRelease(void (*changed)(void))
 {
   pthread_rwlock_wrlock(&setLock);
-  FdscKeySet* oldP = setP;
+  AuthKeySet* oldP = setP;
   setP = NULL;
   pthread_rwlock_unlock(&setLock);
 
   setFree(oldP);
-  fdscTokenCacheClear();
+  if (changed != NULL)
+    changed();
   free(setText);
   setText = NULL;
 }

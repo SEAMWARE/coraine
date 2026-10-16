@@ -1,8 +1,8 @@
-#ifndef FDSC_FETCH_H_
-#define FDSC_FETCH_H_
+#ifndef AUTH_FETCH_H_
+#define AUTH_FETCH_H_
 
 //
-// FILE            fdscFetch.h
+// FILE            authFetch.h
 //
 // AUTHOR          Ken Zangelin
 //
@@ -15,9 +15,9 @@
 
 // -----------------------------------------------------------------------------
 //
-// fdscFetch - the text behind a URL (http://, https://) or in a file (a path, or file://), in kaP.
+// authFetch - the text behind a URL (http://, https://) or in a file (a path, or file://), in kaP.
 // NULL: not there - errorBuf says why. NEVER on a request's path: it blocks.
 //
-extern char* fdscFetch(const char* where, CorAlloc* kaP, char* errorBuf, int errorBufSize);
+extern char* authFetch(const char* where, CorAlloc* kaP, char* errorBuf, int errorBufSize);
 
-#endif  // FDSC_FETCH_H_
+#endif  // AUTH_FETCH_H_

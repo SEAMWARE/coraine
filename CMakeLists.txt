@@ -346,9 +346,11 @@ if (COR_FEATURE_TRANSPORTS)
 endif()
 
 #
-# fdsc - the FIWARE Data Space Connector's security inside the broker (--auth fdsc, doc/authorization.md)
+# The auth plugins: jwt - what they share (an access token checked); fdsc - the FIWARE Data Space Connector's
+# security inside the broker (--auth fdsc, doc/authorization.md)
 #
 if (COR_FEATURE_AUTH)
+  ADD_SUBDIRECTORY(src/plugins/auth/jwt)
   ADD_SUBDIRECTORY(src/plugins/auth/fdsc)
 endif()
 

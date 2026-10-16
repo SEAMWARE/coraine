@@ -1,12 +1,12 @@
 //
-// FILE            fdscBase64.c
+// FILE            authBase64.c
 //
 // AUTHOR          Ken Zangelin
 //
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-#include "fdscBase64.h"                              // Own interface
+#include "authBase64.h"                              // Own interface
 
 
 
@@ -29,9 +29,9 @@ static int sextet(char c)
 
 // -----------------------------------------------------------------------------
 //
-// fdscBase64UrlDecode -
+// authBase64UrlDecode -
 //
-int fdscBase64UrlDecode(const char* in, int len, unsigned char* out)
+int authBase64UrlDecode(const char* in, int len, unsigned char* out)
 {
   while ((len > 0) && (in[len - 1] == '='))
     --len;
