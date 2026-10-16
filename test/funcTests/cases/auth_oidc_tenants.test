@@ -1,0 +1,169 @@
+#
+# FILE            auth_oidc_tenants.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The oidc auth plugin: a token may use the tenants its tenants claim lists (--oidcTenantsClaim) - an array
+# of strings or a string of space-separated ones; 'default' is the default tenant (no NGSILD-Tenant), '*'
+# every tenant. A token without the claim may use the default tenant only. Any other tenant: 403, before
+# the tenant is resolved (a create in a tenant the token may not use leaves no tenant behind).
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - a token's tenants: the tenants claim ('default', '*'); without it the default tenant only
+
+--TAGS--
+auth oidc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthJwks k1
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer http://keycloak.ft/realms/city
+
+--RUN--
+
+#
+# 01. tenants ["default", "t1"]: the default tenant, t1 - yes; t2 - 403
+# 02. No tenants claim: the default tenant - yes; t1 - 403
+# 03. tenants "t1 t2" (a string): t2 - yes; the default tenant - 403
+# 04. tenants ["*"]: any tenant
+# 05. tenants ["t1"] creates in t1; a create in t3 by a token without t3: 403 - and t3 is not made
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+status() { corCurl "$@" | head -1; }
+
+ISS=http://keycloak.ft/realms/city
+tok() { ftAuthToken k1 --iss $ISS --claims "{\"realm_access\": {\"roles\": [\"ngsild-write\"]}$1}"; }
+
+echo "01. tenants [\"default\", \"t1\"]: the default tenant, t1 - yes; t2 - 403"
+echo "======================================================================"
+T=$(tok ', "tenants": ["default", "t1"]')
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t1"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t2"
+echo
+echo
+
+
+echo "02. No tenants claim: the default tenant - yes; t1 - 403"
+echo "========================================================"
+T=$(tok '')
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+echo "03. tenants \"t1 t2\" (a string): t2 - yes; the default tenant - 403"
+echo "=================================================================="
+T=$(tok ', "tenants": "t1 t2"')
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t2"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T"
+echo
+echo
+
+
+echo "04. tenants [\"*\"]: any tenant"
+echo "============================="
+T=$(tok ', "tenants": ["*"]')
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t9"
+echo
+echo
+
+
+echo "05. tenants [\"t1\"] creates in t1; a create in t3 by a token without t3: 403 - and t3 is not made"
+echo "================================================================================================"
+T=$(tok ', "tenants": ["t1"]')
+ALL=$(tok ', "tenants": ["*"]')
+status --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T"}' -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t1"
+status --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T"}' -H "Authorization: Bearer $T" -H "NGSILD-Tenant: t3"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $ALL" -H "NGSILD-Tenant: t1"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $ALL" -H "NGSILD-Tenant: t3"
+echo
+echo
+
+
+--EXPECT--
+01. tenants ["default", "t1"]: the default tenant, t1 - yes; t2 - 403
+======================================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 140
+
+{
+  "detail": "the token may not use the tenant 't2' (claim 'tenants')",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+
+
+02. No tenants claim: the default tenant - yes; t1 - 403
+========================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 140
+
+{
+  "detail": "the token may not use the tenant 't1' (claim 'tenants')",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+
+
+03. tenants "t1 t2" (a string): t2 - yes; the default tenant - 403
+==================================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 145
+
+{
+  "detail": "the token may not use the tenant 'default' (claim 'tenants')",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+
+
+04. tenants ["*"]: any tenant
+=============================
+HTTP/1.1 404 Not Found
+HTTP/1.1 404 Not Found
+
+
+05. tenants ["t1"] creates in t1; a create in t3 by a token without t3: 403 - and t3 is not made
+================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 403 Forbidden
+HTTP/1.1 200 OK
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+Content-Length: 161
+
+{
+  "detail": "tenant 't3' does not exist",
+  "status": 404,
+  "title": "NonexistentTenant",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

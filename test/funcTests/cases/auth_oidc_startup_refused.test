@@ -77,7 +77,7 @@ E: auth plugin 'oidc': --oidcDiscovery and --oidcJwks: one or the other
 03. --oidcReadRole ""
 =====================
 exit: 1
-E: auth plugin 'oidc': --oidcRolesClaim, --oidcReadRole, --oidcWriteRole: none may be empty
+E: auth plugin 'oidc': --oidcRolesClaim, --oidcReadRole, --oidcWriteRole, --oidcTenantsClaim: none may be empty
 
 
 04. --oidcIssuer without --auth oidc - an unknown option

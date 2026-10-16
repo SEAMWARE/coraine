@@ -459,6 +459,12 @@ string of space-separated values (`scope`). Two:
 
 A token without the role a request needs: **403**, its detail naming the role.
 
+**The tenants** - in the claim `--oidcTenantsClaim` names (default `tenants`), an array of strings or a string
+of space-separated values: the tenants the token may use. `default` is the default tenant (a request
+without `NGSILD-Tenant`), `*` every tenant. A token without the claim may use the default tenant only. A
+request in another tenant: **403** - decided before the tenant is resolved, so a create in a tenant the
+token may not use makes no tenant. `--oidcAnyTenant` turns the check off.
+
 ### 8.1 Options
 
 | option | |
@@ -472,7 +478,9 @@ A token without the role a request needs: **403**, its detail naming the role.
 | `--oidcWriteRole <role>` | the role that reads and writes - default `ngsild-write` |
 | `--oidcLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 60 |
 | `--oidcRefresh <s>` | seconds between two fetches of the keys - default 300 |
-| `--oidcAnonymousRead` | a read without a token is let in; a write without one is still a 401 |
+| `--oidcTenantsClaim <path>` | the claim holding the tenants a token may use - default `tenants` |
+| `--oidcAnyTenant` | no tenant check: a token may use every tenant |
+| `--oidcAnonymousRead` | a read without a token is let in, in every tenant; a write without one is still a 401 |
 
 ### 8.2 With Keycloak
 
@@ -481,6 +489,10 @@ coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidc
 ```
 
 - realm roles `ngsild-read` and `ngsild-write`, given to the users and the service accounts that need them;
+- the tenants: a user attribute `tenants` (several values: `default`, `t1`, ...), and on the client a "User
+  Attribute" mapper - user attribute `tenants`, token claim name `tenants`, multivalued, added to the access
+  token. Keycloak 26 keeps only the attributes its user profile declares: declare `tenants` there, or let the
+  realm keep unmanaged attributes;
 - an audience mapper on the client the applications log in with, adding `coraine` to the access token's
   `aud` - without one, Keycloak's access tokens do not carry it;
 - a broker that reaches Keycloak by an internal name (`http://keycloak:8080`) while the tokens carry the
@@ -491,7 +503,6 @@ coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidc
 
 - Subscriptions: creating one is a write. Its notifications are sent without asking the plugin - a token's
   roles taken away later do not stop them.
-- Tenants: a token may use every tenant. Which tenants a token may use, from a claim, is not built.
 
 ## 9. Next
 

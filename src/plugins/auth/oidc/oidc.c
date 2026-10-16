@@ -13,7 +13,8 @@
 //     found through its discovery document (<issuer>/.well-known/openid-configuration); iss the provider,
 //     exp, nbf, and aud when --oidcAudience is given. A 401 without a valid one.
 //   - what it may: two roles, read out of one claim (Keycloak's realm roles by default) - the read role
-//     reads, the write role reads and writes. A 403 for what the token's roles do not cover.
+//     reads, the write role reads and writes - and the tenants it may use, out of another (tenants: a
+//     token without it may use the default tenant only). A 403 for what the token does not cover.
 //
 // No policies, no per-entity decisions: every request is decided at its admission, before the broker
 // fetches a @context for it. The keys are fetched by a thread of this plugin; a request never waits for
@@ -67,6 +68,8 @@ static char*  writeRole     = NULL;                  // the role that reads and 
 static int    leeway        = 60;                    // seconds of clock skew on exp / nbf
 static int    refresh       = 300;                   // seconds between two fetches of the keys
 static bool   anonymousRead = false;                 // a read without a token is let in
+static char*  tenantsClaim  = NULL;                  // where the tenants a token may use are: a claim's path, dot-separated
+static bool   anyTenant     = false;                 // no tenant check: a token may use every tenant
 
 static CorArg oidcArgs[] =
 {
@@ -79,7 +82,9 @@ static CorArg oidcArgs[] =
   { "--oidcWriteRole",     "-oidcWriteRole",     CorArgString, _vp &writeRole,     CorArgOpt, _vp "ngsild-write",        NULL,      NULL,      "the role that reads and writes: every request" },
   { "--oidcLeeway",        "-oidcLeeway",        CorArgInt,    _vp &leeway,        CorArgOpt, _vp 60,                    _vp 0,     _vp 600,   "seconds of clock skew allowed on a token's exp and nbf" },
   { "--oidcRefresh",       "-oidcRefresh",       CorArgInt,    _vp &refresh,       CorArgOpt, _vp 300,                   _vp 1,     _vp 86400, "seconds between two fetches of the provider's keys - and at once when a token names a key the set lacks" },
-  { "--oidcAnonymousRead", "-oidcAnonymousRead", CorArgBool,   _vp &anonymousRead, CorArgOpt, _vp false,                 _vp false, _vp true,  "a read without a token is let in; a write without one is still a 401" },
+  { "--oidcAnonymousRead", "-oidcAnonymousRead", CorArgBool,   _vp &anonymousRead, CorArgOpt, _vp false,                 _vp false, _vp true,  "a read without a token is let in - in every tenant; a write without one is still a 401" },
+  { "--oidcTenantsClaim",  "-oidcTenantsClaim",  CorArgString, _vp &tenantsClaim,  CorArgOpt, _vp "tenants",             NULL,      NULL,      "the claim holding the tenants a token may use - a path, dot-separated; an array of strings or a string of space-separated ones; 'default' is the default tenant (no NGSILD-Tenant), '*' every tenant. A token without it: the default tenant only" },
+  { "--oidcAnyTenant",     "-oidcAnyTenant",     CorArgBool,   _vp &anyTenant,     CorArgOpt, _vp false,                 _vp false, _vp true,  "no tenant check: a token may use every tenant" },
   CORARGS_END
 };
 
@@ -99,6 +104,9 @@ typedef struct OidcIdentity
   int        rights;                                 // RIGHT_READ | RIGHT_WRITE
   long long  exp;                                    // the token's exp, nbf (0: none) - checked at every use of a cached identity
   long long  nbf;
+  bool       allTenants;                             // '*' in the tenants claim
+  int        tenants;                                // the tenants it may use, in tenantBuf: each one NUL-terminated, one after the other
+  char       tenantBuf[];
 } OidcIdentity;
 
 static void identityRef(void* identity)
@@ -283,9 +291,9 @@ static bool oidcInit(char* errorBuf, int errorBufSize)
     return false;
   }
 
-  if ((rolesClaim[0] == 0) || (readRole[0] == 0) || (writeRole[0] == 0))
+  if ((rolesClaim[0] == 0) || (readRole[0] == 0) || (writeRole[0] == 0) || (tenantsClaim[0] == 0))
   {
-    snprintf(errorBuf, errorBufSize, "--oidcRolesClaim, --oidcReadRole, --oidcWriteRole: none may be empty");
+    snprintf(errorBuf, errorBufSize, "--oidcRolesClaim, --oidcReadRole, --oidcWriteRole, --oidcTenantsClaim: none may be empty");
     return false;
   }
 
@@ -319,7 +327,7 @@ static bool oidcInit(char* errorBuf, int errorBufSize)
   if (audience == NULL)
     COR_W("oidc: --oidcAudience not set - a token issued for any client of the provider is taken");
 
-  COR_I("oidc: tokens of %s, keys from %s - roles in '%s': '%s' reads, '%s' reads and writes%s", issuer, (jwks != NULL) ? jwks : discoveryUrl, rolesClaim, readRole, writeRole, (anonymousRead == true) ? "; reads without a token" : "");
+  COR_I("oidc: tokens of %s, keys from %s - roles in '%s': '%s' reads, '%s' reads and writes; tenants in '%s'%s%s", issuer, (jwks != NULL) ? jwks : discoveryUrl, rolesClaim, readRole, writeRole, tenantsClaim, (anyTenant == true) ? " - not checked" : "", (anonymousRead == true) ? "; reads without a token" : "");
   return true;
 }
 
@@ -411,6 +419,110 @@ static bool hasRole(CorNode* rolesP, const char* role)
   }
 
   return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantsCopy - the tenants claim's values, NUL-terminated one after the other, into out (NULL: only the
+// length); the bytes they take. '*' among them: *allP
+//
+static int tenantsCopy(CorNode* tenantsP, char* out, int* countP, bool* allP)
+{
+  int len = 0;
+
+  *countP = 0;
+  *allP   = false;
+
+  if (tenantsP == NULL)
+    return 0;
+
+  if (tenantsP->type == CorArray)
+  {
+    for (CorNode* tP = tenantsP->value.head; tP != NULL; tP = tP->next)
+    {
+      if ((tP->type != CorString) || (tP->value.s[0] == 0))
+        continue;
+
+      int n = strlen(tP->value.s) + 1;
+
+      if (strcmp(tP->value.s, "*") == 0)
+        *allP = true;
+      if (out != NULL)
+        memcpy(&out[len], tP->value.s, n);
+
+      len     += n;
+      *countP += 1;
+    }
+
+    return len;
+  }
+
+  if (tenantsP->type != CorString)
+    return 0;
+
+  const char* s = tenantsP->value.s;
+
+  while (*s != 0)
+  {
+    while (*s == ' ')
+      ++s;
+
+    const char* end = s;
+    while ((*end != 0) && (*end != ' '))
+      ++end;
+
+    int n = end - s;
+
+    if (n > 0)
+    {
+      if ((n == 1) && (*s == '*'))
+        *allP = true;
+
+      if (out != NULL)
+      {
+        memcpy(&out[len], s, n);
+        out[len + n] = 0;
+      }
+
+      len     += n + 1;
+      *countP += 1;
+    }
+
+    s = end;
+  }
+
+  return len;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantAllowed - the request's tenant (NULL: the default tenant, 'default' in the claim) is one the token
+// may use
+//
+static bool tenantAllowed(const OidcIdentity* idP, const char* tenant)
+{
+  if ((anyTenant == true) || (idP->allTenants == true))
+    return true;
+
+  const char* name = (tenant != NULL) ? tenant : "default";
+  const char* s    = idP->tenantBuf;
+
+  for (int i = 0; i < idP->tenants; i++)
+  {
+    if (strcmp(s, name) == 0)
+      return true;
+
+    s += strlen(s) + 1;
+  }
+
+  //
+  // A token whose claim names no tenant at all: the default tenant only
+  //
+  return (idP->tenants == 0) && (tenant == NULL);
 }
 
 
@@ -537,7 +649,12 @@ static AuthVerdict oidcAuthenticate(const AuthRequest* reqP, void** identityP, A
     return invalidToken(check, answerP);
   }
 
-  idP = (OidcIdentity*) calloc(1, sizeof(OidcIdentity));
+  CorNode* tenantsP = (anyTenant == false) ? claimPath(claimsP, tenantsClaim) : NULL;
+  int      tenants   = 0;
+  bool     all       = false;
+  int      tenantLen = tenantsCopy(tenantsP, NULL, &tenants, &all);
+
+  idP = (OidcIdentity*) calloc(1, sizeof(OidcIdentity) + tenantLen);
 
   if (idP == NULL)
   {
@@ -545,6 +662,8 @@ static AuthVerdict oidcAuthenticate(const AuthRequest* reqP, void** identityP, A
     answerP->detail = "out of memory";
     return AuthUnavailable;
   }
+
+  tenantsCopy(tenantsP, idP->tenantBuf, &idP->tenants, &idP->allTenants);
 
   CorNode* rolesP = claimPath(claimsP, rolesClaim);
 
@@ -584,10 +703,17 @@ static AuthVerdict oidcAuthorize(const AuthRequest* reqP, void* identity, AuthAn
     return AuthDeny;
   }
 
+  static __thread char detail[384];
+
+  if (tenantAllowed(idP, reqP->tenant) == false)
+  {
+    snprintf(detail, sizeof(detail), "the token may not use the tenant '%s' (claim '%s')", (reqP->tenant != NULL) ? reqP->tenant : "default", tenantsClaim);
+    answerP->detail = detail;
+    return AuthDeny;
+  }
+
   if ((idP->rights & (read ? RIGHT_READ : RIGHT_WRITE)) != 0)
     return AuthAllow;
-
-  static __thread char detail[384];
 
   if (read == true)
     snprintf(detail, sizeof(detail), "the token has neither role '%s' nor '%s' (claim '%s')", readRole, writeRole, rolesClaim);
