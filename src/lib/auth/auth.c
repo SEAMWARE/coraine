@@ -60,7 +60,8 @@ static bool        loaded = false;
                           LdOpBatchCreate   | LdOpBatchUpsert    | LdOpBatchUpdate | LdOpBatchMerge    | LdOpBatchDelete | \
                           LdOpQueryEntities | LdOpBatchQuery     | \
                           LdOpUpsertTemporal | LdOpAppendAttrsTemporal | LdOpDeleteAttrsTemporal | LdOpUpdateAttrInstanceTemporal | \
-                          LdOpDeleteAttrInstanceTemporal | LdOpDeleteTemporal | LdOpRetrieveTemporal | LdOpQueryTemporal)
+                          LdOpDeleteAttrInstanceTemporal | LdOpDeleteTemporal | LdOpRetrieveTemporal | LdOpQueryTemporal | \
+                          LdOpRetrieveEntityTimepoint | LdOpQueryEntityTimepoint)   // getEntity / getEntities run them
 
 
 

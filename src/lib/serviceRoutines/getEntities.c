@@ -58,6 +58,7 @@
 #include "corHash/corHash.h"                          // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
 
 #include "db/DbDriver.h"                             // db, DB_OK
+#include "serviceRoutines/timepoint.h"               // timepointEntityQuery - the store's entities, or the history's at timeAt
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityFilter
 #include "db/Tenant.h"                               // Tenant
 
@@ -2441,6 +2442,9 @@ static bool autoEntityMapEligible(bool brokerPaginates)
   if (corNgsild.entityMapCreate || corNgsild.entityMapOnly)           return false;
   if (corNgsild.entityMapId != NULL)                                  return false;
   if (corNgsild.entityMapAutoOff)                                     return false;
+#if COR_FEATURE_TIMEPOINT
+  if (corNgsild.timepoint)                                            return false;   // a map's later pages read today's entities
+#endif
   if (brokerPaginates)                                                return false;
   if ((corNgsild.limit <= 0) || (corNgsild.offset != 0))              return false;
 
@@ -2494,7 +2498,7 @@ static LdEntityMap* autoEntityMapLocal(DbQueryFilter* pageFilterP)
   f.maxBytes   = 0;
   f.budgetHit  = false;
 
-  if ((db.entityQuery(tP, &f, &idsP) != DB_OK) || (idsP == NULL))
+  if ((timepointEntityQuery(tP, &f, &idsP) != DB_OK) || (idsP == NULL))
   {
     COR_W("automatic EntityMap: the query for the ids of the matching entities failed - the query pages without one");
     return NULL;
@@ -2776,7 +2780,7 @@ static bool queryEntities(PagePosition* posP)
   // filters if split mode activates below)
   //
   CorNode* arrayP = NULL;
-  int     r      = db.entityQuery((Tenant*) corNgsild.tenantP, &filter, &arrayP);
+  int     r      = timepointEntityQuery((Tenant*) corNgsild.tenantP, &filter, &arrayP);
 
   if (r != DB_OK)
   {
@@ -2905,7 +2909,7 @@ static bool queryEntities(PagePosition* posP)
       countFilter.count  = true;
       countFilter.limit  = 0;
       countFilter.offset = 0;
-      db.entityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
+      timepointEntityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
       filter.totalCount = countFilter.totalCount;
     }
   }
@@ -3079,7 +3083,7 @@ static bool queryEntities(PagePosition* posP)
           splitFilter.maxBytes = responseBudgetBytes;
 #endif
         arrayP = NULL;
-        db.entityQuery((Tenant*) corNgsild.tenantP, &splitFilter, &arrayP);
+        timepointEntityQuery((Tenant*) corNgsild.tenantP, &splitFilter, &arrayP);
 #if COR_FEATURE_RESPONSE_BUDGET
 #if COR_FEATURE_AUTO_ENTITY_MAP
         //
@@ -3786,7 +3790,7 @@ static bool queryEntities(PagePosition* posP)
       countFilter.count = true;
       countFilter.limit = 0;   // count-only, no entities materialized
       CorNode* dummyP   = NULL;
-      db.entityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
+      timepointEntityQuery((Tenant*) corNgsild.tenantP, &countFilter, &dummyP);
       n = countFilter.totalCount;
     }
 
@@ -3797,7 +3801,7 @@ static bool queryEntities(PagePosition* posP)
       lastFilter.limit  = 1;   // exactly the last element
       lastFilter.count  = false;
       arrayP = NULL;
-      db.entityQuery((Tenant*) corNgsild.tenantP, &lastFilter, &arrayP);
+      timepointEntityQuery((Tenant*) corNgsild.tenantP, &lastFilter, &arrayP);
 #if COR_FEATURE_RESPONSE_BUDGET
       // The last entity alone does not fit
       if (responseBudgetRefused(&lastFilter, arrayP, false))

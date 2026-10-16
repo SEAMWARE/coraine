@@ -1,0 +1,466 @@
+#
+# FILE            timepoint_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_DB: corDB
+# REQUIRE_FEATURE: TIMEPOINT
+#
+# GET /temporal/timepoint/entities/{id}?timeAt= - the entity AS IT WAS at timeAt (system time: what the broker
+# held then), from corDB's history, rendered as GET /entities/{id} renders it. One entity through its life -
+# created, updated, an attribute deleted, deleted, created again - asked about between the steps. The times are
+# taken by the test itself, between the writes.
+#
+--NAME--
+Timepoint retrieve - an entity as it was at timeAt: before and after an update, an attribute delete, a delete and a create again
+--TAGS--
+temporal timepoint
+--INIT--
+corDbDrop
+coraineStart --troe corDB
+--RUN--
+#
+# at - now, as an ISO 8601 UTC time to the microsecond, between two short sleeps: a time between two writes.
+# Not date's %N: uutils' date drops its leading zeros (0.048 s printed as .48...).
+#
+at() { sleep 0.05; python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"))'; sleep 0.05; }
+
+T0=$(at)
+
+echo "01. Create E1 - speed 10, name a"
+echo "================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:T:E1", "type": "T", "speed": { "type": "Property", "value": 10 }, "name": { "type": "Property", "value": "a" } }'
+echo
+echo
+T1=$(at)
+
+echo "02. PATCH speed 20"
+echo "=================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs -X PATCH --payload '{ "speed": { "type": "Property", "value": 20 } }'
+echo
+echo
+T2=$(at)
+
+echo "03. DELETE the attribute name"
+echo "============================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1/attrs/name -X DELETE
+echo
+echo
+T3=$(at)
+
+echo "04. DELETE E1"
+echo "============="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1 -X DELETE
+echo
+echo
+T4=$(at)
+
+echo "05. Create E1 again - speed 99 only"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:T:E1", "type": "T", "speed": { "type": "Property", "value": 99 } }'
+echo
+echo
+T5=$(at)
+
+echo "06. At T0, before E1 was created - 404"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T0"
+echo
+echo
+
+echo "07. At T1 - speed 10, name a"
+echo "============================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T1"
+echo
+echo
+
+echo "08. At T2 - speed 20, name a"
+echo "============================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T2"
+echo
+echo
+
+echo "09. At T3 - speed 20, no name"
+echo "============================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T3"
+echo
+echo
+
+echo "10. At T4, while E1 was deleted - 404"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T4"
+echo
+echo
+
+echo "11. At T5 - speed 99: the earlier life's name does not come back"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T5"
+echo
+echo
+
+echo "12. At T2, concise, pick speed - the Core API's own rendering"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T2&options=concise&pick=speed"
+echo
+echo
+
+echo "13. At T1, sysAttrs - the createdAt of the life T1 is in"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T1&options=sysAttrs&pick=speed"
+echo
+echo
+
+echo "14. E2 with two instances of temp (default and urn:ds:a); then urn:ds:a updated to 7"
+echo "====================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:T:E2", "type": "T", "temp": [ { "type": "Property", "value": 1, "datasetId": "urn:ds:a" }, { "type": "Property", "value": 2 } ] }'
+echo
+T6=$(at)
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:T:E2/attrs -X PATCH --payload '{ "temp": { "type": "Property", "value": 7, "datasetId": "urn:ds:a" } }'
+echo
+echo
+T7=$(at)
+
+echo "15. E2 at T6 - temp 1 (urn:ds:a) and 2"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E2 --urlParams "timeAt=$T6"
+echo
+echo
+
+echo "16. E2 at T7 - temp 7 (urn:ds:a) and 2"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E2 --urlParams "timeAt=$T7"
+echo
+echo
+
+echo "17. No timeAt - 400"
+echo "==================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1
+echo
+echo
+
+echo "18. timeAt=yesterday - 400"
+echo "=========================="
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=yesterday"
+echo
+echo
+
+echo "19. join - not a timepoint parameter (the linked entities would be today's): 400"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/temporal/timepoint/entities/urn:ngsi-ld:T:E1 --urlParams "timeAt=$T5&join=flat"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 - speed 10, name a
+================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. PATCH speed 20
+==================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. DELETE the attribute name
+=============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. DELETE E1
+=============
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. Create E1 again - speed 99 only
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+06. At T0, before E1 was created - 404
+======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 161
+
+{
+  "detail": "entity 'urn:ngsi-ld:T:E1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. At T1 - speed 10, name a
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "name": {
+    "type": "Property",
+    "value": "a"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 10
+  },
+  "type": "T"
+}
+
+
+
+08. At T2 - speed 20, name a
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "name": {
+    "type": "Property",
+    "value": "a"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 20
+  },
+  "type": "T"
+}
+
+
+
+09. At T3 - speed 20, no name
+=============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 104
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "speed": {
+    "type": "Property",
+    "value": 20
+  },
+  "type": "T"
+}
+
+
+
+10. At T4, while E1 was deleted - 404
+=====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 161
+
+{
+  "detail": "entity 'urn:ngsi-ld:T:E1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. At T5 - speed 99: the earlier life's name does not come back
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 104
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "speed": {
+    "type": "Property",
+    "value": 99
+  },
+  "type": "T"
+}
+
+
+
+12. At T2, concise, pick speed - the Core API's own rendering
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 18
+
+{
+  "speed": 20
+}
+
+
+
+13. At T1, sysAttrs - the createdAt of the life T1 is in
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "speed": {
+    "createdAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "modifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+    "type": "Property",
+    "value": 10
+  }
+}
+
+
+
+14. E2 with two instances of temp (default and urn:ds:a); then urn:ds:a updated to 7
+=====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E2
+Content-Length: 0
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+15. E2 at T6 - temp 1 (urn:ds:a) and 2
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 205
+
+{
+  "id": "urn:ngsi-ld:T:E2",
+  "temp": [
+    {
+      "datasetId": "urn:ds:a",
+      "type": "Property",
+      "value": 1
+    },
+    {
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "type": "T"
+}
+
+
+
+16. E2 at T7 - temp 7 (urn:ds:a) and 2
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 205
+
+{
+  "id": "urn:ngsi-ld:T:E2",
+  "temp": [
+    {
+      "datasetId": "urn:ds:a",
+      "type": "Property",
+      "value": 7
+    },
+    {
+      "type": "Property",
+      "value": 2
+    }
+  ],
+  "type": "T"
+}
+
+
+
+17. No timeAt - 400
+===================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "timeAt is mandatory - the point in time the entities are as they were",
+  "status": 400,
+  "title": "Missing timeAt",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+18. timeAt=yesterday - 400
+==========================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 189
+
+{
+  "detail": "timeAt is not a valid ISO 8601 DateTime: 'yesterday'",
+  "status": 400,
+  "title": "Invalid temporal query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+19. join - not a timepoint parameter (the linked entities would be today's): 400
+================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 169
+
+{
+  "detail": "Unknown/unsupported URL parameter: join",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+--TEARDOWN--
+coraineStop

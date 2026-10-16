@@ -370,6 +370,28 @@ typedef int  (*TroePingFunc)(int timeoutMs);
 
 // -----------------------------------------------------------------------------
 //
+// The entity AS IT WAS at a point in time - the timepoint resources (/temporal/timepoint/entities[/{id}],
+// /temporal/timepoint/entityOperations/query): Core API retrieve and query, evaluated at atNs
+//
+// The answer is in the store's own model - what db.entityRetrieve / db.entityQuery give - so the broker
+// projects and renders it as a Core API answer. The axis is the timeline atNs is on:
+//   TROE_AT_MODIFIED  system time - what the broker held at atNs: each attribute's last write at or before it
+//   TROE_AT_OBSERVED  observedAt - each attribute's last observation at or before it (an instance without
+//                     observedAt: its modifiedAt). Whether the entity existed is system time either way.
+// TROE_OK, TROE_NOT_FOUND (retrieve: no entity at atNs), TROE_ERR.
+//
+#define TROE_AT_MODIFIED  0
+#define TROE_AT_OBSERVED  1
+
+struct DbQueryFilter;
+
+typedef int (*TroeEntityAtRetrieveFunc)(Tenant* tenantP, const char* entityId, uint64_t atNs, int axis, CorNode** entityPP);
+typedef int (*TroeEntityAtQueryFunc)(Tenant* tenantP, struct DbQueryFilter* filterP, uint64_t atNs, int axis, CorNode** arrayPP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // TroeDriver -
 //
 typedef struct TroeDriver
@@ -410,6 +432,13 @@ typedef struct TroeDriver
   //
   TroeEventListFunc                 historyImport;
   TroePingFunc                      ping;           // NULL-allowed - appended (pluginLoadTroe zeroes the driver)
+
+  //
+  // The entity at a point in time (above) - appended: a plugin built against an older header leaves them
+  // NULL, and the timepoint resources answer 501 on it
+  //
+  TroeEntityAtRetrieveFunc          entityAtRetrieve;
+  TroeEntityAtQueryFunc             entityAtQuery;
 } TroeDriver;
 
 //
@@ -418,6 +447,12 @@ typedef struct TroeDriver
 // out against an older header
 //
 #define TROE_DRIVER_HISTORY_IMPORT
+
+//
+// TROE_DRIVER_ENTITY_AT - this header has TroeDriver.entityAtRetrieve / entityAtQuery: corDB builds its
+// timepoint reads against it, and leaves them out against an older header
+//
+#define TROE_DRIVER_ENTITY_AT
 
 
 

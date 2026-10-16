@@ -118,6 +118,7 @@ Content-Length: REGEX([0-9]+)
     "SNAPSHOT_SUBSCRIPTIONS": REGEX([a-z]+),
     "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
   },
   "plugins": {
@@ -212,6 +213,7 @@ Content-Length: REGEX([0-9]+)
     "SNAPSHOT_SUBSCRIPTIONS": REGEX([a-z]+),
     "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
   },
   "plugins": {
