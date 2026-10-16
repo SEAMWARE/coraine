@@ -1,0 +1,220 @@
+#
+# FILE            query_q_regex_invalid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# q's ~= and !~= take a POSIX extended regular expression (§ 7.2.3.2: RegExp as per IEEE 1003.2). One that is
+# not - (?i) for case-insensitivity, a duplication symbol with nothing to repeat - is a 400 BadRequestData,
+# as an invalid idPattern is, wherever the q comes in: a query, POST /entityOperations/query, a subscription.
+# It used to match nothing, silently.
+#
+--NAME--
+q - an invalid POSIX regular expression in ~= / !~= is a 400, in a query, a POST query and a subscription
+
+--TAGS--
+entity q query subscription
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 (name Retiro) and E2 (name retiro park)"
+echo "====================================================="
+payload='[
+  { "id": "urn:ngsi-ld:T:E1", "type": "T", "name": { "type": "Property", "value": "Retiro" } },
+  { "id": "urn:ngsi-ld:T:E2", "type": "T", "name": { "type": "Property", "value": "retiro park" } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+echo
+echo
+
+
+echo "02. q=name~=\"[Rr]etiro\" - a POSIX bracket expression: E1 and E2"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&pick=id&q=name~%3D%22%5BRr%5Detiro%22'
+echo
+echo
+
+
+echo "03. q=name~=\"(?i)retiro\" - (?i) is not POSIX: 400"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name~%3D%22(%3Fi)retiro%22'
+echo
+echo
+
+
+echo "04. q=name!~=\"a**\" - a duplication symbol after another: 400"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name!~%3D%22a**%22'
+echo
+echo
+
+
+echo "05. q=name~=(?i)retiro, unquoted - the pattern ends at the ')', and (?i is not POSIX either: 400"
+echo "================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&q=name~%3D(%3Fi)retiro'
+echo
+echo
+
+
+echo "06. POST /entityOperations/query with q name~=\"(?i)retiro\" - 400"
+echo "================================================================"
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "q": "name~=\"(?i)retiro\"" }'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "07. POST /subscriptions with q name~=\"(?i)retiro\" - 400"
+echo "========================================================"
+payload='{
+  "id": "urn:ngsi-ld:Subscription:S1",
+  "type": "Subscription",
+  "entities": [ { "type": "T" } ],
+  "q": "name~=\"(?i)retiro\"",
+  "notification": { "endpoint": { "uri": "http://127.0.0.1:9997/notify" } }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "08. GET /subscriptions - none: 07 created nothing"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (name Retiro) and E2 (name retiro park)
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 47
+
+[
+  "urn:ngsi-ld:T:E1",
+  "urn:ngsi-ld:T:E2"
+]
+
+
+
+02. q=name~="[Rr]etiro" - a POSIX bracket expression: E1 and E2
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 79
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1"
+  },
+  {
+    "id": "urn:ngsi-ld:T:E2"
+  }
+]
+
+
+
+03. q=name~="(?i)retiro" - (?i) is not POSIX: 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 296
+
+{
+  "detail": "'(?i)retiro' is not a POSIX extended regular expression: a duplication symbol at offset 1 has nothing to repeat - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. q=name!~="a**" - a duplication symbol after another: 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 287
+
+{
+  "detail": "'a**' is not a POSIX extended regular expression: a duplication symbol at offset 2 follows another one - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. q=name~=(?i)retiro, unquoted - the pattern ends at the ')', and (?i is not POSIX either: 400
+================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 289
+
+{
+  "detail": "'(?i' is not a POSIX extended regular expression: a duplication symbol at offset 1 has nothing to repeat - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. POST /entityOperations/query with q name~="(?i)retiro" - 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 296
+
+{
+  "detail": "'(?i)retiro' is not a POSIX extended regular expression: a duplication symbol at offset 1 has nothing to repeat - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST /subscriptions with q name~="(?i)retiro" - 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 296
+
+{
+  "detail": "'(?i)retiro' is not a POSIX extended regular expression: a duplication symbol at offset 1 has nothing to repeat - undefined in a POSIX extended regular expression",
+  "status": 400,
+  "title": "Invalid q parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET /subscriptions - none: 07 created nothing
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+coraineStop
