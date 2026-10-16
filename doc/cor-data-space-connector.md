@@ -4,22 +4,6 @@ An alternative provider side for the FIWARE Data Space Connector (FDSC), built o
 libraries: the same tokens, the same ODRL policies, the same NGSI-LD API, the same consumer side, in a
 fraction of the processes and the memory. A proposal, not a plan: nothing below is scheduled.
 
-## What the provider side is today
-
-The FDSC's provider side, as its charts deploy it (data-space-connector 10.10.3):
-
-| role | today |
-|---|---|
-| the data | Scorpio, an NGSI-LD broker, on PostgreSQL/PostGIS |
-| who sent a request | APISIX's `openid-connect`, checking the access token VCVerifier issued |
-| may it | OPA, running the Rego odrl-pap writes from the ODRL policies, asked by APISIX's `opa` plugin |
-| the policies | odrl-pap, on PostgreSQL |
-| the token | VCVerifier: a verifiable credential presented (OID4VP), exchanged for a JWT |
-| which issuers are trusted | the Trusted Issuers List (TIL), on PostgreSQL |
-| which credentials a service takes | the Credentials Config Service (CCS), on PostgreSQL |
-| the Dataspace Protocol | fdsc-edc: an Eclipse Dataspace Components (EDC) control plane with FIWARE's extensions, listed among the DSP-compliant connectors in IDSA's Data Space Connector Report No. 2 (June 2026) |
-| contracts, the marketplace | TM Forum APIs, contract management, the Business API Ecosystem |
-
 ## What a Cor Data Space Connector would be
 
 | role | a Cor DSC | state |
