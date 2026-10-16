@@ -388,6 +388,7 @@ define install_from
 	$(call installFile,$(1)/src/plugins/bridge/loopback/loopback.so,$(PLUGIN_DIR)/bridge/loopback.so)
 	$(call installFile,$(1)/src/plugins/transport/ws/ws.so,$(PLUGIN_DIR)/transport/ws.so)
 	if [ -f $(1)/src/plugins/auth/fdsc/fdsc.so ]; then $(call installFile,$(1)/src/plugins/auth/fdsc/fdsc.so,$(PLUGIN_DIR)/auth/fdsc.so); fi   # COR_FEATURE_AUTH
+	if [ -f $(1)/src/plugins/auth/oidc/oidc.so ]; then $(call installFile,$(1)/src/plugins/auth/oidc/oidc.so,$(PLUGIN_DIR)/auth/oidc.so); fi   # COR_FEATURE_AUTH_OIDC
 	$(call installFile,etc/contextSourceExtras.json,$(ETC_DIR)/contextSourceExtras.json)
 endef
 
@@ -485,6 +486,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@cp -p $(BUILD_COVERAGE)/src/plugins/bridge/*/*.so       $(COV_PLUGIN_DIR)/bridge/
 	@cp -p $(BUILD_COVERAGE)/src/plugins/transport/*/*.so    $(COV_PLUGIN_DIR)/transport/
 	@if [ -f $(BUILD_COVERAGE)/src/plugins/auth/fdsc/fdsc.so ]; then cp -p $(BUILD_COVERAGE)/src/plugins/auth/fdsc/fdsc.so $(COV_PLUGIN_DIR)/auth/; fi   # COR_FEATURE_AUTH - without it every auth test's broker fails to start
+	@if [ -f $(BUILD_COVERAGE)/src/plugins/auth/oidc/oidc.so ]; then cp -p $(BUILD_COVERAGE)/src/plugins/auth/oidc/oidc.so $(COV_PLUGIN_DIR)/auth/; fi   # COR_FEATURE_AUTH_OIDC
 #
 # The bridges from their own repositories (mqtt.so, modbus.so, dds.so) are not built here: staged
 # as installed, without counters - their code is not coraine's and not in this report. Without

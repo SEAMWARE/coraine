@@ -1,0 +1,225 @@
+#
+# FILE            auth_oidc_roles.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The oidc auth plugin (--auth oidc, doc/authorization.md): an OpenID provider's access token - a JWT signed
+# with RS256 or ES256 by a key of the provider's JWK Set, iss the provider, exp with 60 s leeway - and its
+# roles, in Keycloak's realm_access.roles by default: ngsild-read reads (GET, HEAD, OPTIONS, the POST
+# queries), ngsild-write reads and writes. No token, or one that does not hold: 401 + WWW-Authenticate.
+# A token whose roles do not cover the request: 403.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - the token (RS256, ES256, iss, exp) and its roles: ngsild-read reads, ngsild-write writes
+
+--TAGS--
+auth oidc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthKey k2 ES256
+ftAuthJwks k1 k2
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer http://keycloak.ft/realms/city
+
+--RUN--
+
+#
+# 01. No token: 401, WWW-Authenticate: Bearer - a write and a read alike
+# 02. The write role (RS256): create an entity, update it, retrieve it
+# 03. The read role (ES256): retrieve, query, POST query; a create, a PATCH, a DELETE, a subscription: 403
+# 04. Both roles: as the write role
+# 05. No role of the two (another role, no realm_access at all): 403 - a read too
+# 06. Expired 300 s ago: 401; 30 s ago - inside the leeway: 200; another issuer: 401; a broken signature: 401
+# 07. The write role deletes the entity
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+status() { corCurl "$@" | head -1; }
+
+ISS=http://keycloak.ft/realms/city
+WRITER=$(ftAuthToken k1 --iss $ISS --claims '{"realm_access": {"roles": ["ngsild-write", "offline_access"]}}')
+READER=$(ftAuthToken k2 --iss $ISS --claims '{"realm_access": {"roles": ["ngsild-read"]}}')
+BOTH=$(ftAuthToken k1 --iss $ISS --claims '{"realm_access": {"roles": ["ngsild-read", "ngsild-write"]}}')
+OTHER=$(ftAuthToken k1 --iss $ISS --claims '{"realm_access": {"roles": ["uma_authorization"]}}')
+NOROLES=$(ftAuthToken k1 --iss $ISS)
+
+echo "01. No token: 401, WWW-Authenticate: Bearer - a write and a read alike"
+echo "======================================================================="
+payload='{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}'
+show --url /ngsi-ld/v1/entities --payload "$payload"
+status --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+echo "02. The write role (RS256): create an entity, update it, retrieve it"
+echo "===================================================================="
+status --url /ngsi-ld/v1/entities --payload "$payload" -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 2}}' -X PATCH -H "Authorization: Bearer $WRITER"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $WRITER"
+echo
+echo
+
+
+echo "03. The read role (ES256): retrieve, query, POST query; a create, a PATCH, a DELETE, a subscription: 403"
+echo "========================================================================================================"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $READER"
+status --url "/ngsi-ld/v1/entities?type=T" -H "Authorization: Bearer $READER"
+status --url /ngsi-ld/v1/entityOperations/query --payload '{"type": "Query", "entities": [{"type": "T"}]}' -H "Authorization: Bearer $READER"
+show --url /ngsi-ld/v1/entities --payload '{"id": "urn:E2", "type": "T"}' -H "Authorization: Bearer $READER"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 3}}' -X PATCH -H "Authorization: Bearer $READER"
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $READER"
+status --url /ngsi-ld/v1/subscriptions --payload '{"type": "Subscription", "entities": [{"type": "T"}], "notification": {"endpoint": {"uri": "http://localhost:9997/notify"}}}' -H "Authorization: Bearer $READER"
+echo
+echo
+
+
+echo "04. Both roles: as the write role"
+echo "================================="
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 4}}' -X PATCH -H "Authorization: Bearer $BOTH"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $BOTH"
+echo
+echo
+
+
+echo "05. No role of the two (another role, no realm_access at all): 403 - a read too"
+echo "==============================================================================="
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $OTHER"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $NOROLES"
+echo
+echo
+
+
+echo "06. Expired 300 s ago: 401; 30 s ago - inside the leeway: 200; another issuer: 401; a broken signature: 401"
+echo "==========================================================================================================="
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k2 --iss $ISS --exp -300 --claims '{"realm_access": {"roles": ["ngsild-read"]}}')"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k2 --iss $ISS --exp -30 --claims '{"realm_access": {"roles": ["ngsild-read"]}}')"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k2 --iss http://keycloak.ft/realms/other --claims '{"realm_access": {"roles": ["ngsild-read"]}}')"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k2 --iss $ISS --badSig --claims '{"realm_access": {"roles": ["ngsild-read"]}}')"
+echo
+echo
+
+
+echo "07. The write role deletes the entity"
+echo "====================================="
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $READER"
+echo
+echo
+
+
+--EXPECT--
+01. No token: 401, WWW-Authenticate: Bearer - a write and a read alike
+=======================================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer
+Content-Length: 127
+
+{
+  "detail": "no access token (Authorization: Bearer)",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+HTTP/1.1 401 Unauthorized
+
+
+02. The write role (RS256): create an entity, update it, retrieve it
+====================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 2
+  },
+  "type": "T"
+}
+
+
+
+03. The read role (ES256): retrieve, query, POST query; a create, a PATCH, a DELETE, a subscription: 403
+========================================================================================================
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+HTTP/1.1 200 OK
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "a write needs the role 'ngsild-write' (claim 'realm_access.roles')",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+HTTP/1.1 403 Forbidden
+HTTP/1.1 403 Forbidden
+HTTP/1.1 403 Forbidden
+
+
+04. Both roles: as the write role
+=================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+
+
+05. No role of the two (another role, no realm_access at all): 403 - a read too
+===============================================================================
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "the token has neither role 'ngsild-read' nor 'ngsild-write' (claim 'realm_access.roles')",
+  "status": 403,
+  "title": "Forbidden",
+  "type": "about:blank"
+}
+
+HTTP/1.1 403 Forbidden
+
+
+06. Expired 300 s ago: 401; 30 s ago - inside the leeway: 200; another issuer: 401; a broken signature: 401
+===========================================================================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer error="invalid_token", error_description="expired, or not yet valid"
+Content-Length: 113
+
+{
+  "detail": "expired, or not yet valid",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+HTTP/1.1 200 OK
+HTTP/1.1 401 Unauthorized
+HTTP/1.1 401 Unauthorized
+
+
+07. The write role deletes the entity
+=====================================
+HTTP/1.1 204 No Content
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

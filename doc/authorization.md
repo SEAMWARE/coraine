@@ -4,13 +4,14 @@ coraine decides **who sent a request and whether it may do what it asks** in the
 an **auth plugin** - one at most, chosen with `--auth`. Without `--auth` every request is let in, as it
 always has been, and none of this code runs. With `-DCOR_FEATURE_AUTH=OFF` it is not in the build.
 
-Two parts:
+Three parts:
 
 - **the auth plugin contract** (§ 2) - a sixth plugin category, plain data across it, so that a
   deployment can bring its own security layer, written in any language that exports a C function;
-- **`fdsc.so`** (§ 3) - the plugin coraine ships: the FIWARE Data Space Connector's provider-side
-  security - VCVerifier's access tokens and the ODRL-PAP's policies - decided inside the broker, as the
-  connector decides them today (§ 4).
+- **`fdsc.so`** (§ 3) - the FIWARE Data Space Connector's provider-side security - VCVerifier's access
+  tokens and the ODRL-PAP's policies - decided inside the broker, as the connector decides them today (§ 4);
+- **`oidc.so`** (§ 8) - an OpenID provider's access tokens (Keycloak, Auth0, Entra ID, ...) and two roles
+  read out of them: one reads, one reads and writes.
 
 ## 1. Why in the broker
 
@@ -427,7 +428,72 @@ contract-management (FDSC) reads only a create's status and deletes by `odrl:uid
 
 `auth_fdsc_policy_api` holds it.
 
-## 8. Next
+## 8. `oidc.so` - an OpenID provider's tokens and roles
+
+`--auth oidc`: the access tokens of an OpenID provider, and two roles in them. Simpler than `fdsc.so` - no
+policies, nothing decided per entity: each request is decided at its admission, on its method and its
+NGSI-LD operation, before the broker fetches a `@context` for it. Built with `COR_FEATURE_AUTH_OIDC` (on;
+off with `COR_FEATURE_AUTH` off). The broker is the same with it or without it: the flag decides whether
+`oidc.so` is built.
+
+**The token** - `Authorization: Bearer`, a JWT the provider signed with RS256 or ES256, checked against its
+JWK Set; `iss` must be `--oidcIssuer`, `exp` and `nbf` hold within `--oidcLeeway`, `aud` holds
+`--oidcAudience` when it is given. No token, or one that does not hold: **401**, with `WWW-Authenticate:
+Bearer` (and `error="invalid_token"` for one that does not hold). A token is checked once; the requests that
+send it again find it in a cache - only its `exp` and `nbf` are checked again.
+
+**The keys** - from the provider's discovery document, `<issuer>/.well-known/openid-configuration`, or the
+one `--oidcDiscovery` names; its `issuer` must be `--oidcIssuer` (OpenID Connect Discovery 1.0 § 4.3), its
+`jwks_uri` gives the keys. `--oidcJwks` gives the JWK Set itself (a URL or a file) instead. Fetched by a
+thread of the plugin, every `--oidcRefresh` seconds, every second until there are some, and at once (not
+more than once a second) when a token names a key the set does not have - the provider rotated its keys.
+Until the keys are there every request is a **503**.
+
+**The roles** - in the claim `--oidcRolesClaim` names, a dot-separated path: an array of strings, or a
+string of space-separated values (`scope`). Two:
+
+| role | default name | may |
+|---|---|---|
+| read | `ngsild-read` (`--oidcReadRole`) | `GET`, `HEAD`, `OPTIONS`, and the queries that are POSTs: `POST /entityOperations/query`, `POST /temporal/entityOperations/query`, `POST /temporal/timepoint/entityOperations/query` |
+| write | `ngsild-write` (`--oidcWriteRole`) | every request, the reads too |
+
+A token without the role a request needs: **403**, its detail naming the role.
+
+### 8.1 Options
+
+| option | |
+|---|---|
+| `--oidcIssuer <url>` | the provider's issuer, the `iss` a token must have - required (`https://keycloak.example.org/realms/city`) |
+| `--oidcDiscovery <url>` | the discovery document's URL, when the broker reaches the provider by another name than its issuer's (`http://keycloak:8080/realms/city/.well-known/openid-configuration`) |
+| `--oidcJwks <url\|file>` | the JWK Set itself, instead of the discovery document - not with `--oidcDiscovery` |
+| `--oidcAudience <aud>` | an audience a token must have - default: not checked, and the broker says so at startup (a token the provider issued for any of its clients is taken) |
+| `--oidcRolesClaim <path>` | the claim holding the roles - default `realm_access.roles`, Keycloak's realm roles; `resource_access.<client>.roles` for a Keycloak client's, `scope`, `roles`, `groups` for other providers |
+| `--oidcReadRole <role>` | the role that reads - default `ngsild-read` |
+| `--oidcWriteRole <role>` | the role that reads and writes - default `ngsild-write` |
+| `--oidcLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 60 |
+| `--oidcRefresh <s>` | seconds between two fetches of the keys - default 300 |
+| `--oidcAnonymousRead` | a read without a token is let in; a write without one is still a 401 |
+
+### 8.2 With Keycloak
+
+```
+coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcAudience coraine
+```
+
+- realm roles `ngsild-read` and `ngsild-write`, given to the users and the service accounts that need them;
+- an audience mapper on the client the applications log in with, adding `coraine` to the access token's
+  `aud` - without one, Keycloak's access tokens do not carry it;
+- a broker that reaches Keycloak by an internal name (`http://keycloak:8080`) while the tokens carry the
+  public one adds `--oidcDiscovery http://keycloak:8080/realms/city/.well-known/openid-configuration`; the
+  `jwks_uri` in it must be one the broker can reach.
+
+### 8.3 Not decided
+
+- Subscriptions: creating one is a write. Its notifications are sent without asking the plugin - a token's
+  roles taken away later do not stop them.
+- Tenants: a token may use every tenant. Which tenants a token may use, from a claim, is not built.
+
+## 9. Next
 
 - A request a policy may allow - with `--fdscNgsild`, one whose decision depends on the entity (§ 6) - has
   its `@context` fetched before `entity()` decides it: a client with a right to some entity can have the

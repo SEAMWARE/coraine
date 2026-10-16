@@ -1,0 +1,137 @@
+#
+# FILE            auth_oidc_options.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The oidc auth plugin's options (doc/authorization.md): the roles in another claim - here scope, a string
+# of space-separated values, as many providers put them - under names of the deployment's own
+# (--oidcRolesClaim, --oidcReadRole, --oidcWriteRole); the audience a token must have (--oidcAudience);
+# reads without a token (--oidcAnonymousRead) - a write without one is still a 401.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - the options: roles in scope under other names, --oidcAudience, --oidcAnonymousRead
+
+--TAGS--
+auth oidc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthJwks k1
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer https://login.ft --oidcRolesClaim scope --oidcReadRole ngsild:read --oidcWriteRole ngsild:write --oidcAudience c3 --oidcAnonymousRead
+
+--RUN--
+
+#
+# 01. No token: a read is let in, a write is a 401
+# 02. scope "openid ngsild:write", aud c3: a create
+# 03. The same scope, aud another client: 401 - wrong audience
+# 04. scope "openid ngsild:read": a read; a write is a 403
+# 05. The roles as an array under scope - also taken; a role named like the write role but longer is not it
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+status() { corCurl "$@" | head -1; }
+
+ISS=https://login.ft
+
+echo "01. No token: a read is let in, a write is a 401"
+echo "================================================"
+status --url /ngsi-ld/v1/entities/urn:E1
+show --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T"}'
+echo
+echo
+
+
+echo "02. scope \"openid ngsild:write\", aud c3: a create"
+echo "=================================================="
+status --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T"}' -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --aud c3 --claims '{"scope": "openid ngsild:write"}')"
+echo
+echo
+
+
+echo "03. The same scope, aud another client: 401 - wrong audience"
+echo "============================================================"
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --aud account --claims '{"scope": "openid ngsild:write"}')"
+echo
+echo
+
+
+echo "04. scope \"openid ngsild:read\": a read; a write is a 403"
+echo "========================================================="
+READER=$(ftAuthToken k1 --iss $ISS --aud c3 --claims '{"scope": "openid ngsild:read profile"}')
+status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $READER"
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $READER"
+echo
+echo
+
+
+echo "05. The roles as an array under scope - also taken; a role named like the write role but longer is not it"
+echo "========================================================================================================="
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --aud c3 --claims '{"scope": ["ngsild:writer", "ngsild:read"]}')"
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --aud c3 --claims '{"scope": "ngsild:writer"}')"
+status --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --aud c3 --claims '{"scope": ["ngsild:write"]}')"
+echo
+echo
+
+
+--EXPECT--
+01. No token: a read is let in, a write is a 401
+================================================
+HTTP/1.1 404 Not Found
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer
+Content-Length: 127
+
+{
+  "detail": "no access token (Authorization: Bearer)",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+
+
+02. scope "openid ngsild:write", aud c3: a create
+==================================================
+HTTP/1.1 201 Created
+
+
+03. The same scope, aud another client: 401 - wrong audience
+============================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong audience"
+Content-Length: 102
+
+{
+  "detail": "wrong audience",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+
+
+04. scope "openid ngsild:read": a read; a write is a 403
+=========================================================
+HTTP/1.1 200 OK
+HTTP/1.1 403 Forbidden
+
+
+05. The roles as an array under scope - also taken; a role named like the write role but longer is not it
+=========================================================================================================
+HTTP/1.1 403 Forbidden
+HTTP/1.1 403 Forbidden
+HTTP/1.1 204 No Content
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR
