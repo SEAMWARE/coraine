@@ -4,13 +4,14 @@ coraine decides **who sent a request and whether it may do what it asks** in the
 an **auth plugin** - one at most, chosen with `--auth`. Without `--auth` every request is let in, as it
 always has been, and none of this code runs. With `-DCOR_FEATURE_AUTH=OFF` it is not in the build.
 
-Two parts:
+Three parts:
 
 - **the auth plugin contract** (§ 2) - a sixth plugin category, plain data across it, so that a
   deployment can bring its own security layer, written in any language that exports a C function;
-- **`fdsc.so`** (§ 3) - the plugin coraine ships: the FIWARE Data Space Connector's provider-side
-  security - VCVerifier's access tokens and the ODRL-PAP's policies - decided inside the broker, as the
-  connector decides them today (§ 4).
+- **`fdsc.so`** (§ 3) - the FIWARE Data Space Connector's provider-side security - VCVerifier's access
+  tokens and the ODRL-PAP's policies - decided inside the broker, as the connector decides them today (§ 4);
+- **`oidc.so`** (§ 8) - an OpenID provider's access tokens (Keycloak, Auth0, Entra ID, ...) and two roles
+  read out of them: one reads, one reads and writes.
 
 ## 1. Why in the broker
 
@@ -27,7 +28,7 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 4; append-only, as the bridge and
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 5; append-only, as the bridge and
 transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
 broker is too old to have.
 
@@ -38,6 +39,7 @@ broker is too old to have.
 | `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
 | `authorize` | with `authorizeBeforeContext` (ABI 3; `fdsc.so` sets it): right after `authenticate`, **before** the request's `@context` is resolved - its `Link` header and its body's `@context` name URLs the client chooses, and the broker fetches them; `expand()` answers NULL there. Without it: once the `@context` is resolved. Either way **before** the tenant is resolved (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
 | `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity - for a write, with the **attributes** it writes (`attrV`: the body's, or the path's `{attr}`); for a read of the entity whole, `AuthAnswer.partial` (ABI 4): only some of its attributes - the broker then asks about each attribute alone and leaves out the ones not allowed | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
+| `notify` (ABI 5) | for each notification of a subscription, once, before any `entity` - on its owner's identity (see below) | may the owner be sent it at all | not `AuthAllow`: the notification is not sent |
 | `release` | the request is over, its response sent | - | - |
 
 `entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
@@ -63,7 +65,10 @@ ones the owner may not read are left out, and a notification left with none is n
 known (none kept, or one that no longer holds) leaves out every entity: fail closed. A PATCH of the
 subscription makes whoever sent it the owner - how an owner takes a subscription back. A restored owner is
 cached for 30 s: an owner a broker of an HA set stores is seen by the others within that, through the
-shared store (HA runs on MongoDB - [High Availability](high-availability.md)).
+shared store (HA runs on MongoDB - [High Availability](high-availability.md)). A plugin with `notify`
+(ABI 5) is asked first, once per notification, with the owner and the subscription's tenant: not allowed,
+or no owner known, and the notification is not sent. A plugin that decides notifications as a whole sets
+`notify` and no `entity`: the broker then asks nothing per entity - of a notification, or of a request.
 
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
@@ -427,7 +432,87 @@ contract-management (FDSC) reads only a create's status and deletes by `odrl:uid
 
 `auth_fdsc_policy_api` holds it.
 
-## 8. Next
+## 8. `oidc.so` - an OpenID provider's tokens and roles
+
+`--auth oidc`: the access tokens of an OpenID provider, and two roles in them. Simpler than `fdsc.so` - no
+policies, nothing decided per entity: each request is decided at its admission, on its method and its
+NGSI-LD operation, before the broker fetches a `@context` for it. Built with `COR_FEATURE_AUTH_OIDC` (on;
+off with `COR_FEATURE_AUTH` off). The broker is the same with it or without it: the flag decides whether
+`oidc.so` is built.
+
+**The token** - `Authorization: Bearer`, a JWT the provider signed with RS256 or ES256, checked against its
+JWK Set; `iss` must be `--oidcIssuer`, `exp` and `nbf` hold within `--oidcLeeway`, `aud` holds
+`--oidcAudience` when it is given. No token, or one that does not hold: **401**, with `WWW-Authenticate:
+Bearer` (and `error="invalid_token"` for one that does not hold). A token is checked once; the requests that
+send it again find it in a cache - only its `exp` and `nbf` are checked again.
+
+**The keys** - from the provider's discovery document, `<issuer>/.well-known/openid-configuration`, or the
+one `--oidcDiscovery` names; its `issuer` must be `--oidcIssuer` (OpenID Connect Discovery 1.0 § 4.3), its
+`jwks_uri` gives the keys. `--oidcJwks` gives the JWK Set itself (a URL or a file) instead. Fetched by a
+thread of the plugin, every `--oidcRefresh` seconds, every second until there are some, and at once (not
+more than once a second) when a token names a key the set does not have - the provider rotated its keys.
+Until the keys are there every request is a **503**.
+
+**The roles** - in the claim `--oidcRolesClaim` names, a dot-separated path: an array of strings, or a
+string of space-separated values (`scope`). Two:
+
+| role | default name | may |
+|---|---|---|
+| read | `ngsild-read` (`--oidcReadRole`) | `GET`, `HEAD`, `OPTIONS`, and the queries that are POSTs: `POST /entityOperations/query`, `POST /temporal/entityOperations/query`, `POST /temporal/timepoint/entityOperations/query` |
+| write | `ngsild-write` (`--oidcWriteRole`) | every request, the reads too |
+
+A token without the role a request needs: **403**, its detail naming the role.
+
+**Subscriptions** - creating or updating one is a write. Its **owner** - the roles and tenants of the token
+that created it or last updated it - is kept with it (§ 2.1) and holds for `--oidcOwnerMaxAge` seconds
+(default 86 400, a day). Each notification is sent only while the owner holds, may read, and may use the
+subscription's tenant (`notify`); after that none are sent, until a request with a valid token updates the
+subscription and makes its sender the owner. Roles or tenants taken away at the provider stop a
+subscription's notifications within `--oidcOwnerMaxAge` - a token's own `exp` is not what it lasts (a token
+lives minutes, a subscription months).
+
+**The tenants** - in the claim `--oidcTenantsClaim` names (default `tenants`), an array of strings or a string
+of space-separated values: the tenants the token may use. `default` is the default tenant (a request
+without `NGSILD-Tenant`), `*` every tenant. A token without the claim may use the default tenant only. A
+request in another tenant: **403** - decided before the tenant is resolved, so a create in a tenant the
+token may not use makes no tenant. `--oidcAnyTenant` turns the check off.
+
+### 8.1 Options
+
+| option | |
+|---|---|
+| `--oidcIssuer <url>` | the provider's issuer, the `iss` a token must have - required (`https://keycloak.example.org/realms/city`) |
+| `--oidcDiscovery <url>` | the discovery document's URL, when the broker reaches the provider by another name than its issuer's (`http://keycloak:8080/realms/city/.well-known/openid-configuration`) |
+| `--oidcJwks <url\|file>` | the JWK Set itself, instead of the discovery document - not with `--oidcDiscovery` |
+| `--oidcAudience <aud>` | an audience a token must have - default: not checked, and the broker says so at startup (a token the provider issued for any of its clients is taken) |
+| `--oidcRolesClaim <path>` | the claim holding the roles - default `realm_access.roles`, Keycloak's realm roles; `resource_access.<client>.roles` for a Keycloak client's, `scope`, `roles`, `groups` for other providers |
+| `--oidcReadRole <role>` | the role that reads - default `ngsild-read` |
+| `--oidcWriteRole <role>` | the role that reads and writes - default `ngsild-write` |
+| `--oidcLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 60 |
+| `--oidcRefresh <s>` | seconds between two fetches of the keys - default 300 |
+| `--oidcTenantsClaim <path>` | the claim holding the tenants a token may use - default `tenants` |
+| `--oidcAnyTenant` | no tenant check: a token may use every tenant |
+| `--oidcOwnerMaxAge <s>` | seconds a subscription's owner holds - default 86400 |
+| `--oidcAnonymousRead` | a read without a token is let in, in every tenant; a write without one is still a 401 |
+
+### 8.2 With Keycloak
+
+```
+coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcAudience coraine
+```
+
+- realm roles `ngsild-read` and `ngsild-write`, given to the users and the service accounts that need them;
+- the tenants: a user attribute `tenants` (several values: `default`, `t1`, ...), and on the client a "User
+  Attribute" mapper - user attribute `tenants`, token claim name `tenants`, multivalued, added to the access
+  token. Keycloak 26 keeps only the attributes its user profile declares: declare `tenants` there, or let the
+  realm keep unmanaged attributes;
+- an audience mapper on the client the applications log in with, adding `coraine` to the access token's
+  `aud` - without one, Keycloak's access tokens do not carry it;
+- a broker that reaches Keycloak by an internal name (`http://keycloak:8080`) while the tokens carry the
+  public one adds `--oidcDiscovery http://keycloak:8080/realms/city/.well-known/openid-configuration`; the
+  `jwks_uri` in it must be one the broker can reach.
+
+## 9. Next
 
 - A request a policy may allow - with `--fdscNgsild`, one whose decision depends on the entity (§ 6) - has
   its `@context` fetched before `entity()` decides it: a client with a right to some entity can have the

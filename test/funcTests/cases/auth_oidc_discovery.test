@@ -1,0 +1,121 @@
+#
+# FILE            auth_oidc_discovery.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The oidc auth plugin finds the provider's keys through its discovery document (OpenID Connect Discovery
+# 1.0): --oidcDiscovery when the broker reaches the provider by another name than the issuer's. The
+# document's issuer must be --oidcIssuer (§ 4.3) - one of another issuer is not this provider's: no keys,
+# every request a 503 (fail closed). A token signed by a key the set lacks makes the plugin fetch the keys
+# again - the provider rotated them - and once the new set is there the token is taken.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - the discovery document: its issuer must be --oidcIssuer; a new key is fetched when a token needs it
+
+--TAGS--
+auth oidc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthKey k2 RS256
+ftAuthJwks k1
+ftVerifierStart
+coraineStart --auth oidc --oidcDiscovery $FT_VERIFIER_URL/services/data-service/.well-known/openid-configuration --oidcIssuer http://keycloak.ft/realms/city
+
+--RUN--
+
+#
+# 01. The discovery document's issuer is not --oidcIssuer: no keys - 503, a valid-looking token too
+# 02. A broker with the right --oidcIssuer: the keys are fetched, a token of k1 is taken
+# 03. A token of k2, a key the set lacks: 401; the provider adds k2 to its set - the token is taken, once fetched
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+status() { corCurl "$@" | head -1; }
+
+ISS=$FT_VERIFIER_URL
+ROLES='{"realm_access": {"roles": ["ngsild-write"]}}'
+
+echo "01. The discovery document's issuer is not --oidcIssuer: no keys - 503, a valid-looking token too"
+echo "================================================================================================="
+sleep 1
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --iss http://keycloak.ft/realms/city --claims "$ROLES")"
+coraineStop
+echo
+echo
+
+
+echo "02. A broker with the right --oidcIssuer: the keys are fetched, a token of k1 is taken"
+echo "======================================================================================"
+coraineStart --auth oidc --oidcDiscovery $FT_VERIFIER_URL/services/data-service/.well-known/openid-configuration --oidcIssuer $ISS > /dev/null
+for i in $(seq 1 50); do
+  s=$(status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --iss $ISS --claims "$ROLES")")
+  case "$s" in *503*) sleep 0.1 ;; *) break ;; esac
+done
+echo "$s"
+echo
+echo
+
+
+echo "03. A token of k2, a key the set lacks: 401; the provider adds k2 to its set - the token is taken, once fetched"
+echo "=============================================================================================================="
+TOKEN2=$(ftAuthToken k2 --iss $ISS --claims "$ROLES")
+show --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $TOKEN2"
+ftAuthJwks k1 k2
+for i in $(seq 1 50); do
+  s=$(status --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $TOKEN2")
+  case "$s" in *401*) sleep 0.1 ;; *) break ;; esac
+done
+echo "$s"
+echo
+echo
+
+
+--EXPECT--
+01. The discovery document's issuer is not --oidcIssuer: no keys - 503, a valid-looking token too
+=================================================================================================
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+Content-Length: 133
+
+{
+  "detail": "the provider's keys are not loaded yet",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "about:blank"
+}
+
+
+
+02. A broker with the right --oidcIssuer: the keys are fetched, a token of k1 is taken
+======================================================================================
+HTTP/1.1 404 Not Found
+
+
+03. A token of k2, a key the set lacks: 401; the provider adds k2 to its set - the token is taken, once fetched
+==============================================================================================================
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+Content-Length: 112
+
+{
+  "detail": "signed by an unknown key",
+  "status": 401,
+  "title": "Unauthorized",
+  "type": "about:blank"
+}
+
+HTTP/1.1 404 Not Found
+
+
+--TEARDOWN--
+coraineStop
+ftVerifierStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

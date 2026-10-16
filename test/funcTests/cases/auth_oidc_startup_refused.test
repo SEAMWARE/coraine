@@ -1,0 +1,89 @@
+#
+# FILE            auth_oidc_startup_refused.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --auth oidc asks for security: options it cannot work with stop the broker (exit 1) and say why - it
+# never starts open. A token's issuer is always checked, so --oidcIssuer is required.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - options it cannot work with: exit 1, said why
+
+--TAGS--
+auth oidc
+
+--INIT--
+
+--RUN--
+
+#
+# 01. --auth oidc without --oidcIssuer
+# 02. --oidcDiscovery and --oidcJwks both
+# 03. --oidcReadRole ""
+# 04. --oidcIssuer without --auth oidc - an unknown option
+#
+run() {
+  timeout 10 $COR_BROKER -fg --port 9 --database corDB "$@" > /tmp/oidcRefused.$$ 2>&1
+  echo "exit: $?"
+  grep -m1 -E "^E: .*auth plugin|^coraine:" /tmp/oidcRefused.$$ | sed -e 's/^E: [0-9.]*: auth.c\[[0-9]*\]: authInit: /E: /'
+  rm -f /tmp/oidcRefused.$$
+}
+
+echo "01. --auth oidc without --oidcIssuer"
+echo "===================================="
+run --auth oidc
+echo
+echo
+
+
+echo "02. --oidcDiscovery and --oidcJwks both"
+echo "======================================="
+run --auth oidc --oidcIssuer https://login.ft --oidcDiscovery https://login.ft/.well-known/openid-configuration --oidcJwks /tmp/jwks.json
+echo
+echo
+
+
+echo "03. --oidcReadRole \"\""
+echo "====================="
+run --auth oidc --oidcIssuer https://login.ft --oidcReadRole ""
+echo
+echo
+
+
+echo "04. --oidcIssuer without --auth oidc - an unknown option"
+echo "========================================================"
+run --oidcIssuer https://login.ft
+echo
+echo
+
+
+--EXPECT--
+01. --auth oidc without --oidcIssuer
+====================================
+exit: 1
+E: auth plugin 'oidc': no provider: --oidcIssuer (a token's iss is always checked)
+
+
+02. --oidcDiscovery and --oidcJwks both
+=======================================
+exit: 1
+E: auth plugin 'oidc': --oidcDiscovery and --oidcJwks: one or the other
+
+
+03. --oidcReadRole ""
+=====================
+exit: 1
+E: auth plugin 'oidc': --oidcRolesClaim, --oidcReadRole, --oidcWriteRole, --oidcTenantsClaim: none may be empty
+
+
+04. --oidcIssuer without --auth oidc - an unknown option
+========================================================
+exit: 1
+coraine: unrecognized option: --oidcIssuer
+
+
+--TEARDOWN--

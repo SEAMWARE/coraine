@@ -43,6 +43,7 @@ option(COR_FEATURE_GEOQ            "Enable geo-query matching (requires GEOS)"  
 
 # Group: Security - who sent a request, whether it may, and the policies that decide
 option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
+option(COR_FEATURE_AUTH_OIDC       "Enable oidc.so - an OpenID provider's access tokens (Keycloak, ...), their roles reading or writing (--auth oidc, doc/authorization.md)" ON)
 option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of its own (--policyApiPort): the policies fdsc.so reads, held by the broker (doc/authorization.md)" ON)
 
 # Group: Beyond NGSI-LD - Service Execution, and what a bridge plugin can do in the broker
@@ -78,7 +79,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN DATA_CHANNELS ICU_COLLATION TIMEPOINT)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN DATA_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -93,6 +94,13 @@ endif()
 #
 if (NOT COR_FEATURE_ADMIN_API)
   set(COR_FEATURE_METRICS OFF)
+endif()
+
+#
+# oidc.so is an auth plugin: without the auth plugins, nothing would load it.
+#
+if (NOT COR_FEATURE_AUTH)
+  set(COR_FEATURE_AUTH_OIDC OFF)
 endif()
 
 #
@@ -347,11 +355,15 @@ endif()
 
 #
 # The auth plugins: jwt - what they share (an access token checked); fdsc - the FIWARE Data Space Connector's
-# security inside the broker (--auth fdsc, doc/authorization.md)
+# security inside the broker (--auth fdsc); oidc - an OpenID provider's tokens and roles (--auth oidc).
+# doc/authorization.md
 #
 if (COR_FEATURE_AUTH)
   ADD_SUBDIRECTORY(src/plugins/auth/jwt)
   ADD_SUBDIRECTORY(src/plugins/auth/fdsc)
+endif()
+if (COR_FEATURE_AUTH_OIDC)
+  ADD_SUBDIRECTORY(src/plugins/auth/oidc)
 endif()
 
 ADD_SUBDIRECTORY(src/app/coraine)

@@ -42,7 +42,7 @@
 
 
 
-#define AUTH_ABI_VERSION  4
+#define AUTH_ABI_VERSION  5
 
 
 
@@ -210,6 +210,15 @@ typedef struct AuthDriver
   // is later. false (and a plugin of ABI 2): authorize is asked after the @context, before the tenant.
   //
   bool         authorizeBeforeContext;
+
+  //
+  // ABI 5: notify - may the subscription's owner (the identity identityRestore made) be sent this notification
+  // at all - asked once per notification, before entity() is asked about any of its entities; tenant: the
+  // subscription's (NULL: the default tenant). Not AuthAllow: the notification is not sent. A plugin that
+  // decides notifications as a whole sets it, with identitySave / identityRestore, and needs no entity() -
+  // the broker then asks nothing per entity, of a notification or of a request. NULL: not asked.
+  //
+  AuthVerdict  (*notify)(void* identity, const char* tenant);
 } AuthDriver;
 
 typedef void (*AuthRegisterFunc)(AuthDriver* driverP);

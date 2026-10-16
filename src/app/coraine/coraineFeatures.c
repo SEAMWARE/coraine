@@ -50,6 +50,7 @@ const CoraineFeature coraineFeatures[] =
   { "DATA_CHANNELS",     COR_FEATURE_DATA_CHANNELS     },
   { "ICU_COLLATION",     COR_FEATURE_ICU_COLLATION     },
   { "TIMEPOINT",         COR_FEATURE_TIMEPOINT         },
+  { "AUTH_OIDC",         COR_FEATURE_AUTH_OIDC         },
   { NULL,                false                         }
 };
 
