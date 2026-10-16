@@ -138,8 +138,13 @@ coraine-<version>/
 
 `coraine-build [options] <dir>` unpacks it into `<dir>` (without the `coraine-<version>/` level) and builds
 there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/install` (`bin/`,
-`plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR` and
+`plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR`, `SEAMWARE_ETC_DIR` and
 `CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
+
+With the DDS bridge built (`--bridges dds`), `etc/bridges.json` holds the image's DDS defaults
+(`etc/dds-default.json`: domain 0, no topics) and `etc/dds-types/` is its types directory: the bridge
+needs a configuration, and the broker reads `$SEAMWARE_ETC_DIR/bridges.json` when `--bridgeConfig` is
+not given. A `--bridgeConfig` of your own replaces it.
 
 `coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
 `description`, `group` (its group in `CMakeLists.txt`), and `requires`: the switches it is turned off
