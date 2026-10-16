@@ -92,8 +92,8 @@ static BridgeDriver* notifyBridge(const char* uri)
 static bool transportHas(const char* uri)
 {
 #if COR_FEATURE_TRANSPORTS
-  if (transportNotifyHas(uri) == true)              // a transport's connection
-    return true;
+  if (transportUri(uri) == true)                    // a transport's connection: only the one this request came over
+    return transportEndpointOwn(uri);
 #endif
 
   return notifyBridge(uri) != NULL;                 // a bridge's scheme

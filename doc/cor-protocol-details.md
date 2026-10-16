@@ -80,9 +80,17 @@ A member whose name is a core term (`type`, `value`, `observedAt`, `object`, `un
 carries its `CorTerm` id instead of the name. The ids are append-only and already documented as
 "sent on the binary wire".
 
-They are written as **one byte, with 0xFF as an escape to two**, not as a varint. The core context
-has about 230 terms, so every id fits in one byte today. A varint would spend two on the most
-common ones (`value` is about 204, `observedAt` about 138).
+They are written in one, two or three bytes; the first byte says which:
+
+| First byte | Id | Bytes |
+|---|---|---|
+| `0x00`-`0xEF` | the byte itself: 0-239 | 1 |
+| `0xF0`-`0xFE`, then `b` | 240 + ((first - `0xF0`) << 8 \| `b`): 240-4079 | 2 |
+| `0xFF`, then `lo`, `hi` | `lo` \| `hi` << 8: any id | 3 |
+
+There are 256 core terms today (`CorTermLast`): 0-239 take one byte, the rest two - room for 4 080 before
+any takes three. Not a varint: a varint's one-byte range is 0-127, and it would spend two on many of the
+most common terms (`value` is 202, `observedAt` 138).
 
 ### 4.2 The attribute's type in the node - v1
 

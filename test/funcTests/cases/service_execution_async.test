@@ -38,6 +38,7 @@ ftExecStart
 # 07. The executor's PATCH: without Service-Execution - 400; on a completed execution - 409; an unknown member - 400
 # 08. Invoke sleepy (executionTimeout PT1S) - 202; after the sweep - failed, "Execution Timeout"
 # 09. Over a WebSocket: POST /services (hold) notifying the connection - the 201, then the notifications on the connection
+# 10. Over HTTP: POST /services notifying a WebSocket connection - 400
 #
 
 reg() {
@@ -169,7 +170,8 @@ echo "09. Over a WebSocket: POST /services (hold) notifying the connection - the
 echo "======================================================================================================================"
 ftWsStart
 ftWsAwait 1
-ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/services","requestId":"x1"},"body":{"type":"ServiceExecution","entityId":"urn:D1","serviceName":"hold","notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+CONN=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')   # this run's id: urn:ngsi-ld:WebSocket:<boot>-<n>
+ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/services","requestId":"x1"},"body":{"type":"ServiceExecution","entityId":"urn:D1","serviceName":"hold","notification":{"endpoint":{"uri":"'"$CONN"'"}}}}'
 ftWsAwait 3
 ftWsMessages | python3 -c "
 import json,sys
@@ -179,6 +181,17 @@ for m in json.load(sys.stdin)[1:]:
         print('response', md['status'], md.get('Location', '').replace(md.get('Service-Execution', ''), '<id>'))
     else:
         print(m['body']['type'], m['body']['data'][0]['executionStatus'])"
+ftWsStop
+echo
+echo
+
+
+echo "10. Over HTTP: POST /services notifying a WebSocket connection - 400: only a request over that connection may name it"
+echo "====================================================================================================================="
+ftWsStart
+ftWsAwait 1
+CONN=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')
+corCurl --url /ngsi-ld/v1/services --payload '{"type":"ServiceExecution","entityId":"urn:D1","serviceName":"hold","notification":{"endpoint":{"uri":"'"$CONN"'"}}}'
 ftWsStop
 echo
 echo
@@ -263,6 +276,22 @@ Notification failed null null
 ======================================================================================================================
 Notification executing
 response 201 /ngsi-ld/v1/services/<id>
+
+
+10. Over HTTP: POST /services notifying a WebSocket connection - 400: only a request over that connection may name it
+=====================================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 276
+
+{
+  "detail": "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), a bridge's scheme, or the WebSocket connection the request came over",
+  "status": 400,
+  "title": "Bad Request Data",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
 
 
 --TEARDOWN--

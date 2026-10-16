@@ -25,8 +25,11 @@ asked for is the same. Both HTTP servers serve it - libmicrohttpd and the built-
 The broker's first message names the connection:
 
 ```json
-{ "metadata": { "connection": "urn:ngsi-ld:WebSocket:7" } }
+{ "metadata": { "connection": "urn:ngsi-ld:WebSocket:4ddb4c6be94beb41-7" } }
 ```
+
+The id is of this run of the broker: a random part, new with every start, and the connection's number. An
+id of another run, or of another broker instance on the same store, names no connection here.
 
 | Refused upgrade | Status |
 |---|---|
@@ -46,7 +49,7 @@ binding (ETSI TS 104 243 clause 5), so a notification over a WebSocket is the on
 { "metadata": { "method": "POST", "path": "/ngsi-ld/v1/subscriptions", "requestId": "r1",
                 "Content-Type": "application/json" },
   "body": { "type": "Subscription", "entities": [ { "type": "Vehicle" } ],
-            "notification": { "endpoint": { "uri": "urn:ngsi-ld:WebSocket:7" } } } }
+            "notification": { "endpoint": { "uri": "urn:ngsi-ld:WebSocket:4ddb4c6be94beb41-7" } } } }
 ```
 
 **A response** carries the status, the `requestId` and the headers HTTP would return, and the body -
@@ -79,9 +82,14 @@ message means the same on every connection. An upgrade request with `NGSILD-Tena
 ## Subscriptions
 
 A subscription or context source subscription created over a connection notifies that connection: its
-`notification.endpoint.uri` is the connection's id. Another connection's id is refused. When the
-connection closes - the client closes it, it breaks, or the broker stops - the subscriptions it
-created and did not delete are deleted, each in its tenant.
+`notification.endpoint.uri` is the connection's id. Another connection's id is refused (403), and so is a
+connection's id in a subscription made over HTTP or cor:// (400) - a connection is the endpoint only of
+what is made over it. The same for a Service Execution's `notification.endpoint` (`POST /services`).
+
+When the connection closes - the client closes it, it breaks, or the broker stops - the subscriptions it
+created and did not delete are deleted, each in its tenant. A broker that is killed (not stopped) deletes
+nothing: with a persistent store its connections' subscriptions are still there after the restart, and
+notify no one - their ids are of the run that was killed.
 
 ## The connection
 
