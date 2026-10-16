@@ -325,6 +325,11 @@ the PAP is still where policies are written; coraine reads them where OPA did. N
 side changes. The connector also routes `GET /.well-known/openid-configuration` on the data host to the
 verifier, so that a client finds the token endpoint: that route stays on the proxy (or ingress) in front.
 
+For a broker other than coraine, the same decision is made in APISIX: the plugin `ngsild-pep`
+([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)) runs `fdsc.so`'s code in the gateway,
+the token check included - it takes the place of the route's `openid-connect` and `opa`. `--fdscNgsild`
+(§ 6) is not available there: it needs the stored entity, which only the broker has.
+
 ## 6. `--fdscNgsild` - decided on the entity
 
 What the connector's chain gets wrong for NGSI-LD, from the PAP's `ngsi-ld/leftOperand.rego` and

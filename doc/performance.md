@@ -2259,7 +2259,7 @@ places, and the throughput a client gets:
 | `--auth fdsc` | in the broker (`fdsc.so`) |
 | APISIX | nowhere: APISIX 3.17.0 in front, no plugin - the cost of the hop alone |
 | APISIX + OPA | the connector's chain today: `openid-connect` (the token), odrl-authorization 2.4.3's `opa` plugin, OPA 1.11.0 with the Rego odrl-pap 1.7.1 makes of the policies |
-| APISIX + ngsild-pep | in APISIX, by `fdsc.so`'s own code: the plugin `ngsild-pep` (corApisixNgsild) - a Lua plugin calling, through LuaJIT's FFI, a library built from `fdsc.so`'s sources. On the 64 cases of `test/fdscDiff` it decides as `--auth fdsc` does, case for case |
+| APISIX + ngsild-pep | in APISIX, by `fdsc.so`'s own code: the plugin `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)) - a Lua plugin calling, through LuaJIT's FFI, a library built from `fdsc.so`'s sources. On the 64 cases of `test/fdscDiff` it decides as `--auth fdsc` does, case for case |
 
 Behind every gateway the broker runs without `--auth`. The same token (RS256, a `UserCredential`) and the same
 policies everywhere (`perfPolicies.py 20`: 19 that never match, then one that allows all).
