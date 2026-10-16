@@ -15,13 +15,17 @@
 #include "corPlugin/corPlugin.h"                     // corPluginOpen, corPluginResolve, corPluginBaseDir
 #include "corLog/corLog.h"                           // COR_I, COR_W
 #include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corJson/CorJson.h"                         // CorJson
+#include "corJson/corJsonCreate.h"                   // corJsonCreate
+#include "corJson/corJsonParse.h"                    // corJsonParse
 #include "corJson/corJsonRender.h"                   // corJsonFastRender
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
 #include "corJsonld/corLdExpand.h"                   // corLdExpand
 #include "corJsonld/corLdDownload.h"                 // corLdContextFromUrl
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
-#include "corTree/corTreeBuilder.h"                  // corTreeChildRemove
+#include "corTree/corTreeBuilder.h"                  // corTreeChildRemove, corTreeString, corTreeArray
+#include "corTree/corTreeChildPrepend.h"             // corTreeChildPrepend
 #include "corRest/CorRestState.h"                    // corRest
 #include "corRest/corRestHooks.h"                    // corRestSetAdmitHook
 #include "corRest/corRestInHeader.h"                 // corRestInHeader
@@ -320,6 +324,50 @@ static void requestFill(AuthRequest* reqP, bool withTenant, bool atAdmission)
 
 // -----------------------------------------------------------------------------
 //
+// The resource's metadata (RFC 9728, ABI 6): what a client needs to get a token the plugin takes - served
+// without authentication, named in every 401
+//
+#define METADATA_PATH  "/.well-known/oauth-protected-resource"
+
+static bool metadataOffered(void)
+{
+#if COR_FEATURE_AUTH_METADATA
+  return (loaded == true) && (driver.abiVersion >= 6) && (driver.resourceMetadata != NULL);
+#else
+  return false;
+#endif
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// wwwAuthenticate - a 401's WWW-Authenticate: the plugin's (default Bearer), and resource_metadata where the
+// plugin offers metadata (RFC 9728 § 5.1)
+//
+static const char* wwwAuthenticate(const char* plugin)
+{
+  const char* base = (plugin != NULL) ? plugin : "Bearer";
+
+  if ((metadataOffered() == false) || (ldBrokerHttpEndpoint == NULL))
+    return corAllocStrdup(&corRest.kalloc, base);    // copied: the plugin's text may be a buffer of its thread
+
+  int   size = strlen(base) + strlen(ldBrokerHttpEndpoint) + sizeof(METADATA_PATH) + 32;
+  char* text = (char*) corAlloc(&corRest.kalloc, size);
+
+  if (text == NULL)
+    return "Bearer";
+
+  bool schemeOnly = (strchr(base, ' ') == NULL);     // "Bearer" - no auth-param yet
+
+  snprintf(text, size, "%s%sresource_metadata=\"%s%s\"", base, schemeOnly ? " " : ", ", ldBrokerHttpEndpoint, METADATA_PATH);
+  return text;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // answer - the error response of a verdict that is not AuthAllow
 //
 static void answer(AuthVerdict verdict, AuthAnswer* answerP)
@@ -331,10 +379,7 @@ static void answer(AuthVerdict verdict, AuthAnswer* answerP)
   {
     status = 401;
     title  = "Unauthorized";
-    //
-    // Copied: the plugin's text may be a buffer of its thread, and the header is written after the call
-    //
-    corRestOutHeaderAdd("WWW-Authenticate", (answerP->wwwAuthenticate != NULL) ? corAllocStrdup(&corRest.kalloc, answerP->wwwAuthenticate) : "Bearer");
+    corRestOutHeaderAdd("WWW-Authenticate", wwwAuthenticate(answerP->wwwAuthenticate));
   }
   else if (verdict == AuthUnavailable)
   {
@@ -384,6 +429,16 @@ static bool admit(void)
   // reaches its port may
   //
   if (corRest.listener != 0)
+  {
+    stateP->trusted = true;
+    return true;
+  }
+
+  //
+  // The resource's metadata: how to get a token - asked for by a client that has none
+  //
+  if ((metadataOffered() == true) && (corRest.in.verbString != NULL) && (strcmp(corRest.in.verbString, "GET") == 0) &&
+      (corRest.in.urlPath != NULL) && (strcmp(corRest.in.urlPath, METADATA_PATH) == 0))
   {
     stateP->trusted = true;
     return true;
@@ -1479,4 +1534,46 @@ void authClose(void)
 {
   if ((loaded == true) && (driver.close != NULL))
     driver.close();
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authResourceMetadata - GET /.well-known/oauth-protected-resource (RFC 9728 § 3): the plugin's members, and
+// "resource" and "bearer_methods_supported" when it gives none
+//
+bool authResourceMetadata(void)
+{
+  char*    text  = (metadataOffered() == true) ? driver.resourceMetadata() : NULL;
+  CorNode* treeP = NULL;
+
+  if (text != NULL)
+  {
+    CorJson cj;
+    corJsonCreate(&cj, &corRest.kalloc);
+    treeP = corJsonParse(&cj, corAllocStrdup(&corRest.kalloc, text));
+    free(text);
+  }
+
+  if ((treeP == NULL) || (treeP->type != CorObject))
+  {
+    corRestProblem(404, "about:blank", "Not Found", "%s", "no resource metadata: the broker runs without an auth plugin that offers it");
+    return false;
+  }
+
+  if ((corTreeLookup(treeP, "resource") == NULL) && (ldBrokerHttpEndpoint != NULL))
+    corTreeChildPrepend(treeP, corTreeString(&corRest.kalloc, "resource", ldBrokerHttpEndpoint));
+
+  if (corTreeLookup(treeP, "bearer_methods_supported") == NULL)
+  {
+    CorNode* methodsP = corTreeArray(&corRest.kalloc, "bearer_methods_supported");
+    corTreeChildAdd(methodsP, corTreeString(&corRest.kalloc, NULL, "header"));
+    corTreeChildAdd(treeP, methodsP);
+  }
+
+  corNgsild.rawResponse      = true;
+  corRest.out.responseTree   = treeP;
+  corRest.out.httpStatusCode = 200;
+  return true;
 }

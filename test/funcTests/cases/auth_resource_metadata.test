@@ -1,0 +1,159 @@
+#
+# FILE            auth_resource_metadata.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The resource's metadata (RFC 9728, auth ABI 6): GET /.well-known/oauth-protected-resource, served without a
+# token, says how a client gets one the auth plugin takes - the plugin's authorization_servers and its own
+# members, the broker's resource (--httpEndpoint) and bearer_methods_supported. Every 401 names it in
+# WWW-Authenticate: resource_metadata="..." (§ 5.1), after the plugin's own auth-params. Without --auth: 404.
+#
+# REQUIRE_FEATURE: AUTH_METADATA
+#
+--NAME--
+Auth - the resource's metadata (RFC 9728): served without a token, named in every 401; oidc.so and fdsc.so
+
+--TAGS--
+auth oidc fdsc
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthJwks k1
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer http://keycloak.ft/realms/city
+
+--RUN--
+
+#
+# 01. oidc.so: the metadata, without a token
+# 02. A request without a token: 401 - WWW-Authenticate names the metadata
+# 03. A token that does not hold: 401 - the plugin's error first, then resource_metadata
+# 04. fdsc.so: its metadata - the verifier
+# 05. No --auth: no metadata - 404
+#
+show() { corCurl "$@" | grep -v '^Date:'; }
+
+echo "01. oidc.so: the metadata, without a token"
+echo "=========================================="
+show --url /.well-known/oauth-protected-resource
+echo
+echo
+
+
+echo "02. A request without a token: 401 - WWW-Authenticate names the metadata"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -E '^HTTP|^WWW-Authenticate'
+echo
+echo
+
+
+echo "03. A token that does not hold: 401 - the plugin's error first, then resource_metadata"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1 -H "Authorization: Bearer $(ftAuthToken k1 --iss http://keycloak.ft/realms/other)" | grep -E '^HTTP|^WWW-Authenticate'
+echo
+echo
+
+
+echo "04. fdsc.so: its metadata - the verifier"
+echo "========================================"
+coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $REPO_ROOT/test/funcTests/fixtures/auth/allowAll.json --fdscIssuer http://verifier.ft --fdscAudience data-service > /dev/null
+show --url /.well-known/oauth-protected-resource
+echo
+echo
+
+
+echo "05. No --auth: no metadata - 404"
+echo "================================"
+coraineStart > /dev/null
+show --url /.well-known/oauth-protected-resource
+echo
+echo
+
+
+--EXPECT--
+01. oidc.so: the metadata, without a token
+==========================================
+HTTP/1.1 200 OK
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 398
+
+{
+  "authorization_servers": [
+    "http://keycloak.ft/realms/city"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ],
+  "coraine_auth": "oidc",
+  "coraine_roles": {
+    "claim": "realm_access.roles",
+    "read": "ngsild-read",
+    "write": "ngsild-write"
+  },
+  "coraine_tenants": {
+    "claim": "tenants"
+  },
+  "resource": "http://localhost:1026",
+  "scopes_supported": [
+    "openid"
+  ]
+}
+
+
+
+02. A request without a token: 401 - WWW-Authenticate names the metadata
+========================================================================
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+
+
+03. A token that does not hold: 401 - the plugin's error first, then resource_metadata
+======================================================================================
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+
+
+04. fdsc.so: its metadata - the verifier
+========================================
+HTTP/1.1 200 OK
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 212
+
+{
+  "authorization_servers": [
+    "http://verifier.ft"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ],
+  "coraine_auth": "fdsc",
+  "fdsc_audience": "data-service",
+  "resource": "http://localhost:1026"
+}
+
+
+
+05. No --auth: no metadata - 404
+================================
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "detail": "no resource metadata: the broker runs without an auth plugin that offers it",
+  "status": 404,
+  "title": "Not Found",
+  "type": "about:blank"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf $FT_AUTH_DIR

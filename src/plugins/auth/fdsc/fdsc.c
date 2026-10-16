@@ -693,6 +693,78 @@ static void fdscRelease(void* identity)
 
 // -----------------------------------------------------------------------------
 //
+// jsonAdd - s as a JSON string, quotes included, appended at out[*nP] (room checked by the caller: 6 a byte)
+//
+static void jsonAdd(char* out, int* nP, const char* s)
+{
+  int n = *nP;
+
+  out[n++] = '"';
+  for (const unsigned char* c = (const unsigned char*) s; *c != 0; c++)
+  {
+    if ((*c == '"') || (*c == '\\'))
+    {
+      out[n++] = '\\';
+      out[n++] = *c;
+    }
+    else if (*c < 0x20)
+      n += sprintf(&out[n], "\\u%04x", *c);
+    else
+      out[n++] = *c;
+  }
+  out[n++] = '"';
+  out[n]   = 0;
+  *nP      = n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// fdscResourceMetadata - RFC 9728's authorization_servers (the verifier: --fdscIssuer, or its discovery
+// document's issuer) and, where the broker was given it, the verifier's discovery document - a client gets
+// its token at the verifier, presenting a Verifiable Credential
+//
+static char* fdscResourceMetadata(void)
+{
+  pthread_mutex_lock(&refreshMutex);
+  const char* iss  = (issuer != NULL) ? issuer : discoveredIss;
+  char*       copy = (iss != NULL) ? strdup(iss) : NULL;
+  pthread_mutex_unlock(&refreshMutex);
+
+  int   size = 256 + 6 * (((copy != NULL) ? strlen(copy) : 0) + ((discovery != NULL) ? strlen(discovery) : 0) + ((audience != NULL) ? strlen(audience) : 0));
+  char* text = (char*) malloc(size);
+  int   n    = 0;
+
+  if (text == NULL)
+  {
+    free(copy);
+    return NULL;
+  }
+
+  n += sprintf(&text[n], "{\"authorization_servers\": [");
+  if (copy != NULL)
+    jsonAdd(text, &n, copy);
+  n += sprintf(&text[n], "], \"coraine_auth\": \"fdsc\"");
+  if (discovery != NULL)
+  {
+    n += sprintf(&text[n], ", \"fdsc_discovery\": ");
+    jsonAdd(text, &n, discovery);
+  }
+  if (audience != NULL)
+  {
+    n += sprintf(&text[n], ", \"fdsc_audience\": ");
+    jsonAdd(text, &n, audience);
+  }
+  sprintf(&text[n], "}");
+  free(copy);
+  return text;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // fdscVersionInfo -
 //
 static const char* fdscVersionInfo(void)
@@ -766,6 +838,9 @@ void authRegister(AuthDriver* driverP)
   //
   if (brokerAbi >= 3)
     driverP->authorizeBeforeContext = true;
+
+  if (brokerAbi >= 6)
+    driverP->resourceMetadata = fdscResourceMetadata;
 
   brokerAbiVersion = brokerAbi;
 

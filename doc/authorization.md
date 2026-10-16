@@ -28,7 +28,7 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 5; append-only, as the bridge and
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 6; append-only, as the bridge and
 transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
 broker is too old to have.
 
@@ -40,6 +40,7 @@ broker is too old to have.
 | `authorize` | with `authorizeBeforeContext` (ABI 3; `fdsc.so` sets it): right after `authenticate`, **before** the request's `@context` is resolved - its `Link` header and its body's `@context` name URLs the client chooses, and the broker fetches them; `expand()` answers NULL there. Without it: once the `@context` is resolved. Either way **before** the tenant is resolved (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
 | `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity - for a write, with the **attributes** it writes (`attrV`: the body's, or the path's `{attr}`); for a read of the entity whole, `AuthAnswer.partial` (ABI 4): only some of its attributes - the broker then asks about each attribute alone and leaves out the ones not allowed | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
 | `notify` (ABI 5) | for each notification of a subscription, once, before any `entity` - on its owner's identity (see below) | may the owner be sent it at all | not `AuthAllow`: the notification is not sent |
+| `resourceMetadata` (ABI 6) | for `GET /.well-known/oauth-protected-resource`, and for every 401 | how a client gets a token it takes: a JSON object (§ 2.5) | - |
 | `release` | the request is over, its response sent | - | - |
 
 `entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
@@ -140,6 +141,27 @@ Cor-Lib functions is built against the same lib sources as its broker ([Plugin a
 A plugin whose `authorize` reads nothing of the request's own `@context` (no `expand()`) sets
 `driverP->authorizeBeforeContext = true` (ABI 3): a request it refuses is then refused before the broker fetches
 the `@context` URLs the client named.
+
+### 2.5 How a client gets a token - the resource's metadata
+
+A plugin with `resourceMetadata` (ABI 6) says how a client gets a token it takes - OAuth 2.0 Protected Resource
+Metadata (RFC 9728). The broker serves it, **without authentication**, at `GET
+/.well-known/oauth-protected-resource`: the plugin's members - `authorization_servers` (the issuers), and its
+own (`coraine_auth`: which plugin) - and `resource` (`--httpEndpoint`) and `bearer_methods_supported`
+(`["header"]`) where the plugin gives none. Every **401** names it, after the plugin's own auth-params (§ 5.1):
+
+```
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer", resource_metadata="http://broker:1026/.well-known/oauth-protected-resource"
+```
+
+A client - c³ - reads it on the first 401 and knows where to log in. Without `--auth`, or with a plugin that
+offers none, the route is a 404. `COR_FEATURE_AUTH_METADATA` (on; off with `COR_FEATURE_AUTH` off), about
+1 KB of the broker.
+
+| plugin | its members |
+|---|---|
+| `oidc.so` | `authorization_servers`: `--oidcIssuer`; `scopes_supported`: `["openid"]`; `coraine_roles`: the claim and the read and write roles; `coraine_tenants`: the tenants claim (`null` with `--oidcAnyTenant`) |
+| `fdsc.so` | `authorization_servers`: the verifier's issuer (`--fdscIssuer`, or its discovery document's); `fdsc_discovery`: `--fdscDiscovery`, when given; `fdsc_audience`: `--fdscAudience`, when given |
 
 ## 3. `fdsc.so` - the Data Space Connector's security
 

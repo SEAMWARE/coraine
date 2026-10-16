@@ -102,6 +102,7 @@ Content-Length: REGEX([0-9]+)
   "features": {
     "ADMIN_API": REGEX([a-z]+),
     "AUTH": REGEX([a-z]+),
+    "AUTH_METADATA": REGEX([a-z]+),
     "AUTH_OIDC": REGEX([a-z]+),
     "AUTO_ENTITY_MAP": REGEX([a-z]+),
     "CHANNEL_STATUS_IN": REGEX([a-z]+),
@@ -198,6 +199,7 @@ Content-Length: REGEX([0-9]+)
   "features": {
     "ADMIN_API": REGEX([a-z]+),
     "AUTH": REGEX([a-z]+),
+    "AUTH_METADATA": REGEX([a-z]+),
     "AUTH_OIDC": REGEX([a-z]+),
     "AUTO_ENTITY_MAP": REGEX([a-z]+),
     "CHANNEL_STATUS_IN": REGEX([a-z]+),

@@ -862,6 +862,71 @@ static AuthVerdict oidcNotify(void* identity, const char* tenant)
 
 // -----------------------------------------------------------------------------
 //
+// jsonAdd - s as a JSON string, quotes included, appended at out[*nP] (room checked by the caller: 6 a byte)
+//
+static void jsonAdd(char* out, int* nP, const char* s)
+{
+  int n = *nP;
+
+  out[n++] = '"';
+  for (const unsigned char* c = (const unsigned char*) s; *c != 0; c++)
+  {
+    if ((*c == '"') || (*c == '\\'))
+    {
+      out[n++] = '\\';
+      out[n++] = *c;
+    }
+    else if (*c < 0x20)
+      n += sprintf(&out[n], "\\u%04x", *c);
+    else
+      out[n++] = *c;
+  }
+  out[n++] = '"';
+  out[n]   = 0;
+  *nP      = n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// oidcResourceMetadata - RFC 9728's authorization_servers (the issuer), and what c3 and other clients need to
+// log in and to know what the token is read for
+//
+static char* oidcResourceMetadata(void)
+{
+  int   size = 256 + 6 * (strlen(issuer) + strlen(readRole) + strlen(writeRole) + strlen(rolesClaim) + strlen(tenantsClaim));
+  char* text = (char*) malloc(size);
+  int   n    = 0;
+
+  if (text == NULL)
+    return NULL;
+
+  n += sprintf(&text[n], "{\"authorization_servers\": [");
+  jsonAdd(text, &n, issuer);
+  n += sprintf(&text[n], "], \"scopes_supported\": [\"openid\"], \"coraine_auth\": \"oidc\", \"coraine_roles\": {\"claim\": ");
+  jsonAdd(text, &n, rolesClaim);
+  n += sprintf(&text[n], ", \"read\": ");
+  jsonAdd(text, &n, readRole);
+  n += sprintf(&text[n], ", \"write\": ");
+  jsonAdd(text, &n, writeRole);
+  n += sprintf(&text[n], "}, \"coraine_tenants\": ");
+  if (anyTenant == true)
+    n += sprintf(&text[n], "null");
+  else
+  {
+    n += sprintf(&text[n], "{\"claim\": ");
+    jsonAdd(text, &n, tenantsClaim);
+    n += sprintf(&text[n], "}");
+  }
+  sprintf(&text[n], "}");
+  return text;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // oidcVersionInfo -
 //
 static const char* oidcVersionInfo(void)
@@ -936,4 +1001,7 @@ void authRegister(AuthDriver* driverP)
     driverP->identityRestore = oidcIdentityRestore;
     driverP->notify          = oidcNotify;
   }
+
+  if (brokerAbi >= 6)
+    driverP->resourceMetadata = oidcResourceMetadata;
 }
