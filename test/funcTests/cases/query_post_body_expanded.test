@@ -1,0 +1,196 @@
+#
+# FILE            query_post_body_expanded.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A POST Query's body is the query's parameters, and its names are expanded as the URL's are: pick, omit,
+# attrs and a geoQ's geoproperty given as short names. They were left as sent - the URL's are expanded in
+# the pre-service hook, before the body became params - and matched nothing: pick ["speed"] answered [],
+# omit ["speed"] omitted nothing. The temporal POST query's body is checked as a Query too.
+#
+--NAME--
+POST /entityOperations/query - the body's pick, omit, attrs and geoQ.geoproperty, short names, expanded
+
+--TAGS--
+entity query post
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 (speed 50, temp 20, loc at [1,1]) and E2 (speed 10, loc at [50,50])"
+echo "==================================================================================="
+payload='[
+  { "id": "urn:ngsi-ld:T:E1", "type": "T", "speed": { "type": "Property", "value": 50 }, "temp": { "type": "Property", "value": 20 },
+    "loc": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 1, 1 ] } } },
+  { "id": "urn:ngsi-ld:T:E2", "type": "T", "speed": { "type": "Property", "value": 10 },
+    "loc": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [ 50, 50 ] } } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+echo
+echo
+
+
+echo "02. POST query, pick [ id, speed ] - id and speed of each"
+echo "========================================================="
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "pick": [ "id", "speed" ] }'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "03. POST query, omit [ speed, temp, loc ] - id and type of each"
+echo "==============================================================="
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "omit": [ "speed", "temp", "loc" ] }'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "04. POST query, attrs [ temp ] - E1, its temp"
+echo "============================================="
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "attrs": [ "temp" ] }'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "05. POST query, geoQ near [1,1] on geoproperty loc, pick [ id ] - E1"
+echo "====================================================================="
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "pick": [ "id" ],
+  "geoQ": { "georel": "near;maxDistance==1000", "geometry": "Point", "coordinates": [ 1, 1 ], "geoproperty": "loc" } }'
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "06. POST temporal query with a member a Query does not have - 400: its body is checked as a Query"
+echo "================================================================================================="
+payload='{ "type": "Query", "entities": [ { "type": "T" } ], "notAMember": 1, "temporalQ": { "timerel": "after", "timeAt": "2026-01-01T00:00:00Z" } }'
+corCurl --url /ngsi-ld/v1/temporal/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 (speed 50, temp 20, loc at [1,1]) and E2 (speed 10, loc at [50,50])
+===================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 47
+
+[
+  "urn:ngsi-ld:T:E1",
+  "urn:ngsi-ld:T:E2"
+]
+
+
+
+02. POST query, pick [ id, speed ] - id and speed of each
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 211
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1",
+    "speed": {
+      "type": "Property",
+      "value": 50
+    }
+  },
+  {
+    "id": "urn:ngsi-ld:T:E2",
+    "speed": {
+      "type": "Property",
+      "value": 10
+    }
+  }
+]
+
+
+
+03. POST query, omit [ speed, temp, loc ] - id and type of each
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 113
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:T:E2",
+    "type": "T"
+  }
+]
+
+
+
+04. POST query, attrs [ temp ] - E1, its temp
+=============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1",
+    "temp": {
+      "type": "Property",
+      "value": 20
+    },
+    "type": "T"
+  }
+]
+
+
+
+05. POST query, geoQ near [1,1] on geoproperty loc, pick [ id ] - E1
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 41
+
+[
+  {
+    "id": "urn:ngsi-ld:T:E1"
+  }
+]
+
+
+
+06. POST temporal query with a member a Query does not have - 400: its body is checked as a Query
+=================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "https://uri.etsi.org/ngsi-ld/default-context/notAMember",
+  "status": 400,
+  "title": "Invalid field for query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop

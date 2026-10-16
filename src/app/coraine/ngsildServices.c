@@ -316,7 +316,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbDelete, "/ngsi-ld/v1/temporal/entities/*",                deleteEntityTemporal,          0,                                 LdOpDeleteTemporal },
   { CorVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpUpsertTemporal },
-  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal, pCheckQuery },
 
   // Snapshots — § 5.16
   { CorVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  LD_PARAMS_POST_SNAPSHOT,           LdOpCreateSnapshot   },
