@@ -1,5 +1,5 @@
 //
-// FILE            fdscJwt.c
+// FILE            authJwt.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -16,9 +16,9 @@
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 
-#include "fdscBase64.h"                              // fdscBase64UrlDecode
-#include "fdscKeys.h"                                // fdscKeysVerify
-#include "fdscJwt.h"                                 // Own interface
+#include "authBase64.h"                              // authBase64UrlDecode
+#include "authKeys.h"                                // authKeysVerify
+#include "authJwt.h"                                 // Own interface
 
 
 
@@ -33,7 +33,7 @@ static CorNode* partJson(const char* part, int len, CorAlloc* kaP)
   if (text == NULL)
     return NULL;
 
-  int n = fdscBase64UrlDecode(part, len, (unsigned char*) text);
+  int n = authBase64UrlDecode(part, len, (unsigned char*) text);
 
   if (n <= 0)
     return NULL;
@@ -103,21 +103,21 @@ static bool audienceHas(CorNode* claimsP, const char* audience)
 
 // -----------------------------------------------------------------------------
 //
-// fdscJwtVerify -
+// authJwtVerify -
 //
-FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorAlloc* kaP, CorNode** claimsPP)
+AuthJwtCheck authJwtVerify(const char* token, const AuthJwtExpect* expectP, CorAlloc* kaP, CorNode** claimsPP)
 {
   const char* dot1 = strchr(token, '.');
   const char* dot2 = (dot1 != NULL) ? strchr(dot1 + 1, '.') : NULL;
 
   if ((dot1 == NULL) || (dot2 == NULL) || (strchr(dot2 + 1, '.') != NULL))
-    return FdscJwtMalformed;
+    return AuthJwtMalformed;
 
   CorNode* headerP = partJson(token, dot1 - token, kaP);
   CorNode* claimsP = partJson(dot1 + 1, dot2 - dot1 - 1, kaP);
 
   if ((headerP == NULL) || (claimsP == NULL))
-    return FdscJwtMalformed;
+    return AuthJwtMalformed;
 
   CorNode*    algP = corTreeLookup(headerP, "alg");
   CorNode*    kidP = corTreeLookup(headerP, "kid");
@@ -125,31 +125,31 @@ FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorA
   const char* kid  = ((kidP != NULL) && (kidP->type == CorString)) ? kidP->value.s : NULL;
 
   if (alg == NULL)
-    return FdscJwtMalformed;
+    return AuthJwtMalformed;
 
   //
-  // The signature (a token checked before is not seen here: fdsc.c finds its identity in the cache)
+  // The signature (a token checked before is not seen here when the plugin finds its identity in a cache of its own)
   //
   const char*    sigText = dot2 + 1;
   int            sigLen  = strlen(sigText);
   unsigned char* sig     = (unsigned char*) corAlloc(kaP, sigLen * 3 / 4 + 4);
 
   if (sig == NULL)
-    return FdscJwtMalformed;
+    return AuthJwtMalformed;
 
-  int n = fdscBase64UrlDecode(sigText, sigLen, sig);
+  int n = authBase64UrlDecode(sigText, sigLen, sig);
 
   if (n <= 0)
-    return FdscJwtMalformed;
+    return AuthJwtMalformed;
 
-  FdscKeyCheck keyCheck = fdscKeysVerify(kid, alg, token, dot2 - token, sig, n);
+  AuthKeyCheck keyCheck = authKeysVerify(kid, alg, token, dot2 - token, sig, n);
 
-  if (keyCheck == FdscKeyUnknown)
-    return FdscJwtUnknownKey;
-  if (keyCheck == FdscKeyBadAlg)
-    return FdscJwtBadAlg;
-  if (keyCheck != FdscKeyOk)
-    return FdscJwtBadSignature;
+  if (keyCheck == AuthKeyUnknown)
+    return AuthJwtUnknownKey;
+  if (keyCheck == AuthKeyBadAlg)
+    return AuthJwtBadAlg;
+  if (keyCheck != AuthKeyOk)
+    return AuthJwtBadSignature;
 
   //
   // The claims - only once the signature holds: what an unsigned token says is nothing
@@ -160,10 +160,10 @@ FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorA
   if (expectP->now != 0)
   {
     if ((numericDate(claimsP, "exp", &exp) == false) || (expectP->now > exp + expectP->leeway))
-      return FdscJwtExpired;
+      return AuthJwtExpired;
 
     if ((numericDate(claimsP, "nbf", &nbf) == true) && (expectP->now + expectP->leeway < nbf))
-      return FdscJwtExpired;
+      return AuthJwtExpired;
   }
 
   if (expectP->issuer != NULL)
@@ -171,34 +171,34 @@ FdscJwtCheck fdscJwtVerify(const char* token, const FdscJwtExpect* expectP, CorA
     CorNode* issP = corTreeLookup(claimsP, "iss");
 
     if ((issP == NULL) || (issP->type != CorString) || (strcmp(issP->value.s, expectP->issuer) != 0))
-      return FdscJwtWrongIssuer;
+      return AuthJwtWrongIssuer;
   }
 
   if ((expectP->audience != NULL) && (audienceHas(claimsP, expectP->audience) == false))
-    return FdscJwtWrongAudience;
+    return AuthJwtWrongAudience;
 
   *claimsPP = claimsP;
-  return FdscJwtOk;
+  return AuthJwtOk;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// fdscJwtCheckString -
+// authJwtCheckString -
 //
-const char* fdscJwtCheckString(FdscJwtCheck check)
+const char* authJwtCheckString(AuthJwtCheck check)
 {
   switch (check)
   {
-  case FdscJwtOk:            return "ok";
-  case FdscJwtMalformed:     return "not a JWT";
-  case FdscJwtUnknownKey:    return "signed by an unknown key";
-  case FdscJwtBadSignature:  return "invalid signature";
-  case FdscJwtBadAlg:        return "algorithm not accepted";
-  case FdscJwtExpired:       return "expired, or not yet valid";
-  case FdscJwtWrongIssuer:   return "wrong issuer";
-  case FdscJwtWrongAudience: return "wrong audience";
+  case AuthJwtOk:            return "ok";
+  case AuthJwtMalformed:     return "not a JWT";
+  case AuthJwtUnknownKey:    return "signed by an unknown key";
+  case AuthJwtBadSignature:  return "invalid signature";
+  case AuthJwtBadAlg:        return "algorithm not accepted";
+  case AuthJwtExpired:       return "expired, or not yet valid";
+  case AuthJwtWrongIssuer:   return "wrong issuer";
+  case AuthJwtWrongAudience: return "wrong audience";
   }
 
   return "invalid";

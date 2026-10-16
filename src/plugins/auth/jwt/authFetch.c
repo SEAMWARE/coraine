@@ -1,5 +1,5 @@
 //
-// FILE            fdscFetch.c
+// FILE            authFetch.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -13,7 +13,7 @@
 #include "corRest/CorRestVerb.h"                     // CorVerbGet
 #include "corRest/corRestClient.h"                   // CorRestClientRequest, corRestClientSend
 
-#include "fdscFetch.h"                               // Own interface
+#include "authFetch.h"                               // Own interface
 
 
 
@@ -53,9 +53,9 @@ static char* fileRead(const char* path, CorAlloc* kaP, char* errorBuf, int error
 
 // -----------------------------------------------------------------------------
 //
-// fdscFetch -
+// authFetch -
 //
-char* fdscFetch(const char* where, CorAlloc* kaP, char* errorBuf, int errorBufSize)
+char* authFetch(const char* where, CorAlloc* kaP, char* errorBuf, int errorBufSize)
 {
   if (strncmp(where, "file://", 7) == 0)
     return fileRead(&where[7], kaP, errorBuf, errorBufSize);

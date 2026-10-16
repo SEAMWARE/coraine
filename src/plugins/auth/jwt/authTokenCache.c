@@ -1,5 +1,5 @@
 //
-// FILE            fdscTokenCache.c
+// FILE            authTokenCache.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -11,8 +11,7 @@
 #include <stdlib.h>                                  // malloc, free
 #include <string.h>                                  // memcmp, memcpy
 
-#include "fdscIdentity.h"                            // FdscIdentity, fdscIdentityRef, fdscIdentityUnref
-#include "fdscTokenCache.h"                          // Own interface
+#include "authTokenCache.h"                          // Own interface
 
 
 
@@ -28,7 +27,7 @@ typedef struct Slot
   uint64_t       hash;
   char*          token;
   int            len;
-  FdscIdentity*  idP;                                // the cache's reference
+  void*          idP;                                // the cache's reference
 } Slot;
 
 //
@@ -40,6 +39,8 @@ typedef struct Slot
 static Slot              slotV[SLOTS];
 static pthread_rwlock_t  lockV[LOCKS];
 static pthread_once_t    lockOnce   = PTHREAD_ONCE_INIT;
+static void            (*idRef)(void*)   = NULL;
+static void            (*idUnref)(void*) = NULL;
 static unsigned int      generation = 0;             // one more at each Clear - read and written atomically, changed with every lock held
 
 static void locksInit(void)
@@ -96,13 +97,25 @@ static uint64_t hashOf(const char* s, int len)
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheGet -
+// authTokenCacheInit -
 //
-FdscIdentity* fdscTokenCacheGet(const char* token, int len)
+void authTokenCacheInit(void (*ref)(void* identity), void (*unref)(void* identity))
+{
+  idRef   = ref;
+  idUnref = unref;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// authTokenCacheGet -
+//
+void* authTokenCacheGet(const char* token, int len)
 {
   uint64_t      h   = hashOf(token, len);
   Slot*         sP  = &slotV[h % SLOTS];
-  FdscIdentity* idP = NULL;
+  void*         idP = NULL;
   pthread_rwlock_t* lockP = lockOf(sP);
 
   pthread_rwlock_rdlock(lockP);
@@ -110,7 +123,7 @@ FdscIdentity* fdscTokenCacheGet(const char* token, int len)
   if ((sP->token != NULL) && (sP->hash == h) && (sP->len == len) && (memcmp(sP->token, token, len) == 0))
   {
     idP = sP->idP;
-    fdscIdentityRef(idP);
+    idRef(idP);
   }
 
   pthread_rwlock_unlock(lockP);
@@ -121,9 +134,9 @@ FdscIdentity* fdscTokenCacheGet(const char* token, int len)
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheGeneration -
+// authTokenCacheGeneration -
 //
-unsigned int fdscTokenCacheGeneration(void)
+unsigned int authTokenCacheGeneration(void)
 {
   return __atomic_load_n(&generation, __ATOMIC_ACQUIRE);
 }
@@ -132,9 +145,9 @@ unsigned int fdscTokenCacheGeneration(void)
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheAdd -
+// authTokenCacheAdd -
 //
-void fdscTokenCacheAdd(const char* token, int len, FdscIdentity* idP, unsigned int checkedWith)
+void authTokenCacheAdd(const char* token, int len, void* idP, unsigned int checkedWith)
 {
   if ((len > TOKEN_MAX) || (idP == NULL))
     return;
@@ -160,9 +173,9 @@ void fdscTokenCacheAdd(const char* token, int len, FdscIdentity* idP, unsigned i
   }
 
   char*         oldP   = sP->token;
-  FdscIdentity* oldIdP = sP->idP;
+  void*         oldIdP = sP->idP;
 
-  fdscIdentityRef(idP);
+  idRef(idP);
   sP->hash  = h;
   sP->token = copy;
   sP->len   = len;
@@ -170,16 +183,18 @@ void fdscTokenCacheAdd(const char* token, int len, FdscIdentity* idP, unsigned i
   pthread_rwlock_unlock(lockP);
 
   free(oldP);
-  fdscIdentityUnref(oldIdP);
+
+  if (oldIdP != NULL)
+    idUnref(oldIdP);
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// fdscTokenCacheClear -
+// authTokenCacheClear -
 //
-void fdscTokenCacheClear(void)
+void authTokenCacheClear(void)
 {
   pthread_once(&lockOnce, locksInit);
 
@@ -189,7 +204,8 @@ void fdscTokenCacheClear(void)
   for (int i = 0; i < SLOTS; i++)
   {
     free(slotV[i].token);
-    fdscIdentityUnref(slotV[i].idP);
+    if (slotV[i].idP != NULL)
+      idUnref(slotV[i].idP);
     slotV[i].token = NULL;
     slotV[i].len   = 0;
     slotV[i].idP   = NULL;
