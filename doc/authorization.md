@@ -28,7 +28,7 @@ condition on the query itself, and see the tenant, the `@context` and the NGSI-L
 ## 2. The auth plugin contract
 
 `--auth <name>` loads `<plugins>/auth/<name>.so` (or a path) and calls its `authRegister(AuthDriver*)`.
-The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 4; append-only, as the bridge and
+The contract is `src/lib/plugin/AuthDriver.h`, at `AUTH_ABI_VERSION` 5; append-only, as the bridge and
 transport contracts are - the broker writes its version before `authRegister`, a plugin fills no slot the
 broker is too old to have.
 
@@ -39,6 +39,7 @@ broker is too old to have.
 | `authenticate` | right after the route is looked up - **before** anything is done for the request: no 404/405/415 decided, no body parsed, no `@context` downloaded | who sent it: an identity handle of its own (NULL is one) | `AuthUnauthenticated` - **401**, `WWW-Authenticate` |
 | `authorize` | with `authorizeBeforeContext` (ABI 3; `fdsc.so` sets it): right after `authenticate`, **before** the request's `@context` is resolved - its `Link` header and its body's `@context` name URLs the client chooses, and the broker fetches them; `expand()` answers NULL there. Without it: once the `@context` is resolved. Either way **before** the tenant is resolved (resolving it creates it, for a create operation - a request that may not leaves nothing behind) | may it | `AuthDeny` - **403** |
 | `entity` (ABI 2) | once `authorize` has let the request through, for **each entity** it reads or writes - see below | may it, this entity - for a write, with the **attributes** it writes (`attrV`: the body's, or the path's `{attr}`); for a read of the entity whole, `AuthAnswer.partial` (ABI 4): only some of its attributes - the broker then asks about each attribute alone and leaves out the ones not allowed | `AuthDeny`: 403 for a one-entity operation, that entity's error in a batch's 207, left out of a query's response |
+| `notify` (ABI 5) | for each notification of a subscription, once, before any `entity` - on its owner's identity (see below) | may the owner be sent it at all | not `AuthAllow`: the notification is not sent |
 | `release` | the request is over, its response sent | - | - |
 
 `entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
@@ -64,7 +65,10 @@ ones the owner may not read are left out, and a notification left with none is n
 known (none kept, or one that no longer holds) leaves out every entity: fail closed. A PATCH of the
 subscription makes whoever sent it the owner - how an owner takes a subscription back. A restored owner is
 cached for 30 s: an owner a broker of an HA set stores is seen by the others within that, through the
-shared store (HA runs on MongoDB - [High Availability](high-availability.md)).
+shared store (HA runs on MongoDB - [High Availability](high-availability.md)). A plugin with `notify`
+(ABI 5) is asked first, once per notification, with the owner and the subscription's tenant: not allowed,
+or no owner known, and the notification is not sent. A plugin that decides notifications as a whole sets
+`notify` and no `entity`: the broker then asks nothing per entity - of a notification, or of a request.
 
 `AuthRequest.entities` says, per request, whether the broker will ask `entity` for each entity of this
 operation (today: create, retrieve, every one-entity write, the attrs routes, the five batch writes, the
@@ -459,6 +463,14 @@ string of space-separated values (`scope`). Two:
 
 A token without the role a request needs: **403**, its detail naming the role.
 
+**Subscriptions** - creating or updating one is a write. Its **owner** - the roles and tenants of the token
+that created it or last updated it - is kept with it (§ 2.1) and holds for `--oidcOwnerMaxAge` seconds
+(default 86 400, a day). Each notification is sent only while the owner holds, may read, and may use the
+subscription's tenant (`notify`); after that none are sent, until a request with a valid token updates the
+subscription and makes its sender the owner. Roles or tenants taken away at the provider stop a
+subscription's notifications within `--oidcOwnerMaxAge` - a token's own `exp` is not what it lasts (a token
+lives minutes, a subscription months).
+
 **The tenants** - in the claim `--oidcTenantsClaim` names (default `tenants`), an array of strings or a string
 of space-separated values: the tenants the token may use. `default` is the default tenant (a request
 without `NGSILD-Tenant`), `*` every tenant. A token without the claim may use the default tenant only. A
@@ -480,6 +492,7 @@ token may not use makes no tenant. `--oidcAnyTenant` turns the check off.
 | `--oidcRefresh <s>` | seconds between two fetches of the keys - default 300 |
 | `--oidcTenantsClaim <path>` | the claim holding the tenants a token may use - default `tenants` |
 | `--oidcAnyTenant` | no tenant check: a token may use every tenant |
+| `--oidcOwnerMaxAge <s>` | seconds a subscription's owner holds - default 86400 |
 | `--oidcAnonymousRead` | a read without a token is let in, in every tenant; a write without one is still a 401 |
 
 ### 8.2 With Keycloak
@@ -498,11 +511,6 @@ coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidc
 - a broker that reaches Keycloak by an internal name (`http://keycloak:8080`) while the tokens carry the
   public one adds `--oidcDiscovery http://keycloak:8080/realms/city/.well-known/openid-configuration`; the
   `jwks_uri` in it must be one the broker can reach.
-
-### 8.3 Not decided
-
-- Subscriptions: creating one is a write. Its notifications are sent without asking the plugin - a token's
-  roles taken away later do not stop them.
 
 ## 9. Next
 

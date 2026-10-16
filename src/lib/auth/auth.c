@@ -728,7 +728,8 @@ static bool notifyEntityAllowed(Tenant* tenantP, void* identity, CorNode* entity
 // -----------------------------------------------------------------------------
 //
 // notifyFilter - corNgsild's ldNotifyFilterHook: the entities the subscription's owner may not read go;
-// an owner not known (none kept, none any more) - all of them go: fail closed
+// an owner not known (none kept, none any more) - all of them go: fail closed. A plugin with notify (ABI 5)
+// is asked first, once: not allowed - all of them go
 //
 static void notifyFilter(void* tenantP, const char* subId, CorNode* dataArrayP, CorAlloc* kaP)
 {
@@ -736,6 +737,25 @@ static void notifyFilter(void* tenantP, const char* subId, CorNode* dataArrayP, 
     return;
 
   Owner* oP = ownerGet((Tenant*) tenantP, subId);
+
+  if ((driver.abiVersion >= 5) && (driver.notify != NULL))
+  {
+    Tenant*     tP     = (Tenant*) tenantP;
+    const char* tenant = ((tP != NULL) && (tP->name[0] != 0)) ? tP->name : NULL;
+
+    if ((oP == NULL) || (oP->identity == NULL) || (driver.notify(oP->identity, tenant) != AuthAllow))
+    {
+      dataArrayP->value.head = NULL;                 // nothing left: the notification is not sent
+      dataArrayP->value.tail = NULL;
+    }
+
+    if ((driver.entity == NULL) || (dataArrayP->value.head == NULL))
+    {
+      if (oP != NULL)
+        ownerPut(oP);
+      return;
+    }
+  }
 
   CorNode* eP = dataArrayP->value.head;
 
@@ -907,7 +927,9 @@ bool authInit(void)
   // The notifications - decided for their subscription's owner, when the plugin can (after its init: a
   // plugin may take its slots back there)
   //
-  if ((driver.abiVersion >= 2) && (driver.entity != NULL) && (driver.identitySave != NULL) && (driver.identityRestore != NULL))
+  bool decides = (driver.entity != NULL) || ((driver.abiVersion >= 5) && (driver.notify != NULL));
+
+  if ((driver.abiVersion >= 2) && (decides == true) && (driver.identitySave != NULL) && (driver.identityRestore != NULL))
     ldNotifyFilterHook = notifyFilter;
 
   return true;

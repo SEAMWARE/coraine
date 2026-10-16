@@ -1,0 +1,121 @@
+#
+# FILE            auth_oidc_notify.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The oidc auth plugin decides a subscription's notifications for its owner - who made it, or last updated
+# it - as a whole (notify, ABI 5): the owner's roles and tenants are kept with the subscription and hold for
+# --oidcOwnerMaxAge (here 3 s). After that the notifications stop - roles taken away at the provider stop
+# them within that time - until a valid token updates the subscription, which makes its sender the owner.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc - a subscription's owner holds for --oidcOwnerMaxAge; then no notifications until it is updated
+
+--TAGS--
+auth oidc subscriptions
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthJwks k1
+ftClientStart --port 7712 --status 200
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer http://keycloak.ft/realms/city --oidcOwnerMaxAge 3
+
+--RUN--
+
+#
+# 01. The writer subscribes to type T and creates an entity: one notification
+# 02. In tenant t1, by a token whose tenants are ["t1"]: one notification more
+# 03. The owner's 3 s pass: an update notifies no one - in either tenant
+# 04. The writer updates the default tenant's subscription: its sender is its owner again - its notifications come back; t1's stay stopped
+#
+status() { corCurl "$@" | head -1; }
+
+ISS=http://keycloak.ft/realms/city
+WRITER=$(ftAuthToken k1 --iss $ISS --claims '{"realm_access": {"roles": ["ngsild-write"]}}')
+T1=$(ftAuthToken k1 --iss $ISS --claims '{"realm_access": {"roles": ["ngsild-write"]}, "tenants": ["t1"]}')
+SUB='{"id": "urn:ngsi-ld:Subscription:s1", "type": "Subscription", "entities": [{"type": "T"}], "notification": {"endpoint": {"uri": "http://localhost:7712/notify"}}}'
+
+echo "01. The writer subscribes to type T and creates an entity: one notification"
+echo "==========================================================================="
+status --url /ngsi-ld/v1/subscriptions --payload "$SUB" -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}' -H "Authorization: Bearer $WRITER"
+ftClientWait 1 --port 7712 > /dev/null
+echo "notifications: $(ftClientCount --port 7712)"
+echo
+echo
+
+
+echo "02. In tenant t1, by a token whose tenants are [\"t1\"]: one notification more"
+echo "============================================================================="
+status --url /ngsi-ld/v1/subscriptions --payload "$SUB" -H "Authorization: Bearer $T1" -H "NGSILD-Tenant: t1"
+status --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1}}' -H "Authorization: Bearer $T1" -H "NGSILD-Tenant: t1"
+ftClientWait 2 --port 7712 > /dev/null
+echo "notifications: $(ftClientCount --port 7712)"
+echo
+echo
+
+
+echo "03. The owner's 3 s pass: an update notifies no one - in either tenant"
+echo "====================================================================="
+sleep 4
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 2}}' -X PATCH -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 2}}' -X PATCH -H "Authorization: Bearer $T1" -H "NGSILD-Tenant: t1"
+ftClientSettle 1000
+echo "notifications: $(ftClientCount --port 7712)"
+echo
+echo
+
+
+echo "04. The writer updates the default tenant's subscription: its sender is its owner again - its notifications come back; t1's stay stopped"
+echo "======================================================================================================================================="
+status --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1 --payload '{"description": "renewed"}' -X PATCH -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 3}}' -X PATCH -H "Authorization: Bearer $WRITER"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 3}}' -X PATCH -H "Authorization: Bearer $T1" -H "NGSILD-Tenant: t1"
+ftClientWait 3 --port 7712 > /dev/null
+ftClientSettle 1000
+echo "notifications: $(ftClientCount --port 7712)"
+echo
+echo
+
+
+--EXPECT--
+01. The writer subscribes to type T and creates an entity: one notification
+===========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 1
+
+
+02. In tenant t1, by a token whose tenants are ["t1"]: one notification more
+=============================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+notifications: 2
+
+
+03. The owner's 3 s pass: an update notifies no one - in either tenant
+=====================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+notifications: 2
+
+
+04. The writer updates the default tenant's subscription: its sender is its owner again - its notifications come back; t1's stay stopped
+=======================================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+notifications: 3
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop --port 7712
+corDbDrop
+rm -rf $FT_AUTH_DIR

@@ -17,7 +17,9 @@
 //     token without it may use the default tenant only). A 403 for what the token does not cover.
 //
 // No policies, no per-entity decisions: every request is decided at its admission, before the broker
-// fetches a @context for it. The keys are fetched by a thread of this plugin; a request never waits for
+// fetches a @context for it. A subscription's notifications are decided for its owner - who made it, or
+// last updated it - as a whole (notify, ABI 5): the owner's roles and tenants, kept with the subscription,
+// hold for --oidcOwnerMaxAge; then the notifications stop until a valid token updates the subscription. The keys are fetched by a thread of this plugin; a request never waits for
 // the network. Until they are there every request is a 503 (fail closed).
 //
 #include <pthread.h>                                 // pthread_*
@@ -70,6 +72,7 @@ static int    refresh       = 300;                   // seconds between two fetc
 static bool   anonymousRead = false;                 // a read without a token is let in
 static char*  tenantsClaim  = NULL;                  // where the tenants a token may use are: a claim's path, dot-separated
 static bool   anyTenant     = false;                 // no tenant check: a token may use every tenant
+static int    ownerMaxAge   = 86400;                 // seconds a subscription's owner, as kept, holds
 
 static CorArg oidcArgs[] =
 {
@@ -85,6 +88,7 @@ static CorArg oidcArgs[] =
   { "--oidcAnonymousRead", "-oidcAnonymousRead", CorArgBool,   _vp &anonymousRead, CorArgOpt, _vp false,                 _vp false, _vp true,  "a read without a token is let in - in every tenant; a write without one is still a 401" },
   { "--oidcTenantsClaim",  "-oidcTenantsClaim",  CorArgString, _vp &tenantsClaim,  CorArgOpt, _vp "tenants",             NULL,      NULL,      "the claim holding the tenants a token may use - a path, dot-separated; an array of strings or a string of space-separated ones; 'default' is the default tenant (no NGSILD-Tenant), '*' every tenant. A token without it: the default tenant only" },
   { "--oidcAnyTenant",     "-oidcAnyTenant",     CorArgBool,   _vp &anyTenant,     CorArgOpt, _vp false,                 _vp false, _vp true,  "no tenant check: a token may use every tenant" },
+  { "--oidcOwnerMaxAge",   "-oidcOwnerMaxAge",   CorArgInt,    _vp &ownerMaxAge,   CorArgOpt, _vp 86400,                 _vp 1,     _vp 31536000, "seconds a subscription's owner - the roles and tenants of the token that made or last updated it - holds: after that its notifications stop until a valid token updates the subscription" },
   CORARGS_END
 };
 
@@ -104,6 +108,7 @@ typedef struct OidcIdentity
   int        rights;                                 // RIGHT_READ | RIGHT_WRITE
   long long  exp;                                    // the token's exp, nbf (0: none) - checked at every use of a cached identity
   long long  nbf;
+  long long  ownerUntil;                             // a subscription's owner (identityRestore): when it stops holding; 0: a request's
   bool       allTenants;                             // '*' in the tenants claim
   int        tenants;                                // the tenants it may use, in tenantBuf: each one NUL-terminated, one after the other
   char       tenantBuf[];
@@ -739,6 +744,124 @@ static void oidcRelease(void* identity)
 
 // -----------------------------------------------------------------------------
 //
+// oidcIdentitySave - a subscription's owner, as text: "oidc1 <rights> <until> <allTenants>" and a line per
+// tenant. Kept with the subscription; it holds for --oidcOwnerMaxAge from now - the token's own exp is
+// not what it lasts (a token lives minutes, a subscription months)
+//
+static char* oidcIdentitySave(void* identity)
+{
+  OidcIdentity* idP = (OidcIdentity*) identity;
+
+  if (idP == NULL)                                   // no token (--oidcAnonymousRead): no owner - and a write needs one
+    return NULL;
+
+  int   size = 64;
+  const char* s = idP->tenantBuf;
+
+  for (int i = 0; i < idP->tenants; i++)
+  {
+    size += strlen(s) + 1;
+    s    += strlen(s) + 1;
+  }
+
+  char* text = (char*) malloc(size);
+
+  if (text == NULL)
+    return NULL;
+
+  int n = snprintf(text, size, "oidc1 %d %lld %d", idP->rights, (long long) time(NULL) + ownerMaxAge, (idP->allTenants == true) ? 1 : 0);
+
+  s = idP->tenantBuf;
+  for (int i = 0; i < idP->tenants; i++)
+  {
+    n += snprintf(&text[n], size - n, "\n%s", s);
+    s += strlen(s) + 1;
+  }
+
+  return text;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// oidcIdentityRestore - a kept owner; NULL: not one of this plugin's, or no longer holding
+//
+static void* oidcIdentityRestore(const char* saved)
+{
+  int       rights = 0;
+  long long until  = 0;
+  int       all    = 0;
+  int       used   = 0;
+
+  if ((saved == NULL) || (sscanf(saved, "oidc1 %d %lld %d%n", &rights, &until, &all, &used) != 3))
+    return NULL;
+
+  if ((long long) time(NULL) > until)
+    return NULL;
+
+  const char* tenantText = &saved[used];             // "\n<tenant>" ...
+  int         len        = strlen(tenantText);
+  OidcIdentity* idP      = (OidcIdentity*) calloc(1, sizeof(OidcIdentity) + len + 1);
+
+  if (idP == NULL)
+    return NULL;
+
+  idP->refs       = 1;
+  idP->rights     = rights & (RIGHT_READ | RIGHT_WRITE);
+  idP->ownerUntil = until;
+  idP->allTenants = (all == 1);
+
+  //
+  // The tenants, NUL-terminated one after the other
+  //
+  int o = 0;
+
+  for (const char* s = tenantText; *s != 0; )
+  {
+    if (*s == '\n')
+    {
+      ++s;
+      continue;
+    }
+
+    const char* end = strchr(s, '\n');
+    int         n   = (end != NULL) ? (int) (end - s) : (int) strlen(s);
+
+    memcpy(&idP->tenantBuf[o], s, n);
+    idP->tenantBuf[o + n] = 0;
+    o            += n + 1;
+    idP->tenants += 1;
+    s            += n;
+  }
+
+  return idP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// oidcNotify - may the subscription's owner have its notifications: it reads, in the subscription's
+// tenant, and it still holds (the broker keeps a restored owner a while)
+//
+static AuthVerdict oidcNotify(void* identity, const char* tenant)
+{
+  OidcIdentity* idP = (OidcIdentity*) identity;
+
+  if ((idP == NULL) || ((idP->rights & RIGHT_READ) == 0))
+    return AuthDeny;
+
+  if ((idP->ownerUntil != 0) && ((long long) time(NULL) > idP->ownerUntil))
+    return AuthDeny;
+
+  return (tenantAllowed(idP, tenant) == true) ? AuthAllow : AuthDeny;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // oidcVersionInfo -
 //
 static const char* oidcVersionInfo(void)
@@ -802,4 +925,15 @@ void authRegister(AuthDriver* driverP)
   //
   if (brokerAbi >= 3)
     driverP->authorizeBeforeContext = true;
+
+  //
+  // A subscription's notifications, decided for its owner as a whole - a broker older than ABI 5 cannot ask
+  // that, and would keep owners it never asks about: then nothing is kept
+  //
+  if (brokerAbi >= 5)
+  {
+    driverP->identitySave    = oidcIdentitySave;
+    driverP->identityRestore = oidcIdentityRestore;
+    driverP->notify          = oidcNotify;
+  }
 }
