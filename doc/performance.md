@@ -2344,8 +2344,9 @@ part of the load; `gatewayCompare.sh` now refuses to start when a port it needs 
 
 ### The connector's provider side, and coraine - memory, start, store
 
-`test/perf/footprint/footprint.sh`: the Data Space Connector's provider side as its charts deploy it
-(data-space-connector 10.10.3: decentralized-iam 2.1.27), one container each, the images its charts pin, the
+`test/perf/footprint/footprint.sh`: the Data Space Connector's provider side as its chart's examples deploy it
+(data-space-connector 10.10.3: decentralized-iam 2.1.27), Scorpio as the NGSI-LD data service - which the
+connector's provider guide places outside the connector, and in production on a broker of its own, one container each, the images its charts pin, the
 settings their READMEs give - against one coraine with `--auth fdsc` (the same 20 policies) and the PAP's
 `/policy` API (`--policyApiPort`), on its durable store (corDB `--dbDir`). Memory: each process's cgroup,
 `memory.current` less `inactive_file` (what `docker stats` shows), 60 s after start, and 30 s after the same
@@ -2372,9 +2373,10 @@ settings their READMEs give - against one coraine with `--auth fdsc` (the same 2
 | the store on disk | 126 MiB (`pg_database_size`) | 8.0 MiB (`du` of `--dbDir`) |
 | images, compressed (amd64) | Scorpio 281, APISIX 132, OPA 35, odrl-pap 44, VCVerifier 14, CCS 191, TIL 168, PostgreSQL 16-alpine 111, PostGIS 203 MiB | 69 MiB (`quay.io/seamware/coraine:0.5.0`) |
 
-coraine does not do what the TIL, the CCS and VCVerifier do (rows 3-5): the 31 and 67 MiB stand for the broker,
-the gateway, OPA, the PAP and the two databases of rows 1-2 and 6-9 (494 MiB idle, 1 468 MiB with the
-entities). APISIX's chart default is one nginx worker a core (`worker_processes: auto`); with one worker the
+coraine does not do what the TIL, the CCS and VCVerifier do (rows 3-5), and the PostgreSQL of row 9 stays for
+the TIL: the 31 and 67 MiB stand for the broker and its database, the gateway, OPA and the PAP, rows 1-2 and
+6-8 (425 MiB idle, 1 397 MiB with the entities). Since data-space-connector 10.11.0 the CCS is disabled by
+default and VCVerifier serves its API. APISIX's chart default is one nginx worker a core (`worker_processes: auto`); with one worker the
 row is the smallest it can be.
 
 ## An open question: `--connectionPoolSize`
