@@ -12,7 +12,7 @@
 // the query is too big to fit in a URL or contains characters that
 // would need aggressive URL-encoding.
 //
-// The route's payload check (pCheckQuery) validates the body and makes it the request's params, expanded
+// The route's payload check (ldQueryBodyCheck) validates the body and makes it the request's params, expanded
 // as the URL's are (ldQueryBodyToParams) - this routine delegates to getEntities.
 //
 
@@ -35,7 +35,7 @@
 bool postEntityBatchQuery(void)
 {
   //
-  // The body is params already, expanded: the payload check (pCheckQuery) made them
+  // The body is params already, expanded: the payload check (ldQueryBodyCheck) made them
   //
 #if !COR_FEATURE_GEOQ
   if (geoQueryRefused())                              // the body's geoQ, now in the request's georel

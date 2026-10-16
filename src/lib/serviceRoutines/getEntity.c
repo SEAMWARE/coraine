@@ -47,6 +47,7 @@
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "serviceRoutines/timepoint.h"               // timepointEntityRetrieve
 #include "db/dbExpiredEntities.h"                 // dbExpiredEntityIs
 #include "db/Tenant.h"                               // Tenant
 
@@ -920,7 +921,7 @@ bool getEntity(void)
   }
 
   CorNode* entityP = NULL;
-  int     r       = db.entityRetrieve((Tenant*) corNgsild.tenantP, entityId, &entityP);
+  int     r       = timepointEntityRetrieve((Tenant*) corNgsild.tenantP, entityId, &entityP);   // the store's - or the history's at timeAt
 
   // § 5.2.4: a transient Entity past its expiresAt is invalid — answered as if
   // it were not there, and queued for deletion once the response is out.

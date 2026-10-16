@@ -246,16 +246,6 @@ by tenant - "may only read type X" becomes a condition on the query, not a filte
 ODRL policies, as in the FIWARE Data Space Connector; the identity is the verifier's token for a
 verifiable credential. [Authorization in the broker](authorization.md).
 
-### An NGSI-LD plugin for APISIX
-
-A policy enforcement point that understands NGSI-LD, as a plugin for [APISIX](https://apisix.apache.org/)
-- the gateway that already is the enforcement point of every FIWARE Data Space Connector deployment.
-It decides on the NGSI-LD request itself: the operation, the entity type (from the request, the entity
-id, or the query), the attributes, the tenant - with the client's `@context`, as the broker would read
-it. It sits in front of **any** NGSI-LD broker - Scorpio, Stellio, Orion-LD, coraine - and belongs in
-APISIX's plugin hub; no such plugin exists today. The same decision rules as the authorisation inside
-the broker, for a deployment that keeps them at the gateway.
-
 ## Operations and availability
 
 ### Migrating from Orion-LD

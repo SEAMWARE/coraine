@@ -11,7 +11,7 @@ fraction of the processes and the memory. A proposal, not a plan: nothing below 
 | the data | coraine | built |
 | who sent a request, may it | `--auth fdsc` in the broker ([Authorization](authorization.md)) - VCVerifier's tokens, the ODRL policies as odrl-pap holds them, decided as the connector decides them | built; 64 cases of `test/fdscDiff`, 0 differences against the connector's own chain |
 | the policies | coraine's `/policy` API (`--policyApiPort`): odrl-pap's API, the policies in coraine's store | built |
-| the same decision in APISIX, for any NGSI-LD broker | `ngsild-pep` (corApisixNgsild): `fdsc.so`'s code in an APISIX plugin | built; the same 64 cases, 0 differences |
+| the same decision in APISIX, for any NGSI-LD broker | `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s code in an APISIX plugin | built; the same 64 cases, 0 differences |
 | the token | a verifier: OID4VP, the credential formats and DIDs the connector accepts, the JWT | not started |
 | which issuers are trusted | a TIL, with the EBSI TIR API the verifier reads | not started |
 | which credentials a service takes | a CCS | not started |

@@ -23,6 +23,11 @@ lists below are one line each, linked to it.
 
 Recently built, and documented where it lives:
 
+-   **An NGSI-LD plugin for APISIX** - `ngsild-pep`
+    ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s own decision in the
+    gateway the FIWARE Data Space Connector already uses, in front of any NGSI-LD broker; on the 64 cases
+    of `test/fdscDiff` it decides as `--auth fdsc` does. `--fdscNgsild` stays in the broker: it needs the
+    stored entity ([Authorization](authorization.md), § 5).
 -   **DDS** - topics both ways, services, actions, through the DDS bridge ([DDS and ROS 2](dds.md)).
 -   **MQTT** - device topics as Channels, and notifications to `mqtt://` ([The MQTT bridge](mqtt-bridge.md)).
 -   **Modbus TCP** - registers as Channels ([The Modbus bridge](modbus-bridge.md)).
@@ -88,13 +93,6 @@ Recently built, and documented where it lives:
 Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
 face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
 coraine implements its own objects now and adapts to whatever TC DATA settles on.
-
-## In progress
-
--   **An NGSI-LD plugin for APISIX** - `ngsild-pep` (corApisixNgsild): `fdsc.so`'s own decision in the gateway
-    the FIWARE Data Space Connector already uses, in front of any NGSI-LD broker. Built, and deciding as
-    `--auth fdsc` does on the same 64 cases; made public once it is complete.
-    ([more](ideas.md#an-ngsi-ld-plugin-for-apisix))
 
 ## Short term
 
@@ -179,9 +177,9 @@ CKAN bridge with DataChannels, and c³ Compile. Open, in order:
    cache misses walking trees; `perf stat` cache-misses on the GET scenarios before and after.
 2. **The other diversity builds** - ASan + UBSan, clang, Alpine / musl, every night. (`-funsigned-char`,
    ARM's `char`, passed the whole suite on 2026-10-08.)
-3. **Security, what is left** - `join=inline` in a notification decided for its owner; the APISIX plugin
-   made public; the connector's own rules as its team settles them (SEAMWARE/odrl-pap#59-#61: attribute paths, batch
-   operations - a PR, odrl-pap#64 -, the actions).
+3. **Security, what is left** - `join=inline` in a notification decided for its owner; the connector's
+   own rules as its team settles them (SEAMWARE/odrl-pap#59-#61: attribute paths, batch operations - a
+   PR, odrl-pap#64 -, the actions).
 4. **One compound geo index** - prototype both variants, measure.
 5. **Hot and cold entity segments** - a design note.
 6. **The batch-delete regression** - low priority (attribute updates matter far more); the delete cost
