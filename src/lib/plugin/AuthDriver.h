@@ -42,7 +42,7 @@
 
 
 
-#define AUTH_ABI_VERSION  5
+#define AUTH_ABI_VERSION  6
 
 
 
@@ -219,6 +219,16 @@ typedef struct AuthDriver
   // the broker then asks nothing per entity, of a notification or of a request. NULL: not asked.
   //
   AuthVerdict  (*notify)(void* identity, const char* tenant);
+
+  //
+  // ABI 6: resourceMetadata - what a client needs to get a token this plugin takes: a JSON object, malloc'd
+  // (the broker frees it) - RFC 9728's members ("authorization_servers": the issuers) and the plugin's own
+  // ("coraine_auth": its name, ...). The broker adds "resource" (its --httpEndpoint) and
+  // "bearer_methods_supported", serves it - without asking the plugin - at GET
+  // /.well-known/oauth-protected-resource, and names it in every 401's WWW-Authenticate (resource_metadata,
+  // RFC 9728 § 5.1). NULL (the slot, or the answer): no metadata - that route is a 404.
+  //
+  char*        (*resourceMetadata)(void);
 } AuthDriver;
 
 typedef void (*AuthRegisterFunc)(AuthDriver* driverP);

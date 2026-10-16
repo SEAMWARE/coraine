@@ -180,6 +180,15 @@ extern const char* authVersionInfo(void);
 
 // -----------------------------------------------------------------------------
 //
+// authResourceMetadata - GET /.well-known/oauth-protected-resource: how a client gets a token the auth plugin
+// takes (RFC 9728) - a 404 when the plugin offers none (COR_FEATURE_AUTH_METADATA)
+//
+extern bool authResourceMetadata(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // authClose - the broker stops
 //
 extern void authClose(void);

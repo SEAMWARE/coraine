@@ -88,7 +88,7 @@ HTTP/1.1 403 Forbidden
 
 02. A token of another issuer: 401 - the issuer is the discovery document's, not configured
 ===========================================================================================
-WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer"
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 
 
 03. What the plugin asked: the discovery document, the JWK Set, and the PAP's pages 0, 1 and 2 (empty)

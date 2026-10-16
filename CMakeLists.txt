@@ -44,6 +44,7 @@ option(COR_FEATURE_GEOQ            "Enable geo-query matching (requires GEOS)"  
 # Group: Security - who sent a request, whether it may, and the policies that decide
 option(COR_FEATURE_AUTH            "Enable auth plugins - who sent a request and whether it may (--auth; fdsc.so: the FIWARE Data Space Connector's tokens and policies, doc/authorization.md)" ON)
 option(COR_FEATURE_AUTH_OIDC       "Enable oidc.so - an OpenID provider's access tokens (Keycloak, ...), their roles reading or writing (--auth oidc, doc/authorization.md)" ON)
+option(COR_FEATURE_AUTH_METADATA   "Enable the resource's metadata (RFC 9728): GET /.well-known/oauth-protected-resource - how a client gets a token the auth plugin takes - and resource_metadata in every 401" ON)
 option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of its own (--policyApiPort): the policies fdsc.so reads, held by the broker (doc/authorization.md)" ON)
 
 # Group: Beyond NGSI-LD - Service Execution, and what a bridge plugin can do in the broker
@@ -79,7 +80,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN DATA_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN DATA_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -101,6 +102,7 @@ endif()
 #
 if (NOT COR_FEATURE_AUTH)
   set(COR_FEATURE_AUTH_OIDC OFF)
+  set(COR_FEATURE_AUTH_METADATA OFF)
 endif()
 
 #

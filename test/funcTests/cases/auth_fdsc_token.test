@@ -106,7 +106,7 @@ echo
 ========================================================================================
 HTTP/1.1 401 Unauthorized
 Content-Type: application/json
-WWW-Authenticate: Bearer
+WWW-Authenticate: Bearer resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 Content-Length: 127
 
 {
@@ -149,7 +149,7 @@ HTTP/1.1 401 Unauthorized
 ====================================================================================
 HTTP/1.1 401 Unauthorized
 Content-Type: application/json
-WWW-Authenticate: Bearer error="invalid_token", error_description="expired, or not yet valid"
+WWW-Authenticate: Bearer error="invalid_token", error_description="expired, or not yet valid", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 Content-Length: 113
 
 {
@@ -164,12 +164,12 @@ HTTP/1.1 200 OK
 
 05. A broken signature, another issuer, an unknown kid, not a JWT, alg none (signed with anything), Basic instead of Bearer: 401 each
 ===================================================================================================================================
-WWW-Authenticate: Bearer error="invalid_token", error_description="invalid signature"
-WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer"
-WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
-WWW-Authenticate: Bearer error="invalid_token", error_description="not a JWT"
-WWW-Authenticate: Bearer error="invalid_token", error_description="algorithm not accepted"
-WWW-Authenticate: Bearer
+WWW-Authenticate: Bearer error="invalid_token", error_description="invalid signature", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer error="invalid_token", error_description="not a JWT", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer error="invalid_token", error_description="algorithm not accepted", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 
 
 06. A CORS preflight (OPTIONS) without a token: 401, as everything else

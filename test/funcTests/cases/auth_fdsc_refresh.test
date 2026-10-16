@@ -129,9 +129,9 @@ HTTP/1.1 404 Not Found
 
 04. The verifier restarts with a new key (k2 only): its first token is a 401 (an unknown key), and has the keys fetched - the next is let in; k1's token - checked before - now 401
 ===================================================================================================================================================================================
-WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 404
-WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key"
+WWW-Authenticate: Bearer error="invalid_token", error_description="signed by an unknown key", resource_metadata="http://localhost:1026/.well-known/oauth-protected-resource"
 
 
 05. Restarted with --fdscRefresh 1: the policies replaced by none - denied after the next refresh

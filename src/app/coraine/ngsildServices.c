@@ -87,6 +87,9 @@
 #include "serviceRoutines/getSourceIdentity.h"         // getSourceIdentity
 #include "serviceRoutines/getVersion.h"                // getVersion
 #include "serviceRoutines/getBuild.h"                  // getBuild
+#if COR_FEATURE_AUTH_METADATA
+#include "auth/auth.h"                                 // authResourceMetadata
+#endif
 #include "serviceRoutines/getEntityTemporal.h"         // getEntityTemporal
 #if COR_FEATURE_TIMEPOINT
 #include "serviceRoutines/timepoint.h"                 // getEntityTimepoint, getEntitiesTimepoint, postEntityBatchQueryTimepoint
@@ -308,6 +311,11 @@ CorRestServiceSimplified ngsildCoreServices[] =
   // and the endpoint that reports what a build contains must not be one of the
   // things a build can leave out.
   { CorVerbGet,    "/build",                    getBuild,          0, LdOpNone },
+
+#if COR_FEATURE_AUTH_METADATA
+  // How a client gets a token the auth plugin takes (RFC 9728) - served without one
+  { CorVerbGet,    "/.well-known/oauth-protected-resource", authResourceMetadata, 0, LdOpNone },
+#endif
 
 #if COR_FEATURE_TIMEPOINT
   // The entity as it was at a point in time (NGSI-LD v2.1 - timeAt mandatory): the Core API's retrieve and
