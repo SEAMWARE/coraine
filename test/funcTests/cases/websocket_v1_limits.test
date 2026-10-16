@@ -122,7 +122,7 @@ echo
 --EXPECT--
 01. A subscription naming another connection (urn:ngsi-ld:WebSocket:99) - 403
 ==============================================================================
-403 r1 a subscription made over a WebSocket notifies its own connection, urn:ngsi-ld:WebSocket:1 
+403 r1 a subscription made over a WebSocket notifies its own connection, REGEX(urn:ngsi-ld:WebSocket:[0-9a-f]{16}-1) 
 
 
 02. GET /ngsi-ld/v1/nothing over the WebSocket - refused as over HTTP
@@ -157,7 +157,7 @@ echo
 
 07. The subprotocol ngsi-ld.json - 101, and the server names it
 ===============================================================
-[{"subprotocol": "ngsi-ld.json"}, {"metadata": {"connection": "urn:ngsi-ld:WebSocket:2"}}]
+[{"subprotocol": "ngsi-ld.json"}, {"metadata": {"connection": "REGEX(urn:ngsi-ld:WebSocket:[0-9a-f]{16}-2)"}}]
 
 
 08. A request sent in the same write as the upgrade, before the 101 - answered

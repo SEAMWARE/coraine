@@ -70,7 +70,8 @@ echo "01. Connect; a subscription to type Vehicle, notifying this connection"
 echo "======================================================================"
 ftWsStart
 ftWsAwait 1
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"sub"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"},"format":"keyValues"}}}'
+CONN=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')   # this run's id: urn:ngsi-ld:WebSocket:<boot>-<n>
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"sub"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"'"$CONN"'"},"format":"keyValues"}}}'
 resp sub
 echo
 echo

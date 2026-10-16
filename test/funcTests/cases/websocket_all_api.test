@@ -89,6 +89,7 @@ echo "01. Connect; GET /version - 200"
 echo "==============================="
 ftWsStart
 ftWsAwait 1
+CONN=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')   # this run's id: urn:ngsi-ld:WebSocket:<boot>-<n>
 req '{"metadata":{"method":"GET","path":"/version","requestId":"v"}}'
 ftWsMessages | python3 -c "
 import json,sys
@@ -120,7 +121,7 @@ echo
 
 echo "04. A context source subscription notifying this connection; POST, GET, PATCH, DELETE of a registration - 4 notifications"
 echo "========================================================================================================================="
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/csourceSubscriptions","requestId":"cs"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/csourceSubscriptions","requestId":"cs"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"'"$CONN"'"}}}}'
 req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/csourceRegistrations","requestId":"rc"},"body":{"id":"urn:R1","type":"ContextSourceRegistration","information":[{"entities":[{"type":"Room"}]}],"endpoint":"http://localhost:9999"}}'
 req '{"metadata":{"method":"GET","path":"/ngsi-ld/v1/csourceRegistrations/urn:R1","requestId":"rr"}}'
 req '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/csourceRegistrations/urn:R1","requestId":"ru"},"body":{"endpoint":"http://localhost:9998"}}'
@@ -157,8 +158,8 @@ echo
 echo "06. NGSILD-Tenant t1 in a request's metadata: an entity and a subscription, in t1 only (seen over HTTP)"
 echo "======================================================================================================"
 req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/entities","requestId":"t1e","NGSILD-Tenant":"t1"},"body":{"id":"urn:T1","type":"Room"}}'
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"t1s","NGSILD-Tenant":"t1"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
-req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"d0s"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:WebSocket:1"}}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"t1s","NGSILD-Tenant":"t1"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"'"$CONN"'"}}}}'
+req '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"d0s"},"body":{"type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"'"$CONN"'"}}}}'
 resp t1e
 resp t1s
 resp d0s

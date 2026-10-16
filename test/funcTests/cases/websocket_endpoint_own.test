@@ -1,0 +1,153 @@
+#
+# FILE            websocket_endpoint_own.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+# A WebSocket connection is the endpoint only of what is made over it. A subscription (or a context source
+# subscription) made over HTTP that names a connection was accepted - and pushed its notifications into a
+# connection that never asked for them. And a connection's id is of this run of the broker: one that was
+# killed (kill -9) deletes nothing, its subscriptions stay in the store - and the ids, starting again at
+# 1, let the next client to be connection 1 receive another client's notifications.
+#
+--NAME--
+WebSocket - a connection is the endpoint only of what is made over it; an id of another run names no connection
+--TAGS--
+websocket subscription
+--INIT--
+corDbDrop
+coraineStart --transports ws
+--RUN--
+connOf() { ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])'; }
+
+echo "01. Connect A - its id, of this run: urn:ngsi-ld:WebSocket:<boot>-1"
+echo "==================================================================="
+ftWsStart
+ftWsAwait 1
+A=$(connOf)
+echo "$A"
+echo
+echo
+
+
+echo "02. Over HTTP, a subscription naming A - 400"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "endpoint": { "uri": "'"$A"'" } } }'
+echo
+echo
+
+
+echo "03. Over HTTP, a context source subscription naming A - 400"
+echo "==========================================================="
+corCurl --url /ngsi-ld/v1/csourceSubscriptions --payload '{ "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "notification": { "endpoint": { "uri": "'"$A"'" } } }'
+echo
+echo
+
+
+echo "04. Over A, a subscription naming A - 201"
+echo "========================================="
+ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"r1","Content-Type":"application/json"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"'"$A"'"}}}}'
+ftWsAwait 2
+ftWsMessages | python3 -c 'import json,sys; m=json.load(sys.stdin)[1]["metadata"]; print(m["status"], m["requestId"])'
+echo
+echo
+
+
+echo "05. kill -9 the broker - nothing deleted - and start it again; connect B: an id of another run"
+echo "=============================================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --transports ws
+ftWsStart
+ftWsAwait 1
+B=$(connOf)
+echo "$B"
+[ "$A" != "$B" ] && echo "A and B differ"
+echo
+echo
+
+
+echo "06. A's subscription is still there (a killed broker deleted nothing), naming A"
+echo "==============================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions | grep -c '"uri": "'"$A"'"'
+echo
+echo
+
+
+echo "07. Create a Vehicle - A's subscription matches it, and B is not notified: B has its first message only"
+echo "======================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Vehicle:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 1 } }' | head -1
+sleep 0.5
+ftWsMessages | python3 -c 'import json,sys; print(len(json.load(sys.stdin)), "message(s)")'
+echo
+echo
+
+
+--EXPECT--
+01. Connect A - its id, of this run: urn:ngsi-ld:WebSocket:<boot>-1
+===================================================================
+REGEX(urn:ngsi-ld:WebSocket:[0-9a-f]{16}-1)
+
+
+02. Over HTTP, a subscription naming A - 400
+============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "'notification.endpoint.uri': no notification transport for this scheme is loaded",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Over HTTP, a context source subscription naming A - 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 215
+
+{
+  "detail": "'notification.endpoint.uri': no notification transport for this scheme is loaded",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Over A, a subscription naming A - 201
+=========================================
+201 r1
+
+
+05. kill -9 the broker - nothing deleted - and start it again; connect B: an id of another run
+==============================================================================================
+REGEX(urn:ngsi-ld:WebSocket:[0-9a-f]{16}-1)
+A and B differ
+
+
+06. A's subscription is still there (a killed broker deleted nothing), naming A
+===============================================================================
+1
+
+
+07. Create a Vehicle - A's subscription matches it, and B is not notified: B has its first message only
+=======================================================================================================
+HTTP/1.1 201 Created
+1 message(s)
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
