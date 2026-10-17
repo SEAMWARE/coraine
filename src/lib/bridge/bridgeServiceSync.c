@@ -723,6 +723,27 @@ static CorNode* wireValue(CorNode* valueP)
 
 // -----------------------------------------------------------------------------
 //
+// bridgeWireRender -
+//
+char* bridgeWireRender(CorNode* valueP)
+{
+  //
+  // corJsonFastRender does not know the size of the buffer it writes into: the buffer is the value's
+  // own size, in the request's arena - a value has no size limit here but the request's.
+  //
+  CorNode* wireP = wireValue(valueP);
+  char*    buf   = (char*) corAlloc(&corRest.kalloc, corJsonFastRenderSize(wireP) + 1);
+
+  if (buf != NULL)
+    corJsonFastRender(wireP, buf);
+
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsBeforeWrite -
 //
 bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP, AttrsNotWritten* notWrittenP)
@@ -818,19 +839,13 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
     // corJsonFastRender follows the sibling chain and emits 250, - which parses as
     // nothing at all.
     //
-    // corJsonFastRender does not know the size of the buffer it writes into: the buffer is the value's
-    // own size, in the request's arena - a value has no size limit here but the request's.
-    //
-    CorNode* wireP = wireValue(valueP);
-    char*    buf   = (char*) corAlloc(&corRest.kalloc, corJsonFastRenderSize(wireP) + 1);
+    char* buf = bridgeWireRender(valueP);
 
     if (buf == NULL)
     {
       ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering the value of '%s'", attrP->name);
       return requestsFailed(doneP);
     }
-
-    corJsonFastRender(wireP, buf);
 
     //
     // A topic: the sample is published now. One the transport refuses - a value

@@ -95,7 +95,8 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
 - **Counters** - `samplesIn`, `samplesOut`, `requestsWaiting`,
   `requestsNotWaited`; on action Channels `goalsSent`, `goalCancelsSent`;
   `endpointDiscovered: true` once the transport found the endpoint (absent
-  before, never `false`). On the Bridge, `samplesDropped`. In memory, from the
+  before, never `false`); `payloadsRefused` (the payload check, below). On the
+  Bridge, `samplesDropped`. In memory, from the
   broker's start. Tests wait on these, never on a trace line.
 
 ## Behaviour
@@ -126,6 +127,33 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
 - **Overlap with registrations**: a mirroring Channel and an `exclusive` or
   `redirect` registration may not claim the same attribute; `inclusive` and
   `auxiliary` never conflict.
+
+## The payload check
+
+A bridge may refuse what a client writes to an attribute one of its Channels
+or DataChannels maps, before anything of the write is sent or stored
+(`BridgeDriver.payloadCheck`, bridge ABI 13 - `COR_FEATURE_CHANNEL_CHECKS`):
+
+- **Refuse only.** The bridge is handed the endpoint, the attribute (expanded)
+  and the value as the client wrote it (the default instance, as the
+  application's own JSON - on a merge, the fragment), and answers yes or no.
+  A refusal is 400 (`BadRequestData`, the bridge's reason in `detail`) and
+  nothing is written; in a multi-attribute write or a batch that attribute is
+  left out and reported, and the rest written (207). The value is never
+  changed. A check that fails (anything but a refusal) is a yes.
+- **Optional, per bridge.** A bridge without one costs a write one test of a
+  flag. A transport that refuses a wrong value itself (DDS) needs none - a
+  Channel writes transport first.
+- **Which attributes.** A Channel's own; for a DataChannel, the attributes its
+  mapping names, of every entity whose id fits one of its id templates
+  (`urn:ngsi-ld:BikeStation:{Number}` fits `urn:ngsi-ld:BikeStation:7`).
+- **Clients only.** What the bridge itself writes - a sample, a DataChannel's
+  record - is not checked.
+- **`payloadsRefused`**, on the Channel and the DataChannel: the writes its
+  bridge refused.
+
+The loopback bridge's `"payloadCheck"` (`{ "<endpoint>": "number" |
+"refuse:<reason>" | "error" }`) is the reference implementation.
 
 ## DataChannels
 

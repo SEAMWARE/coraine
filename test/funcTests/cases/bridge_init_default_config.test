@@ -82,7 +82,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 494
+Content-Length: 520
 
 [
   {
@@ -96,6 +96,7 @@ Content-Length: 494
     },
     "entityAttribute": "temperature",
     "id": "urn:ngsi-ld:Channel:loopback:P1",
+    "payloadsRefused": 0,
     "requestsNotWaited": 0,
     "requestsWaiting": 0,
     "retention": "mirror",

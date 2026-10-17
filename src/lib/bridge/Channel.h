@@ -104,6 +104,9 @@ typedef struct Channel
   uint64_t           goalsSent;                       // goals the transport took (actionGoalSend returned OK)
   uint64_t           goalCancelsSent;                 // cancels sent: asked for (DELETE), or of a goal whose request wrote nothing
   uint64_t           requestsNotWaited;               // requests sent without waiting for the reply - every wait slot taken
+#if COR_FEATURE_CHANNEL_CHECKS
+  uint64_t           payloadsRefused;                 // client writes the bridge's payloadCheck refused (ABI 13)
+#endif
   int                requestsWaiting;                 // requests waiting for their reply right now
 
   struct Channel*    next;

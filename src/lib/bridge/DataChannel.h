@@ -52,6 +52,9 @@ typedef struct DataChannel
   uint64_t             recordsIn;                     // records that wrote at least one entity
   uint64_t             recordsRefused;                // records that wrote none: not an object, no entity id, every entity refused
   uint64_t             entitiesWritten;               // entities created or updated
+#if COR_FEATURE_CHANNEL_CHECKS
+  uint64_t             payloadsRefused;               // client writes the bridge's payloadCheck refused (ABI 13)
+#endif
 
   struct DataChannel*  next;
 } DataChannel;

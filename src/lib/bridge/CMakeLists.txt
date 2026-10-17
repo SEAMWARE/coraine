@@ -13,6 +13,10 @@ SET(SOURCES
   bridgeService.c
 )
 
+IF (COR_FEATURE_CHANNEL_CHECKS)
+  LIST(APPEND SOURCES channelCheck.c)
+ENDIF()
+
 IF (COR_FEATURE_DATA_CHANNELS)
   LIST(APPEND SOURCES recordMap.c dataChannelCache.c dataChannelRecordIn.c dataChannelRender.c)
 ENDIF()

@@ -343,6 +343,13 @@ ignored, `GET /ngsi-ld/v1/dataChannels` answers 501, and the CKAN bridge is not 
 and why not - `status` and `statusReason` on `GET /ngsi-ld/v1/channels`, a dormant one a warning in the log.
 Off: the slot is NULL, and a Channel the plugin refuses shows the broker's own reason. Size: -576 bytes.
 
+#### `CHANNEL_CHECKS`
+
+`BridgeDriver.payloadCheck` (bridge ABI 13): a bridge plugin may refuse what a client writes to an attribute
+one of its Channels or DataChannels maps, before anything is sent or stored
+([the payload check](bridge-channels.md#the-payload-check)). Off: no write is checked, and
+`payloadsRefused` is not shown. Size: -3,449 bytes.
+
 #### `COR_PROTOCOL`
 
 cor://, the binary NGSI-LD protocol: a listener next to HTTP (`--corPort`), and forwarding to a
@@ -405,6 +412,7 @@ at a time and comparing the result against a full build.
 | `COR_WITH_GEOQ=0` (`GEOQ`) | in `mongoc.so`, `corDB.so` and `ramDB.so` 33 KiB stripped, and GEOS: libgeos_c and libgeos are not loaded (3.17 MiB); the broker grows 8 KiB (its refusals) | no geo-queries - `georel`, a `geoQ` in a query body, a subscription or a Service Execution object, ordering by distance are answered 501; corDB accepts any polygon |
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
+| `COR_FEATURE_CHANNEL_CHECKS=OFF` | 3,449 bytes (release build) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

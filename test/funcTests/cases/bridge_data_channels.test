@@ -209,7 +209,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 6396
+Content-Length: 6552
 
 [
   {
@@ -218,6 +218,7 @@ Content-Length: 6396
     "entitiesWritten": 2,
     "id": "urn:ngsi-ld:DataChannel:loopback:D1",
     "idEncoding": "merge",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -266,6 +267,7 @@ Content-Length: 6396
     "entitiesWritten": 1,
     "id": "urn:ngsi-ld:DataChannel:loopback:D2",
     "idEncoding": "merge",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -320,6 +322,7 @@ Content-Length: 6396
     "entitiesWritten": 2,
     "id": "urn:ngsi-ld:DataChannel:loopback:D3",
     "idEncoding": "percent",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -368,6 +371,7 @@ Content-Length: 6396
     "entitiesWritten": 0,
     "id": "urn:ngsi-ld:DataChannel:loopback:D4",
     "idEncoding": "merge",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -407,6 +411,7 @@ Content-Length: 6396
     "entitiesWritten": 0,
     "id": "urn:ngsi-ld:DataChannel:loopback:D5",
     "idEncoding": "merge",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -446,6 +451,7 @@ Content-Length: 6396
     "entitiesWritten": 0,
     "id": "urn:ngsi-ld:DataChannel:loopback:D6",
     "idEncoding": "merge",
+    "payloadsRefused": 0,
     "recordEntities": [
       {
         "attributes": {
@@ -490,7 +496,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1126
+Content-Length: 1150
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -504,6 +510,7 @@ Content-Length: 1126
   "entitiesWritten": 2,
   "id": "urn:ngsi-ld:DataChannel:loopback:D3",
   "idEncoding": "percent",
+  "payloadsRefused": 0,
   "recordEntities": [
     {
       "attributes": {

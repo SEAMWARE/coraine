@@ -40,6 +40,9 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite
+#endif
 #include "bridge/channelCache.h"                   // channelOutCount
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
@@ -706,6 +709,11 @@ bool postEntities(void)
     if ((channelOutCount() > 0) &&
         ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL)))
     {
+#if COR_FEATURE_CHANNEL_CHECKS
+      if (channelChecksBeforeWrite(tenantP, idP->value.s, entityP, 0, &notWritten) == false)
+        return true;  // ldError already set - nothing has been created
+#endif
+
       if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, 0, &syncDone, &notWritten) == false)
         return true;  // ldError already set - nothing has been created
     }

@@ -98,6 +98,9 @@ CorNode* dataChannelRender(DataChannel* dcP)
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "recordsIn",       (long long) __atomic_load_n(&dcP->recordsIn,       __ATOMIC_RELAXED)));
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "recordsRefused",  (long long) __atomic_load_n(&dcP->recordsRefused,  __ATOMIC_RELAXED)));
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "entitiesWritten", (long long) __atomic_load_n(&dcP->entitiesWritten, __ATOMIC_RELAXED)));
+#if COR_FEATURE_CHANNEL_CHECKS
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "payloadsRefused", (long long) __atomic_load_n(&dcP->payloadsRefused, __ATOMIC_RELAXED)));
+#endif
 
   return bodyP;
 }

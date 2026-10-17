@@ -40,6 +40,9 @@
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite
+#endif
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
 #include "troe/troeDispatch.h"                        // troeEventsOn
@@ -514,6 +517,11 @@ bool postEntityAttrs(void)
     // several, it is left out - not updated - and the rest goes on (207). See
     // bridgeServiceSync.h.
     //
+#if COR_FEATURE_CHANNEL_CHECKS
+    if (channelChecksBeforeWrite(tenantP, entityId, fragment, 0, &notWritten) == false)
+      return true;  // ldError already set - nothing has been written
+#endif
+
     if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, 0, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been written
 

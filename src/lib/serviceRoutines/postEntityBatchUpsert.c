@@ -75,6 +75,9 @@
 #include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite, channelChecksActive
+#endif
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -630,6 +633,9 @@ bool postEntityBatchUpsert(void)
   // carries anything.
   //
   bool             requestsFirst = (channelOutCount() > 0);
+#if COR_FEATURE_CHANNEL_CHECKS
+  requestsFirst = requestsFirst || channelChecksActive();   // the payload check goes first too - and reports the same way
+#endif
   BridgeSyncDone** doneV    = NULL;
   int              doneN    = 0;
 
@@ -808,6 +814,9 @@ bool postEntityBatchUpsert(void)
         AttrsNotWritten* notWrittenP = (AttrsNotWritten*) corAlloc(&corRest.kalloc, sizeof(AttrsNotWritten));
         memset(notWrittenP, 0, sizeof(AttrsNotWritten));
 
+#if COR_FEATURE_CHANNEL_CHECKS
+        channelChecksBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, notWrittenP);
+#endif
         bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneP, notWrittenP);
       }
     }

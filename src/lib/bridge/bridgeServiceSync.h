@@ -186,6 +186,17 @@ extern bool bridgeSyncRequested(bool* syncP);
 
 // -----------------------------------------------------------------------------
 //
+// bridgeWireRender - an attribute's value as it goes to a bridge: the application's own JSON
+//
+// Compacted with the request's @context (the one it was expanded with), rendered in a buffer of its own
+// size in the request's arena. NULL: out of memory.
+//
+extern char* bridgeWireRender(CorNode* valueP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRequestsBeforeWrite - send every service request and goal a fragment makes
 //
 // Called by every single-entity write handler after the fragment is in the DB
