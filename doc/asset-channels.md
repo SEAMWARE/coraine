@@ -1,6 +1,6 @@
 # AssetChannels - a source model as a graph of entities
 
-**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge). Not built: deleting what a model no longer has, operations as services (§ 4).
+**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge). Not built: operations as services (§ 4).
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
@@ -142,8 +142,8 @@ references between object nodes -> Relationships; a Method -> a service.
   batch upsert - `observedAt` the node's `sourceTime`. A value of no node of the model is counted
   (`valuesRefused`) and dropped.
 - **The model's structure that changes** (a submodel added, an element removed) -> the bridge hands the model
-  over again: its entities and attributes are written; what the model no longer has is left alone (deleting
-  it is not built).
+  over again: its entities and attributes are written; what the model no longer has is **left alone** (§ 6.8)
+  - a node that is gone may be a server restarting or a connection lost, and its last values stay readable.
 - **Inbound only in v1**, as a DataChannel. Writing back (a PATCH -> the AAS `$value` PUT, an OPC UA Write) is
   a later step, then with a Channel's rule: transport first, a refusal stores nothing.
 - **No owner**, as a DataChannel: an AssetChannel claims no attribute; the last write wins.
@@ -218,6 +218,8 @@ Decided (KZ, 2026-10-17):
 6. **The first bridge**: OPC UA.
 7. **How a bridge hands a model over**: on the existing seam, as a neutral node tree (§ 3.3) - no new bridge
    ABI, and the mapping in the broker, the same for every model bridge.
+8. **What a model no longer has** - an entity or an attribute whose node is gone: left alone, not deleted
+   (KZ 2026-10-17) - a reconnect may bring it back, and its last values stay readable.
 
 ## 7. Plan
 
