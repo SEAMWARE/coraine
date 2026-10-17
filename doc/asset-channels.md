@@ -39,6 +39,23 @@ DataChannels and AssetChannels - so "everything this bridge does" is one request
 collection. (Channel and DataChannel have these members today - `channelTarget` both - the base makes it a
 rule for every type.)
 
+### 2.1 The payload check
+
+A bridge may check what a client writes to an attribute one of its channels maps - Channel, DataChannel
+and AssetChannel alike - before the broker stores it:
+
+- **Refuse only.** The check answers yes or no; a no stores nothing, and the client gets 400 with the
+  bridge's reason. It never changes the payload.
+- **Optional, per bridge.** A bridge without a check costs nothing. One whose transport already refuses a
+  wrong value (DDS: the DDS enabler rejects a sample that is not exact; a Channel writes transport first)
+  does not need one - the check would be the same work twice, and throughput lost. It is for a source
+  whose rules the broker would otherwise not see: an inbound-only channel (a client's write is not sent to
+  the source), a model's types (OPC UA DataType, AAS `valueType`).
+- **On the PATCH path,** only for the attributes a channel maps: one lookup for every other attribute,
+  none when compiled out. Its own `COR_FEATURE_CHANNEL_CHECKS`, sized before it becomes a declared
+  switch; an entry of the bridge ABI, NULL for a bridge without one. Not the Channel's owner rule: an
+  owner decides *who* writes, the check *what* may be written.
+
 ## 3. An AssetChannel
 
 The first bridge is OPC UA's (decided 2026-10-17):
@@ -156,9 +173,10 @@ Decided (KZ, 2026-10-17):
 
 1. The shared base: Channel and DataChannel as it says (members, the Bridge listing them) - coraine, no new
    behaviour.
-2. AssetChannel in the broker: the object, its listing, the write path (a DataChannel's batch upsert), the
+2. The payload check (§ 2.1), with the bridge ABI entry.
+3. AssetChannel in the broker: the object, its listing, the write path (a DataChannel's batch upsert), the
    mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
-3. The OPC UA bridge, its own repository, the bridge ABI as today plus what a model needs (a model read and
+4. The OPC UA bridge, its own repository, the bridge ABI as today plus what a model needs (a model read and
    its changes, a graph of nodes). The client library is to choose.
-4. AAS, the second source.
-5. Operations and methods as services (§ 4).
+5. AAS, the second source.
+6. Operations and methods as services (§ 4).
