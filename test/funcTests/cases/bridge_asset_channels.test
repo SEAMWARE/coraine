@@ -1,0 +1,450 @@
+#
+# FILE            bridge_asset_channels.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# AssetChannels - a bridge endpoint whose data is a model, made into a graph of entities by the
+# AssetChannel's mapping ("assetChannels" in --bridgeConfig, GET /ngsi-ld/v1/assetChannels,
+# doc/asset-channels.md). The bridge hands the model over as a neutral node tree on the endpoint:
+# { "model": <node> }, then { "values": [ ... ] } as values change.
+#
+# The loopback bridge emits, on three AssetChannels:
+#   ns=2;s=Press17   an OPC UA-like object (entities "natural", attributeLayout "attributes"):
+#                    a folder (its leaves attributes by their path), an object child (an entity of its own,
+#                    and a Relationship to it), a reference to the press (a Relationship) and one to a node
+#                    that is no entity (a Property), a method (nothing yet); 1.5 s later, values: the
+#                    pressure changes, and a value of no node is counted and dropped
+#   https://acme.example/ids/aas/press-17
+#                    an AAS-like shell and its nameplate submodel (entities by rules, attributeLayout
+#                    "subAttributes"): the ids are IRIs, and so the entity ids
+#   ns=2;s=Press18   attributeLayout "value": the folder one JsonProperty; 1.5 s later a sample that is
+#                    neither a model nor values - refused
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS
+#
+--NAME--
+Bridges: AssetChannels - a model made into a graph of entities; natural and rules, the three attributeLayouts, values, GET /assetChannels
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+PRESS17='{ "model": { "node": "object", "id": "ns=2;s=Press17", "name": "Press17", "typeName": "Press",
+           "semanticIds": [ "0173-1#01-AKJ975#017" ],
+           "children": [
+             { "node": "folder", "name": "Hydraulics", "children": [
+                 { "node": "variable", "id": "ns=2;s=P17.Pressure", "name": "Pressure", "value": 212.5, "unit": "BAR",
+                   "sourceTime": "2026-10-17T10:00:00Z", "semanticIds": [ "0173-1#02-AAB381#003" ] },
+                 { "node": "variable", "id": "ns=2;s=P17.OilTemp", "name": "Oil Temp", "value": 48.1, "unit": "CEL" } ] },
+             { "node": "variable", "id": "ns=2;s=P17.Mode", "name": "Mode", "value": "auto" },
+             { "node": "object", "id": "ns=2;s=P17.Unit1", "name": "Unit1", "typeName": "HydraulicUnit",
+               "children": [ { "node": "variable", "id": "ns=2;s=P17.Unit1.Running", "name": "Running", "value": true } ],
+               "references": [ { "type": "Organizes", "target": "ns=2;s=Press17" } ] },
+             { "node": "method", "name": "Start", "input": [], "output": [] } ],
+           "references": [ { "type": "HasLocation", "target": "ns=2;s=Hall3" } ] } }'
+
+PRESS17_VALUES='{ "values": [ { "id": "ns=2;s=P17.Pressure", "value": 214.0, "sourceTime": "2026-10-17T10:00:05Z" },
+                              { "id": "ns=2;s=Nope", "value": 1 } ] }'
+
+SHELL='{ "model": { "node": "shell", "id": "https://acme.example/ids/aas/press-17", "name": "Press17Shell",
+         "children": [
+           { "node": "submodel", "id": "https://acme.example/ids/sm/nameplate", "name": "Nameplate",
+             "semanticIds": [ "https://admin-shell.io/zvei/nameplate/2/0/Nameplate" ],
+             "children": [
+               { "node": "property", "name": "ManufacturerName", "value": "ACME", "semanticIds": [ "0173-1#02-AAO677#002" ] },
+               { "node": "collection", "name": "ContactInformation", "children": [
+                   { "node": "property", "name": "Phone", "value": "+49 30 1234" },
+                   { "node": "property", "name": "City",  "value": "Berlin" } ] } ] } ] } }'
+
+PRESS18='{ "model": { "node": "object", "id": "ns=2;s=Press18", "name": "Press18", "typeName": "Press",
+           "children": [
+             { "node": "folder", "name": "Hydraulics", "children": [
+                 { "node": "variable", "name": "Pressure", "value": 180 },
+                 { "node": "folder", "name": "Pump", "children": [ { "node": "variable", "name": "Rpm", "value": 1450 } ] } ] } ] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "ns=2;s=Press17": $PRESS17,
+      "https://acme.example/ids/aas/press-17": $SHELL,
+      "ns=2;s=Press18": $PRESS18
+    },
+    "emitLater": {
+      "ns=2;s=Press17": $PRESS17_VALUES,
+      "ns=2;s=Press18": { "neither": 1 }
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": {
+        "ns=2;s=Press17": { "entities": "natural" },
+        "https://acme.example/ids/aas/press-17": {
+          "entities": [ { "from": "shell", "type": "Asset" },
+                        { "from": "submodel", "semanticId": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate", "type": "Nameplate" } ],
+          "attributeLayout": "subAttributes"
+        },
+        "ns=2;s=Press18": { "entities": "natural", "attributeLayout": "value", "channelInfo": [ { "key": "publishingInterval", "value": "500" } ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. The press - its folder's leaves by their path, a Relationship to its unit, the reference to the hall a Property; pressure 214 (the values)"
+echo "============================================================================================================================================"
+sleep 3
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17'
+echo
+echo
+
+
+echo "02. The unit - an entity of its own; its reference to the press a Relationship"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:HydraulicUnit:Press17:Unit1'
+echo
+echo
+
+
+echo "03. The AAS shell and its nameplate - IRI ids, rules; the collection one attribute, its leaves sub-attributes"
+echo "============================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/https://acme.example/ids/aas/press-17'
+echo
+corCurl --url '/ngsi-ld/v1/entities/https://acme.example/ids/sm/nameplate'
+echo
+echo
+
+
+echo "04. Press18 - attributeLayout value: the folder one JsonProperty, as the source has it"
+echo "======================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press18'
+echo
+echo
+
+
+echo "05. GET /assetChannels - the mappings and the counters"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/assetChannels
+echo
+echo
+
+
+echo "06. GET /assetChannels/urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18, and an unknown one - 404"
+echo "=================================================================================================="
+corCurl --url '/ngsi-ld/v1/assetChannels/urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18'
+echo
+corCurl --url '/ngsi-ld/v1/assetChannels/urn:ngsi-ld:AssetChannel:loopback:nope'
+echo
+echo
+
+
+echo "07. GET /bridges/urn:ngsi-ld:ContextBridge:loopback - it lists its AssetChannels"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:loopback
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The press - its folder's leaves by their path, a Relationship to its unit, the reference to the hall a Property; pressure 214 (the values)
+============================================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 704
+
+{
+  "hasLocation": {
+    "type": "Property",
+    "value": "ns=2;s=Hall3"
+  },
+  "hydraulicsOilTemp": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 48.1
+  },
+  "hydraulicsPressure": {
+    "observedAt": "2026-10-17T10:00:05Z",
+    "semanticId": {
+      "type": "Property",
+      "value": "0173-1#02-AAB381#003"
+    },
+    "type": "Property",
+    "unitCode": "BAR",
+    "value": 214
+  },
+  "id": "urn:ngsi-ld:Press:Press17",
+  "mode": {
+    "type": "Property",
+    "value": "auto"
+  },
+  "semanticId": {
+    "type": "Property",
+    "value": "0173-1#01-AKJ975#017"
+  },
+  "type": "Press",
+  "unit1": {
+    "object": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1",
+    "type": "Relationship"
+  }
+}
+
+
+
+02. The unit - an entity of its own; its reference to the press a Relationship
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 235
+
+{
+  "id": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1",
+  "organizes": {
+    "object": "urn:ngsi-ld:Press:Press17",
+    "type": "Relationship"
+  },
+  "running": {
+    "type": "Property",
+    "value": true
+  },
+  "type": "HydraulicUnit"
+}
+
+
+
+03. The AAS shell and its nameplate - IRI ids, rules; the collection one attribute, its leaves sub-attributes
+============================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 175
+
+{
+  "id": "https://acme.example/ids/aas/press-17",
+  "nameplate": {
+    "object": "https://acme.example/ids/sm/nameplate",
+    "type": "Relationship"
+  },
+  "type": "Asset"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 590
+
+{
+  "contactInformation": {
+    "city": {
+      "type": "Property",
+      "value": "Berlin"
+    },
+    "phone": {
+      "type": "Property",
+      "value": "+49 30 1234"
+    },
+    "type": "Property",
+    "value": "ContactInformation"
+  },
+  "id": "https://acme.example/ids/sm/nameplate",
+  "manufacturerName": {
+    "semanticId": {
+      "type": "Property",
+      "value": "0173-1#02-AAO677#002"
+    },
+    "type": "Property",
+    "value": "ACME"
+  },
+  "semanticId": {
+    "type": "Property",
+    "value": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate"
+  },
+  "type": "Nameplate"
+}
+
+
+
+04. Press18 - attributeLayout value: the folder one JsonProperty, as the source has it
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 197
+
+{
+  "hydraulics": {
+    "json": {
+      "Pressure": 180,
+      "Pump": {
+        "Rpm": 1450
+      }
+    },
+    "type": "JsonProperty"
+  },
+  "id": "urn:ngsi-ld:Press:Press18",
+  "type": "Press"
+}
+
+
+
+05. GET /assetChannels - the mappings and the counters
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1642
+
+[
+  {
+    "assetEntities": "natural",
+    "attributeLayout": "attributes",
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "ns=2;s=Press17",
+    "entitiesWritten": 3,
+    "id": "urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press17",
+    "modelsIn": 1,
+    "payloadsRefused": 0,
+    "samplesRefused": 0,
+    "status": "available",
+    "type": "AssetChannel",
+    "valuesIn": 1,
+    "valuesRefused": 1
+  },
+  {
+    "assetEntities": [
+      {
+        "from": "shell",
+        "type": "Asset"
+      },
+      {
+        "from": "submodel",
+        "semanticId": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
+        "type": "Nameplate"
+      }
+    ],
+    "attributeLayout": "subAttributes",
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "https://acme.example/ids/aas/press-17",
+    "entitiesWritten": 2,
+    "id": "urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-17",
+    "modelsIn": 1,
+    "payloadsRefused": 0,
+    "samplesRefused": 0,
+    "status": "available",
+    "type": "AssetChannel",
+    "valuesIn": 0,
+    "valuesRefused": 0
+  },
+  {
+    "assetEntities": "natural",
+    "attributeLayout": "value",
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelInfo": [
+      {
+        "key": "publishingInterval",
+        "value": "500"
+      }
+    ],
+    "channelTarget": "ns=2;s=Press18",
+    "entitiesWritten": 1,
+    "id": "urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18",
+    "modelsIn": 1,
+    "payloadsRefused": 0,
+    "samplesRefused": 1,
+    "status": "available",
+    "type": "AssetChannel",
+    "valuesIn": 0,
+    "valuesRefused": 0
+  }
+]
+
+
+
+06. GET /assetChannels/urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18, and an unknown one - 404
+==================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 482
+
+{
+  "assetEntities": "natural",
+  "attributeLayout": "value",
+  "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+  "channelInfo": [
+    {
+      "key": "publishingInterval",
+      "value": "500"
+    }
+  ],
+  "channelTarget": "ns=2;s=Press18",
+  "entitiesWritten": 1,
+  "id": "urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18",
+  "modelsIn": 1,
+  "payloadsRefused": 0,
+  "samplesRefused": 1,
+  "status": "available",
+  "type": "AssetChannel",
+  "valuesIn": 0,
+  "valuesRefused": 0
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 189
+
+{
+  "detail": "AssetChannel 'urn:ngsi-ld:AssetChannel:loopback:nope' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET /bridges/urn:ngsi-ld:ContextBridge:loopback - it lists its AssetChannels
+================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 364
+
+{
+  "assetChannels": [
+    "urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press17",
+    "urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-17",
+    "urn:ngsi-ld:AssetChannel:loopback:ns=2;s=Press18"
+  ],
+  "id": "urn:ngsi-ld:ContextBridge:loopback",
+  "plugin": "loopback",
+  "samplesDropped": 0,
+  "status": "available",
+  "type": "ContextBridge"
+}
+
+
+

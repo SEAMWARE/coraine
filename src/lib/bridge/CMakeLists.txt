@@ -21,4 +21,12 @@ IF (COR_FEATURE_DATA_CHANNELS)
   LIST(APPEND SOURCES recordMap.c dataChannelCache.c dataChannelRecordIn.c dataChannelRender.c)
 ENDIF()
 
+IF (COR_FEATURE_ASSET_CHANNELS)
+  LIST(APPEND SOURCES assetMap.c assetChannelCache.c assetChannelSampleIn.c assetChannelRender.c)
+ENDIF()
+
+IF (COR_FEATURE_DATA_CHANNELS OR COR_FEATURE_ASSET_CHANNELS)
+  LIST(APPEND SOURCES bridgeEntitiesUpsert.c)
+ENDIF()
+
 ADD_LIBRARY(bridge STATIC ${SOURCES})

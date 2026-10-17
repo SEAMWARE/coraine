@@ -17,6 +17,9 @@
 
 #include "bridge/channelCache.h"                      // CHANNEL_*, channelLookup, bridgeLookup
 #include "bridge/recordMap.h"                         // recordMapFree
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/assetChannelCache.h"                 // assetChannelLookup
+#endif
 #include "bridge/dataChannelCache.h"                  // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -99,6 +102,11 @@ int dataChannelCreate(const char* bridgeName, const char* endpoint, Tenant* tena
 
   if ((dataChannelLookup(bridgeName, endpoint) != NULL) || (channelLookup(bridgeName, endpoint) != NULL))
     return CHANNEL_DUP_ENDPOINT;
+
+#if COR_FEATURE_ASSET_CHANNELS
+  if (assetChannelLookup(bridgeName, endpoint) != NULL)
+    return CHANNEL_DUP_ENDPOINT;
+#endif
 
   DataChannel* dcP = (DataChannel*) calloc(1, sizeof(DataChannel));
 

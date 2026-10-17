@@ -128,6 +128,13 @@ IF (COR_FEATURE_DATA_CHANNELS)
   )
 ENDIF()
 
+IF (COR_FEATURE_ASSET_CHANNELS)
+  LIST(APPEND SOURCES
+    getAssetChannels.c
+    getAssetChannel.c
+  )
+ENDIF()
+
 IF (COR_FEATURE_SERVICE_EXECUTION)
   LIST(APPEND SOURCES
     postServiceRegistration.c

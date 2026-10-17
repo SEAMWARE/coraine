@@ -6,10 +6,9 @@
 //
 // A DataChannel's record -> the entities its mapping makes -> one batch upsert. See dataChannelRecordIn.h.
 //
-// The write goes through the service routine of POST /entityOperations/upsert, in this process, with
-// no request around it - as coraine-import brings in subscriptions and registrations
-// (migrateApiObject.c). An entity from a record is then checked, stored, notified and recorded in
-// the temporal store exactly as one a client sends, and nothing here knows how.
+// The write is bridgeEntitiesUpsert's - the service routine of POST /entityOperations/upsert, in this
+// process: an entity from a record is checked, stored, notified and recorded in the temporal store exactly
+// as one a client sends.
 //
 #include <ctype.h>                                    // isspace
 #include <errno.h>                                    // errno
@@ -33,17 +32,12 @@
 #include "corJsonld/corLdExpandTree.h"                // corLdExpandEntityTree
 #include "corNgsild/CorNgsild.h"                      // corNgsild, ldDefaultContext
 #include "corNgsild/ldHooks.h"                        // corNgsildFallbackRelease
-#include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDispatchPending
-#include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubDispatchPending
-#include "corNgsild/ldCheckSubscription.h"            // ldSubEntityTypeExprsRelease
 
-#include "troe/troeDispatch.h"                        // troeDispatchPending
-#include "serviceRoutines/postEntityBatchUpsert.h"    // postEntityBatchUpsert
 #include "bridge/DataChannel.h"                       // DataChannel
 #include "bridge/RecordMap.h"                         // RecordMap, RecordEntity, RecordAttr
 #include "bridge/recordMap.h"                         // recordTemplateExpand
 #include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
-#include "bridge/bridgeServiceSync.h"                 // bridgeRequestsReleasePending
+#include "bridge/bridgeEntitiesUpsert.h"              // bridgeEntitiesUpsert
 #include "bridge/dataChannelRecordIn.h"               // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -332,79 +326,6 @@ static CorNode* entityMake(RecordEntity* mappedP, CorNode* recordP, RecordIdEnco
 
 // -----------------------------------------------------------------------------
 //
-// upsert - the batch through the service routine; how many entities were written
-//
-static int upsert(CorNode* entitiesP, int entities, const char* endpoint)
-{
-  corRest.in.requestTree         = entitiesP;
-  corRest.out.httpStatusCode     = 200;
-  corRest.out.headerV            = corRest.out.headers;
-  corRest.out.headerCount        = 0;
-  corRest.out.headerSize         = sizeof(corRest.out.headers) / sizeof(corRest.out.headers[0]);
-  corRest.out.responseTree       = NULL;
-  corRest.out.problemType        = NULL;
-  corRest.out.problemTitle       = NULL;
-  corRest.out.problemDetail[0]   = 0;
-
-  corNgsild.contextP             = ldDefaultContext(&corRest.kalloc);
-  corNgsild.userContextBody      = NULL;
-  corNgsild.batchPreErrors       = NULL;
-  corNgsild.local                = true;              // this broker's store: a record is not forwarded
-  corNgsild.upsertUpdate         = true;              // options=update: the attributes the mapping does not name stay
-  corNgsild.bridgeOwnWrite       = true;              // the bridge's own write: its payload check is for clients
-
-  postEntityBatchUpsert();
-
-  corNgsild.local                = false;
-  corNgsild.upsertUpdate         = false;
-  corNgsild.bridgeOwnWrite       = false;
-
-  //
-  // What the request's post-response hook does after a write
-  //
-  ldNotifyDispatchPending();
-  ldCsrSubDispatchPending();
-  troeDispatchPending();
-  bridgeRequestsReleasePending();
-  ldSubEntityTypeExprsRelease();
-  corNgsildFallbackRelease();
-
-  int status = corRest.out.httpStatusCode;
-
-  if ((status == 201) || (status == 204))
-    return entities;
-
-  if (status != 207)
-  {
-    COR_W("record on DataChannel '%s': no entity written (%d: %s)", endpoint, status, corRest.out.problemDetail);
-    return 0;
-  }
-
-  CorNode* errorsP  = (corRest.out.responseTree != NULL) ? corTreeLookup(corRest.out.responseTree, "errors")  : NULL;
-  CorNode* successP = (corRest.out.responseTree != NULL) ? corTreeLookup(corRest.out.responseTree, "success") : NULL;
-  int      written  = 0;
-
-  for (CorNode* nodeP = (successP != NULL) ? successP->value.head : NULL; nodeP != NULL; nodeP = nodeP->next)
-    written++;
-
-  for (CorNode* errP = (errorsP != NULL) ? errorsP->value.head : NULL; errP != NULL; errP = errP->next)
-  {
-    CorNode* idP     = corTreeLookup(errP, "entityId");
-    CorNode* pdP     = corTreeLookup(errP, "error");
-    CorNode* detailP = (pdP != NULL) ? corTreeLookup(pdP, "detail") : NULL;
-
-    COR_W("record on DataChannel '%s': entity '%s' not written: %s", endpoint,
-          ((idP     != NULL) && (idP->type     == CorString)) ? idP->value.s     : "?",
-          ((detailP != NULL) && (detailP->type == CorString)) ? detailP->value.s : "?");
-  }
-
-  return written;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // dataChannelRecordIn -
 //
 int dataChannelRecordIn(DataChannel* dcP, const char* json, int64_t publishTime)
@@ -462,7 +383,11 @@ int dataChannelRecordIn(DataChannel* dcP, const char* json, int64_t publishTime)
 
   corLdExpandEntityTree(entitiesP, ldDefaultContext(&corRest.kalloc), &corRest.kalloc);
 
-  int written = upsert(entitiesP, entities, dcP->endpoint);
+  char what[256];
+
+  snprintf(what, sizeof(what), "record on DataChannel '%s'", dcP->endpoint);
+
+  int written = bridgeEntitiesUpsert(entitiesP, entities, what);
 
   if (written == 0)
   {

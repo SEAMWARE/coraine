@@ -110,6 +110,10 @@
 #include "bridge/DataChannel.h"                   // DataChannel
 #include "bridge/dataChannelCache.h"              // dataChannelFirst, dataChannelStatusSet, dataChannelsRelease
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetChannel.h"                  // AssetChannel
+#include "bridge/assetChannelCache.h"             // assetChannelFirst, assetChannelStatusSet, assetChannelsRelease
+#endif
 #include "bridge/channelConfigLoad.h"             // channelConfigLoad, channelConfigPath
 #include "bridge/channelPrePopulate.h"            // channelPrePopulate
 #include "bridge/bridgeSampleIn.h"                // bridgeSampleIn, bridgeSampleQualifiedIn
@@ -886,6 +890,58 @@ static void bridgesInit(void)
     }
   }
 #endif
+
+#if COR_FEATURE_ASSET_CHANNELS
+  //
+  // And each AssetChannel: to its bridge, its endpoint (the model's root) is a topic it carries inbound - the
+  // model and its values arrive there as samples, and what the broker makes of them is the broker's
+  //
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+  {
+    if (acP->status != ChannelStatusAvailable)
+    {
+      COR_I("AssetChannel '%s' is dormant: %s", acP->endpoint, (acP->statusReason != NULL) ? acP->statusReason : "?");
+      continue;
+    }
+
+    for (int i = 0; i < bridgeCount; i++)
+    {
+      if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, acP->bridgeName) != 0))
+        continue;
+
+      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
+
+      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
+        break;
+
+      if ((withInfo == false) && (acP->info != NULL))
+        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for AssetChannel '%s'", acP->bridgeName, bridges[i].abiVersion, acP->endpoint);
+
+      char* reasonBefore = acP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
+
+      int r = (withInfo == true) ? bridges[i].channelAddInfo(acP->endpoint, BridgeChannelTopic, BridgeDirectionIn, acP->info)
+                                 : bridges[i].channelAdd(acP->endpoint, BridgeChannelTopic, BridgeDirectionIn);
+
+      if (r != BRIDGE_OK)
+      {
+        COR_W("bridge '%s' would not carry AssetChannel '%s' (%d)", acP->bridgeName, acP->endpoint, r);
+
+        if (acP->statusReason != reasonBefore)      // the plugin said why, in its own words
+          acP->status = ChannelStatusDormant;
+        else
+        {
+          char reason[128];
+          snprintf(reason, sizeof(reason), "the bridge would not carry it: %s",
+                   (r == BRIDGE_BAD_INPUT)   ? "its address or channelInfo does not fit the transport" :
+                   (r == BRIDGE_UNSUPPORTED) ? "the transport does not support this kind of channel"   : "refused");
+          assetChannelStatusSet(acP->bridgeName, acP->endpoint, ChannelStatusDormant, reason);
+        }
+      }
+
+      break;
+    }
+  }
+#endif
 }
 
 
@@ -910,6 +966,9 @@ static void bridgesClose(void)
 
 #if COR_FEATURE_DATA_CHANNELS
   dataChannelsRelease();                              // no bridge thread is left to deliver a record
+#endif
+#if COR_FEATURE_ASSET_CHANNELS
+  assetChannelsRelease();                             // no bridge thread is left to deliver a model
 #endif
 }
 
