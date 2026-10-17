@@ -51,7 +51,10 @@ There are **six** kinds of plugin:
   in its own repo and built by the corLibs umbrella:
   [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge),
   [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge) and
-  [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge).
+  [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge). Beside them, built only when
+  `coraine-build --bridges` names them:
+  [`corCkanBridge`](https://github.com/SEAMWARE/corCkanBridge) and
+  [`corOpcuaBridge`](https://github.com/SEAMWARE/corOpcuaBridge) (open62541).
 
   ⭐ This is a *different axis* from the communication protocols above, and the
   two are easy to confuse. A communication protocol is how a **client reaches
@@ -123,7 +126,9 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
     ├── loopback.so        # a transport that goes nowhere - test instrument
     ├── dds.so             # DDS, from corDdsBridge (not built by default)
     ├── modbus.so          # Modbus TCP, from corModbusBridge
-    └── mqtt.so            # MQTT, from corMqttBridge
+    ├── mqtt.so            # MQTT, from corMqttBridge
+    ├── ckan.so            # CKAN, from corCkanBridge (coraine-build --bridges ckan)
+    └── opcua.so           # OPC UA, from corOpcuaBridge (coraine-build --bridges opcua)
 ```
 
 A plugin can also be given as a **full path** (any argument containing a `/`),
@@ -311,6 +316,8 @@ the headers — read these before writing a plugin:
 | **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
 | **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself does not link libmosquitto. |
 | **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three; an image that carries it and never loads it costs that disk space and nothing else. |
+| **ckan** | Bridge | An open data portal's datasets (CKAN's API), discovered and read into entities through DataChannels. Lives in [`corCkanBridge`](https://github.com/SEAMWARE/corCkanBridge), no library, built by `coraine-build --bridges ckan`. |
+| **opcua** | Bridge | An OPC UA server, through open62541: its Variables as Channels (monitored in, Writes out), its Objects as AssetChannels - a model browsed into a graph of entities. Sign / SignAndEncrypt with certificates and a trust list, a user and password. Lives in [`corOpcuaBridge`](https://github.com/SEAMWARE/corOpcuaBridge), built by `coraine-build --bridges opcua`. |
 
 ## Writing a new plugin (sketch)
 
