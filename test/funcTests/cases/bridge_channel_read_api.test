@@ -34,8 +34,8 @@ coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
 
 --RUN--
 
-echo "01. GET /bridges - the loopback bridge, available"
-echo "================================================="
+echo "01. GET /bridges - the loopback bridge, available, its Channels"
+echo "==============================================================="
 corCurl --url /ngsi-ld/v1/bridges
 echo
 echo
@@ -106,16 +106,20 @@ rm -f /tmp/coraine_bridges.json
 
 
 --EXPECT--
-01. GET /bridges - the loopback bridge, available
-=================================================
+01. GET /bridges - the loopback bridge, available, its Channels
+===============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 166
+Content-Length: 272
 
 [
   {
+    "channels": [
+      "urn:ngsi-ld:Channel:loopback:A1",
+      "urn:ngsi-ld:Channel:loopback:P1"
+    ],
     "id": "urn:ngsi-ld:ContextBridge:loopback",
     "plugin": "loopback",
     "samplesDropped": 0,
@@ -132,9 +136,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 148
+Content-Length: 246
 
 {
+  "channels": [
+    "urn:ngsi-ld:Channel:loopback:A1",
+    "urn:ngsi-ld:Channel:loopback:P1"
+  ],
   "id": "urn:ngsi-ld:ContextBridge:loopback",
   "plugin": "loopback",
   "samplesDropped": 0,
