@@ -62,7 +62,7 @@ One entry per shell (or per submodel) to carry, in the broker's bridge configura
       "https://acme.example/ids/aas/press-17": {
         "entities": [
           { "from": "shell",    "type": "Press" },
-          { "from": "submodel", "semanticId": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate", "type": "Nameplate" },
+          { "from": "submodel", "semanticId": "https://admin-shell.io/idta/nameplate/3/0/Nameplate", "type": "Nameplate" },
           { "from": "submodel", "type": "Submodel" } ],
         "attributeLayout": "attributes" } } } } }
 ```
@@ -76,24 +76,26 @@ One entry per shell (or per submodel) to carry, in the broker's bridge configura
 - **`attributeLayout`** - what a SubmodelElementCollection that is not an entity becomes inside the
   entity above it:
   - `attributes` (the default): each element in it an attribute of its own, named by its path -
-    `ContactInformation` / `Phone` -> `contactInformationPhone`; each one queryable on its own;
+    `AddressInformation` / `CityTown` -> `addressInformationCityTown`; each one queryable on its own;
   - `subAttributes`: one attribute for the collection, its elements as sub-attributes;
   - `value`: the collection as one JSON value, as the AAS server has it.
 
 ## 4. A shell, worked through
 
-A press, `https://acme.example/ids/aas/press-17`, with two submodels - a Digital Nameplate and an
-operational-data submodel - abridged:
+A press, `https://acme.example/ids/aas/press-17`, with two submodels - a Digital Nameplate (IDTA 02006,
+version 3.0) and an operational-data submodel - abridged; the identifiers are the template's:
 
     Shell  Press17                              id https://acme.example/ids/aas/press-17
     ├─ Submodel  Nameplate                      id https://acme.example/ids/sm/press-17/nameplate
-    │    semanticId https://admin-shell.io/zvei/nameplate/2/0/Nameplate
+    │    semanticId https://admin-shell.io/idta/nameplate/3/0/Nameplate
     │    ├─ ManufacturerName   MultiLanguageProperty  en "ACME Presses", de "ACME Pressen"
-    │    │                     semanticId 0173-1#02-AAO677#002
+    │    │                     semanticId 0112/2///61987#ABA565#009
+    │    │                     supplementalSemanticId 0173-1#02-AAO677#004 (ECLASS)
     │    ├─ SerialNumber       Property xs:string  "P17-0042"
-    │    │                     semanticId 0173-1#02-AAM556#002
-    │    └─ ContactInformation SubmodelElementCollection
-    │         └─ Phone         Property xs:string  "+49 30 1234567"
+    │    │                     semanticId 0112/2///61987#ABA951#009
+    │    │                     supplementalSemanticId 0173-1#02-AAM556#004 (ECLASS)
+    │    └─ AddressInformation SubmodelElementCollection
+    │         └─ CityTown      MultiLanguageProperty  de "Berlin"
     └─ Submodel  OperationalData                id https://acme.example/ids/sm/press-17/operational
          └─ Pressure           Property xs:double  212.5
 
@@ -109,23 +111,25 @@ NGSI-LD entity id as it is). Each of its submodels is a Relationship, named by t
 ```
 
 **The Nameplate** - type `Nameplate`, by its semanticId's rule. Each element an attribute; each
-semanticId a `semanticId` sub-Property of its attribute; the collection flattened (`attributes`):
+semanticId a `semanticId` sub-Property of its attribute (the element's `semanticId`; what to do with its
+`supplementalSemanticIds` is open, section 11); the collection flattened (`attributes`) - the address's
+own semanticIds left out here for brevity:
 
 ```json
 { "id": "https://acme.example/ids/sm/press-17/nameplate", "type": "Nameplate",
   "manufacturerName": { "type": "LanguageProperty",
                         "languageMap": { "en": "ACME Presses", "de": "ACME Pressen" },
-                        "semanticId": { "type": "Property", "value": "0173-1#02-AAO677#002" } },
+                        "semanticId": { "type": "Property", "value": "0112/2///61987#ABA565#009" } },
   "serialNumber":     { "type": "Property", "value": "P17-0042",
-                        "semanticId": { "type": "Property", "value": "0173-1#02-AAM556#002" } },
-  "contactInformationPhone": { "type": "Property", "value": "+49 30 1234567" } }
+                        "semanticId": { "type": "Property", "value": "0112/2///61987#ABA951#009" } },
+  "addressInformationCityTown": { "type": "LanguageProperty", "languageMap": { "de": "Berlin" } } }
 ```
 
 The same Nameplate with `"attributeLayout": "subAttributes"` keeps the collection as one attribute:
 
 ```json
-  "contactInformation": { "type": "Property", "value": "ContactInformation",
-                          "phone": { "type": "Property", "value": "+49 30 1234567" } }
+  "addressInformation": { "type": "Property", "value": "AddressInformation",
+                          "cityTown": { "type": "LanguageProperty", "languageMap": { "de": "Berlin" } } }
 ```
 
 **OperationalData** - no rule matches its semanticId, so the last rule makes it a `Submodel`:
@@ -198,7 +202,7 @@ Plain NGSI-LD; nothing AAS-specific is needed to read it:
 
 - every nameplate: `GET /ngsi-ld/v1/entities?type=Nameplate`
 - a press and its submodels in one answer: `GET /ngsi-ld/v1/entities/{press}?join=inline`
-- by meaning: `q=serialNumber.semanticId=="0173-1#02-AAM556#002"`
+- by meaning: `q=serialNumber.semanticId=="0112/2///61987#ABA951#009"`
 - a value's history, when the broker keeps history: the temporal API on `pressure`
 - a subscription on `pressure`, notified as the source changes
 
@@ -251,7 +255,10 @@ Not decided; the answers decide the AAS bridge:
    **AnnotatedRelationshipElement** are not in the table of section 5 yet. An `Entity` element looks
    like an NGSI-LD entity of its own - is that how AAS users see it?
 6. **semanticId detail.** A semanticId is a reference of one or more keys, and an element may have
-   `supplementalSemanticIds`. Is the first key's value enough, or must all of it be kept?
+   `supplementalSemanticIds`. The Digital Nameplate 3.0 gives each element an IEC CDD id as its semanticId
+   and the ECLASS id as a supplemental one (SerialNumber: `0112/2///61987#ABA951#009`, and
+   `0173-1#02-AAM556#004`). Is the semanticId's first key enough, or must the supplemental ids be kept
+   too - the ECLASS id is the one many users search by?
 7. **ConceptDescriptions.** Should their content (preferred names, units, definitions) be carried too -
    as entities of their own, or as a `unitCode` and sub-Properties on the attributes?
 8. **AASX packages.** Is importing an AASX file, with no server, worth a path of its own?
