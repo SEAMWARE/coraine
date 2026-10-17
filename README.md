@@ -265,7 +265,7 @@ Selected common options (`--usage` for the full list):
 | `--foreground` / `-fg` | — | accepted, no effect — the broker always runs in the foreground |
 | `--pretty-print` / `-pp` | 0 | JSON indent (0 = compact) |
 | `--localOnly` / `-local` | off | disable distributed operations |
-| `--defaultUserContext` / `-duc` | — | default `@context` URL |
+| `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file - read at start and hosted |
 | `--corsOrigin` | — | enable CORS (`__ALL` for any origin) |
 | `--maxRequestSize` / `-mrs` | 2 | max body MiB (§ 6.3.2; 0 = no cap) |
 
