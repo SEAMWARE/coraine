@@ -39,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityCreate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 #include "bridge/channelCache.h"                   // channelOutCount
 
 #include "troe/TroeDriver.h"                         // troe, TroeEvent, TroeOpEntityCreated
@@ -699,12 +700,13 @@ bool postEntities(void)
     // -27% on corDB, from 2026-09-24 until this check).
     //
     BridgeSyncDone syncDone = { { NULL }, 0 };
+    AttrsNotWritten notWritten = { 0 };
     CorNode*       existsP  = NULL;
 
     if ((channelOutCount() > 0) &&
         ((db.entityRetrieve == NULL) || (db.entityRetrieve(tenantP, idP->value.s, &existsP) != DB_OK) || (existsP == NULL)))
     {
-      if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, 0, &syncDone) == false)
+      if (bridgeRequestsBeforeWrite(tenantP, idP->value.s, entityP, 0, &syncDone, &notWritten) == false)
         return true;  // ldError already set - nothing has been created
     }
 
@@ -712,14 +714,14 @@ bool postEntities(void)
     // Several Attributes: one whose request to the DDS side could not be sent was
     // left out of the write - an error of its own, and the rest goes on (207).
     //
-    for (int ix = 0; ix < syncDone.failedN; ix++)
+    for (int ix = 0; ix < notWritten.n; ix++)
     {
-      int st = syncDone.failedStatusV[ix];
+      int st = notWritten.statusV[ix];
 
       ldBatchErrorListAdd(&errors, idP->value.s, st,
-                          syncDone.failedTypeV[ix],
-                          syncDone.failedTitleV[ix],
-                          syncDone.failedReasonV[ix], NULL);
+                          notWritten.typeV[ix],
+                          notWritten.titleV[ix],
+                          notWritten.reasonV[ix], NULL);
     }
 
     int r = db.entityCreate(tenantP, idP->value.s, entityP);

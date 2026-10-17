@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 SET(SOURCES
+  attrsNotWritten.c
   corNotInThisBuild.c
   subscriptionQExpand.c
   getBuild.c

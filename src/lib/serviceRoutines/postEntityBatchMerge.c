@@ -67,6 +67,7 @@
 #include "corNgsild/ldIsEntityKeyword.h"              // ldIsNotAttributeName
 #include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -827,7 +828,10 @@ bool postEntityBatchMerge(void)
         doneV[fk] = (BridgeSyncDone*) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[fk], 0, sizeof(BridgeSyncDone));
 
-        bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, doneV[fk]);
+        AttrsNotWritten* notWrittenP = (AttrsNotWritten*) corAlloc(&corRest.kalloc, sizeof(AttrsNotWritten));
+        memset(notWrittenP, 0, sizeof(AttrsNotWritten));
+
+        bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, doneV[fk], notWrittenP);
       }
 
       int64_t dueMs = bridgeRequestsDeadline();
@@ -842,15 +846,15 @@ bool postEntityBatchMerge(void)
 
         bridgeRequestsAwait(fragP, doneV[fk], dueMs);
 
-        for (int ix = 0; ix < doneV[fk]->failedN; ix++)
+        for (int ix = 0; ix < doneV[fk]->notWrittenP->n; ix++)
         {
-          addBatchError(errorsP, fragId, doneV[fk]->failedStatusV[ix],
-                        doneV[fk]->failedTypeV[ix],
-                        doneV[fk]->failedTitleV[ix],
-                        doneV[fk]->failedReasonV[ix], NULL);
+          addBatchError(errorsP, fragId, doneV[fk]->notWrittenP->statusV[ix],
+                        doneV[fk]->notWrittenP->typeV[ix],
+                        doneV[fk]->notWrittenP->titleV[ix],
+                        doneV[fk]->notWrittenP->reasonV[ix], NULL);
         }
 
-        if ((doneV[fk]->failedN > 0) && (hasAttribute(fragP) == false))
+        if ((doneV[fk]->notWrittenP->n > 0) && (hasAttribute(fragP) == false))
           resultsV[fk] = DB_BAD_INPUT;   // reported above - the merge skips it, the bulk write and the switch too
       }
     }

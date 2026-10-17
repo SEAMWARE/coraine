@@ -64,6 +64,7 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpEntityCreated
 #include "troe/troeDispatch.h"                       // troeDeferEntityEvent
@@ -881,8 +882,10 @@ bool postEntityBatchCreate(void)
         doneV[k] = (BridgeSyncDone*) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone));
         memset(doneV[k], 0, sizeof(BridgeSyncDone));
 
+        AttrsNotWritten* notWrittenP = (AttrsNotWritten*) corAlloc(&corRest.kalloc, sizeof(AttrsNotWritten));
+        memset(notWrittenP, 0, sizeof(AttrsNotWritten));
 
-        bridgeRequestsBeforeWrite(tenantP, eid, ddsEntP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneV[k]);
+        bridgeRequestsBeforeWrite(tenantP, eid, ddsEntP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneV[k], notWrittenP);
       }
 
       //
@@ -902,14 +905,14 @@ bool postEntityBatchCreate(void)
 
         bridgeRequestsAwait(ddsEntP, doneV[k], dueMs);
 
-        for (int ix = 0; ix < doneV[k]->failedN; ix++)
+        for (int ix = 0; ix < doneV[k]->notWrittenP->n; ix++)
         {
-          int st = doneV[k]->failedStatusV[ix];
+          int st = doneV[k]->notWrittenP->statusV[ix];
 
           addBatchError(errorsP, eid, st,
-                        doneV[k]->failedTypeV[ix],
-                        doneV[k]->failedTitleV[ix],
-                        doneV[k]->failedReasonV[ix], NULL);
+                        doneV[k]->notWrittenP->typeV[ix],
+                        doneV[k]->notWrittenP->titleV[ix],
+                        doneV[k]->notWrittenP->reasonV[ix], NULL);
         }
       }
     }

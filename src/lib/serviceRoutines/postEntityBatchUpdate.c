@@ -77,6 +77,7 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -1069,7 +1070,10 @@ bool postEntityBatchUpdate(void)
         doneV[doneN++]                = doneP;
         fragDoneV[fragBaseV[gi] + fi] = doneP;
 
-        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneP);
+        AttrsNotWritten* notWrittenP = (AttrsNotWritten*) corAlloc(&corRest.kalloc, sizeof(AttrsNotWritten));
+        memset(notWrittenP, 0, sizeof(AttrsNotWritten));
+
+        bridgeRequestsBeforeWrite(tenantP, g->id, fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY, doneP, notWrittenP);
       }
     }
 
@@ -1128,15 +1132,15 @@ bool postEntityBatchUpdate(void)
       //
       if (doneP != NULL)
       {
-        for (int ix = 0; ix < doneP->failedN; ix++)
+        for (int ix = 0; ix < doneP->notWrittenP->n; ix++)
         {
-          addBatchError(groupErrorsP, g->id, doneP->failedStatusV[ix],
-                        doneP->failedTypeV[ix],
-                        doneP->failedTitleV[ix],
-                        doneP->failedReasonV[ix], NULL);
+          addBatchError(groupErrorsP, g->id, doneP->notWrittenP->statusV[ix],
+                        doneP->notWrittenP->typeV[ix],
+                        doneP->notWrittenP->titleV[ix],
+                        doneP->notWrittenP->reasonV[ix], NULL);
         }
 
-        if ((doneP->failedN > 0) && (hasAttribute(fragP) == false))
+        if ((doneP->notWrittenP->n > 0) && (hasAttribute(fragP) == false))
           continue;
       }
 

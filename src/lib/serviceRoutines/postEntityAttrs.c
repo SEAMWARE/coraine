@@ -39,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
 #include "troe/troeDispatch.h"                        // troeEventsOn
@@ -505,6 +506,7 @@ bool postEntityAttrs(void)
     }
 
     BridgeSyncDone syncDone = { { NULL }, 0 };
+    AttrsNotWritten notWritten = { 0 };
 
     //
     // Requests to the DDS side go FIRST, never waited for on this route. One
@@ -512,20 +514,20 @@ bool postEntityAttrs(void)
     // several, it is left out - not updated - and the rest goes on (207). See
     // bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, 0, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, 0, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been written
 
-    for (int ix = 0; ix < syncDone.failedN; ix++)
+    for (int ix = 0; ix < notWritten.n; ix++)
     {
-      updatedRemove(updatedP, syncDone.failedAttrV[ix]);
-      ldWriteResultNotUpdatedAdd(notUpdatedP, syncDone.failedAttrV[ix], syncDone.failedReasonV[ix], NULL, syncDone.failedStatusV[ix]);
+      updatedRemove(updatedP, notWritten.attrV[ix]);
+      ldWriteResultNotUpdatedAdd(notUpdatedP, notWritten.attrV[ix], notWritten.reasonV[ix], NULL, notWritten.statusV[ix]);
     }
 
     //
     // Nothing to write only when the DDS step TOOK SOMETHING OUT and left no
     // Attribute - an empty write would still stamp modifiedAt and could notify.
     //
-    bool nothingLeft = (syncDone.failedN > 0);
+    bool nothingLeft = (notWritten.n > 0);
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {
