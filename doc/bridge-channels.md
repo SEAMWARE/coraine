@@ -191,7 +191,7 @@ on it is CKAN's (`ckan.so`, `corCkanBridge`).
 
 A source whose data is a **model** - an Asset Administration Shell and its submodels, an OPC UA object and
 its components - is neither: one asset is a tree with types, meaning and references, and becomes a graph of
-entities. That is a third type, designed in [model-channels.md](model-channels.md) - not built.
+entities. That is a third type, the AssetChannel, designed in [asset-channels.md](asset-channels.md) - not built.
 
 ## Key limits
 

@@ -1,12 +1,12 @@
-# ModelChannels - a source model as a graph of entities (design, for review)
+# AssetChannels - a source model as a graph of entities (design, for review)
 
-**Status: a design for review - nothing of it is built.** The name ModelChannel is a working name.
+**Status: a design for review - nothing of it is built.**
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
 Asset Administration Shell with its submodels, an OPC UA server's objects. There one asset is a tree of
 elements, typed and with meaning attached (a semanticId, a type definition), with references across it -
-and it becomes a **graph of entities**, with Relationships where the model has references. A ModelChannel
+and it becomes a **graph of entities**, with Relationships where the model has references. An AssetChannel
 is that mapping.
 
 ## 1. Three shapes of data, three channel types
@@ -15,7 +15,7 @@ is that mapping.
 |---|---|---|---|
 | **Signal** | one value: a DDS topic sample, an OPC UA variable, a Modbus register | one attribute of one entity | Channel |
 | **Record** | a flat object of fields: MQTT JSON (an IoT agent's measures), a Kafka message, a CKAN row | an entity or a few, a field per attribute | DataChannel |
-| **Model** | a tree with types, meaning and references: an AAS shell and its submodels, an OPC UA object and its components | a graph of entities and Relationships | **ModelChannel** |
+| **Model** | a tree with types, meaning and references: an AAS shell and its submodels, an OPC UA object and its components | a graph of entities and Relationships | **AssetChannel** |
 
 Three types, not one with a sub-type: their members differ (an attribute and an entity; a column mapping
 and an id template; a model root and node rules), and a type whose members depend on a sub-type is what
@@ -27,7 +27,7 @@ Every channel type is the same base, and adds its own members:
 
 | Member | |
 |---|---|
-| `id`, `type` | `urn:ngsi-ld:<Type>:<bridge>:<endpoint>`; `Channel`, `DataChannel`, `ModelChannel` |
+| `id`, `type` | `urn:ngsi-ld:<Type>:<bridge>:<endpoint>`; `Channel`, `DataChannel`, `AssetChannel` |
 | `bridgeId` | the Bridge that carries it - every channel points to its Bridge |
 | `channelTarget` | the endpoint the Bridge reads: a topic, a register, a resource id, a model root |
 | `channelInfo` | the endpoint's settings, the bridge's own (key, value) |
@@ -35,39 +35,55 @@ Every channel type is the same base, and adds its own members:
 | counters | what came in, what was refused - each type its own |
 
 In OpenAPI: one base schema, each type `allOf` it. The Bridge lists what it carries - its Channels,
-DataChannels and ModelChannels - so "everything this bridge does" is one request without one polymorphic
+DataChannels and AssetChannels - so "everything this bridge does" is one request without one polymorphic
 collection. (Channel and DataChannel have these members today - `channelTarget` both - the base makes it a
 rule for every type.)
 
-## 3. A ModelChannel
+## 3. An AssetChannel
+
+The first bridge is OPC UA's (decided 2026-10-17):
+
+```json
+{ "opcua": { "server": { "url": "opc.tcp://press-17.acme.example:4840" },
+             "ngsild": { "assetChannels": {
+               "ns=2;s=Press17": {
+                 "entities": [
+                   { "from": "object", "typeDefinition": "ns=3;i=1002", "type": "Press" },
+                   { "from": "object", "typeDefinition": "ns=3;i=1010", "type": "HydraulicUnit" } ],
+                 "nested": "flatten",
+                 "semanticIds": "subProperty" } } } } }
+```
+
+An AAS one, the same members:
 
 ```json
 { "aas": { "server": { "url": "http://aas-server:8081" },
-           "ngsild": { "modelChannels": {
+           "ngsild": { "assetChannels": {
              "https://acme.example/ids/aas/press-17": {
-               "entities": [
-                 { "from": "shell",                                   "type": "Asset" },
-                 { "from": "submodel",  "semanticId": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
-                                                                      "type": "Nameplate" },
-                 { "from": "submodel",  "semanticId": "https://acme.example/semantics/OperationalData",
-                                                                      "type": "OperationalData" } ],
-               "nested": "attributes",
+               "entities": "natural",
+               "nested": "flatten",
                "semanticIds": "subProperty" } } } } }
 ```
 
-- **The endpoint** (`channelTarget`) - the model's root: an AAS shell's or submodel's id; an OPC UA NodeId.
-- **`entities`** - which nodes become entities: by their kind (`shell`, `submodel`, `collection`, an OPC UA
-  `object`) and optionally their meaning (`semanticId`; for OPC UA a `typeDefinition`). Each rule names the
-  entity type. Nodes no rule names are not entities: their content goes into the entity above them.
+- **The endpoint** (`channelTarget`) - the model's root: an OPC UA NodeId; an AAS shell's or submodel's id.
+- **`entities`** - which nodes become entities. The data's owner decides, per channel; there is no default,
+  and a channel without `entities` is refused:
+  - `"natural"` (working name): the source's own units - OPC UA: each Object node under the root; AAS: the
+    shell and each submodel;
+  - rules: by the node's kind (OPC UA `object`; AAS `shell`, `submodel`, `collection`) and optionally its
+    meaning (OPC UA `typeDefinition`; AAS `semanticId`). Each rule names the entity type. Nodes no rule names
+    are not entities: their content goes into the entity above them.
 - **The entity id** - the node's own id when it is an IRI (AAS ids are: `https://acme.example/ids/aas/press-17`
-  is a valid NGSI-LD id as it is); else a template on the node's path (`urn:ngsi-ld:{type}:{shellIdShort}:{path}`).
+  is a valid NGSI-LD id as it is); else a template on the node's path (`urn:ngsi-ld:{type}:{root}:{path}`).
 - **`nested`** - what a container that is not an entity becomes in the entity above it:
-  - `attributes`: each leaf an attribute, named by its path (`ContactInformation.Phone` -> `contactInformationPhone`);
+  - `flatten` (name open, § 6): each leaf an attribute, named by its path (`ContactInformation.Phone` ->
+    `contactInformationPhone`);
   - `json`: the container one JsonProperty, as the source has it;
   - `subAttributes`: one attribute, its leaves sub-attributes (one level only).
-- **`semanticIds`** - where a node's meaning goes: `subProperty` (each attribute a `semanticId`
-  sub-Property), `context` (the @context maps the attribute's name to the semanticId's IRI - the meaning
-  becomes the name), or `none`.
+- **`semanticIds`** - where a node's meaning goes (OPC UA: its HasDictionaryEntry references and its
+  TypeDefinition; AAS: its semanticId): `subProperty` (each attribute a `semanticId` sub-Property),
+  `context` (the @context maps the attribute's name to the semanticId's IRI - the meaning becomes the
+  name), or `none`.
 
 ### 3.1 Elements to attributes (AAS; OPC UA alike)
 
@@ -101,12 +117,14 @@ references between object nodes -> Relationships; a Method -> a service.
   attributes created or deleted - or left alone, with `structure: ignore`.
 - **Inbound only in v1**, as a DataChannel. Writing back (a PATCH -> the AAS `$value` PUT, an OPC UA Write) is
   a later step, then with a Channel's rule: transport first, a refusal stores nothing.
-- **No owner**, as a DataChannel: a ModelChannel claims no attribute; the last write wins.
+- **No owner**, as a DataChannel: an AssetChannel claims no attribute; the last write wins.
 
 ## 4. Operations and methods: Service Execution
 
+**After the read side works** (decided 2026-10-17), one source at a time.
+
 An AAS Operation and an OPC UA Method are what [Service Execution](service-execution.md) calls a service:
-the asset does something when asked, with input and output arguments. A ModelChannel registers each one it
+the asset does something when asked, with input and output arguments. An AssetChannel registers each one it
 maps as a service of its entity (a ServiceRegistration, `serviceName` the Operation's idShort, its
 `inputSchema` and `outputSchema` from the input and output variables), and the Bridge is its **executor** -
 through the bridge executor contract (ABI 11) the IoT agents' commands use
@@ -114,28 +132,30 @@ through the bridge executor contract (ABI 11) the IoT agents' commands use
 Operation; the execution's status follows the source's (AAS: the operation's invocation, sync or async;
 OPC UA: the Call's result).
 
-## 5. GET /ngsi-ld/v1/modelChannels
+## 5. GET /ngsi-ld/v1/assetChannels
 
-The base (§ 2), and: the mapping as the file wrote it (`modelEntities`), `entitiesWritten`,
+The base (§ 2), and: the mapping as the file wrote it (`assetEntities`), `entitiesWritten`,
 `attributesWritten`, `valuesIn`, `nodesRefused`, `servicesRegistered`.
 
-## 6. To decide
+## 6. Decisions
 
-1. **The name** - ModelChannel, GraphChannel, AssetChannel?
-2. **What becomes an entity by default**: the shell and each submodel (the natural unit of AAS), or the
-   rules only?
-3. **`nested`'s default**: `attributes` (queryable with `q`), or `json` (the source's shape)?
-4. **`semanticIds`'s default**: a sub-Property, or the @context?
-5. **Operations as services in v1**, or after the read side works?
-6. **The first bridge**: AAS over its REST API (an AAS server - Eclipse BaSyx, FA³ST - in a container for the
-   tests), or OPC UA (a library to choose)?
+Decided (KZ, 2026-10-17):
+
+1. **The name**: AssetChannel.
+2. **What becomes an entity**: the data's owner decides, in the channel (`entities`, § 3) - no default.
+3. **`nested`**: the value `attributes` is renamed - "attributes" is taken (NGSI-LD's own `attributes`,
+   `attrs`; the DOM's). The new name is open: `flatten` or `channelAttributes`.
+4. **`semanticIds`'s default**: open.
+5. **Operations as services**: after the read side works, step by step.
+6. **The first bridge**: OPC UA.
 
 ## 7. Plan
 
 1. The shared base: Channel and DataChannel as it says (members, the Bridge listing them) - coraine, no new
    behaviour.
-2. ModelChannel in the broker: the object, its listing, the write path (a DataChannel's batch upsert), the
-   mapping vocabulary - `COR_FEATURE_MODEL_CHANNELS`, sized before it becomes a declared switch.
-3. The first bridge (§ 6.6), its own repository, the bridge ABI as today plus what a model needs (a model
-   read and its changes, a graph of nodes).
-4. Operations as services (§ 4).
+2. AssetChannel in the broker: the object, its listing, the write path (a DataChannel's batch upsert), the
+   mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
+3. The OPC UA bridge, its own repository, the bridge ABI as today plus what a model needs (a model read and
+   its changes, a graph of nodes). The client library is to choose.
+4. AAS, the second source.
+5. Operations and methods as services (§ 4).
