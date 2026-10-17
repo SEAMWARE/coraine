@@ -7,13 +7,14 @@
 #
 # The payload check (BridgeDriver.payloadCheck, bridge ABI 13) - a bridge may refuse what a client writes
 # to an attribute one of its Channels or DataChannels maps, before anything is sent or stored. Refuse
-# only: a value is written as sent, or not at all.
+# only: a value is written as sent, or not at all - and only the refused attribute is left out, never the
+# write around it.
 #
 # The loopback bridge's "payloadCheck":
 #   P1  temperature  number: a value that is not a JSON number is refused, the reason names the value
 #                    and the attribute (expanded) the bridge was handed
 #   P2  status       refuse: every value is refused
-#   P3  mode         error: the check fails - taken as a yes
+#   P3  mode         error: the check fails - a refusal too, 503
 #   P4  speed        no check
 #   D1  a DataChannel (BikeStation, id urn:ngsi-ld:BikeStation:{Number}) - refuse: the entities its
 #       template makes take no client writes; an entity its template does not make is not its own
@@ -77,7 +78,7 @@ echo
 
 
 echo "03. PUT temperature \"hot\" - refused: 400"
-echo "========================================="
+echo "========================================"
 corCurl --url /ngsi-ld/v1/entities/urn:M:1/attrs/temperature -X PUT --payload '{ "type": "Property", "value": "hot" }'
 echo
 echo
@@ -97,25 +98,25 @@ echo
 echo
 
 
-echo "06. PATCH mode - the check fails, which is a yes: 204"
-echo "====================================================="
+echo "06. PATCH mode - the check fails, which is a refusal too: 503"
+echo "============================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:M:1/attrs/mode -X PATCH --payload '{ "type": "Property", "value": "auto" }'
 echo
 echo
 
 
-echo "07. Batch update - urn:M:1 temperature \"cold\": that entity's error, the batch goes on"
-echo "======================================================================================"
+echo "07. Batch update - urn:M:1 temperature \"cold\" and speed 4: only temperature refused, speed written"
+echo "=================================================================================================="
 corCurl --url /ngsi-ld/v1/entityOperations/update -X POST --payload '[
-  { "id": "urn:M:1", "type": "Machine", "temperature": { "type": "Property", "value": "cold" } },
+  { "id": "urn:M:1", "type": "Machine", "temperature": { "type": "Property", "value": "cold" }, "speed": { "type": "Property", "value": 4 } },
   { "id": "urn:M:5", "type": "Machine", "temperature": { "type": "Property", "value": "cold" } }
 ]'
 echo
 echo
 
 
-echo "08. GET urn:M:1 - temperature 25, speed 3, mode auto; status as the bridge left it"
-echo "=================================================================================="
+echo "08. GET urn:M:1 - temperature 25, speed 4, mode still the placeholder: nothing refused was written"
+echo "=================================================================================================="
 corCurl --url '/ngsi-ld/v1/entities/urn:M:1?attrs=temperature,speed,mode&options=keyValues'
 echo
 echo
@@ -138,7 +139,7 @@ echo
 echo
 
 
-echo "11. The counters: payloadsRefused - P1 4, P2 1, P3 0, P4 0, D1 1"
+echo "11. The counters: payloadsRefused - P1 4, P2 1, P3 1, P4 0, D1 1"
 echo "================================================================"
 for ep in P1 P2 P3 P4; do echo "$ep: $(bridgeChannelGet loopback $ep payloadsRefused)"; done
 curl -s "localhost:$CB_PORT/ngsi-ld/v1/dataChannels/urn:ngsi-ld:DataChannel:loopback:D1" | python3 -c "import json, sys; print('D1:', json.load(sys.stdin)['payloadsRefused'])"
@@ -177,7 +178,7 @@ Content-Length: 340
 
 
 03. PUT temperature "hot" - refused: 400
-=========================================
+========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
@@ -197,13 +198,13 @@ Content-Length: 340
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 358
+Content-Length: 420
 
 {
   "notUpdated": [
     {
       "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/temperature",
-      "reason": "bridge 'loopback' refused the value (P1): '\"warm\"' is not a number (https://uri.etsi.org/ngsi-ld/default-context/temperature) - not written"
+      "reason": "bridge 'loopback' refused the value of 'https://uri.etsi.org/ngsi-ld/default-context/temperature' (P1): '\"warm\"' is not a number (https://uri.etsi.org/ngsi-ld/default-context/temperature) - not written"
     }
   ],
   "updated": [
@@ -229,27 +230,35 @@ Content-Length: 224
 
 
 
-06. PATCH mode - the check fails, which is a yes: 204
-=====================================================
-HTTP/1.1 204 No Content
+06. PATCH mode - the check fails, which is a refusal too: 503
+=============================================================
+HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "bridge 'loopback' could not check the value of 'mode' (P3): no reason given - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
 
 
 
-
-07. Batch update - urn:M:1 temperature "cold": that entity's error, the batch goes on
-======================================================================================
+07. Batch update - urn:M:1 temperature "cold" and speed 4: only temperature refused, speed written
+==================================================================================================
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 630
+Content-Length: 709
 
 {
   "errors": [
     {
       "entityId": "urn:M:1",
       "error": {
-        "detail": "bridge 'loopback' refused the value (P1): '\"cold\"' is not a number (https://uri.etsi.org/ngsi-ld/default-context/temperature) - not written",
+        "detail": "bridge 'loopback' refused the value of 'https://uri.etsi.org/ngsi-ld/default-context/temperature' (P1): '\"cold\"' is not a number (https://uri.etsi.org/ngsi-ld/default-context/temperature) - not written",
         "status": 400,
         "title": "Invalid request",
         "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -265,23 +274,25 @@ Content-Length: 630
       }
     }
   ],
-  "success": []
+  "success": [
+    "urn:M:1"
+  ]
 }
 
 
 
-08. GET urn:M:1 - temperature 25, speed 3, mode auto; status as the bridge left it
-==================================================================================
+08. GET urn:M:1 - temperature 25, speed 4, mode still the placeholder: nothing refused was written
+==================================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 96
+Content-Length: 105
 
 {
   "id": "urn:M:1",
-  "mode": "auto",
-  "speed": 3,
+  "mode": "uninitialized",
+  "speed": 4,
   "temperature": 25,
   "type": "Machine"
 }
@@ -319,11 +330,11 @@ Date: REGEX(.*)
 
 
 
-11. The counters: payloadsRefused - P1 4, P2 1, P3 0, P4 0, D1 1
+11. The counters: payloadsRefused - P1 4, P2 1, P3 1, P4 0, D1 1
 ================================================================
 P1: 4
 P2: 1
-P3: 0
+P3: 1
 P4: 0
 D1: 1
 

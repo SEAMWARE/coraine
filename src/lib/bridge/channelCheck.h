@@ -44,9 +44,10 @@ extern bool channelChecksActive(void);
 // refused value is neither sent nor stored. The value checked is the default instance's, as the client
 // wrote it (on a merge route, the fragment - not the result of the merge).
 //
-// ONE attribute: a refusal fails the request (400, the bridge's reason) and nothing is written. Several,
-// or a batch (BRIDGE_REQ_PER_ENTITY): the refused attribute is taken out of the fragment and added to
-// notWrittenP, and the rest goes on.
+// A refusal is 400 (the bridge's reason); a check that FAILS is a refusal too, 503 (the bridge could not
+// check the value). ONE attribute: the request fails and nothing is written. Several, or a batch
+// (BRIDGE_REQ_PER_ENTITY): only that attribute is taken out of the fragment and added to notWrittenP -
+// the other attributes, and the other entities, go on.
 //
 // @return false, with the error set, when the request fails as a whole.
 //

@@ -6,7 +6,7 @@
 //
 #include <stdbool.h>                                  // bool
 #include <stdio.h>                                    // snprintf
-#include <string.h>                                   // strcmp, strchr
+#include <string.h>                                   // strcmp, strchr, strncat, strlen
 
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
@@ -258,23 +258,39 @@ bool channelChecksBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fr
 
     reason[0] = 0;
 
-    if (driverP->payloadCheck(endpoint, attrName, json, reason, sizeof(reason)) != BRIDGE_BAD_INPUT)
-      continue;                                       // anything but a refusal is a yes: a failing check blocks nothing
+    int r = driverP->payloadCheck(endpoint, attrName, json, reason, sizeof(reason));
+
+    if (r == BRIDGE_OK)
+      continue;
+
+    //
+    // A refusal (BRIDGE_BAD_INPUT): the value is wrong - 400. Anything else: the check failed, and a value
+    // nobody could check is not written either - 503, the bridge could not check it.
+    //
+    bool        refused = (r == BRIDGE_BAD_INPUT);
+    int         status  = refused ? 400 : 503;
+    const char* type    = refused ? LD_ERROR_BAD_REQUEST_DATA : LD_ERROR_INTERNAL_ERROR;
+    const char* title   = refused ? "Invalid request" : "Service Unavailable";
+    const char* why     = (reason[0] != 0) ? reason : "no reason given";
 
     __atomic_add_fetch(refusedP, 1, __ATOMIC_RELAXED);
-    COR_T(CtBridge, "%s/%s: refused by the payload check of bridge '%s' ('%s'): %s", entityId, attrP->name, bridgeName, endpoint, reason);
-
-    if (several == false)
-    {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request", "bridge '%s' refused the value of '%s' (%s): %s - nothing was written",
-              bridgeName, attrP->name, endpoint, (reason[0] != 0) ? reason : "no reason given");
-      return false;
-    }
+    COR_T(CtBridge, "%s/%s: the payload check of bridge '%s' ('%s') %s: %s", entityId, attrP->name, bridgeName, endpoint, refused ? "refused it" : "failed", why);
 
     char detail[1024];
 
-    snprintf(detail, sizeof(detail), "bridge '%s' refused the value (%s): %s - not written", bridgeName, endpoint, (reason[0] != 0) ? reason : "no reason given");
-    attrsNotWrittenAdd(notWrittenP, attrP->name, 400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request", detail);
+    if (refused == true)
+      snprintf(detail, sizeof(detail), "bridge '%s' refused the value of '%s' (%s): %s", bridgeName, attrP->name, endpoint, why);
+    else
+      snprintf(detail, sizeof(detail), "bridge '%s' could not check the value of '%s' (%s): %s", bridgeName, attrP->name, endpoint, why);
+
+    if (several == false)
+    {
+      ldError(status, type, title, "%s - nothing was written", detail);
+      return false;
+    }
+
+    strncat(detail, " - not written", sizeof(detail) - strlen(detail) - 1);
+    attrsNotWrittenAdd(notWrittenP, attrP->name, status, type, title, detail);
     corTreeChildRemove(fragmentP, attrP);
   }
 

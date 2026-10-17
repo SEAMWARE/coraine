@@ -1128,7 +1128,7 @@ static const char* loopbackStatusIn(const char* endpoint)
 //
 //   number            a value that is not a JSON number is refused: "'<json>' is not a number (<attribute>)"
 //   refuse:<reason>   every value is refused, with the reason
-//   error             the check fails (BRIDGE_ERR) - which the broker takes as a yes
+//   error             the check fails (BRIDGE_ERR) - a refusal too: the broker answers 503
 //   unnamed endpoint  every value is accepted
 //
 static LoopbackMeta  payloadChecks[LOOPBACK_CHANNELS_MAX];

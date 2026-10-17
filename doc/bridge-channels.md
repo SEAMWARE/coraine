@@ -137,10 +137,12 @@ or DataChannels maps, before anything of the write is sent or stored
 - **Refuse only.** The bridge is handed the endpoint, the attribute (expanded)
   and the value as the client wrote it (the default instance, as the
   application's own JSON - on a merge, the fragment), and answers yes or no.
-  A refusal is 400 (`BadRequestData`, the bridge's reason in `detail`) and
-  nothing is written; in a multi-attribute write or a batch that attribute is
-  left out and reported, and the rest written (207). The value is never
-  changed. A check that fails (anything but a refusal) is a yes.
+  A refusal is 400 (`BadRequestData`, the bridge's reason in `detail`); a
+  check that fails is a refusal too, 503 (the bridge could not check the
+  value). Only the attribute is refused, never the write around it: a write of
+  that attribute alone fails and nothing is written; in a multi-attribute write
+  or a batch that attribute is left out and reported, and the other attributes
+  and entities are written (207). The value is never changed.
 - **Optional, per bridge.** A bridge without one costs a write one test of a
   flag. A transport that refuses a wrong value itself (DDS) needs none - a
   Channel writes transport first.
