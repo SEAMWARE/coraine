@@ -231,12 +231,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 79
+Content-Length: REGEX((97|98))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "",
+  "traces": REGEX((true|false)),
   "verbose": false
 }
 
@@ -277,12 +278,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 78
+Content-Length: REGEX((96|97))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -294,12 +296,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 78
+Content-Length: REGEX((96|97))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -311,12 +314,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 85
+Content-Length: REGEX((103|104))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "1-2,5-8",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -328,12 +332,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 91
+Content-Length: REGEX((109|110))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "1-2,5-8,10-11",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -345,12 +350,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 87
+Content-Length: REGEX((105|106))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "1-2,10-11",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -362,12 +368,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 79
+Content-Length: REGEX((97|98))
 
 {
   "debug": false,
   "info": true,
   "traceLevels": "99",
+  "traces": REGEX((true|false)),
   "verbose": true
 }
 
@@ -379,12 +386,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 81
+Content-Length: REGEX((99|100))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "99",
+  "traces": REGEX((true|false)),
   "verbose": false
 }
 
@@ -433,12 +441,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 80
+Content-Length: REGEX((98|99))
 
 {
   "debug": true,
   "info": false,
   "traceLevels": "99",
+  "traces": REGEX((true|false)),
   "verbose": false
 }
 
@@ -450,12 +459,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 79
+Content-Length: REGEX((97|98))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "",
+  "traces": REGEX((true|false)),
   "verbose": false
 }
 
@@ -467,12 +477,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 79
+Content-Length: REGEX((97|98))
 
 {
   "debug": false,
   "info": false,
   "traceLevels": "",
+  "traces": REGEX((true|false)),
   "verbose": false
 }
 
