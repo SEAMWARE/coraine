@@ -1,0 +1,161 @@
+#
+# FILE            bridge_lists_its_channels.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Bridge lists what it carries: "channels" and "dataChannels", the ids of its Channels and DataChannels in
+# the request's tenant - "everything this bridge does" in one request (doc/asset-channels.md § 2). A member
+# only when it has one.
+#
+# The loopback bridge carries the Channels P1 (a topic) and A1 (an action), and the DataChannels D1 and D2.
+#
+# REQUIRE_FEATURE: DATA_CHANNELS
+#
+--NAME--
+Bridges: a Bridge lists its Channels and DataChannels - the request's tenant, a member only when it has one
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+RECORD='{ "type": "BikeStation", "id": "urn:ngsi-ld:BikeStation:{Number}", "attributes": { "name": { "column": "Name" } } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "D1": { "Number": 1, "Name": "Station A" },
+      "D2": { "Number": 2, "Name": "Station B" }
+    },
+    "ngsild": {
+      "topics":  { "P1": { "entityId": "urn:M:1", "entityType": "Machine", "attribute": "temperature" } },
+      "actions": { "A1": { "entityId": "urn:R:1", "entityType": "Robot",   "attribute": "navigate" } },
+      "dataChannels": {
+        "D1": { "entities": [ $RECORD ] },
+        "D2": { "entities": [ $RECORD ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. GET /bridges - loopback lists P1, A1, D1 and D2"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/bridges
+echo
+echo
+
+
+echo "02. GET /bridges/urn:ngsi-ld:ContextBridge:loopback"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/bridges/urn:ngsi-ld:ContextBridge:loopback
+echo
+echo
+
+
+echo "03. GET /bridges in tenant t1 (created by an entity) - the Bridges, no channels nor dataChannels: they are the default tenant's"
+echo "============================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:t1", "type": "T" }' -H "NGSILD-Tenant: t1"
+echo
+corCurl --url /ngsi-ld/v1/bridges -H "NGSILD-Tenant: t1"
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. GET /bridges - loopback lists P1, A1, D1 and D2
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 390
+
+[
+  {
+    "channels": [
+      "urn:ngsi-ld:Channel:loopback:A1",
+      "urn:ngsi-ld:Channel:loopback:P1"
+    ],
+    "dataChannels": [
+      "urn:ngsi-ld:DataChannel:loopback:D1",
+      "urn:ngsi-ld:DataChannel:loopback:D2"
+    ],
+    "id": "urn:ngsi-ld:ContextBridge:loopback",
+    "plugin": "loopback",
+    "samplesDropped": 0,
+    "status": "available",
+    "type": "ContextBridge"
+  }
+]
+
+
+
+02. GET /bridges/urn:ngsi-ld:ContextBridge:loopback
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 356
+
+{
+  "channels": [
+    "urn:ngsi-ld:Channel:loopback:A1",
+    "urn:ngsi-ld:Channel:loopback:P1"
+  ],
+  "dataChannels": [
+    "urn:ngsi-ld:DataChannel:loopback:D1",
+    "urn:ngsi-ld:DataChannel:loopback:D2"
+  ],
+  "id": "urn:ngsi-ld:ContextBridge:loopback",
+  "plugin": "loopback",
+  "samplesDropped": 0,
+  "status": "available",
+  "type": "ContextBridge"
+}
+
+
+
+03. GET /bridges in tenant t1 (created by an entity) - the Bridges, no channels nor dataChannels: they are the default tenant's
+=============================================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+NGSILD-Tenant: t1
+Location: /ngsi-ld/v1/entities/urn:E:t1
+Content-Length: 0
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Tenant: t1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 166
+
+[
+  {
+    "id": "urn:ngsi-ld:ContextBridge:loopback",
+    "plugin": "loopback",
+    "samplesDropped": 0,
+    "status": "available",
+    "type": "ContextBridge"
+  }
+]
+
+
+

@@ -14,14 +14,20 @@
 #include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corTree/CorNode.h"                          // CorNode
-#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeString, corTreeInteger, corTreeBoolean, corTreeChildAdd
+#include "corTree/corTreeBuilder.h"                   // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeBoolean, corTreeChildAdd
 #include "corJsonld/corLdCompact.h"                   // corLdCompact
 #include "corRest/CorRestState.h"                     // corRest
+#include "corNgsild/corNgsild.h"                      // corNgsild
 
 #include "bridge/Channel.h"                           // Channel, ChannelStatus*, ChannelRetention*
 #include "bridge/channelCache.h"                      // channelCacheFirst
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefault
 #include "bridge/bridgeSampleIn.h"                    // bridgeSamplesDropped
+#if COR_FEATURE_DATA_CHANNELS
+#include "bridge/DataChannel.h"                       // DataChannel
+#include "bridge/dataChannelCache.h"                  // dataChannelFirst
+#include "bridge/dataChannelRender.h"                 // dataChannelIdOf
+#endif
 #include "bridge/bridgeRender.h"                      // Own interface
 
 
@@ -225,6 +231,42 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 
 // -----------------------------------------------------------------------------
 //
+// carriedRender - the ids of what the Bridge carries for the request's tenant: "channels", "dataChannels";
+// a member only when it has one
+//
+static void carriedRender(CorNode* bodyP, const char* bridgeName)
+{
+  CorAlloc* allocP   = corRest.kallocP;
+  Tenant*   tenantP  = (Tenant*) corNgsild.tenantP;
+  CorNode*  channelsP = corTreeArray(allocP, "channels");
+
+  for (Channel* channelP = channelCacheFirst(); channelP != NULL; channelP = channelP->next)
+  {
+    if ((channelP->tenantP == tenantP) && (strcmp(channelP->bridgeName, bridgeName) == 0))
+      corTreeChildAdd(channelsP, corTreeString(allocP, NULL, (char*) channelIdOf(channelP)));
+  }
+
+  if (channelsP->value.head != NULL)
+    corTreeChildAdd(bodyP, channelsP);
+
+#if COR_FEATURE_DATA_CHANNELS
+  CorNode* dataChannelsP = corTreeArray(allocP, "dataChannels");
+
+  for (DataChannel* dcP = dataChannelFirst(); dcP != NULL; dcP = dcP->next)
+  {
+    if ((dcP->tenantP == tenantP) && (strcmp(dcP->bridgeName, bridgeName) == 0))
+      corTreeChildAdd(dataChannelsP, corTreeString(allocP, NULL, (char*) dataChannelIdOf(dcP)));
+  }
+
+  if (dataChannelsP->value.head != NULL)
+    corTreeChildAdd(bodyP, dataChannelsP);
+#endif
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeRender -
 //
 CorNode* bridgeRender(const char* bridgeName, bool loaded)
@@ -252,6 +294,8 @@ CorNode* bridgeRender(const char* bridgeName, bool loaded)
 
   if (bridgeGoalNotifyDefault(bridgeName, &uri, &accept) == true)
     notificationRender(bodyP, uri, accept);
+
+  carriedRender(bodyP, bridgeName);
 
   return bodyP;
 }

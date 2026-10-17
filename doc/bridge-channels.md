@@ -88,6 +88,10 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
   why, in its own words (`channelStatusIn`, bridge ABI 12 -
   `COR_FEATURE_CHANNEL_STATUS_IN`): a resource its peer does not have, a peer
   that cannot be reached, a peer that is back.
+- **What a Bridge carries** - `channels` and `dataChannels`: the ids of its
+  Channels and DataChannels in the request's tenant, so everything one Bridge
+  does is one `GET`. A member only when it has one (`dataChannels` needs
+  `COR_FEATURE_DATA_CHANNELS`).
 - **Counters** - `samplesIn`, `samplesOut`, `requestsWaiting`,
   `requestsNotWaited`; on action Channels `goalsSent`, `goalCancelsSent`;
   `endpointDiscovered: true` once the transport found the endpoint (absent
