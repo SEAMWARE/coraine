@@ -1,0 +1,69 @@
+#
+# FILE            bridge_topic_large_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A value written to a Channel's attribute is rendered for the transport in a buffer of its own size: a
+# 300 KB string goes out as the topic's sample, and is stored, like a small one. The size limit is the
+# request's, not the bridge step's.
+#
+--NAME--
+Bridges: a topic carries a value of 300 KB - rendered for the transport in a buffer of its own size
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+BRIDGE_CONFIG=$(bridgeConfig --topic "P1,Machine,urn:M:1,temperature")
+
+coraineStart --bridges loopback --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. PATCH temperature with a string of 300000 characters - 204"
+echo "=============================================================="
+python3 -c "import json; print(json.dumps({ 'type': 'Property', 'value': 'x' * 300000 }))" > /tmp/coraine_large_value.json
+curl -s -o /dev/null -w "%{http_code}\n" -X PATCH "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:M:1/attrs/temperature" -H 'Content-Type: application/json' --data-binary @/tmp/coraine_large_value.json
+echo
+echo
+
+
+echo "02. The Channel published it: samplesOut 1"
+echo "=========================================="
+bridgeChannelGet loopback P1 samplesOut
+echo
+echo
+
+
+echo "03. GET the attribute - its value is the 300000 characters"
+echo "=========================================================="
+curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:M:1?attrs=temperature" | python3 -c "import json, sys; v = json.load(sys.stdin)['temperature']['value']; print(len(v), v == 'x' * 300000)"
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json /tmp/coraine_large_value.json
+
+
+--EXPECT--
+01. PATCH temperature with a string of 300000 characters - 204
+==============================================================
+204
+
+
+02. The Channel published it: samplesOut 1
+==========================================
+1
+
+
+03. GET the attribute - its value is the 300000 characters
+==========================================================
+300000 True
+
+
