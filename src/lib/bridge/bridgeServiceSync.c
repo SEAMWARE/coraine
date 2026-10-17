@@ -19,6 +19,7 @@
 #include "corTree/CorNode.h"                          // CorNode
 #include "corTree/corTreeLookup.h"                    // corTreeLookup
 #include "corJson/corJsonRender.h"                    // corJsonFastRender
+#include "corJson/corJsonRenderSize.h"                // corJsonFastRenderSize
 #include "corTree/corTreeBuilder.h"                   // corTreeChildAdd, corTreeChildRemove, corTreeObject
 #include "corTree/corTreeClone.h"                     // corTreeClone
 #include "corLog/corLog.h"                            // COR_T, COR_W
@@ -63,18 +64,6 @@ bool bridgeSyncDefault   = false;
 //
 int  bridgeSyncTimeoutMs = 0;
 int  bridgeSyncWaitMax   = 8;
-
-
-
-// -----------------------------------------------------------------------------
-//
-// SYNC_OUT_MAX - the largest request payload a synchronous invocation renders
-//
-// corJsonFastRender does not know the size of the buffer it writes into, so the size
-// is decided here: a service request, a goal and a topic's sample are each the
-// value of one attribute.
-//
-#define SYNC_OUT_MAX  (64 * 1024)
 
 
 
@@ -846,9 +835,19 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
     // corJsonFastRender follows the sibling chain and emits 250, - which parses as
     // nothing at all.
     //
-    static __thread char buf[SYNC_OUT_MAX];
+    // corJsonFastRender does not know the size of the buffer it writes into: the buffer is the value's
+    // own size, in the request's arena - a value has no size limit here but the request's.
+    //
+    CorNode* wireP = wireValue(valueP);
+    char*    buf   = (char*) corAlloc(&corRest.kalloc, corJsonFastRenderSize(wireP) + 1);
 
-    corJsonFastRender(wireValue(valueP), buf);
+    if (buf == NULL)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering the value of '%s'", attrP->name);
+      return requestsFailed(doneP);
+    }
+
+    corJsonFastRender(wireP, buf);
 
     //
     // A topic: the sample is published now. One the transport refuses - a value
