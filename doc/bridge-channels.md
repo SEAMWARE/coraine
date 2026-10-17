@@ -131,8 +131,8 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
 
 ## The payload check
 
-A bridge may refuse what a client writes to an attribute one of its Channels
-or DataChannels maps, before anything of the write is sent or stored
+A bridge may refuse what a client writes to an attribute one of its Channels,
+DataChannels or AssetChannels maps, before anything of the write is sent or stored
 (`BridgeDriver.payloadCheck`, bridge ABI 13 - `COR_FEATURE_CHANNEL_CHECKS`):
 
 - **Refuse only.** The bridge is handed the endpoint, the attribute (expanded)
@@ -149,12 +149,15 @@ or DataChannels maps, before anything of the write is sent or stored
   Channel writes transport first.
 - **Which attributes.** A Channel's own; for a DataChannel, the attributes its
   mapping names, of every entity whose id fits one of its id templates
-  (`urn:ngsi-ld:BikeStation:{Number}` fits `urn:ngsi-ld:BikeStation:7`). An
-  AssetChannel's are not checked yet.
+  (`urn:ngsi-ld:BikeStation:{Number}` fits `urn:ngsi-ld:BikeStation:7`); for
+  an AssetChannel, the attributes its last model made. The endpoint the
+  bridge is handed is the channel's - for an AssetChannel's attribute, the
+  node it was made from (`ns=2;s=P17.Pressure`), or the model's root for one
+  made of no one node (a Relationship, a container's).
 - **Clients only.** What the bridge itself writes - a sample, a DataChannel's
   record - is not checked.
-- **`payloadsRefused`**, on the Channel and the DataChannel: the writes its
-  bridge refused.
+- **`payloadsRefused`**, on the Channel, the DataChannel and the AssetChannel:
+  the writes its bridge refused.
 
 The loopback bridge's `"payloadCheck"` (`{ "<endpoint>": "number" |
 "refuse:<reason>" | "error" }`) is the reference implementation.

@@ -8,7 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // The payload check (doc/bridge-channels.md, doc/asset-channels.md § 2.1) - a bridge may refuse what a
-// client writes to an attribute one of its Channels or DataChannels maps, before the broker sends or
+// client writes to an attribute one of its Channels, DataChannels or AssetChannels maps, before the broker sends or
 // stores any of it (BridgeDriver.payloadCheck, bridge ABI 13).
 //
 // REFUSE ONLY: the value is written as the client sent it, or that attribute is not written at all.

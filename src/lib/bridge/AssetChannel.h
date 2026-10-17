@@ -42,6 +42,21 @@
 
 
 
+#if COR_FEATURE_CHANNEL_CHECKS
+// -----------------------------------------------------------------------------
+//
+// AssetMapped - one attribute the last model made: what the payload check looks a client's write up in
+//
+typedef struct AssetMapped
+{
+  char*  entityId;
+  char*  attrName;                                    // EXPANDED
+  char*  nodeId;                                      // the node the attribute was made from (a leaf's "id"); NULL: none
+} AssetMapped;
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // AssetChannel -
@@ -69,6 +84,8 @@ typedef struct AssetChannel
   uint64_t              samplesRefused;               // samples that are neither a model nor values, or a model that makes no entity
 #if COR_FEATURE_CHANNEL_CHECKS
   uint64_t              payloadsRefused;              // client writes the bridge's payloadCheck refused (ABI 13)
+  AssetMapped*          mappedV;                      // the attributes the last model made - under modelMutex
+  int                   mapped;
 #endif
 
   struct AssetChannel*  next;

@@ -39,6 +39,7 @@
 #include "corRest/corRest.h"                          // corRest
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK, BRIDGE_BAD_INPUT, BRIDGE_ERR
 #include "corJsonld/corLdExpandTree.h"                // corLdExpandEntityTree
+#include "corJsonld/corLdExpand.h"                    // corLdExpand
 #include "corNgsild/CorNgsild.h"                      // ldDefaultContext
 #include "corNgsild/ldHooks.h"                        // corNgsildFallbackRelease
 
@@ -46,6 +47,7 @@
 #include "bridge/AssetMap.h"                          // AssetMap, AssetRule, AssetLayout
 #include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "bridge/bridgeEntitiesUpsert.h"              // bridgeEntitiesUpsert
+#include "bridge/assetChannelCache.h"                 // assetChannelMappedFree
 #include "bridge/assetChannelSampleIn.h"              // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -75,6 +77,13 @@ typedef struct AssetModel
   AssetEntity*  entityV;
   int           entities;
   int           entitiesMax;
+#if COR_FEATURE_CHANNEL_CHECKS
+  CorNode*      curEntityP;                           // the entity being made: its attributes are recorded
+  const char*   curEntityId;
+  AssetMapped*  mappedV;                              // what the entities made have - in the request's arena, names compact
+  int           mapped;
+  int           mappedMax;
+#endif
 } AssetModel;
 
 
@@ -472,6 +481,81 @@ static CorNode* plainJson(CorNode* containerP, const char* name)
 
 
 
+#if COR_FEATURE_CHANNEL_CHECKS
+// -----------------------------------------------------------------------------
+//
+// mappedAdd - an attribute of the entity being made, and the node it comes from (NULL: none) - the first
+// of a name stays, as attrAdd keeps it
+//
+static void mappedAdd(AssetModel* modelP, const char* attrName, const char* nodeId)
+{
+  for (int ix = 0; ix < modelP->mapped; ix++)
+  {
+    if ((modelP->mappedV[ix].entityId == modelP->curEntityId) && (strcmp(modelP->mappedV[ix].attrName, attrName) == 0))
+      return;
+  }
+
+  if (modelP->mapped == modelP->mappedMax)
+  {
+    int          max = (modelP->mappedMax == 0) ? 64 : modelP->mappedMax * 2;
+    AssetMapped* v   = (AssetMapped*) corAlloc(&corRest.kalloc, max * sizeof(AssetMapped));
+
+    if (v == NULL)
+      return;
+
+    if (modelP->mapped > 0)
+      memcpy(v, modelP->mappedV, modelP->mapped * sizeof(AssetMapped));
+
+    modelP->mappedV   = v;
+    modelP->mappedMax = max;
+  }
+
+  modelP->mappedV[modelP->mapped].entityId = (char*) modelP->curEntityId;
+  modelP->mappedV[modelP->mapped].attrName = (char*) attrName;
+  modelP->mappedV[modelP->mapped].nodeId   = (char*) nodeId;
+  modelP->mapped++;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mappedKeep - what the model made, the AssetChannel's (malloc, names expanded) - in place of what it had
+//
+static void mappedKeep(AssetChannel* acP, AssetModel* modelP)
+{
+  AssetMapped* keptV = (AssetMapped*) calloc(modelP->mapped + 1, sizeof(AssetMapped));
+  int          kept  = 0;
+
+  for (int ix = 0; (keptV != NULL) && (ix < modelP->mapped); ix++)
+  {
+    char* expanded = corLdExpand(ldDefaultContext(&corRest.kalloc), modelP->mappedV[ix].attrName, &corRest.kalloc, NULL, NULL);
+
+    if (expanded == NULL)
+      continue;
+
+    keptV[kept].entityId = strdup(modelP->mappedV[ix].entityId);
+    keptV[kept].attrName = strdup(expanded);
+    keptV[kept].nodeId   = (modelP->mappedV[ix].nodeId != NULL) ? strdup(modelP->mappedV[ix].nodeId) : NULL;
+    kept++;
+  }
+
+  pthread_mutex_lock(&acP->modelMutex);
+
+  AssetMapped* oldV   = acP->mappedV;
+  int          oldN   = acP->mapped;
+
+  acP->mappedV = keptV;
+  acP->mapped  = (keptV != NULL) ? kept : 0;
+
+  pthread_mutex_unlock(&acP->modelMutex);
+
+  assetChannelMappedFree(oldV, oldN);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // attrAdd - an attribute to the entity, unless it has one of that name already (the first one stays)
@@ -596,6 +680,10 @@ static void childrenMap(AssetModel* modelP, CorNode* entityP, CorNode* nodeP, co
     if (isLeaf(childP) == true)
     {
       attrAdd(entityP, leafProperty(childP, name));
+#if COR_FEATURE_CHANNEL_CHECKS
+      if (entityP == modelP->curEntityP)              // an attribute of the entity, not a sub-attribute
+        mappedAdd(modelP, name, str(childP, "id"));
+#endif
       referencesMap(modelP, entityP, childP);
       continue;
     }
@@ -650,9 +738,27 @@ static CorNode* entityMake(AssetModel* modelP, AssetEntity* entP)
   corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "id",   entP->id));
   corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "type", entP->type));
 
+#if COR_FEATURE_CHANNEL_CHECKS
+  modelP->curEntityP  = entityP;
+  modelP->curEntityId = entP->id;
+#endif
+
   attrAdd(entityP, semanticIdNode(entP->nodeP));
   childrenMap(modelP, entityP, entP->nodeP, NULL, modelP->mapP->layout);
   referencesMap(modelP, entityP, entP->nodeP);
+
+#if COR_FEATURE_CHANNEL_CHECKS
+  //
+  // Every other attribute - a container's, a Relationship, the semanticId: no one node it comes from
+  //
+  for (CorNode* attrP = entityP->value.head; attrP != NULL; attrP = attrP->next)
+  {
+    if ((strcmp(attrP->name, "id") != 0) && (strcmp(attrP->name, "type") != 0))
+      mappedAdd(modelP, attrP->name, NULL);
+  }
+
+  modelP->curEntityP = NULL;
+#endif
 
   return entityP;
 }
@@ -809,6 +915,13 @@ static bool modelFind(AssetModel* modelP, AssetMap* mapP, CorNode* treeP)
   modelP->entities    = 0;
   modelP->entitiesMax = nodeCount(treeP);
   modelP->entityV     = (AssetEntity*) corAlloc(&corRest.kalloc, modelP->entitiesMax * sizeof(AssetEntity));
+#if COR_FEATURE_CHANNEL_CHECKS
+  modelP->curEntityP  = NULL;
+  modelP->curEntityId = NULL;
+  modelP->mappedV     = NULL;
+  modelP->mapped      = 0;
+  modelP->mappedMax   = 0;
+#endif
 
   if (modelP->entityV == NULL)
     return false;
@@ -843,6 +956,10 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
 
   if (written == 0)
     return BRIDGE_ERR;
+
+#if COR_FEATURE_CHANNEL_CHECKS
+  mappedKeep(acP, &model);                            // what a client's write is checked against - the model's names; values do not change them
+#endif
 
   __atomic_add_fetch(&acP->modelsIn, 1, __ATOMIC_RELAXED);
   __atomic_add_fetch(&acP->entitiesWritten, (uint64_t) written, __ATOMIC_RELAXED);

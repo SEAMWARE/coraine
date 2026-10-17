@@ -26,6 +26,10 @@
 #include "bridge/RecordMap.h"                         // RecordEntity, RecordAttr
 #include "bridge/dataChannelCache.h"                  // dataChannelFirst
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetChannel.h"                      // AssetChannel
+#include "bridge/assetChannelCache.h"                 // assetChannelMappedLookup
+#endif
 #include "bridge/channelCheck.h"                      // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -224,6 +228,27 @@ bool channelChecksBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fr
         endpoint   = dcP->endpoint;
         attrName   = recordAttrP->name;
         refusedP   = &dcP->payloadsRefused;
+      }
+    }
+#endif
+#if COR_FEATURE_ASSET_CHANNELS
+    //
+    // An AssetChannel's: an attribute its last model made. The endpoint the bridge is handed is the node the
+    // attribute was made from - where the value lives at the source - or, for one made of no one node (a
+    // container's, a Relationship), the model's root
+    //
+    if (bridgeName == NULL)
+    {
+      AssetChannel* acP    = NULL;
+      const char*   nodeId = NULL;
+      const char*   name   = NULL;
+
+      if ((assetChannelMappedLookup(tenantP, entityId, attrP->name, &acP, &nodeId, &name) == true) && (checkerOf(acP->bridgeName) != NULL))
+      {
+        bridgeName = acP->bridgeName;
+        endpoint   = (nodeId != NULL) ? nodeId : acP->endpoint;
+        attrName   = name;
+        refusedP   = &acP->payloadsRefused;
       }
     }
 #endif

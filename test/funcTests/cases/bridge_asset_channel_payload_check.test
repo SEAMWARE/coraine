@@ -1,0 +1,193 @@
+#
+# FILE            bridge_asset_channel_payload_check.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The payload check on an AssetChannel's attributes - a bridge may refuse what a client writes to an
+# attribute the AssetChannel's last model made. The endpoint the bridge is handed is the node the attribute
+# was made from (a leaf's id: where the value lives at the source), or the model's root for an attribute of
+# no one node (a Relationship, a container's).
+#
+# The loopback bridge's "payloadCheck":
+#   ns=2;s=P17.Pressure   number - the pressure's node: a value that is not a number is refused
+#   ns=2;s=Press17        refuse - the model's root: what has no node of its own (unit1, a Relationship)
+# The bridge's own write of the model is not checked: the press is there, with every attribute.
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS CHANNEL_CHECKS
+#
+--NAME--
+Bridges: the payload check on an AssetChannel - the endpoint is the attribute's node, else the model's root
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+PRESS='{ "model": { "node": "object", "id": "ns=2;s=Press17", "name": "Press17", "typeName": "Press",
+         "children": [
+           { "node": "folder", "name": "Hydraulics", "children": [
+               { "node": "variable", "id": "ns=2;s=P17.Pressure", "name": "Pressure", "value": 212.5 } ] },
+           { "node": "variable", "id": "ns=2;s=P17.Mode", "name": "Mode", "value": "auto" },
+           { "node": "object", "id": "ns=2;s=P17.Unit1", "name": "Unit1", "typeName": "HydraulicUnit",
+             "children": [ { "node": "variable", "id": "ns=2;s=P17.Unit1.Running", "name": "Running", "value": true } ] } ] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "payloadCheck": {
+      "ns=2;s=P17.Pressure": "number",
+      "ns=2;s=Press17": "refuse:the model's structure is the server's"
+    },
+    "emitAtStart": { "ns=2;s=Press17": $PRESS },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": { "ns=2;s=Press17": { "entities": "natural" } }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. The press, written by the bridge - not checked against its own rules"
+echo "========================================================================"
+sleep 2
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17?options=keyValues'
+echo
+echo
+
+
+echo "02. PATCH hydraulicsPressure \"high\" - the pressure's node (ns=2;s=P17.Pressure) takes numbers only: 400"
+echo "======================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/hydraulicsPressure -X PATCH --payload '{ "type": "Property", "value": "high" }'
+echo
+echo
+
+
+echo "03. PATCH hydraulicsPressure 300 - a number: 204"
+echo "================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/hydraulicsPressure -X PATCH --payload '{ "type": "Property", "value": 300 }'
+echo
+echo
+
+
+echo "04. PATCH unit1 - a Relationship, no node of its own: the model's root, which refuses: 400"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/unit1 -X PATCH --payload '{ "type": "Relationship", "object": "urn:ngsi-ld:HydraulicUnit:Other" }'
+echo
+echo
+
+
+echo "05. PATCH mode - its node has no rule: 204"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/mode -X PATCH --payload '{ "type": "Property", "value": "manual" }'
+echo
+echo
+
+
+echo "06. The press: pressure 300, mode manual, unit1 as the model made it; payloadsRefused 2"
+echo "======================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17?options=keyValues'
+echo
+curl -s "localhost:$CB_PORT/ngsi-ld/v1/assetChannels" | python3 -c "import json, sys; print('payloadsRefused:', json.load(sys.stdin)[0]['payloadsRefused'])"
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The press, written by the bridge - not checked against its own rules
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "hydraulicsPressure": 212.5,
+  "id": "urn:ngsi-ld:Press:Press17",
+  "mode": "auto",
+  "type": "Press",
+  "unit1": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1"
+}
+
+
+
+02. PATCH hydraulicsPressure "high" - the pressure's node (ns=2;s=P17.Pressure) takes numbers only: 400
+=======================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 372
+
+{
+  "detail": "bridge 'loopback' refused the value of 'https://uri.etsi.org/ngsi-ld/default-context/hydraulicsPressure' (ns=2;s=P17.Pressure): '\"high\"' is not a number (https://uri.etsi.org/ngsi-ld/default-context/hydraulicsPressure) - nothing was written",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. PATCH hydraulicsPressure 300 - a number: 204
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+04. PATCH unit1 - a Relationship, no node of its own: the model's root, which refuses: 400
+==========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 299
+
+{
+  "detail": "bridge 'loopback' refused the value of 'https://uri.etsi.org/ngsi-ld/default-context/unit1' (ns=2;s=Press17): the model's structure is the server's - nothing was written",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. PATCH mode - its node has no rule: 204
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. The press: pressure 300, mode manual, unit1 as the model made it; payloadsRefused 2
+=======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 162
+
+{
+  "hydraulicsPressure": 300,
+  "id": "urn:ngsi-ld:Press:Press17",
+  "mode": "manual",
+  "type": "Press",
+  "unit1": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1"
+}
+
+
+payloadsRefused: 2
+
+
