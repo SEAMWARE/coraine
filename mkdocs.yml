@@ -28,6 +28,7 @@ exclude_docs: |
   bridge-channels.md
   bridge-channels-details.md
   asset-channels.md
+  aas.md
   history/bridge-channels.md
   tutorial-doubts.md
 
