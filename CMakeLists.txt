@@ -53,6 +53,7 @@ option(COR_FEATURE_DATA_CHANNELS "Enable DataChannels - a bridge endpoint whose 
 option(COR_FEATURE_ASSET_CHANNELS "Enable AssetChannels - a bridge endpoint whose data is a model (OPC UA objects, an AAS shell and its submodels), made into a graph of entities by its mapping (\"assetChannels\" in --bridgeConfig, GET /ngsi-ld/v1/assetChannels, doc/asset-channels.md)" ON)
 option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridge ABI 12) - a bridge plugin reports whether a Channel carries, and why not, as the Channel's status and statusReason" ON)
 option(COR_FEATURE_CHANNEL_CHECKS "Enable BridgeDriver.payloadCheck (bridge ABI 13) - a bridge plugin may refuse a client's write to an attribute one of its Channels or DataChannels maps (doc/bridge-channels.md)" ON)
+option(COR_FEATURE_BRIDGE_INVENTORY "Enable GET /admin/bridges/{bridge}/inventory (bridge ABI 14) - what a bridge's transport can carry, for a mapping tool (c3's Configure)" ON)
 
 # Group: Protocols - the API over something else than HTTP
 #
@@ -82,7 +83,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS BRIDGE_INVENTORY DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

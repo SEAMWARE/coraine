@@ -1,0 +1,169 @@
+#
+# FILE            bridge_inventory.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /admin/bridges/{bridge}/inventory - what a bridge's source offers (bridge ABI 14), for a mapping tool
+# to browse. The broker hands "from" and "depth" to the bridge and answers its JSON as it is.
+#
+# The loopback bridge's inventory echoes the request - { "bridge", "from", "depth" }; from "nope" is not
+# found (404), from "down" a transport that cannot answer (503).
+#
+# REQUIRE_FEATURE: BRIDGE_INVENTORY
+#
+--NAME--
+Bridges: GET /admin/bridges/{bridge}/inventory - from and depth to the bridge, its answer, 404, 503, 400
+
+--TAGS--
+bridge admin plugins
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --bridges loopback
+
+--RUN--
+
+echo "01. GET /admin/bridges/loopback/inventory - no from, the default depth 1: 200"
+echo "============================================================================"
+corCurl --url /admin/bridges/loopback/inventory
+echo
+echo
+
+
+echo "02. GET /admin/bridges/loopback/inventory?from=ns=2;s=Press17&depth=3: 200"
+echo "=========================================================================="
+corCurl --url '/admin/bridges/loopback/inventory?from=ns%3D2%3Bs%3DPress17&depth=3'
+echo
+echo
+
+
+echo "03. GET /admin/bridges/loopback/inventory?from=nope - the bridge has no such node: 404"
+echo "======================================================================================"
+corCurl --url '/admin/bridges/loopback/inventory?from=nope'
+echo
+echo
+
+
+echo "04. GET /admin/bridges/loopback/inventory?from=down - the bridge's source cannot answer: 503"
+echo "============================================================================================"
+corCurl --url '/admin/bridges/loopback/inventory?from=down'
+echo
+echo
+
+
+echo "05. GET /admin/bridges/loopback/inventory?depth=17 - depth is 0 to 16: 400"
+echo "=========================================================================="
+corCurl --url '/admin/bridges/loopback/inventory?depth=17'
+echo
+echo
+
+
+echo "06. GET /admin/bridges/nosuch/inventory - no such bridge loaded: 404"
+echo "===================================================================="
+corCurl --url /admin/bridges/nosuch/inventory
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. GET /admin/bridges/loopback/inventory - no from, the default depth 1: 200
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "bridge": "loopback",
+  "depth": 1,
+  "from": null
+}
+
+
+
+02. GET /admin/bridges/loopback/inventory?from=ns=2;s=Press17&depth=3: 200
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 69
+
+{
+  "bridge": "loopback",
+  "depth": 3,
+  "from": "ns=2;s=Press17"
+}
+
+
+
+03. GET /admin/bridges/loopback/inventory?from=nope - the bridge has no such node: 404
+======================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 171
+
+{
+  "detail": "bridge 'loopback': the loopback has no 'nope'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET /admin/bridges/loopback/inventory?from=down - the bridge's source cannot answer: 503
+============================================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "bridge 'loopback': the loopback's transport is down",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+05. GET /admin/bridges/loopback/inventory?depth=17 - depth is 0 to 16: 400
+==========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "depth is a number from 0 to 16 (a bridge may cap it lower)",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. GET /admin/bridges/nosuch/inventory - no such bridge loaded: 404
+====================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "no bridge 'nosuch' is loaded",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+

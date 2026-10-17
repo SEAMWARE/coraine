@@ -1141,6 +1141,55 @@ static const char* loopbackStatusIn(const char* endpoint)
 }
 
 
+#if BRIDGE_ABI_VERSION >= 14
+// -----------------------------------------------------------------------------
+//
+// loopbackInventory - what GET /admin/bridges/loopback/inventory answers (ABI 14): the request echoed -
+// { "bridge": "loopback", "from": <from|null>, "depth": <n> } - for the tests of the broker's side.
+// from "nope": not found; from "down": the transport cannot answer
+//
+static int loopbackInventory(const char* from, int depth, int timeoutMs, char** jsonP, char* errBuf, int errBufLen)
+{
+  (void) timeoutMs;
+
+  *jsonP = NULL;
+
+  if ((from != NULL) && (strcmp(from, "nope") == 0))
+  {
+    snprintf(errBuf, errBufLen, "the loopback has no 'nope'");
+    return BRIDGE_NOT_FOUND;
+  }
+
+  if ((from != NULL) && (strcmp(from, "down") == 0))
+  {
+    snprintf(errBuf, errBufLen, "the loopback's transport is down");
+    return BRIDGE_ERR;
+  }
+
+  if ((from != NULL) && ((strchr(from, '"') != NULL) || (strchr(from, '\\') != NULL)))
+  {
+    snprintf(errBuf, errBufLen, "the loopback takes no quote or backslash in 'from'");
+    return BRIDGE_NOT_FOUND;
+  }
+
+  int   len  = 64 + ((from != NULL) ? strlen(from) : 0);
+  char* json = (char*) malloc(len);
+
+  if (json == NULL)
+    return BRIDGE_ERR;
+
+  if (from != NULL)
+    snprintf(json, len, "{\"bridge\":\"loopback\",\"from\":\"%s\",\"depth\":%d}", from, depth);
+  else
+    snprintf(json, len, "{\"bridge\":\"loopback\",\"from\":null,\"depth\":%d}", depth);
+
+  *jsonP = json;
+  return BRIDGE_OK;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // loopbackPayloadCheck - "payloadCheck": what the loopback answers a client's write (ABI 13)
@@ -1848,6 +1897,11 @@ void bridgeRegister(BridgeDriver* driverP)
 
   if (hostAbi >= 13)
     driverP->payloadCheck = loopbackPayloadCheck;
+
+#if BRIDGE_ABI_VERSION >= 14
+  if (hostAbi >= 14)
+    driverP->inventory = loopbackInventory;
+#endif
 
   //
   // And now the field is the PLUGIN's, which is what the host reads back.

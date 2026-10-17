@@ -371,6 +371,7 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 | `GET /admin/tenants` | the tenants in use |
 | `GET /admin/plugins` | which plugins are loaded |
 | `GET /admin/metrics` | Prometheus metrics (when compiled in) |
+| `GET /admin/bridges/{bridge}/inventory` | what a loaded bridge's source can carry, for a mapping tool: `?from=` where to start, in the source's terms (OPC UA: a NodeId; none: the Objects folder), `?depth=` how many levels (0-16, default 1; a bridge may cap it lower). The JSON is the bridge's own. 404: no such bridge loaded, or no such `from`; 501: the bridge has no inventory (or `COR_FEATURE_BRIDGE_INVENTORY` is off); 503: its source cannot answer (not connected, timed out) |
 
 Log and trace levels are changeable on a running broker through `/admin/log`, which
 is the intended way to debug a live instance rather than restarting it with `-t`.
