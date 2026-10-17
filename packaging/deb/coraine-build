@@ -20,7 +20,7 @@
 #   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
-#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan - or none
+#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua - or none
 #                      (default mqtt,modbus). A bridge the source does not carry, or whose libraries are
 #                      not installed here, stops the build and says which (--list-bridges)
 #   --list-bridges     print every bridge, whether it can be built here and why not, and exit; with
@@ -156,7 +156,8 @@ fi
 BRIDGE_TABLE="mqtt	corMqttBridge	1	MQTT - NGSI-LD over MQTT topics (mqtt.so, libmosquitto)
 modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
 dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
-ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)"
+ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)
+opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)"
 
 #
 # bridgeWhy <name> <repository> - why it cannot be built here; nothing when it can
@@ -168,6 +169,8 @@ bridgeWhy() {
           grep -q "^option(COR_FEATURE_DATA_CHANNELS " "$DIR/coraine/CMakeLists.txt" \
             || echo "it needs DataChannels (COR_FEATURE_DATA_CHANNELS), which this source's broker does not have" ;;
     mqtt) echo '#include <mosquitto.h>' | ${CC:-cc} -E - > /dev/null 2>&1 || echo "libmosquitto's headers are not installed (libmosquitto-dev)" ;;
+    opcua) echo '#include <open62541/client.h>' | ${CC:-cc} -E - > /dev/null 2>&1 \
+             || echo "open62541's headers are not installed (libopen62541-1.4-dev - Ubuntu 26.04, Debian 13)" ;;
     dds)  # the bridge's own makefile decides (COR_BRIDGE_DDS=auto: the Enabler's headers and libraries)
           [ "$(make -s -C "$DIR/$2" -p -n all 2>/dev/null | awk '$1 == "COR_BRIDGE_DDS" { v = $3 } END { print v }')" = ON ] \
             || echo "the DDS Enabler and eProsima Fast DDS are not installed (doc/dds.md)" ;;

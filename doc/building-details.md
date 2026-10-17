@@ -258,6 +258,14 @@ Pipe, yaml-cpp, tinyxml2, foonathan memory) 23.5 MiB: five times the broker.
 entities, through DataChannels (`DATA_CHANNELS`). No library. Only when the source carries it. Size:
 **+0.03 MiB**.
 
+#### Bridge: OPC UA
+
+`--bridges opcua`. `opcua.so`: an OPC UA server's Variables as Channels, its Objects as AssetChannels
+(`ASSET_CHANNELS`, [AssetChannels](asset-channels.md)) - from
+[corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge). Needs open62541 1.4 (`libopen62541-1.4-dev`
+to build: Ubuntu 26.04, Debian 13 - Ubuntu 24.04 has none, and no OPC UA bridge). Size: **+9.1 MiB** - the
+plugin 45 KiB, open62541 8.4 MiB, mbedTLS 0.66 MiB.
+
 #### `SUBSCRIPTIONS`
 
 Subscriptions and their notifications. Off: the 7 subscription routes answer 501, the
