@@ -1,0 +1,52 @@
+#
+# FILE            bridge_inventory_not_in_this_build.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A build with COR_FEATURE_BRIDGE_INVENTORY=OFF - GET /admin/bridges/{bridge}/inventory stays in the admin
+# plugin's service table and answers 501, its detail the request's verb and whole path: the wildcard in the
+# middle of the route ("/admin/bridges/*/inventory") does not cut the path short.
+#
+# SKIP_FEATURE: BRIDGE_INVENTORY
+#
+--NAME--
+Bridges: GET /admin/bridges/{bridge}/inventory not in this build - 501, the whole path in the detail
+
+--TAGS--
+bridge admin plugins build
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --bridges loopback
+
+--RUN--
+
+echo "01. GET /admin/bridges/loopback/inventory?depth=2 - not in this build: 501"
+echo "==========================================================================="
+corCurl --url '/admin/bridges/loopback/inventory?depth=2'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. GET /admin/bridges/loopback/inventory?depth=2 - not in this build: 501
+===========================================================================
+HTTP/1.1 501 Not Implemented
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 238
+
+{
+  "detail": "'GET /admin/bridges/loopback/inventory' is not included in this build of coraine",
+  "status": 501,
+  "title": "Not Available In This Build",
+  "type": "https://coraine.readthedocs.io/errors/NotAvailableInThisDeployment"
+}
+
+
+

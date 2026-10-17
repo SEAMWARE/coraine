@@ -28,6 +28,17 @@ bool corNotInThisBuild(void)
   // verb and path says the deployment declined the capability, and the client's
   // move is a different deployment, not a different request.
   //
+  // The path is put back whole first: the route lookup ends each wildcard value of the path with a 0 where the
+  // route goes on ("/admin/bridges/*/inventory" leaves "/admin/bridges/loopback"), and every byte it so
+  // overwrites is a '/' - a wildcard is a whole path segment. No handler runs after this one; nothing reads
+  // the wildcards again.
+  //
+  for (int ix = 0; ix < corRest.in.urlPathLen; ix++)
+  {
+    if (corRest.in.urlPath[ix] == 0)
+      corRest.in.urlPath[ix] = '/';
+  }
+
   ldError(501, LD_ERROR_NOT_IN_THIS_BUILD, "Not Available In This Build",
           "'%s %s' is not included in this build of coraine",
           corRest.in.verbString, corRest.in.urlPath);
