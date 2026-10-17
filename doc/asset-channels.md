@@ -67,7 +67,7 @@ The first bridge is OPC UA's (decided 2026-10-17):
                  "entities": [
                    { "from": "object", "typeDefinition": "ns=3;i=1002", "type": "Press" },
                    { "from": "object", "typeDefinition": "ns=3;i=1010", "type": "HydraulicUnit" } ],
-                 "nested": "flatten" } } } } }
+                 "attributeLayout": "attributes" } } } } }
 ```
 
 An AAS one, the same members:
@@ -77,7 +77,7 @@ An AAS one, the same members:
            "ngsild": { "assetChannels": {
              "https://acme.example/ids/aas/press-17": {
                "entities": "natural",
-               "nested": "flatten" } } } } }
+               "attributeLayout": "subAttributes" } } } } }
 ```
 
 - **The endpoint** (`channelTarget`) - the model's root: an OPC UA NodeId; an AAS shell's or submodel's id.
@@ -90,11 +90,14 @@ An AAS one, the same members:
     are not entities: their content goes into the entity above them.
 - **The entity id** - the node's own id when it is an IRI (AAS ids are: `https://acme.example/ids/aas/press-17`
   is a valid NGSI-LD id as it is); else a template on the node's path (`urn:ngsi-ld:{type}:{root}:{path}`).
-- **`nested`** - what a container that is not an entity becomes in the entity above it:
-  - `flatten` (name open, § 6): each leaf an attribute, named by its path (`ContactInformation.Phone` ->
-    `contactInformationPhone`);
-  - `json`: the container one JsonProperty, as the source has it;
-  - `subAttributes`: one attribute, its leaves sub-attributes (one level only).
+- **`attributeLayout`** - what a container that is not an entity becomes in the entity above it:
+  - `attributes` (the default): each leaf an attribute, named by its path (`ContactInformation.Phone` ->
+    `contactInformationPhone`), each one queryable with `q`;
+  - `subAttributes`: one attribute, its leaves sub-attributes (one level only);
+  - `value`: the container one JsonProperty, its value as the source has it.
+
+  The values are plain strings of the bridge's configuration (and of `GET /assetChannels`), never expanded
+  as JSON-LD terms - `attributes` collides with nothing.
 - **A node's meaning** (OPC UA: its HasDictionaryEntry references and its TypeDefinition; AAS: its
   semanticId) goes into a `semanticId` sub-Property of its attribute - always, no option. Not into the
   @context: there the meaning would hang on every reader's @context being complete, which no broker can
@@ -163,8 +166,8 @@ Decided (KZ, 2026-10-17):
 
 1. **The name**: AssetChannel.
 2. **What becomes an entity**: the data's owner decides, in the channel (`entities`, § 3) - no default.
-3. **`nested`**: the value `attributes` is renamed - "attributes" is taken (NGSI-LD's own `attributes`,
-   `attrs`; the DOM's). The new name is open: `flatten` or `channelAttributes`.
+3. **What a container becomes**: the member `attributeLayout`, its values `attributes` (the default),
+   `subAttributes`, `value`.
 4. **A node's meaning**: always a `semanticId` sub-Property - no @context mode, no option.
 5. **Operations as services**: after the read side works, step by step.
 6. **The first bridge**: OPC UA.
