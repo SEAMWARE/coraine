@@ -357,6 +357,8 @@ For a broker other than coraine, the same decision is made in APISIX: the plugin
 the token check included - it takes the place of the route's `openid-connect` and `opa`. `--fdscNgsild`
 (§ 6) is not available there: it needs the stored entity, which only the broker has.
 
+<a id="6---fdscngsild---decided-on-the-entity"></a>
+
 ## 6. `--fdscNgsild` - decided on the entity
 
 What the connector's chain gets wrong for NGSI-LD, from the PAP's `ngsi-ld/leftOperand.rego` and
@@ -407,6 +409,8 @@ necessarily the one that allows another:
 A credential kept as an owner is personal data at rest: it goes with its subscription (a DELETE of it), and
 it is never checked again for revocation - VCVerifier checks that when it issues a token. `--fdscOwnerMaxAge`
 bounds how long a revoked credential still receives notifications.
+
+<a id="7-the-policy-api---the-broker-as-its-own-pap"></a>
 
 ## 7. The policy API - the broker as its own PAP
 
