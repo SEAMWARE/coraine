@@ -14,6 +14,7 @@
 #include "plugin/ApiPlugin.h"                     // ApiPlugin
 
 #include "api/admin/adminBridgeInventory.h"        // adminGetBridgeInventory, ADMIN_INVENTORY_PARAMS
+#include "api/admin/adminConfig.h"                 // adminGetConfig
 #include "api/admin/adminVersion.h"               // adminGetVersion
 #include "api/admin/adminHealth.h"                // adminGetHealth
 #include "api/admin/adminLog.h"                   // adminGetLog, adminPutLog, adminPostLog, adminPatchLog, adminDeleteLog
@@ -54,6 +55,12 @@
 #  define INVENTORY(handler)  handler
 #else
 #  define INVENTORY(handler)  corNotInThisBuild
+#endif
+
+#if COR_FEATURE_ADMIN_CONFIG
+#  define CONFIG(handler)  handler
+#else
+#  define CONFIG(handler)  corNotInThisBuild
 #endif
 
 
@@ -109,6 +116,7 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/metrics",       adminGetMetrics, 0,                0 },  // Prometheus default scrape path (metrics_path)
   { CorVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
   { CorVerbGet,    "/admin/bridges/*/inventory", INVENTORY(adminGetBridgeInventory), ADMIN_INVENTORY_PARAMS, 0 },
+  { CorVerbGet,    "/admin/config",  CONFIG(adminGetConfig), 0,         0 },
   // PUT
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
