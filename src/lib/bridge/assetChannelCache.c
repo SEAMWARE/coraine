@@ -14,6 +14,8 @@
 
 #include "corLog/corLog.h"                            // COR_T
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver
+#include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
+#include "corRest/CorRestState.h"                     // corRest
 
 #include "bridge/channelCache.h"                      // CHANNEL_*, channelLookup, bridgeLookup
 #include "bridge/assetMap.h"                          // assetMapFree
@@ -203,6 +205,60 @@ int assetChannelStatusSet(const char* bridgeName, const char* endpoint, ChannelS
 
 
 
+#if COR_FEATURE_CHANNEL_CHECKS
+// -----------------------------------------------------------------------------
+//
+// assetChannelMappedFree -
+//
+void assetChannelMappedFree(AssetMapped* mappedV, int mapped)
+{
+  for (int ix = 0; ix < mapped; ix++)
+  {
+    free(mappedV[ix].entityId);
+    free(mappedV[ix].attrName);
+    free(mappedV[ix].nodeId);
+  }
+
+  free(mappedV);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelMappedLookup -
+//
+bool assetChannelMappedLookup(Tenant* tenantP, const char* entityId, const char* attrName, AssetChannel** acPP, const char** nodeIdP, const char** attrNameP)
+{
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+  {
+    if (acP->tenantP != tenantP)
+      continue;
+
+    pthread_mutex_lock(&acP->modelMutex);
+
+    for (int ix = 0; ix < acP->mapped; ix++)
+    {
+      if ((strcmp(acP->mappedV[ix].entityId, entityId) == 0) && (strcmp(acP->mappedV[ix].attrName, attrName) == 0))
+      {
+        *acPP      = acP;
+        *nodeIdP   = (acP->mappedV[ix].nodeId != NULL) ? corAllocStrdup(&corRest.kalloc, acP->mappedV[ix].nodeId) : NULL;
+        *attrNameP = corAllocStrdup(&corRest.kalloc, acP->mappedV[ix].attrName);
+
+        pthread_mutex_unlock(&acP->modelMutex);
+        return true;
+      }
+    }
+
+    pthread_mutex_unlock(&acP->modelMutex);
+  }
+
+  return false;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // assetChannelsRelease -
@@ -226,6 +282,9 @@ void assetChannelsRelease(void)
 
     assetMapFree(acP->mapP);
     free(acP->model);
+#if COR_FEATURE_CHANNEL_CHECKS
+    assetChannelMappedFree(acP->mappedV, acP->mapped);
+#endif
     pthread_mutex_destroy(&acP->modelMutex);
     free(acP);
 

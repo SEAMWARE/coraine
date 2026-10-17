@@ -12,6 +12,8 @@
 // lookup takes no lock. What changes - the status, its reason, the counters - is read and written
 // atomically.
 //
+#include <stdbool.h>                                  // bool
+
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // ChannelStatus
 #include "bridge/AssetChannel.h"                      // AssetChannel
@@ -71,5 +73,22 @@ extern int assetChannelStatusSet(const char* bridgeName, const char* endpoint, C
 // assetChannelsRelease - every AssetChannel freed, when the broker stops (after the bridges)
 //
 extern void assetChannelsRelease(void);
+
+#if COR_FEATURE_CHANNEL_CHECKS
+// -----------------------------------------------------------------------------
+//
+// assetChannelMappedFree - a list of AssetMapped and their strings
+//
+extern void assetChannelMappedFree(AssetMapped* mappedV, int mapped);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelMappedLookup - the AssetChannel of the tenant whose last model made this attribute of this
+// entity (attrName EXPANDED); its node id (NULL: none) and its name, copied into the request's arena
+//
+extern bool assetChannelMappedLookup(Tenant* tenantP, const char* entityId, const char* attrName, AssetChannel** acPP, const char** nodeIdP, const char** attrNameP);
+#endif
 
 #endif  // BRIDGE_ASSETCHANNELCACHE_H_

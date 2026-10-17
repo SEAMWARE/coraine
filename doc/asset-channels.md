@@ -1,6 +1,6 @@
 # AssetChannels - a source model as a graph of entities
 
-**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check) - for Channels and DataChannels), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. Not built: a model bridge (OPC UA first, § 7 step 4), the payload check on an AssetChannel, deleting what a model no longer has, operations as services (§ 4).
+**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge). Not built: deleting what a model no longer has, operations as services (§ 4).
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an

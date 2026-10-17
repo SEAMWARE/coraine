@@ -352,9 +352,9 @@ Off: the slot is NULL, and a Channel the plugin refuses shows the broker's own r
 #### `CHANNEL_CHECKS`
 
 `BridgeDriver.payloadCheck` (bridge ABI 13): a bridge plugin may refuse what a client writes to an attribute
-one of its Channels or DataChannels maps, before anything is sent or stored
+one of its Channels, DataChannels or AssetChannels maps, before anything is sent or stored
 ([the payload check](bridge-channels.md#the-payload-check)). Off: no write is checked, and
-`payloadsRefused` is not shown. Size: -3,449 bytes.
+`payloadsRefused` is not shown. Size: -5,821 bytes (with AssetChannels: the attributes a model made are recorded for it).
 
 #### `COR_PROTOCOL`
 
@@ -419,7 +419,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_ASSET_CHANNELS=OFF` | 22,063 bytes (release build) | no AssetChannels - a bridge's `assetChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/assetChannels` answers 501 ([AssetChannels](asset-channels.md)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
-| `COR_FEATURE_CHANNEL_CHECKS=OFF` | 3,449 bytes (release build) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
+| `COR_FEATURE_CHANNEL_CHECKS=OFF` | 5,821 bytes (release build, AssetChannels on) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to
