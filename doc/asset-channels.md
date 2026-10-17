@@ -50,8 +50,7 @@ The first bridge is OPC UA's (decided 2026-10-17):
                  "entities": [
                    { "from": "object", "typeDefinition": "ns=3;i=1002", "type": "Press" },
                    { "from": "object", "typeDefinition": "ns=3;i=1010", "type": "HydraulicUnit" } ],
-                 "nested": "flatten",
-                 "semanticIds": "subProperty" } } } } }
+                 "nested": "flatten" } } } } }
 ```
 
 An AAS one, the same members:
@@ -61,8 +60,7 @@ An AAS one, the same members:
            "ngsild": { "assetChannels": {
              "https://acme.example/ids/aas/press-17": {
                "entities": "natural",
-               "nested": "flatten",
-               "semanticIds": "subProperty" } } } } }
+               "nested": "flatten" } } } } }
 ```
 
 - **The endpoint** (`channelTarget`) - the model's root: an OPC UA NodeId; an AAS shell's or submodel's id.
@@ -80,10 +78,15 @@ An AAS one, the same members:
     `contactInformationPhone`);
   - `json`: the container one JsonProperty, as the source has it;
   - `subAttributes`: one attribute, its leaves sub-attributes (one level only).
-- **`semanticIds`** - where a node's meaning goes (OPC UA: its HasDictionaryEntry references and its
-  TypeDefinition; AAS: its semanticId): `subProperty` (each attribute a `semanticId` sub-Property),
-  `context` (the @context maps the attribute's name to the semanticId's IRI - the meaning becomes the
-  name), or `none`.
+- **A node's meaning** (OPC UA: its HasDictionaryEntry references and its TypeDefinition; AAS: its
+  semanticId) goes into a `semanticId` sub-Property of its attribute - always, no option. Not into the
+  @context: there the meaning would hang on every reader's @context being complete, which no broker can
+  check.
+  - A node without a semanticId: its attribute has no `semanticId`.
+  - A `semanticId` removed in the broker (an attribute replaced by a client; correct NGSI-LD, and with no
+    owner, § 3.2, allowed): the channel does not depend on it - its rules match the source's semanticIds,
+    never the broker's. The next model read (at start, on `pollInterval`, on a structure change) writes it
+    again; a value's PATCH does not carry it.
 
 ### 3.1 Elements to attributes (AAS; OPC UA alike)
 
@@ -145,7 +148,7 @@ Decided (KZ, 2026-10-17):
 2. **What becomes an entity**: the data's owner decides, in the channel (`entities`, § 3) - no default.
 3. **`nested`**: the value `attributes` is renamed - "attributes" is taken (NGSI-LD's own `attributes`,
    `attrs`; the DOM's). The new name is open: `flatten` or `channelAttributes`.
-4. **`semanticIds`'s default**: open.
+4. **A node's meaning**: always a `semanticId` sub-Property - no @context mode, no option.
 5. **Operations as services**: after the read side works, step by step.
 6. **The first bridge**: OPC UA.
 
