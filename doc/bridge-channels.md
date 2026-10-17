@@ -88,10 +88,11 @@ plugin's `channelDel`. Creating, changing and deleting them at runtime (`POST` /
   why, in its own words (`channelStatusIn`, bridge ABI 12 -
   `COR_FEATURE_CHANNEL_STATUS_IN`): a resource its peer does not have, a peer
   that cannot be reached, a peer that is back.
-- **What a Bridge carries** - `channels` and `dataChannels`: the ids of its
-  Channels and DataChannels in the request's tenant, so everything one Bridge
-  does is one `GET`. A member only when it has one (`dataChannels` needs
-  `COR_FEATURE_DATA_CHANNELS`).
+- **What a Bridge carries** - `channels`, `dataChannels` and `assetChannels`:
+  the ids of its Channels, DataChannels and AssetChannels in the request's
+  tenant, so everything one Bridge does is one `GET`. A member only when it
+  has one (`dataChannels` needs `COR_FEATURE_DATA_CHANNELS`, `assetChannels`
+  `COR_FEATURE_ASSET_CHANNELS`).
 - **Counters** - `samplesIn`, `samplesOut`, `requestsWaiting`,
   `requestsNotWaited`; on action Channels `goalsSent`, `goalCancelsSent`;
   `endpointDiscovered: true` once the transport found the endpoint (absent
@@ -148,7 +149,8 @@ or DataChannels maps, before anything of the write is sent or stored
   Channel writes transport first.
 - **Which attributes.** A Channel's own; for a DataChannel, the attributes its
   mapping names, of every entity whose id fits one of its id templates
-  (`urn:ngsi-ld:BikeStation:{Number}` fits `urn:ngsi-ld:BikeStation:7`).
+  (`urn:ngsi-ld:BikeStation:{Number}` fits `urn:ngsi-ld:BikeStation:7`). An
+  AssetChannel's are not checked yet.
 - **Clients only.** What the bridge itself writes - a sample, a DataChannel's
   record - is not checked.
 - **`payloadsRefused`**, on the Channel and the DataChannel: the writes its
@@ -223,9 +225,25 @@ endpoint:
 about and ignored, and `GET /dataChannels` answers 501. The first bridge built
 on it is CKAN's (`ckan.so`, `corCkanBridge`).
 
+## AssetChannels
+
 A source whose data is a **model** - an Asset Administration Shell and its submodels, an OPC UA object and
-its components - is neither: one asset is a tree with types, meaning and references, and becomes a graph of
-entities. That is a third type, the AssetChannel, designed in [asset-channels.md](asset-channels.md) - not built.
+its components - is neither a Channel nor a DataChannel: one asset is a tree with types, meaning and
+references, and becomes a graph of entities, with Relationships where the model has references.
+
+```json
+{ "opcua": { "ngsild": { "assetChannels": {
+    "ns=2;s=Press17": { "entities": "natural", "attributeLayout": "attributes" } } } } }
+```
+
+The bridge hands the model over on the endpoint as a neutral node tree, `{ "model": ... }`, then
+`{ "values": [ ... ] }` as values change; which nodes become entities (`entities`: `"natural"` or rules - no
+default), what a container becomes (`attributeLayout`), where a node's meaning goes (a `semanticId`
+sub-Property), the ids, and the write (a DataChannel's batch upsert) are in
+[asset-channels.md](asset-channels.md). `GET /ngsi-ld/v1/assetChannels` (and `/{id}`, the id
+`urn:ngsi-ld:AssetChannel:<bridge>:<endpoint>`) lists them. `COR_FEATURE_ASSET_CHANNELS`; without it, an
+`assetChannels` section is warned about and ignored, and `GET /assetChannels` answers 501. One endpoint is
+a Channel's, a DataChannel's or an AssetChannel's, never two of them.
 
 ## Key limits
 

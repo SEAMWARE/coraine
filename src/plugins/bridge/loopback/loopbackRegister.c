@@ -591,6 +591,7 @@ static char loopbackConfigPath[512];
 // that a test bridge does not acquire a JSON dependency of its own.
 //
 static void loopbackEmitAtStart(void);
+static void loopbackEmitLater(void);
 static void loopbackDiscoverAtStart(void);
 static void loopbackReplyDelaysLoad(void);
 static void loopbackMetasLoad(void);
@@ -642,6 +643,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackStatusInsLoad();
   loopbackPayloadChecksLoad();
   loopbackEmitAtStart();
+  loopbackEmitLater();
   loopbackDiscoverAtStart();
 
   return BRIDGE_OK;
@@ -899,6 +901,25 @@ static void loopbackEmitPair(const char* endpoint, const char* value)
 static void loopbackEmitAtStart(void)
 {
   loopbackConfigPairs("\"emitAtStart\"", loopbackEmitPair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackEmitLaterPair / loopbackEmitLater - "emitLater": a sample per endpoint, 1.5 s after the start
+//
+// For what a transport sends after its first word on an endpoint - an AssetChannel's values, after its
+// model (emitAtStart)
+//
+static void loopbackEmitLaterPair(const char* endpoint, const char* value)
+{
+  loopbackQueue(endpoint, value, NULL, 0, 1500);
+}
+
+static void loopbackEmitLater(void)
+{
+  loopbackConfigPairs("\"emitLater\"", loopbackEmitLaterPair);
 }
 
 

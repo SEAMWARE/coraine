@@ -1,6 +1,6 @@
-# AssetChannels - a source model as a graph of entities (design)
+# AssetChannels - a source model as a graph of entities
 
-**Status: a design.** Built so far (§ 7): the Bridge listing what it carries, and the payload check (§ 2.1) - described as built in [bridge-channels.md](bridge-channels.md#the-payload-check). The AssetChannel itself is not built.
+**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check) - for Channels and DataChannels), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. Not built: a model bridge (OPC UA first, § 7 step 4), the payload check on an AssetChannel, deleting what a model no longer has, operations as services (§ 4).
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
@@ -83,17 +83,20 @@ An AAS one, the same members:
 - **The endpoint** (`channelTarget`) - the model's root: an OPC UA NodeId; an AAS shell's or submodel's id.
 - **`entities`** - which nodes become entities. The data's owner decides, per channel; there is no default,
   and a channel without `entities` is refused:
-  - `"natural"` (working name): the source's own units - OPC UA: each Object node under the root; AAS: the
-    shell and each submodel;
+  - `"natural"` (working name): the source's own units - each node of kind `object` (OPC UA), `shell` or
+    `submodel` (AAS); its entity type the node's `typeName`, else its kind capitalized (`Shell`);
   - rules: by the node's kind (OPC UA `object`; AAS `shell`, `submodel`, `collection`) and optionally its
-    meaning (OPC UA `typeDefinition`; AAS `semanticId`). Each rule names the entity type. Nodes no rule names
-    are not entities: their content goes into the entity above them.
+    meaning (OPC UA `typeDefinition`; AAS `semanticId`). Each rule names the entity type; the first rule a
+    node matches wins. Nodes no rule names are not entities: their content goes into the entity above them
+    (the root's, when the root is no entity, is dropped).
 - **The entity id** - the node's own id when it is an IRI (AAS ids are: `https://acme.example/ids/aas/press-17`
-  is a valid NGSI-LD id as it is); else a template on the node's path (`urn:ngsi-ld:{type}:{root}:{path}`).
+  is a valid NGSI-LD id as it is); else `urn:ngsi-ld:<type>:<the names from the root to the node>`, each
+  byte outside `[A-Za-z0-9._-]` as `%XX` (`urn:ngsi-ld:HydraulicUnit:Press17:Unit1`).
 - **`attributeLayout`** - what a container that is not an entity becomes in the entity above it:
-  - `attributes` (the default): each leaf an attribute, named by its path (`ContactInformation.Phone` ->
-    `contactInformationPhone`), each one queryable with `q`;
-  - `subAttributes`: one attribute, its leaves sub-attributes (one level only);
+  - `attributes` (the default): each leaf an attribute, named by its path (`ContactInformation` / `Phone` ->
+    `contactInformationPhone`; only `[A-Za-z0-9_]` kept, a space starting a word), each one queryable with `q`;
+  - `subAttributes`: one Property named by the container, its value the container's name, its leaves
+    sub-attributes (one level: a deeper container's leaves by their path);
   - `value`: the container one JsonProperty, its value as the source has it.
 
   The values are plain strings of the bridge's configuration (and of `GET /assetChannels`), never expanded
@@ -105,8 +108,8 @@ An AAS one, the same members:
   - A node without a semanticId: its attribute has no `semanticId`.
   - A `semanticId` removed in the broker (an attribute replaced by a client; correct NGSI-LD, and with no
     owner, § 3.2, allowed): the channel does not depend on it - its rules match the source's semanticIds,
-    never the broker's. The next model read (at start, on `pollInterval`, on a structure change) writes it
-    again; a value's PATCH does not carry it.
+    never the broker's. The next write of its entity (the model again, or a value of a node in it) writes
+    it again.
 
 ### 3.1 Elements to attributes (AAS; OPC UA alike)
 
@@ -119,7 +122,7 @@ An AAS one, the same members:
 | ReferenceElement to a node that is an entity | Relationship |
 | ReferenceElement to anything else | Property, the reference as the source writes it |
 | RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity to `second`'s |
-| the shell's submodel references | Relationships `hasSubmodel` (shell -> submodel entities) |
+| a child that is an entity (the shell's submodels) | a Relationship named by the child (`nameplate`) |
 | SubmodelElementList | ListProperty (of values) or ListRelationship (of references) |
 | Operation | a **service** of the entity (§ 4) |
 | BasicEventElement, Capability | not mapped in v1 |
@@ -134,13 +137,53 @@ references between object nodes -> Relationships; a Method -> a service.
   references, ids base64url-encoded in the path; OPC UA: browse from the root) and writes the graph: one batch upsert, `options=update`, local - as a DataChannel's
   record is written: created when not there, the mapped attributes replaced, the others left alone.
 - **A value that changes** (OPC UA: a monitored item; AAS: a server's events where it has them, else the
-  model read again on `channelInfo`'s `pollInterval`) -> the attribute's PATCH, `observedAt` the source's time
-  where it gives one.
-- **The model's structure that changes** (a submodel added, an element removed) -> its entities and
-  attributes created or deleted - or left alone, with `structure: ignore`.
+  model read again on `channelInfo`'s `pollInterval`) -> the bridge's `{ "values": [ ... ] }` (§ 3.3): the
+  broker's kept copy of the model updated, and each entity a changed node is in written again, the same
+  batch upsert - `observedAt` the node's `sourceTime`. A value of no node of the model is counted
+  (`valuesRefused`) and dropped.
+- **The model's structure that changes** (a submodel added, an element removed) -> the bridge hands the model
+  over again: its entities and attributes are written; what the model no longer has is left alone (deleting
+  it is not built).
 - **Inbound only in v1**, as a DataChannel. Writing back (a PATCH -> the AAS `$value` PUT, an OPC UA Write) is
   a later step, then with a Channel's rule: transport first, a refusal stores nothing.
 - **No owner**, as a DataChannel: an AssetChannel claims no attribute; the last write wins.
+
+### 3.3 What a bridge hands over: the node tree
+
+The seam is a Channel's - the bridge carries `(endpoint, json, time)` and knows nothing about entities
+(decided 2026-10-17). On an AssetChannel's endpoint the json is a neutral node tree, the same from every
+model bridge, so that every model maps the same way, in the broker:
+
+```json
+{ "model": {
+    "node": "object", "id": "ns=2;s=Press17", "name": "Press17", "typeName": "Press",
+    "typeDefinition": "ns=3;i=1002", "semanticIds": [ "0173-1#01-AKJ975#017" ],
+    "children": [
+      { "node": "folder", "name": "Hydraulics", "children": [
+          { "node": "variable", "id": "ns=2;s=P17.Pressure", "name": "Pressure", "value": 212.5,
+            "unit": "BAR", "sourceTime": "2026-10-17T10:00:00Z" } ] },
+      { "node": "method", "name": "Start", "input": [], "output": [] } ],
+    "references": [ { "type": "Organizes", "target": "ns=2;s=Line1" } ] } }
+```
+
+and, as values change:
+
+```json
+{ "values": [ { "id": "ns=2;s=P17.Pressure", "value": 214.0, "sourceTime": "2026-10-17T10:00:05Z" } ] }
+```
+
+| Member | |
+|---|---|
+| `node` | the node's kind, the source's word: `object`, `variable`, `folder`, `method` (OPC UA); `shell`, `submodel`, `collection`, `property`, `operation` (AAS) |
+| `id`, `name` | the source's id (a NodeId, an AAS id) and name (BrowseName, idShort) |
+| `typeName`, `typeDefinition` | its type's name, and id |
+| `semanticIds` | its meaning: the `semanticId` sub-Property (§ 3) |
+| `value`, `unit`, `sourceTime` | a leaf's value (JSON, converted by the bridge), `unitCode`, `observedAt` |
+| `children` | the nodes it contains |
+| `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
+
+A `method` or `operation` makes nothing yet (§ 4). A sample that is neither `model` nor `values`, or a model
+that makes no entity, is counted (`samplesRefused`) and dropped.
 
 ## 4. Operations and methods: Service Execution
 
@@ -157,8 +200,10 @@ OPC UA: the Call's result).
 
 ## 5. GET /ngsi-ld/v1/assetChannels
 
-The base (§ 2), and: the mapping as the file wrote it (`assetEntities`), `entitiesWritten`,
-`attributesWritten`, `valuesIn`, `nodesRefused`, `servicesRegistered`.
+And `/{id}`, the id `urn:ngsi-ld:AssetChannel:<bridge>:<endpoint>`. The base (§ 2), and: the mapping as the
+file wrote it (`assetEntities`), `attributeLayout`, `modelsIn`, `valuesIn`, `valuesRefused`,
+`samplesRefused`, `entitiesWritten`, `payloadsRefused`. Without `COR_FEATURE_ASSET_CHANNELS`, an
+`assetChannels` section is warned about and ignored, and `GET /assetChannels` answers 501.
 
 ## 6. Decisions
 
@@ -171,6 +216,8 @@ Decided (KZ, 2026-10-17):
 4. **A node's meaning**: always a `semanticId` sub-Property - no @context mode, no option.
 5. **Operations as services**: after the read side works, step by step.
 6. **The first bridge**: OPC UA.
+7. **How a bridge hands a model over**: on the existing seam, as a neutral node tree (§ 3.3) - no new bridge
+   ABI, and the mapping in the broker, the same for every model bridge.
 
 ## 7. Plan
 
@@ -179,7 +226,7 @@ Decided (KZ, 2026-10-17):
 2. The payload check (§ 2.1), with the bridge ABI entry.
 3. AssetChannel in the broker: the object, its listing, the write path (a DataChannel's batch upsert), the
    mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
-4. The OPC UA bridge, its own repository, the bridge ABI as today plus what a model needs (a model read and
-   its changes, a graph of nodes). The client library is to choose.
+4. The OPC UA bridge, its own repository, on the bridge ABI as it is: the model and its values as the node
+   tree (§ 3.3). The client library is to choose.
 5. AAS, the second source.
 6. Operations and methods as services (§ 4).

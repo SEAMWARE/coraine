@@ -40,6 +40,11 @@
 #include "bridge/recordMap.h"                         // recordMapParse, recordMapFree
 #include "bridge/dataChannelCache.h"                  // dataChannelCreate
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetMap.h"                          // AssetMap
+#include "bridge/assetMap.h"                          // assetMapParse, assetMapFree
+#include "bridge/assetChannelCache.h"                 // assetChannelCreate
+#endif
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
 #include "bridge/bridgeServiceSync.h"                 // bridgeSyncTimeoutFromConfig
@@ -429,6 +434,69 @@ static int dataChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenant
 
 
 
+#if COR_FEATURE_ASSET_CHANNELS
+// -----------------------------------------------------------------------------
+//
+// assetChannelsLoad - a bridge's "assetChannels" section: one AssetChannel (AssetChannel.h) per endpoint
+//
+//   "assetChannels": { "<model root>": { "entities": "natural" | [ ... ], "attributeLayout": "attributes", "channelInfo": [ ... ] } }
+//
+// What "entities" and "attributeLayout" say is AssetMap.h's. An entry that cannot be used is warned about and
+// skipped, as an incomplete topic is; an endpoint that is also a Channel's, or named twice, is fatal, as it
+// is for topics.
+//
+static int assetChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenantP)
+{
+  if (sectionP->type != CorObject)
+  {
+    COR_W("bridge '%s': 'assetChannels' is not an object (one member per endpoint) - no AssetChannels", alias);
+    return 0;
+  }
+
+  int created = 0;
+
+  for (CorNode* entryP = sectionP->value.head; entryP != NULL; entryP = entryP->next)
+  {
+    const char* endpoint = entryP->name;
+    const char* why      = NULL;
+    AssetMap*   mapP     = assetMapParse(entryP, &why);
+
+    if (mapP == NULL)
+    {
+      COR_W("bridge '%s': AssetChannel '%s' - %s - skipped", alias, endpoint, (why != NULL) ? why : "?");
+      continue;
+    }
+
+    bool  infoOk;
+    char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
+
+    if (infoOk == false)
+    {
+      assetMapFree(mapP);
+      continue;
+    }
+
+    int r = assetChannelCreate(alias, endpoint, tenantP, mapP, info);
+
+    if (r == CHANNEL_DUP_ENDPOINT)
+      COR_X(1, "bridge '%s': endpoint '%s' appears twice in the configuration - the AssetChannel could never be reached, a Channel, DataChannel or AssetChannel already claims it",
+            alias, endpoint);
+
+    if (r == CHANNEL_BAD_INPUT)
+      COR_X(1, "bridge '%s': endpoint '%s' is not a usable endpoint name", alias, endpoint);
+
+    if (r != CHANNEL_OK)
+      COR_X(1, "bridge '%s': AssetChannel '%s' could not be added (%d)", alias, endpoint, r);
+
+    ++created;
+  }
+
+  return created;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // defaultEntityLoad - one bridge's catch-all, if it asked for one
@@ -685,6 +753,24 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 #else
     if (dataChannelsP != NULL)
       COR_W("bridge '%s': 'dataChannels' - DataChannels are not in this build (COR_FEATURE_DATA_CHANNELS) - ignored", alias);
+#endif
+
+    //
+    // AssetChannels - an endpoint whose samples are a model, made into a graph of entities. Not Channels: not
+    // counted with them
+    //
+    CorNode* assetChannelsP = corTreeLookup(ngsildP, "assetChannels");
+#if COR_FEATURE_ASSET_CHANNELS
+    if (assetChannelsP != NULL)
+    {
+      int assetChannels = assetChannelsLoad(alias, assetChannelsP, tenantP);
+
+      if (assetChannels > 0)
+        COR_I("bridge '%s': %d AssetChannel%s configured", alias, assetChannels, (assetChannels == 1) ? "" : "s");
+    }
+#else
+    if (assetChannelsP != NULL)
+      COR_W("bridge '%s': 'assetChannels' - AssetChannels are not in this build (COR_FEATURE_ASSET_CHANNELS) - ignored", alias);
 #endif
 
     //

@@ -22,6 +22,9 @@
 #if COR_FEATURE_DATA_CHANNELS
 #include "bridge/dataChannelCache.h"                  // dataChannelLookup, dataChannelStatusSet
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/assetChannelCache.h"                 // assetChannelLookup, assetChannelStatusSet
+#endif
 #include "bridge/channelCache.h"                      // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -274,6 +277,14 @@ static int createLocked
     return CHANNEL_DUP_ENDPOINT;
 #endif
 
+#if COR_FEATURE_ASSET_CHANNELS
+  //
+  // ... or by an AssetChannel - its samples are a model, and go nowhere else
+  //
+  if (assetChannelLookup(bridgeName, endpoint) != NULL)
+    return CHANNEL_DUP_ENDPOINT;
+#endif
+
   //
   // Check 2 - is this attribute already written by another Channel?
   //
@@ -404,13 +415,19 @@ int bridgeChannelStatusIn(const char* bridgeName, const char* endpoint, int stat
 
   if (channelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
   {
+    what = NULL;
+
 #if COR_FEATURE_DATA_CHANNELS
-    if (dataChannelStatusSet(bridgeName, endpoint, channelStatus, reason) != CHANNEL_OK)
-      return BRIDGE_NOT_FOUND;
-    what = "DataChannel";
-#else
-    return BRIDGE_NOT_FOUND;
+    if (dataChannelStatusSet(bridgeName, endpoint, channelStatus, reason) == CHANNEL_OK)
+      what = "DataChannel";
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+    if ((what == NULL) && (assetChannelStatusSet(bridgeName, endpoint, channelStatus, reason) == CHANNEL_OK))
+      what = "AssetChannel";
+#endif
+
+    if (what == NULL)
+      return BRIDGE_NOT_FOUND;
   }
 
   //

@@ -55,6 +55,11 @@
 #include "bridge/dataChannelCache.h"                  // dataChannelLookup
 #include "bridge/dataChannelRecordIn.h"               // dataChannelRecordIn
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetChannel.h"                      // AssetChannel
+#include "bridge/assetChannelCache.h"                 // assetChannelLookup
+#include "bridge/assetChannelSampleIn.h"              // assetChannelSampleIn
+#endif
 #include "bridge/bridgeSampleIn.h"                    // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -523,6 +528,27 @@ static int sampleIn(const char* bridgeName,
         COR_T(CtBridge, "bridge '%s': the meta of a record on DataChannel '%s' is not kept", bridgeName, endpoint);
 
       return dataChannelRecordIn(dcP, json, publishTime);
+    }
+  }
+#endif
+
+#if COR_FEATURE_ASSET_CHANNELS
+  //
+  // ... or an AssetChannel - the sample is then a model, or values of it (AssetChannel.h)
+  //
+  if (channelP == NULL)
+  {
+    AssetChannel* acP = assetChannelLookup(bridgeName, endpoint);
+
+    if (acP != NULL)
+    {
+      if ((subAttrName != NULL) || (datasetId != NULL) || (goal == true) || (requestP != NULL))
+      {
+        COR_W("bridge '%s': '%s' is an AssetChannel - a reply or a goal event on it is dropped", bridgeName, endpoint);
+        return BRIDGE_BAD_INPUT;
+      }
+
+      return assetChannelSampleIn(acP, json, publishTime);
     }
   }
 #endif

@@ -28,6 +28,11 @@
 #include "bridge/dataChannelCache.h"                  // dataChannelFirst
 #include "bridge/dataChannelRender.h"                 // dataChannelIdOf
 #endif
+#if COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetChannel.h"                      // AssetChannel
+#include "bridge/assetChannelCache.h"                 // assetChannelFirst
+#include "bridge/assetChannelRender.h"                // assetChannelIdOf
+#endif
 #include "bridge/bridgeRender.h"                      // Own interface
 
 
@@ -234,7 +239,8 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 
 // -----------------------------------------------------------------------------
 //
-// carriedRender - the ids of what the Bridge carries for the request's tenant: "channels", "dataChannels";
+// carriedRender - the ids of what the Bridge carries for the request's tenant: "channels", "dataChannels",
+// "assetChannels";
 // a member only when it has one
 //
 static void carriedRender(CorNode* bodyP, const char* bridgeName)
@@ -263,6 +269,19 @@ static void carriedRender(CorNode* bodyP, const char* bridgeName)
 
   if (dataChannelsP->value.head != NULL)
     corTreeChildAdd(bodyP, dataChannelsP);
+#endif
+
+#if COR_FEATURE_ASSET_CHANNELS
+  CorNode* assetChannelsP = corTreeArray(allocP, "assetChannels");
+
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+  {
+    if ((acP->tenantP == tenantP) && (strcmp(acP->bridgeName, bridgeName) == 0))
+      corTreeChildAdd(assetChannelsP, corTreeString(allocP, NULL, (char*) assetChannelIdOf(acP)));
+  }
+
+  if (assetChannelsP->value.head != NULL)
+    corTreeChildAdd(bodyP, assetChannelsP);
 #endif
 }
 

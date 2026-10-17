@@ -337,6 +337,12 @@ DataChannels: a bridge endpoint whose samples are records (a CKAN row), each mad
 ([DataChannels](bridge-channels.md#datachannels)). Off: a `dataChannels` section is warned about and
 ignored, `GET /ngsi-ld/v1/dataChannels` answers 501, and the CKAN bridge is not offered. Size: -14,720 bytes.
 
+#### `ASSET_CHANNELS`
+
+AssetChannels: a bridge endpoint whose data is a model (OPC UA objects, an AAS shell and its submodels), made
+into a graph of entities by its mapping ([AssetChannels](asset-channels.md)). Off: an `assetChannels` section
+is warned about and ignored, and `GET /ngsi-ld/v1/assetChannels` answers 501. Size: -22,063 bytes.
+
 #### `CHANNEL_STATUS_IN`
 
 `BridgeBroker.channelStatusIn` (bridge ABI 12): a bridge plugin says, at any time, whether a Channel carries,
@@ -411,6 +417,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_AUTO_ENTITY_MAP=OFF` | 3,680 bytes (release build) | no automatic EntityMaps and no `--autoEntityMaps` - a query paginated past its first page is paged by `offset` / `limit`, locally and forwarded; a map only when a client asks for one (`--entityMapMemory` still caps those) ([EntityMaps](installation.md#entitymaps)) |
 | `COR_WITH_GEOQ=0` (`GEOQ`) | in `mongoc.so`, `corDB.so` and `ramDB.so` 33 KiB stripped, and GEOS: libgeos_c and libgeos are not loaded (3.17 MiB); the broker grows 8 KiB (its refusals) | no geo-queries - `georel`, a `geoQ` in a query body, a subscription or a Service Execution object, ordering by distance are answered 501; corDB accepts any polygon |
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
+| `COR_FEATURE_ASSET_CHANNELS=OFF` | 22,063 bytes (release build) | no AssetChannels - a bridge's `assetChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/assetChannels` answers 501 ([AssetChannels](asset-channels.md)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
 | `COR_FEATURE_CHANNEL_CHECKS=OFF` | 3,449 bytes (release build) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
 
