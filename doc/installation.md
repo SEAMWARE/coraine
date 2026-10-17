@@ -367,7 +367,7 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 |----------|---------|
 | `GET /admin/health` | liveness |
 | `GET /admin/version` | version, git SHA, build timestamp |
-| `GET /admin/log` | current log/trace levels — `PUT`/`POST`/`PATCH`/`DELETE` change them at runtime |
+| `GET /admin/log` | current log/trace levels, and `traces`: whether this build has traces compiled in (Debug and Coverage builds; a release build takes trace levels and traces nothing) — `PUT`/`POST`/`PATCH`/`DELETE` change them at runtime |
 | `GET /admin/tenants` | the tenants in use |
 | `GET /admin/plugins` | which plugins are loaded |
 | `GET /admin/metrics` | Prometheus metrics (when compiled in) |

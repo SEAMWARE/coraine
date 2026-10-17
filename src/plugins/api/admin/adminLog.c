@@ -66,6 +66,16 @@ bool adminGetLog(void)
   corTreeChildAdd(root, corTreeBoolean(allocP, "info", corLogInfo));
   corTreeChildAdd(root, corTreeString(allocP, "traceLevels", levels ? levels : ""));
 
+  //
+  // Whether the trace levels do anything: traces are compiled in only in Debug and Coverage builds (COR_T_ON) -
+  // a release broker takes and reports trace levels and traces nothing. A tool setting them (c3) says so
+  //
+#ifdef COR_T_ON
+  corTreeChildAdd(root, corTreeBoolean(allocP, "traces", true));
+#else
+  corTreeChildAdd(root, corTreeBoolean(allocP, "traces", false));
+#endif
+
   corRest.out.responseTree = root;
   return true;
 }
