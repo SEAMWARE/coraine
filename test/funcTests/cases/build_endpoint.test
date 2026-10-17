@@ -99,6 +99,7 @@ Content-Length: REGEX([0-9]+)
   },
   "features": {
     "ADMIN_API": REGEX([a-z]+),
+    "ADMIN_CONFIG": REGEX([a-z]+),
     "ASSET_CHANNELS": REGEX([a-z]+),
     "AUTH": REGEX([a-z]+),
     "AUTH_METADATA": REGEX([a-z]+),
@@ -199,6 +200,7 @@ Content-Length: REGEX([0-9]+)
   },
   "features": {
     "ADMIN_API": REGEX([a-z]+),
+    "ADMIN_CONFIG": REGEX([a-z]+),
     "ASSET_CHANNELS": REGEX([a-z]+),
     "AUTH": REGEX([a-z]+),
     "AUTH_METADATA": REGEX([a-z]+),

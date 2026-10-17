@@ -364,6 +364,11 @@ one of its Channels, DataChannels or AssetChannels maps, before anything is sent
 ([the payload check](bridge-channels.md#the-payload-check)). Off: no write is checked, and
 `payloadsRefused` is not shown. Size: -5,821 bytes (with AssetChannels: the attributes a model made are recorded for it).
 
+#### `ADMIN_CONFIG`
+
+`GET /admin/config` (the `admin` API plugin): every option the broker runs with - value, default, where it came
+from, a secret masked - for c³'s Operate. Off: the route answers 501. Size: -1,528 bytes.
+
 #### `BRIDGE_INVENTORY`
 
 `GET /admin/bridges/{bridge}/inventory` (the `admin` API plugin, bridge ABI 14 `BridgeDriver.inventory`): what
@@ -433,6 +438,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_ASSET_CHANNELS=OFF` | 22,063 bytes (release build) | no AssetChannels - a bridge's `assetChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/assetChannels` answers 501 ([AssetChannels](asset-channels.md)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
+| `COR_FEATURE_ADMIN_CONFIG=OFF` | 1,528 bytes (release build) | `GET /admin/config` answers 501 |
 | `COR_FEATURE_BRIDGE_INVENTORY=OFF` | 1,361 bytes (release build) | `GET /admin/bridges/{bridge}/inventory` answers 501; a bridge's `inventory` is never called |
 | `COR_FEATURE_CHANNEL_CHECKS=OFF` | 5,821 bytes (release build, AssetChannels on) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
 

@@ -13,6 +13,7 @@
 #include <mongoc/mongoc.h>                           // mongoc_init, mongoc_client_pool_new, ...
 
 #include "corLog/corLog.h"                               // COR_I, COR_E
+#include "corArgs/corArgsSecret.h"                // corArgsSecret
 
 #include "db/Tenant.h"                               // tenantInit, tenantGetOrCreate, tenant0
 #include "shared/geoMatch.h"                                      // geoMatchInit
@@ -39,6 +40,9 @@ mongoc_client_pool_t*  poolP   = NULL;
 //
 int mongocInit(void)
 {
+  corArgsSecret("--dbPwd");                        // never shown: GET /admin/config masks them
+  corArgsSecret("--dbURI");                        // a URI may carry user:password
+
   //
   // The global DB (mongocGlobalDb, --globalDb, default "coraine") is reserved
   // for JSON-LD context persistence (NGSI-LD § 5.13 Context Hosting). Rejecting

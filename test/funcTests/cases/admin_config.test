@@ -1,0 +1,70 @@
+#
+# FILE            admin_config.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /admin/config - every option the broker runs with: its value, default, where the value came from (the
+# default, the environment, a long or a short option), and its plugin's section. A secret (mongoc's --dbPwd and
+# --dbURI) has "secret": true and its value "***" - the password is nowhere in the answer.
+#
+# A few options are printed, not all of them: a new option must not change this test. Each line starts with
+# 'option': a line starting with '--' is a section marker to corTest.
+#
+# REQUIRE_FEATURE: ADMIN_CONFIG
+# REQUIRE_DB: mongoc
+#
+--NAME--
+Admin: GET /admin/config - each option's value, default and source; a secret masked
+
+--TAGS--
+admin
+
+--INIT--
+corDbDrop
+export CORAINE_MEMORYLIMIT=900
+coraineStart --apiPlugins admin --dbPwd admin-config-test-pw -t 220
+
+--RUN--
+echo "01. GET /admin/config: --memoryLimit from the environment, -t from a short option, --dbPwd masked, --dbURI not set"
+echo "=================================================================================================================="
+curl -s "localhost:$CB_PORT/admin/config" > /tmp/admin_config.json
+python3 - <<'PY'
+import json
+o = { x['name']: x for x in json.load(open('/tmp/admin_config.json'))['options'] }
+for name in ['--memoryLimit', '--traceLevels', '--dbPwd', '--dbURI', '--port']:
+    x = o[name]
+    print('option', name, x['type'], 'value', json.dumps(x['value']) if name != '--port' else '(the test port)', 'default', json.dumps(x['default']),
+          'from', x['from'], 'secret' if x.get('secret') else '-', x.get('section', '-'))
+PY
+echo
+echo
+
+
+echo "02. The password given is nowhere in the answer"
+echo "================================================"
+grep -c "admin-config-test-pw" /tmp/admin_config.json
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/admin_config.json
+
+--EXPECT--
+01. GET /admin/config: --memoryLimit from the environment, -t from a short option, --dbPwd masked, --dbURI not set
+==================================================================================================================
+option --memoryLimit int value 900 default 0 from env - -
+option --traceLevels string value "220" default null from shortOption - -
+option --dbPwd string value "***" default null from longOption secret Database (mongoc) plugin options:
+option --dbURI string value null default null from default secret Database (mongoc) plugin options:
+option --port int value (the test port) default 1026 from longOption - -
+
+
+02. The password given is nowhere in the answer
+================================================
+0
+
+

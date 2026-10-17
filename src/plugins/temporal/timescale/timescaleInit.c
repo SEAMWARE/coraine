@@ -10,6 +10,7 @@
 #include <stddef.h>                                       // NULL
 
 #include "corLog/corLog.h"                                // COR_E, COR_I
+#include "corArgs/corArgsSecret.h"                // corArgsSecret
 
 #include "db/Tenant.h"                                    // tenant0
 
@@ -33,6 +34,8 @@
 //
 int timescaleInit(void)
 {
+  corArgsSecret("--troePwd");                      // never shown: GET /admin/config masks it
+
   if (timescalePoolEnsure(&tenant0) != TROE_OK)
   {
     COR_E("timescale: failed to initialise the default-tenant database");
