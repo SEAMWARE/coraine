@@ -35,7 +35,8 @@
 #
 # The result, in <dir>/install - nothing is written outside <dir>, and root is not needed:
 #
-#   bin/coraine  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]  env
+#   bin/coraine  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]
+#   [etc/bridges.json  etc/dds-types/ - with dds: its default configuration]  env
 #
 # `. <dir>/install/env` puts bin/ on PATH and points the broker at plugins/ and etc/ (SEAMWARE_PLUGIN_DIR,
 # CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built.
@@ -371,6 +372,17 @@ done
 
 installFile "$C/etc/contextSourceExtras.json" "$INST/etc"
 
+#
+# The DDS bridge refuses to start without a configuration: with dds built, the build's etc gets the one
+# the image ships (etc/dds-default.json - domain 0, no topics) as bridges.json, the file the broker reads
+# when --bridgeConfig is not given; its types directory is the build's own
+#
+if [ -f "$INST/plugins/bridge/dds.so" ] && [ ! -f "$INST/etc/bridges.json" ]; then
+  mkdir -p "$INST/etc/dds-types"
+  esc=$(printf '%s' "$INST/etc/dds-types" | sed 's/[&|\\]/\\&/g')
+  sed "s|/opt/seamware/etc/dds-types|$esc|" "$C/etc/dds-default.json" > "$INST/etc/.bridges.json.new" && mv -f "$INST/etc/.bridges.json.new" "$INST/etc/bridges.json"
+fi
+
 if [ "$BUNDLED" = 1 ] && [ -f "$INST/plugins/db/currentState/mongoc.so" ]; then
   patchelf --set-rpath /opt/seamware/lib "$INST/plugins/db/currentState/mongoc.so"
 fi
@@ -379,6 +391,7 @@ cat > "$INST/env" <<EOF
 # . this file: the coraine built in $DIR, first on PATH, with its own plugins and etc
 export PATH="$INST/bin:\$PATH"
 export SEAMWARE_PLUGIN_DIR="$INST/plugins"
+export SEAMWARE_ETC_DIR="$INST/etc"
 export CORAINE_CONTEXTSOURCEEXTRAS="$INST/etc/contextSourceExtras.json"
 EOF
 
