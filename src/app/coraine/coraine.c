@@ -88,6 +88,7 @@
 
 #include "plugin/ApiPlugin.h"                     // ApiPlugin, apiPlugins, apiPluginCount
 #include "startup/startupCoreContext.h"            // startupCoreContext
+#include "startup/startupDefaultUserContext.h"     // startupDefaultUserContext
 #include "startup/startupLog.h"                    // startupLog
 #include "startup/startupArena.h"                  // startupArena
 #include "plugin/pluginLoader.h"                  // pluginStoresLoad, pluginLoadApi, pluginLoadBridges, pluginArgsAdd
@@ -275,7 +276,7 @@ static CorArg kargV[] =
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  CorArgInt,    _vp &corsMaxAge,   CorArgOpt, _vp 86400, _vp 0, _vp 864000, "preflight cache max age in seconds" },
-  { "--defaultUserContext", "-duc",         CorArgString, _vp &defaultUserContext, CorArgOpt, _vp NULL, NULL,  NULL,      "default user @context URL" },
+  { "--defaultUserContext", "-duc",         CorArgString, _vp &defaultUserContext, CorArgOpt, _vp NULL, NULL,  NULL,      "default user @context: a URL, or a file (hosted, as /ngsi-ld/v1/jsonldContexts/defaultUserContext)" },
   { "--csourceAlias",       "-csourceAlias",CorArgString, _vp &csourceAlias, CorArgOpt, _vp NULL,  NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
   { "--httpEndpoint",       "-he",          CorArgString, _vp &httpEndpoint, CorArgOpt, _vp NULL,  NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
   { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
@@ -1676,7 +1677,6 @@ int main(int argC, char* argV[])
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
   ldDistributed         = distributed;      // default: false — every entity operation stays local until asked otherwise
   ldTimestampHighPrecision = highPrecision;  // default false → 6 fractional digits (§5.2.2.4); -hp → 9
-  ldDefaultContextUrl   = defaultUserContext;
   ldBrokerStartTimeSec  = (long long) time(NULL);
 
   //
@@ -1808,6 +1808,17 @@ int main(int argC, char* argV[])
   const char* coreContextError = startupCoreContext(&contextAlloc);
   if (coreContextError != NULL)
     COR_X(1, "%s", coreContextError);
+
+  //
+  // The default user @context: a URL as it is, or a file (Orion-LD's -duc, the DDS mapping tool's
+  // dds-context.jsonld) - hosted, and its URL the default
+  //
+  const char* ducError = NULL;
+
+  ldDefaultContextUrl = (char*) startupDefaultUserContext(defaultUserContext, ldBrokerHttpEndpoint, &ducError);
+
+  if (ducError != NULL)
+    COR_X(1, "%s", ducError);
 
   ldDefaultCooldownNs = (uint64_t) cooldownMillis * 1000000ULL;
 
