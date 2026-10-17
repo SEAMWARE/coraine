@@ -599,6 +599,7 @@ static void loopbackSampleFromsLoad(void);
 static void loopbackGoalModesLoad(void);
 static void loopbackTopicModesLoad(void);
 static void loopbackStatusInsLoad(void);
+static void loopbackPayloadChecksLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -639,6 +640,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackGoalModesLoad();
   loopbackTopicModesLoad();
   loopbackStatusInsLoad();
+  loopbackPayloadChecksLoad();
   loopbackEmitAtStart();
   loopbackDiscoverAtStart();
 
@@ -1115,6 +1117,74 @@ static const char* loopbackStatusIn(const char* endpoint)
   }
 
   return NULL;
+}
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackPayloadCheck - "payloadCheck": what the loopback answers a client's write (ABI 13)
+//
+//   "payloadCheck": { "P1": "number", "P2": "refuse:P2 takes no writes", "P3": "error" }
+//
+//   number            a value that is not a JSON number is refused: "'<json>' is not a number (<attribute>)"
+//   refuse:<reason>   every value is refused, with the reason
+//   error             the check fails (BRIDGE_ERR) - a refusal too: the broker answers 503
+//   unnamed endpoint  every value is accepted
+//
+static LoopbackMeta  payloadChecks[LOOPBACK_CHANNELS_MAX];
+static int           payloadCheckCount = 0;
+
+static void loopbackPayloadCheckPair(const char* endpoint, const char* value)
+{
+  if (payloadCheckCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  payloadChecks[payloadCheckCount].endpoint = strdup(endpoint);
+  payloadChecks[payloadCheckCount].meta     = strdup(value);
+  ++payloadCheckCount;
+}
+
+static void loopbackPayloadChecksLoad(void)
+{
+  loopbackConfigPairs("\"payloadCheck\"", loopbackPayloadCheckPair);
+}
+
+static int loopbackPayloadCheck(const char* endpoint, const char* attribute, const char* json, char* reasonBuf, int reasonBufLen)
+{
+  const char* rule = NULL;
+
+  for (int ix = 0; ix < payloadCheckCount; ix++)
+  {
+    if (strcmp(payloadChecks[ix].endpoint, endpoint) == 0)
+      rule = payloadChecks[ix].meta;
+  }
+
+  if (rule == NULL)
+    return BRIDGE_OK;
+
+  if (strcmp(rule, "error") == 0)
+    return BRIDGE_ERR;
+
+  if (strncmp(rule, "refuse:", 7) == 0)
+  {
+    snprintf(reasonBuf, reasonBufLen, "%s", &rule[7]);
+    return BRIDGE_BAD_INPUT;
+  }
+
+  if (strcmp(rule, "number") == 0)
+  {
+    char* endP = NULL;
+
+    strtod(json, &endP);
+
+    if ((endP != json) && (*endP == 0) && (json[0] != '"'))
+      return BRIDGE_OK;
+
+    snprintf(reasonBuf, reasonBufLen, "'%s' is not a number (%s)", json, attribute);
+    return BRIDGE_BAD_INPUT;
+  }
+
+  return BRIDGE_OK;
 }
 
 
@@ -1754,6 +1824,9 @@ void bridgeRegister(BridgeDriver* driverP)
     driverP->serviceExecute = loopbackServiceExecute;
     driverP->serviceCancel  = loopbackServiceCancel;
   }
+
+  if (hostAbi >= 13)
+    driverP->payloadCheck = loopbackPayloadCheck;
 
   //
   // And now the field is the PLUGIN's, which is what the host reads back.

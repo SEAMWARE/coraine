@@ -82,7 +82,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 435
+Content-Length: 459
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -95,6 +95,7 @@ Content-Length: 435
   },
   "entityAttribute": "temperature",
   "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",
@@ -109,7 +110,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 473
+Content-Length: 497
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -122,6 +123,7 @@ Content-Length: 473
   },
   "entityAttribute": "pressure",
   "id": "urn:ngsi-ld:Channel:loopback:P2",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",
@@ -137,7 +139,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 429
+Content-Length: 453
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -150,6 +152,7 @@ Content-Length: 429
   },
   "entityAttribute": "speed",
   "id": "urn:ngsi-ld:Channel:loopback:P4",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",
@@ -167,7 +170,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 473
+Content-Length: 497
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -180,6 +183,7 @@ Content-Length: 473
   },
   "entityAttribute": "temperature",
   "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",
@@ -198,7 +202,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 478
+Content-Length: 502
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -211,6 +215,7 @@ Content-Length: 478
   },
   "entityAttribute": "temperature",
   "id": "urn:ngsi-ld:Channel:loopback:P1",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",

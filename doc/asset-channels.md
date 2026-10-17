@@ -1,6 +1,6 @@
 # AssetChannels - a source model as a graph of entities (design)
 
-**Status: a design - nothing of it is built yet.** The plan is § 7.
+**Status: a design.** Built so far (§ 7): the Bridge listing what it carries, and the payload check (§ 2.1) - described as built in [bridge-channels.md](bridge-channels.md#the-payload-check). The AssetChannel itself is not built.
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an

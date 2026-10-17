@@ -36,6 +36,9 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite
+#endif
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 
@@ -409,6 +412,11 @@ bool patchEntity(void)
     // fails the request with nothing written. A service may be waited for, and
     // its reply is then written with the value. See bridgeServiceSync.h.
     //
+#if COR_FEATURE_CHANNEL_CHECKS
+    if (channelChecksBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT | BRIDGE_REQ_MERGE, &notWritten) == false)
+      return true;  // ldError already set - nothing has been written
+#endif
+
     if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT | BRIDGE_REQ_MERGE, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been written
 

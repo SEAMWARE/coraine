@@ -220,6 +220,9 @@ CorNode* channelRender(Channel* channelP, CorLdContext* contextP)
 
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsWaiting",   (long long) __atomic_load_n(&channelP->requestsWaiting,   __ATOMIC_RELAXED)));
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "requestsNotWaited", (long long) __atomic_load_n(&channelP->requestsNotWaited, __ATOMIC_RELAXED)));
+#if COR_FEATURE_CHANNEL_CHECKS
+  corTreeChildAdd(bodyP, corTreeInteger(allocP, "payloadsRefused",   (long long) __atomic_load_n(&channelP->payloadsRefused,   __ATOMIC_RELAXED)));
+#endif
 
   if (channelP->notifyUri != NULL)
     notificationRender(bodyP, channelP->notifyUri, channelP->notifyAccept);

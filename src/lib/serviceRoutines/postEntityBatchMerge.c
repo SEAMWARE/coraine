@@ -68,6 +68,9 @@
 #include "bridge/channelCache.h"                      // channelOutCount
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite, channelChecksActive
+#endif
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
@@ -783,6 +786,9 @@ bool postEntityBatchMerge(void)
     CorNode**       snapshotsV  = (CorNode**)       corAlloc(&corRest.kalloc, sizeof(CorNode*)       * localN);
     CorNode**       targetsV    = (CorNode**)       corAlloc(&corRest.kalloc, sizeof(CorNode*)       * localN);
     bool            requestsFirst    = (channelOutCount() > 0);
+#if COR_FEATURE_CHANNEL_CHECKS
+    requestsFirst = requestsFirst || channelChecksActive();   // the payload check goes first too - and reports the same way
+#endif
     BridgeSyncDone** doneV      = (requestsFirst == true) ? (BridgeSyncDone**) corAlloc(&corRest.kalloc, sizeof(BridgeSyncDone*) * localN) : NULL;  // nothing without a bridge
 
     for (int k = 0; k < localN; k++)
@@ -831,6 +837,9 @@ bool postEntityBatchMerge(void)
         AttrsNotWritten* notWrittenP = (AttrsNotWritten*) corAlloc(&corRest.kalloc, sizeof(AttrsNotWritten));
         memset(notWrittenP, 0, sizeof(AttrsNotWritten));
 
+#if COR_FEATURE_CHANNEL_CHECKS
+        channelChecksBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, notWrittenP);
+#endif
         bridgeRequestsBeforeWrite(tenantP, fragmentId(fragP, localIdV[fk]), fragP, BRIDGE_REQ_PER_ENTITY | BRIDGE_REQ_SEND_ONLY | BRIDGE_REQ_MERGE, doneV[fk], notWrittenP);
       }
 

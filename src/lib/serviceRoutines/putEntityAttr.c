@@ -49,6 +49,9 @@
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite
+#endif
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrReplaced
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
@@ -382,6 +385,11 @@ bool putEntityAttr(void)
         // be sent fails the request with nothing written. Never waited for on
         // this route. See bridgeServiceSync.h.
         //
+#if COR_FEATURE_CHANNEL_CHECKS
+        if (channelChecksBeforeWrite(tenantP, entityId, entityFrag, 0, &notWritten) == false)
+          return true;  // ldError already set - nothing has been written
+#endif
+
         if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, 0, &syncDone, &notWritten) == false)
           return true;  // ldError already set - nothing has been written
 

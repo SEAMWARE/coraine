@@ -174,7 +174,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 992
+Content-Length: 1044
 
 [
   {
@@ -190,6 +190,7 @@ Content-Length: 992
     "goalCancelsSent": 0,
     "goalsSent": 0,
     "id": "urn:ngsi-ld:Channel:loopback:A1",
+    "payloadsRefused": 0,
     "requestsNotWaited": 0,
     "requestsWaiting": 0,
     "retention": "mirror",
@@ -209,6 +210,7 @@ Content-Length: 992
     },
     "entityAttribute": "temperature",
     "id": "urn:ngsi-ld:Channel:loopback:P1",
+    "payloadsRefused": 0,
     "requestsNotWaited": 0,
     "requestsWaiting": 0,
     "retention": "mirror",
@@ -227,7 +229,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 472
+Content-Length: 496
 
 {
   "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
@@ -242,6 +244,7 @@ Content-Length: 472
   "goalCancelsSent": 0,
   "goalsSent": 0,
   "id": "urn:ngsi-ld:Channel:loopback:A1",
+  "payloadsRefused": 0,
   "requestsNotWaited": 0,
   "requestsWaiting": 0,
   "retention": "mirror",

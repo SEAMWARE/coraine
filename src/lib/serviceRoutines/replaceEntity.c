@@ -40,6 +40,9 @@
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
 #include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
+#if COR_FEATURE_CHANNEL_CHECKS
+#include "bridge/channelCheck.h"                     // channelChecksBeforeWrite
+#endif
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
@@ -439,6 +442,11 @@ bool replaceEntity(void)
     //
     BridgeSyncDone syncDone = { { NULL }, 0 };
     AttrsNotWritten notWritten = { 0 };
+
+#if COR_FEATURE_CHANNEL_CHECKS
+    if (channelChecksBeforeWrite(tenantP, entityId, entityP, 0, &notWritten) == false)
+      return true;  // ldError already set - nothing has been replaced
+#endif
 
     if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, 0, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been replaced

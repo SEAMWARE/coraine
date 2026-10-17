@@ -351,11 +351,13 @@ static int upsert(CorNode* entitiesP, int entities, const char* endpoint)
   corNgsild.batchPreErrors       = NULL;
   corNgsild.local                = true;              // this broker's store: a record is not forwarded
   corNgsild.upsertUpdate         = true;              // options=update: the attributes the mapping does not name stay
+  corNgsild.bridgeOwnWrite       = true;              // the bridge's own write: its payload check is for clients
 
   postEntityBatchUpsert();
 
   corNgsild.local                = false;
   corNgsild.upsertUpdate         = false;
+  corNgsild.bridgeOwnWrite       = false;
 
   //
   // What the request's post-response hook does after a write
