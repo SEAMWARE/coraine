@@ -39,6 +39,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/TroeDriver.h"                          // TroeEvent, TroeOp*
 #include "troe/troeDispatch.h"                        // troeDeferEntityEvent, troeDeferAttrEvent
@@ -437,22 +438,23 @@ bool replaceEntity(void)
     // its own, and the rest goes on (207). See bridgeServiceSync.h.
     //
     BridgeSyncDone syncDone = { { NULL }, 0 };
+    AttrsNotWritten notWritten = { 0 };
 
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, 0, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, entityP, 0, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been replaced
 
-    for (int ix = 0; ix < syncDone.failedN; ix++)
+    for (int ix = 0; ix < notWritten.n; ix++)
     {
-      int     st    = syncDone.failedStatusV[ix];
-      CorNode* keptP = corTreeLookup(oldStored, syncDone.failedAttrV[ix]);
+      int     st    = notWritten.statusV[ix];
+      CorNode* keptP = corTreeLookup(oldStored, notWritten.attrV[ix]);
 
       if (keptP != NULL)
         corTreeChildAdd(entityP, corTreeClone(corRest.kallocP, keptP));
 
       ldDistOpBatchErrorAdd(errorsArrayP, entityId, st,
-                            syncDone.failedTypeV[ix],
-                            syncDone.failedTitleV[ix],
-                            syncDone.failedReasonV[ix], NULL);
+                            notWritten.typeV[ix],
+                            notWritten.titleV[ix],
+                            notWritten.reasonV[ix], NULL);
     }
 
     CorNode* replacedOld = NULL;

@@ -16,6 +16,7 @@
 #include "corTree/CorNode.h"                          // CorNode
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // Channel
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 
 
@@ -163,15 +164,10 @@ typedef struct BridgeSyncDone
   //
   // A request writing SEVERAL attributes does not fail as a whole because one
   // request to the DDS side could not be sent: that attribute is taken out of
-  // the fragment and not written, the rest is, and the handler reports it here
-  // as not updated (207). See "Requests to the DDS side".
+  // the fragment and not written, the rest is, and it is added to the
+  // request's list of attributes not written (207). See "Requests to the DDS side".
   //
-  int          failedN;
-  const char*  failedAttrV[BRIDGE_SYNC_MAX];          // the attribute - not written
-  int          failedStatusV[BRIDGE_SYNC_MAX];        // what a request of it alone would have answered
-  const char*  failedReasonV[BRIDGE_SYNC_MAX];        // why, in the request's arena
-  const char*  failedTitleV[BRIDGE_SYNC_MAX];         // the ProblemDetails title of that status
-  const char*  failedTypeV[BRIDGE_SYNC_MAX];          // ... and its type
+  AttrsNotWritten*  notWrittenP;                      // the request's - bridgeRequestsBeforeWrite's parameter
 } BridgeSyncDone;
 
 
@@ -210,6 +206,10 @@ extern bool bridgeSyncRequested(bool* syncP);
 // @param doneP  filled with what was sent. Hand it to bridgeRequestsWritten
 //               once the write is done, and read doneP->accepted for 202.
 //
+// @param notWrittenP  the request's attributes not written: one this step takes
+//                     out of the fragment is added to it. Not reset here - an
+//                     earlier step may have added to it.
+//
 // @return false, with the error set, when a request could not be sent. The
 //         handler then returns without writing anything.
 //
@@ -218,7 +218,7 @@ extern bool bridgeSyncRequested(bool* syncP);
 #define BRIDGE_REQ_SEND_ONLY   0x4                    // goals are sent, not waited for - the caller calls bridgeRequestsAwait
 #define BRIDGE_REQ_MERGE       0x8                    // Merge Entity: a topic's sample is the fragment merged into the stored value
 
-extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP);
+extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP, AttrsNotWritten* notWrittenP);
 
 
 
@@ -234,7 +234,8 @@ extern bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, Cor
 // An accepted goal's instance - the request and the first event - is put in
 // its attribute in the fragment, for the request's one write to create. A
 // refused or unanswered goal's attribute is taken out of the fragment and
-// recorded as failed (in a batch, a request never fails as a whole).
+// added to the request's attributes not written (in a batch, a request never
+// fails as a whole).
 //
 // @return false, with the error set, when the request fails as a whole.
 //

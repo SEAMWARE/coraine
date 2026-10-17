@@ -50,6 +50,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"            // LdNotifyEntityUpdate, ldSubscriptionUpdateMayMatch
 #include "corNgsild/ldNotifyDefer.h"                   // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/troeFromMerge.h"                       // troeDeferAttrEventsFromMerge
 #include "troe/troeDispatch.h"                        // troeEventsOn
@@ -485,6 +486,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     ldApiEntityToDbModel(fragment, &corRest.kalloc, 0);
 
     BridgeSyncDone syncDone = { { NULL }, 0 };
+    AttrsNotWritten notWritten = { 0 };
 
     //
     // Requests to the DDS side go FIRST: a service or an action this fragment
@@ -492,24 +494,24 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
     // fails the request with nothing written. A service may be waited for, and
     // its reply is then written with the value. See bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been written
 
     //
     // Several attributes: one whose request to the DDS side could not be sent
     // was taken out of the fragment - not updated, and the rest goes on (207).
     //
-    for (int ix = 0; ix < syncDone.failedN; ix++)
+    for (int ix = 0; ix < notWritten.n; ix++)
     {
-      updatedRemove(updatedP, syncDone.failedAttrV[ix]);
-      addNotUpdated(notUpdatedP, syncDone.failedAttrV[ix], syncDone.failedReasonV[ix], NULL);
+      updatedRemove(updatedP, notWritten.attrV[ix]);
+      addNotUpdated(notUpdatedP, notWritten.attrV[ix], notWritten.reasonV[ix], NULL);
     }
 
     //
     // ⚠ Only when the DDS step TOOK SOMETHING OUT. A fragment with no Attributes
     // at all (scope alone) is an ordinary update and is written as always.
     //
-    bool nothingLeft = (syncDone.failedN > 0);
+    bool nothingLeft = (notWritten.n > 0);
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {

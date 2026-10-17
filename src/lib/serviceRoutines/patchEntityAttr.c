@@ -48,6 +48,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/TroeDriver.h"                         // TroeEvent
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
@@ -415,6 +416,7 @@ bool patchEntityAttr(void)
           ldApiEntityToDbModel(entityFrag, &corRest.kalloc, 0);
 
           BridgeSyncDone syncDone = { { NULL }, 0 };
+          AttrsNotWritten notWritten = { 0 };
 
           //
           // Requests to the DDS side go FIRST: a service or an action this fragment
@@ -422,7 +424,7 @@ bool patchEntityAttr(void)
           // fails the request with nothing written. A service may be waited for, and
           // its reply is then written with the value. See bridgeServiceSync.h.
           //
-          if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, BRIDGE_REQ_MAY_WAIT, &syncDone) == false)
+          if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, BRIDGE_REQ_MAY_WAIT, &syncDone, &notWritten) == false)
             return true;  // ldError already set - nothing has been written
 
           //

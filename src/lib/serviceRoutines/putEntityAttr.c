@@ -48,6 +48,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"             // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/TroeDriver.h"                         // TroeEvent, TroeOpAttrReplaced
 #include "troe/troeDispatch.h"                       // troeDeferAttrEvent
@@ -374,13 +375,14 @@ bool putEntityAttr(void)
         }
 
         BridgeSyncDone syncDone = { { NULL }, 0 };
+        AttrsNotWritten notWritten = { 0 };
 
         //
         // Requests to the DDS side go FIRST - one Attribute, so one that cannot
         // be sent fails the request with nothing written. Never waited for on
         // this route. See bridgeServiceSync.h.
         //
-        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, 0, &syncDone) == false)
+        if (bridgeRequestsBeforeWrite(tenantP, entityId, entityFrag, 0, &syncDone, &notWritten) == false)
           return true;  // ldError already set - nothing has been written
 
         LdMergeReport report = { NULL };

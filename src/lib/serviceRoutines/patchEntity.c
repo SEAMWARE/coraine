@@ -35,6 +35,7 @@
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
 #include "bridge/bridgeServiceSync.h"                 // bridgeRequestsBeforeWrite, bridgeRequestsWritten, BridgeSyncDone
+#include "serviceRoutines/AttrsNotWritten.h"          // AttrsNotWritten
 
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 
@@ -396,6 +397,7 @@ bool patchEntity(void)
   int  localR  = DB_NOT_FOUND;
 
   BridgeSyncDone syncDone = { { NULL }, 0 };
+  AttrsNotWritten notWritten = { 0 };
 
   if (localOp)
   {
@@ -407,7 +409,7 @@ bool patchEntity(void)
     // fails the request with nothing written. A service may be waited for, and
     // its reply is then written with the value. See bridgeServiceSync.h.
     //
-    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT | BRIDGE_REQ_MERGE, &syncDone) == false)
+    if (bridgeRequestsBeforeWrite(tenantP, entityId, fragment, BRIDGE_REQ_MAY_WAIT | BRIDGE_REQ_MERGE, &syncDone, &notWritten) == false)
       return true;  // ldError already set - nothing has been written
 
     //
@@ -415,21 +417,21 @@ bool patchEntity(void)
     // was taken out of the fragment - an error of its own, and the rest goes on
     // (207). See bridgeServiceSync.h.
     //
-    for (int ix = 0; ix < syncDone.failedN; ix++)
+    for (int ix = 0; ix < notWritten.n; ix++)
     {
-      int st = syncDone.failedStatusV[ix];
+      int st = notWritten.statusV[ix];
 
       ldDistOpBatchErrorAdd(errorsArrayP, entityId, st,
-                            syncDone.failedTypeV[ix],
-                            syncDone.failedTitleV[ix],
-                            syncDone.failedReasonV[ix], NULL);
+                            notWritten.typeV[ix],
+                            notWritten.titleV[ix],
+                            notWritten.reasonV[ix], NULL);
     }
 
     //
     // ⚠ Only when the DDS step TOOK SOMETHING OUT. A fragment with no Attributes
     // at all is an ordinary PATCH - of scope, of type - and is merged as always.
     //
-    bool nothingLeft = (syncDone.failedN > 0);
+    bool nothingLeft = (notWritten.n > 0);
 
     for (CorNode* c = fragment->value.head; (c != NULL) && (nothingLeft == true); c = c->next)
     {

@@ -427,15 +427,7 @@ static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* at
     snprintf(reason, sizeof(reason), "'%s' on bridge '%s' could not be reached - not written", channelP->endpoint, channelP->bridgeName);
   }
 
-  if (doneP->failedN < BRIDGE_SYNC_MAX)
-  {
-    doneP->failedAttrV[doneP->failedN]   = attrP->name;
-    doneP->failedStatusV[doneP->failedN] = status;
-    doneP->failedReasonV[doneP->failedN] = corAllocStrdup(&corRest.kalloc, reason);
-    doneP->failedTitleV[doneP->failedN]  = title;
-    doneP->failedTypeV[doneP->failedN]   = type;
-    doneP->failedN++;
-  }
+  attrsNotWrittenAdd(doneP->notWrittenP, attrP->name, status, type, title, reason);
 
   corTreeChildRemove(fragmentP, attrP);
 }
@@ -465,20 +457,11 @@ static bool goalNotTaken(BridgeSyncDone* doneP, CorNode* fragmentP, int ix, int 
     return false;
   }
 
-  if (doneP->failedN < BRIDGE_SYNC_MAX)
-  {
-    int   len = strlen(reason) + 20;
-    char* buf = (char*) corAlloc(&corRest.kalloc, len);
+  int   len = strlen(reason) + 20;
+  char* buf = (char*) corAlloc(&corRest.kalloc, len);
 
-    snprintf(buf, len, "%s - not written", reason);
-
-    doneP->failedAttrV[doneP->failedN]   = attrP->name;
-    doneP->failedStatusV[doneP->failedN] = status;
-    doneP->failedReasonV[doneP->failedN] = buf;
-    doneP->failedTitleV[doneP->failedN]  = title;
-    doneP->failedTypeV[doneP->failedN]   = type;
-    doneP->failedN++;
-  }
+  snprintf(buf, len, "%s - not written", reason);
+  attrsNotWrittenAdd(doneP->notWrittenP, attrP->name, status, type, title, buf);
 
   corTreeChildRemove(fragmentP, attrP);
   return true;
@@ -753,12 +736,12 @@ static CorNode* wireValue(CorNode* valueP)
 //
 // bridgeRequestsBeforeWrite -
 //
-bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP)
+bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fragmentP, int flags, BridgeSyncDone* doneP, AttrsNotWritten* notWrittenP)
 {
-  doneP->count    = 0;
-  doneP->accepted = false;
-  doneP->failedN  = 0;
-  doneP->several  = false;
+  doneP->count       = 0;
+  doneP->accepted    = false;
+  doneP->several     = false;
+  doneP->notWrittenP = notWrittenP;
 
   if ((channelOutCount() == 0) || (entityId == NULL) || (fragmentP == NULL))
     return true;
