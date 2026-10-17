@@ -1,0 +1,128 @@
+#
+# FILE            default_user_context_file.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The default user @context given as a FILE (--defaultUserContext <path>) - as Orion-LD's -duc takes it, and
+# as the DDS mapping tool writes it (dds-context.jsonld, beside the dds-config.json the DDS bridge reads).
+# The broker reads it at start and hosts it as the @context 'defaultUserContext': the default user @context
+# is then <its endpoint>/ngsi-ld/v1/jsonldContexts/defaultUserContext - what a response's Link names, and
+# what a client can fetch.
+#
+#   01  a naked-JSON create: the short names expanded with the file's terms
+#   02  a naked-JSON read: compacted with it again, the Link naming the hosted @context
+#   03  a read with the core @context only: the file's IRIs
+#   04  GET /jsonldContexts/defaultUserContext: the file's document
+#
+--NAME--
+Default user @context from a file - read at start, hosted as /jsonldContexts/defaultUserContext
+
+--TAGS--
+context entity
+
+--INIT--
+corDbDrop
+cat > /tmp/coraine_duc_file.jsonld <<EOF
+{ "@context": { "Twist": "https://example.org/dds/Twist", "cmd_vel": "https://example.org/dds/cmd_vel" } }
+EOF
+coraineStart --defaultUserContext /tmp/coraine_duc_file.jsonld
+
+--RUN--
+
+echo "01. Create urn:ngsi-ld:Twist:cmd_vel as naked JSON - the file's terms expand it"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Twist:cmd_vel", "type": "Twist", "cmd_vel": { "type": "Property", "value": 1 } }'
+echo
+echo
+
+
+echo "02. GET it as naked JSON - compacted with the file's terms, the Link naming the hosted @context"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Twist:cmd_vel
+echo
+echo
+
+
+echo "03. GET it with the core @context only - the file's IRIs"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Twist:cmd_vel?options=keyValues' -H 'Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. GET /jsonldContexts/defaultUserContext - the file's document"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/jsonldContexts/defaultUserContext
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_duc_file.jsonld
+
+
+--EXPECT--
+01. Create urn:ngsi-ld:Twist:cmd_vel as naked JSON - the file's terms expand it
+================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:Twist:cmd_vel
+Content-Length: 0
+
+
+
+
+02. GET it as naked JSON - compacted with the file's terms, the Link naming the hosted @context
+===============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:1026/ngsi-ld/v1/jsonldContexts/defaultUserContext>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 118
+
+{
+  "cmd_vel": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:ngsi-ld:Twist:cmd_vel",
+  "type": "Twist"
+}
+
+
+
+03. GET it with the core @context only - the file's IRIs
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "https://example.org/dds/cmd_vel": 1,
+  "id": "urn:ngsi-ld:Twist:cmd_vel",
+  "type": "https://example.org/dds/Twist"
+}
+
+
+
+04. GET /jsonldContexts/defaultUserContext - the file's document
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 107
+
+{
+  "@context": {
+    "Twist": "https://example.org/dds/Twist",
+    "cmd_vel": "https://example.org/dds/cmd_vel"
+  }
+}
+
+
+
