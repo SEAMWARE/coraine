@@ -81,6 +81,8 @@ query returns about 11 KB — a realistic page rather than a toy.
 A rate measured over error responses is not a rate, so every `wrk` run is
 checked for non-2xx answers and the run stops if it finds any.
 
+<a id="size-on-disk--what-installing-coraine-adds"></a>
+
 ## Size on disk — what installing coraine adds
 
 Stripped, and counting only what a machine does not already have. The reference

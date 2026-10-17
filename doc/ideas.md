@@ -50,6 +50,8 @@ as with `mongoc`. A query by type, a `q` and a geo-query walk the tenant. A **ty
 order (with persistence), **attribute-value** indexes for `q`, an **R-tree** for `georel` - each a
 declaration kept with the tenant's data, rebuilt at load, measured before it stays.
 
+<a id="cordb-standalone---and-as-haaux"></a>
+
 ### corDB standalone - and as haaux
 
 corDB as a process of its own, beside the brokers, for high availability: already connected to every
@@ -124,6 +126,8 @@ plugins on the bridge contract instead of separate processes. The same source co
 beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi). More of them as
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
+
+<a id="philips-hue---the-first-fiwarehome-plugin"></a>
 
 ### Philips Hue - the first FIWARE@Home plugin
 
@@ -303,6 +307,8 @@ A broker that knows its memory budget (a container's limit) and refuses writes b
 ends it - `--memoryLimit` is the start of it.
 
 ## Build, distribution and footprint
+
+<a id="c-the-coraine-control-center"></a>
 
 ### c³ - the coraine Control Center
 
