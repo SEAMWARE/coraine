@@ -1,6 +1,6 @@
-# AssetChannels - a source model as a graph of entities (design, for review)
+# AssetChannels - a source model as a graph of entities (design)
 
-**Status: a design for review - nothing of it is built.**
+**Status: a design - nothing of it is built yet.** The plan is § 7.
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
