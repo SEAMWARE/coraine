@@ -2144,6 +2144,15 @@ int main(int argC, char* argV[])
 
   COR_I("coraine running on port %u", port);
 
+#if COR_FEATURE_TRANSPORTS
+  //
+  // The WebSocket subscriptions a killed broker left in the store - through the service routines, so only
+  // now. With --high-availability they may be another instance's, alive (doc/roadmap.md).
+  //
+  if (haChannel == NULL)
+    transportLeftoversDelete();
+#endif
+
 #if COR_FEATURE_POLICY_API
   if ((policyApiPort != 0) && (policyApiStart(policyApiHost, policyApiPort) == false))
     COR_X(1, "cannot serve the policy API on %s port %u", policyApiHost, policyApiPort);

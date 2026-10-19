@@ -58,6 +58,16 @@ extern bool transportEndpointOwn(const char* uri);
 
 // -----------------------------------------------------------------------------
 //
+// transportLeftoversDelete - every subscription and context source subscription that notifies a connection
+// of another run (a broker killed or crashed), deleted in every tenant; after corRestInit, and not with
+// --high-availability (another instance's connections are of another run too)
+//
+extern void transportLeftoversDelete(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // transportStop - every plugin stopped (its connections closed)
 //
 extern void transportStop(void);

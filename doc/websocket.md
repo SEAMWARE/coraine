@@ -86,10 +86,19 @@ A subscription or context source subscription created over a connection notifies
 connection's id in a subscription made over HTTP or cor:// (400) - a connection is the endpoint only of
 what is made over it. The same for a Service Execution's `notification.endpoint` (`POST /services`).
 
-When the connection closes - the client closes it, it breaks, or the broker stops - the subscriptions it
-created and did not delete are deleted, each in its tenant. A broker that is killed (not stopped) deletes
-nothing: with a persistent store its connections' subscriptions are still there after the restart, and
-notify no one - their ids are of the run that was killed.
+A subscription made over a connection may notify elsewhere - an `http(s)` or `mqtt` endpoint - and that
+one is the client's: it is not tied to the connection.
+
+When the connection closes - the client closes it, it breaks, or the broker stops - the subscriptions
+that notify it are deleted, each in its tenant: those made over it to notify it, and those changed over it
+(`PATCH`) to notify it. One changed since, over HTTP or another connection, to notify elsewhere stays.
+
+A broker that is killed (not stopped), or crashes, deletes nothing. At its next start, every subscription,
+periodic subscription and context source subscription that notifies a connection of another run is
+deleted, in every tenant - with a persistent store, they would otherwise stay, matched on every write and
+notifying no one. Not with `--high-availability`: there, the connections of another run may be another
+instance's, alive, and a killed instance's subscriptions stay
+([roadmap](roadmap.md#short-term)).
 
 ## The connection
 

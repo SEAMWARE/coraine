@@ -40,6 +40,11 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authTrustNext
 #endif
+#include "corNgsild/LdSubCache.h"                    // LdSubCache, LdSubCacheItem
+#include "corNgsild/ldSubCache.h"                    // ldSubCacheRdLock, ldSubCacheUnlock
+#include "corNgsild/LdPernotCache.h"                 // LdPernotCache, LdPernotItem
+#include "corNgsild/ldPernotCache.h"                 // ldPernotCacheRdLock, ldPernotCacheUnlock
+#include "db/Tenant.h"                               // Tenant, tenant0, tenantList, tenantApiName
 #include "plugin/TransportDriver.h"                  // TransportDriver, TransportHost
 #include "transport/transport.h"                     // Own interface
 
@@ -71,7 +76,7 @@ static int              transportCount = 0;
 
 // -----------------------------------------------------------------------------
 //
-// Conn - an open connection, and the subscriptions it created (deleted when it closes)
+// Conn - an open connection, and the subscriptions made to notify it (deleted when it closes)
 //
 typedef struct Owned
 {
@@ -83,7 +88,7 @@ typedef struct Conn
 {
   int               connId;
   TransportDriver*  driverP;
-  Owned*            ownV;                            // the subscriptions it created - deleted when it closes
+  Owned*            ownV;                            // the subscriptions made to notify it - deleted when it closes
   int               ownN;
   int               ownSize;
   bool              running;                         // a request of its own runs, on runThread (hostMessage)
@@ -172,8 +177,8 @@ static int connIdOf(const char* uri)
 
 // -----------------------------------------------------------------------------
 //
-// ownTrack / ownUntrack - a subscription (or a context source subscription) this connection created, in
-// its tenant, or deleted
+// ownTrack / ownUntrack - a subscription (or a context source subscription) made, over this connection, to
+// notify it - in its tenant - or deleted, or changed to notify elsewhere
 //
 static bool tenantSame(const char* a, const char* b)
 {
@@ -185,6 +190,12 @@ static void ownTrack(int connId, const char* path, const char* tenant)
   pthread_mutex_lock(&connMutex);
 
   Conn* cP = connFind(connId);
+
+  for (int i = 0; (cP != NULL) && (i < cP->ownN); i++)
+  {
+    if ((strcmp(cP->ownV[i].path, path) == 0) && tenantSame(cP->ownV[i].tenant, tenant))
+      cP = NULL;                                     // tracked already: a PATCH to the endpoint it had
+  }
 
   if (cP != NULL)
   {
@@ -408,6 +419,7 @@ typedef struct RunCtx
   const char*  verb;
   const char*  path;
   const char*  tenant;                               // the request's - NULL: the default
+  int          endpoint;                             // the body's notification.endpoint.uri: 1 this connection, 0 another, -1 none
 } RunCtx;
 
 static void runRespond(int status, CorRestKeyValue* headerV, int headers, const char* body, int bodyLen, void* ctx)
@@ -415,12 +427,24 @@ static void runRespond(int status, CorRestKeyValue* headerV, int headers, const 
   RunCtx* rP = (RunCtx*) ctx;
 
   //
-  // The subscriptions this connection creates and deletes - of entities and of context sources, only
-  // those: a 201's Location is an entity's, a registration's ... on other paths
+  // The subscriptions made to notify this connection - of entities and of context sources, only those
+  // (a 201's Location is an entity's, a registration's ... on other paths). One that notifies elsewhere
+  // (http, mqtt) is the client's, not the connection's: it stays when the connection closes.
   //
-  bool subs = (strcmp(rP->path, SUBS_PATH) == 0) || (strcmp(rP->path, CSUBS_PATH) == 0);
+  bool        subs = (strcmp(rP->path, SUBS_PATH) == 0) || (strcmp(rP->path, CSUBS_PATH) == 0);
+  char        path[512];
+  const char* q    = strchr(rP->path, '?');
+  int         n    = (q != NULL) ? (int) (q - rP->path) : (int) strlen(rP->path);
 
-  if ((status == 201) && (strcmp(rP->verb, "POST") == 0) && subs)
+  if (n >= (int) sizeof(path))
+    n = 0;
+
+  memcpy(path, rP->path, n);
+  path[n] = 0;
+
+  bool one = ((strncmp(path, SUBS_PATH "/", sizeof(SUBS_PATH)) == 0) || (strncmp(path, CSUBS_PATH "/", sizeof(CSUBS_PATH)) == 0));
+
+  if ((status == 201) && (strcmp(rP->verb, "POST") == 0) && subs && (rP->endpoint == 1))
   {
     for (int i = 0; i < headers; i++)
     {
@@ -428,19 +452,12 @@ static void runRespond(int status, CorRestKeyValue* headerV, int headers, const 
         ownTrack(rP->connId, headerV[i].value, rP->tenant);
     }
   }
-  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0))
-  {
-    char        path[512];
-    const char* q = strchr(rP->path, '?');
-    int         n = (q != NULL) ? (int) (q - rP->path) : (int) strlen(rP->path);
-
-    if (n < (int) sizeof(path))
-    {
-      memcpy(path, rP->path, n);
-      path[n] = 0;
-      ownUntrack(rP->connId, path, rP->tenant);
-    }
-  }
+  else if ((status == 204) && (strcmp(rP->verb, "PATCH") == 0) && one && (rP->endpoint == 1))
+    ownTrack(rP->connId, path, rP->tenant);          // changed to notify this connection
+  else if ((status == 204) && (strcmp(rP->verb, "PATCH") == 0) && one && (rP->endpoint == 0))
+    ownUntrack(rP->connId, path, rP->tenant);        // changed to notify elsewhere
+  else if ((status == 204) && (strcmp(rP->verb, "DELETE") == 0) && (n > 0))
+    ownUntrack(rP->connId, path, rP->tenant);
 
   reply(rP->connId, status, rP->requestId, headerV, headers, body, bodyLen);
 }
@@ -477,8 +494,51 @@ static void hostOpened(int connId)
 
 // -----------------------------------------------------------------------------
 //
-// hostClosed - the connection is gone: the subscriptions it created, deleted (doc/websocket.md § 6)
+// hostClosed - the connection is gone: the subscriptions that notify it, deleted (doc/websocket.md)
 //
+// A tracked subscription is read first: changed since over HTTP, or over another connection, to notify
+// elsewhere, it is not this connection's any more, and stays.
+//
+typedef struct EndpointCtx
+{
+  const char*  connUri;                              // this connection's id
+  bool         here;                                 // the subscription notifies it
+} EndpointCtx;
+
+static void endpointRespond(int status, CorRestKeyValue* headerV, int headers, const char* body, int bodyLen, void* ctx)
+{
+  EndpointCtx* eP = (EndpointCtx*) ctx;
+
+  (void) headerV; (void) headers;
+
+  if ((status != 200) || (body == NULL) || (bodyLen <= 0))
+    return;
+
+  CorAlloc ka;
+  char     kaBuf[8 * 1024];
+  CorJson  corJson;
+
+  corAllocBufferInit(&ka, kaBuf, sizeof(kaBuf), 64 * 1024, NULL, "transport endpoint");
+  corJsonCreate(&corJson, &ka);
+
+  char* copy = (char*) corAlloc(&ka, bodyLen + 1);
+
+  if (copy != NULL)
+  {
+    memcpy(copy, body, bodyLen);
+    copy[bodyLen] = 0;
+
+    CorNode* treeP     = corJsonParse(&corJson, copy);
+    CorNode* notifP    = ((treeP != NULL) && (treeP->type == CorObject)) ? corTreeLookup(treeP, "notification") : NULL;
+    CorNode* endpointP = (notifP != NULL) ? corTreeLookup(notifP, "endpoint") : NULL;
+    CorNode* uriP      = (endpointP != NULL) ? corTreeLookup(endpointP, "uri") : NULL;
+
+    eP->here = (uriP != NULL) && (uriP->type == CorString) && (strcmp(uriP->value.s, eP->connUri) == 0);
+  }
+
+  corAllocBufferReset(&ka, false);
+}
+
 static void hostClosed(int connId)
 {
   pthread_mutex_lock(&connMutex);
@@ -505,18 +565,36 @@ static void hostClosed(int connId)
   if (cP == NULL)
     return;
 
+  char connUri[64];
+
+  snprintf(connUri, sizeof(connUri), CONN_PREFIX "%s-%d", bootId, connId);
+
   for (int i = 0; i < cP->ownN; i++)
   {
     CorRestKeyValue tenantH = { (char*) "NGSILD-Tenant", cP->ownV[i].tenant };
+    int             tenants = (cP->ownV[i].tenant != NULL) ? 1 : 0;
+    EndpointCtx     e       = { connUri, false };
 
 #if COR_FEATURE_AUTH
-    authTrustNext();     // the broker's own request: the connection that created the subscription is gone
+    authTrustNext();     // the broker's own requests: the connection the subscription notifies is gone
 #endif
-    corRestRunJson("DELETE", cP->ownV[i].path, &tenantH, (cP->ownV[i].tenant != NULL) ? 1 : 0, NULL, 0, runIgnore, NULL);
+    corRestRunJson("GET", cP->ownV[i].path, &tenantH, tenants, NULL, 0, endpointRespond, &e);
 #if COR_FEATURE_AUTH
     authTrustClear();
 #endif
-    COR_I("transport: connection %d closed - '%s' (tenant %s) deleted", connId, cP->ownV[i].path, (cP->ownV[i].tenant != NULL) ? cP->ownV[i].tenant : "default");
+
+    if (e.here == true)
+    {
+#if COR_FEATURE_AUTH
+      authTrustNext();
+#endif
+      corRestRunJson("DELETE", cP->ownV[i].path, &tenantH, tenants, NULL, 0, runIgnore, NULL);
+#if COR_FEATURE_AUTH
+      authTrustClear();
+#endif
+      COR_I("transport: connection %d closed - '%s' (tenant %s) deleted", connId, cP->ownV[i].path, (cP->ownV[i].tenant != NULL) ? cP->ownV[i].tenant : "default");
+    }
+
     free(cP->ownV[i].path);
     free(cP->ownV[i].tenant);
   }
@@ -586,6 +664,7 @@ static void hostMessage(int connId, const char* text, int len)
   CorNode* notifP    = ((bodyP != NULL) && (bodyP->type == CorObject)) ? corTreeLookup(bodyP, "notification") : NULL;
   CorNode* endpointP = (notifP != NULL) ? corTreeLookup(notifP, "endpoint") : NULL;
   CorNode* uriP      = (endpointP != NULL) ? corTreeLookup(endpointP, "uri") : NULL;
+  int      endpoint  = ((uriP == NULL) || (uriP->type != CorString)) ? -1 : (connIdOf(uriP->value.s) == connId) ? 1 : 0;
 
   if ((uriP != NULL) && (uriP->type == CorString) && (strncmp(uriP->value.s, CONN_PREFIX, CONN_PREFIX_LEN) == 0) && (connIdOf(uriP->value.s) != connId))
   {
@@ -642,7 +721,7 @@ static void hostMessage(int connId, const char* text, int len)
     }
   }
 
-  RunCtx run = { connId, requestId, methodP->value.s, path, tenant };
+  RunCtx run = { connId, requestId, methodP->value.s, path, tenant, endpoint };
 
   //
   // The connection runs a request of its own, on this thread: what transportEndpointOwn asks, when the
@@ -943,6 +1022,127 @@ bool transportNotifySend(const char* uri, const char* payload)
   pthread_mutex_unlock(&connMutex);
 
   return (driverP != NULL) && driverP->send(connId, payload, strlen(payload));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Leftover - a subscription of another run's connection, to delete
+//
+typedef struct Leftover
+{
+  char*             path;                            // /ngsi-ld/v1/subscriptions/<id> or /ngsi-ld/v1/csourceSubscriptions/<id>
+  char*             tenant;                          // NULL: the default tenant
+  struct Leftover*  next;
+} Leftover;
+
+static Leftover* leftoverAdd(Leftover* list, const char* base, const char* subId, const char* tenant)
+{
+  Leftover* lP = (Leftover*) calloc(1, sizeof(Leftover));
+
+  if (lP == NULL)
+    return list;
+
+  int size = strlen(base) + 1 + strlen(subId) + 1;
+
+  lP->path   = (char*) malloc(size);
+  lP->tenant = ((tenant != NULL) && (tenant[0] != 0)) ? strdup(tenant) : NULL;
+  lP->next   = list;
+
+  if (lP->path == NULL)
+  {
+    free(lP->tenant);
+    free(lP);
+    return list;
+  }
+
+  snprintf(lP->path, size, "%s/%s", base, subId);
+  return lP;
+}
+
+static bool leftoverUri(const char* uri)
+{
+  return (transportUri(uri) == true) && (connIdOf(uri) < 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportLeftoversDelete - the subscriptions of a run that is gone, deleted
+//
+// A broker killed, or crashed, deletes nothing: with a persistent store its connections' subscriptions
+// are there at the next start, matched on every write, notifying no one. Every subscription and context
+// source subscription whose endpoint is the connection of another run is deleted, in every tenant. The
+// caches are walked, not the store: they hold every subscription, loaded at start.
+//
+// Not with --high-availability: another instance's run is not this one's either, and it may be alive.
+//
+void transportLeftoversDelete(void)
+{
+  Leftover* list = NULL;
+
+  for (Tenant* tP = &tenant0; tP != NULL; tP = (tP == &tenant0) ? __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE) : tP->next)
+  {
+    const char*     tenant = tenantApiName(tP);
+    LdSubCache*     subsP  = (LdSubCache*) tP->subCacheP;
+    LdSubCache*     csubsP = (LdSubCache*) tP->regSubCacheP;
+    LdPernotCache*  pernotP = (LdPernotCache*) tP->pernotCacheP;
+
+    if (subsP != NULL)
+    {
+      ldSubCacheRdLock(subsP);
+      for (LdSubCacheItem* iP = subsP->itemList; iP != NULL; iP = iP->next)
+      {
+        if (leftoverUri(iP->endpointUri) == true)
+          list = leftoverAdd(list, SUBS_PATH, iP->subId, tenant);
+      }
+      ldSubCacheUnlock(subsP);
+    }
+
+    if (pernotP != NULL)
+    {
+      ldPernotCacheRdLock(pernotP);
+      for (LdPernotItem* iP = pernotP->head; iP != NULL; iP = iP->next)
+      {
+        if (leftoverUri(iP->endpointUri) == true)
+          list = leftoverAdd(list, SUBS_PATH, iP->subId, tenant);
+      }
+      ldPernotCacheUnlock(pernotP);
+    }
+
+    if (csubsP != NULL)
+    {
+      ldSubCacheRdLock(csubsP);
+      for (LdSubCacheItem* iP = csubsP->itemList; iP != NULL; iP = iP->next)
+      {
+        if (leftoverUri(iP->endpointUri) == true)
+          list = leftoverAdd(list, CSUBS_PATH, iP->subId, tenant);
+      }
+      ldSubCacheUnlock(csubsP);
+    }
+  }
+
+  while (list != NULL)
+  {
+    Leftover*       lP      = list;
+    CorRestKeyValue tenantH = { (char*) "NGSILD-Tenant", lP->tenant };
+
+#if COR_FEATURE_AUTH
+    authTrustNext();     // the broker's own request: the connection the subscription notified is of a run that is gone
+#endif
+    corRestRunJson("DELETE", lP->path, &tenantH, (lP->tenant != NULL) ? 1 : 0, NULL, 0, runIgnore, NULL);
+#if COR_FEATURE_AUTH
+    authTrustClear();
+#endif
+    COR_I("transport: '%s' (tenant %s) deleted - it notified a connection of another run", lP->path, (lP->tenant != NULL) ? lP->tenant : "default");
+
+    list = lP->next;
+    free(lP->path);
+    free(lP->tenant);
+    free(lP);
+  }
 }
 
 

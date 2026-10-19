@@ -1,0 +1,193 @@
+#
+# FILE            websocket_subscription_lifetime.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+# What a WebSocket connection takes with it (doc/websocket.md, "Subscriptions"). When it closes, the
+# subscriptions that notify it are deleted - also one changed over the connection to notify it, and in
+# every tenant - and only those: one made over the connection that notifies an HTTP endpoint is the
+# client's, and stays, and so does one changed since, over HTTP, to notify elsewhere. A broker killed
+# (kill -9) deletes nothing; at its next start, every subscription, periodic subscription and context source
+# subscription that notifies a connection of another run is deleted, in every tenant - and nothing else.
+#
+--NAME--
+WebSocket - a connection's subscriptions go when it closes, a killed run's when the broker starts; the rest stay
+
+--TAGS--
+websocket subscription
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. Connect A; an entity in tenant t1, so that the tenant exists
+# 02. Over A: S1 notifies A, S2 notifies HTTP, S5 notifies A in tenant t1
+# 03. Over HTTP: S3 notifies HTTP; over A, S3 changed to notify A
+# 04. Over A: S4 notifies A; over HTTP, S4 changed to notify HTTP
+# 05. Close A - the subscriptions left: S2, S4 (default tenant), none in t1
+# 06. Connect B; an entity in tenant t2. Over B: S6 notifies B, S7 (periodic) notifies B, S8 notifies B in t2,
+#     S9 notifies HTTP, the context source subscription C1 notifies B
+# 07. kill -9 the broker, start it again - the subscriptions left: S2, S4, S9; no context source
+#     subscription; none in t2
+#
+
+connOf()  { ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])'; }
+status()  { ftWsMessages | python3 -c 'import json,sys; m=json.load(sys.stdin)['"$1"']["metadata"]; print(m["requestId"], m["status"])'; }
+ids()     { curl -s "localhost:1026/ngsi-ld/v1/$1" ${2:+-H "NGSILD-Tenant: $2"} | python3 -c 'import json,sys; print(sorted(s["id"] for s in json.load(sys.stdin)))'; }
+wsPost()  { ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/'"$1"'","requestId":"'"$2"'","Content-Type":"application/json"'"$4"'},"body":'"$3"'}'; }
+wsPatch() { ftWsSend '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/subscriptions/'"$1"'","requestId":"'"$2"'","Content-Type":"application/json"},"body":'"$3"'}'; }
+sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription","entities":[{"type":"Vehicle"}]'"$3"',"notification":{"endpoint":{"uri":"'"$2"'"}}}'; }
+HTTP=http://localhost:9997/notify
+
+
+echo "01. Connect A; an entity in tenant t1, so that the tenant exists"
+echo "================================================================"
+ftWsStart
+ftWsAwait 1
+A=$(connOf)
+corCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t1" --payload '{ "id": "urn:ngsi-ld:Vehicle:T1", "type": "Vehicle" }' | head -1
+echo
+echo
+
+
+echo "02. Over A: S1 notifies A, S2 notifies HTTP, S5 notifies A in tenant t1"
+echo "========================================================================"
+wsPost subscriptions s1 "$(sub S1 $A)"
+wsPost subscriptions s2 "$(sub S2 $HTTP)"
+wsPost subscriptions s5 "$(sub S5 $A)" ',"NGSILD-Tenant":"t1"'
+ftWsAwait 4
+status 1
+status 2
+status 3
+echo
+echo
+
+
+echo "03. Over HTTP: S3 notifies HTTP; over A, S3 changed to notify A"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$(sub S3 $HTTP)" | head -1
+wsPatch urn:ngsi-ld:Subscription:S3 p3 '{"notification":{"endpoint":{"uri":"'"$A"'"}}}'
+ftWsAwait 5
+status 4
+echo
+echo
+
+
+echo "04. Over A: S4 notifies A; over HTTP, S4 changed to notify HTTP"
+echo "==============================================================="
+wsPost subscriptions s4 "$(sub S4 $A)"
+ftWsAwait 6
+status 5
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S4 -X PATCH --payload '{"notification":{"endpoint":{"uri":"'"$HTTP"'"}}}' | head -1
+echo
+echo
+
+
+echo "05. Close A - the subscriptions left: S2, S4 (default tenant), none in t1"
+echo "========================================================================"
+ftWsClose
+ftWsAwait 7
+sleep 0.3
+ids subscriptions
+ids subscriptions t1
+echo
+echo
+
+
+echo "06. Connect B; an entity in tenant t2. Over B: S6, S7 (periodic), S8 in t2, C1 notify B; S9 notifies HTTP"
+echo "=========================================================================================================="
+ftWsStart
+ftWsAwait 1
+B=$(connOf)
+corCurl --url /ngsi-ld/v1/entities -H "NGSILD-Tenant: t2" --payload '{ "id": "urn:ngsi-ld:Vehicle:T2", "type": "Vehicle" }' | head -1
+wsPost subscriptions s6 "$(sub S6 $B)"
+wsPost subscriptions s7 "$(sub S7 $B ',"timeInterval":3600')"
+wsPost subscriptions s8 "$(sub S8 $B)" ',"NGSILD-Tenant":"t2"'
+wsPost subscriptions s9 "$(sub S9 $HTTP)"
+wsPost csourceSubscriptions c1 "$(sub C1 $B)"
+ftWsAwait 6
+for i in 1 2 3 4 5; do status $i; done
+ids subscriptions
+ids csourceSubscriptions
+ids subscriptions t2
+echo
+echo
+
+
+echo "07. kill -9 the broker, start it again - left: S2, S4, S9; no context source subscription; none in t2"
+echo "====================================================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+ftWsStop
+coraineStart --transports ws
+ids subscriptions
+ids csourceSubscriptions
+ids subscriptions t2
+echo
+echo
+
+
+--EXPECT--
+01. Connect A; an entity in tenant t1, so that the tenant exists
+================================================================
+HTTP/1.1 201 Created
+
+
+02. Over A: S1 notifies A, S2 notifies HTTP, S5 notifies A in tenant t1
+========================================================================
+s1 201
+s2 201
+s5 201
+
+
+03. Over HTTP: S3 notifies HTTP; over A, S3 changed to notify A
+===============================================================
+HTTP/1.1 201 Created
+p3 204
+
+
+04. Over A: S4 notifies A; over HTTP, S4 changed to notify HTTP
+===============================================================
+s4 201
+HTTP/1.1 204 No Content
+
+
+05. Close A - the subscriptions left: S2, S4 (default tenant), none in t1
+========================================================================
+['urn:ngsi-ld:Subscription:S2', 'urn:ngsi-ld:Subscription:S4']
+[]
+
+
+06. Connect B; an entity in tenant t2. Over B: S6, S7 (periodic), S8 in t2, C1 notify B; S9 notifies HTTP
+==========================================================================================================
+HTTP/1.1 201 Created
+s6 201
+s7 201
+s8 201
+s9 201
+c1 201
+['urn:ngsi-ld:Subscription:S2', 'urn:ngsi-ld:Subscription:S4', 'urn:ngsi-ld:Subscription:S6', 'urn:ngsi-ld:Subscription:S7', 'urn:ngsi-ld:Subscription:S9']
+['urn:ngsi-ld:Subscription:C1']
+['urn:ngsi-ld:Subscription:S8']
+
+
+07. kill -9 the broker, start it again - left: S2, S4, S9; no context source subscription; none in t2
+=====================================================================================================
+['urn:ngsi-ld:Subscription:S2', 'urn:ngsi-ld:Subscription:S4', 'urn:ngsi-ld:Subscription:S9']
+[]
+[]
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop
