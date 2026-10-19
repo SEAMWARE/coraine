@@ -9,7 +9,7 @@ the client, as with a WebSocket; unlike a WebSocket, the stream is plain HTTP, a
 reconnects and is sent what it missed.
 
 ```console
-curl -N -H 'Accept: text/event-stream' http://localhost:1026/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1/events
+curl -N -H 'Accept: text/event-stream' 'http://localhost:1026/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1/events?key=3f9c...'
 ```
 
 ```text
@@ -55,6 +55,24 @@ A subscription is delivered on an event stream when its endpoint says so:
   context.
 - Allowed for context source subscriptions too (`/csourceSubscriptions/{id}/events`).
 
+**The stream key.** Creating such a subscription makes a key for its stream - 128 random bits, hex - and
+the creation's response gives it, once, as the stream's address:
+
+```text
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1
+Event-Stream: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1/events?key=3f9c...
+```
+
+- Only the creator ever sees it: `GET /subscriptions/{id}` does not show it, nor does any other response.
+  The store keeps its SHA-256, not the key - it survives a restart, and a copy of the database does not
+  open the stream.
+- A `PATCH` that sets the endpoint to `urn:ngsi-ld:EventStream` again makes a new key (the same
+  `Event-Stream` header in its response) and closes an open stream: a key that leaked is replaced.
+- A `PATCH` to any other endpoint drops the key and the ring.
+- `Event-Stream` is in `Access-Control-Expose-Headers`, so a page can read it. Over a WebSocket it is in
+  the response's `metadata`, as every header is.
+
 A subscription with this endpoint and no stream open is not failing: its notifications wait in its buffer
 (§ 4), and `status` stays `active`. `timesSent` and `lastNotification` count what was written to a stream.
 
@@ -65,7 +83,8 @@ A subscription with this endpoint and no stream open is not failing: its notific
 | | Status |
 |---|---|
 | the subscription does not exist, in the request's tenant | 404 |
-| its endpoint is not `urn:ngsi-ld:EventStream` | 400 |
+| no `key`, or not the subscription's | 404 - the same answer, so that a wrong key does not tell an id exists |
+| its endpoint is not `urn:ngsi-ld:EventStream` | 404 - likewise |
 | a stream is already open on it | 409 - one reader per subscription |
 | `Accept` without `text/event-stream` | 406 |
 
@@ -110,12 +129,21 @@ durable form, and later (§ 8).
 
 ## 5. Who may read it
 
-The stream is a read of the subscription: `authorize` decides it as for `GET /subscriptions/{id}`, and
-the reader must be the subscription's **owner** (the identity it was made with, as `notify` uses since
-ABI 5). Without `--auth` anyone who has the id may read it - as anyone may `GET` it today.
+Two checks, the second only with `--auth`:
 
-The problem is the browser: `EventSource` sends **no headers of its own** - no `Authorization`, no
-`NGSILD-Tenant`. Three ways, and the choice is open:
+1. **The key** (§ 2), always. Without `--auth` it is the only one: who has the stream's address may read
+   it, and only the subscription's creator was given it. A subscription id alone - a client may choose
+   `urn:ngsi-ld:Subscription:s1` - opens nothing. The one-reader rule (409) then cannot be used to lock the
+   creator out by someone who guessed the id.
+2. **The owner**, with `--auth`: the stream is a read of the subscription - `authorize` decides it as for
+   `GET /subscriptions/{id}` - and the reader must be the subscription's owner (the identity it was made
+   with, as `notify` uses since ABI 5). A key without the owner's token is 403.
+
+The key is in the URL, so it can land in access logs and proxies. It opens one subscription's stream,
+nothing else, and a `PATCH` replaces it.
+
+With the key in the URL, `EventSource` - which sends **no headers of its own** - works without
+`--auth`. With `--auth` the owner's token still has to reach the broker, and the choice is open:
 
 | | Header token | Query token | Cookie |
 |---|---|---|---|
@@ -141,7 +169,7 @@ this route. The tenant, for `EventSource`: `?tenant=` on this route only, with t
 
 Not in the specification: its bindings are HTTP and MQTT (and coraine's WebSocket). It solves for a
 reader what MQTT solves - a broker that cannot reach the client - without a second server, and is worth
-proposing to ETSI once it runs: the endpoint value, the route, the event and its id.
+proposing to ETSI once it runs: the endpoint value, the route, the stream key, the event and its id.
 
 ## 8. Not in the first version
 
