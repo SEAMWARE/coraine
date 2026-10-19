@@ -150,6 +150,10 @@ product is heading and may wish to get involved.
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
 -   **c³ - Connect** - the Control Center connected live to a running broker over its WebSocket transport (queries, then a subscription's notifications): its entities, their relationships as a graph (boxes and arrows, zoom, pan, entities dragged into place), the GeoProperty entities on a map, their values as they change; also as an API plugin of the broker itself. ([more](ideas.md#c-the-coraine-control-center))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
+-   **Cold storage for history in Parquet** - older history moved out of the TRoE store into Parquet
+    files (on disk or object storage), compressed and columnar, queried through embedded DuckDB:
+    cheap storage for years of history and fast wide aggregations. Recent history, and its ingest, stay
+    in the hot store. Not for current state.
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
 -   **Broader performance regression coverage** - more scenarios, nightly. ([more](ideas.md#broader-performance-regression-coverage))
 
