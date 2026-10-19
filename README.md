@@ -56,6 +56,8 @@ Overflow.
 ## Table of contents
 
 - [Quick start](#quick-start) ← **start here**
+  - [Install with apt](#install-with-apt) - Ubuntu and Debian, amd64 and arm64
+- [c³ - the coraine Control Center](#c³---the-coraine-control-center) - compile, connect, view, map
 - [Footprint and speed](#footprint-and-speed)
 - [Plugin architecture](#plugin-architecture)
 - [Running](#running)
@@ -72,7 +74,7 @@ Overflow.
 ## Quick start
 
 A published image, an in-memory store, no external services. One command, and the
-broker answers NGSI-LD on port 1026:
+broker answers NGSI-LD on port 1026 (or install the Debian package - [Install with apt](#install-with-apt)):
 
 ```sh
 docker run --rm -p 1026:1026 \
@@ -113,6 +115,54 @@ The images are **multi-arch: linux/amd64 and linux/arm64** (from
 `0.4.0-2026-10-08-e8bd0edc` on) — the same tag pulls the image for the machine it
 runs on. `<tag>-amd64` and `<tag>-arm64` pin one architecture. The arm64 image is
 built without the DDS bridge.
+
+### Install with apt
+
+Debian packages for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 (trixie)**, on **amd64** and
+**arm64**, from the signed apt repository **https://seamware.github.io/apt**:
+
+```sh
+curl -fsSL https://seamware.github.io/apt/coraine.gpg | sudo tee /usr/share/keyrings/coraine.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] https://seamware.github.io/apt $(. /etc/os-release; echo $VERSION_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/coraine.list
+sudo apt update && sudo apt install coraine        # or coraine-dev
+```
+
+- **`coraine`** - the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge, and
+  the systemd unit `coraine.service` with its options in `/etc/default/coraine`. The service is installed
+  but **not enabled and not started**: the broker listens on every interface and has no authentication of
+  its own until it is configured.
+- **`coraine-dev`** - `coraine-build`, the exact source of the same version and the toolchain to build it:
+  a broker of your own, with the features you choose (c³'s Compile drives it).
+
+The component `main` holds the releases, `testing` the builds between them. The service, the options
+file and installing a `.deb` without the repository are in
+[Installation & Administration](doc/installation.md#install-with-apt).
+
+---
+
+## c³ - the coraine Control Center
+
+![c³ Connect: Boston's bike stations and districts, live from a coraine broker, on the map](doc/images/c3-connect-map.jpg)
+
+**c³** is one application for everything around a coraine broker - it runs on your machine and opens
+in a browser window of its own:
+
+- **Compile** - a broker built for a deployment: the features compiled in or out, the build's output
+  followed live, the builds kept. It drives `coraine-build` from the `coraine-dev` package.
+- **Run** - brokers started and stopped, natively or in a container, with the services they need:
+  MongoDB, PostgreSQL/TimescaleDB, Mosquitto - and each broker's options and bridges set in a form.
+- **Connect and view** - a live connection to a running broker: its entities as boxes and their
+  Relationships as arrows (zoom, pan, entities dragged into place, an entity's linked entities and
+  neighbourhood); the entities with a GeoProperty on a map - online, or from areas downloaded for use
+  offline; and the values changing as they change, over the broker's [WebSocket](doc/websocket.md)
+  transport.
+- **The mapping tool** - a device's data model onto entities and attributes. For **OPC UA** today: the
+  server's nodes browsed as the broker's bridge sees them, and a Variable made an attribute of an entity
+  (a Channel) with one click. DDS topics, services and actions, and the CKAN and CSV columns, next.
+- **AI assist** - coming soon.
+
+**The complete documentation of c³ is its repository: [SEAMWARE/c3](https://github.com/SEAMWARE/c3).**
 
 ---
 
