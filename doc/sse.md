@@ -143,15 +143,17 @@ The key is in the URL, so it can land in access logs and proxies. It opens one s
 nothing else, and a `PATCH` replaces it.
 
 With the key in the URL, `EventSource` - which sends **no headers of its own** - works without
-`--auth`. With `--auth` the owner's token still has to reach the broker, and the choice is open:
+`--auth`. With `--auth` the owner's token comes in the **`Authorization` header**, as on every other
+route (decided, KZ 2026-10-19). A browser page then reads the stream with `fetch()` and a streamed body
+instead of `EventSource`, and reconnects itself, sending `Last-Event-ID` (~30 lines).
 
-| | Header token | Query token | Cookie |
-|---|---|---|---|
-| how | `fetch()` with a streamed body, `Authorization` set; reconnect written by the client (~30 lines) | `?access_token=` (RFC 6750 § 2.3), with `EventSource` | the provider's session cookie |
-| cost | no `EventSource` | the token in access logs, proxies, browser history | a session the broker does not have |
+- **No query token** (`?access_token=`, RFC 6750 § 2.3): it would put the token in access logs, proxies
+  and browser history.
+- **No cookie**: the broker has no session.
 
-Proposal: the header always; the query token **off** by default, on with `--sseQueryToken`, and only on
-this route. The tenant, for `EventSource`: `?tenant=` on this route only, with the header winning.
+The tenant: the `NGSILD-Tenant` header, or `?tenant=` on this route only - for `EventSource` without
+`--auth`; the header wins. The `Event-Stream` address the broker gives carries `tenant=` for a
+subscription outside the default tenant.
 
 ## 6. Deployment
 
