@@ -42,6 +42,7 @@ cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 | see what an alternative provider side for the Data Space Connector, built on coraine, would be - a proposal | [A Cor Data Space Connector](cor-data-space-connector.md) |
 | see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |
 | use the API over a WebSocket and get the notifications on it | [WebSocket](websocket.md) |
+| read a subscription's notifications as an event stream, over plain HTTP (design) | [Server-Sent Events](sse.md) |
 | ask an entity to do something - services, executions, executors | [Service Execution](service-execution.md) |
 | see an entity, or a query's entities, as they were at a point in time | [Timepoint](timepoint.md) |
 | see where a request runs - inline, as a coroutine, on a worker - and how it waits | [Coroutines](coroutines.md) |
