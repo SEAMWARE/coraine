@@ -43,7 +43,8 @@ WARN_PCT, FAIL_PCT, WINDOW = 20.0, 50.0, 5
 # and p95 rows read as -60 % to -99 % collapses.
 #
 def lowerIsBetter(metric):
-    return re.search(r"_p\d+us$", metric) is not None
+    # a latency, a time taken (big_fill_s), a memory size (big_broker_rss_kib)
+    return re.search(r"(_p\d+us|_s|_kib)$", metric) is not None
 
 #
 # cpu - the machine this run is on, as perfRecord.py records it
@@ -81,7 +82,7 @@ try:
 except FileNotFoundError:
     pass
 
-metrics = [k for k in today if k not in ("db", "date", "sha", "run", "cpu")]
+metrics = [k for k in today if k not in ("db", "date", "sha", "run", "cpu", "big_entities")]   # big_entities: the size, not a result
 print(f"### Performance — `{db}`\n")
 print(f"On `{machine}` - compared with the {min(len(history), WINDOW)} latest runs on the same CPU.\n")
 print("| metric | now | median of last %d | change | | " % WINDOW)
