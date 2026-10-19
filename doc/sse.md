@@ -49,7 +49,7 @@ A subscription is delivered on an event stream when its endpoint says so:
 ```
 
 - `urn:ngsi-ld:EventStream` - one fixed value: the stream is found by the subscription's id, there is
-  nothing else to name. Any other value is delivered as today.
+  nothing else to name. (Decided, KZ 2026-10-19.) Any other value is delivered as today.
 - `accept`: `application/ld+json` (the default here) puts the `@context` in each notification's body - an
   event has no `Link` header to carry it; `application/json` leaves it out, for a client that knows its
   context.
