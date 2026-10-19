@@ -1648,6 +1648,73 @@ databases in containers on the host network, 2026-10-05:
   names. And a corDB record decodes on its own, so each one carries its attributes' expanded IRIs
   (`https://uri.etsi.org/ngsi-ld/default-context/speed`) again: most of its 744 bytes.
 
+### A store of one and ten million entities
+
+perfRun's larger store at `PERF_BIG_ENTITIES=1000000` and `10000000`: perfRun's fixture entity (five
+attributes, ~550 bytes of JSON), 1 % of type `R1`, 0.1 % of type `R01`, the rest `Common`. The store is
+filled with batch creates of 500, one after the other from one client. Then, on random entities of the
+whole store:
+
+- `big_retrieve`: GET by id.
+- `big_patch`: PATCH of one attribute.
+- `big_create`: POST of new entities, measured last because it grows the store.
+
+| | |
+|---|---|
+| Machine | AMD Ryzen 9 8940HX, 16 cores / 32 threads, 60 GiB; laptop, mains power, nothing else running |
+| Broker | coraine 0.6.0-dev release build (main, b23e42f0), libmicrohttpd, not pinned to cores |
+| Load | `test/perf/perfRun.sh <db>` with `PERF_BIG_ENTITIES`, its defaults otherwise (5 s x 3 per scenario, the median of the three, 50 connections) |
+| mongoc | MongoDB 8.2 in a container (`mongo:8.2`) on the host network |
+| corDB | `--dbDir` (`PERF_DB_DIR`) on the local NVMe, the durable configuration |
+| Date | 2026-10-19 |
+
+**Requests a second, c50 (p50 in µs):**
+
+| Scenario | mongoc 1M | mongoc 10M | corDB 1M | corDB 10M |
+|---|---:|---:|---:|---:|
+| `big_retrieve` | 59 815 (756) | 59 167 (765) | 483 327 (84) | 496 014 (82) |
+| `big_patch` | 18 880 (2 481) | 17 561 (2 670) | 91 261 (532) | 95 810 (442) |
+| `big_create` | 48 215 (935) | 48 469 (924) | 84 597 (510) | 101 186 (451) |
+| `big_r1_l20`, first page of a 1 % type | 16 670 (2 837) | 17 188 (2 750) | 78 832 (517) | 83 418 (522) |
+| `big_r1_l20_o1000`, `offset=1000` | 1 409 (33 837) | 1 424 (33 418) | 2 093 (20 072) | 1 942 (19 584) |
+| `big_r01_l20`, first page of a 0.1 % type | 16 474 (2 845) | 16 551 (2 834) | 22 462 (1 709) | 25 042 (1 556) |
+| `big_r01_l20_o200`, `offset=200` | 5 300 (8 967) | 5 321 (8 922) | 814 (62 021) | 852 (41 815) |
+
+The same requests on the same run's 100-entity fixture (`retrieve_c50`, `patch_c50`, `create_c50`):
+
+| | mongoc 1M | mongoc 10M | corDB 1M | corDB 10M |
+|---|---:|---:|---:|---:|
+| `retrieve_c50` | 61 845 | 61 642 | 588 953 | 603 266 |
+| `patch_c50` | 18 879 | 18 892 | 104 697 | 106 284 |
+| `create_c50` | 50 505 | 49 525 | 87 405 | 88 313 |
+
+**What holding the store costs**, read right after the fill:
+
+| | mongoc 1M | mongoc 10M | corDB 1M | corDB 10M |
+|---|---:|---:|---:|---:|
+| Fill, seconds | 244.2 | 2 429.7 | 237.0 | 2 358.7 |
+| Broker RSS | 125 MiB | 125 MiB | 2.04 GiB | 19.5 GiB |
+| mongod RSS | 1.25 GiB | 1.77 GiB | — | — |
+| MongoDB documents (`dataSize`) | 768 MiB | 7.5 GiB | — | — |
+| MongoDB on disk (`storageSize` + `indexSize`, after `fsync`) | 128 MiB | 1.27 GiB | — | — |
+| corDB `--dbDir` (`du`) | — | — | 602 MiB | 5.9 GiB |
+
+- **Ten times the store, the same rates.** From 1M to 10M, every scenario moved by 6 % or less, with four
+  exceptions. Dropped: mongoc's PATCH (-7 %) and corDB's R1 deep page (-7 %). Rose: corDB's create (+20 %)
+  and its first R01 page (+11 %).
+- **Against the 100-entity fixture, at 10M:** mongoc is 2-7 % slower. corDB's retrieve is 18 % slower,
+  its PATCH 10 % slower, and its create 15 % faster.
+- **mongoc: the broker does not grow with the store.** It holds 125 MiB at one million and at ten.
+  mongod's RSS grows by half a GiB.
+- **corDB: an entity is RAM, ~2.0 KiB of it** at one and ten million (2.14 and 2.05 KiB a resident
+  entity). That is less than the [RAM](#ram) section's 3.5 KiB at 100 000. On disk an entity takes ~630
+  bytes, in either size.
+- **The fill time is the client's.** One `curl` per batch of 500, one after the other, takes the same
+  ~240 µs an entity on both databases. It grows linearly with the store and does not measure the broker.
+- **corDB's deep page of a rare type is slow.** `big_r01_l20_o200` runs at 814 / 852 a second, against
+  mongoc's 5 300. The rate does not depend on the store's size, 1M or 10M, but on the offset into the
+  type. Its first page, and the deep page of the 1 % type, are faster than mongoc's.
+
 ## The HTTP server
 
 ### libmicrohttpd 1.0.10 against 1.0.2
