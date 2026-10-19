@@ -50,6 +50,7 @@ nav:
   - The MQTT bridge: mqtt-bridge.md
   - The cor format and cor://: cor-protocol.md
   - WebSocket: websocket.md
+  - Server-Sent Events: sse.md
   - Timepoint - an entity as it was: timepoint.md
   - Coroutines: coroutines.md
   - Authorization in the broker: authorization.md
