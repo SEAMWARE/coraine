@@ -13,6 +13,11 @@
 # killed (kill -9) deletes nothing, its subscriptions stay in the store until its next start - and the ids,
 # starting again at 1, let the next client to be connection 1 receive another client's notifications.
 #
+# Not under valgrind (-vt): the broker is killed (kill -9) on purpose - a killed memcheck leaves an
+# incomplete report, which is no verdict on the broker's memory.
+#
+# SKIP_VALGRIND: on
+#
 --NAME--
 WebSocket - a connection is the endpoint only of what is made over it; an id of another run names no connection
 --TAGS--

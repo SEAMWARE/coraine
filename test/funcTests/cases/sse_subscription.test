@@ -17,6 +17,11 @@
 # a stream the same way. A broker killed (kill -9) leaves its
 # stream subscriptions in the store; the next start deletes them, and only them.
 #
+# Not under valgrind (-vt): the broker is killed (kill -9) on purpose - a killed memcheck leaves an
+# incomplete report, which is no verdict on the broker's memory.
+#
+# SKIP_VALGRIND: on
+#
 --NAME--
 SSE - a subscription on urn:ngsi-ld:self is made on its stream and lives as long as it
 

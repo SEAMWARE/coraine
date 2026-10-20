@@ -28,7 +28,7 @@
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
-#include "corRest/corRest.h"                        // corRestInit, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
+#include "corRest/corRest.h"                        // corRestPrepare, corRestStart, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
 #include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet, corRestConnectionMemorySet
 #include "corRest/corRestStop.h"                     // corRestStop
 #include "corRest/corRestClient.h"                  // corRestClientInit, corRestClientTlsInsecureSet
@@ -2164,16 +2164,19 @@ int main(int argC, char* argV[])
   if (poolSize == 0)
     poolSize = ((inlineDispatchNeverWaits() == true) && (distributed == false)) ? corCpuCount() : 32;
 
-  if (corRestInit(allServices, totalServices, (unsigned short) port, poolSize) != 0)
-    COR_X(1, "corRestInit failed on port %u", port);
-  free(allServices);   // corRestInit copied every entry into its per-verb tables
+  if (corRestPrepare(allServices, totalServices, poolSize) != 0)
+    COR_X(1, "corRestPrepare failed");
+  free(allServices);   // corRestPrepare copied every entry into its per-verb tables
 
-  COR_I("coraine running on port %u", port);
-
+  //
+  // What a killed broker left in the store, deleted through the service routines - and BEFORE the HTTP
+  // server accepts its first connection: a client must not see them, nor have a notification of theirs
+  // matched for it.
+  //
 #if COR_FEATURE_TRANSPORTS
   //
-  // The WebSocket subscriptions a killed broker left in the store - through the service routines, so only
-  // now. With --high-availability they may be another instance's, alive (doc/roadmap.md).
+  // The WebSocket subscriptions. With --high-availability they may be another instance's, alive
+  // (doc/roadmap.md).
   //
   if (haChannel == NULL)
     transportLeftoversDelete();
@@ -2181,12 +2184,17 @@ int main(int argC, char* argV[])
 
 #if COR_FEATURE_SSE
   //
-  // The subscriptions on an event stream a killed broker left in the store - no stream outlives its
-  // broker. With --high-availability another instance may be serving them.
+  // The subscriptions on an event stream - no stream outlives its broker. With --high-availability
+  // another instance may be serving them.
   //
   if (haChannel == NULL)
     sseLeftoversDelete();
 #endif
+
+  if (corRestStart((unsigned short) port, poolSize) != 0)
+    COR_X(1, "corRestStart failed on port %u", port);
+
+  COR_I("coraine running on port %u", port);
 
 #if COR_FEATURE_POLICY_API
   if ((policyApiPort != 0) && (policyApiStart(policyApiHost, policyApiPort) == false))

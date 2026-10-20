@@ -293,6 +293,8 @@ static const char* loopbackMeta(const char* endpoint)
 //
 static LoopbackMeta  statusIns[LOOPBACK_CHANNELS_MAX];   // endpoint -> "statusIn" (loopbackStatusInPair)
 static int           statusInCount = 0;
+static LoopbackMeta  payloadChecks[LOOPBACK_CHANNELS_MAX];   // endpoint -> "payloadCheck" (loopbackPayloadCheckPair)
+static int           payloadCheckCount = 0;
 
 static LoopbackMeta  echoes[LOOPBACK_CHANNELS_MAX];   // endpoint -> the request's sub-attribute name
 static int           echoCount = 0;
@@ -1201,9 +1203,6 @@ static int loopbackInventory(const char* from, int depth, int timeoutMs, char** 
 //   error             the check fails (BRIDGE_ERR) - a refusal too: the broker answers 503
 //   unnamed endpoint  every value is accepted
 //
-static LoopbackMeta  payloadChecks[LOOPBACK_CHANNELS_MAX];
-static int           payloadCheckCount = 0;
-
 static void loopbackPayloadCheckPair(const char* endpoint, const char* value)
 {
   if (payloadCheckCount >= LOOPBACK_CHANNELS_MAX)
@@ -1368,6 +1367,20 @@ static void loopbackClose(void)
     free(topicModes[i].mode);
   }
   topicModeCount = 0;
+
+  for (int i = 0; i < statusInCount; i++)
+  {
+    free(statusIns[i].endpoint);
+    free(statusIns[i].meta);
+  }
+  statusInCount = 0;
+
+  for (int i = 0; i < payloadCheckCount; i++)
+  {
+    free(payloadChecks[i].endpoint);
+    free(payloadChecks[i].meta);
+  }
+  payloadCheckCount = 0;
 
   pthread_mutex_lock(&heldGoalMutex);
   for (int i = 0; i < heldGoalCount; i++)

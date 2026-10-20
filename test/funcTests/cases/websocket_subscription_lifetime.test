@@ -14,6 +14,11 @@
 # (kill -9) deletes nothing; at its next start, every subscription, periodic subscription and context source
 # subscription that notifies a connection of another run is deleted, in every tenant - and nothing else.
 #
+# Not under valgrind (-vt): the broker is killed (kill -9) on purpose - a killed memcheck leaves an
+# incomplete report, which is no verdict on the broker's memory.
+#
+# SKIP_VALGRIND: on
+#
 --NAME--
 WebSocket - a connection's subscriptions go when it closes, a killed run's when the broker starts; the rest stay
 
