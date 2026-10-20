@@ -172,6 +172,7 @@ front-end to follow.
 | `--pgo` | profile-guided: trained on the measured request shapes, as the packages and the image ([Performance](performance.md)) |
 | `--tune <workload>` | profile-guided on your workload, the knobs measured on it ([Extreme performance](extreme-performance.md)) |
 | `--features NAME=ON\|OFF,...` | the `COR_FEATURE_*` switches ([Building - details](building-details.md)) |
+| `--name <exe>` | the broker is `install/bin/<exe>` instead of `install/bin/coraine` - a broker built for one role, named after it: 1-64 of `A-Z a-z 0-9 . _ -`, not `coraine-import`. It reads the same `CORAINE_*` environment variables, and names itself `<exe>` in `--version` |
 
 #### Building a plugin against it
 
