@@ -30,16 +30,20 @@
 #                      group, requires} - "group" the CMakeLists.txt group it is in ("# Group: <name> -
 #                      ..."); "requires" names the switches it is turned off without, and a build
 #                      setting as NAME=value (HTTP_SERVER=mhd: libmicrohttpd, not the built-in server)
+#   --name <exe>       the broker's executable: <dir>/install/bin/<exe> (default coraine) - a broker built
+#                      for one role (a cor-agent, an edge node) named after it. 1-64 of A-Z a-z 0-9 . _ -,
+#                      starting with a letter or a digit; not coraine-import
 #   --source <file>    the source tarball (default /usr/share/coraine/src/coraine-src.tar.xz - coraine-dev)
 #   -h, --help
 #
 # The result, in <dir>/install - nothing is written outside <dir>, and root is not needed:
 #
-#   bin/coraine  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]
+#   bin/coraine (or --name's)  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]
 #   [etc/bridges.json  etc/dds-types/ - with dds: its default configuration]  env
 #
 # `. <dir>/install/env` puts bin/ on PATH and points the broker at plugins/ and etc/ (SEAMWARE_PLUGIN_DIR,
-# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built.
+# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built (by its
+# --name, when given; it reads the same CORAINE_* environment variables whatever it is called).
 #
 # What the switches mean: doc/building-details.md (features), doc/performance.md (pgo),
 # doc/extreme-performance.md (tune) - in the source, <dir>/coraine/doc.
@@ -59,6 +63,7 @@ LIST=0
 LISTB=0
 JSON=0
 BRIDGES=mqtt,modbus
+NAME=coraine
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
 usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
@@ -79,12 +84,17 @@ while [ $# -gt 0 ]; do
     --bridges=*)      BRIDGES=${1#--bridges=} ;;
     --json)           JSON=1 ;;
     --source)         SOURCE=${2:?--source needs a file}; shift ;;
+    --name)           NAME=${2:?--name needs a name}; shift ;;
+    --name=*)         NAME=${1#--name=} ;;
     -h|--help)        usage; exit 0 ;;
     -*)               die "unknown option '$1' (--help)" ;;
     *)                [ -z "$DIR" ] || die "one directory, not '$DIR' and '$1'"; DIR=$1 ;;
   esac
   shift
 done
+
+[[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || die "--name '$NAME': 1-64 of A-Z a-z 0-9 . _ -, starting with a letter or a digit"
+[ "$NAME" != coraine-import ] || die "--name coraine-import is the migration tool's"
 
 [ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
 
@@ -399,8 +409,12 @@ export SEAMWARE_ETC_DIR="$INST/etc"
 export CORAINE_CONTEXTSOURCEEXTRAS="$INST/etc/contextSourceExtras.json"
 EOF
 
+if [ "$NAME" != coraine ]; then
+  mv -f "$INST/bin/coraine" "$INST/bin/$NAME"
+fi
+
 phase check
-"$INST/bin/coraine" --version > /dev/null || die "the broker just built does not start: $INST/bin/coraine --version"
+"$INST/bin/$NAME" --version > /dev/null || die "the broker just built does not start: $INST/bin/$NAME --version"
 
 phase done
 echo
@@ -409,5 +423,5 @@ echo "coraine-build: done - $INST"
 echo
 echo "Run it:"
 echo "  . $INST/env"
-echo "  coraine -fg --database corDB"
+echo "  $NAME -fg --database corDB"
 [ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - CORAINE_* and LD_PRELOAD, see doc/extreme-performance.md)"
