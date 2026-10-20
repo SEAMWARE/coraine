@@ -182,20 +182,21 @@ between a long protocol list and a long plugin list.
 ## 8. How it maps onto coraine's model
 
 The south bridge models a foreign endpoint tied to an entity attribute as a
-**Channel** on a **Bridge** (a transport instance), and a value that lives at the
-peer and is fetched on read as an ordinary **registration** whose endpoint names
-a bridge scheme. See [Speaking to devices directly](device-protocols.md).
+**Channel** on a **Bridge** (a transport instance), a device's measures as
+**DataChannel** records, a command as a **Service Execution**, and a value that
+lives at the peer and is fetched on read as an ordinary **registration** whose
+endpoint names a bridge scheme. See [Speaking to devices directly](device-protocols.md).
 
 | Agent concept | Our model |
 |---|---|
-| Active attribute | **Channel**, `direction: in`, `retention: mirror` |
-| Command | **Channel**, `direction: out` |
-| Lazy attribute | **registration** with a bridge-scheme endpoint — the broker holds nothing and fetches on read |
-| Static attribute | an ordinary attribute; nothing to model |
-| Config group + device | **device provisioning** — a layer over Channels, not yet designed |
-| `<cmd>_status` / `<cmd>_info` | no equivalent yet; closest is the provisional convention planned for bridge services and actions, and Service Execution should settle both together |
+| Active attribute (a measure) | a **DataChannel** record - [IoT Agent measures as DataChannel records](iot-agent-measures.md) (design) |
+| Command | a **Service** of the device's entity; running it is a **Service Execution**, the bridge plugin its executor - [IoT Agents as Service Executors](iot-agent-executor.md) (design) |
+| Lazy attribute | **registration** with a bridge-scheme endpoint - the broker holds nothing and fetches on read |
+| Static attribute | an ordinary attribute; a DataChannel mapping's constant |
+| Config group + device | a DataChannel per group and per device (measures), a Service Registration per command; the provisioning API that creates them is a PR of its own |
+| `<cmd>_status` / `<cmd>_info` | none: the execution's `executionStatus` and `executionOutput` |
 
-The last two rows are the open work. Everything above them already has a home.
+How channels and Service Execution divide the work: [Bridges, channels and Service Execution](bridge-service-execution.md).
 
 ---
 

@@ -27,6 +27,7 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 exclude_docs: |
   bridge-channels.md
   bridge-channels-details.md
+  bridge-service-execution.md
   asset-channels.md
   aas.md
   history/bridge-channels.md

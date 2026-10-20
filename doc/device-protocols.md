@@ -88,17 +88,17 @@ One protocol often wants both. OPC-UA monitored items push; OPC-UA reads
 pull. LWM2M observes and reads. The choice belongs per attribute, not per
 protocol.
 
-⚠ Annex G is informative — a suggested workflow, not a mechanism the API
-provides. That is the gap **Service Execution** closes, and when it lands
-this section changes with it. The distinction should survive the change:
-flow versus delegation is a fact about where a value lives.
+Annex G is informative — a suggested workflow, not a mechanism the API
+provides. **Service Execution** ([Service Execution](service-execution.md))
+is that mechanism for commands; flow versus delegation still decides where a
+value lives.
 
 One piece genuinely is new: **device provisioning**. FIWARE's agents expose an
 API for registering a device and mapping its readings to entity attributes, in
 bulk and from templates, with service groups and keys. In this model that is a
-layer over Channels — provisioning a device creates them — but whether it is a
-thin convenience or its own concept is not yet decided, and the same question
-about not overloading an existing mechanism applies.
+layer over channels and Service Registrations — provisioning a device creates a
+DataChannel for its measures and a Service Registration per command
+([IoT Agent measures](iot-agent-measures.md), [IoT Agents as Service Executors](iot-agent-executor.md)).
 
 ## Two axes, not one list
 
@@ -175,13 +175,14 @@ Beyond parity: **DDS** (already in progress as a bridge), **MQTT** as a transpor
 in its own right rather than only under a payload agent, **CSV**, and probably
 **Kafka**.
 
-Two things from the agent world are not protocols and still have to be answered:
-**device provisioning** (above) and **commands** — an agent registers itself as
-the context provider for a command attribute so that writing it reaches the
-device. When the broker owns the south bridge there is no second component to
-register with, and a command becomes an outbound Channel. Which is the same
-mechanism as everything else here, but the API a device integrator sees for it
-is not yet designed.
+Two things from the agent world are not protocols: **device provisioning**
+(above) and **commands** — an agent registers itself as the context provider for
+a command attribute so that writing it reaches the device. When the broker owns
+the south bridge a command is a **Service Execution**: the command is a service
+of the device's entity, and the bridge plugin is its executor
+([IoT Agents as Service Executors](iot-agent-executor.md), design). Writing an
+attribute stays a state change that an outbound Channel carries
+([Bridges, channels and Service Execution](bridge-service-execution.md)).
 
 ## Order
 
