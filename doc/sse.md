@@ -2,7 +2,8 @@
 
 A client that only wants notifications - a dashboard, a browser page, a script behind NAT - creates its
 subscription with one `POST` and keeps the response open: the `201` is a `text/event-stream` that does
-not end, and the subscription's notifications are its events. The broker never connects to the client,
+not end, and the subscription's notifications are its events - a change-driven subscription's as the
+entities change, a periodic one's once per interval (§ 4.1). The broker never connects to the client,
 and nothing but plain HTTP is needed.
 
 ```console
@@ -85,13 +86,11 @@ JSON, so an `Accept` that names only `text/event-stream` is a 406, as any `Accep
   `@context` in each notification's body - an event has no `Link` header to carry it; the core context
   when the subscription names none. `application/json` leaves it out.
 - The subscription shows its endpoint as `urn:ngsi-ld:self` (`GET /subscriptions/{id}`).
-- `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream - for
-  a periodic subscription of entities, when the event is handed to the stream, as its counters move
-  when it is sent over HTTP.
-- A periodic subscription (`timeInterval`) is delivered on a stream too: one event per interval, as
-  over HTTP - an entity subscription's when entities match, a context source subscription's always.
+- `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream (a
+  periodic subscription of entities: § 4.1).
 - A `PATCH` does not change the endpoint to or from `urn:ngsi-ld:self` (400): a subscription is on its
-  stream for its whole life. Everything else of it may be patched.
+  stream for its whole life. Everything else is patched as on any subscription (a periodic one stays
+  periodic, its interval may change).
 
 ## 4. The stream
 
@@ -139,6 +138,27 @@ for (;;) {
 With `--auth` the request carries its token as every request does (`Authorization`); the stream is the
 response to the create, so it is authorized as the create is.
 
+### 4.1 Periodic subscriptions
+
+A subscription with `timeInterval` (seconds) is made on its stream the same way, for entities and
+for context sources:
+
+```console
+curl -N -H 'Content-Type: application/json' -d '{
+  "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "timeInterval": 10,
+  "notification": { "endpoint": { "uri": "urn:ngsi-ld:self" } } }' \
+  http://localhost:1026/ngsi-ld/v1/subscriptions
+```
+
+- **The first event** within a second of the `201`, then one per interval - the matching entities as
+  they are then, as over HTTP. Two events are never closer than the interval.
+- **Entities**: an interval in which no entity matches sends no event (the keep-alive comments still
+  come). **Context sources**: an event every interval, its `data` empty when no registration matches
+  (§ 12.4.7).
+- **The counters** of an entity subscription move when the event is handed to the stream, as they move
+  when it is sent over HTTP; a context source subscription's, when it is written.
+- Its lifetime is a stream's (above): the client leaves, it is deleted.
+
 ## 5. Deployment
 
 - **A buffering proxy holds events back.** nginx buffers unless told not to; `X-Accel-Buffering: no`
@@ -154,8 +174,10 @@ response to the create, so it is authorized as the create is.
   any thread - `corRestStreamResponse`, `corRestStreamWrite`, `corRestStreamEnd`. A write of 0 bytes
   writes nothing and says whether the client is still there.
 - **corNgsild** (`ldNotifyStream.h`, `COR_WITH_EVENT_STREAM`): the endpoint `urn:ngsi-ld:self`, and the
-  hook a notification on it is handed to, rendered; the counters move when the application says an event
-  was written (`ldNotifyStreamSent`).
+  hook a notification on it is handed to, rendered - by each of its senders: entity subscriptions,
+  context source subscriptions (both change-driven and periodic) and periodic entity subscriptions
+  (`ldPernotLoop`); the counters move when the application says an event was written
+  (`ldNotifyStreamSent`), the periodic entity sender's at the hand-over (`ldNotifyStreamHand`).
 - **coraine** (`src/lib/sse`, `COR_FEATURE_SSE`): the streams, one entry per subscription under one
   mutex; a thread that, once a second, looks whether each client is still there, writes the keep-alives,
   updates the counters and deletes the subscriptions whose streams ended (a `DELETE` run in the broker).
