@@ -151,8 +151,10 @@ references between object nodes -> Relationships; a Method -> a service.
   a merge route, the value merged) - and stored only when the bridge takes it: a refusal answers 400 (the
   value does not fit the node), 422 (the bridge cannot send it) or 503 (not reached) and stores nothing; in a
   write of several attributes, or a batch, that attribute is left out (207). An attribute made of no one
-  node (a container's, a Relationship, the semanticId) answers 422. What the bridge hands in (the model, its
-  values) is never published back. The bridge is handed the endpoint with the direction
+  node (a container's, a Relationship, the semanticId) answers 422. A value the bridge takes is the node's
+  value in the broker's kept model too: values coming in write their entity from the kept model, and a
+  source that does not hand its own writes back (an AAS server read on a poll) must not see the client's
+  value undone by the next one. What the bridge hands in (the model, its values) is never published back. The bridge is handed the endpoint with the direction
   (`BridgeDirectionBoth`); the listing shows `channelDirection` and `valuesOut` (values published) for such a
   one. `COR_FEATURE_CHANNEL_WRITE_BACK`.
 - **No owner**, as a DataChannel: an AssetChannel claims no attribute; the last write wins.

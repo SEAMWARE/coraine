@@ -171,9 +171,12 @@ static int               goalModeCount = 0;
 //
 // Topics - what the loopback does with a sample, per endpoint
 //
-// "topicMode": { "<endpoint>": "accept" | "refuse" | "unannounced" }
+// "topicMode": { "<endpoint>": "accept" | "silent" | "refuse" | "unannounced" }
 //
 //   accept       published - and handed back in. The default.
+//   silent       published, and NOT handed back in - a source that does not
+//                report a write back (an AAS server read on a poll, an OPC UA
+//                bridge that drops the echo of its own write)
 //   refuse       refused as a value that does not fit the topic's type
 //                (BRIDGE_BAD_INPUT) - what the DDS plugin answers when the
 //                Enabler cannot serialize a sample for a topic it knows
@@ -1713,6 +1716,9 @@ static int loopbackPublish(const char* endpoint, const char* json)
 
   if (strcmp(mode, "unannounced") == 0)
     return BRIDGE_ERR;
+
+  if (strcmp(mode, "silent") == 0)
+    return BRIDGE_OK;
 
   if (root != NULL)
   {

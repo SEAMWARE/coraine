@@ -1055,6 +1055,37 @@ static int valuesIn(AssetChannel* acP, CorNode* valuesP)
 
 
 
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodeValueSet -
+//
+void assetChannelNodeValueSet(AssetChannel* acP, const char* nodeId, CorNode* valueP)
+{
+  pthread_mutex_lock(&acP->modelMutex);
+
+  char*      text  = (acP->model != NULL) ? corAllocStrdup(&corRest.kalloc, acP->model) : NULL;
+  CorNode*   treeP = (text != NULL) ? corJsonParse(corRest.corJsonP, text) : NULL;
+  AssetModel model;
+
+  if ((treeP != NULL) && (modelFind(&model, acP->mapP, treeP) == true))
+  {
+    AssetEntity* inP   = NULL;
+    CorNode*     nodeP = nodeById(&model, treeP, nodeId, NULL, &inP);
+
+    if (nodeP != NULL)
+    {
+      memberSet(nodeP, "value", valueP);
+      modelKeep(acP, treeP);
+    }
+  }
+
+  pthread_mutex_unlock(&acP->modelMutex);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // assetChannelSampleIn -

@@ -47,6 +47,7 @@
 #if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_ASSET_CHANNELS
 #include "bridge/AssetChannel.h"                      // AssetChannel
 #include "bridge/assetChannelCache.h"                 // assetChannelMappedLookup, assetChannelOutCount
+#include "bridge/assetChannelSampleIn.h"              // assetChannelNodeValueSet
 #endif
 #include "bridge/bridgeServiceSync.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
@@ -953,6 +954,7 @@ static bool assetWriteBack(Tenant* tenantP, const char* entityId, CorNode* fragm
     return false;
   }
 
+  assetChannelNodeValueSet(acP, nodeId, valueP);     // the asset has it now - so has the kept model
   __atomic_add_fetch(&acP->valuesOut, 1, __ATOMIC_RELAXED);
   return true;
 }
