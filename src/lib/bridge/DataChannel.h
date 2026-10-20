@@ -13,7 +13,7 @@
 // Not a Channel. A Channel binds an endpoint to ONE attribute of ONE entity and a sample is that
 // attribute's value; a record carries many values, about many entities, and names its entities INSIDE
 // it. So a DataChannel names no entity and no attribute, claims none (no one-writer rule: the last
-// writer wins, TRoE keeps what was there), has no kind, no direction (inbound only), no goals and no
+// writer wins, TRoE keeps what was there), has no kind, no direction but in or both (both: write-back, dataChannelWriteBack.h), no goals and no
 // pre-population. It has its own cache, its own listing (GET /ngsi-ld/v1/dataChannels) and its own
 // counters.
 //
@@ -29,6 +29,7 @@
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // ChannelStatus
 #include "bridge/RecordMap.h"                         // RecordMap
+#include "corBridge/BridgeDriver.h"                   // BridgeDirection
 
 
 
@@ -54,6 +55,10 @@ typedef struct DataChannel
   uint64_t             entitiesWritten;               // entities created or updated
 #if COR_FEATURE_CHANNEL_CHECKS
   uint64_t             payloadsRefused;               // client writes the bridge's payloadCheck refused (ABI 13)
+#endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+  BridgeDirection      direction;                     // In (the default), or Both: a client's write goes to the device first
+  uint64_t             recordsOut;                    // record fragments published - client writes written back
 #endif
 
   struct DataChannel*  next;

@@ -38,7 +38,10 @@ OPC UA Write, BACnet WriteProperty and LWM2M Write. A model or record source has
 so without write-back such a write either needs a Channel per attribute - defeating the mapping - or a
 service per writable attribute.
 
-**The design:** a DataChannel or AssetChannel may be outbound too, with a Channel's rule.
+**The design:** a DataChannel or AssetChannel may be outbound too, with a Channel's rule. Built for the
+DataChannel (`COR_FEATURE_CHANNEL_WRITE_BACK`, [DataChannels](bridge-channels.md#datachannels)): a
+`channelDirection` of its own, a `column` attribute only, `merge` refused with `both`; the AssetChannel's
+is not built.
 
 - **Opt-in, per channel**: `channelDirection` - `in` (the default, as today) or `both`. A member of the
   shared base ([asset-channels.md § 2](asset-channels.md#2-what-the-three-share)), so every channel type
@@ -142,7 +145,8 @@ one request; a combined execution sequences services of different bridges.
 1. **DDS** (§ 3): both faces with one executor, or the Channel form alone until ARISE ends. Either way
    the Orion-LD behaviour stays as it is.
 2. **Write-back** (§ 2): `channelDirection` on the base; refuse `merge` with `both`, or let the plugin
-   keep its own device lookup.
+   keep its own device lookup. Built as proposed for the DataChannel - `merge` with `both` refused at
+   start; easy to relax if the plugin's own lookup is chosen.
 3. **Bridge-made registrations** (§ 4): `bridgeId` as a member, or nothing on the registration and the
    Bridge's `services` list alone.
 4. **The Bridge in the endpoint** (§ 5): `?bridge=`, or wait until a plugin carries two Bridges.

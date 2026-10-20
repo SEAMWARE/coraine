@@ -39,6 +39,11 @@
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
 #include "bridge/bridgeGoal.h"                        // bridgeGoalSend, bridgeGoalAwait, bridgeGoalAbandon, BridgeGoalAnswer
 #include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr, bridgeGoalInstance
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+#include "bridge/DataChannel.h"                       // DataChannel
+#include "bridge/dataChannelWriteBack.h"              // dataChannelWriteBackOf, dataChannelWriteBackRecord
+#include "bridge/dataChannelCache.h"                  // dataChannelOutCount
+#endif
 #include "bridge/bridgeServiceSync.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -366,17 +371,17 @@ static BridgeDriver* driverFor(const Channel* channelP)
 //
 // sendError - the answer to a request whose request to the DDS side did not go
 //
-static void sendError(int r, const char* attrName, const Channel* channelP, const char* what)
+static void sendError(int r, const char* attrName, const char* endpoint, const char* bridgeName, const char* what)
 {
   if (r == BRIDGE_BAD_INPUT)
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request",
-            "the value of '%s' does not fit the %s of '%s'", attrName, what, channelP->endpoint);
+            "the value of '%s' does not fit the %s of '%s'", attrName, what, endpoint);
   else if (r == BRIDGE_UNSUPPORTED)
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
-            "bridge '%s' cannot send the %s of '%s'", channelP->bridgeName, what, channelP->endpoint);
+            "bridge '%s' cannot send the %s of '%s'", bridgeName, what, endpoint);
   else
     ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
-            "'%s' on bridge '%s' could not be reached - nothing was written", channelP->endpoint, channelP->bridgeName);
+            "'%s' on bridge '%s' could not be reached - nothing was written", endpoint, bridgeName);
 }
 
 
@@ -389,7 +394,7 @@ static void sendError(int r, const char* attrName, const Channel* channelP, cons
 // not written. The status is what the request would have answered had it
 // written that attribute alone.
 //
-static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* attrP, int r, const Channel* channelP, const char* what)
+static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* attrP, int r, const char* endpoint, const char* bridgeName, const char* what)
 {
   char        reason[512];
   int         status;
@@ -401,19 +406,19 @@ static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* at
     status = 400;
     title  = "Invalid request";
     type   = LD_ERROR_BAD_REQUEST_DATA;
-    snprintf(reason, sizeof(reason), "the value does not fit the %s of '%s' - not written", what, channelP->endpoint);
+    snprintf(reason, sizeof(reason), "the value does not fit the %s of '%s' - not written", what, endpoint);
   }
   else if (r == BRIDGE_UNSUPPORTED)
   {
     status = 422;
     title  = "Operation Not Supported";
     type   = LD_ERROR_OP_NOT_SUPPORTED;
-    snprintf(reason, sizeof(reason), "bridge '%s' cannot send the %s of '%s' - not written", channelP->bridgeName, what, channelP->endpoint);
+    snprintf(reason, sizeof(reason), "bridge '%s' cannot send the %s of '%s' - not written", bridgeName, what, endpoint);
   }
   else
   {
     status = 503;
-    snprintf(reason, sizeof(reason), "'%s' on bridge '%s' could not be reached - not written", channelP->endpoint, channelP->bridgeName);
+    snprintf(reason, sizeof(reason), "'%s' on bridge '%s' could not be reached - not written", endpoint, bridgeName);
   }
 
   attrsNotWrittenAdd(doneP->notWrittenP, attrP->name, status, type, title, reason);
@@ -481,7 +486,7 @@ static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channe
 
   if ((driverP == NULL) || (driverP->serviceInvokeTracked == NULL))
   {
-    sendError(BRIDGE_UNSUPPORTED, attrName, channelP, "tracked request");
+    sendError(BRIDGE_UNSUPPORTED, attrName, channelP->endpoint, channelP->bridgeName, "tracked request");
     return SyncFailed;
   }
 
@@ -502,7 +507,7 @@ static SyncOutcome syncInvoke(const char* entityId, const char* attrName, Channe
     waiterFree(wP);
     pthread_mutex_unlock(&syncMutex);
 
-    sendError(r, attrName, channelP, "request");
+    sendError(r, attrName, channelP->endpoint, channelP->bridgeName, "request");
     return SyncFailed;
   }
 
@@ -742,6 +747,103 @@ char* bridgeWireRender(CorNode* valueP)
 
 
 
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// writeBack - an attribute no Channel maps, of an entity a DataChannel with channelDirection both writes:
+// the record fragment goes to the bridge first, as a topic's sample does, and one the bridge does not take
+// is not stored (dataChannelWriteBack.h)
+//
+// @return false when the request fails as a whole - the error is set
+//
+static bool writeBack(Tenant* tenantP, const char* entityId, CorNode* fragmentP, CorNode* attrP, int flags, BridgeSyncDone* doneP, CorNode** storedPP)
+{
+  if (corNgsild.bridgeOwnWrite == true)               // a DataChannel's record coming in: it IS the device's - nothing goes back
+    return true;
+
+  RecordEntity* entityP;
+  RecordAttr*   recordAttrP;
+  DataChannel*  dcP = dataChannelWriteBackOf(tenantP, entityId, attrP->name, &entityP, &recordAttrP);
+
+  if ((dcP == NULL) || (__atomic_load_n(&dcP->status, __ATOMIC_ACQUIRE) != ChannelStatusAvailable))
+    return true;                                      // as a dormant Channel's: stored as ever
+
+  CorNode* instanceP = corTreeLookup(attrP, "@none");
+  CorNode* valueP    = (instanceP != NULL) ? corTreeLookup(instanceP, "value") : NULL;
+
+  if (valueP == NULL)
+    return true;
+
+  if ((flags & BRIDGE_REQ_MERGE) != 0)
+  {
+    bool failed;
+
+    valueP = mergedValue(tenantP, entityId, attrP, storedPP, &failed);
+
+    if (failed == true)
+      return false;
+
+    if (valueP == NULL)
+      return true;
+  }
+
+  BridgeDriver* driverP = NULL;
+
+  for (int ix = 0; ix < bridgeCount; ix++)
+  {
+    if ((bridges[ix].alias != NULL) && (strcmp(bridges[ix].alias, dcP->bridgeName) == 0))
+      driverP = &bridges[ix];
+  }
+
+  if ((driverP == NULL) || (driverP->publish == NULL))
+    return true;                                      // this transport does not send - stored as ever
+
+  char*       buf = bridgeWireRender(valueP);
+  const char* why = NULL;
+  char*       record = (buf != NULL) ? dataChannelWriteBackRecord(entityP, recordAttrP, entityId, buf, &why) : NULL;
+
+  if (record == NULL)
+  {
+    char reason[512];
+
+    snprintf(reason, sizeof(reason), "'%s' of DataChannel '%s' on bridge '%s': %s - not written",
+             attrP->name, dcP->endpoint, dcP->bridgeName, (why != NULL) ? why : "out of memory");
+
+    if (doneP->several == true)
+    {
+      attrsNotWrittenAdd(doneP->notWrittenP, attrP->name, 422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", reason);
+      corTreeChildRemove(fragmentP, attrP);
+      return true;
+    }
+
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", "%s", reason);
+    return false;
+  }
+
+  int r = driverP->publish(dcP->endpoint, record);
+
+  COR_T(CtBridge, "%s/%s -> record %s on DataChannel '%s' of bridge '%s' (%d)", entityId, attrP->name, record, dcP->endpoint, dcP->bridgeName, r);
+  free(record);
+
+  if (r != BRIDGE_OK)
+  {
+    if (doneP->several == true)
+    {
+      sendFailedOne(doneP, fragmentP, attrP, r, dcP->endpoint, dcP->bridgeName, "record");
+      return true;
+    }
+
+    sendError(r, attrP->name, dcP->endpoint, dcP->bridgeName, "record");
+    return false;
+  }
+
+  __atomic_add_fetch(&dcP->recordsOut, 1, __ATOMIC_RELAXED);
+  return true;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // bridgeRequestsBeforeWrite -
@@ -798,7 +900,13 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
     Channel* channelP = channelLookupByTarget(tenantP, entityId, attrP->name);
 
     if (channelP == NULL)
+    {
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+      if ((dataChannelOutCount() > 0) && (writeBack(tenantP, entityId, fragmentP, attrP, flags, doneP, &storedP) == false))
+        return requestsFailed(doneP);
+#endif
       continue;
+    }
 
     if ((channelP->direction == BridgeDirectionIn) || (channelP->status != ChannelStatusAvailable))
       continue;
@@ -866,11 +974,11 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
       {
         if (several == true)
         {
-          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "type");
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP->endpoint, channelP->bridgeName, "type");
           continue;
         }
 
-        sendError(r, attrP->name, channelP, "type");
+        sendError(r, attrP->name, channelP->endpoint, channelP->bridgeName, "type");
         return requestsFailed(doneP);
       }
 
@@ -902,11 +1010,11 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
       {
         if (several == true)
         {
-          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "goal");
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP->endpoint, channelP->bridgeName, "goal");
           continue;
         }
 
-        sendError(r, attrP->name, channelP, "goal");
+        sendError(r, attrP->name, channelP->endpoint, channelP->bridgeName, "goal");
         return requestsFailed(doneP);
       }
 
@@ -972,11 +1080,11 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
       {
         if (several == true)
         {
-          sendFailedOne(doneP, fragmentP, attrP, r, channelP, "request");
+          sendFailedOne(doneP, fragmentP, attrP, r, channelP->endpoint, channelP->bridgeName, "request");
           continue;
         }
 
-        sendError(r, attrP->name, channelP, "request");
+        sendError(r, attrP->name, channelP->endpoint, channelP->bridgeName, "request");
         return requestsFailed(doneP);
       }
 

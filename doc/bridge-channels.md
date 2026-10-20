@@ -251,6 +251,24 @@ endpoint:
   `channelStatusIn`), and `recordsIn` (records that wrote an entity),
   `recordsRefused` (not an object, no entity id, every entity refused) and
   `entitiesWritten`.
+- **`channelDirection`**: `"in"` (the default) or `"both"` - write-back. A
+  client's write to an attribute the DataChannel maps (an entity whose id fits
+  one of its `id` templates, an attribute of that entity's mapping) is published
+  to the bridge first, as a record: the columns of the id template, read back
+  out of the entity id (as strings, percent-decoded), and the attribute's column
+  with the written value - `urn:ngsi-ld:Lamp:{room}-{@deviceId}` written
+  `on: true`, `on` from the column `state` ->
+  `{"room": "hall a", "@deviceId": "l1", "state": true}`. Stored only when the
+  bridge takes it: a refusal answers 400, 422 or 503 and stores nothing; in a
+  write of several attributes, or a batch, that attribute is left out (207).
+  Only a `column` attribute is written back - any other a write-back
+  DataChannel maps answers 422. A record coming in on the DataChannel is never
+  published back. `"both"` needs `"idEncoding": "percent"` and no two
+  placeholders side by side in an `id` (`{a}{b}`): an id that does not read back
+  is refused at start (the DataChannel is skipped). The bridge is handed the
+  endpoint with the direction (`BridgeDirectionBoth`); the listing shows
+  `channelDirection` and `recordsOut` (records published) for such a one.
+  `COR_FEATURE_CHANNEL_WRITE_BACK`.
 
 `COR_FEATURE_DATA_CHANNELS`; without it, a `dataChannels` section is warned
 about and ignored, and `GET /dataChannels` answers 501. The first bridge built
