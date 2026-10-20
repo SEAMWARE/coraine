@@ -568,6 +568,25 @@ The names are coraine's: TS 104-175 § 7.4.2.3 leaves the links opaque ("only re
 following and previous pages, which can be implemented in a completely opaque way"); `limit` and
 `offset` are the "transparent" option, and a client using them gets them.
 
+### A distributed query: count, offset, limit=0
+
+A query that Context Sources answer too (registrations match it, `--distributed`):
+
+| | split entities (the default) | `splitEntities=false` / `--noSplitEntities` |
+|---|---|---|
+| what the sources are asked | `type`, `id`, `idPattern` - every candidate; the filters are applied to the entities assembled here | the query as it is, with `limit`, `offset` and `count` (in the URL of `POST /entityOperations/query` too) |
+| `NGSILD-Results-Count` (`count=true`) | the number of entities assembled and filtered here | the local count plus each source's `NGSILD-Results-Count` (a source that sends none: the entities it answered), an entity the answers show in more than one place counted once |
+| `offset` | applied to the assembled entities | applied by the local store and by each source to its own matches |
+| `limit=0` | count-only: the count, and `[]` | the same - and the sources are asked `limit=0&count=true` |
+
+TS 104-176 § 6.4.6 asks for "the total number of matching results"; with split entities every match is
+assembled here, so the count is exact as far as the sources' answers go - a source answers a query
+without `limit` with its default page. Without split entities the sources count their own matches;
+an entity held in more than one place is counted once only when it is on the pages answered, so the
+count can be higher than the number of distinct entities when the result is more than one page. A
+query whose first page has more after it gets an [automatic EntityMap](#entitymaps), and its count is
+the size of the map: every match, each counted once.
+
 ## EntityMaps
 
 An EntityMap (TS 104-175 § 9.6) freezes the **set** of entities a query matches - their ids, in the

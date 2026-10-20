@@ -1,0 +1,291 @@
+#
+# FILE            distop_query_count.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# count=true on a distributed GET /entities: NGSILD-Results-Count counts the matches of the Context
+# Sources too, not only the local ones. limit=0 is count-only for a distributed query as for a local
+# one: the count, and an empty array.
+#
+# Both forms of the distributed query:
+#   - split entities (the default): the parts are assembled and filtered on the broker, and the count
+#     is that of the assembled matches;
+#   - splitEntities=false: the sources are asked the query as it is (count=true included), and the count
+#     is the local count plus each source's NGSILD-Results-Count, an entity held in more than one place
+#     counted once when the answers show it twice.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+A distributed query's NGSILD-Results-Count counts the Context Sources' matches; limit=0 is count-only
+
+--TAGS--
+distop query count pagination
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1
+
+--RUN--
+
+#
+# hc <url> [payload] - the status line, NGSILD-Results-Count and the ids of the body (a POST with a payload)
+#
+hc()
+{
+  if [ -n "$2" ]
+  then
+    corCurl --url "$1" --payload "$2" > /tmp/distop_query_count.out
+  else
+    corCurl --url "$1" > /tmp/distop_query_count.out
+  fi
+  tr -d '\r' < /tmp/distop_query_count.out | head -1
+  tr -d '\r' < /tmp/distop_query_count.out | grep -i '^NGSILD-Results-Count' || echo "(no NGSILD-Results-Count)"
+  echo "body: $(tr -d '\r' < /tmp/distop_query_count.out | sed -n '/^\[/,$p' | python3 -c 'import sys, json; print(json.dumps([e["id"] for e in json.load(sys.stdin)]))')"
+}
+
+
+echo "01. CP1 holds urn:ngsi-ld:Meter:M1 - the broker holds no Meter"
+echo "=============================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Meter:M1","type":"Meter","kwh":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. An inclusive registration of CP1 for Meter, federationOps"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:CP1","type":"ContextSourceRegistration","endpoint":"http://localhost:'$CP1_PORT'","mode":"inclusive","operations":["federationOps"],"information":[{"entities":[{"type":"Meter"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. type=Meter&limit=0&count=true - count 1, body []"
+echo "===================================================="
+hc '/ngsi-ld/v1/entities?type=Meter&limit=0&count=true'
+echo
+echo
+
+
+echo "04. type=Meter&count=true - count 1, body M1"
+echo "============================================"
+hc '/ngsi-ld/v1/entities?type=Meter&count=true'
+echo
+echo
+
+
+echo "05. The same, splitEntities=false: limit=0 - count 1, body []; no limit - count 1, body M1"
+echo "=========================================================================================="
+hc '/ngsi-ld/v1/entities?type=Meter&limit=0&count=true&splitEntities=false'
+hc '/ngsi-ld/v1/entities?type=Meter&count=true&splitEntities=false'
+echo
+echo
+
+
+echo "06. The broker gets urn:ngsi-ld:Meter:M2, CP1 gets urn:ngsi-ld:Meter:M3"
+echo "======================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Meter:M2","type":"Meter","kwh":{"type":"Property","value":2}}' | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Meter:M3","type":"Meter","kwh":{"type":"Property","value":3}}' | head -1
+echo
+echo
+
+
+echo "07. Split: count 3 for limit=0 (body []), limit=1 (one entity) and limit=20 (all three)"
+echo "======================================================================================="
+hc '/ngsi-ld/v1/entities?type=Meter&limit=0&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&limit=1&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&limit=20&count=true'
+echo
+echo
+
+
+echo "08. splitEntities=false: count 3 for limit=0 (body []), limit=1 (one entity) and limit=20 (all three)"
+echo "====================================================================================================="
+hc '/ngsi-ld/v1/entities?type=Meter&limit=0&count=true&splitEntities=false'
+hc '/ngsi-ld/v1/entities?type=Meter&limit=1&count=true&splitEntities=false'
+hc '/ngsi-ld/v1/entities?type=Meter&limit=20&count=true&splitEntities=false'
+echo
+echo
+
+
+echo "09. offset=1: count 3 - split: the page after the first assembled entity; splitEntities=false: each place's page"
+echo "================================================================================================================"
+hc '/ngsi-ld/v1/entities?type=Meter&offset=1&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&offset=1&count=true&splitEntities=false'
+echo
+echo
+
+
+echo "10. A filter: q=kwh>1 - count 2 (M2, M3), both forms"
+echo "===================================================="
+hc '/ngsi-ld/v1/entities?type=Meter&q=kwh%3E1&limit=0&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&q=kwh%3E1&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&q=kwh%3E1&limit=0&count=true&splitEntities=false'
+hc '/ngsi-ld/v1/entities?type=Meter&q=kwh%3E1&count=true&splitEntities=false'
+echo
+echo
+
+
+echo "11. M1 on the broker as well: one entity in two places - counted once (count 3), both forms"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Meter:M1","type":"Meter","kwh":{"type":"Property","value":1}}' | head -1
+hc '/ngsi-ld/v1/entities?type=Meter&count=true'
+hc '/ngsi-ld/v1/entities?type=Meter&count=true&splitEntities=false'
+echo
+echo
+
+
+echo "12. local=true: the local count only - 2"
+echo "========================================"
+hc '/ngsi-ld/v1/entities?type=Meter&limit=0&count=true&local=true'
+echo
+echo
+
+
+echo "13. POST /entityOperations/query, forwarded as a POST - split: count 3; without split entities M1 (in both places) is on no page answered: counted twice, 4"
+echo "==========================================================================================================================================================="
+Q='{"type":"Query","entities":[{"type":"Meter"}]}'
+hc '/ngsi-ld/v1/entityOperations/query?limit=0&count=true' "$Q"
+hc '/ngsi-ld/v1/entityOperations/query?count=true' "$Q"
+hc '/ngsi-ld/v1/entityOperations/query?limit=0&count=true&splitEntities=false' "$Q"
+hc '/ngsi-ld/v1/entityOperations/query?offset=1&count=true&splitEntities=false' "$Q"
+echo
+echo
+
+
+--EXPECT--
+01. CP1 holds urn:ngsi-ld:Meter:M1 - the broker holds no Meter
+==============================================================
+HTTP/1.1 201 Created
+
+
+02. An inclusive registration of CP1 for Meter, federationOps
+=============================================================
+HTTP/1.1 201 Created
+
+
+03. type=Meter&limit=0&count=true - count 1, body []
+====================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+body: []
+
+
+04. type=Meter&count=true - count 1, body M1
+============================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+body: ["urn:ngsi-ld:Meter:M1"]
+
+
+05. The same, splitEntities=false: limit=0 - count 1, body []; no limit - count 1, body M1
+==========================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+body: ["urn:ngsi-ld:Meter:M1"]
+
+
+06. The broker gets urn:ngsi-ld:Meter:M2, CP1 gets urn:ngsi-ld:Meter:M3
+=======================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+07. Split: count 3 for limit=0 (body []), limit=1 (one entity) and limit=20 (all three)
+=======================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+
+
+08. splitEntities=false: count 3 for limit=0 (body []), limit=1 (one entity) and limit=20 (all three)
+=====================================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+
+
+09. offset=1: count 3 - split: the page after the first assembled entity; splitEntities=false: each place's page
+================================================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M3"]
+
+
+10. A filter: q=kwh>1 - count 2 (M2, M3), both forms
+====================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 2
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 2
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M3"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 2
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 2
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M3"]
+
+
+11. M1 on the broker as well: one entity in two places - counted once (count 3), both forms
+===========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+
+
+12. local=true: the local count only - 2
+========================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 2
+body: []
+
+
+13. POST /entityOperations/query, forwarded as a POST - split: count 3; without split entities M1 (in both places) is on no page answered: counted twice, 4
+===========================================================================================================================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 3
+body: ["urn:ngsi-ld:Meter:M2", "urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 4
+body: []
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 4
+body: ["urn:ngsi-ld:Meter:M1", "urn:ngsi-ld:Meter:M3"]
+
+
+--TEARDOWN--
+rm -f /tmp/distop_query_count.out
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
