@@ -46,7 +46,7 @@ container means the container itself, so it has to be pointed at the database:
 
 ```sh
 docker network create ngsild
-docker run -d --name mongo --network ngsild mongo:8
+docker run -d --name mongo --network ngsild mongo:8.2
 docker run -d --name broker --network ngsild -p 1026:1026 \
     quay.io/seamware/coraine:0.5.0 \
         --database mongoc --dbHost mongo --dbName cor

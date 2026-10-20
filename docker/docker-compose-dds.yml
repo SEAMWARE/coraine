@@ -17,7 +17,7 @@
 
 services:
   mongo:
-    image: mongo:8
+    image: mongo:8.2
     volumes:
       - mongo-data:/data/db
     healthcheck:

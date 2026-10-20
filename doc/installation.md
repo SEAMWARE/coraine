@@ -7,6 +7,17 @@ with the in-memory store needs **no external service at all**. The MongoDB backe
 needs a MongoDB server; the TimescaleDB temporal backend needs PostgreSQL with the
 TimescaleDB extension.
 
+### MongoDB server
+
+**MongoDB 8.2** (`mongo:8.2`): the functional suite, CI and the performance figures run on it.
+
+MongoDB 8.0 does not start on a Linux kernel 6.19 or newer - mongod exits at once with
+`MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility with this
+version of MongoDB` ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)). In a container
+the kernel is the host's, so `mongo:8.0` fails the same way on such a host. 8.2 starts on them.
+
+`--high-availability mongo` needs a replica set ([High Availability](high-availability.md)).
+
 ### System packages (Debian / Ubuntu)
 
 | Need | Package |

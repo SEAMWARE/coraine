@@ -35,7 +35,7 @@
 
 services:
   mongo:
-    image: mongo:8
+    image: mongo:8.2
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
