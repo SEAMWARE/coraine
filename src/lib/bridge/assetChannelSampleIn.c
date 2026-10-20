@@ -11,7 +11,9 @@
 //
 //   its semanticIds                   the entity's "semanticId" Property
 //   a leaf child (it has a "value")   a Property - "value", "unitCode" (unit), "observedAt" (sourceTime), a
-//                                     "semanticId" sub-Property (its semanticIds)
+//                                     "semanticId" sub-Property (its semanticIds), a "contentType" one;
+//                                     its attributeType LanguageProperty (a language map) or ListProperty
+//                                     (an array): that type, the value its languageMap or valueList
 //   a container child (not entity)    as attributeLayout says: its leaves attributes named by their path, or
 //                                     one attribute and its leaves sub-attributes, or one JsonProperty
 //   an entity child                   a Relationship to it, named by the child
@@ -413,6 +415,20 @@ static bool isMethod(CorNode* nodeP)
 //
 // leafProperty - a leaf as a Property named 'name': value, unitCode, observedAt, semanticId
 //
+static bool languageMapIs(CorNode* valueP)
+{
+  if ((valueP->type != CorObject) || (valueP->value.head == NULL))
+    return false;
+
+  for (CorNode* langP = valueP->value.head; langP != NULL; langP = langP->next)
+  {
+    if (langP->type != CorString)
+      return false;
+  }
+
+  return true;
+}
+
 static CorNode* leafProperty(CorNode* leafP, const char* name)
 {
   CorNode* valueP = corTreeClone(corRest.kallocP, corTreeLookup(leafP, "value"));
@@ -421,18 +437,47 @@ static CorNode* leafProperty(CorNode* leafP, const char* name)
   if ((valueP == NULL) || (propP == NULL))
     return NULL;
 
-  valueP->name = (char*) "value";
+  //
+  // The leaf's attributeType: a LanguageProperty (its value a language map - an AAS MultiLanguageProperty)
+  // or a ListProperty (an array - an AAS SubmodelElementList); a value that is not one is a Property
+  //
+  const char* attrType = str(leafP, "attributeType");
+  const char* type     = "Property";
+  const char* member   = "value";
+
+  if ((attrType != NULL) && (strcmp(attrType, "LanguageProperty") == 0) && (languageMapIs(valueP) == true))
+  {
+    type   = "LanguageProperty";
+    member = "languageMap";
+  }
+  else if ((attrType != NULL) && (strcmp(attrType, "ListProperty") == 0) && (valueP->type == CorArray))
+  {
+    type   = "ListProperty";
+    member = "valueList";
+  }
+
+  valueP->name = (char*) member;
   valueP->next = NULL;
 
-  corTreeChildAdd(propP, corTreeString(corRest.kallocP, "type", "Property"));
+  corTreeChildAdd(propP, corTreeString(corRest.kallocP, "type", (char*) type));
   corTreeChildAdd(propP, valueP);
 
-  const char* unit       = str(leafP, "unit");
-  const char* sourceTime = str(leafP, "sourceTime");
-  CorNode*    semanticP  = semanticIdNode(leafP);
+  const char* unit        = str(leafP, "unit");
+  const char* contentType = str(leafP, "contentType");
+  const char* sourceTime  = str(leafP, "sourceTime");
+  CorNode*    semanticP   = semanticIdNode(leafP);
 
   if (unit != NULL)
     corTreeChildAdd(propP, corTreeString(corRest.kallocP, "unitCode", (char*) unit));
+
+  if (contentType != NULL)                            // an AAS File's, a Blob's: a sub-Property
+  {
+    CorNode* ctP = corTreeObject(corRest.kallocP, "contentType");
+
+    corTreeChildAdd(ctP, corTreeString(corRest.kallocP, "type",  "Property"));
+    corTreeChildAdd(ctP, corTreeString(corRest.kallocP, "value", (char*) contentType));
+    corTreeChildAdd(propP, ctP);
+  }
 
   if (sourceTime != NULL)
     corTreeChildAdd(propP, corTreeString(corRest.kallocP, "observedAt", (char*) sourceTime));

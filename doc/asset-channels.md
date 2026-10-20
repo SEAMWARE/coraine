@@ -190,6 +190,8 @@ and, as values change:
 | `typeName`, `typeDefinition` | its type's name, and id |
 | `semanticIds` | its meaning: the `semanticId` sub-Property (§ 3) |
 | `value`, `unit`, `sourceTime` | a leaf's value (JSON, converted by the bridge), `unitCode`, `observedAt` |
+| `attributeType` | a leaf's attribute type when it is not a Property: `LanguageProperty` (the value a language map, `{ "en": "ACME Presses" }` - an AAS MultiLanguageProperty) or `ListProperty` (the value an array - an AAS SubmodelElementList); a value that is not one makes a Property |
+| `contentType` | a leaf's MIME type (an AAS File, a Blob): a `contentType` sub-Property |
 | `children` | the nodes it contains |
 | `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
 

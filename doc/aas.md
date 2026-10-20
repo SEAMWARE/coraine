@@ -160,9 +160,9 @@ value had at the source as its `observedAt`.
 | Operation | a service of the entity - later (section 8) |
 | BasicEventElement, Capability | not mapped in the first version |
 
-**Broker work this needs.** The broker's mapping today makes every leaf a Property, its value as the
-bridge converted it. The LanguageProperty and ListProperty rows, and a File's `contentType`, need the
-node tree a bridge hands over to say which kind a leaf is - added to the broker with the AAS bridge.
+**The leaf's kind.** The node tree a bridge hands over says it: a leaf's `attributeType` -
+`LanguageProperty` (its value a language map) or `ListProperty` (an array) - and its `contentType`
+([asset-channels.md § 3.3](asset-channels.md#33-what-a-bridge-hands-over-the-node-tree)).
 
 **Names.** An attribute's name is the element's idShort with a lower-case first letter; a path of
 idShorts (`attributes` layout) joins them, each one after the first starting upper-case. Only
