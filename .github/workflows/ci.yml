@@ -257,7 +257,7 @@ jobs:
       # the step below.
       #
       mongo:
-        image: quay.io/seamware/mongo-rs:2026-09-02-c1b6cba
+        image: quay.io/seamware/mongo-rs:2026-10-20-af621e6
         ports:
           - 27017:27017
 
