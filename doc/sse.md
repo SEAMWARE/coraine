@@ -35,7 +35,7 @@ In the build by default; `-DCOR_FEATURE_SSE=OFF` leaves it out (and so does `SUB
 | carries | the whole API, both ways | one subscription's notifications, broker to client |
 | the connection | `GET /ngsi-ld/v1/ws`, `Upgrade: websocket` | the `POST` that creates the subscription; its `201` is the stream |
 | subscriptions per connection | any number, made over it | one - the one the `POST` made |
-| the endpoint | the connection's id, `urn:ngsi-ld:WebSocket:<run>-<n>` | `urn:ngsi-ld:self` |
+| the endpoint | `urn:ngsi-ld:self`, or the connection's id `urn:ngsi-ld:WebSocket:<run>-<n>` (both stored as the id) | `urn:ngsi-ld:self` |
 | the subscription lives | as long as the connection (those notifying it) | as long as the stream |
 | a client that reconnects | creates its subscriptions again; gets nothing it missed | the same |
 | a killed broker's subscriptions | deleted at the next start | deleted at the next start |
@@ -53,8 +53,9 @@ the broker sends to, the notification is written on a response that is already o
 ## 2. `urn:ngsi-ld:self`
 
 `urn:ngsi-ld:self` names the connection the subscription is made on. On an HTTP `POST` that is its event
-stream - this document. Over a WebSocket it is to be that WebSocket, beside the connection's id, which
-stays (not yet: today `urn:ngsi-ld:self` over a WebSocket is a 400, § 3).
+stream - this document. Over a WebSocket it is that WebSocket: an alias of the connection's id, which the
+broker stores in its place - the subscription then shows the id, and is the connection's as one made with
+the id is ([WebSocket](websocket.md#subscriptions)). The id keeps working beside it.
 
 ## 3. Creating it
 
@@ -73,7 +74,7 @@ Transfer-Encoding: chunked
 | | Status |
 |---|---|
 | an `Accept` without `text/event-stream`, `text/*` or `*/*` (no `Accept` is fine) | 406 |
-| over a WebSocket or cor:// - the request has no HTTP response to stream | 400 |
+| over cor:// - the request has no HTTP response to stream (over a WebSocket it names the connection, § 2) | 400 |
 | `--sseStreams` streams open already, or the broker stopping | 503 |
 
 What else a subscription is refused for, it is refused for here too, before the stream: the `201` is
@@ -191,6 +192,5 @@ proposing to ETSI: the endpoint value `urn:ngsi-ld:self`, the stream as the resp
 
 ## 8. Not yet
 
-- `urn:ngsi-ld:self` over a WebSocket (§ 2)
 - metrics: the open streams, the events written
 - Service Executions' notifications (`POST /services`) on a stream

@@ -1,0 +1,150 @@
+#
+# FILE            websocket_subscription_self.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+# urn:ngsi-ld:self over a WebSocket (doc/websocket.md, "Subscriptions"; doc/sse.md § 2): the endpoint of a
+# subscription created or changed over a connection may be urn:ngsi-ld:self - an alias of the connection's
+# id, stored as the id. The old way, the id itself, keeps working beside it, on the same connection: both
+# are notified there, and both go when the connection closes.
+#
+--NAME--
+WebSocket - urn:ngsi-ld:self is the connection's id: created and patched with it, notified, deleted with the connection
+
+--TAGS--
+websocket subscription
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. Connect A
+# 02. Over A: S1 on urn:ngsi-ld:self, S2 on A's id, S3 on an HTTP endpoint - 201 each
+# 03. Over A: S3 patched to urn:ngsi-ld:self - 204
+# 04. Over HTTP: the endpoint of S1, S2 and S3 is A's id
+# 05. An entity over HTTP - one notification on A for each of S1, S2, S3
+# 06. Close A - the subscriptions are gone
+#
+
+ids()     { ftWsMessages | python3 -c 'import json,sys; m=json.load(sys.stdin); print(m[0]["metadata"]["connection"])'; }
+replies() { ftWsMessages | python3 -c '
+import json,sys
+for m in json.load(sys.stdin):
+  md = m.get("metadata", {})
+  if "requestId" in md:
+    print(md["requestId"], md["status"])
+'; }
+notified() { ftWsMessages | python3 -c '
+import json,sys
+print(sorted(m["body"]["subscriptionId"] for m in json.load(sys.stdin) if isinstance(m.get("body"), dict) and m["body"].get("type") == "Notification"))
+'; }
+wsPost()  { ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"'"$1"'","Content-Type":"application/json"},"body":'"$2"'}'; }
+sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"'"$2"'"}}}'; }
+HTTP=http://localhost:9997/notify
+
+
+echo "01. Connect A"
+echo "============="
+ftWsStart
+ftWsAwait 1
+A=$(ids)
+echo "$A" | grep -q '^urn:ngsi-ld:WebSocket:' && echo "A is a connection"
+echo
+echo
+
+
+echo "02. Over A: S1 on urn:ngsi-ld:self, S2 on A's id, S3 on an HTTP endpoint - 201 each"
+echo "===================================================================================="
+wsPost s1 "$(sub S1 urn:ngsi-ld:self)"
+wsPost s2 "$(sub S2 $A)"
+wsPost s3 "$(sub S3 $HTTP)"
+ftWsAwait 4
+replies
+echo
+echo
+
+
+echo "03. Over A: S3 patched to urn:ngsi-ld:self - 204"
+echo "================================================"
+ftWsSend '{"metadata":{"method":"PATCH","path":"/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S3","requestId":"p3","Content-Type":"application/json"},"body":{"notification":{"endpoint":{"uri":"urn:ngsi-ld:self"}}}}'
+ftWsAwait 5
+replies | tail -1
+echo
+echo
+
+
+echo "04. Over HTTP: the endpoint of S1, S2 and S3 is A's id"
+echo "======================================================"
+for s in S1 S2 S3; do
+  uri=$(curl -s localhost:1026/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:$s | python3 -c 'import json,sys; print(json.load(sys.stdin)["notification"]["endpoint"]["uri"])')
+  [ "$uri" = "$A" ] && echo "$s: A's id" || echo "$s: $uri"
+done
+echo
+echo
+
+
+echo "05. An entity over HTTP - one notification on A for each of S1, S2, S3"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+ftWsAwait 8
+notified
+echo
+echo
+
+
+echo "06. Close A - the subscriptions are gone"
+echo "========================================"
+ftWsClose
+sleep 0.3
+curl -s localhost:1026/ngsi-ld/v1/subscriptions | python3 -c 'import json,sys; print(sorted(s["id"] for s in json.load(sys.stdin)))'
+echo
+echo
+
+
+--EXPECT--
+01. Connect A
+=============
+A is a connection
+
+
+02. Over A: S1 on urn:ngsi-ld:self, S2 on A's id, S3 on an HTTP endpoint - 201 each
+====================================================================================
+s1 201
+s2 201
+s3 201
+
+
+03. Over A: S3 patched to urn:ngsi-ld:self - 204
+================================================
+p3 204
+
+
+04. Over HTTP: the endpoint of S1, S2 and S3 is A's id
+======================================================
+S1: A's id
+S2: A's id
+S3: A's id
+
+
+05. An entity over HTTP - one notification on A for each of S1, S2, S3
+======================================================================
+HTTP/1.1 201 Created
+['urn:ngsi-ld:Subscription:S1', 'urn:ngsi-ld:Subscription:S2', 'urn:ngsi-ld:Subscription:S3']
+
+
+06. Close A - the subscriptions are gone
+========================================
+[]
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop

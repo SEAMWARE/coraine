@@ -57,8 +57,9 @@ extern bool sseStreamCreate(void);
 //
 // *streamP: it is (the endpoint urn:ngsi-ld:self). false: it may not be, and the error is set - an
 // Accept without text/event-stream, text/* or */* (406; for one not on a stream, the usual Accept
-// precondition), a request that cannot carry a stream (400: over a WebSocket, cor://), --sseStreams
-// streams open already or the broker stopping (503).
+// precondition), a request that cannot carry a stream (400: cor://; over a WebSocket urn:ngsi-ld:self is
+// the connection, replaced by its id before this), --sseStreams streams open already or the broker
+// stopping (503).
 // A stream that may be made has its place reserved: sseCreateRegister or sseCreateAbort follows.
 //
 extern bool sseCreateCheck(CorNode* subP, bool* streamP);
