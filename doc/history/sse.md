@@ -11,6 +11,11 @@ subscription and mark the connection beside it, or replace it by the id at the i
 taken: delivery, the deletion when the connection closes and a killed run's cleanup at the start are the
 id's, unchanged, and nothing else needs to know of the alias. A `GET` shows the id.
 
+Testing a periodic subscription on a connection showed it was never notified, by the id or by the alias:
+the periodic sender of entity subscriptions posted over HTTP only, and skipped a transport endpoint
+(a connection, `mqtt://`). It hands those to the transport now, as the change-driven sender does
+(corNgsild#95).
+
 ## 2026-10-20 - built: the stream is the create, the endpoint `urn:ngsi-ld:self`
 
 The first design (below) read a subscription's notifications with a `GET` on

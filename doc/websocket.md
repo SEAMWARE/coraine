@@ -88,6 +88,9 @@ broker stores in its place, so the subscription shows the id and is the same as 
 connection's id in a subscription made over HTTP or cor:// (400) - a connection is the endpoint only of
 what is made over it. The same for a Service Execution's `notification.endpoint` (`POST /services`).
 
+A periodic subscription (`timeInterval`) on the connection is notified on it once per interval, with the
+matching entities as they are then - as over HTTP.
+
 A subscription made over a connection may notify elsewhere - an `http(s)` or `mqtt` endpoint - and that
 one is the client's: it is not tied to the connection.
 

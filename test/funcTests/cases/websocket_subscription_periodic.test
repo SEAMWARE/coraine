@@ -1,0 +1,104 @@
+#
+# FILE            websocket_subscription_periodic.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+# A periodic subscription (timeInterval) made over a WebSocket, on the connection - by urn:ngsi-ld:self
+# and by its id: notified on the connection once per interval, as a change-driven one is (doc/websocket.md,
+# "Subscriptions"), with the matching entities as they are then.
+#
+--NAME--
+WebSocket - a periodic subscription on the connection is notified on it, once per interval
+
+--TAGS--
+websocket subscription periodic
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+
+#
+# 01. Connect A; an entity of the type over HTTP
+# 02. Over A: S1 on urn:ngsi-ld:self and S2 on A's id, both timeInterval 2 - 201 each
+# 03. 5.5 s later: 2 or 3 notifications on A for each, 2 s apart or more, each with the entity
+#
+
+wsPost()  { ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"'"$1"'","Content-Type":"application/json"},"body":'"$2"'}'; }
+sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription","entities":[{"type":"Vehicle"}],"timeInterval":2,"notification":{"endpoint":{"uri":"'"$2"'"}}}'; }
+
+
+echo "01. Connect A; an entity of the type over HTTP"
+echo "=============================================="
+ftWsStart
+ftWsAwait 1
+A=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}' | head -1
+echo
+echo
+
+
+echo "02. Over A: S1 on urn:ngsi-ld:self and S2 on A's id, both timeInterval 2 - 201 each"
+echo "==================================================================================="
+wsPost s1 "$(sub S1 urn:ngsi-ld:self)"
+wsPost s2 "$(sub S2 $A)"
+ftWsAwait 3
+ftWsMessages | python3 -c '
+import json,sys
+for m in json.load(sys.stdin):
+  md = m.get("metadata", {})
+  if "requestId" in md:
+    print(md["requestId"], md["status"])
+'
+echo
+echo
+
+
+echo "03. 5.5 s later: 2 or 3 notifications on A for each, 2 s apart or more, each with the entity"
+echo "============================================================================================"
+sleep 5.5
+ftWsMessages | python3 -c '
+import json,sys,datetime
+seen = {}
+for m in json.load(sys.stdin):
+  b = m.get("body")
+  if isinstance(b, dict) and b.get("type") == "Notification":
+    t = datetime.datetime.fromisoformat(b["notifiedAt"].replace("Z", "+00:00"))
+    seen.setdefault(b["subscriptionId"], []).append((t, [e["id"] for e in b["data"]]))
+for s in ["urn:ngsi-ld:Subscription:S1", "urn:ngsi-ld:Subscription:S2"]:
+  v    = seen.get(s, [])
+  gaps = [(b[0] - a[0]).total_seconds() for a, b in zip(v, v[1:])]
+  ok   = (2 <= len(v) <= 3) and all(g >= 1.9 for g in gaps) and all(d == ["urn:ngsi-ld:Vehicle:V1"] for _, d in v)
+  print(s, "yes" if ok else "no: %d notifications, gaps %s" % (len(v), gaps))
+'
+echo
+echo
+
+
+--EXPECT--
+01. Connect A; an entity of the type over HTTP
+==============================================
+HTTP/1.1 201 Created
+
+
+02. Over A: S1 on urn:ngsi-ld:self and S2 on A's id, both timeInterval 2 - 201 each
+===================================================================================
+s1 201
+s2 201
+
+
+03. 5.5 s later: 2 or 3 notifications on A for each, 2 s apart or more, each with the entity
+============================================================================================
+urn:ngsi-ld:Subscription:S1 yes
+urn:ngsi-ld:Subscription:S2 yes
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+corDbDrop
