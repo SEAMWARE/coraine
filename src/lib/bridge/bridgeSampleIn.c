@@ -8,6 +8,7 @@
 //
 
 #include <string.h>                                   // memset, strlen, strcpy, strcat
+#include <pthread.h>                                  // pthread_once, pthread_key_create, pthread_setspecific
 #include <time.h>                                     // clock_gettime
 
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
@@ -79,6 +80,31 @@
 
 // -----------------------------------------------------------------------------
 //
+// bridgeThreadArenaFree - a plugin thread's end: the arena's blocks given back
+//
+// A reset frees what the previous sample grew the arena by, so all that is ever held is the LAST
+// sample's - nothing, unless it outgrew BRIDGE_SAMPLE_BUFFER. Then the blocks it took are held until
+// the thread ends, and nothing else frees them: 1.8 MB definitely lost after one large sample.
+//
+// false = teardown, once - the thread is ending.
+//
+static pthread_key_t   arenaKey;
+static pthread_once_t  arenaKeyOnce = PTHREAD_ONCE_INIT;
+
+static void bridgeThreadArenaFree(void* kaP)
+{
+  corAllocBufferReset((CorAlloc*) kaP, false);
+}
+
+static void arenaKeyCreate(void)
+{
+  pthread_key_create(&arenaKey, bridgeThreadArenaFree);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgeThreadBind - make this plugin thread able to do broker work
 //
 // A transport runs threads of its own and hands a sample over on one of them.
@@ -102,6 +128,9 @@ void bridgeThreadBind(Tenant* tenantP)
     corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
     corRest.kallocP  = &corRest.kalloc;
     inited = true;
+
+    pthread_once(&arenaKeyOnce, arenaKeyCreate);
+    pthread_setspecific(arenaKey, &corRest.kalloc);
   }
   else
     corAllocBufferReset(&corRest.kalloc, true);
