@@ -43,16 +43,17 @@ coraine/
 | Geo | `GEOQ` |
 | Security | `AUTH`, `POLICY_API` |
 | Beyond NGSI-LD | `SERVICE_EXECUTION` |
-| Protocols | `COR_PROTOCOL`, `TRANSPORTS` |
+| Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Three are turned off
+All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Four are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires`:
 
 | switch | off when | why |
 |---|---|---|
 | `SNAPSHOT_SUBSCRIPTIONS` | `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is off | a subscription, notified by a Snapshot's writes |
+| `SSE` | `SUBSCRIPTIONS` is off | a subscription made on its own event stream |
 | `METRICS` | `ADMIN_API` is off | the admin API plugin serves them (`/admin/metrics`, `/metrics`), nothing else does |
 | `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
 
@@ -388,6 +389,13 @@ alone. Size: -24 KiB.
 
 Transport plugins - the API over another protocol (`--transports`; `ws.so`, WebSocket). Off: no
 `--transports`, `ws.so` not built. Size: -38 KiB.
+
+#### `SSE`
+
+Server-Sent Events - a subscription on the endpoint `urn:ngsi-ld:self` made on its own event stream, the
+`201` to its `POST` ([Server-Sent Events](sse.md)). Off: no `--sseStreams`; a subscription on `urn:ngsi-ld:self`
+is a 400 ("this broker serves no event streams"). Size: -9,505 bytes (release build); corRest's response stream and corNgsild's
+endpoint stay - their own `COR_WITH_STREAM` and `COR_WITH_EVENT_STREAM`, about 1.7 KiB each.
 
 #### `ADMIN_API`
 

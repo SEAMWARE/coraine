@@ -38,6 +38,9 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authSubscriptionOwnerKeep
 #endif
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseEndpointIs
+#endif
 #include "serviceRoutines/patchSubscription.h"       // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -233,7 +236,21 @@ bool patchSubscription(void)
     return true;
   }
 
+#if COR_FEATURE_SSE
+  bool wasStream = sseEndpointIs(mergedSubP);
+#endif
+
   ldRegSubMerge(mergedSubP, fragment, corRest.kallocP);
+
+#if COR_FEATURE_SSE
+  if (sseEndpointIs(mergedSubP) != wasStream)
+  {
+    ldSubCacheUnlock(subCacheP);
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+              "a subscription is on an event stream for its life - made on it, deleted with it: its endpoint is not changed to or from urn:ngsi-ld:self");
+    return true;
+  }
+#endif
 
   //
   // § 5.8.3 — re-validate the COMPLETE merged result before persisting. The

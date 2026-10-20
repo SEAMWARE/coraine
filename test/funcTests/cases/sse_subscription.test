@@ -1,0 +1,281 @@
+#
+# FILE            sse_subscription.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: SSE
+#
+# Server-Sent Events (doc/sse.md). A subscription whose endpoint is urn:ngsi-ld:self is made on its own
+# event stream: the 201 to the POST is text/event-stream and does not end, and the notifications are its
+# events. timesSent moves when an event is written. The subscription lives as long as the stream: the
+# client leaves - it is deleted; it is deleted - the stream ends. Its endpoint is not changed by a PATCH.
+# An Accept that rules out text/event-stream is a 406, and so is `Accept: text/event-stream` alone on an
+# ordinary subscription (its 201 is JSON). A periodic subscription is delivered on a stream too, once per
+# interval - not again before the stream has counted the event. A context source subscription is made on
+# a stream the same way. A broker killed (kill -9) leaves its
+# stream subscriptions in the store; the next start deletes them, and only them.
+#
+--NAME--
+SSE - a subscription on urn:ngsi-ld:self is made on its stream and lives as long as it
+
+--TAGS--
+sse subscription
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. POST S1 on urn:ngsi-ld:self, no Accept - 201, text/event-stream, its Location
+# 02. An entity of the type - the stream: the opening comment, then one 'notification' event for S1
+# 03. GET S1 - timesSent 1, lastSuccess set
+# 04. The client leaves - S1 is deleted
+# 05. Accept: application/json and urn:ngsi-ld:self - 406
+# 06. Accept: text/event-stream alone, an HTTP endpoint - 406; with application/json too - 201
+# 07. Periodic, timeInterval 2: S7 and the context source subscription C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted
+# 08. S2 on its stream: a PATCH to an HTTP endpoint, and S4's PATCH to urn:ngsi-ld:self - 400 both; DELETE S2 - the stream ends
+# 09. The context source subscription C1 on its stream - 201, text/event-stream; the client leaves - C1 is deleted
+# 10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays
+#
+
+B=localhost:1026/ngsi-ld/v1
+T=/tmp/sse.$$
+sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription","entities":[{"type":"Vehicle"}]'"$3"',"notification":{"endpoint":{"uri":"'"$2"'"}}}'; }
+code()    { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
+stream()  { curl -sN -D $T.$1.h -H 'Content-Type: application/json' -d "$3" $B/$2 > $T.$1.b & }
+headers() { tr -d '\r' < $T.$1.h | grep -i '^HTTP/\|^Content-Type:\|^Cache-Control:\|^Location:'; }
+counted() { python3 -c '
+import json,sys,datetime
+t = [datetime.datetime.fromisoformat(json.loads(l[6:])["notifiedAt"].replace("Z","+00:00")) for l in open(sys.argv[1]) if l.startswith("data: ")]
+gaps = [(b - a).total_seconds() for a, b in zip(t, t[1:])]
+print("2 or 3 events, 2 s apart or more:", "yes" if (2 <= len(t) <= 3) and all(g >= 1.9 for g in gaps) else "no %s" % gaps)
+' $T.$1.b; }
+events()  { python3 -c '
+import json,sys
+for block in open(sys.argv[1]).read().split("\n\n"):
+  if block == "":
+    continue
+  if block.startswith(":"):
+    print("comment:", block[1:].strip())
+    continue
+  f = dict(line.split(": ", 1) for line in block.split("\n"))
+  d = json.loads(f["data"])
+  print("event:", f["event"], "-", d["type"], d["subscriptionId"], [e["id"] for e in d["data"]])
+' $T.$1.b; }
+gone()    { for i in $(seq 30); do s=$(curl -s -o /dev/null -w "%{http_code}" $B/$1); [ "$s" = 404 ] && break; sleep 0.1; done; echo $s; }
+await()   { for i in $(seq 30); do [ -s $T.$1.h ] && break; sleep 0.1; done; }
+HTTP=http://localhost:9997/notify
+
+
+echo "01. POST S1 on urn:ngsi-ld:self, no Accept - 201, text/event-stream, its Location"
+echo "================================================================================="
+stream s1 subscriptions "$(sub S1 urn:ngsi-ld:self)"
+c1=$!
+await s1
+headers s1
+echo
+echo
+
+
+echo "02. An entity of the type - the stream: the opening comment, then one 'notification' event for S1"
+echo "================================================================================================"
+code -d '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":1}}' $B/entities
+sleep 0.5
+events s1
+echo
+echo
+
+
+echo "03. GET S1 - timesSent 1, lastSuccess set"
+echo "========================================="
+sleep 1.2
+curl -s $B/subscriptions/urn:ngsi-ld:Subscription:S1 | python3 -c 'import json,sys; n=json.load(sys.stdin)["notification"]; print(n["timesSent"], "lastSuccess" in n, n["endpoint"]["uri"])'
+echo
+echo
+
+
+echo "04. The client leaves - S1 is deleted"
+echo "====================================="
+kill $c1
+wait $c1 2>/dev/null
+gone subscriptions/urn:ngsi-ld:Subscription:S1
+echo
+echo
+
+
+echo "05. Accept: application/json and urn:ngsi-ld:self - 406"
+echo "======================================================="
+curl -s -w "\n%{http_code}\n" -H 'Content-Type: application/json' -H 'Accept: application/json' -d "$(sub S5 urn:ngsi-ld:self)" $B/subscriptions
+echo
+echo
+
+
+echo "06. Accept: text/event-stream alone, an HTTP endpoint - 406; with application/json too - 201"
+echo "============================================================================================"
+code -H 'Accept: text/event-stream' -d "$(sub S6 $HTTP)" $B/subscriptions
+code -H 'Accept: text/event-stream, application/json' -d "$(sub S6 $HTTP)" $B/subscriptions
+echo
+echo
+
+
+echo "07. Periodic, timeInterval 2: S7 and C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted"
+echo "============================================================================================================================================"
+stream s7 subscriptions "$(sub S7 urn:ngsi-ld:self ',"timeInterval":2')"
+c7=$!
+stream c7 csourceSubscriptions "$(sub C7 urn:ngsi-ld:self ',"timeInterval":2')"
+cc7=$!
+await s7
+await c7
+headers s7
+headers c7
+sleep 5.5
+counted s7
+counted c7
+events s7 | sed -n 2p
+kill $c7 $cc7
+wait $c7 $cc7 2>/dev/null
+gone subscriptions/urn:ngsi-ld:Subscription:S7
+gone csourceSubscriptions/urn:ngsi-ld:Subscription:C7
+echo
+echo
+
+
+echo "08. S2 on its stream: PATCH to HTTP, S4's PATCH to urn:ngsi-ld:self - 400 both; DELETE S2 - the stream ends"
+echo "============================================================================================================"
+code -d "$(sub S4 $HTTP)" $B/subscriptions
+stream s2 subscriptions "$(sub S2 urn:ngsi-ld:self)"
+c2=$!
+await s2
+code -X PATCH -d '{"notification":{"endpoint":{"uri":"'"$HTTP"'"}}}' $B/subscriptions/urn:ngsi-ld:Subscription:S2
+code -X PATCH -d '{"notification":{"endpoint":{"uri":"urn:ngsi-ld:self"}}}' $B/subscriptions/urn:ngsi-ld:Subscription:S4
+code -X DELETE $B/subscriptions/urn:ngsi-ld:Subscription:S2
+for i in $(seq 30); do kill -0 $c2 2>/dev/null || break; sleep 0.1; done
+kill -0 $c2 2>/dev/null && { echo "the stream did not end"; kill $c2; } || echo "the stream ended"
+echo
+echo
+
+
+echo "09. C1 on its stream - 201, text/event-stream; the client leaves - C1 is deleted"
+echo "================================================================================"
+stream c1 csourceSubscriptions "$(sub C1 urn:ngsi-ld:self)"
+c3=$!
+await c1
+headers c1
+kill $c3
+wait $c3 2>/dev/null
+gone csourceSubscriptions/urn:ngsi-ld:Subscription:C1
+echo
+echo
+
+
+echo "10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays"
+echo "==============================================================================================================="
+stream s3 subscriptions "$(sub S3 urn:ngsi-ld:self)"
+c4=$!
+stream s9 subscriptions "$(sub S9 urn:ngsi-ld:self ',"timeInterval":3600')"
+c9=$!
+await s3
+await s9
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+wait $c4 $c9 2>/dev/null
+coraineStart
+curl -s $B/subscriptions | python3 -c 'import json,sys; print(sorted(s["id"] for s in json.load(sys.stdin)))'
+rm -f $T.*
+echo
+echo
+
+
+--EXPECT--
+01. POST S1 on urn:ngsi-ld:self, no Accept - 201, text/event-stream, its Location
+=================================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S1
+Content-Type: text/event-stream
+Cache-Control: no-cache
+
+
+02. An entity of the type - the stream: the opening comment, then one 'notification' event for S1
+================================================================================================
+201
+comment: stream
+event: notification - Notification urn:ngsi-ld:Subscription:S1 ['urn:ngsi-ld:Vehicle:V1']
+
+
+03. GET S1 - timesSent 1, lastSuccess set
+=========================================
+1 True urn:ngsi-ld:self
+
+
+04. The client leaves - S1 is deleted
+=====================================
+404
+
+
+05. Accept: application/json and urn:ngsi-ld:self - 406
+=======================================================
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Not Acceptable",
+  "status": 406,
+  "detail": "the response to a subscription on the endpoint 'urn:ngsi-ld:self' is its event stream: text/event-stream"
+}
+
+406
+
+
+06. Accept: text/event-stream alone, an HTTP endpoint - 406; with application/json too - 201
+============================================================================================
+406
+201
+
+
+07. Periodic, timeInterval 2: S7 and C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted
+============================================================================================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S7
+Content-Type: text/event-stream
+Cache-Control: no-cache
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C7
+Content-Type: text/event-stream
+Cache-Control: no-cache
+2 or 3 events, 2 s apart or more: yes
+2 or 3 events, 2 s apart or more: yes
+event: notification - Notification urn:ngsi-ld:Subscription:S7 ['urn:ngsi-ld:Vehicle:V1']
+404
+404
+
+
+08. S2 on its stream: PATCH to HTTP, S4's PATCH to urn:ngsi-ld:self - 400 both; DELETE S2 - the stream ends
+============================================================================================================
+201
+400
+400
+204
+the stream ended
+
+
+09. C1 on its stream - 201, text/event-stream; the client leaves - C1 is deleted
+================================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C1
+Content-Type: text/event-stream
+Cache-Control: no-cache
+404
+
+
+10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays
+===============================================================================================================
+['urn:ngsi-ld:Subscription:S4', 'urn:ngsi-ld:Subscription:S6']
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

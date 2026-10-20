@@ -55,6 +55,9 @@ extern CorLdContextCache* corLdCacheGet(void);
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authSubscriptionOwnerKeep
 #endif
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseCreateCheck, sseCreateRegister, sseCreateRespond
+#endif
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -412,7 +415,22 @@ bool postSubscriptions(void)
     return true;
   }
 
+  //
+  // A subscription made on its event stream (Server-Sent Events, sse.h): may it be, before it is stored
+  //
+  bool onStream = false;
+  (void) onStream;
+#if COR_FEATURE_SSE
+  if (sseCreateCheck(subP, &onStream) == false)
+    return true;
+#endif
+
   int r = db.subscriptionCreate((Tenant*) corNgsild.tenantP, idP->value.s, subP);
+
+#if COR_FEATURE_SSE
+  if (onStream && (r != DB_OK))
+    sseCreateAbort();
+#endif
 
   if (r == DB_ALREADY_EXISTS)
   {
@@ -446,6 +464,11 @@ bool postSubscriptions(void)
 
   CorNode* timeIntervalP = corTreeLookup(subP, "timeInterval");
   bool isPernot = (timeIntervalP != NULL && (timeIntervalP->type == CorInt || timeIntervalP->type == CorFloat));
+
+#if COR_FEATURE_SSE
+  if (onStream)                                      // before the cache: a notification may come at once
+    sseCreateRegister(tenantP, idP->value.s, false);
+#endif
 
   if (isPernot)
   {
@@ -500,6 +523,11 @@ bool postSubscriptions(void)
   corRestOutHeaderAdd("Location", locBuf);
 
   // § 6.3.6: no Link header on no-body responses.
+
+#if COR_FEATURE_SSE
+  if (onStream)                                      // the 201 is the stream of its notifications
+    sseCreateRespond(tenantP, idP->value.s, false);
+#endif
 
   return true;
 }

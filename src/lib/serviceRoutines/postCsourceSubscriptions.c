@@ -47,6 +47,9 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "corNgsild/ldIdGenerate.h"                    // ldIdGenerate
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseCreateCheck, sseCreateRegister, sseCreateRespond
+#endif
 #include "serviceRoutines/postCsourceSubscriptions.h"  // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -199,9 +202,24 @@ bool postCsourceSubscriptions(void)
   // configured, we still add to cache — CSR-subs remain in-memory
   // and are lost on restart.
   //
+  //
+  // A subscription made on its event stream (Server-Sent Events, sse.h): may it be, before it is stored
+  //
+  bool onStream = false;
+  (void) onStream;
+#if COR_FEATURE_SSE
+  if (sseCreateCheck(subP, &onStream) == false)
+    return true;
+#endif
+
   if (db.subscriptionCreate != NULL)
   {
     int r = db.subscriptionCreate(tenantP, idP->value.s, subP);
+
+#if COR_FEATURE_SSE
+    if (onStream && (r != DB_OK))
+      sseCreateAbort();
+#endif
 
     if (r == DB_ALREADY_EXISTS)
     {
@@ -226,6 +244,11 @@ bool postCsourceSubscriptions(void)
   // drop the lock before the reg-touching initial notify (lock order is
   // reg-before-sub, so the sub lock must not be held across it).
   //
+#if COR_FEATURE_SSE
+  if (onStream)                                      // before the cache: its initial notification comes at once
+    sseCreateRegister(tenantP, idP->value.s, true);
+#endif
+
   LdSubCache*     regSubCacheP = (LdSubCache*) tenantP->regSubCacheP;
   LdSubCacheItem* cacheItem    = NULL;
   ldSubCacheWrLock(regSubCacheP);
@@ -254,6 +277,11 @@ bool postCsourceSubscriptions(void)
   corRestOutHeaderAdd("Location", locBuf);
 
   // § 6.3.6: no Link header on no-body responses.
+
+#if COR_FEATURE_SSE
+  if (onStream)                                      // the 201 is the stream of its notifications
+    sseCreateRespond(tenantP, idP->value.s, true);
+#endif
 
   //
   // Initial-on-subscribe notification (§ 5.11.2.4 / § 5.11.7): walk the

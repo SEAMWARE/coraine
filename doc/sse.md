@@ -1,181 +1,196 @@
-# Server-Sent Events - a subscription's notifications as an event stream
+# Server-Sent Events - a subscription made on its own event stream
 
-> **Design - not built.** For review. Background: [WebSocket](websocket.md) (the API and its
-> notifications over one connection), [Authorization in the broker](authorization.md).
-
-A client that only wants notifications - a dashboard, a browser page, a script behind NAT - opens one
-plain `GET` on the subscription and reads its notifications as they happen. The broker never connects to
-the client, as with a WebSocket; unlike a WebSocket, the stream is plain HTTP, and a client that loses it
-reconnects and is sent what it missed.
+A client that only wants notifications - a dashboard, a browser page, a script behind NAT - creates its
+subscription with one `POST` and keeps the response open: the `201` is a `text/event-stream` that does
+not end, and the subscription's notifications are its events - a change-driven subscription's as the
+entities change, a periodic one's once per interval (§ 4.1). The broker never connects to the client,
+and nothing but plain HTTP is needed.
 
 ```console
-curl -N -H 'Accept: text/event-stream' 'http://localhost:1026/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1/events?key=3f9c...'
+curl -N -H 'Content-Type: application/json' -d '{
+  "type": "Subscription", "entities": [ { "type": "Vehicle" } ],
+  "notification": { "endpoint": { "uri": "urn:ngsi-ld:self" } } }' \
+  http://localhost:1026/ngsi-ld/v1/subscriptions
 ```
 
 ```text
-id: 6f1c0a9e2b7d4e18-1
+: stream
+
 event: notification
-data: {"id":"urn:ngsi-ld:Notification:...","type":"Notification","subscriptionId":"urn:ngsi-ld:Subscription:s1",...}
+data: {"id":"urn:ngsi-ld:Notification:...","type":"Notification","subscriptionId":"urn:ngsi-ld:Subscription:...","data":[...]}
 
 ```
 
 Server-Sent Events is the WHATWG HTML standard's `text/event-stream` (HTML § 9.2): a response that does
-not end, made of events - lines of `id:`, `event:` and `data:`, a blank line after each. Browsers read it
-with `EventSource`, which reconnects by itself and sends the last id it saw in `Last-Event-ID`.
+not end, made of events - lines of `event:` and `data:`, a blank line after each - and comments (a line
+starting with `:`).
 
-## 1. What it is next to the WebSocket
+In the build by default; `-DCOR_FEATURE_SSE=OFF` leaves it out (and so does `SUBSCRIPTIONS=OFF`) -
+[building](building-details.md#sse).
 
-| | WebSocket (`ws.so`) | Server-Sent Events |
+## 1. Next to the WebSocket
+
+| | WebSocket (`ws.so`, [WebSocket](websocket.md)) | Server-Sent Events |
 |---|---|---|
 | carries | the whole API, both ways | one subscription's notifications, broker to client |
-| subscription made over | the connection itself | anything - HTTP, cor://, a WebSocket |
-| the subscription lives | as long as the connection | as long as the subscription - the stream comes and goes |
-| a client that reconnects | gets nothing it missed | is sent the notifications since `Last-Event-ID` (§ 4) |
-| through proxies, HTTP/2 | needs `Upgrade` passed through; not over HTTP/2 | plain HTTP; a proxy must not buffer it (§ 6) |
+| the connection | `GET /ngsi-ld/v1/ws`, `Upgrade: websocket` | the `POST` that creates the subscription; its `201` is the stream |
+| subscriptions per connection | any number, made over it | one - the one the `POST` made |
+| the endpoint | the connection's id, `urn:ngsi-ld:WebSocket:<run>-<n>` | `urn:ngsi-ld:self` |
+| the subscription lives | as long as the connection (those notifying it) | as long as the stream |
+| a client that reconnects | creates its subscriptions again; gets nothing it missed | the same |
+| a killed broker's subscriptions | deleted at the next start | deleted at the next start |
+| through proxies, HTTP/2 | needs `Upgrade` passed through; not over HTTP/2 | plain HTTP; a proxy must not buffer it (§ 5) |
+| a browser | `WebSocket` | `fetch()` with a streamed body - `EventSource` is GET-only |
 | binary | possible (`ngsi-ld.cor`, not yet) | no - text only |
+| loaded | `--transports ws` (a plugin) | always, in a build with it |
 
-The WebSocket stays what c³ uses. Server-Sent Events is for the clients that read and never write.
+The WebSocket is for a client that also writes - c³. Server-Sent Events is for a client that only reads.
 
-It is **not a transport**: a transport carries the API ([WebSocket](websocket.md#how-it-is-built)), this
-carries notifications only - a notification binding, beside HTTP and MQTT. Its own feature flag,
-`COR_FEATURE_SSE`, from the first PR; off leaves out the route, the buffers and the endpoint value.
+It is **not a transport** - a transport carries the API ([WebSocket](websocket.md#how-it-is-built)); this
+carries one subscription's notifications. It is not a notification binding either: there is no address
+the broker sends to, the notification is written on a response that is already open.
 
-## 2. The subscription
+## 2. `urn:ngsi-ld:self`
 
-A subscription is delivered on an event stream when its endpoint says so:
+`urn:ngsi-ld:self` names the connection the subscription is made on. On an HTTP `POST` that is its event
+stream - this document. Over a WebSocket it is to be that WebSocket, beside the connection's id, which
+stays (not yet: today `urn:ngsi-ld:self` over a WebSocket is a 400, § 3).
 
-```json
-"notification": { "endpoint": { "uri": "urn:ngsi-ld:EventStream", "accept": "application/ld+json" } }
-```
+## 3. Creating it
 
-- `urn:ngsi-ld:EventStream` - one fixed value: the stream is found by the subscription's id, there is
-  nothing else to name. (Decided, KZ 2026-10-19.) Any other value is delivered as today.
-- `accept`: `application/ld+json` (the default here) puts the `@context` in each notification's body - an
-  event has no `Link` header to carry it; `application/json` leaves it out, for a client that knows its
-  context.
-- Allowed for context source subscriptions too (`/csourceSubscriptions/{id}/events`).
-
-**The stream key.** Creating such a subscription makes a key for its stream - 128 random bits, hex - and
-the creation's response gives it, once, as the stream's address:
+`POST /ngsi-ld/v1/subscriptions` or `POST /ngsi-ld/v1/csourceSubscriptions`, on the broker's HTTP port,
+`notification.endpoint.uri` `urn:ngsi-ld:self`. The endpoint alone decides; no header is needed.
 
 ```text
 HTTP/1.1 201 Created
-Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1
-Event-Stream: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:s1/events?key=3f9c...
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:...
+Content-Type: text/event-stream
+Cache-Control: no-cache
+X-Accel-Buffering: no
+Transfer-Encoding: chunked
 ```
-
-- Only the creator ever sees it: `GET /subscriptions/{id}` does not show it, nor does any other response.
-  The store keeps its SHA-256, not the key - it survives a restart, and a copy of the database does not
-  open the stream.
-- A `PATCH` that sets the endpoint to `urn:ngsi-ld:EventStream` again makes a new key (the same
-  `Event-Stream` header in its response) and closes an open stream: a key that leaked is replaced.
-- A `PATCH` to any other endpoint drops the key and the ring.
-- `Event-Stream` is in `Access-Control-Expose-Headers`, so a page can read it. Over a WebSocket it is in
-  the response's `metadata`, as every header is.
-
-A subscription with this endpoint and no stream open is not failing: its notifications wait in its buffer
-(§ 4), and `status` stays `active`. `timesSent` and `lastNotification` count what was written to a stream.
-
-## 3. The stream
-
-`GET /ngsi-ld/v1/subscriptions/{id}/events`, `Accept: text/event-stream`, on the broker's HTTP port.
 
 | | Status |
 |---|---|
-| the subscription does not exist, in the request's tenant | 404 |
-| no `key`, or not the subscription's | 404 - the same answer, so that a wrong key does not tell an id exists |
-| its endpoint is not `urn:ngsi-ld:EventStream` | 404 - likewise |
-| a stream is already open on it | 409 - one reader per subscription |
-| `Accept` without `text/event-stream` | 406 |
+| an `Accept` without `text/event-stream`, `text/*` or `*/*` (no `Accept` is fine) | 406 |
+| over a WebSocket or cor:// - the request has no HTTP response to stream | 400 |
+| `--sseStreams` streams open already, or the broker stopping | 503 |
 
-The response: `200`, `Content-Type: text/event-stream`, `Cache-Control: no-cache`,
-`X-Accel-Buffering: no`; then the buffered notifications the client has not seen (§ 4), then each new one
-as it is made.
+What else a subscription is refused for, it is refused for here too, before the stream: the `201` is
+the stream, an error is an ordinary response.
 
-- **An event** per notification: `id:` (§ 4), `event: notification`, one `data:` line - the
-  Notification, as JSON on one line (the broker's serializer writes no newlines).
-- **A comment** (`: keep-alive`) every 15 s with nothing sent, so that a proxy does not close an idle
+`Accept: text/event-stream` on a subscription with another endpoint is an ordinary create: its `201` is
+JSON, so an `Accept` that names only `text/event-stream` is a 406, as any `Accept` without JSON is.
+
+- `notification.endpoint.accept`: `application/ld+json` (the default with this endpoint) puts the
+  `@context` in each notification's body - an event has no `Link` header to carry it; the core context
+  when the subscription names none. `application/json` leaves it out.
+- The subscription shows its endpoint as `urn:ngsi-ld:self` (`GET /subscriptions/{id}`).
+- `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream (a
+  periodic subscription of entities: § 4.1).
+- A `PATCH` does not change the endpoint to or from `urn:ngsi-ld:self` (400): a subscription is on its
+  stream for its whole life. Everything else is patched as on any subscription: a periodic one stays
+  periodic and a change-driven one change-driven - adding or removing `timeInterval` is a 400 - and the
+  interval may change.
+
+## 4. The stream
+
+- **The first bytes**, at once: the comment `: stream`. A notification made before the stream is open -
+  the subscription is in the cache before its `201` is out - waits for it (up to 1000 of them).
+- **An event** per notification: `event: notification`, one `data:` line - the Notification (or
+  ContextSourceNotification) as JSON on one line - and a blank line. No `id:`: a client that reconnects
+  creates a new subscription, there is nothing to resume.
+- **A comment** (`: keep-alive`) after 15 s with nothing sent, so that a proxy does not close an idle
   stream.
-- **`event: gap`** when notifications were lost - the buffer overflowed, or `Last-Event-ID` is of another
-  run of the broker (§ 4). Its `data:` says how many, when the broker knows. The client then reads the
-  current state with a query, as after any start.
-- **The broker closes** the stream when the subscription is deleted, its tenant is deleted, or the broker
-  stops; a client that does not read for 5 s is cut, as on a WebSocket. The subscription stays.
+- **The client leaves** - closes the connection, or is killed: the broker sees it within a second, and
+  deletes the subscription.
+- **The broker ends it** when the subscription is deleted (`DELETE`), when the client falls 16 MiB
+  behind (the connection is cut, the subscription deleted), and when the broker stops (every stream
+  ended, every subscription on one deleted).
+- **A killed broker** deletes nothing. At its next start every subscription and context source
+  subscription on `urn:ngsi-ld:self` is deleted, in every tenant - no stream outlives the broker that
+  served it. Not with `--high-availability`: there, a stream may be another instance's, open.
 
-Both HTTP servers serve it. A stream is a response that never ends, which neither does today: corRest
-gets a **stream hook** of its own - the route answers the headers, then the broker takes the socket and
-writes events on it, on one thread per stream (the thread-per-connection invariant). It is the same
-hand-over as the upgrade (`corRestSetUpgradeHook`), but not the upgrade: no `Upgrade`, no `101`, its own
-hook and its own counter. libmicrohttpd: its upgrade API cannot take a `200`, so a response from a
-callback with the connection suspended between events, or the socket taken; to be decided on the code.
+Both HTTP servers serve it: libmicrohttpd (a response from a content reader, its connection suspended
+while there is nothing to send) and the built-in one (corHttp's response stream).
 
-## 4. Replay - `Last-Event-ID`
+A browser page reads it with `fetch()` - `EventSource` sends a `GET`:
 
-Each subscription with this endpoint keeps its latest notifications in a ring in RAM:
-`--sseBuffer` notifications (default 100; 0: none, a reconnect gets only new ones). The event id is
-`<run>-<n>`: the run is the broker's random per-start part (as in a WebSocket connection's id), `n` counts
-the subscription's notifications from 1.
+```js
+const r = await fetch('/ngsi-ld/v1/subscriptions', { method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ type: 'Subscription', entities: [ { type: 'Vehicle' } ],
+                         notification: { endpoint: { uri: 'urn:ngsi-ld:self' } } }) });
+const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+let text = '';
+for (;;) {
+  const { value, done } = await reader.read();
+  if (done) break;                                 // the stream ended: the subscription is gone
+  text += value;
+  let end;
+  while ((end = text.indexOf('\n\n')) >= 0) {
+    const block = text.slice(0, end); text = text.slice(end + 2);
+    const data = block.split('\n').find(l => l.startsWith('data: '));
+    if (data) console.log(JSON.parse(data.slice(6)));
+  }
+}
+```
 
-| `Last-Event-ID` | The broker sends |
-|---|---|
-| none | the ring from its oldest - what was made while no one read |
-| this run, `n` still in the ring | everything after `n` |
-| this run, `n` older than the ring | `event: gap` (how many were lost), then the ring |
-| another run | `event: gap` (unknown), then the ring |
+With `--auth` the request carries its token as every request does (`Authorization`); the stream is the
+response to the create, so it is authorized as the create is.
 
-The ring is not persisted: after a restart a client resumes with a gap, never with a silent loss. Replay
-from the store's log - notifications made again from the changes after the last one sent - is the
-durable form, and later (§ 8).
+### 4.1 Periodic subscriptions
 
-## 5. Who may read it
+A subscription with `timeInterval` (seconds) is made on its stream the same way, for entities and
+for context sources:
 
-Two checks, the second only with `--auth`:
+```console
+curl -N -H 'Content-Type: application/json' -d '{
+  "type": "Subscription", "entities": [ { "type": "Vehicle" } ], "timeInterval": 10,
+  "notification": { "endpoint": { "uri": "urn:ngsi-ld:self" } } }' \
+  http://localhost:1026/ngsi-ld/v1/subscriptions
+```
 
-1. **The key** (§ 2), always. Without `--auth` it is the only one: who has the stream's address may read
-   it, and only the subscription's creator was given it. A subscription id alone - a client may choose
-   `urn:ngsi-ld:Subscription:s1` - opens nothing. The one-reader rule (409) then cannot be used to lock the
-   creator out by someone who guessed the id.
-2. **The owner**, with `--auth`: the stream is a read of the subscription - `authorize` decides it as for
-   `GET /subscriptions/{id}` - and the reader must be the subscription's owner (the identity it was made
-   with, as `notify` uses since ABI 5). A key without the owner's token is 403.
+- **The first event** within a second of the `201`, then one per interval - the matching entities as
+  they are then, as over HTTP. Two events are never closer than the interval.
+- **Entities**: an interval in which no entity matches sends no event (the keep-alive comments still
+  come). **Context sources**: an event every interval, its `data` empty when no registration matches
+  (§ 12.4.7).
+- **The counters** of an entity subscription move when the event is handed to the stream, as they move
+  when it is sent over HTTP; a context source subscription's, when it is written.
+- Its lifetime is a stream's (above): the client leaves, it is deleted.
 
-The key is in the URL, so it can land in access logs and proxies. It opens one subscription's stream,
-nothing else, and a `PATCH` replaces it.
+## 5. Deployment
 
-With the key in the URL, `EventSource` - which sends **no headers of its own** - works without
-`--auth`. With `--auth` the owner's token comes in the **`Authorization` header**, as on every other
-route (decided, KZ 2026-10-19). A browser page then reads the stream with `fetch()` and a streamed body
-instead of `EventSource`, and reconnects itself, sending `Last-Event-ID` (~30 lines).
-
-- **No query token** (`?access_token=`, RFC 6750 § 2.3): it would put the token in access logs, proxies
-  and browser history.
-- **No cookie**: the broker has no session.
-
-The tenant: the `NGSILD-Tenant` header, or `?tenant=` on this route only - for `EventSource` without
-`--auth`; the header wins. The `Event-Stream` address the broker gives carries `tenant=` for a
-subscription outside the default tenant.
-
-## 6. Deployment
-
-- **A buffering proxy holds events back.** nginx buffers unless told not to (`X-Accel-Buffering: no` does
-  it per response); APISIX is nginx - to be checked with the `ngsi-ld-pep` plugin in front.
+- **A buffering proxy holds events back.** nginx buffers unless told not to; `X-Accel-Buffering: no`
+  tells it, per response. APISIX is nginx.
 - **HTTP/1.1 in a browser: about 6 connections per host**, and each open stream is one. A page reading
   many subscriptions wants HTTP/2 in front, or one subscription for them all.
-- A stream is a socket and a thread for as long as it is open: counted in `/metrics`, and capped with
-  `--sseStreams` (default 1000; one more is 503).
-- The rings are RAM that grows with the subscriptions on a stream endpoint: counted in the memory budget
-  (`--memoryLimit`), and over it a new notification overwrites the oldest one in its ring, as a full ring
-  does.
+- A stream is a connection for as long as it is open: `--sseStreams` caps them (default 1000; one more
+  is a 503).
+
+## 6. How it is built
+
+- **corRest** (`corRestStream.h`, `COR_WITH_STREAM`): a response whose body is written over time, from
+  any thread - `corRestStreamResponse`, `corRestStreamWrite`, `corRestStreamEnd`. A write of 0 bytes
+  writes nothing and says whether the client is still there.
+- **corNgsild** (`ldNotifyStream.h`, `COR_WITH_EVENT_STREAM`): the endpoint `urn:ngsi-ld:self`, and the
+  hook a notification on it is handed to, rendered - by each of its senders: entity subscriptions,
+  context source subscriptions (both change-driven and periodic) and periodic entity subscriptions
+  (`ldPernotLoop`); the counters move when the application says an event was written
+  (`ldNotifyStreamSent`), the periodic entity sender's at the hand-over (`ldNotifyStreamHand`).
+- **coraine** (`src/lib/sse`, `COR_FEATURE_SSE`): the streams, one entry per subscription under one
+  mutex; a thread that, once a second, looks whether each client is still there, writes the keep-alives,
+  updates the counters and deletes the subscriptions whose streams ended (a `DELETE` run in the broker).
 
 ## 7. NGSI-LD
 
 Not in the specification: its bindings are HTTP and MQTT (and coraine's WebSocket). It solves for a
-reader what MQTT solves - a broker that cannot reach the client - without a second server, and is worth
-proposing to ETSI once it runs: the endpoint value, the route, the stream key, the event and its id.
+reader what MQTT solves - a broker that cannot reach the client - with no second server, and is worth
+proposing to ETSI: the endpoint value `urn:ngsi-ld:self`, the stream as the response to the create.
 
-## 8. Not in the first version
+## 8. Not yet
 
-- one stream for several subscriptions (`GET /ngsi-ld/v1/events?subscriptions=...`)
-- replay from the store's log, across restarts
-- more than one reader per subscription
+- `urn:ngsi-ld:self` over a WebSocket (§ 2)
+- metrics: the open streams, the events written
 - Service Executions' notifications (`POST /services`) on a stream

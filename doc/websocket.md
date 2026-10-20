@@ -127,6 +127,8 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 
 ## Not yet
 
+- `urn:ngsi-ld:self` as a subscription's endpoint, for this connection, beside its id
+  ([Server-Sent Events § 2](sse.md#2-urnngsi-ldself))
 - a subscription notifying another connection than its own
 - a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
 - cor:// as a transport plugin (`cor.so`)

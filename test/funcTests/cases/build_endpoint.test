@@ -123,6 +123,7 @@ Content-Length: REGEX([0-9]+)
     "SERVICE_EXECUTION": REGEX([a-z]+),
     "SNAPSHOT_SUBSCRIPTIONS": REGEX([a-z]+),
     "SNAPSHOT_WRITE": REGEX([a-z]+),
+    "SSE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
@@ -224,6 +225,7 @@ Content-Length: REGEX([0-9]+)
     "SERVICE_EXECUTION": REGEX([a-z]+),
     "SNAPSHOT_SUBSCRIPTIONS": REGEX([a-z]+),
     "SNAPSHOT_WRITE": REGEX([a-z]+),
+    "SSE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
