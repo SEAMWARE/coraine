@@ -1,0 +1,267 @@
+#
+# FILE            bridge_data_channels_measures.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# DataChannels - the mapping vocabulary an IoT Agent's measure needs (doc/iot-agent-measures.md § 2.4):
+# 'as' integer, float, datetime and json, 'unitCode', 'geo' from one column, 'json', 'vocab', 'languageMap',
+# a constant 'value', an entity's 'scope', and 'otherColumns' - per DataChannel and as the bridge's default.
+#
+# The loopback bridge emits one record per endpoint at start (emitAtStart), as an IoT Agent bridge hands a
+# measure over: the device's keys, plus @deviceId and @apikey.
+#   M1  every kind; the bridge's otherColumns "property": 'h' becomes an attribute; '@deviceId', '@apikey',
+#       'id', a name NGSI-LD does not allow and a null do not
+#   M2  the DataChannel's own otherColumns "none" replaces the bridge's: 'h' is dropped; the scope a template
+#   M3  an other column whose name the mapping already made ('h', mapped from 'humidity'): the mapped one stays
+#   M4  otherColumns "all" - no such value: the DataChannel is skipped, not in GET /dataChannels
+# No record carries a time: no observedAt anywhere.
+#
+# REQUIRE_FEATURE: DATA_CHANNELS
+#
+--NAME--
+Bridges: DataChannels - integer, float, datetime, json, unitCode, geo, json/vocab/languageMap attributes, constants, scope, otherColumns
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+THERMO='{ "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{@deviceId}", "scope": "/garden/north",
+          "attributes": { "temperature": { "column": "t",     "as": "number", "unitCode": "CEL" },
+                          "count":       { "column": "n",     "as": "integer" },
+                          "ratio":       { "column": "f",     "as": "float" },
+                          "seenAt":      { "column": "when",  "as": "datetime" },
+                          "settings":    { "column": "cfg",   "as": "json" },
+                          "raw":         { "json": "rawCfg" },
+                          "location":    { "geo": "loc" },
+                          "state":       { "vocab": "state" },
+                          "label":       { "languageMap": "label" },
+                          "kind":        { "value": "thermometer" },
+                          "height":      { "value": 1.5, "unitCode": "MTR" } } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "M1": { "@deviceId": "th1", "@apikey": "k1", "t": "21.5", "n": "15.0", "f": "3", "when": "2026-10-20T23:00:00.250+02:00",
+              "cfg": "{\"mode\": \"eco\"}", "rawCfg": { "a": [ 1, 2 ] }, "loc": "40.4, -3.7", "state": "on",
+              "label": { "en": "hall", "es": "pasillo" }, "h": 40, "id": "x", "bad name": 1, "nul": null },
+      "M2": { "@deviceId": "th2", "t": 1, "h": 2, "zone": "south" },
+      "M3": { "@deviceId": "th3", "humidity": 50, "h": 99 },
+      "M4": { "@deviceId": "th4", "t": 4 }
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "otherColumns": "property",
+      "dataChannels": {
+        "M1": { "entities": [ $THERMO ] },
+        "M2": { "otherColumns": "none",
+                "entities": [ { "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{@deviceId}", "scope": "/garden/{zone}",
+                                "attributes": { "temperature": { "column": "t" } } } ] },
+        "M3": { "entities": [ { "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{@deviceId}",
+                                "attributes": { "h": { "column": "humidity" } } } ] },
+        "M4": { "otherColumns": "all", "entities": [ $THERMO ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. th1 - every kind of the vocabulary, its scope, and the other column 'h'"
+echo "============================================================================"
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th1 '"h"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th1
+echo
+echo
+
+
+echo "02. th2 - the DataChannel's otherColumns none: no 'h'; the scope from the template"
+echo "=================================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th2 'temperature'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th2
+echo
+echo
+
+
+echo "03. th3 - 'h' mapped from 'humidity' (50); the record's own 'h' (99) is not an other column"
+echo "==========================================================================================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th3 '"h"'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th3
+echo
+echo
+
+
+echo "04. th4 - none: M4's otherColumns 'all' is no value - the DataChannel was skipped"
+echo "================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th4
+echo
+echo
+
+
+echo "05. GET /ngsi-ld/v1/dataChannels - the endpoints: M1, M2, M3; no M4"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/dataChannels' | grep -o '"channelTarget": *"[^"]*"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. th1 - every kind of the vocabulary, its scope, and the other column 'h'
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 1164
+
+{
+  "count": {
+    "type": "Property",
+    "value": 15
+  },
+  "h": {
+    "type": "Property",
+    "value": 40
+  },
+  "height": {
+    "type": "Property",
+    "unitCode": "MTR",
+    "value": 1.5
+  },
+  "id": "urn:ngsi-ld:Thermometer:th1",
+  "kind": {
+    "type": "Property",
+    "value": "thermometer"
+  },
+  "label": {
+    "languageMap": {
+      "en": "hall",
+      "es": "pasillo"
+    },
+    "type": "LanguageProperty"
+  },
+  "location": {
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        -3.7,
+        40.4
+      ],
+      "type": "Point"
+    }
+  },
+  "ratio": {
+    "type": "Property",
+    "value": 3
+  },
+  "raw": {
+    "json": {
+      "a": [
+        1,
+        2
+      ]
+    },
+    "type": "JsonProperty"
+  },
+  "scope": "/garden/north",
+  "seenAt": {
+    "type": "Property",
+    "value": {
+      "@type": "DateTime",
+      "@value": "2026-10-20T21:00:00.250Z"
+    }
+  },
+  "settings": {
+    "type": "Property",
+    "value": {
+      "mode": "eco"
+    }
+  },
+  "state": {
+    "type": "VocabProperty",
+    "vocab": "on"
+  },
+  "temperature": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 21.5
+  },
+  "type": "Thermometer"
+}
+
+
+
+02. th2 - the DataChannel's otherColumns none: no 'h'; the scope from the template
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 158
+
+{
+  "id": "urn:ngsi-ld:Thermometer:th2",
+  "scope": "/garden/south",
+  "temperature": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "Thermometer"
+}
+
+
+
+03. th3 - 'h' mapped from 'humidity' (50); the record's own 'h' (99) is not an other column
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 121
+
+{
+  "h": {
+    "type": "Property",
+    "value": 50
+  },
+  "id": "urn:ngsi-ld:Thermometer:th3",
+  "type": "Thermometer"
+}
+
+
+
+04. th4 - none: M4's otherColumns 'all' is no value - the DataChannel was skipped
+=================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "entity 'urn:ngsi-ld:Thermometer:th4' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. GET /ngsi-ld/v1/dataChannels - the endpoints: M1, M2, M3; no M4
+=====================================================================
+"channelTarget": "M1"
+"channelTarget": "M2"
+"channelTarget": "M3"
+
+
