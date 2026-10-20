@@ -86,6 +86,8 @@ static int                reserved     = 0;          // sseCreateCheck said yes,
 static int                streamsMax   = 1000;
 static bool               stopping     = false;
 static bool               tickUp       = false;
+static uint64_t           eventsTotal  = 0;          // events written on a stream, since the start (metrics)
+static uint64_t           refusedTotal = 0;          // streams refused (503), since the start (metrics)
 static pthread_t          tickTid;
 
 
@@ -252,7 +254,10 @@ static bool streamPut(void* tenantP, const char* subId, bool csrSub, const char*
   {
     ok = streamWrite(eP, text, len);
     if (ok)
+    {
       eP->written += 1;
+      eventsTotal += 1;
+    }
   }
   else if (eP->opened == false)
   {
@@ -316,6 +321,7 @@ static void streamOpened(CorRestStream* streamP, void* ctx)
         if (streamWrite(eP, eP->waitV[i], strlen(eP->waitV[i])) == false)
           break;
         eP->written += 1;
+        eventsTotal += 1;
       }
     }
   }
@@ -677,6 +683,8 @@ bool sseCreateCheck(CorNode* subP, bool* streamP)
 
   if (refusal == NULL)
     reserved += 1;
+  else
+    refusedTotal += 1;
 
   pthread_mutex_unlock(&sseMutex);
 
@@ -688,6 +696,21 @@ bool sseCreateCheck(CorNode* subP, bool* streamP)
 
   *streamP = true;
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// sseMetricValues -
+//
+void sseMetricValues(uint64_t* streamsP, uint64_t* eventsP, uint64_t* refusedP)
+{
+  pthread_mutex_lock(&sseMutex);
+  *streamsP = (uint64_t) entries;
+  *eventsP  = eventsTotal;
+  *refusedP = refusedTotal;
+  pthread_mutex_unlock(&sseMutex);
 }
 
 

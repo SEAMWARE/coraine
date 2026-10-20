@@ -91,6 +91,17 @@ static CorPromMetric*  memResident;
 static CorPromMetric*  memRefused;
 static MetricsMemoryValuesFunc memoryValuesFunc = NULL;
 
+#if COR_FEATURE_SSE
+//
+// Server-Sent Events (src/lib/sse, doc/sse.md): the streams there, the events written on them, the
+// streams refused. Read at every scrape through sseValuesFunc, which the broker sets.
+//
+static CorPromMetric*  sseStreams;
+static CorPromMetric*  sseEvents;
+static CorPromMetric*  sseRefused;
+static MetricsSseValuesFunc sseValuesFunc = NULL;
+#endif
+
 //
 // Distop forwarding — counters + latency histogram.
 //
@@ -245,6 +256,15 @@ bool metricsInit(void)
                                          "The broker's resident set, file-backed pages included");
   memRefused          = corPromCounterCreate("ngsild_requests_refused_memory_total",
                                            "Requests refused (503) for being over the memory budget");
+
+#if COR_FEATURE_SSE
+  sseStreams          = corPromGaugeCreate("ngsild_sse_streams",
+                                         "Server-Sent Events streams there - open, or their 201 on its way (the cap is --sseStreams)");
+  sseEvents           = corPromCounterCreate("ngsild_sse_events_total",
+                                           "Notifications written as events on a Server-Sent Events stream");
+  sseRefused          = corPromCounterCreate("ngsild_sse_streams_refused_total",
+                                           "Subscriptions on urn:ngsi-ld:self refused (503): --sseStreams streams there, or the broker stopping");
+#endif
 
   distopForwarded     = corPromCounterCreate("ngsild_distop_forwarded_total",
                                            "Distributed-op forward attempts (every outbound request)");
@@ -491,6 +511,48 @@ static void memoryCounts(void)
 
 
 
+#if COR_FEATURE_SSE
+// -----------------------------------------------------------------------------
+//
+// metricsSseValuesSet - where the Server-Sent Events figures come from
+//
+void metricsSseValuesSet(MetricsSseValuesFunc fn)
+{
+  sseValuesFunc = fn;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// sseCounts - the streams gauge, and the two counters brought up to date (as memoryCounts)
+//
+static void sseCounts(void)
+{
+  static pthread_mutex_t mtx         = PTHREAD_MUTEX_INITIALIZER;
+  static uint64_t        eventsSeen  = 0;
+  static uint64_t        refusedSeen = 0;
+  uint64_t               streams;
+  uint64_t               events;
+  uint64_t               refused;
+
+  if (sseValuesFunc == NULL)
+    return;
+
+  sseValuesFunc(&streams, &events, &refused);
+  corPromGaugeSet(sseStreams, (double) streams);
+
+  pthread_mutex_lock(&mtx);
+  corPromCounterAdd(sseEvents,  (int64_t) (events  - eventsSeen));
+  corPromCounterAdd(sseRefused, (int64_t) (refused - refusedSeen));
+  eventsSeen  = events;
+  refusedSeen = refused;
+  pthread_mutex_unlock(&mtx);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // metricsRender -
@@ -500,6 +562,9 @@ bool metricsRender(void)
   tenantCounts();
   dispatchCounts();
   memoryCounts();
+#if COR_FEATURE_SSE
+  sseCounts();
+#endif
 
   //
   // +1 for the terminating NUL. corPromRenderSize() reports the payload EXCLUDING

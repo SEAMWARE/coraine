@@ -1,0 +1,117 @@
+#
+# FILE            sse_metrics.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: SSE METRICS
+#
+# The Server-Sent Events metrics on /admin/metrics (doc/sse.md § 4): ngsild_sse_streams - the streams
+# there; ngsild_sse_events_total - the notifications written as events; ngsild_sse_streams_refused_total -
+# the subscriptions on urn:ngsi-ld:self refused (503) for --sseStreams. With --sseStreams 1.
+#
+--NAME--
+SSE - the streams, the events written and the refused streams on /admin/metrics
+
+--TAGS--
+sse metrics
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --sseStreams 1
+
+--RUN--
+
+#
+# 01. Before any stream - 0, 0, 0
+# 02. S1 on its stream, two entities of the type - 1 stream, 2 events
+# 03. S2 on urn:ngsi-ld:self while S1's stream is there - 503; refused 1
+# 04. The client of S1 leaves - 0 streams; the counters stay
+#
+
+B=localhost:1026/ngsi-ld/v1
+T=/tmp/sse-metrics.$$
+sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"urn:ngsi-ld:self"}}}'; }
+code()    { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
+metrics() { curl -s localhost:1026/admin/metrics | grep -aE '^ngsild_sse_' | sort; }
+gone()    { for i in $(seq 30); do s=$(curl -s -o /dev/null -w "%{http_code}" $B/$1); [ "$s" = 404 ] && break; sleep 0.1; done; echo $s; }
+
+
+echo "01. Before any stream - 0, 0, 0"
+echo "==============================="
+metrics
+echo
+echo
+
+
+echo "02. S1 on its stream, two entities of the type - 1 stream, 2 events"
+echo "===================================================================="
+curl -sN -D $T.h -H 'Content-Type: application/json' -d "$(sub S1)" $B/subscriptions > $T.b &
+c1=$!
+for i in $(seq 30); do [ -s $T.h ] && break; sleep 0.1; done
+code -d '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":1}}' $B/entities
+code -d '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":2}}' $B/entities
+sleep 0.5
+grep -c '^event: notification' $T.b
+metrics
+echo
+echo
+
+
+echo "03. S2 on urn:ngsi-ld:self while S1's stream is there - 503; refused 1"
+echo "======================================================================"
+code -d "$(sub S2)" $B/subscriptions
+metrics
+echo
+echo
+
+
+echo "04. The client of S1 leaves - 0 streams; the counters stay"
+echo "=========================================================="
+kill $c1
+wait $c1 2>/dev/null
+gone subscriptions/urn:ngsi-ld:Subscription:S1
+metrics
+rm -f $T.h $T.b
+echo
+echo
+
+
+--EXPECT--
+01. Before any stream - 0, 0, 0
+===============================
+ngsild_sse_events_total 0
+ngsild_sse_streams 0
+ngsild_sse_streams_refused_total 0
+
+
+02. S1 on its stream, two entities of the type - 1 stream, 2 events
+====================================================================
+201
+201
+2
+ngsild_sse_events_total 2
+ngsild_sse_streams 1
+ngsild_sse_streams_refused_total 0
+
+
+03. S2 on urn:ngsi-ld:self while S1's stream is there - 503; refused 1
+======================================================================
+503
+ngsild_sse_events_total 2
+ngsild_sse_streams 1
+ngsild_sse_streams_refused_total 1
+
+
+04. The client of S1 leaves - 0 streams; the counters stay
+==========================================================
+404
+ngsild_sse_events_total 2
+ngsild_sse_streams 0
+ngsild_sse_streams_refused_total 1
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

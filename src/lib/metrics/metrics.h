@@ -110,4 +110,16 @@ extern void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn);
 
 
 
+
+
+// -----------------------------------------------------------------------------
+//
+// metricsSseValuesSet - the function the Server-Sent Events metrics are read from at every scrape
+//
+// the streams there, the events written on them and the streams refused (503) - the last two since the
+// start. The streams are the app's (src/lib/sse), so the app hands this in.
+//
+typedef void (*MetricsSseValuesFunc)(uint64_t* streamsP, uint64_t* eventsP, uint64_t* refusedP);
+extern void metricsSseValuesSet(MetricsSseValuesFunc fn);
+
 #endif  // METRICS_METRICS_H_
