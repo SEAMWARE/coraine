@@ -26,8 +26,8 @@
 
 // -----------------------------------------------------------------------------
 //
-// sseInit - the hook corNgsild delivers on (ldNotifyStreamSet) and the thread that keeps the streams;
-// at most 'streamsMax' streams open at a time (--sseStreams). false: not started (said why).
+// sseInit - the hook corNgsild delivers on (ldNotifyStreamSet); at most 'streamsMax' streams open at a
+// time (--sseStreams). The thread that keeps the streams starts with the first one.
 //
 extern bool sseInit(int streamsMax);
 

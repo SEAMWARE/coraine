@@ -10,8 +10,9 @@
 //
 // One entry per subscription on its stream, in one list under one mutex. A notification (corNgsild's
 // hook, on the notifying thread) is written on the stream at once - corRestStreamWrite copies and never
-// waits - or, before the stream is open, kept until it is. A thread of its own, once a second: is the
-// client still there (a write of 0 bytes), a comment on a stream quiet for 15 s (a proxy keeps it),
+// waits - or, before the stream is open, kept until it is. A thread of its own, started with the first
+// stream, once a second: is the client still there (a write of 0 bytes), a comment on a stream quiet for
+// 15 s (a proxy keeps it),
 // the counters of what was written (ldNotifyStreamSent - not from the notifying thread, which may hold
 // the subscription cache's lock), and the subscriptions of the streams that ended, deleted.
 //
@@ -538,14 +539,6 @@ static void* tickThread(void* unused)
 bool sseInit(int max)
 {
   streamsMax = max;
-
-  if (pthread_create(&tickTid, NULL, tickThread, NULL) != 0)
-  {
-    COR_E("sse: cannot start its thread - no event streams");
-    return false;
-  }
-
-  tickUp = true;
   ldNotifyStreamSet(streamPut);
 
   return true;
@@ -668,17 +661,28 @@ bool sseCreateCheck(CorNode* subP, bool* streamP)
 
   pthread_mutex_lock(&sseMutex);
 
-  bool full = (stopping == true) || (entries + reserved >= streamsMax);
+  const char* refusal = (stopping == true) ? "the broker is stopping" :
+                        (entries + reserved >= streamsMax) ? "the broker serves as many event streams as it may (--sseStreams)" : NULL;
 
-  if (full == false)
+  //
+  // The thread, with the first stream: a broker no one reads a stream of has none
+  //
+  if ((refusal == NULL) && (tickUp == false))
+  {
+    if (pthread_create(&tickTid, NULL, tickThread, NULL) == 0)
+      tickUp = true;
+    else
+      refusal = "the broker cannot start the thread that keeps the event streams";
+  }
+
+  if (refusal == NULL)
     reserved += 1;
 
   pthread_mutex_unlock(&sseMutex);
 
-  if (full == true)
+  if (refusal != NULL)
   {
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
-            stopping ? "the broker is stopping" : "the broker serves as many event streams as it may (--sseStreams)");
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable", "%s", refusal);
     return false;
   }
 
@@ -904,14 +908,13 @@ void sseStop(void)
 {
   pthread_mutex_lock(&sseMutex);
   stopping = true;
+  bool up  = tickUp;
+  tickUp   = false;
   pthread_cond_signal(&tickCond);
   pthread_mutex_unlock(&sseMutex);
 
-  if (tickUp == true)
-  {
+  if (up == true)
     pthread_join(tickTid, NULL);
-    tickUp = false;
-  }
 
   tick(true);
 }
