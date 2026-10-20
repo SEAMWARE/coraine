@@ -671,7 +671,15 @@ nothing); deleting a Channel does not tear down a participant, while
 deleting a Bridge cascades to its Channels; and `PATCH` still does the
 job it was wanted for, on Channels.
 
-### 3.5a Both objects are persisted, and both have real CRUD
+### 3.5a Both objects have CRUD; neither is persisted (for now)
+
+**Decided 2026-10-20:** Bridges and Channels are NOT stored in the database. They live in memory, built
+from the configuration file at every start - the DDS deployment as Orion-LD runs it, the broker a black
+box: the file plus the default user @context. A `POST`, `PATCH` or `DELETE` over the API (not yet built)
+changes them in memory and lasts until the restart, when the file rebuilds them. What the file no longer
+names is gone after the restart - nothing to compare, nothing to delete, no duplicate from a second
+start - and two brokers sharing one database, each with its own file, never touch each other's
+Channels. Persisting what the API creates is a later step; the lifecycle below is that step.
 
 Two things must not be conflated here. The bridge
 *kind* is startup-fixed — a new one is a shared library and roughly a
@@ -680,9 +688,9 @@ month of work, and `--bridges` names which are loaded. A bridge
 domain being created while the broker runs, and the plugin is perfectly
 able to bring up another participant.
 
-So a Bridge is an ordinary broker-held object, in the database beside
-entities, subscriptions and registrations, with the lifecycle that
-implies:
+So a Bridge is an ordinary broker-held object, and once what the API creates
+is persisted (the later step), it is in the database beside entities,
+subscriptions and registrations, with the lifecycle that implies:
 
 - **First startup**: somebody `POST`s the Bridge. It is stored.
 - **Every startup after**: it is read from the database and its
@@ -699,7 +707,7 @@ Two levels of conflict, and they belong in different places:
 | Same Bridge **id** | the broker | generic, and identical to every other stored object |
 | Same **transport** — one participant per domain, one client id per MQTT broker | the **plugin** | only the driver knows whether a second instance of *its* transport is legitimate. Some allow it, some cannot. |
 
-**The orphan case follows directly and needs an answer.** A Bridge in
+**The orphan case follows directly and needs an answer** (the later step). A Bridge in
 the database whose plugin was not loaded — someone posts a `dds` bridge,
 then restarts without `--bridges dds`. Do not refuse to start: mark the
 Bridge unavailable, leave its Channels dormant, and say so in its status.

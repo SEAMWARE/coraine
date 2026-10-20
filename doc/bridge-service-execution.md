@@ -91,21 +91,28 @@ writing its own.
 ## 4. Service Registrations a bridge makes
 
 An AssetChannel registers each Operation and Method it maps; drop-in IoT Agent provisioning
-(`POST /iot/devices`) registers each command. Those registrations belong to the bridge:
+(`POST /iot/devices`) registers each command. Those registrations follow the rule of the channels they
+come from ([Bridges and Channels](bridge-channels.md#configuring), decided 2026-10-20):
 
-- **Their id** is stable - `urn:ngsi-ld:ServiceRegistration:<bridge>:<endpoint>:<serviceName>` - so a
-  restart or a model sent again replaces them, and never trips the one-name-per-entity rule (409) against
-  itself.
-- **Read-only over the API**: `PATCH` and `DELETE` of one are refused; the bridge's configuration or its
-  model is where they change.
+- **In memory, not in the database**: made at start from the configuration, and again when a model is
+  sent again; gone after a restart when their source no longer names them. Nothing to find and delete.
+- **Shown with the stored ones**: `GET /ngsi-ld/v1/serviceRegistrations` lists them beside the
+  registrations clients created, and invoking one is the same as invoking any other.
+- **Their id** is the bridge's - `urn:ngsi-ld:ServiceRegistration:<bridge>:<endpoint>:<serviceName>` -
+  so a model sent again replaces them, and never trips the one-name-per-entity rule (409) against itself.
+- **`PATCH` and `DELETE`** change them in memory, until the restart or the next model rebuilds them.
+- **A client's registration clashing with one** (same id, or the same service name on an entity both
+  select): the client's create is refused, 409, as today. At start, a bridge's clashing with a stored
+  one: the broker does not start and names both - one endpoint is one channel's, never two.
 - **In the channel's tenant.**
-- **A node the model no longer has** keeps its registration, as its entity stays (asset-channels.md
-  § 6.8); an execution of it fails, 503 ("has no such service"), until the node is back.
+- **A node the model no longer has** keeps its registration until the restart, as its entity stays
+  (asset-channels.md § 6.8); an execution of it fails, 503 ("has no such service"), until the node is
+  back.
 - **Marked as the bridge's**: `bridgeId` on the registration, the Bridge's id. Not in GR CIM-055; shown
   only on registrations a bridge made.
 
 A registration a client creates with a bridge scheme (the native path of the IoT Agent executor) is the
-client's, as any other.
+client's, stored as any other.
 
 ## 5. Which Bridge executes
 
@@ -136,8 +143,8 @@ one request; a combined execution sequences services of different bridges.
    the Orion-LD behaviour stays as it is.
 2. **Write-back** (§ 2): `channelDirection` on the base; refuse `merge` with `both`, or let the plugin
    keep its own device lookup.
-3. **Bridge-made registrations** (§ 4): the status a refused `PATCH` / `DELETE` answers; `bridgeId` as a
-   member, or nothing on the registration and the Bridge's `services` list alone.
+3. **Bridge-made registrations** (§ 4): `bridgeId` as a member, or nothing on the registration and the
+   Bridge's `services` list alone.
 4. **The Bridge in the endpoint** (§ 5): `?bridge=`, or wait until a plugin carries two Bridges.
 
 ## 9. Not in this note
