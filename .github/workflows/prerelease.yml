@@ -316,7 +316,7 @@ jobs:
 
       - name: MongoDB and TimescaleDB, and the previous release's image
         run: |
-          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.0
+          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.2
           docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
           docker pull "$FROM_IMAGE"
           for i in $(seq 1 60); do
@@ -391,7 +391,7 @@ jobs:
       image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
     services:
       mongo:
-        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.2
         ports: ['27017:27017']
     env:
       COR_MONGO_HOST: mongo

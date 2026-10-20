@@ -510,7 +510,7 @@ jobs:
       # a change stream, and an oplog would only be overhead.
       #
       mongo:
-        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.2
         ports: ['27017:27017']
       timescale:
         image: quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
@@ -726,7 +726,7 @@ jobs:
       # measuring the change of database topology, not the change in the broker.
       #
       mongo:
-        image: quay.io/seamware/coraine-ci:mirror-mongo-8.0
+        image: quay.io/seamware/coraine-ci:mirror-mongo-8.2
         ports: ['27017:27017']
     env:
       COR_MONGO_HOST: mongo
@@ -995,7 +995,7 @@ jobs:
   # tested on the same kind of runner; this is the whole suite.
   #
   # No CI image: it is amd64 only. The runner is set up as the image is (.github/scripts/ci-env.sh, minus
-  # DDS), and the services run with `docker run` on localhost: the mongo replica set (mongo-rs is mongo:8.0
+  # DDS), and the services run with `docker run` on localhost: the mongo replica set (mongo-rs is mongo:8.2
   # with --replSet - and amd64 only), TimescaleDB (multi-arch), the @context server (amd64 only: under
   # QEMU, a small HTTP store - its speed does not matter). The runner's own compiler - Ubuntu 24.04's gcc,
   # not the image's - is a second difference worth having.
@@ -1052,7 +1052,7 @@ jobs:
 
       - name: The services - mongo replica set, TimescaleDB, the @context server
         run: |
-          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.0 mongod --replSet rs0 --bind_ip_all
+          docker run -d --name mongo -p 27017:27017 quay.io/seamware/coraine-ci:mirror-mongo-8.2 mongod --replSet rs0 --bind_ip_all
           docker run -d --name timescale -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust quay.io/seamware/coraine-ci:mirror-timescaledb-ha-pg16
           docker run -d --name ctx-arm64 -p 7080:8080 -e MEMORY_ENABLED=true context-server-arm64
           stack/coraine/.github/scripts/mongo-rs-init.sh

@@ -17,7 +17,7 @@
 #
 # An image is copied only when its upstream digest differs from the mirror's (a HEAD request, which
 # Docker Hub does not count as a pull): the weekly run picks up a new patch release behind the same
-# tag (mongo:8.0, ubuntu:24.04) and costs nothing when there is none.
+# tag (mongo:8.2, ubuntu:24.04) and costs nothing when there is none.
 #
 # The source is Docker Hub, and mirror.gcr.io (Google's cache of Docker Hub - the same manifests,
 # the same digests) when Docker Hub refuses: a runner's shared IP can be over the limit before this
@@ -61,7 +61,7 @@ env:
   IMAGES: |
     timescale/timescaledb-ha:pg16
     wistefan/context-server:0.2.0
-    mongo:8.0
+    mongo:8.2
     ubuntu:26.04
     ubuntu:24.04
     debian:trixie

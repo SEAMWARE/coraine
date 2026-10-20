@@ -139,7 +139,7 @@ architecture, same digests.
 |---|---|---|
 | `timescale/timescaledb-ha:pg16` | `mirror-timescaledb-ha-pg16` | service container / `docker run`: ci, nightly, pre-release |
 | `wistefan/context-server:0.2.0` | `mirror-context-server-0.2.0` | service container: ci, nightly, pre-release; the arm64 context server |
-| `mongo:8.0` | `mirror-mongo-8.0` | nightly (ETSI, performance, arm64), pre-release (upgrade, soak) |
+| `mongo:8.2` | `mirror-mongo-8.2` | nightly (ETSI, performance, arm64), pre-release (upgrade, soak) |
 | `ubuntu:26.04` | `mirror-ubuntu-26.04` | packages; `docker/Dockerfile` in deploy, release, the nightly's DDS image (`BASE_IMAGE`) |
 | `ubuntu:24.04` | `mirror-ubuntu-24.04` | packages |
 | `debian:trixie` | `mirror-debian-trixie` | packages |
