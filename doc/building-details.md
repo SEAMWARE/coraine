@@ -380,6 +380,15 @@ from, a secret masked - for c³'s Operate. Off: the route answers 501. Size: -1,
 a bridge's source can carry - the OPC UA bridge: the server's node tree - for a mapping tool to choose
 Channels and AssetChannels from. Off: the route answers 501. Size: -1,361 bytes.
 
+#### `BRIDGE_HTTP_LISTEN`
+
+`BridgeBroker.httpListen` (bridge ABI 16): a port the broker serves for a bridge plugin, where a device is the
+client - an IoT Agent's southbound port (`7896`), a webhook a cloud calls back. Each port is a corHttp server
+of its own, one event loop on its own thread, every request handed to the plugin; no NGSI-LD route and no
+auth plugin on it. In either HTTP server build - the libmicrohttpd one links corHttp for it, and `GET
+/version` then lists corHttp in `stack`. Off: the slot is NULL, and a plugin that needs a port says so in the
+log. Size: -43,616 bytes (release build, libmicrohttpd - corHttp with it).
+
 #### `COR_PROTOCOL`
 
 cor://, the binary NGSI-LD protocol: a listener next to HTTP (`--corPort`), and forwarding to a
@@ -452,6 +461,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
 | `COR_FEATURE_ADMIN_CONFIG=OFF` | 1,528 bytes (release build) | `GET /admin/config` answers 501 |
 | `COR_FEATURE_BRIDGE_INVENTORY=OFF` | 1,361 bytes (release build) | `GET /admin/bridges/{bridge}/inventory` answers 501; a bridge's `inventory` is never called |
+| `COR_FEATURE_BRIDGE_HTTP_LISTEN=OFF` | 43,616 bytes (release build, libmicrohttpd: corHttp is not linked) | `BridgeBroker.httpListen` is NULL: the broker serves no port for a bridge plugin |
 | `COR_FEATURE_CHANNEL_CHECKS=OFF` | 5,821 bytes (release build, AssetChannels on) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole

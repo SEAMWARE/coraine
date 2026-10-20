@@ -55,6 +55,7 @@ option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridg
 option(COR_FEATURE_CHANNEL_CHECKS "Enable BridgeDriver.payloadCheck (bridge ABI 13) - a bridge plugin may refuse a client's write to an attribute one of its Channels or DataChannels maps (doc/bridge-channels.md)" ON)
 option(COR_FEATURE_ADMIN_CONFIG "Enable GET /admin/config - every option the broker runs with: its value, default and where it came from, a secret masked (the admin API plugin)" ON)
 option(COR_FEATURE_BRIDGE_INVENTORY "Enable GET /admin/bridges/{bridge}/inventory (bridge ABI 14) - what a bridge's transport can carry, for a mapping tool (c3's Configure)" ON)
+option(COR_FEATURE_BRIDGE_HTTP_LISTEN "Enable BridgeBroker.httpListen (bridge ABI 16) - a port the broker serves for a bridge plugin, where a device is the client (an IoT Agent's southbound port): corHttp, in either HTTP server build" ON)
 
 # Group: Protocols - the API over something else than HTTP
 #
@@ -85,7 +86,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS BRIDGE_INVENTORY ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -281,6 +282,14 @@ elseif (COR_HTTP_SERVER STREQUAL "builtin")
   list(APPEND COR_STATIC_LIBS ${COR_LIBS_DIR}/corHttp/libcorHttp.a)
 else()
   message(FATAL_ERROR "COR_HTTP_SERVER must be 'mhd' or 'builtin', not '${COR_HTTP_SERVER}'")
+endif()
+
+#
+# A bridge's port (COR_FEATURE_BRIDGE_HTTP_LISTEN) is a corHttp server of its own, whichever server the
+# API is on: the libmicrohttpd build links corHttp for it too
+#
+if (COR_FEATURE_BRIDGE_HTTP_LISTEN AND COR_HTTP_SERVER STREQUAL "mhd")
+  list(APPEND COR_STATIC_LIBS ${COR_LIBS_DIR}/corHttp/libcorHttp.a)
 endif()
 message(STATUS "HTTP server: ${COR_HTTP_SERVER}")
 

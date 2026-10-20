@@ -606,6 +606,7 @@ static void loopbackTopicModesLoad(void);
 static void loopbackStatusInsLoad(void);
 static void loopbackPayloadChecksLoad(void);
 static void loopbackRefuseTypesLoad(void);
+static void loopbackHttpListensLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -648,6 +649,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackStatusInsLoad();
   loopbackPayloadChecksLoad();
   loopbackRefuseTypesLoad();
+  loopbackHttpListensLoad();
   loopbackEmitAtStart();
   loopbackEmitLater();
   loopbackDiscoverAtStart();
@@ -1435,6 +1437,103 @@ static void loopbackRefuseTypesLoad(void)
 {
   loopbackConfigPairs("\"refuseTypes\"", loopbackRefuseTypePair);
 }
+
+
+#if BRIDGE_ABI_VERSION >= 16
+// -----------------------------------------------------------------------------
+//
+// loopbackHttpText - a request's text as JSON string content; "" for none
+//
+static int loopbackHttpText(char* out, int size, const char* in)
+{
+  int at = 0;
+
+  for (; (in != NULL) && (*in != 0) && (at < size - 3); in++)
+  {
+    if ((*in == '"') || (*in == '\\'))
+      out[at++] = '\\';
+    out[at++] = ((unsigned char) *in < 0x20) ? ' ' : *in;
+  }
+
+  out[at] = 0;
+  return at;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackHttpHandle - the handler of a port the broker serves for the loopback (httpListen, ABI 16):
+//
+//   POST /sample?endpoint=<e>   the body is a sample on <e> (sampleIn) - 204, 404 when no channel has it
+//   /bad                        a status no HTTP knows (42): the broker answers 500
+//   anything else               200, the request echoed: method, path, the parameter q, the header
+//                               X-Loopback, the body's length, whether it was too big
+//
+static int loopbackHttpHandle(const BridgeHttpRequest* reqP, char** bodyP, const char** contentTypeP)
+{
+  if ((strcmp(reqP->method, "POST") == 0) && (strcmp(reqP->path, "/sample") == 0))
+  {
+    const char* endpoint = reqP->param(reqP, "endpoint");
+
+    if (endpoint == NULL)
+      return 400;
+
+    return (brokerP->sampleIn("loopback", endpoint, reqP->body, 0) == BRIDGE_OK) ? 204 : 404;
+  }
+
+  if (strcmp(reqP->path, "/bad") == 0)
+    return 42;
+
+  char method[64], path[256], q[256], header[256];
+
+  loopbackHttpText(method, sizeof(method), reqP->method);
+  loopbackHttpText(path,   sizeof(path),   reqP->path);
+  loopbackHttpText(q,      sizeof(q),      reqP->param(reqP, "q"));
+  loopbackHttpText(header, sizeof(header), reqP->header(reqP, "X-Loopback"));
+
+  if ((*bodyP = malloc(1024)) == NULL)
+    return 500;
+
+  snprintf(*bodyP, 1024, "{\"method\":\"%s\",\"path\":\"%s\",\"q\":\"%s\",\"x-loopback\":\"%s\",\"bodyLen\":%d,\"bodyTooBig\":%s}",
+           method, path, q, header, reqP->bodyLen, (reqP->bodyTooBig != 0) ? "true" : "false");
+  *contentTypeP = "application/json";
+  return 200;
+}
+#endif
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackHttpListenPair / loopbackHttpListensLoad - "httpListen": the ports the broker serves for the
+// loopback (ABI 16), each with loopbackHttpHandle:
+//
+//   "httpListen": { "18997": true }
+//
+static void loopbackHttpListenPair(const char* port, const char* value)
+{
+  (void) value;
+
+#if BRIDGE_ABI_VERSION >= 16
+  if ((brokerP->abiVersion < 16) || (brokerP->httpListen == NULL))
+  {
+    COR_W("loopback: port %s not served - the broker has no httpListen", port);
+    return;
+  }
+
+  if (brokerP->httpListen("loopback", (unsigned short) atoi(port), loopbackHttpHandle) != BRIDGE_OK)
+    COR_W("loopback: port %s not served", port);
+#else
+  COR_W("loopback: port %s not served - built before bridge ABI 16", port);
+#endif
+}
+
+static void loopbackHttpListensLoad(void)
+{
+  loopbackConfigPairs("\"httpListen\"", loopbackHttpListenPair);
+}
+
 
 
 

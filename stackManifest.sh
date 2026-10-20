@@ -24,12 +24,13 @@ MANIFEST="$HERE/docker/vendor/MANIFEST.txt"
 LIBS="corBase corAlloc corHash corTree corJson corArgs corLog corProm corRest corNgsild corJsonld corPlugin corBridge"
 
 #
-# corHttp only when it is the HTTP server in use. This file answers "what is
-# LINKED into this broker", and on a COR_HTTP_SERVER=mhd build corHttp is built
-# but not linked - listing it there would be a claim about the binary that is
-# not true of it.
+# corHttp only when it is linked. This file answers "what is LINKED into this
+# broker": corHttp is when it is the HTTP server in use, and when a bridge's port
+# is in the build (COR_FEATURE_BRIDGE_HTTP_LISTEN, on by default - the makefile
+# says COR_HTTP_LINKED=0 for a build without it). Listing it otherwise would be
+# a claim about the binary that is not true of it.
 #
-if [ "${COR_HTTP_SERVER:-mhd}" = "builtin" ]; then
+if [ "${COR_HTTP_SERVER:-mhd}" = "builtin" ] || [ "${COR_HTTP_LINKED:-1}" = 1 ]; then
   LIBS="$LIBS corHttp"
 fi
 
