@@ -49,8 +49,8 @@ service per writable attribute.
 - **Transport first**: the bridge is handed the write before anything is stored; a refusal stores nothing
   (400, 503), in a batch that attribute is left out (207). The payload check, when the bridge has one,
   runs before it.
-- **No new bridge entry**: `publish(endpoint, json)`, as for a Channel. The plugin already knows each
-  endpoint's channel type (`channelAddInfo`).
+- **No new bridge entry for the write**: `publish(endpoint, json)`, as for a Channel. The plugin knows
+  each endpoint's channel type from `channelTypedAdd` (bridge ABI 15).
   - **AssetChannel**: the endpoint is the attribute's node (`ns=2;s=P17.Pressure`), as the payload check
     is handed it; the json the value.
   - **DataChannel**: the endpoint is the DataChannel's; the json a record fragment - the columns the
