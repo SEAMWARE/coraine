@@ -68,4 +68,5 @@ nav:
       - The Modbus bridge: history/modbus-bridge.md
       - Performance: history/performance.md
       - Plugin architecture: history/plugin-architecture.md
+      - Server-Sent Events: history/sse.md
       - Testing: history/testing.md

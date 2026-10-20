@@ -42,6 +42,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseEndpointIs
+#endif
 #include "serviceRoutines/patchCsourceSubscription.h"  // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -113,6 +116,16 @@ bool patchCsourceSubscription(void)
   CorNode* subTree = corTreeClone(corRest.kallocP, itemP->subTree);
 
   ldRegSubMerge(subTree, fragment, corRest.kallocP);
+
+#if COR_FEATURE_SSE
+  if (sseEndpointIs(subTree) != sseEndpointIs(itemP->subTree))
+  {
+    ldSubCacheUnlock(cacheP);
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Subscription",
+              "a subscription is on an event stream for its life - made on it, deleted with it: its endpoint is not changed to or from urn:ngsi-ld:self");
+    return true;
+  }
+#endif
 
   if (ldCheckSubscription(subTree, LdOpCreateCsourceSubscription, /*merged*/true, NULL, &corRest.kalloc) == false)
   {

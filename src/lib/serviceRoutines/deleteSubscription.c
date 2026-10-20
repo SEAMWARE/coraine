@@ -28,6 +28,9 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authSubscriptionOwnerForget
 #endif
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseForget
+#endif
 #include "serviceRoutines/deleteSubscription.h"      // Own interface
 
 
@@ -118,6 +121,10 @@ bool deleteSubscription(void)
 
   if (tenantP->pernotCacheP != NULL)
     ldPernotCacheItemRemove((LdPernotCache*) tenantP->pernotCacheP, subId);
+
+#if COR_FEATURE_SSE
+  sseForget(tenantP, subId, false);                  // a subscription on its event stream: the stream ends
+#endif
 
   corRest.out.httpStatusCode = 204;
   return true;

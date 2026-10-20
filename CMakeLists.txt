@@ -64,6 +64,7 @@ option(COR_FEATURE_BRIDGE_INVENTORY "Enable GET /admin/bridges/{bridge}/inventor
 #
 option(COR_FEATURE_COR_PROTOCOL    "Enable cor:// - the binary NGSI-LD protocol: served on --corPort, and forwarding to a registration whose endpoint is cor://" ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
+option(COR_FEATURE_SSE             "Enable Server-Sent Events - a subscription made on its own event stream (doc/sse.md)" ON)
 
 # Group: Operations - running the broker: its admin API, metrics and health probes
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
@@ -84,13 +85,20 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS BRIDGE_INVENTORY ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS BRIDGE_INVENTORY ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
 #
 if (NOT COR_FEATURE_SUBSCRIPTIONS OR NOT COR_FEATURE_SNAPSHOT_WRITE)
   set(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS OFF)
+endif()
+
+#
+# A subscription on its event stream is a subscription: without SUBSCRIPTIONS, no event streams.
+#
+if (NOT COR_FEATURE_SUBSCRIPTIONS)
+  set(COR_FEATURE_SSE OFF)
 endif()
 
 #
@@ -312,6 +320,9 @@ ADD_SUBDIRECTORY(src/lib/startup)
 ADD_SUBDIRECTORY(src/lib/bridge)
 if (COR_FEATURE_TRANSPORTS)
   ADD_SUBDIRECTORY(src/lib/transport)
+endif()
+if (COR_FEATURE_SSE)
+  ADD_SUBDIRECTORY(src/lib/sse)
 endif()
 if (COR_FEATURE_AUTH)
   ADD_SUBDIRECTORY(src/lib/auth)

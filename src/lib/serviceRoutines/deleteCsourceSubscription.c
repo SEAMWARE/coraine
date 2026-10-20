@@ -19,6 +19,9 @@
 #include "db/DbDriver.h"                             // db, DB_OK
 #include "db/Tenant.h"                               // Tenant
 
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                                 // sseForget
+#endif
 #include "serviceRoutines/deleteCsourceSubscription.h" // Own interface
 
 
@@ -46,6 +49,10 @@ bool deleteCsourceSubscription(void)
 
   if (db.subscriptionDelete != NULL)
     db.subscriptionDelete(tenantP, subId);
+
+#if COR_FEATURE_SSE
+  sseForget(tenantP, subId, true);                   // a subscription on its event stream: the stream ends
+#endif
 
   corRest.out.httpStatusCode = 204;
   return true;

@@ -100,6 +100,9 @@
 #if COR_FEATURE_TRANSPORTS
 #include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 #endif
+#if COR_FEATURE_SSE
+#include "sse/sse.h"                               // sseInit, sseStreamCreate, sseLeftoversDelete, sseStop
+#endif
 
 #include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
 #if COR_FEATURE_SERVICE_EXECUTION
@@ -203,6 +206,9 @@ char*          bridgeNames  = NULL;
 #if COR_FEATURE_TRANSPORTS
 char*          transportNames = NULL;
 #endif
+#if COR_FEATURE_SSE
+int            sseStreams     = 1000;
+#endif
 #if COR_FEATURE_AUTH
 char*          authName     = NULL;
 #endif
@@ -261,6 +267,9 @@ static CorArg kargV[] =
   { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
 #if COR_FEATURE_AUTH
   { "--auth",               "-auth",        CorArgString, _vp &authName,     CorArgOpt, _vp NULL,  NULL,  NULL,      "auth plugin - who sent a request and whether it may: fdsc (the FIWARE Data Space Connector's tokens and policies); none: every request is let in" },
+#endif
+#if COR_FEATURE_SSE
+  { "--sseStreams",         "-sseStreams",  CorArgInt,    _vp &sseStreams,   CorArgOpt, _vp 1000, _vp 0, _vp 1000000, "event streams open at a time, at most - a subscription made on its stream (Server-Sent Events) over it is 503" },
 #endif
 #if COR_FEATURE_TRANSPORTS
   { "--transports",         "-transports",  CorArgString, _vp &transportNames, CorArgOpt, _vp NULL, NULL, NULL,      "transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)" },
@@ -358,6 +367,10 @@ static void shutdownInOrder(void)
   // mongoc pool that dbClose had destroyed, and the broker died of SIGSEGV on its
   // way out (under load, one stop in two).
   //
+#if COR_FEATURE_SSE
+  sseStop();          // every event stream ended before the server goes: a stream is written through it
+#endif
+
   corRestStop();
 
   //
@@ -1274,8 +1287,13 @@ static bool brokerPreServiceHook(void)
   // of a missing entity is 406, not 404) and, being a precondition, must reject
   // BEFORE the service routine runs so an unacceptable Accept on a write has no
   // side effect (spec-doubt #109).
+#if COR_FEATURE_SSE
+  if ((sseStreamCreate() == false) && (ldAcceptPrecondition() == false))
+    return false;
+#else
   if (!ldAcceptPrecondition())
     return false;
+#endif
 
   // Resolve @context unconditionally so service routines see corNgsild.contextP
   // populated whether the request had URL params, a body, or neither
@@ -1783,6 +1801,11 @@ int main(int argC, char* argV[])
   //
   bridgeNotifyInit(insecureNotif);
 
+#if COR_FEATURE_SSE
+  if (sseInit(sseStreams) == false)
+    COR_X(1, "cannot serve event streams");
+#endif
+
   static CorAlloc  contextAlloc;
   static char      contextBuffer[64 * 1024];
 
@@ -2151,6 +2174,15 @@ int main(int argC, char* argV[])
   //
   if (haChannel == NULL)
     transportLeftoversDelete();
+#endif
+
+#if COR_FEATURE_SSE
+  //
+  // The subscriptions on an event stream a killed broker left in the store - no stream outlives its
+  // broker. With --high-availability another instance may be serving them.
+  //
+  if (haChannel == NULL)
+    sseLeftoversDelete();
 #endif
 
 #if COR_FEATURE_POLICY_API
