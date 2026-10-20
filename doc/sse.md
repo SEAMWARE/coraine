@@ -89,8 +89,9 @@ JSON, so an `Accept` that names only `text/event-stream` is a 406, as any `Accep
 - `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream (a
   periodic subscription of entities: § 4.1).
 - A `PATCH` does not change the endpoint to or from `urn:ngsi-ld:self` (400): a subscription is on its
-  stream for its whole life. Everything else is patched as on any subscription (a periodic one stays
-  periodic, its interval may change).
+  stream for its whole life. Everything else is patched as on any subscription: a periodic one stays
+  periodic and a change-driven one change-driven - adding or removing `timeInterval` is a 400 - and the
+  interval may change.
 
 ## 4. The stream
 
