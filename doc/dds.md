@@ -26,6 +26,11 @@ places it deliberately does it differently. This page says what, in short.
 - **History.** DDS updates go into temporal history like any other write.
 - **The same configuration file.** A deployment moving from Orion-LD keeps its
   configuration, including `syncTimeoutMs`.
+- **The same default user @context.** Given at start (`--defaultUserContext`,
+  Orion-LD's `-duc` - a URL or a file, such as the `dds-context.jsonld` the
+  mapping tool writes), it expands the configuration's entity types and
+  attribute names, so a client using the same short names without an
+  `@context` of its own reads and writes the same attributes.
 
 ## Where it differs from Orion-LD
 
