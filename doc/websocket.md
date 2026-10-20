@@ -82,7 +82,9 @@ message means the same on every connection. An upgrade request with `NGSILD-Tena
 ## Subscriptions
 
 A subscription or context source subscription created over a connection notifies that connection: its
-`notification.endpoint.uri` is the connection's id. Another connection's id is refused (403), and so is a
+`notification.endpoint.uri` is the connection's id, or `urn:ngsi-ld:self` - an alias of the id, which the
+broker stores in its place, so the subscription shows the id and is the same as one made with it
+([Server-Sent Events § 2](sse.md#2-urnngsi-ldself)). A `PATCH` over the connection may set it too. Another connection's id is refused (403), and so is a
 connection's id in a subscription made over HTTP or cor:// (400) - a connection is the endpoint only of
 what is made over it. The same for a Service Execution's `notification.endpoint` (`POST /services`).
 
@@ -127,8 +129,6 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 
 ## Not yet
 
-- `urn:ngsi-ld:self` as a subscription's endpoint, for this connection, beside its id
-  ([Server-Sent Events § 2](sse.md#2-urnngsi-ldself))
 - a subscription notifying another connection than its own
 - a second subprotocol, `ngsi-ld.cor`: binary frames carrying the envelope cor-encoded
 - cor:// as a transport plugin (`cor.so`)

@@ -610,7 +610,7 @@ static void hostClosed(int connId)
 // hostMessage - a request: { "metadata": { "method", "path", "requestId", <headers> }, "body": ... }
 //
 // Any request the broker serves over HTTP (doc/websocket.md); a subscription's endpoint may name no
-// connection but this one.
+// connection but this one - by its id, or as urn:ngsi-ld:self.
 //
 static void hostMessage(int connId, const char* text, int len)
 {
@@ -664,6 +664,24 @@ static void hostMessage(int connId, const char* text, int len)
   CorNode* notifP    = ((bodyP != NULL) && (bodyP->type == CorObject)) ? corTreeLookup(bodyP, "notification") : NULL;
   CorNode* endpointP = (notifP != NULL) ? corTreeLookup(notifP, "endpoint") : NULL;
   CorNode* uriP      = (endpointP != NULL) ? corTreeLookup(endpointP, "uri") : NULL;
+
+  //
+  // urn:ngsi-ld:self - this connection (doc/sse.md § 2): an alias of its id, replaced by it here, so that
+  // the request, the subscription it makes and its notifications are as with the id itself
+  //
+  if ((uriP != NULL) && (uriP->type == CorString) && (strcmp(uriP->value.s, "urn:ngsi-ld:self") == 0))
+  {
+    char  self[128];
+    int   selfLen = snprintf(self, sizeof(self), CONN_PREFIX "%s-%d", bootId, connId);
+    char* idP     = (char*) corAlloc(&ka, selfLen + 1);
+
+    if (idP != NULL)
+    {
+      memcpy(idP, self, selfLen + 1);
+      uriP->value.s = idP;
+    }
+  }
+
   int      endpoint  = ((uriP == NULL) || (uriP->type != CorString)) ? -1 : (connIdOf(uriP->value.s) == connId) ? 1 : 0;
 
   if ((uriP != NULL) && (uriP->type == CorString) && (strncmp(uriP->value.s, CONN_PREFIX, CONN_PREFIX_LEN) == 0) && (connIdOf(uriP->value.s) != connId))

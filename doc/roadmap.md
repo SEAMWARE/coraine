@@ -57,7 +57,7 @@ Recently built, and documented where it lives:
 -   **The WebSocket transport** - subscriptions and notifications over a WebSocket.
 -   **Server-Sent Events** - a subscription on `urn:ngsi-ld:self` made on its own event stream: the `201`
     to its `POST` is `text/event-stream`, its notifications the events, and it lives as long as the
-    stream ([Server-Sent Events](sse.md)).
+    stream ([Server-Sent Events](sse.md)). Over a WebSocket, `urn:ngsi-ld:self` is the connection.
 -   **Array reduction of entity data** - one-element arrays reduced at the input, by the @context.
 -   **`make tune`** - the broker built for your workload: the profile trained on it, the allocator and
     the lock policy measured on it ([Extreme performance](extreme-performance.md)).
@@ -104,8 +104,6 @@ incorporated in the next release of the product, in roughly this order:
 
 -   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
     discovery parameters.
--   **`urn:ngsi-ld:self` over a WebSocket** - a subscription made over a connection notifies that
-    connection by the endpoint `urn:ngsi-ld:self`, beside the connection's id. ([more](sse.md#2-urnngsi-ldself))
 -   **WebSocket subscriptions of a crashed instance, under High Availability** - each instance's run id
     and a heartbeat in the shared store, so that any instance deletes the WebSocket subscriptions of a run
     whose heartbeat stopped - also when a killed pod never comes back. Without `--high-availability` a

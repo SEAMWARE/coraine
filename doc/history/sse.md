@@ -3,6 +3,14 @@
 How the event stream came to be the response to the subscription's `POST`. What it is today is in
 [Server-Sent Events](../sse.md). Newest first.
 
+## 2026-10-20 - `urn:ngsi-ld:self` over a WebSocket
+
+KZ: `urn:ngsi-ld:self` over a WebSocket is the connection - "in a way, an alias for the connection id" -
+with the id itself kept for the clients that use it. Two ways were weighed: keep `urn:ngsi-ld:self` in the
+subscription and mark the connection beside it, or replace it by the id at the input. The replacement was
+taken: delivery, the deletion when the connection closes and a killed run's cleanup at the start are the
+id's, unchanged, and nothing else needs to know of the alias. A `GET` shows the id.
+
 ## 2026-10-20 - built: the stream is the create, the endpoint `urn:ngsi-ld:self`
 
 The first design (below) read a subscription's notifications with a `GET` on
