@@ -6,9 +6,8 @@ entity. A **Bridge** is the transport instance that carries Channels: one DDS
 participant, one MQTT connection. A value that arrives on the endpoint becomes
 the attribute's value; a write to the attribute goes out on the endpoint.
 
-> Not standard NGSI-LD. coraine implements this now; the concept goes to the
-> ETSI TC DATA face-to-face in Athens, 20–22 October 2026, and anything
-> normative will realistically follow in 2027. The names may change; the
+> Not standard NGSI-LD. coraine implements this now; the concept goes to
+> ETSI TC DATA, and anything normative will realistically follow in 2027. The names may change; the
 > endpoint-scheme convention is the part most likely to survive.
 
 ## Three concepts, three clocks
@@ -68,8 +67,8 @@ bridge's catch-all entity (`ngsild.defaultEntity`) for endpoints its transport d
 read-only over the API. No Channel is removed while the broker runs, so the broker never calls a
 plugin's `channelDel`.
 
-**Not stored in the database** (decided 2026-10-20): Bridges and Channels live in memory, built from
-the file at every start. A Bridge or Channel the file no longer names is gone after the restart, and
+**Volatile until the concept has passed ETSI** (decided 2026-10-20): nothing of a Bridge or Channel is
+stored in the database; they live in memory, built from the file at every start. A Bridge or Channel the file no longer names is gone after the restart, and
 nothing has to be found and deleted. Creating, changing and deleting them over the API (`POST` /
 `PATCH` / `DELETE`, 409 on a duplicate id) is the design, not yet built; such a change lasts until the
 broker restarts, when the file rebuilds them. The same holds for DataChannels and AssetChannels.

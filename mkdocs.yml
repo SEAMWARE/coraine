@@ -16,8 +16,8 @@ extra_css: ["https://fiware.org/style/fiware_readthedocs.css"]
 # under docs_dir regardless, so it was live and reachable by URL with no
 # sidebar and no context around it. `exclude_docs` is what keeps it off the site.
 #
-# It is the design of a concept going to the ETSI TC DATA face-to-face in Athens,
-# 20-22 October 2026; Bridges and Channels is not standard NGSI-LD.
+# It is the design of a concept going to ETSI TC DATA; Bridges and Channels is
+# not standard NGSI-LD.
 #
 # Proposals to ETSI themselves - their drafts, decks and the discussion around
 # them - are NOT in this public repository: they are in the private SEAMWARE/etsi

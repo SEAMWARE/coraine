@@ -100,13 +100,14 @@ because it is also the NGSI-LD API.
 
 ### Bridges and Channels over the API
 
-Today they come from the configuration file and are read over `GET`; create, update and delete over
-the API, persisted - the design is in `bridge-channels-details.md` (not published while the concept
-is in front of ETSI).
+Today they come from the configuration file and are read over `GET`. Create, update and delete over
+the API: in memory, lasting until the restart, while the concept is in front of ETSI - nothing of a
+Bridge or Channel is stored until it has passed (decided 2026-10-20). Persisted after that. The design
+is in `bridge-channels-details.md` (not published while the concept is in front of ETSI).
 
 ### Aligning Bridges and Channels with ETSI
 
-Expected in 2027, on whatever TC DATA standardises after the Athens face-to-face of October 2026.
+Expected in 2027, on whatever TC DATA standardises once the proposal has been through it.
 Adaptation work rather than new capability: the objects, the endpoint-scheme convention and the codec
 seam are likely to move, the transports carried over them are not. coraine's Bridge and Channel are
 not standard NGSI-LD.

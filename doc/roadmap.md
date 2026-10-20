@@ -93,9 +93,12 @@ Recently built, and documented where it lives:
     (the links carry the map's id); an entity that no longer matches is left out of its page
     ([EntityMaps](installation.md#entitymaps)).
 
-Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
-face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
-coraine implements its own objects now and adapts to whatever TC DATA settles on.
+Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to ETSI TC DATA,
+and anything normative will realistically follow in 2027. coraine implements its own objects now - the
+implementation is what tests the proposal - and adapts to whatever TC DATA settles on. Until the concept
+has passed ETSI, Bridges and Channels (and DataChannels, AssetChannels, the Service Registrations a
+bridge makes) are **volatile**: nothing of them in the database, all from the configuration file at
+start, so a change ETSI asks for is never a migration of stored objects.
 
 ## Short term
 
@@ -136,11 +139,11 @@ typically within the subsequent release(s) generated in the next **9 months**:
 -   **The IoT Agents as cor-agent plugins** - all seven FIWARE IoT Agents (JSON, UltraLight, LWM2M, OPC UA, LoRaWAN, Sigfox, ISOXML) as device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
 -   **A CSV bridge, and CKAN beyond `once`** - CSV files as DataChannels, as CKAN resources are; CKAN's `poll` (the dataset's activity stream) and `push` (a webhook) modes. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
 -   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
--   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
+-   **Aligning Bridges and Channels with ETSI** - 2027, after the proposal has been through TC DATA. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
 -   **haaux** - high-availability cache sync without a shared database. ([more](ideas.md#haaux))
 -   **Scaling out: sharding by tenant, then by entity type** - corDB stays linked into every broker; tenants routed by APISIX on `NGSILD-Tenant`, types by routing coraines over distributed operations - no load balancer of our own. ([more](ideas.md#scaling-out-sharding-by-tenant-and-by-entity-type))
 -   **HA peer push** - with a shared database, the broker that changes a subscription, registration or @context pushes the change to the other brokers itself (cor://) and answers the client once they have it - the window in which an update reaching another broker misses a notification shrinks from the change stream's ~50 ms to a LAN round trip. The cluster's members in a collection of the shared database. ([more](ideas.md#ha-peer-push-over-a-shared-database))
--   **Bridges and Channels over the API** - create, update, delete, persisted. ([more](ideas.md#bridges-and-channels-over-the-api))
+-   **Bridges and Channels over the API** - create, update, delete; in memory, lasting until the restart, until the concept has passed ETSI - persisted only after. ([more](ideas.md#bridges-and-channels-over-the-api))
 -   **One compound geo index** - one index for every GeoProperty, both variants prototyped and measured.
 -   **Hot and cold entity segments** - the entities written often apart from the rest (a design note first).
 -   **Our own @context server** - the JSON-LD context hosting API (`/jsonldContexts`) as a small C server on our own libraries, native on every architecture; it replaces the Java `wistefan/context-server` (amd64 only) in the tests and CI, and can host the contexts a deployment publishes.
