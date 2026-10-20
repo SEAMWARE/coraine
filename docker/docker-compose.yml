@@ -10,7 +10,7 @@
 
 services:
   mongo:
-    image: mongo:8
+    image: mongo:8.2
     # No port published: only the broker needs to reach it. Add
     # "ports: [27017:27017]" if you want to inspect the data from the host.
     volumes:

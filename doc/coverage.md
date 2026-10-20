@@ -68,7 +68,7 @@ include the HA code — 108/149 lines, 10/10 functions, 72/114 branches across
 Against a standalone those 108 lines and 10 functions read as entirely unexecuted:
 −0.34 pp on lines, −0.73 pp on functions and −0.26 pp on branches. The jobs that run
 the suite — `ci.yml`'s functest matrix and the nightly's coverage and valgrind jobs —
-use `quay.io/seamware/mongo-rs`, which is `mongo:8.0` with `--replSet` on the command
+use `quay.io/seamware/mongo-rs`, which is `mongo:8.2` with `--replSet` on the command
 line, and initiate the set from `.github/scripts/mongo-rs-init.sh`. The CI figure and
 the figure in this file measure the same thing.
 
