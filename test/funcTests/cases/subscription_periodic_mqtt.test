@@ -33,7 +33,7 @@ coraineStart --bridges mqtt
 #
 # 01. An entity of the type
 # 02. The periodic subscription, timeInterval 2, endpoint mqtt://localhost:11890/ngsild/pernot
-# 03. 5.5 s later: 2 or 3 publishes, 2 s apart or more, each with the entity
+# 03. 5.5 s later: 2 or more publishes - no more than one per 2 s since the first - each with the entity
 #
 
 echo "01. An entity of the type"
@@ -57,8 +57,8 @@ echo
 echo
 
 
-echo "03. 5.5 s later: 2 or 3 publishes, 2 s apart or more, each with the entity"
-echo "=========================================================================="
+echo "03. 5.5 s later: 2 or more publishes, 2 s apart or more, each with the entity"
+echo "=============================================================================="
 sleep 5.5
 ftClientDump | python3 -c '
 import json,sys,datetime
@@ -78,8 +78,13 @@ for e in json.load(sys.stdin):
   v.append((t, [x["id"] for x in b["data"]]))
 v.sort()
 gaps = [(b[0] - a[0]).total_seconds() for a, b in zip(v, v[1:])]
-ok   = (2 <= len(v) <= 3) and all(g >= 1.9 for g in gaps) and all(d == ["urn:ngsi-ld:Vehicle:V1"] for _, d in v)
-print("yes" if ok else "no: %d publishes, gaps %s" % (len(v), gaps))
+#
+# At most one publish per started interval since the first - counted up to NOW, not up to the 5.5 s the
+# sleep meant: a slow run (valgrind) dumps later and has rightly seen one more.
+#
+most = 1 + int((datetime.datetime.now(datetime.timezone.utc) - v[0][0]).total_seconds() / 2) if v else 0
+ok   = (2 <= len(v) <= most) and all(g >= 1.9 for g in gaps) and all(d == ["urn:ngsi-ld:Vehicle:V1"] for _, d in v)
+print("yes" if ok else "no: %d publishes, at most %d, gaps %s" % (len(v), most, gaps))
 '
 echo
 echo
@@ -96,8 +101,8 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 
 
-03. 5.5 s later: 2 or 3 publishes, 2 s apart or more, each with the entity
-==========================================================================
+03. 5.5 s later: 2 or more publishes, 2 s apart or more, each with the entity
+==============================================================================
 yes
 
 
