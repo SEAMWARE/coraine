@@ -1713,7 +1713,58 @@ The same requests on the same run's 100-entity fixture (`retrieve_c50`, `patch_c
   ~240 µs an entity on both databases. It grows linearly with the store and does not measure the broker.
 - **corDB's deep page of a rare type is slow.** `big_r01_l20_o200` runs at 814 / 852 a second, against
   mongoc's 5 300. The rate does not depend on the store's size, 1M or 10M, but on the offset into the
-  type. Its first page, and the deep page of the 1 % type, are faster than mongoc's.
+  type. Its first page, and the deep page of the 1 % type, are faster than mongoc's. With
+  [corDB's type index](#cordbs-type-index) it runs at 103 560.
+
+### corDB's type index
+
+corDB keeps a list of each type's entities, in the store's order, and a query by one type (or one AND
+group of types) walks that list instead of the store - corDB's README, "Queries by type - the type index".
+Built with it (`COR_FEATURE_TYPE_INDEX=1`, the default) and without it, the same broker otherwise
+(b23e42f0), on the machine and configuration of the section above, corDB with `--dbDir`, 2026-10-20.
+
+**The larger store at one million entities**, one run each (without: the 1M run above):
+
+| Scenario | without | with | |
+|---|---:|---:|---:|
+| `big_r01_l20_o200`, deep page of a 0.1 % type | 814 (62 021) | 103 560 (420) | x127 |
+| `big_r1_l20_o1000`, deep page of a 1 % type | 2 093 (20 072) | 83 929 (525) | x40 |
+| `big_r01_l20`, first page of a 0.1 % type | 22 462 (1 709) | 110 862 (398) | x4.9 |
+| `big_r1_l20`, first page of a 1 % type | 78 832 (517) | 115 900 (361) | +47 % |
+| `big_retrieve` | 483 327 | 488 477 | +1.1 % |
+| `big_patch` | 91 261 | 90 128 | -1.2 % |
+| `big_create` | 84 597 | 72 850 | -13.9 % |
+| Broker RSS after the fill | 2.04 GiB | 2.09 GiB | +2.4 %, 51 bytes an entity |
+| `--dbDir` | 602 MiB | 602 MiB | the index is not on disk |
+
+**Every scenario, ABBA** (with, without, without, with), `PERF_BIG_ENTITIES=1000`, the mean of the two
+runs of each build, requests a second at c50 unless named:
+
+| Scenario | without | with | |
+|---|---:|---:|---:|
+| `rare_l20_o500`, deep page of a 1 % type in 100 100 entities | 4 679 | 96 866 | x21 |
+| `rare_l20` / `rare_l100` | 81 158 / 18 662 | 115 104 / 26 779 | +42 % / +43 % |
+| `query_c50` / `query_l100_c50` (a type that is the whole store) | 113 293 / 25 898 | 113 188 / 25 347 | -0.1 % / -2.1 % |
+| `retrieve_c50` | 597 581 | 579 777 | -3.0 % |
+| `patch_c50` / `patch_c1` | 107 049 / 46 733 | 102 148 / 45 583 | -4.6 % / -2.5 % |
+| `merge_c50` | 71 509 | 69 797 | -2.4 % |
+| `create_c50` / `create_c1` | 86 523 / 30 648 | 82 521 / 31 212 | -4.6 % / +1.8 % |
+| `batch20create_c50` | 24 796 | 16 740 | -32.5 % |
+| `batch20_c50` (batch update) | 28 122 | 26 254 | -6.6 % |
+| `delete_c50` / `batch20delete_c50` | 161 930 / 53 091 | 152 548 / 50 298 | -5.8 % / -5.3 % |
+| `patch_subs_c50` / `patch_10subs_c50` | 79 902 / 11 895 | 83 076 / 11 836 | +4.0 % / -0.5 % |
+
+- **A deep page of a rare type costs about what its first page costs**: `rare_l20_o500` 96 866 against
+  `rare_l20` 115 104, `big_r01_l20_o200` 103 560 against `big_r01_l20` 110 862.
+- **A created entity costs ~0.2 µs more under the store's write lock**: its place at the end of its
+  type's list, and in the map from an entity to that place. Where creates are bound by that lock it
+  shows: a batch create of 20 at c50 without `--dbDir`, ABBA, 10 s a run, 62 707 -> 51 350 batches a
+  second (-18 %), 0.80 -> 0.97 µs a created entity.
+- **A batch create of 20 at c50 with `--dbDir` runs at one of two rates** in those 10 s runs: ~18 800 or
+  ~14 000 batches a second. Without the index, nine runs gave 18 351 to 18 933. With it, 13 215 to
+  17 917. With a busy loop of 150 cycles for each entity in the index's place (no memory touched),
+  17 456 and 13 352: the write lock held a little longer puts it on the lower rate.
+- **The other writes: -6.6 % to +1.8 %.** The other reads: -3.0 % to +1.1 %.
 
 ## The HTTP server
 

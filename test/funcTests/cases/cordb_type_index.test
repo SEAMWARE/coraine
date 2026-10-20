@@ -1,0 +1,170 @@
+#
+# FILE            cordb_type_index.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB's type index (COR_FEATURE_TYPE_INDEX, corDB's corDbTypeIndex.h): a query by type walks its type's
+# list, not the store. The answers are the store's - the same entities, in the store's order - through
+# everything that changes an entity's types or its place: a merge and a batch upsert that add a type (the
+# entity goes where the store has it, not at the end), a replace, a delete, a create, a page from a
+# position (the next link), and a restart that loads the store from the disk. A debug build also walks
+# the store for every query by type and aborts on a difference.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB type index - queries by type answer as the store does, through merges, replaces, deletes and a restart
+
+--TAGS--
+corDB query type pagination
+
+--INIT--
+rm -rf /tmp/corTest-cordb_type_index
+coraineStart --dbDir /tmp/corTest-cordb_type_index
+
+--RUN--
+
+#
+# 01. Create E1 A, E2 B, E3 A, E4 [A,B], E5 C, E6 A, E7 B, E8 A
+# 02. type=A; type=B; type=(A;B); type=A&offset=2&limit=2
+# 03. PATCH E5 (merge) with type A - type=A: E5 between E4 and E6, where the store has it
+# 04. PUT E2 (still B, a=20) - type=B: E2 where it was, a=20; batch upsert (update) E7 with type A - type=A: E7
+#     between E6 and E8
+# 05. DELETE E3, create E9 A - type=A: E3 gone, E9 last
+# 06. type=A&limit=2, then the next link's page
+# 07. kill -9, start on the same --dbDir - type=A, type=B, type=C as before the kill
+#
+
+DIR=/tmp/corTest-cordb_type_index
+
+ids() { curl -s "localhost:1026/ngsi-ld/v1/entities?$1" | python3 -c 'import json,sys; print(" ".join(e["id"] for e in json.load(sys.stdin)))'; }
+ent() { echo '{"id":"urn:E'"$1"'","type":'"$2"',"a":{"type":"Property","value":'"$1"'}}'; }
+
+
+echo "01. Create E1 A, E2 B, E3 A, E4 [A,B], E5 C, E6 A, E7 B, E8 A"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "[$(ent 1 '"A"'),$(ent 2 '"B"'),$(ent 3 '"A"'),$(ent 4 '["A","B"]'),$(ent 5 '"C"'),$(ent 6 '"A"'),$(ent 7 '"B"'),$(ent 8 '"A"')]" | head -1
+echo
+echo
+
+
+echo "02. type=A; type=B; type=(A;B); type=A&offset=2&limit=2"
+echo "========================================================"
+ids "type=A"
+ids "type=B"
+ids "type=(A;B)"
+ids "type=A&offset=2&limit=2"
+echo
+echo
+
+
+echo "03. PATCH E5 (merge) with type A - type=A: E5 between E4 and E6, where the store has it"
+echo "======================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E5 -X PATCH --payload '{"type":"A"}' | head -1
+ids "type=A"
+ids "type=C"
+echo
+echo
+
+
+echo "04. PUT E2 (still B, a=20) - type=B: E2 where it was; batch upsert (update) E7 with type A - E7 in type=A"
+echo "=========================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2 -X PUT --payload '{"id":"urn:E2","type":"B","a":{"type":"Property","value":20}}' | head -1
+curl -s "localhost:1026/ngsi-ld/v1/entities?type=B&pick=id,a&format=keyValues" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), separators=(",", ":")))'
+corCurl --url "/ngsi-ld/v1/entityOperations/upsert?options=update" --payload '[{"id":"urn:E7","type":"A","b":{"type":"Property","value":7}}]' | head -1
+ids "type=A"
+ids "type=B"
+echo
+echo
+
+
+echo "05. DELETE E3, create E9 A - type=A: E3 gone, E9 last"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E3 -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/entities --payload "$(ent 9 '"A"')" | head -1
+ids "type=A"
+echo
+echo
+
+
+echo "06. type=A&limit=2, then the next link's page"
+echo "============================================="
+next=$(curl -s -D - -o /dev/null "localhost:1026/ngsi-ld/v1/entities?type=A&limit=2" | python3 -c '
+import re,sys
+m = re.search(r"<([^>]*)>;rel=\"next\"", sys.stdin.read())
+print(m.group(1) if m else "")')
+ids "type=A&limit=2"
+ids "${next#*\?}"
+echo
+echo
+
+
+echo "07. kill -9, start on the same --dbDir - type=A, type=B, type=C as before the kill"
+echo "=================================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR
+ids "type=A"
+ids "type=B"
+ids "type=C"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 A, E2 B, E3 A, E4 [A,B], E5 C, E6 A, E7 B, E8 A
+==============================================================
+HTTP/1.1 201 Created
+
+
+02. type=A; type=B; type=(A;B); type=A&offset=2&limit=2
+========================================================
+urn:E1 urn:E3 urn:E4 urn:E6 urn:E8
+urn:E2 urn:E4 urn:E7
+urn:E4
+urn:E4 urn:E6
+
+
+03. PATCH E5 (merge) with type A - type=A: E5 between E4 and E6, where the store has it
+=======================================================================================
+HTTP/1.1 204 No Content
+urn:E1 urn:E3 urn:E4 urn:E5 urn:E6 urn:E8
+urn:E5
+
+
+04. PUT E2 (still B, a=20) - type=B: E2 where it was; batch upsert (update) E7 with type A - E7 in type=A
+==========================================================================================================
+HTTP/1.1 204 No Content
+[{"id":"urn:E2","a":20},{"id":"urn:E4","a":4},{"id":"urn:E7","a":7}]
+HTTP/1.1 204 No Content
+urn:E1 urn:E3 urn:E4 urn:E5 urn:E6 urn:E7 urn:E8
+urn:E2 urn:E4 urn:E7
+
+
+05. DELETE E3, create E9 A - type=A: E3 gone, E9 last
+=====================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+urn:E1 urn:E4 urn:E5 urn:E6 urn:E7 urn:E8 urn:E9
+
+
+06. type=A&limit=2, then the next link's page
+=============================================
+urn:E1 urn:E4
+urn:E5 urn:E6
+
+
+07. kill -9, start on the same --dbDir - type=A, type=B, type=C as before the kill
+==================================================================================
+urn:E1 urn:E4 urn:E5 urn:E6 urn:E7 urn:E8 urn:E9
+urn:E2 urn:E4 urn:E7
+urn:E5
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_type_index
