@@ -2938,6 +2938,21 @@ static bool queryEntities(PagePosition* posP)
   // with a positive offset is the offset-past-the-end case handled below.
   bool localQueryEmpty = (arrayP == NULL || arrayP->value.head == NULL);
   bool distForwarded   = false;
+
+  //
+  // count=true on a distributed query (NGSILD-Results-Count): the matches of the Context Sources count
+  // too. Split entities: the matches are the entities assembled here and filtered after assembly -
+  // their number. Otherwise the sources are asked the query as it is, count=true included: each
+  // source's NGSILD-Results-Count (the entities it answered, when it sends none) is added to the local
+  // count, less every entity the answers showed in more than one place.
+  //
+  bool    splitQuery  = false;       // the query was forwarded in split mode
+  int64_t localTotal  = filter.totalCount;
+  int64_t sourceTotal = 0;           // Σ of the sources' counts (non-split forward)
+  int64_t seenTwice   = 0;           // a source's entity already in the result: counted once
+
+  if (brokerPaginates)
+    localTotal = arrayLength(arrayP);   // orderBy: the store did not count - it returned every local match
 #if COR_FEATURE_AUTO_ENTITY_MAP
   int  forwardedN      = 0;        // the Context Sources the query was forwarded to
   bool sourceMore      = false;    // one of them may have more than the page it answered
@@ -3057,7 +3072,8 @@ static bool queryEntities(PagePosition* posP)
 
       if (totalMatch > 0 && splitModeSetting)
       {
-        splitMode = true;
+        splitMode  = true;
+        splitQuery = true;
         DbQueryFilter splitFilter = {0};
         splitFilter.idV       = filter.idV;
         splitFilter.idPattern = filter.idPattern;
@@ -3243,13 +3259,39 @@ static bool queryEntities(PagePosition* posP)
             // forwarded instances, § 4.5.5.3 rule 3 has nothing to compare.
             // It rides the URL, not the Query body - buildQueryBodyFromQs
             // maps only the § 5.2.23 body members and drops everything else.
+            //
+            // The page and the count ride the URL, as on the GET form - count and pagination are URL
+            // parameters of the POST form too (TS 104-176 § 6.4.6, § 6.4.7.2) - except in split mode,
+            // where every match is assembled here.
+            //
             const char* path    = (splitMode || corNgsild.sysAttrs)
                                     ? "/ngsi-ld/v1/entityOperations/query?sysAttrs=true"
                                     : "/ngsi-ld/v1/entityOperations/query";
             int   baseLen = strlen(csr->endpoint);
-            char* url     = (char*) corAlloc(&corRest.kalloc, baseLen + strlen(path) + 1);
-            strcpy(url, csr->endpoint);
-            strcpy(url + baseLen, path);
+            int   urlSize = baseLen + strlen(path) + 64;
+            char* url     = (char*) corAlloc(&corRest.kalloc, urlSize);
+            int   urlLen  = snprintf(url, urlSize, "%s%s", csr->endpoint, path);
+
+            if (splitMode == false)
+            {
+              uint64_t given = corRest.in.uriParamMask;
+              char     sep   = (strchr(path, '?') != NULL) ? '&' : '?';
+
+              if (given & LD_PARAM_LIMIT)
+              {
+                urlLen += snprintf(url + urlLen, urlSize - urlLen, "%climit=%d", sep, corNgsild.limit);
+                sep     = '&';
+              }
+
+              if (given & LD_PARAM_OFFSET)
+              {
+                urlLen += snprintf(url + urlLen, urlSize - urlLen, "%coffset=%d", sep, corNgsild.offset);
+                sep     = '&';
+              }
+
+              if (corNgsild.count)
+                snprintf(url + urlLen, urlSize - urlLen, "%ccount=true", sep);
+            }
 
             const char* body = buildQueryBodyFromQs(fullQs, &corRest.kalloc);
 
@@ -3445,6 +3487,15 @@ static bool queryEntities(PagePosition* posP)
                 renderedBody);
 
           if (code < 200 || code >= 300) continue;
+
+          bool sourceCounted = false;
+
+          if ((splitMode == false) && (results[i].resultsCountGiven == true))
+          {
+            sourceTotal  += results[i].resultsCount;
+            sourceCounted = true;
+          }
+
           if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
           CorNode* remoteArray;
@@ -3493,6 +3544,10 @@ static bool queryEntities(PagePosition* posP)
           }
 
           if (remoteArray == NULL || remoteArray->type != CorArray) continue;
+
+          // A source that sent no NGSILD-Results-Count: what it answered is what is known of it
+          if ((splitMode == false) && (sourceCounted == false))
+            sourceTotal += arrayLength(remoteArray);
 
 #if COR_FEATURE_AUTO_ENTITY_MAP
           //
@@ -3603,6 +3658,8 @@ static bool queryEntities(PagePosition* posP)
               //
               ldDistMergeSourceInto(existingP, remoteEntity, corRest.requestStartTime, corRest.kallocP, false);
             }
+            else
+              ++seenTwice;     // the same entity from another place: in the count once
 
             remoteEntity = nextRemote;
           }
@@ -3657,21 +3714,22 @@ static bool queryEntities(PagePosition* posP)
     ldOrderSort(arrayP, corNgsild.orderByV, corNgsild.orderByCount, corNgsild.collation);
 
   //
-  // The DB was not asked to count (see brokerPaginates above), so count here -
-  // before the offset and the trim take anything away. This is the whole
-  // matching set, so the answer is exact rather than an estimate.
+  // count=true, where the store's count is not the answer - before the offset and the trim take
+  // anything away:
+  //   - split entities: the entities assembled from every place and filtered here - the whole set;
+  //   - a forward of the query as it is: the local count plus the sources' counts, an entity seen in
+  //     more than one place counted once;
+  //   - orderBy, local only: the store was not asked to count (see brokerPaginates above) - it
+  //     returned the whole matching set, so the answer is exact rather than an estimate.
   //
-  if (brokerPaginates && corNgsild.count)
+  if (corNgsild.count)
   {
-    int64_t brokerTotal = 0;
-
-    if (arrayP != NULL)
-    {
-      for (CorNode* eP = arrayP->value.head; eP != NULL; eP = eP->next)
-        ++brokerTotal;
-    }
-
-    filter.totalCount = brokerTotal;
+    if (splitQuery)
+      filter.totalCount = arrayLength(arrayP);
+    else if (distForwarded)
+      filter.totalCount = localTotal + sourceTotal - seenTwice;
+    else if (brokerPaginates)
+      filter.totalCount = arrayLength(arrayP);
   }
 
   //
@@ -3852,9 +3910,20 @@ static bool queryEntities(PagePosition* posP)
   // The offset the DB was not allowed to apply. After the EntityMap freeze
   // above, which must see the whole sorted set, and before the trim below,
   // which turns what is left into one page.
+  // Split entities: neither the local store nor the sources were given the offset - every match is
+  // assembled here, and the page is cut from them.
   //
-  if (brokerPaginates)
+  if (brokerPaginates || splitQuery)
     orderBySkip(arrayP, corNgsild.offset);
+
+  //
+  // limit=0 is count-only (TS 104-176 § 6.4.6, § 6.4.7): the count above, no entities - whatever a source answered
+  //
+  if ((corNgsild.limit == 0) && (arrayP != NULL))
+  {
+    arrayP->value.head = NULL;
+    arrayP->value.tail = NULL;
+  }
 
   //
   // Position links for a LOCAL query (PagePosition): the page without the entity fetched past it
