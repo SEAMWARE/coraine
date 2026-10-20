@@ -1,10 +1,11 @@
 # Server-Sent Events - a subscription made on its own event stream
 
-A client that only wants notifications - a dashboard, a browser page, a script behind NAT - creates its
-subscription with one `POST` and keeps the response open: the `201` is a `text/event-stream` that does
-not end, and the subscription's notifications are its events - a change-driven subscription's as the
-entities change, a periodic one's once per interval (§ 4.1). The broker never connects to the client,
-and nothing but plain HTTP is needed.
+A client that wants its notifications without a WebSocket - and without a server of its own for the
+broker to post to - creates its subscription with one `POST` and keeps the response open: the `201` is
+a `text/event-stream` that does not end, and the subscription's notifications are its events - a
+change-driven subscription's as the entities change, a periodic one's once per interval (§ 4.1). The
+broker never connects to the client, and nothing but plain HTTP is needed. The client's other requests
+are ordinary HTTP requests, as always.
 
 ```console
 curl -N -H 'Content-Type: application/json' -d '{
@@ -44,7 +45,10 @@ In the build by default; `-DCOR_FEATURE_SSE=OFF` leaves it out (and so does `SUB
 | binary | possible (`ngsi-ld.cor`, not yet) | no - text only |
 | loaded | `--transports ws` (a plugin) | always, in a build with it |
 
-The WebSocket is for a client that also writes - c³. Server-Sent Events is for a client that only reads.
+Both deliver notifications to a client the broker cannot connect to. Server-Sent Events is the
+simpler of the two: an HTTP response that is read as it comes - `curl -N`, `fetch()` - with no upgrade,
+no framing and no message envelope, through anything that passes HTTP. The WebSocket carries the
+requests too, over the one connection - c³.
 
 It is **not a transport** - a transport carries the API ([WebSocket](websocket.md#how-it-is-built)); this
 carries one subscription's notifications. It is not a notification binding either: there is no address
@@ -186,9 +190,9 @@ curl -N -H 'Content-Type: application/json' -d '{
 
 ## 7. NGSI-LD
 
-Not in the specification: its bindings are HTTP and MQTT (and coraine's WebSocket). It solves for a
-reader what MQTT solves - a broker that cannot reach the client - with no second server, and is worth
-proposing to ETSI: the endpoint value `urn:ngsi-ld:self`, the stream as the response to the create.
+Not in the specification: its bindings are HTTP and MQTT (and coraine's WebSocket). It solves what
+MQTT solves - a broker that cannot reach the client - with no second server and no WebSocket, and is
+worth proposing to ETSI: the endpoint value `urn:ngsi-ld:self`, the stream as the response to the create.
 
 ## 8. Not yet
 
