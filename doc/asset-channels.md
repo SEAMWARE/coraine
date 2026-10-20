@@ -244,5 +244,5 @@ Decided (KZ, 2026-10-17):
    mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
 4. The OPC UA bridge, its own repository, on the bridge ABI as it is: the model and its values as the node
    tree (§ 3.3). The client library is to choose.
-5. AAS, the second source - the plan for AAS engineers: [aas.md](aas.md).
+5. AAS, the second source, its own repository (corAasBridge): [aas.md](aas.md), written for AAS engineers.
 6. Operations and methods as services (§ 4).

@@ -1,14 +1,14 @@
-# Asset Administration Shells in coraine - the plan
+# Asset Administration Shells in coraine
 
 What coraine is to do with an Asset Administration Shell (AAS): which parts of a shell become NGSI-LD,
 in what shape, how the broker reaches the AAS server, and what is not decided yet. It is written for AAS
 engineers; no source code is needed to follow it.
 
-**Status: a plan, not built.** The broker's half - the AssetChannel, the mapping of a model into
-entities - is built and in use by the OPC UA bridge ([corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)).
-The AAS bridge, the second source of an AssetChannel, is not started. The examples below are what the
-decided mapping makes of an AAS; they are worked out by hand, not output of a running bridge. The
-design in full is [asset-channels.md](asset-channels.md).
+**Status: a prototype.** The broker's half - the AssetChannel, the mapping of a model into entities -
+is built, and has two sources: the OPC UA bridge ([corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge))
+and the AAS bridge, `aas.so` ([corAasBridge](https://github.com/SEAMWARE/corAasBridge), not released). The
+examples below are what the mapping makes of an AAS; they are worked out by hand. The design in full is
+[asset-channels.md](asset-channels.md); the bridge's configuration is in corAasBridge's README.
 
 - [1. In one picture](#1-in-one-picture)
 - [2. Why an AssetChannel](#2-why-an-assetchannel)
@@ -149,16 +149,16 @@ value had at the source as its `observedAt`.
 | Property (`xs:int`, `xs:double`, `xs:boolean`, `xs:string`, `xs:dateTime` ...) | Property, the value converted to JSON (a number, a boolean, a string) |
 | MultiLanguageProperty | LanguageProperty |
 | Range | Property, value `{ "min": ..., "max": ... }` |
-| File | Property: the file's URL, and a `contentType` sub-Property |
-| Blob | Property: its `contentType`; the content itself is not copied |
+| File | Property: the file's URL (a file of the server's AASX package: the API's attachment URL), and a `contentType` sub-Property |
+| Blob | Property: the API's attachment URL, and a `contentType` sub-Property; the content itself is not copied |
 | ReferenceElement to a part that is an entity | Relationship |
 | ReferenceElement to anything else | Property, the reference as the AAS writes it |
-| RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity, to `second`'s |
+| RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity, to `second`'s - not mapped by the prototype |
 | a submodel of a shell, a part that is an entity | a Relationship named by its idShort |
 | SubmodelElementList | ListProperty (of values) or ListRelationship (of references) |
 | SubmodelElementCollection | an entity (when a rule says so), else by `attributeLayout` (section 3) |
-| Operation | a service of the entity - later (section 8) |
-| BasicEventElement, Capability | not mapped in the first version |
+| Operation | a service, executed by the bridge (section 8) |
+| BasicEventElement, Capability, Entity, AnnotatedRelationshipElement | not mapped |
 
 **The leaf's kind.** The node tree a bridge hands over says it: a leaf's `attributeType` -
 `LanguageProperty` (its value a language map) or `ListProperty` (an array) - and its `contentType`
@@ -169,7 +169,7 @@ idShorts (`attributes` layout) joins them, each one after the first starting upp
 `[A-Za-z0-9_]` is kept.
 
 **Meaning.** An element's `semanticId` is always written as a `semanticId` sub-Property of its
-attribute (several: an array) - not left to an @context. An application finds what an attribute means in the entity itself,
+attribute - not left to an @context. The prototype takes the reference's first key. An application finds what an attribute means in the entity itself,
 whatever @context it uses; an element without a semanticId has no `semanticId` sub-Property.
 
 **Ids.** A shell's or submodel's id is used as the entity id unchanged. A collection that a rule makes an
@@ -183,14 +183,18 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
 - **At start:** `GET /shells/{id}`, then each submodel it refers to, `GET /submodels/{id}` - ids
   base64url-encoded in the path, as the API says. The whole model is written in one batch: the entities
   created when not there, their mapped attributes replaced, any other attribute on them left alone.
-- **Values that change:** the server's events where it has them, else the model read again every
-  `pollInterval` (set per channel). Each entity a changed element is in is written again.
+- **Values that change:** the model read again every `pollInterval` (set per channel, `channelInfo`, an
+  ISO 8601 duration; 10 s by default). Each entity a changed element is in is written again, the time of
+  the read its `observedAt`. The server's events are not used.
 - **The model's structure changes** (a submodel added, an element removed): the model is written again.
   What the model no longer has is **left alone**, not deleted - a server restarting or a connection lost
   must not wipe the last values, and a reconnect may bring it back.
-- **Read-only in the first version.** A client's write to one of these attributes is stored in the
-  broker, and not sent to the AAS server. Writing back (an NGSI-LD PATCH becoming the AAS `$value`
-  write) is a later step.
+- **Writing back,** with the channel's `channelDirection` `both`: a client's write to one of these
+  attributes goes to the AAS server first, `PATCH /submodels/{id}/submodel-elements/{idShortPath}/$value`
+  in the ValueOnly form (Property, MultiLanguageProperty, Range, a SubmodelElementList of Properties). A
+  File, a Blob and the asset information are not written: 422. A write the server refuses is read back -
+  the entity shows what the server has. Inbound only (the default), a client's write is stored in the
+  broker and not sent.
 - **The payload check.** The bridge may refuse a client's write that does not fit the element's
   `valueType` (a string to an `xs:double`): the client gets 400 and nothing is stored.
 - **When the server cannot be reached,** the bridge retries, and the broker says why nothing comes in -
@@ -212,17 +216,23 @@ a single query.
 ## 8. Operations
 
 An AAS Operation is what NGSI-LD Service Execution calls a service: the asset does something when asked,
-with input and output arguments. The plan is to register each Operation as a service of its entity -
-its name the idShort, its input and output from the Operation's variables - with the bridge invoking it
-on the AAS server. This comes after the read side works.
+with input and output arguments. A Service Registration whose endpoint is the Operation -
+`aas+http[s]://<server>/submodels/<id, base64url>/submodel-elements/<idShortPath>` - makes it a service the
+AAS bridge executes ([service-execution.md](service-execution.md)): the execution's input becomes the
+Operation's input arguments by idShort, `POST .../invoke` is called, and the output arguments by idShort
+are the execution's output. A failed invocation fails the execution (502). Only Property variables are
+taken.
+
+The registrations are made by hand. Registering each Operation of a model as a service of its entity,
+when the model is read ([asset-channels.md § 4](asset-channels.md#4-operations-and-methods-service-execution)), is not built.
 
 ## 9. The mapping tool in c³
 
 c³, coraine's control center, gets a mapping page: it browses what a bridge's source offers - an OPC UA
 server's address space first, an AAS server's shells and submodels next - lets you pick what to carry,
-and writes the configuration of section 3. The broker's part, being built for OPC UA now, is an
+and writes the configuration of section 3. The broker's part is an
 endpoint that asks a bridge for its source's inventory (`GET /admin/bridges/{bridge}/inventory`); the AAS
-bridge is to answer it from the AAS server's shells and submodels.
+bridge answers it with the server's shells and submodels, and with `?from=<id>` that shell's model.
 
 ## 10. Decided
 
@@ -235,8 +245,8 @@ bridge is to answer it from the AAS server's shells and submodels.
 4. **A semanticId** is always a `semanticId` sub-Property, never an @context matter.
 5. **Ids:** an AAS id is the entity id unchanged.
 6. **What the model no longer has** is left alone.
-7. **Operations** become services, after the read side.
-8. **The order:** OPC UA first (built), AAS second.
+7. **Operations** become services, executed by the bridge.
+8. **The order:** OPC UA first, AAS second - both built.
 
 ## 11. Open - for the AAS experts
 
@@ -252,7 +262,7 @@ Not decided; the answers decide the AAS bridge:
 4. **The shell's entity type.** With `natural`, a shell is of type `Shell`. Is there something better to
    take by default - `assetInformation`'s `assetType`, the asset kind?
 5. **The AAS `Entity` element** (a part in a bill of material, with its own `globalAssetId`) and
-   **AnnotatedRelationshipElement** are not in the table of section 5 yet. An `Entity` element looks
+   **AnnotatedRelationshipElement** are not mapped yet (section 5). An `Entity` element looks
    like an NGSI-LD entity of its own - is that how AAS users see it?
 6. **semanticId detail.** A semanticId is a reference of one or more keys, and an element may have
    `supplementalSemanticIds`. The Digital Nameplate 3.0 gives each element an IEC CDD id as its semanticId
