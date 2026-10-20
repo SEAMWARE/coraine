@@ -20,7 +20,7 @@
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
 #include "corNgsild/ldQParse.h"                       // ldQParseStored
 #include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchQ, ldEntityMatchScope
-#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParseStored
 
 #include "db/DbDriver.h"                              // db, DB_OK
 #include "db/Tenant.h"                                // Tenant
@@ -167,7 +167,7 @@ bool seRegistrationMatches(CorNode* regP, const char* entityId, char** typeV, Co
 
   if ((scopeQP != NULL) && (scopeQP->type == CorString))
   {
-    LdScopeExpr* scopeExprP = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc);
+    LdScopeExpr* scopeExprP = ldScopeExprParseStored(scopeQP->value.s, &corRest.kalloc);
 
     if ((scopeExprP == NULL) || (ldEntityMatchScope(corTreeLookup(entityP, "scope"), scopeExprP) == false))
       return false;

@@ -52,7 +52,7 @@
 #include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAddEntry, ldEntityMapToTree
 #include "corNgsild/ldQParse.h"                       // ldQParse, ldQStripLinked
 #include "corNgsild/LdTypeExpr.h"                     // ldTypeExprParse
-#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse
+#include "corNgsild/LdScopeExpr.h"                    // ldScopeExprParse, ldScopeExprParseStored
 #include "corNgsild/LdGeoRel.h"                       // ldGeoRelParse
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 #include "corHash/corHash.h"                          // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
@@ -1281,7 +1281,7 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
   if (corNgsild.scopeQ == NULL && mapP->boundScopeQ != NULL)
   {
     corNgsild.scopeQ    = mapP->boundScopeQ;
-    corNgsild.scopeExpr = ldScopeExprParse(mapP->boundScopeQ, kaP);
+    corNgsild.scopeExpr = ldScopeExprParseStored(mapP->boundScopeQ, kaP);
   }
   if (corNgsild.georel == NULL && mapP->boundGeorel != NULL)
   {
