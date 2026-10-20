@@ -104,6 +104,10 @@ incorporated in the next release of the product, in roughly this order:
 -   **Server-Sent Events - notifications as an event stream** - a subscription's notifications read
     with one plain `GET` (`text/event-stream`), by a client the broker cannot reach; a reconnect is sent
     what it missed (`Last-Event-ID`). Small: no new transport, plain HTTP. ([more](sse.md))
+-   **WebSocket subscriptions of a crashed instance, under High Availability** - each instance's run id
+    and a heartbeat in the shared store, so that any instance deletes the WebSocket subscriptions of a run
+    whose heartbeat stopped - also when a killed pod never comes back. Without `--high-availability` a
+    broker deletes them when it starts. ([more](websocket.md#subscriptions))
 -   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
     routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route

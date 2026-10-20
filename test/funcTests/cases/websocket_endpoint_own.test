@@ -10,8 +10,8 @@
 # A WebSocket connection is the endpoint only of what is made over it. A subscription (or a context source
 # subscription) made over HTTP that names a connection was accepted - and pushed its notifications into a
 # connection that never asked for them. And a connection's id is of this run of the broker: one that was
-# killed (kill -9) deletes nothing, its subscriptions stay in the store - and the ids, starting again at
-# 1, let the next client to be connection 1 receive another client's notifications.
+# killed (kill -9) deletes nothing, its subscriptions stay in the store until its next start - and the ids,
+# starting again at 1, let the next client to be connection 1 receive another client's notifications.
 #
 --NAME--
 WebSocket - a connection is the endpoint only of what is made over it; an id of another run names no connection
@@ -72,15 +72,15 @@ echo
 echo
 
 
-echo "06. A's subscription is still there (a killed broker deleted nothing), naming A"
-echo "==============================================================================="
+echo "06. A's subscription is gone - deleted at the start: it notified a connection of another run"
+echo "============================================================================================="
 corCurl --url /ngsi-ld/v1/subscriptions | grep -c '"uri": "'"$A"'"'
 echo
 echo
 
 
-echo "07. Create a Vehicle - A's subscription matches it, and B is not notified: B has its first message only"
-echo "======================================================================================================="
+echo "07. Create a Vehicle - B is not notified: B has its first message only"
+echo "======================================================================"
 corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Vehicle:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 1 } }' | head -1
 sleep 0.5
 ftWsMessages | python3 -c 'import json,sys; print(len(json.load(sys.stdin)), "message(s)")'
@@ -137,13 +137,13 @@ REGEX(urn:ngsi-ld:WebSocket:[0-9a-f]{16}-1)
 A and B differ
 
 
-06. A's subscription is still there (a killed broker deleted nothing), naming A
-===============================================================================
-1
+06. A's subscription is gone - deleted at the start: it notified a connection of another run
+=============================================================================================
+0
 
 
-07. Create a Vehicle - A's subscription matches it, and B is not notified: B has its first message only
-=======================================================================================================
+07. Create a Vehicle - B is not notified: B has its first message only
+======================================================================
 HTTP/1.1 201 Created
 1 message(s)
 
