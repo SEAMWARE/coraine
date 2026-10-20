@@ -788,17 +788,59 @@ bigFill() {
 }
 
 resetStore
+bigFillStart=$(date +%s.%N)
 bigFill
+bigFillSecs=$(awk -v a="$bigFillStart" -v b="$(date +%s.%N)" 'BEGIN{printf "%.1f", b - a}')
 for t in R1:100 R01:1000; do
   have=$(curl "${authH[@]}" -s -D - -o /dev/null "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=${t%%:*}&limit=0&count=true" \
          | awk 'BEGIN{IGNORECASE=1} /^NGSILD-Results-Count:/{gsub(/\r/,""); print $2}')
   [ "${have:-0}" = "$(( BIG_ENTITIES / ${t##*:} ))" ] || { echo "perfRun.sh: the larger store holds ${have:-0} ${t%%:*} entities, not $(( BIG_ENTITIES / ${t##*:} ))" >&2; exit 1; }
 done
 
+# what holding the store costs, read before any scenario adds to it (see READS AND WRITES below)
+rssKib() { awk '/^VmRSS:/{print $2}' "/proc/$1/status" 2>/dev/null || echo 0; }
+bigBrokerRss=$(rssKib "$brokerPid")
+bigMongodRss=0
+if [ "$DB" = mongoc ]; then
+  mongodPid=$(pgrep -x mongod | head -1 || true)
+  [ -n "$mongodPid" ] && bigMongodRss=$(rssKib "$mongodPid")
+fi
+#
+# mongod's RSS holds its cache of everything this run did before, a dropped database included - the store's
+# own size is what MongoDB says of it: data (uncompressed), storage (on disk, compressed) and indexes -
+# after an fsync, as the on-disk sizes otherwise wait for its next checkpoint (up to 60 s).
+# corDB's on disk: its --dbDir (PERF_DB_DIR). 0 for what does not apply.
+#
+bigDataKib=0 ; bigStorageKib=0 ; bigIndexKib=0
+if [ "$DB" = mongoc ]; then
+  read -r bigDataKib bigStorageKib bigIndexKib < <(mongosh --quiet --host "$HOST" ${MONGO_PORT:+--port $MONGO_PORT} \
+      --eval "db.adminCommand({fsync: 1}); const s = db.getSiblingDB(\"$MONGO_DB\").stats(1024); print(Math.round(s.dataSize), Math.round(s.storageSize), Math.round(s.indexSize))" 2>/dev/null || echo "0 0 0")
+elif [ -n "$DB_DIR" ]; then
+  bigStorageKib=$(du -sk "$DB_DIR" 2>/dev/null | cut -f1)
+fi
+echo "perfRun.sh: the larger store ($BIG_ENTITIES entities): filled in ${bigFillSecs} s; broker RSS ${bigBrokerRss} KiB, mongod RSS ${bigMongodRss} KiB; data ${bigDataKib} KiB, storage ${bigStorageKib} KiB, indexes ${bigIndexKib} KiB" >&2
+
 scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R1&limit=20" 50 ; read -r bigR1L20 bigR1L20P99 bigR1L20P50 bigR1L20P95 <<< "$SCEN"
 scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R1&limit=20&offset=1000" 50 ; read -r bigR1O1000 bigR1O1000P99 bigR1O1000P50 bigR1O1000P95 <<< "$SCEN"
 scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R01&limit=20" 50 ; read -r bigR01L20 bigR01L20P99 bigR01L20P50 bigR01L20P95 <<< "$SCEN"
 scen measure "http://localhost:$LOAD_PORT/ngsi-ld/v1/entities?type=R01&limit=20&offset=200" 50 ; read -r bigR01O200 bigR01O200P99 bigR01O200P50 bigR01O200P95 <<< "$SCEN"
+
+#
+# READS AND WRITES IN THE LARGER STORE. Every scenario above that reads or writes ONE entity does it in the
+# fixture's hundred, so it measures the request and never the store: an id lookup in a hundred, a hundred
+# entities' memory always in cache. On the same larger store: a retrieve and a PATCH of a random one of
+# PERF_BIG_ENTITIES, and a create into it (bigCreate.lua's ids are its own per run - this store is not
+# emptied between repeats; the create runs last, as it grows the store - by its rate times the warm-up and
+# the repeats, which at 1 000 000 entities is of the store's own size). Before the type queries above:
+# what holding the store costs - the time bigFill took (batches of PERF_FIXTURE_CHUNK over one connection,
+# so what loading takes this way, not the broker's best load rate), the broker's resident memory, and
+# mongod's when the store is mongoc (0 when there is no mongod process to read, a container on another
+# host say). Added 2026-10-19, for "can it hold millions".
+#
+PERF_BIG_ENTITIES="$BIG_ENTITIES" scen measureScript "$SCRIPTDIR/bigRetrieve.lua" 50 ; read -r bigRetrieveC50 bigRetrieveC50P99 bigRetrieveC50P50 bigRetrieveC50P95 <<< "$SCEN"
+PERF_BIG_ENTITIES="$BIG_ENTITIES" scen measureScript "$SCRIPTDIR/bigPatch.lua" 50    ; read -r bigPatchC50 bigPatchC50P99 bigPatchC50P50 bigPatchC50P95 <<< "$SCEN"
+scen measureScript "$SCRIPTDIR/bigCreate.lua" 50                                     ; read -r bigCreateC50 bigCreateC50P99 bigCreateC50P50 bigCreateC50P95 <<< "$SCEN"
+
 
 #
 # Every rate carries the tail it was measured with. A throughput number on its
@@ -830,4 +872,9 @@ printf ',"rare_l20_o500_c50":%s,"rare_l20_o500_c50_p50us":%s,"rare_l20_o500_c50_
 printf ',"big_r1_l20_c50":%s,"big_r1_l20_c50_p50us":%s,"big_r1_l20_c50_p95us":%s,"big_r1_l20_c50_p99us":%s' "$bigR1L20" "$bigR1L20P50" "$bigR1L20P95" "$bigR1L20P99"
 printf ',"big_r1_l20_o1000_c50":%s,"big_r1_l20_o1000_c50_p50us":%s,"big_r1_l20_o1000_c50_p95us":%s,"big_r1_l20_o1000_c50_p99us":%s' "$bigR1O1000" "$bigR1O1000P50" "$bigR1O1000P95" "$bigR1O1000P99"
 printf ',"big_r01_l20_c50":%s,"big_r01_l20_c50_p50us":%s,"big_r01_l20_c50_p95us":%s,"big_r01_l20_c50_p99us":%s' "$bigR01L20" "$bigR01L20P50" "$bigR01L20P95" "$bigR01L20P99"
-printf ',"big_r01_l20_o200_c50":%s,"big_r01_l20_o200_c50_p50us":%s,"big_r01_l20_o200_c50_p95us":%s,"big_r01_l20_o200_c50_p99us":%s}\n' "$bigR01O200" "$bigR01O200P50" "$bigR01O200P95" "$bigR01O200P99"
+printf ',"big_r01_l20_o200_c50":%s,"big_r01_l20_o200_c50_p50us":%s,"big_r01_l20_o200_c50_p95us":%s,"big_r01_l20_o200_c50_p99us":%s' "$bigR01O200" "$bigR01O200P50" "$bigR01O200P95" "$bigR01O200P99"
+printf ',"big_retrieve_c50":%s,"big_retrieve_c50_p50us":%s,"big_retrieve_c50_p95us":%s,"big_retrieve_c50_p99us":%s' "$bigRetrieveC50" "$bigRetrieveC50P50" "$bigRetrieveC50P95" "$bigRetrieveC50P99"
+printf ',"big_patch_c50":%s,"big_patch_c50_p50us":%s,"big_patch_c50_p95us":%s,"big_patch_c50_p99us":%s' "$bigPatchC50" "$bigPatchC50P50" "$bigPatchC50P95" "$bigPatchC50P99"
+printf ',"big_create_c50":%s,"big_create_c50_p50us":%s,"big_create_c50_p95us":%s,"big_create_c50_p99us":%s' "$bigCreateC50" "$bigCreateC50P50" "$bigCreateC50P95" "$bigCreateC50P99"
+printf ',"big_entities":%s,"big_fill_s":%s,"big_broker_rss_kib":%s,"big_mongod_rss_kib":%s' "$BIG_ENTITIES" "$bigFillSecs" "$bigBrokerRss" "$bigMongodRss"
+printf ',"big_data_kib":%s,"big_storage_kib":%s,"big_index_kib":%s}\n' "${bigDataKib:-0}" "${bigStorageKib:-0}" "${bigIndexKib:-0}"
