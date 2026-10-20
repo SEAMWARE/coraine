@@ -1,0 +1,307 @@
+#
+# FILE            scopeq_grammar.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 7.2.5 - a scopeQ outside the grammar of the Scope Query Language is a 400 BadRequestData:
+#
+#   ScopesQ  = OrScopeQ *(orOp OrScopeQ)  /  "/#"
+#   OrScopeQ = "(" ScopeQ *(";" ScopeQ) ")"  /  ScopeQ ["/#"]
+#
+# "#" only as the last level ("/#"), an AND only inside parentheses ("For logical and grouping
+# parenthesis are needed"), no empty level, no empty term. The grammar's own corner cases - "/#"
+# including the scope itself, "+" together with "/#" - answer 200 with what they select. So does a
+# "/#" inside an AND group, "(/Madrid/#;/CompanyA)": the grammar gives the wildcard to OrScopeQ only,
+# the prose of the clause does not limit it, and coraine accepts it.
+#
+# The same check on every path a scopeQ comes in by: GET /entities, POST /entityOperations/query
+# and a subscription.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+scopeQ: outside the grammar of § 7.2.5 is a 400, on GET and POST queries and on subscriptions
+
+--TAGS--
+entity query scope subscription
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 /Madrid/Gardens, E2 /Madrid/Gardens/ParqueNorte, E3 [/Madrid/Districts, /CompanyA]"
+echo "================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E1", "type": "Zone", "scope": "/Madrid/Gardens" }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E2", "type": "Zone", "scope": "/Madrid/Gardens/ParqueNorte" }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:ngsi-ld:Z:E3", "type": "Zone", "scope": [ "/Madrid/Districts", "/CompanyA" ] }' | head -1
+echo
+echo
+
+
+echo "02. scopeQ=/Madrid/Gardens/%23 - '/#' includes the scope itself: E1, E2"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid/Gardens/%23' | grep '"id"'
+echo
+echo
+
+
+echo "03. scopeQ=/Madrid/%2B/%23 - '+' with '/#': E1, E2, E3"
+echo "====================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid/%2B/%23' | grep '"id"'
+echo
+echo
+
+
+echo "04. scopeQ=(/Madrid/Districts;/CompanyA) - AND in parentheses: E3"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(/Madrid/Districts%3B/CompanyA)' | grep '"id"'
+echo
+echo
+
+
+echo "05. scopeQ=/Madrid/Districts;/CompanyA - AND without parentheses: 400"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid/Districts%3B/CompanyA'
+echo
+echo
+
+
+echo "06. scopeQ=(/Madrid - unclosed parenthesis: 400"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(/Madrid'
+echo
+echo
+
+
+echo "07. scopeQ=/Madrid,,/CompanyA - empty term: 400"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid,,/CompanyA'
+echo
+echo
+
+
+echo "08. scopeQ=/Madrid/%23/Gardens - '#' not at the end: 400"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid/%23/Gardens'
+echo
+echo
+
+
+echo "09. scopeQ=/Madrid//Gardens - empty level: 400"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid//Gardens'
+echo
+echo
+
+
+echo "10. scopeQ=/Madrid/%2BG - '+' that is not a whole level: 400"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=/Madrid/%2BG'
+echo
+echo
+
+
+echo "11. scopeQ=(/Madrid/%23;/CompanyA) - '/#' inside parentheses, outside the grammar but accepted: E3"
+echo "================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=Zone&scopeQ=(/Madrid/%23%3B/CompanyA)' | grep '"id"'
+echo
+echo
+
+
+echo "12. POST /entityOperations/query, scopeQ (/Madrid/Districts;/CompanyA): E3"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{ "type": "Query", "entities": [ { "type": "Zone" } ], "scopeQ": "(/Madrid/Districts;/CompanyA)" }' | grep '"id"'
+echo
+echo
+
+
+echo "13. POST /entityOperations/query, scopeQ /Madrid; - ends in an operator: 400"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{ "type": "Query", "entities": [ { "type": "Zone" } ], "scopeQ": "/Madrid;" }'
+echo
+echo
+
+
+echo "14. Create a subscription with scopeQ /Madrid/#/Gardens: 400"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "type": "Subscription",
+  "entities": [ { "type": "Zone" } ],
+  "scopeQ": "/Madrid/#/Gardens",
+  "notification": { "endpoint": { "uri": "http://localhost:9997/notify" } }
+}'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 /Madrid/Gardens, E2 /Madrid/Gardens/ParqueNorte, E3 [/Madrid/Districts, /CompanyA]
+=================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. scopeQ=/Madrid/Gardens/%23 - '/#' includes the scope itself: E1, E2
+======================================================================
+    "id": "urn:ngsi-ld:Z:E1",
+    "id": "urn:ngsi-ld:Z:E2",
+
+
+03. scopeQ=/Madrid/%2B/%23 - '+' with '/#': E1, E2, E3
+=====================================================
+    "id": "urn:ngsi-ld:Z:E1",
+    "id": "urn:ngsi-ld:Z:E2",
+    "id": "urn:ngsi-ld:Z:E3",
+
+
+04. scopeQ=(/Madrid/Districts;/CompanyA) - AND in parentheses: E3
+=================================================================
+    "id": "urn:ngsi-ld:Z:E3",
+
+
+05. scopeQ=/Madrid/Districts;/CompanyA - AND without parentheses: 400
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "an AND of Scopes needs parentheses: (/A;/B)",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. scopeQ=(/Madrid - unclosed parenthesis: 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "unbalanced parenthesis in scopeQ expression",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. scopeQ=/Madrid,,/CompanyA - empty term: 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "empty scope level, or a character that the Scope Query Language does not allow in one",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. scopeQ=/Madrid/%23/Gardens - '#' not at the end: 400
+========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "'#' only as the last level of a Scope: '/A/#'",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. scopeQ=/Madrid//Gardens - empty level: 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "empty scope level, or a character that the Scope Query Language does not allow in one",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. scopeQ=/Madrid/%2BG - '+' that is not a whole level: 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "'+' is a whole scope level - '/+/', not part of one",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. scopeQ=(/Madrid/%23;/CompanyA) - '/#' inside parentheses, outside the grammar but accepted: E3
+================================================================================================
+    "id": "urn:ngsi-ld:Z:E3",
+
+
+12. POST /entityOperations/query, scopeQ (/Madrid/Districts;/CompanyA): E3
+==========================================================================
+    "id": "urn:ngsi-ld:Z:E3",
+
+
+13. POST /entityOperations/query, scopeQ /Madrid; - ends in an operator: 400
+============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "an AND of Scopes needs parentheses: (/A;/B)",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+14. Create a subscription with scopeQ /Madrid/#/Gardens: 400
+============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "'#' only as the last level of a Scope: '/A/#'",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

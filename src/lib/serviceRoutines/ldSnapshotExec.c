@@ -30,7 +30,7 @@
 #include "corNgsild/corNgsild.h"                           // corNgsild
 #include "corNgsild/ldInit.h"                             // ldSplitEntities (extern)
 #include "corNgsild/ldQParse.h"                           // ldQParse
-#include "corNgsild/LdScopeExpr.h"                        // ldScopeExprParse
+#include "corNgsild/LdScopeExpr.h"                        // ldScopeExprParseStored
 #include "corNgsild/LdRegCache.h"                         // LdRegCache, LdRegCacheItem, LdRegMode
 #include "corNgsild/ldRegCache.h"                         // ldRegCacheMatchForRetrieve
 #include "corNgsild/ldStripAtContext.h"                   // ldStripAtContext
@@ -173,7 +173,7 @@ static void queryToFilter(CorNode* queryP, DbQueryFilter* filterP)
 
   CorNode* scopeQP = corTreeLookup(queryP, "scopeQ");
   if (scopeQP != NULL && scopeQP->type == CorString)
-    filterP->scopeExpr = ldScopeExprParse(scopeQP->value.s, &corRest.kalloc);
+    filterP->scopeExpr = ldScopeExprParseStored(scopeQP->value.s, &corRest.kalloc);
 }
 
 
