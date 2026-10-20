@@ -102,15 +102,19 @@ if (NOT COR_FEATURE_SUBSCRIPTIONS)
 endif()
 
 #
-# The metrics are served by the admin API plugin (GET /admin/metrics, GET /metrics) and by nothing else:
-# without it, nothing could read them.
+# The metrics (GET /admin/metrics, GET /metrics), the configuration (GET /admin/config) and a bridge's
+# inventory (GET /admin/bridges/{bridge}/inventory) are served by the admin API plugin and by nothing
+# else: without it, their code is not built - and they are reported off.
 #
 if (NOT COR_FEATURE_ADMIN_API)
   set(COR_FEATURE_METRICS OFF)
+  set(COR_FEATURE_ADMIN_CONFIG OFF)
+  set(COR_FEATURE_BRIDGE_INVENTORY OFF)
 endif()
 
 #
-# oidc.so is an auth plugin: without the auth plugins, nothing would load it.
+# oidc.so is an auth plugin, and the resource's metadata is the auth plugins' (src/lib/auth): without
+# them, nothing would load the one or serve the other.
 #
 if (NOT COR_FEATURE_AUTH)
   set(COR_FEATURE_AUTH_OIDC OFF)
