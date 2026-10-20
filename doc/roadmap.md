@@ -113,6 +113,10 @@ incorporated in the next release of the product, in roughly this order:
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
     and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
     arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
+-   **c³ - a broker's metrics as charts** - Operate reads a running broker's `/admin/metrics`
+    (Prometheus text) and draws it over time: request rates and latencies, entities, subscriptions and
+    notifications (Server-Sent Events streams and events too), the memory against its budget - for
+    several brokers at once. ([more](ideas.md#c-the-coraine-control-center))
 -   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
     NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
     plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
