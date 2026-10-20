@@ -101,7 +101,7 @@
 #include "transport/transport.h"                   // transportLoad, transportInit, transportStop
 #endif
 #if COR_FEATURE_SSE
-#include "sse/sse.h"                               // sseInit, sseStreamCreate, sseLeftoversDelete, sseStop
+#include "sse/sse.h"                               // sseInit, sseStreamCreate, sseLeftoversDelete, sseStop, sseMetricValues
 #endif
 
 #include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
@@ -1909,6 +1909,9 @@ int main(int argC, char* argV[])
   memoryBudgetInit(memoryLimit);
 #if COR_FEATURE_METRICS
   metricsMemoryValuesSet(memoryBudgetValues);
+#if COR_FEATURE_SSE
+  metricsSseValuesSet(sseMetricValues);
+#endif
 #endif
 
   //

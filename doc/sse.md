@@ -204,6 +204,11 @@ curl -N -H 'Content-Type: application/json' -d '{
 - A stream is a connection for as long as it is open: `--sseStreams` caps them (default 1000; one more
   is a 503).
 
+Metrics (`/admin/metrics`, with the admin API and `COR_FEATURE_METRICS`): `ngsild_sse_streams` (the
+streams there - open, or their `201` on its way), `ngsild_sse_events_total` (the notifications written
+as events), `ngsild_sse_streams_refused_total` (the `503`s: `--sseStreams` streams there, or the broker
+stopping).
+
 ## 6. How it is built
 
 - **corRest** (`corRestStream.h`, `COR_WITH_STREAM`): a response whose body is written over time, from
@@ -226,5 +231,4 @@ worth proposing to ETSI: the endpoint value `urn:ngsi-ld:self`, the stream as th
 
 ## 8. Not yet
 
-- metrics: the open streams, the events written
 - Service Executions' notifications (`POST /services`) on a stream

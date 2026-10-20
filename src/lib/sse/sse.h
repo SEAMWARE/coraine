@@ -18,6 +18,7 @@
 // store is deleted at the next start. COR_FEATURE_SSE.
 //
 #include <stdbool.h>                                 // bool
+#include <stdint.h>                                  // uint64_t
 
 #include "corTree/CorNode.h"                         // CorNode
 #include "db/Tenant.h"                               // Tenant
@@ -105,6 +106,15 @@ extern void sseForget(Tenant* tenantP, const char* subId, bool csrSub);
 // broker that served it - they are a killed broker's. At the start, not with --high-availability.
 //
 extern void sseLeftoversDelete(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// sseMetricValues - for /admin/metrics: the streams there (open, or their 201 on its way), the events
+// written on them and the streams refused (503), the last two since the start
+//
+extern void sseMetricValues(uint64_t* streamsP, uint64_t* eventsP, uint64_t* refusedP);
 
 
 
