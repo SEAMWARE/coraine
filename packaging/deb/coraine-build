@@ -104,9 +104,10 @@ fi
 . "$DIR/SOURCE"      # version, gitSha, commitDate
 
 if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
-  # requires: CMakeLists.txt turns a switch off when another is off -
+  # requires: CMakeLists.txt turns a switch off when another is off - every set() up to the endif()
   #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)
   #     set(COR_FEATURE_C OFF)
+  #     set(COR_FEATURE_D OFF)
   #   if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
   #     set(COR_FEATURE_C OFF)                                  - requires HTTP_SERVER=mhd
   awk '
@@ -114,7 +115,7 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
                                    for (i = 2; i <= n; i++) { split(w[i], x, /[^A-Z_]/); req = req (req ? " " : "") x[1] }
                                    next }
     /^if *\(.*NOT COR_HTTP_SERVER STREQUAL "[a-z]*"/ { match($0, /STREQUAL "[a-z]*"/); req = "HTTP_SERVER=" substr($0, RSTART + 10, RLENGTH - 11); next }
-    req != "" && /set\(COR_FEATURE_[A-Z_]* OFF\)/ { match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), req; req = ""; next }
+    req != "" && /set\(COR_FEATURE_[A-Z_]* OFF\)/ { match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), req; next }
     /^endif/ { req = "" }
   ' "$DIR/coraine/CMakeLists.txt" > "$DIR/.requires"
   esc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<< "$1"; }

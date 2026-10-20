@@ -47,7 +47,7 @@ coraine/
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Four are turned off
+All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Eight are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires`:
 
 | switch | off when | why |
@@ -55,6 +55,10 @@ by what they need - `coraine-build --list-features --json` gives them as `requir
 | `SNAPSHOT_SUBSCRIPTIONS` | `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is off | a subscription, notified by a Snapshot's writes |
 | `SSE` | `SUBSCRIPTIONS` is off | a subscription made on its own event stream |
 | `METRICS` | `ADMIN_API` is off | the admin API plugin serves them (`/admin/metrics`, `/metrics`), nothing else does |
+| `ADMIN_CONFIG` | `ADMIN_API` is off | `GET /admin/config` is the admin API plugin's |
+| `BRIDGE_INVENTORY` | `ADMIN_API` is off | `GET /admin/bridges/{bridge}/inventory` is the admin API plugin's |
+| `AUTH_OIDC` | `AUTH` is off | `oidc.so` is an auth plugin |
+| `AUTH_METADATA` | `AUTH` is off | the resource's metadata (`/.well-known/oauth-protected-resource`) is the auth plugins' |
 | `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
 
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
