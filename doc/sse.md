@@ -45,10 +45,40 @@ In the build by default; `-DCOR_FEATURE_SSE=OFF` leaves it out (and so does `SUB
 | binary | possible (`ngsi-ld.cor`, not yet) | no - text only |
 | loaded | `--transports ws` (a plugin) | always, in a build with it |
 
-Both deliver notifications to a client the broker cannot connect to. Server-Sent Events is the
-simpler of the two: an HTTP response that is read as it comes - `curl -N`, `fetch()` - with no upgrade,
-no framing and no message envelope, through anything that passes HTTP. The WebSocket carries the
-requests too, over the one connection - c³.
+Both deliver notifications to a client the broker cannot connect to; the client's other requests go
+over HTTP with Server-Sent Events, over the connection with a WebSocket.
+
+**Where Server-Sent Events is the better choice**
+
+- **Simpler on the client.** An HTTP response read as it comes - `curl -N`, `fetch()`, any HTTP client:
+  no WebSocket library, no framing, no `metadata`/`body` envelope - an event's `data` is the
+  Notification.
+- **One request.** The `POST` that creates the subscription is the stream: no connection to open first,
+  no connection id to put in the endpoint, no `requestId` to match a response to its request.
+- **Plain HTTP on the way.** No `Upgrade` for a proxy or load balancer to pass through; HTTP/2 between
+  the client and a proxy in front.
+- **A gateway sees the request.** The create is an ordinary `POST` with its own `Authorization` and
+  `NGSILD-Tenant`, so a PEP in front of the broker (APISIX) checks it as it checks any request. Over a
+  WebSocket the gateway sees the upgrade only; each message's `Authorization` is in its `metadata`,
+  checked by the broker ([Authorization](authorization.md)).
+- **No plugin.** In the build by default, served on the HTTP port; the WebSocket is `ws.so`, loaded with
+  `--transports ws`.
+
+**Where the WebSocket is the better choice**
+
+- **The whole API on one connection**, both ways: requests, their responses and the notifications.
+  With Server-Sent Events every other request is an HTTP request of its own.
+- **Any number of subscriptions per connection.** A stream carries one; a browser over HTTP/1.1 opens
+  about 6 connections per host (§ 5).
+- **A subscription can move onto the connection, and off it** (`PATCH` of the endpoint). One on a stream
+  is on it for its whole life.
+- **Nothing to tell a proxy.** Once upgraded, frames are not buffered; a stream needs a proxy that does
+  not buffer the response (`X-Accel-Buffering: no` for nginx, § 5).
+- **Binary** later (`ngsi-ld.cor`); Server-Sent Events is text only.
+
+**The same in both:** a client that reconnects creates its subscriptions again and is sent nothing it
+missed; a subscription ends with its connection; a killed broker's are deleted at its next start. c³
+uses the WebSocket.
 
 It is **not a transport** - a transport carries the API ([WebSocket](websocket.md#how-it-is-built)); this
 carries one subscription's notifications. It is not a notification binding either: there is no address
