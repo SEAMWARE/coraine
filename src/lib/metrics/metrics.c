@@ -110,11 +110,10 @@ static CorPromMetric* distopForwardFailed;
 static CorPromMetric* distopLatency;
 
 // End-to-end request latency — observed in the post-response hook.
-// Buckets cover intra-DC HTTP roundtrips typical for entity ops
-// (fast path sub-ms) and outliers out to a few seconds for distops
-// and large batches.
+// Buckets cover the fast path (a retrieve or a small query: tens of µs, hence 0.1 ms and 0.25 ms) and
+// outliers out to a few seconds for distops and large batches.
 static CorPromMetric* requestLatency;
-static double       requestLatencyBuckets[] = { 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5 };
+static double       requestLatencyBuckets[] = { 0.0001, 0.00025, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5 };
 
 // Response body bytes, observed in the same post-response hook. The one
 // HTTP-level number the broker did not have: request counts, error counts and
