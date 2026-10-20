@@ -138,9 +138,10 @@ AssetMap* assetMapParse(CorNode* entryP, const char** whyP)
 
   for (CorNode* memberP = entryP->value.head; memberP != NULL; memberP = memberP->next)
   {
-    if ((strcmp(memberP->name, "entities") != 0) && (strcmp(memberP->name, "attributeLayout") != 0) && (strcmp(memberP->name, "channelInfo") != 0))
+    if ((strcmp(memberP->name, "entities") != 0) && (strcmp(memberP->name, "attributeLayout") != 0) && (strcmp(memberP->name, "channelInfo") != 0) &&
+        (strcmp(memberP->name, "channelDirection") != 0))
     {
-      snprintf(why, sizeof(why), "unknown member '%s' (an AssetChannel has 'entities', 'attributeLayout' and 'channelInfo')", memberP->name);
+      snprintf(why, sizeof(why), "unknown member '%s' (an AssetChannel has 'entities', 'attributeLayout', 'channelDirection' and 'channelInfo')", memberP->name);
       *whyP = why;
       return NULL;
     }

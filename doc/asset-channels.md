@@ -31,6 +31,7 @@ Every channel type is the same base, and adds its own members:
 | `bridgeId` | the Bridge that carries it - every channel points to its Bridge |
 | `channelTarget` | the endpoint the Bridge reads: a topic, a register, a resource id, a model root |
 | `channelInfo` | the endpoint's settings, the bridge's own (key, value) |
+| `channelDirection` | `in` (the default), or `both`: write-back - a client's write goes to the source first (a DataChannel's record fragment, an AssetChannel's node; a Channel's own `in`/`out`/`both`) |
 | `status`, `statusReason` | `available`, `dormant`, and why (`channelStatusIn`) |
 | counters | what came in, what was refused - each type its own |
 
@@ -144,8 +145,16 @@ references between object nodes -> Relationships; a Method -> a service.
 - **The model's structure that changes** (a submodel added, an element removed) -> the bridge hands the model
   over again: its entities and attributes are written; what the model no longer has is **left alone** (§ 6.8)
   - a node that is gone may be a server restarting or a connection lost, and its last values stay readable.
-- **Inbound only in v1**, as a DataChannel. Writing back (a PATCH -> the AAS `$value` PUT, an OPC UA Write) is
-  a later step, then with a Channel's rule: transport first, a refusal stores nothing.
+- **Inbound** by default. **`"channelDirection": "both"`** - write-back: a client's write to an attribute the
+  last model made from a node (a Variable, an AAS Property) is published to the bridge first, on that node -
+  `publish("ns=2;s=P17.Pressure", "300")`, the endpoint the node's `id` in the model, the json the value (on
+  a merge route, the value merged) - and stored only when the bridge takes it: a refusal answers 400 (the
+  value does not fit the node), 422 (the bridge cannot send it) or 503 (not reached) and stores nothing; in a
+  write of several attributes, or a batch, that attribute is left out (207). An attribute made of no one
+  node (a container's, a Relationship, the semanticId) answers 422. What the bridge hands in (the model, its
+  values) is never published back. The bridge is handed the endpoint with the direction
+  (`BridgeDirectionBoth`); the listing shows `channelDirection` and `valuesOut` (values published) for such a
+  one. `COR_FEATURE_CHANNEL_WRITE_BACK`.
 - **No owner**, as a DataChannel: an AssetChannel claims no attribute; the last write wins.
 
 ### 3.3 What a bridge hands over: the node tree
@@ -202,7 +211,8 @@ OPC UA: the Call's result).
 
 And `/{id}`, the id `urn:ngsi-ld:AssetChannel:<bridge>:<endpoint>`. The base (§ 2), and: the mapping as the
 file wrote it (`assetEntities`), `attributeLayout`, `modelsIn`, `valuesIn`, `valuesRefused`,
-`samplesRefused`, `entitiesWritten`, `payloadsRefused`. Without `COR_FEATURE_ASSET_CHANNELS`, an
+`samplesRefused`, `entitiesWritten`, `payloadsRefused` - and `channelDirection` and `valuesOut` for one that
+writes back (§ 3.2). Without `COR_FEATURE_ASSET_CHANNELS`, an
 `assetChannels` section is warned about and ignored, and `GET /assetChannels` answers 501.
 
 ## 6. Decisions

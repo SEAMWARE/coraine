@@ -951,7 +951,12 @@ static void bridgesInit(void)
 
       char* reasonBefore = acP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
 
-      int r = channelHandOver(i, acP->endpoint, BridgeChannelTypeAssetChannel, BridgeChannelTopic, BridgeDirectionIn, acP->info, "AssetChannel ");
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+      BridgeDirection direction = acP->direction;     // Both: the bridge publishes node values too
+#else
+      BridgeDirection direction = BridgeDirectionIn;
+#endif
+      int r = channelHandOver(i, acP->endpoint, BridgeChannelTypeAssetChannel, BridgeChannelTopic, direction, acP->info, "AssetChannel ");
 
       if ((r == BRIDGE_UNSUPPORTED) && (bridges[i].channelAdd == NULL) && (bridges[i].channelAddInfo == NULL))
         break;                                       // a plugin that carries no channel at all

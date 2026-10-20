@@ -28,7 +28,8 @@
 //
 // The same tree from every model bridge - OPC UA, AAS - so that every model maps the same way, here.
 //
-// Like a DataChannel: inbound only, no owner (the last write wins), each write one batch upsert with
+// Like a DataChannel: inbound (or both - write-back: a client's write to an attribute made from a node is
+// published to the bridge on that node first, and stored only when the bridge takes it), no owner (the last write wins), each write one batch upsert with
 // options=update, local - created when not there, the mapped attributes replaced, the others left alone.
 //
 // Compiled in with COR_FEATURE_ASSET_CHANNELS.
@@ -39,13 +40,15 @@
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/Channel.h"                           // ChannelStatus
 #include "bridge/AssetMap.h"                          // AssetMap
+#include "corBridge/BridgeDriver.h"                   // BridgeDirection
 
 
 
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //
-// AssetMapped - one attribute the last model made: what the payload check looks a client's write up in
+// AssetMapped - one attribute the last model made: what the payload check looks a client's write up in, and
+// where write-back sends it
 //
 typedef struct AssetMapped
 {
@@ -84,8 +87,14 @@ typedef struct AssetChannel
   uint64_t              samplesRefused;               // samples that are neither a model nor values, or a model that makes no entity
 #if COR_FEATURE_CHANNEL_CHECKS
   uint64_t              payloadsRefused;              // client writes the bridge's payloadCheck refused (ABI 13)
+#endif
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   AssetMapped*          mappedV;                      // the attributes the last model made - under modelMutex
   int                   mapped;
+#endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+  BridgeDirection       direction;                    // In (the default), or Both: a client's write goes to the node first
+  uint64_t              valuesOut;                    // node values published - client writes written back
 #endif
 
   struct AssetChannel*  next;

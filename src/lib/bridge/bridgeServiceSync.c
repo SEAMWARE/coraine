@@ -39,10 +39,14 @@
 #include "bridge/channelCache.h"                      // channelLookupByTarget, channelCount
 #include "bridge/bridgeGoal.h"                        // bridgeGoalSend, bridgeGoalAwait, bridgeGoalAbandon, BridgeGoalAnswer
 #include "bridge/bridgeSampleIn.h"                    // bridgeSampleQualifiedIn, bridgeReplySubAttr, bridgeGoalInstance
-#if COR_FEATURE_CHANNEL_WRITE_BACK
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_DATA_CHANNELS
 #include "bridge/DataChannel.h"                       // DataChannel
 #include "bridge/dataChannelWriteBack.h"              // dataChannelWriteBackOf, dataChannelWriteBackRecord
 #include "bridge/dataChannelCache.h"                  // dataChannelOutCount
+#endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_ASSET_CHANNELS
+#include "bridge/AssetChannel.h"                      // AssetChannel
+#include "bridge/assetChannelCache.h"                 // assetChannelMappedLookup, assetChannelOutCount
 #endif
 #include "bridge/bridgeServiceSync.h"                 // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
@@ -750,6 +754,25 @@ char* bridgeWireRender(CorNode* valueP)
 #if COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //
+// driverOf - the loaded bridge of this alias; NULL: none
+//
+static BridgeDriver* driverOf(const char* bridgeName)
+{
+  for (int ix = 0; ix < bridgeCount; ix++)
+  {
+    if ((bridges[ix].alias != NULL) && (strcmp(bridges[ix].alias, bridgeName) == 0))
+      return &bridges[ix];
+  }
+
+  return NULL;
+}
+#endif
+
+
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_DATA_CHANNELS
+// -----------------------------------------------------------------------------
+//
 // writeBack - an attribute no Channel maps, of an entity a DataChannel with channelDirection both writes:
 // the record fragment goes to the bridge first, as a topic's sample does, and one the bridge does not take
 // is not stored (dataChannelWriteBack.h)
@@ -787,13 +810,7 @@ static bool writeBack(Tenant* tenantP, const char* entityId, CorNode* fragmentP,
       return true;
   }
 
-  BridgeDriver* driverP = NULL;
-
-  for (int ix = 0; ix < bridgeCount; ix++)
-  {
-    if ((bridges[ix].alias != NULL) && (strcmp(bridges[ix].alias, dcP->bridgeName) == 0))
-      driverP = &bridges[ix];
-  }
+  BridgeDriver* driverP = driverOf(dcP->bridgeName);
 
   if ((driverP == NULL) || (driverP->publish == NULL))
     return true;                                      // this transport does not send - stored as ever
@@ -838,6 +855,105 @@ static bool writeBack(Tenant* tenantP, const char* entityId, CorNode* fragmentP,
   }
 
   __atomic_add_fetch(&dcP->recordsOut, 1, __ATOMIC_RELAXED);
+  return true;
+}
+#endif
+
+
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_ASSET_CHANNELS
+// -----------------------------------------------------------------------------
+//
+// assetWriteBack - an attribute no Channel maps, made by the last model of an AssetChannel with
+// channelDirection both: its value goes to the bridge first - published on the node the attribute was made
+// from, as a Channel's topic sample is - and one the bridge does not take is not stored. An attribute made
+// of no one node (a container's, a Relationship, the semanticId) has nowhere to go: 422.
+//
+// @return false when the request fails as a whole - the error is set
+//
+static bool assetWriteBack(Tenant* tenantP, const char* entityId, CorNode* fragmentP, CorNode* attrP, int flags, BridgeSyncDone* doneP, CorNode** storedPP)
+{
+  if (corNgsild.bridgeOwnWrite == true)               // a model's values coming in: they ARE the asset's - nothing goes back
+    return true;
+
+  AssetChannel* acP    = NULL;
+  const char*   nodeId = NULL;
+  const char*   name   = NULL;
+
+  if (assetChannelMappedLookup(tenantP, entityId, attrP->name, &acP, &nodeId, &name) == false)
+    return true;
+
+  if ((acP->direction != BridgeDirectionBoth) || (__atomic_load_n(&acP->status, __ATOMIC_ACQUIRE) != ChannelStatusAvailable))
+    return true;                                      // as a dormant Channel's: stored as ever
+
+  CorNode* instanceP = corTreeLookup(attrP, "@none");
+  CorNode* valueP    = (instanceP != NULL) ? corTreeLookup(instanceP, "value") : NULL;
+
+  if (valueP == NULL)
+    return true;
+
+  if (nodeId == NULL)
+  {
+    char reason[512];
+
+    snprintf(reason, sizeof(reason), "'%s' of AssetChannel '%s' on bridge '%s' is made of no one node - not written",
+             attrP->name, acP->endpoint, acP->bridgeName);
+
+    if (doneP->several == true)
+    {
+      attrsNotWrittenAdd(doneP->notWrittenP, attrP->name, 422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", reason);
+      corTreeChildRemove(fragmentP, attrP);
+      return true;
+    }
+
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", "%s", reason);
+    return false;
+  }
+
+  if ((flags & BRIDGE_REQ_MERGE) != 0)
+  {
+    bool failed;
+
+    valueP = mergedValue(tenantP, entityId, attrP, storedPP, &failed);
+
+    if (failed == true)
+      return false;
+
+    if (valueP == NULL)
+      return true;
+  }
+
+  BridgeDriver* driverP = driverOf(acP->bridgeName);
+
+  if ((driverP == NULL) || (driverP->publish == NULL))
+    return true;                                      // this transport does not send - stored as ever
+
+  char* buf = bridgeWireRender(valueP);
+
+  if (buf == NULL)
+  {
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory rendering the value of '%s'", attrP->name);
+    return false;
+  }
+
+  int r = driverP->publish(nodeId, buf);
+
+  COR_T(CtBridge, "%s/%s -> %s on node '%s' of AssetChannel '%s' of bridge '%s' (%d)", entityId, attrP->name, buf, nodeId, acP->endpoint, acP->bridgeName, r);
+  (void) name;
+
+  if (r != BRIDGE_OK)
+  {
+    if (doneP->several == true)
+    {
+      sendFailedOne(doneP, fragmentP, attrP, r, nodeId, acP->bridgeName, "node");
+      return true;
+    }
+
+    sendError(r, attrP->name, nodeId, acP->bridgeName, "node");
+    return false;
+  }
+
+  __atomic_add_fetch(&acP->valuesOut, 1, __ATOMIC_RELAXED);
   return true;
 }
 #endif
@@ -901,8 +1017,12 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
     if (channelP == NULL)
     {
-#if COR_FEATURE_CHANNEL_WRITE_BACK
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_DATA_CHANNELS
       if ((dataChannelOutCount() > 0) && (writeBack(tenantP, entityId, fragmentP, attrP, flags, doneP, &storedP) == false))
+        return requestsFailed(doneP);
+#endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_ASSET_CHANNELS
+      if ((assetChannelOutCount() > 0) && (assetWriteBack(tenantP, entityId, fragmentP, attrP, flags, doneP, &storedP) == false))
         return requestsFailed(doneP);
 #endif
       continue;
