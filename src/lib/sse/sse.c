@@ -37,6 +37,8 @@
 #include "corNgsild/LdOp.h"                          // LdOpCreateSubscription, LdOpCreateCsourceSubscription
 #include "corNgsild/LdSubCache.h"                    // LdSubCache, LdSubCacheItem
 #include "corNgsild/ldSubCache.h"                    // ldSubCacheRdLock, ldSubCacheUnlock
+#include "corNgsild/LdPernotCache.h"                 // LdPernotCache, LdPernotItem
+#include "corNgsild/ldPernotCache.h"                 // ldPernotCacheRdLock, ldPernotCacheUnlock
 #include "corNgsild/ldNotifyStream.h"                // ldNotifyStreamSet, ldNotifyIsEventStream, ldNotifyStreamSent
 
 #if COR_FEATURE_AUTH
@@ -836,6 +838,40 @@ static Done* leftoversOf(Done* list, LdSubCache* cacheP, const char* tenant, boo
 
 // -----------------------------------------------------------------------------
 //
+// pernotLeftoversOf - the periodic subscriptions on an event stream (their own cache), to the list
+//
+static Done* pernotLeftoversOf(Done* list, LdPernotCache* cacheP, const char* tenant)
+{
+  if (cacheP == NULL)
+    return list;
+
+  ldPernotCacheRdLock(cacheP);
+
+  for (LdPernotItem* iP = cacheP->head; iP != NULL; iP = iP->next)
+  {
+    if (ldNotifyIsEventStream(iP->endpointUri) == false)
+      continue;
+
+    Done* dP = (Done*) calloc(1, sizeof(Done));
+
+    if (dP == NULL)
+      break;
+
+    dP->tenant = strdup(tenant);
+    dP->subId  = strdup(iP->subId);
+    dP->remove = true;
+    dP->next   = list;
+    list       = dP;
+  }
+
+  ldPernotCacheUnlock(cacheP);
+  return list;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // sseLeftoversDelete -
 //
 void sseLeftoversDelete(void)
@@ -846,6 +882,7 @@ void sseLeftoversDelete(void)
   {
     list = leftoversOf(list, (LdSubCache*) tP->subCacheP,    tenantApiName(tP), false);
     list = leftoversOf(list, (LdSubCache*) tP->regSubCacheP, tenantApiName(tP), true);
+    list = pernotLeftoversOf(list, (LdPernotCache*) tP->pernotCacheP, tenantApiName(tP));
   }
 
   for (Done* dP = list; dP != NULL; dP = dP->next)

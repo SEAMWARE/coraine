@@ -72,7 +72,6 @@ Transfer-Encoding: chunked
 | | Status |
 |---|---|
 | an `Accept` without `text/event-stream`, `text/*` or `*/*` (no `Accept` is fine) | 406 |
-| `timeInterval` - a periodic subscription is not delivered on a stream | 400 |
 | over a WebSocket or cor:// - the request has no HTTP response to stream | 400 |
 | `--sseStreams` streams open already, or the broker stopping | 503 |
 
@@ -86,7 +85,11 @@ JSON, so an `Accept` that names only `text/event-stream` is a 406, as any `Accep
   `@context` in each notification's body - an event has no `Link` header to carry it; the core context
   when the subscription names none. `application/json` leaves it out.
 - The subscription shows its endpoint as `urn:ngsi-ld:self` (`GET /subscriptions/{id}`).
-- `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream.
+- `timesSent`, `lastNotification` and `lastSuccess` move when an event is written on the stream - for
+  a periodic subscription of entities, when the event is handed to the stream, as its counters move
+  when it is sent over HTTP.
+- A periodic subscription (`timeInterval`) is delivered on a stream too: one event per interval, as
+  over HTTP - an entity subscription's when entities match, a context source subscription's always.
 - A `PATCH` does not change the endpoint to or from `urn:ngsi-ld:self` (400): a subscription is on its
   stream for its whole life. Everything else of it may be patched.
 

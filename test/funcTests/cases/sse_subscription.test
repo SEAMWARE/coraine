@@ -12,8 +12,9 @@
 # events. timesSent moves when an event is written. The subscription lives as long as the stream: the
 # client leaves - it is deleted; it is deleted - the stream ends. Its endpoint is not changed by a PATCH.
 # An Accept that rules out text/event-stream is a 406, and so is `Accept: text/event-stream` alone on an
-# ordinary subscription (its 201 is JSON). A periodic subscription is not delivered on a stream (400). A
-# context source subscription is made on a stream the same way. A broker killed (kill -9) leaves its
+# ordinary subscription (its 201 is JSON). A periodic subscription is delivered on a stream too, once per
+# interval - not again before the stream has counted the event. A context source subscription is made on
+# a stream the same way. A broker killed (kill -9) leaves its
 # stream subscriptions in the store; the next start deletes them, and only them.
 #
 --NAME--
@@ -35,10 +36,10 @@ coraineStart
 # 04. The client leaves - S1 is deleted
 # 05. Accept: application/json and urn:ngsi-ld:self - 406
 # 06. Accept: text/event-stream alone, an HTTP endpoint - 406; with application/json too - 201
-# 07. timeInterval and urn:ngsi-ld:self - 400
+# 07. Periodic, timeInterval 2: S7 and the context source subscription C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted
 # 08. S2 on its stream: a PATCH to an HTTP endpoint, and S4's PATCH to urn:ngsi-ld:self - 400 both; DELETE S2 - the stream ends
 # 09. The context source subscription C1 on its stream - 201, text/event-stream; the client leaves - C1 is deleted
-# 10. S3 on its stream; kill -9 the broker, start it again - S3 is deleted, S4 stays
+# 10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays
 #
 
 B=localhost:1026/ngsi-ld/v1
@@ -47,6 +48,12 @@ sub()     { echo '{"id":"urn:ngsi-ld:Subscription:'"$1"'","type":"Subscription",
 code()    { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
 stream()  { curl -sN -D $T.$1.h -H 'Content-Type: application/json' -d "$3" $B/$2 > $T.$1.b & }
 headers() { tr -d '\r' < $T.$1.h | grep -i '^HTTP/\|^Content-Type:\|^Cache-Control:\|^Location:'; }
+counted() { python3 -c '
+import json,sys,datetime
+t = [datetime.datetime.fromisoformat(json.loads(l[6:])["notifiedAt"].replace("Z","+00:00")) for l in open(sys.argv[1]) if l.startswith("data: ")]
+gaps = [(b - a).total_seconds() for a, b in zip(t, t[1:])]
+print("2 or 3 events, 2 s apart or more:", "yes" if (2 <= len(t) <= 3) and all(g >= 1.9 for g in gaps) else "no %s" % gaps)
+' $T.$1.b; }
 events()  { python3 -c '
 import json,sys
 for block in open(sys.argv[1]).read().split("\n\n"):
@@ -115,9 +122,24 @@ echo
 echo
 
 
-echo "07. timeInterval and urn:ngsi-ld:self - 400"
-echo "==========================================="
-code -d "$(sub S7 urn:ngsi-ld:self ',"timeInterval":5')" $B/subscriptions
+echo "07. Periodic, timeInterval 2: S7 and C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted"
+echo "============================================================================================================================================"
+stream s7 subscriptions "$(sub S7 urn:ngsi-ld:self ',"timeInterval":2')"
+c7=$!
+stream c7 csourceSubscriptions "$(sub C7 urn:ngsi-ld:self ',"timeInterval":2')"
+cc7=$!
+await s7
+await c7
+headers s7
+headers c7
+sleep 5.5
+counted s7
+counted c7
+events s7 | sed -n 2p
+kill $c7 $cc7
+wait $c7 $cc7 2>/dev/null
+gone subscriptions/urn:ngsi-ld:Subscription:S7
+gone csourceSubscriptions/urn:ngsi-ld:Subscription:C7
 echo
 echo
 
@@ -150,16 +172,19 @@ echo
 echo
 
 
-echo "10. S3 on its stream; kill -9 the broker, start it again - S3 is deleted, S4 stays"
-echo "=================================================================================="
+echo "10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays"
+echo "==============================================================================================================="
 stream s3 subscriptions "$(sub S3 urn:ngsi-ld:self)"
 c4=$!
+stream s9 subscriptions "$(sub S9 urn:ngsi-ld:self ',"timeInterval":3600')"
+c9=$!
 await s3
+await s9
 corRoleLookup CB
 pid=$(cat $COR_ROLE_PID_FILE)
 kill -9 $pid
 while corPidAlive $pid; do sleep 0.01; done
-wait $c4 2>/dev/null
+wait $c4 $c9 2>/dev/null
 coraineStart
 curl -s $B/subscriptions | python3 -c 'import json,sys; print(sorted(s["id"] for s in json.load(sys.stdin)))'
 rm -f $T.*
@@ -211,9 +236,21 @@ event: notification - Notification urn:ngsi-ld:Subscription:S1 ['urn:ngsi-ld:Veh
 201
 
 
-07. timeInterval and urn:ngsi-ld:self - 400
-===========================================
-400
+07. Periodic, timeInterval 2: S7 and C7 on their streams - in 5.5 s, 2 or 3 events each, 2 s apart or more; the clients leave - both deleted
+============================================================================================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:S7
+Content-Type: text/event-stream
+Cache-Control: no-cache
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/csourceSubscriptions/urn:ngsi-ld:Subscription:C7
+Content-Type: text/event-stream
+Cache-Control: no-cache
+2 or 3 events, 2 s apart or more: yes
+2 or 3 events, 2 s apart or more: yes
+event: notification - Notification urn:ngsi-ld:Subscription:S7 ['urn:ngsi-ld:Vehicle:V1']
+404
+404
 
 
 08. S2 on its stream: PATCH to HTTP, S4's PATCH to urn:ngsi-ld:self - 400 both; DELETE S2 - the stream ends
@@ -234,8 +271,8 @@ Cache-Control: no-cache
 404
 
 
-10. S3 on its stream; kill -9 the broker, start it again - S3 is deleted, S4 stays
-==================================================================================
+10. S3 and S9 (periodic) on their streams; kill -9 the broker, start it again - S3 and S9 are deleted, S4 stays
+===============================================================================================================
 ['urn:ngsi-ld:Subscription:S4', 'urn:ngsi-ld:Subscription:S6']
 
 

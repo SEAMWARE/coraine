@@ -22,6 +22,12 @@ The endpoint was first `urn:ngsi-ld:EventStream` together with a required `Accep
 is made on, to mean the same over a WebSocket later - and the endpoint alone decides; `Accept` is
 checked only as HTTP content negotiation (406).
 
+A periodic subscription (`timeInterval`) on `urn:ngsi-ld:self` was first a 400: the periodic sender of
+entity subscriptions posted over HTTP only. It got the stream branch the other two senders have. The
+context source one had it already, but timed the next event from the counters, which the stream moves
+up to a second after the write - an event could go out again after 1 s instead of the interval; the
+interval now runs from the hand-over.
+
 A client that left was first noticed only by the keep-alive: libmicrohttpd does not watch a suspended
 connection, and the first write after the client closed still succeeded, so the subscription stayed
 for up to two keep-alive periods (30 s). corRest's write of 0 bytes now peeks at the socket, once a
