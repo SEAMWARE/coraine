@@ -1760,11 +1760,62 @@ runs of each build, requests a second at c50 unless named:
   type's list, and in the map from an entity to that place. Where creates are bound by that lock it
   shows: a batch create of 20 at c50 without `--dbDir`, ABBA, 10 s a run, 62 707 -> 51 350 batches a
   second (-18 %), 0.80 -> 0.97 µs a created entity.
-- **A batch create of 20 at c50 with `--dbDir` runs at one of two rates** in those 10 s runs: ~18 800 or
+- **A batch create of 20 at c50 with `--dbDir` ran at one of two rates** in those 10 s runs: ~18 800 or
   ~14 000 batches a second. Without the index, nine runs gave 18 351 to 18 933. With it, 13 215 to
   17 917. With a busy loop of 150 cycles for each entity in the index's place (no memory touched),
-  17 456 and 13 352: the write lock held a little longer puts it on the lower rate.
+  17 456 and 13 352: the write lock held a little longer put it on the lower rate. The cause was the
+  snapshots, and corDB lets the writers in between a snapshot's slices now - next section. With that,
+  the index costs a batch create what its time under the lock is: -9 %.
 - **The other writes: -6.6 % to +1.8 %.** The other reads: -3.0 % to +1.1 %.
+
+### Writers during a snapshot
+
+A snapshot encodes the store in slices of 1 000 entities, each under the store's READ lock (about a
+millisecond), and writers take the write lock between two slices. glibc's rwlock prefers readers: with
+a fixed pause of 50 µs between two slices, the writers had the lock ~5 % of the time a snapshot lasted.
+A store that grows is snapshotted most of the time - one is due each time the log since the last one is
+as big as that snapshot - and a batch create in a growing store was bound by those pauses: two or three
+batches of 20 in each.
+
+corDB counts the writers that wait for the write lock, and between two slices a snapshot waits until
+none waits, for at most three times as long as its slice took: writers have three quarters of the lock
+or more while a snapshot lasts. With no writer waiting, the snapshot goes on at once.
+
+Batch create of 20, c50, `--dbDir`, 10 s runs from an empty store (~4 M entities created in each run,
+several snapshots), `wrk` with `test/perf/batchCreate.lua`, a write lock held ~20 µs a batch without the
+type index and ~23 µs with it (measured with a probe around the lock), 2026-10-20:
+
+| Batch create, batches a second | without the type index | with it | with vs without |
+|---|---:|---:|---:|
+| A pause of 50 µs between two slices (before) | 17 220 - 19 459 | 13 521 - 16 153 | -14 % to -28 %, at one of two rates |
+| The writers waiting let in, for up to the slice's time | 22 303 / 22 455 | 19 495 / 19 644 | -12.6 % |
+| The writers waiting let in, for up to three times the slice's time | 29 267 / 31 110 | 27 313 / 27 673 | -9 % |
+| No snapshot in the run (`--dbSnapshotEvery 65536`), before | 37 057 / 37 557 | 33 393 / 34 521 | -8.5 % |
+| `--dbLockPrefer writes`, before | 36 766 / 36 876 | 32 875 / 34 752 | -8.2 % |
+
+- **Before, with the 50 µs pause, the write lock was held ~38 % of a run**, the broker used ~5 of 32
+  hardware threads, and a writer waited 1.5 - 2.1 ms for the lock on average: the writers were bound by
+  the pauses, not by the lock nor the CPU. Without a snapshot in the run the lock was held ~77 %.
+- **Three times the slice's time, not once**: once gave the writers half the lock and 22 000 batches a
+  second; three times, three quarters and 30 000. A snapshot under a steady stream of writers takes
+  up to four times as long as with none.
+
+**Every scenario, ABBA** (before, after, after, before: corDB 7592926 and dd826a1), the type index in both, `PERF_BIG_ENTITIES=1000`,
+the mean of the two runs of each build, requests a second at c50 unless named:
+
+| Scenario | before | after | | p99 µs before / after |
+|---|---:|---:|---:|---:|
+| `batch20create_c50` | 15 190 | 30 040 | +97.8 % | 16 936 / 6 258 |
+| `create_c50` | 84 498 | 81 206 | -3.9 % | 19 396 / 3 071 |
+| `big_create_c50` | 77 750 | 79 451 | +2.2 % | 24 671 / 3 361 |
+| `retrieve_c50` | 597 706 | 611 715 | +2.3 % | |
+| `patch_c50` / `patch_c1` | 104 932 / 46 888 | 103 779 / 46 707 | -1.1 % / -0.4 % | |
+| `batch20delete_c50` | 51 361 | 50 011 | -2.6 % | |
+| `patch_10subs_c50` | 11 560 | 11 927 | +3.2 % | |
+
+- **The p99 of a create is a sixth to a seventh of what it was** (`create_c50`, `big_create_c50`), of a
+  batch create under half.
+- **The other scenarios: -1.8 % to +1.0 %.**
 
 ## The HTTP server
 
