@@ -183,26 +183,28 @@ physical core and the load generator kept off it.
 
 | Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | entities/s per core |
 |-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
-| `corHttp` + `corDB` | **4.3 MiB** | 17 MiB | 354 MiB | 12 ms | 9 508 | 190 160 |
-| `corHttp` + `mongoc` | 11.1 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
-| libmicrohttpd + `corDB` | 11.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **12 577** | **251 540** |
-| libmicrohttpd + `mongoc` | 18.4 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 7 342 | 146 840 |
+| `corHttp` + `corDB` | **4.8 MiB** | 17 MiB | 354 MiB | 12 ms | 9 508 | 190 160 |
+| `corHttp` + `mongoc` | 11.6 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
+| libmicrohttpd + `corDB` | 12.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **12 577** | **251 540** |
+| libmicrohttpd + `mongoc` | 19.3 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 7 342 | 146 840 |
 
 <sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
 `COR_FEATURE_ICU_COLLATION=OFF`. `GET /entities?type=Vehicle&limit=20`, 20
 entities per response. **Disk added** counts only what a bare `ubuntu:26.04`
-does not already carry. `mongod` adds 1.02–1.15 GiB resident and cores of its
+does not already carry (2026-10-21). `mongod` adds 1.02–1.15 GiB resident and cores of its
 own; `corDB` adds nothing. Rates: libmicrohttpd + `corDB` 2026-10-10 (0.5.0, PGO release, `corDB`
 on disk with `--dbDir`), libmicrohttpd + `mongoc` 2026-10-05 (PGO release, MongoDB 8.2 on the host
 network), `corHttp` rows and the other columns 2026-09-16. Measured **natively** - in a container see below.</sub>
 
 Six things worth taking from that table:
 
-- **A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of files a
-  machine did not already have — and three libraries, two of which are GEOS.**
-  1.00 MiB of it is coraine, and the cor libraries are whole-archived into
+- **A complete NGSI-LD broker, in-memory store included, is 4.8 MiB of files a
+  machine did not already have — and two libraries, both GEOS.** Built with every
+  feature switch off but three, it is 1.35 MiB and no library at all
+  ([the smallest broker](doc/performance.md#the-smallest-broker)).
+  1.66 MiB of the 4.8 is coraine, and the cor libraries are whole-archived into
   that binary, so it is not a `main` calling out to something else: `corNgsild`,
-  `corRest`, `corJsonld`, `corTree`, `corAlloc` and the rest are *in* the megabyte.
+  `corRest`, `corJsonld`, `corTree`, `corAlloc` and the rest are *in* that binary.
 - **`--database corDB --dbDir <dir> --troe corDB` needs no other service at all** —
   the store and its temporal history on disk, in the same process. On eight cores
   the history costs a write 4-43 % (PATCH: 120 379/s against 145 664 without it);
@@ -226,7 +228,7 @@ Six things worth taking from that table:
   PATCH/s and `mongoc` 17 486 (2026-10-05).
 
 📊 **[Performance and footprint](doc/performance.md)** has the rest: what is
-inside the megabyte, the per-client latency curve, what MongoDB costs in cores
+inside the binary, the smallest build, the per-client latency curve, what MongoDB costs in cores
 and RAM, why ICU is off, an open question about `--connectionPoolSize`, and how
 every number was measured.
 

@@ -31,7 +31,7 @@ Last verified against the repository: **2026-09-16**.
 | Signed harmonized [Entity CLA](https://fiware.github.io/contribution-requirements/entity-cla.pdf) | ⛔ | A PDF to sign, not a commit |
 | Codebase available on GitHub | ✅ | `github.com/SEAMWARE/coraine`, public |
 | Appropriate open-source licence | ✅ | Apache 2.0 — `LICENSE` at the root, detected by GitHub as `Apache-2.0`, SPDX header in every source file |
-| **Instantiable directly in a running state by any competent developer, without referring to other dependent technologies** | ✅ | `coraine --database corDB` — one process, 4.3 MiB of added files, no database server, ready ~12 ms after `exec`. See the note below |
+| **Instantiable directly in a running state by any competent developer, without referring to other dependent technologies** | ✅ | `coraine --database corDB` — one process, 4.8 MiB of added files, no database server, ready ~12 ms after `exec`. See the note below |
 | Dockerfile available within the codebase | ✅ | `docker/Dockerfile`, plus `docker-compose.yml` and `docker-compose-distops.yml` |
 | Basic documentation in Markdown, complete enough for usage | ✅ | all of `doc/`, published on Read the Docs |
 | — a Quick Start guide | ✅ | README § Quick start |
@@ -90,7 +90,7 @@ Sent to FF Staff with the [application form](https://www.fiware.org/catalogue/su
 > corrections, filed upstream for review). It is written in C and
 > built as a plugin host: the current-state store, the temporal backend and
 > additional API surfaces are shared libraries loaded at start-up. Deployed with
-> its in-process store it is one executable and three shared libraries, 4.3 MiB
+> its in-process store it is one executable and two shared libraries, 4.8 MiB
 > of files a machine did not already have, answering requests 12 ms after it is
 > started. Deployed with MongoDB and TimescaleDB it is the same broker with
 > persistence and history, configured by a command-line flag.
@@ -282,7 +282,7 @@ is the item a reviewer will press on:
 
 `--database mongoc` satisfies this today, so the requirement is met and the
 checklist is honest. But the configuration coraine is *interesting* for — one
-process, no servers, 4.3 MiB — is the one that loses its data on restart, and
+process, no servers, 4.8 MiB — is the one that loses its data on restart, and
 that is the configuration the zero-dependency requirement rewards. Until corDB
 persists, the two requirements pull in opposite directions and we have to pick
 which one to lead with.

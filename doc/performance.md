@@ -95,55 +95,89 @@ them.
 
 | Configuration | coraine's own code | Added libraries | **Total added** |
 |---------------|-------------------:|----------------:|----------------:|
-| `corHttp` + `corDB` | 1.00 MiB | 3.27 MiB (3) | **4.28 MiB** |
-| `corHttp` + `mongoc` | 1.08 MiB | 10.04 MiB (6) | **11.12 MiB** |
-| libmicrohttpd + `corDB` | 0.99 MiB | 10.56 MiB (12) | **11.55 MiB** |
-| libmicrohttpd + `mongoc` | 1.07 MiB | 17.33 MiB (15) | **18.40 MiB** |
+| `corHttp` + `corDB` | 1.66 MiB | 3.17 MiB (2) | **4.83 MiB** |
+| `corHttp` + `mongoc` | 1.62 MiB | 9.94 MiB (5) | **11.56 MiB** |
+| libmicrohttpd + `corDB` | 1.67 MiB | 10.89 MiB (11) | **12.56 MiB** |
+| libmicrohttpd + `mongoc` | 1.63 MiB | 17.66 MiB (14) | **19.29 MiB** |
 
-**A complete NGSI-LD broker, in-memory store included, is 4.3 MiB of things that
-were not on the machine before — and three of those libraries are not ours.**
+*(2026-10-21, main `f4f4a92a`, `coraine-build --release --bridges none` - `-O2`, every feature switch at
+its default. Own code: the stripped `coraine`, the DB plugin and `none.so`. A bridge adds its plugin and
+its libraries: [every choice `coraine-build` offers](building-details.md#every-choice-coraine-build-offers).)*
+
+**A complete NGSI-LD broker, in-memory store included, is 4.8 MiB of things that
+were not on the machine before — and the two libraries among them are GEOS.**
 
 Those four rows all have TRoE off. Turning history on is the same measure, and
 it is the clearest single number on this page:
 
 | Configuration | coraine's own code | Added libraries | **Total added** |
 |---------------|-------------------:|----------------:|----------------:|
-| `corHttp` + `corDB` + **history in-process** | 1.02 MiB | 3.27 MiB (3) | **4.29 MiB** |
-| `corHttp` + `corDB` + history in PostgreSQL | 1.08 MiB | 5.57 MiB (13) | 6.65 MiB |
-| libmicrohttpd + `mongoc` + history in PostgreSQL | 1.12 MiB | 19.53 MiB (24) | **20.66 MiB** |
+| `corHttp` + `corDB` + **history in-process** | 1.65 MiB | 3.17 MiB (2) | **4.82 MiB** |
+| `corHttp` + `corDB` + history in PostgreSQL | 1.73 MiB | 5.47 MiB (12) | 7.20 MiB |
+| libmicrohttpd + `mongoc` + history in PostgreSQL | 1.70 MiB | 19.86 MiB (23) | **21.56 MiB** |
 
 `--troe corDB` — temporal history in this process — adds **no library and no
-measurable size**. The full conventional deployment is 24 libraries against 3,
-and 20.7 MiB against 4.3.
+measurable size**. The full conventional deployment is 23 libraries against 2,
+and 21.6 MiB against 4.8.
 
 What the three columns are made of:
 
 - **coraine's own code is all of it.** The cor libraries are static archives,
-  whole-archived into the binary, so that ~1 MiB is not a `main` calling out to
-  something else — it *is* (libmicrohttpd + `corDB`, 2026-10-01, from the linker
-  map) the broker's own service routines (319 KiB), `corNgsild` (303 KiB of
-  NGSI-LD rules), the broker's main program (107 KiB), the exported-symbol tables
-  that let plugins link against the broker (96 KiB), the bridge layer (49 KiB),
-  `corRest` (46 KiB), `corJsonld` (35 KiB), `corArgs` (25 KiB), `corJson`
-  (21 KiB), and `corTree`, `corBase`, `corLog`, `corAlloc`, `corProm`,
-  `corPlugin`, `corHash` under 9 KiB each - `corHttp` (12 KiB) in its place in the
-  builds that use it. Every line of it is in this project's repositories. Add the DB plugin (`corDB.so`
-  39 KiB or `mongoc.so` 116 KiB) and `none.so` (14 KiB) and that is the whole
-  broker.
-- **The three added libraries in the first row** are GEOS (`libgeos` +
-  `libgeos_c`, 3.17 MiB — geo-queries) and `libmosquitto` (106 KiB — MQTT,
-  loaded with the `mqtt.so` bridge plugin only). GEOS is now the largest single thing coraine puts on a machine,
-  and it is larger than coraine.
-- **libmicrohttpd costs nine libraries, 7.29 MiB** — not its own 608 KiB, because
+  whole-archived into the binary, so that 1.5 MiB executable is not a `main` calling out to
+  something else — it *is* (libmicrohttpd + `corDB`, from the linker map) the broker's own service
+  routines (369 KiB), `corNgsild` (325 KiB of NGSI-LD rules), the broker's main program (148 KiB), the
+  bridge layer (108 KiB), the exported-symbol tables that let plugins link against the broker (99 KiB),
+  `corRest` (83 KiB), Service Execution (56 KiB), `corJsonld` (36 KiB), `corArgs` (26 KiB), `corJson`
+  (22 KiB), `corHttp` (18 KiB - in both HTTP server builds, for the bridges' ports), the auth layer
+  (18 KiB), `corTree` (17 KiB), `corBase` (14 KiB), and `corLog`, `corAlloc`, `corProm`, `corPlugin`,
+  `corHash` under 5 KiB each. Every line of it is in this project's repositories. Add the DB plugin
+  (`corDB.so` 189 KiB or `mongoc.so` 145 KiB) and `none.so` (14 KiB) and that is the whole broker.
+- **The two added libraries in the first row** are GEOS (`libgeos` + `libgeos_c`, 3.17 MiB —
+  geo-queries, loaded by the DB plugin). GEOS is the largest single thing coraine puts on a machine,
+  and it is larger than coraine. `GEOQ=OFF` takes it away ([The smallest broker](#the-smallest-broker)).
+- **libmicrohttpd costs nine libraries, 7.72 MiB** — not its own 1.02 MiB, because
   it pulls GnuTLS behind it, and p11-kit, nettle, hogweed, tasn1, idn2,
-  libunistring, libffi. Building the HTTP server in removes all nine for 12 KiB
-  of `corHttp`. That is the 3-vs-12 in the table.
+  libunistring, libffi. The built-in HTTP server removes all nine, and its build is no larger: `corHttp`
+  is in both. That is the 2-vs-11 in the table.
 - **`mongoc` costs three libraries, 6.77 MiB** — `libmongoc`, `libbson`,
   `libsasl2` — before MongoDB itself is installed anywhere.
 
+### The smallest broker
+
+Every feature switch off but `HEALTH`, `CHANNEL_STATUS_IN` and `CHANNEL_CHECKS` (`coraine-build --features
+SUBSCRIPTIONS=OFF,REGISTRATIONS=OFF,...`). It keeps
+the entity API - create, retrieve, query, update, merge, delete, the batch operations - the in-process
+stores and the bridges with their Channels; subscriptions, registrations, geo-queries, Service Execution,
+DataChannels and AssetChannels, auth, the policy API, cor://, the transports, SSE, metrics, the admin API,
+Snapshot writes, `mongoc` and the rest are not compiled in.
+
+| Configuration | coraine's own code | Added libraries | **Total added** |
+|---------------|-------------------:|----------------:|----------------:|
+| smallest, `corHttp` + `corDB` | 1.35 MiB | **none** | **1.35 MiB** |
+| smallest, `corHttp` + `ramDB` | 1.33 MiB | none | 1.33 MiB |
+| smallest, libmicrohttpd + `corDB` | 1.36 MiB | 7.72 MiB (9) | 9.08 MiB |
+
+| The executable, stripped | every switch at its default | smallest | |
+|---|---:|---:|---:|
+| `corHttp` | 1 533 312 bytes | 1 220 224 bytes | **-20.4 %** |
+| libmicrohttpd | 1 546 176 bytes | 1 224 320 bytes | -20.8 % |
+
+*(2026-10-21, main `f4f4a92a`, `coraine-build --release --bridges none`, the same as the table above.)*
+
+- **The switches take a fifth of the executable; GEOS is the rest of the saving.** 4.83 MiB to 1.35 MiB
+  is 3.17 MiB of GEOS (`GEOQ=OFF`) and 0.31 MiB of coraine's own code.
+- **What goes, from the linker map:** Service Execution (56 KiB), the service routines 369 → 293 KiB,
+  the main program 148 → 107 KiB, the bridge layer 108 → 60 KiB (DataChannels, AssetChannels, the
+  inventory), `corRest` 83 → 65 KiB, the auth layer (18 KiB), the transports (13 KiB), the policy API
+  (8 KiB), SSE (7 KiB), metrics (5 KiB).
+- **What stays is mostly NGSI-LD itself.** `corNgsild` (325 KiB), the rules every entity request is
+  checked against, is the same in both - over a quarter of the smallest executable.
+- **A bridge is added by plugin**: the Modbus bridge 31 KiB, no library
+  ([every choice `coraine-build` offers](building-details.md#every-choice-coraine-build-offers)).
+
 > **ICU is off in every row above, deliberately.** § 7.6.2.1 names ICU "root"
 > collation as the default order for `orderBy` on strings, and linking ICU for it
-> costs **three libraries and 39.2 MiB** — `libicudata` alone is 31.6 MiB, nine
+> costs **three libraries and 39.2 MiB** — `libicudata` alone is 31.6 MiB, six
 > times the whole broker, for a collation table. `COR_FEATURE_ICU_COLLATION=ON`
 > buys it back; the ICU-free build sorts ASCII exactly as root collation does and
 > approximates the rest. Replacing it with a collation implementation of our own
@@ -201,7 +235,7 @@ counts anonymous memory, the arenas included.
 | `timescale` (TRoE) | a PostgreSQL + TimescaleDB server | 35 MB of packages, 128 MiB of shared buffers by default, 313 MiB across its 10 processes here — and on the broker's own machine **2.3 MiB and 9–10 added libraries** for `libpq`, which drags in Kerberos, LDAP and SASL that a broker never calls. Nine rather than ten when `mongoc` has already brought `libsasl2` |
 
 Which is the point of the first two rows. A `corHttp` + `corDB` deployment with
-`--troe corDB` is **one process, 17 MiB, 4.3 MiB of new files on disk, and no socket
+`--troe corDB` is **one process, 17 MiB, 4.8 MiB of new files on disk, and no socket
 to anything else** — with temporal history included.
 
 ## Start-up
