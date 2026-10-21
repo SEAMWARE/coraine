@@ -630,11 +630,12 @@ RecordMap* recordMapParse(CorNode* entryP, CorAlloc* kaP, const char** whyP)
   for (CorNode* memberP = entryP->value.head; memberP != NULL; memberP = memberP->next)
   {
     if ((strcmp(memberP->name, "entities")     != 0) && (strcmp(memberP->name, "channelInfo") != 0) &&
-        (strcmp(memberP->name, "idEncoding")   != 0) && (strcmp(memberP->name, "otherColumns") != 0))
+        (strcmp(memberP->name, "idEncoding")   != 0) && (strcmp(memberP->name, "otherColumns") != 0) &&
+        (strcmp(memberP->name, "channelDirection") != 0))
     {
       static char why[256];
 
-      snprintf(why, sizeof(why), "unknown member '%s' (a DataChannel has 'entities', 'idEncoding', 'otherColumns' and 'channelInfo')", memberP->name);
+      snprintf(why, sizeof(why), "unknown member '%s' (a DataChannel has 'entities', 'idEncoding', 'otherColumns', 'channelDirection' and 'channelInfo')", memberP->name);
       *whyP = why;
       return NULL;
     }

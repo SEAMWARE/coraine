@@ -900,7 +900,12 @@ static void bridgesInit(void)
 
       char* reasonBefore = dcP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
 
-      int r = channelHandOver(i, dcP->endpoint, BridgeChannelTypeDataChannel, BridgeChannelTopic, BridgeDirectionIn, dcP->info, "DataChannel ");
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+      BridgeDirection direction = dcP->direction;     // Both: the bridge publishes record fragments too
+#else
+      BridgeDirection direction = BridgeDirectionIn;
+#endif
+      int r = channelHandOver(i, dcP->endpoint, BridgeChannelTypeDataChannel, BridgeChannelTopic, direction, dcP->info, "DataChannel ");
 
       if ((r == BRIDGE_UNSUPPORTED) && (bridges[i].channelAdd == NULL) && (bridges[i].channelAddInfo == NULL))
         break;                                       // a plugin that carries no channel at all

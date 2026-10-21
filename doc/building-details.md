@@ -47,7 +47,7 @@ coraine/
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Eight are turned off
+All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Nine are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires`:
 
 | switch | off when | why |
@@ -57,6 +57,7 @@ by what they need - `coraine-build --list-features --json` gives them as `requir
 | `METRICS` | `ADMIN_API` is off | the admin API plugin serves them (`/admin/metrics`, `/metrics`), nothing else does |
 | `ADMIN_CONFIG` | `ADMIN_API` is off | `GET /admin/config` is the admin API plugin's |
 | `BRIDGE_INVENTORY` | `ADMIN_API` is off | `GET /admin/bridges/{bridge}/inventory` is the admin API plugin's |
+| `CHANNEL_WRITE_BACK` | `DATA_CHANNELS` is off | write-back is a DataChannel's |
 | `AUTH_OIDC` | `AUTH` is off | `oidc.so` is an auth plugin |
 | `AUTH_METADATA` | `AUTH` is off | the resource's metadata (`/.well-known/oauth-protected-resource`) is the auth plugins' |
 | `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
@@ -369,6 +370,13 @@ one of its Channels, DataChannels or AssetChannels maps, before anything is sent
 ([the payload check](bridge-channels.md#the-payload-check)). Off: no write is checked, and
 `payloadsRefused` is not shown. Size: -5,821 bytes (with AssetChannels: the attributes a model made are recorded for it).
 
+#### `CHANNEL_WRITE_BACK`
+
+DataChannel write-back: `"channelDirection": "both"` - a client's write to an attribute the DataChannel maps
+is published to the bridge first, as a record fragment, and stored only when the bridge takes it
+([DataChannels](bridge-channels.md#datachannels)). Off: `"both"` is warned about and the DataChannel
+skipped. Size: -19,784 bytes.
+
 #### `ADMIN_CONFIG`
 
 `GET /admin/config` (the `admin` API plugin): every option the broker runs with - value, default, where it came
@@ -459,6 +467,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_ASSET_CHANNELS=OFF` | 22,063 bytes (release build) | no AssetChannels - a bridge's `assetChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/assetChannels` answers 501 ([AssetChannels](asset-channels.md)) |
 | `COR_FEATURE_CHANNEL_STATUS_IN=OFF` | 576 bytes (release build) | `BridgeBroker.channelStatusIn` is NULL: a bridge plugin cannot set a Channel's status and statusReason after `channelAddInfo`; a refused Channel shows the broker's own reason |
+| `COR_FEATURE_CHANNEL_WRITE_BACK=OFF` | 19,784 bytes (release build) | no write-back - a DataChannel with `"channelDirection": "both"` is warned about and skipped |
 | `COR_FEATURE_ADMIN_CONFIG=OFF` | 1,528 bytes (release build) | `GET /admin/config` answers 501 |
 | `COR_FEATURE_BRIDGE_INVENTORY=OFF` | 1,361 bytes (release build) | `GET /admin/bridges/{bridge}/inventory` answers 501; a bridge's `inventory` is never called |
 | `COR_FEATURE_BRIDGE_HTTP_LISTEN=OFF` | 43,616 bytes (release build, libmicrohttpd: corHttp is not linked) | `BridgeBroker.httpListen` is NULL: the broker serves no port for a bridge plugin |

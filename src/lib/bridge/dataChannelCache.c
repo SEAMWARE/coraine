@@ -88,6 +88,39 @@ DataChannel* dataChannelFirst(void)
 
 
 
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+static int outCounter = 0;                            // DataChannels with channelDirection both - set at start only
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dataChannelDirectionSet -
+//
+void dataChannelDirectionSet(DataChannel* dcP, BridgeDirection direction)
+{
+  if ((dcP->direction != BridgeDirectionBoth) && (direction == BridgeDirectionBoth))
+    outCounter++;
+  else if ((dcP->direction == BridgeDirectionBoth) && (direction != BridgeDirectionBoth))
+    outCounter--;
+
+  dcP->direction = direction;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dataChannelOutCount -
+//
+int dataChannelOutCount(void)
+{
+  return outCounter;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // dataChannelCreate -

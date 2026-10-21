@@ -101,6 +101,13 @@ CorNode* dataChannelRender(DataChannel* dcP)
 #if COR_FEATURE_CHANNEL_CHECKS
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "payloadsRefused", (long long) __atomic_load_n(&dcP->payloadsRefused, __ATOMIC_RELAXED)));
 #endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+  if (dcP->direction == BridgeDirectionBoth)          // only then: "in" is the default, and what every DataChannel was
+  {
+    corTreeChildAdd(bodyP, corTreeString(allocP,  "channelDirection", "both"));
+    corTreeChildAdd(bodyP, corTreeInteger(allocP, "recordsOut", (long long) __atomic_load_n(&dcP->recordsOut, __ATOMIC_RELAXED)));
+  }
+#endif
 
   return bodyP;
 }

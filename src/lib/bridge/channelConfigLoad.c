@@ -38,7 +38,10 @@
 #if COR_FEATURE_DATA_CHANNELS
 #include "bridge/RecordMap.h"                         // RecordMap
 #include "bridge/recordMap.h"                         // recordMapParse, recordMapFree, recordOtherParse
-#include "bridge/dataChannelCache.h"                  // dataChannelCreate
+#include "bridge/dataChannelCache.h"                  // dataChannelCreate, dataChannelLookup, dataChannelDirectionSet
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+#include "bridge/dataChannelWriteBack.h"              // dataChannelWriteBackTemplateOk
+#endif
 #endif
 #if COR_FEATURE_ASSET_CHANNELS
 #include "bridge/AssetMap.h"                          // AssetMap
@@ -376,7 +379,7 @@ static int channelsLoad(const char*        alias,
 //
 // dataChannelsLoad - a bridge's "dataChannels" section: one DataChannel (DataChannel.h) per endpoint
 //
-//   "dataChannels": { "<endpoint>": { "entities": [ ... ], "idEncoding": "merge", "channelInfo": [ ... ] } }
+//   "dataChannels": { "<endpoint>": { "entities": [ ... ], "idEncoding": "merge", "channelDirection": "in", "channelInfo": [ ... ] } }
 //
 // What "entities", "idEncoding" and "otherColumns" say is RecordMap.h's; an entry without "otherColumns"
 // takes the bridge's (otherColumnsDefault). An entry that cannot be used is warned about and skipped, as an
@@ -407,6 +410,42 @@ static int dataChannelsLoad(const char* alias, CorNode* sectionP, RecordOther ot
     if (mapP->otherColumns == RecordOtherUnset)
       mapP->otherColumns = (otherColumnsDefault != RecordOtherUnset) ? otherColumnsDefault : RecordOtherNone;
 
+    //
+    // channelDirection - "in" (the default) or "both": a client's write to what it maps goes to the device
+    // first. Both needs ids that read back: percent, and no two placeholders side by side
+    //
+    BridgeDirection direction  = BridgeDirectionIn;
+    CorNode*        directionP = corTreeLookup(entryP, "channelDirection");
+
+    if (directionP != NULL)
+    {
+      const char* bad = NULL;
+
+      if ((directionP->type != CorString) || ((strcmp(directionP->value.s, "in") != 0) && (strcmp(directionP->value.s, "both") != 0)))
+        bad = "'channelDirection' is \"in\" or \"both\"";
+      else if (strcmp(directionP->value.s, "both") == 0)
+      {
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+        direction = BridgeDirectionBoth;
+
+        if (mapP->idEncoding != RecordIdPercent)
+          bad = "'channelDirection' \"both\" needs \"idEncoding\": \"percent\" - a merged id does not read back";
+
+        for (RecordEntity* eP = mapP->entities; (eP != NULL) && (bad == NULL); eP = eP->next)
+          bad = dataChannelWriteBackTemplateOk(eP->id);
+#else
+        bad = "'channelDirection' \"both\" - write-back is not in this build (COR_FEATURE_CHANNEL_WRITE_BACK)";
+#endif
+      }
+
+      if (bad != NULL)
+      {
+        COR_W("bridge '%s': DataChannel '%s' - %s - skipped", alias, endpoint, bad);
+        recordMapFree(mapP);
+        continue;
+      }
+    }
+
     bool  infoOk;
     char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
 
@@ -427,6 +466,12 @@ static int dataChannelsLoad(const char* alias, CorNode* sectionP, RecordOther ot
 
     if (r != CHANNEL_OK)
       COR_X(1, "bridge '%s': DataChannel '%s' could not be added (%d)", alias, endpoint, r);
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+    dataChannelDirectionSet(dataChannelLookup(alias, endpoint), direction);
+#else
+    (void) direction;
+#endif
 
     ++created;
   }
