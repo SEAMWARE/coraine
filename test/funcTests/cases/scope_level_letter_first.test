@@ -1,0 +1,188 @@
+#
+# FILE            scope_level_letter_first.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Scope level starts with a letter and holds letters, digits and '_' - § 5.2.7 for the Scope of an
+# Entity, § 7.2.5 (ScopeQLevel) for a scopeQ. A level that starts with a digit, or holds '.' or '-',
+# is a 400 BadRequestData, in a scopeQ and in an Entity's scope alike. ETSI 019_03_07_08 asks the
+# scopeQ part (/Madrid/1st).
+#
+--NAME--
+A Scope level starts with a letter - scopeQ and Entity scope
+
+--TAGS--
+entity query scope
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 with scope /Madrid/Gardens_2 - a digit and '_' inside a level are fine"
+echo "======================================================================================"
+payload='{ "id": "urn:ngsi-ld:T:E1", "type": "T", "scope": "/Madrid/Gardens_2" }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. scopeQ=/Madrid/Gardens_2 - matches E1"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&scopeQ=/Madrid/Gardens_2' | grep '"id"'
+echo
+echo
+
+
+echo "03. scopeQ=/Madrid/1st - a level starting with a digit: 400"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&scopeQ=/Madrid/1st'
+echo
+echo
+
+
+echo "04. scopeQ=/Madrid/a.b - a '.' in a level: 400"
+echo "=============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&scopeQ=/Madrid/a.b'
+echo
+echo
+
+
+echo "05. Create E2 with scope /Madrid/1st: 400"
+echo "========================================="
+payload='{ "id": "urn:ngsi-ld:T:E2", "type": "T", "scope": "/Madrid/1st" }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Create E3 with scope [ \"/Madrid\", \"/North-East\" ] - a '-' in a level: 400"
+echo "=============================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E3", "type": "T", "scope": [ "/Madrid", "/North-East" ] }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Create E4 with scope /Madrid/+ - a wildcard is not a Scope: 400"
+echo "==================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E4", "type": "T", "scope": "/Madrid/+" }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. GET the entities of type T - only E1"
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T' | grep '"id"'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with scope /Madrid/Gardens_2 - a digit and '_' inside a level are fine
+======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. scopeQ=/Madrid/Gardens_2 - matches E1
+=========================================
+    "id": "urn:ngsi-ld:T:E1",
+
+
+03. scopeQ=/Madrid/1st - a level starting with a digit: 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "a scope level starts with a letter",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. scopeQ=/Madrid/a.b - a '.' in a level: 400
+==============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 184
+
+{
+  "detail": "a character that a Scope level does not allow",
+  "status": 400,
+  "title": "Invalid scopeQ parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Create E2 with scope /Madrid/1st: 400
+=========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 162
+
+{
+  "detail": "a scope level starts with a letter",
+  "status": 400,
+  "title": "Invalid Scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Create E3 with scope [ "/Madrid", "/North-East" ] - a '-' in a level: 400
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 173
+
+{
+  "detail": "a character that a Scope level does not allow",
+  "status": 400,
+  "title": "Invalid Scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Create E4 with scope /Madrid/+ - a wildcard is not a Scope: 400
+===================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 186
+
+{
+  "detail": "'+' and '#' are wildcards of a scopeQ, not part of a Scope",
+  "status": 400,
+  "title": "Invalid Scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET the entities of type T - only E1
+========================================
+    "id": "urn:ngsi-ld:T:E1",
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
