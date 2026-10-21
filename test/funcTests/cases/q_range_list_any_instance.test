@@ -1,0 +1,155 @@
+#
+# FILE            q_range_list_any_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A q range (a==lo..hi) and a q value list (a==v1,v2) look at EVERY instance of a multi-attribute, like
+# the other comparisons do (clause 7: with several instances and no datasetId addressed, the target is
+# "any Value of such instances"). The value that matches sits on a datasetId instance only. The negated
+# forms need every instance to fail the positive one. Numeric and string values; an unquoted DateTime range
+# compares with no String value, on any instance (as a single unquoted DateTime does).
+#
+--NAME--
+q range and value list over every instance of a multi-attribute
+
+--TAGS--
+entity query q multi-attribute
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 - speed: 10 (default), 50 (datasetId gps); d: '2026-01-01' (default), '2026-06-15' (gps); c: red (default), blue (gps)"
+echo "=================================================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "speed": [ { "type": "Property", "value": 10 }, { "type": "Property", "value": 50, "datasetId": "urn:ngsi-ld:ds:gps" } ],
+  "d":     [ { "type": "Property", "value": "2026-01-01T00:00:00Z" }, { "type": "Property", "value": "2026-06-15T00:00:00Z", "datasetId": "urn:ngsi-ld:ds:gps" } ],
+  "c":     [ { "type": "Property", "value": "red" }, { "type": "Property", "value": "blue", "datasetId": "urn:ngsi-ld:ds:gps" } ]
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2 - speed: 10, d: '2026-01-01', c: red - default instances only"
+echo "==========================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E2", "type": "T", "speed": { "type": "Property", "value": 10 }, "d": { "type": "Property", "value": "2026-01-01T00:00:00Z" }, "c": { "type": "Property", "value": "red" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. q=speed==40..60 - E1 (its gps instance)"
+echo "==========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=speed==40..60' | grep '"id": "urn'
+echo
+echo
+
+
+echo "04. q=speed!=40..60 - E2 (E1 has an instance in the range)"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=speed!=40..60' | grep '"id": "urn'
+echo
+echo
+
+
+echo "05. q=speed==45,50 - E1"
+echo "======================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=speed==45,50' | grep '"id": "urn'
+echo
+echo
+
+
+echo "06. q=speed!=45,50 - E2"
+echo "======================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=speed!=45,50' | grep '"id": "urn'
+echo
+echo
+
+
+echo "07. q=d==2026-06-01T00:00:00Z..2026-07-01T00:00:00Z - nothing: a DateTime range, d holds Strings"
+echo "================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=d==2026-06-01T00:00:00Z..2026-07-01T00:00:00Z' | grep '"id": "urn'
+echo
+echo
+
+
+echo "08. q=c==\"green\",\"blue\" - E1"
+echo "=============================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=c==%22green%22,%22blue%22' | grep '"id": "urn'
+echo
+echo
+
+
+echo "09. q=speed==5..15 - E1 and E2 (both default instances)"
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=speed==5..15' | grep '"id": "urn'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 - speed: 10 (default), 50 (datasetId gps); d: '2026-01-01' (default), '2026-06-15' (gps); c: red (default), blue (gps)
+==================================================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. Create E2 - speed: 10, d: '2026-01-01', c: red - default instances only
+===========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E2
+Content-Length: 0
+
+
+
+
+03. q=speed==40..60 - E1 (its gps instance)
+===========================================
+    "id": "urn:ngsi-ld:T:E1",
+
+
+04. q=speed!=40..60 - E2 (E1 has an instance in the range)
+==========================================================
+    "id": "urn:ngsi-ld:T:E2",
+
+
+05. q=speed==45,50 - E1
+=======================
+    "id": "urn:ngsi-ld:T:E1",
+
+
+06. q=speed!=45,50 - E2
+=======================
+    "id": "urn:ngsi-ld:T:E2",
+
+
+07. q=d==2026-06-01T00:00:00Z..2026-07-01T00:00:00Z - nothing: a DateTime range, d holds Strings
+================================================================================================
+
+
+08. q=c=="green","blue" - E1
+==============================
+    "id": "urn:ngsi-ld:T:E1",
+
+
+09. q=speed==5..15 - E1 and E2 (both default instances)
+=======================================================
+    "id": "urn:ngsi-ld:T:E1",
+    "id": "urn:ngsi-ld:T:E2",
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

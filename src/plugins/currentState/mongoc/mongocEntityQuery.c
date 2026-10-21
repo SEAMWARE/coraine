@@ -425,8 +425,81 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
       "{\"$or\":[{\"$eq\":[\"%s\",%s]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[%s,\"%s\"]}]}]}",
       vexpr, b, vexpr, b, vexpr);
   }
+  else if (term->valueType == LdQDateRange)
+  {
+    //
+    // A DateTime range: unquoted, its bounds are DateTimes, and a DateTime compares with no stored
+    // Value - a DateTime-valued Property holds { "@type": "DateTime", "@value": ... }, a String holds
+    // a string. No instance matches, as with a single unquoted DateTime and as in the in-broker
+    // matcher; observedAt / createdAt / modifiedAt took their own path above.
+    //
+    snprintf(pred, sizeof(pred), "{\"$eq\":[1,0]}");
+  }
+  else if (term->valueType == LdQRange)
+  {
+    //
+    // § 7.2.3.4 condition 3 - the target value is within the range - on every instance, like any
+    // other comparison (the old path saw <attr>.@none.value only). A range orders, so a Relationship's
+    // URI is NOT MATCHING (§ 7.2.3.3), and the bounds compare only with a number. An array value is in
+    // the range when one of its elements is, the field-path semantics of the old $gte/$lte.
+    //
+    char lo[64];
+    char hi[64];
+    char elem[3456];   // three vexpr (1024 each) + two bounds (64 each) + ~150 literal
+    char arr[2432];    // two vexpr + two bounds + ~200 literal
+
+    snprintf(lo, sizeof(lo), "%.17g", term->value.numRange.lo);
+    snprintf(hi, sizeof(hi), "%.17g", term->value.numRange.hi);
+
+    snprintf(elem, sizeof(elem),
+      "{\"$and\":[{\"$in\":[{\"$type\":\"%s\"},[\"double\",\"int\",\"long\",\"decimal\"]]},{\"$gte\":[\"%s\",%s]},{\"$lte\":[\"%s\",%s]}]}",
+      vexpr, vexpr, lo, vexpr, hi);
+    snprintf(arr, sizeof(arr),
+      "{\"$and\":[{\"$isArray\":\"%s\"},{\"$anyElementTrue\":{\"$map\":{\"input\":\"%s\",\"as\":\"e\",\"in\":"
+      "{\"$and\":[{\"$in\":[{\"$type\":\"$$e\"},[\"double\",\"int\",\"long\",\"decimal\"]]},{\"$gte\":[\"$$e\",%s]},{\"$lte\":[\"$$e\",%s]}]}}}}]}",
+      vexpr, vexpr, lo, hi);
+
+    snprintf(pred, sizeof(pred), "{\"$and\":[%s{\"$or\":[%s,%s]}]}", notRel, elem, arr);
+  }
+  else if (term->valueType == LdQValueList)
+  {
+    //
+    // § 7.2.3.4 condition 2 - the target value equals any of the list values - on every instance: one
+    // equality per item, each the same as a single-value == (an array value holding the item matches).
+    // Items keep their own type (LdQValue). A list too long for the buffer keeps the old path rather
+    // than a truncated filter.
+    //
+    int pp = snprintf(pred, sizeof(pred), "{\"$or\":[");
+
+    for (int i = 0; i < term->value.list.count; i++)
+    {
+      char         lit[1024];
+      LdQValueType itemType = term->value.list.itemTypeV[i];
+      const char*  v        = term->value.list.values[i];
+
+      if (itemType == LdQNumber)
+        snprintf(lit, sizeof(lit), "%.17g", strtod(v, NULL));
+      else if (itemType == LdQBool)
+        snprintf(lit, sizeof(lit), "%s", (strcmp(v, "true") == 0) ? "true" : "false");
+      else
+      {
+        char esc[1000];
+        jsonStrEscape(esc, sizeof(esc), v);
+        snprintf(lit, sizeof(lit), "\"%s\"", esc);
+      }
+
+      pp += snprintf(pred + pp, sizeof(pred) - pp,
+        "%s{\"$eq\":[\"%s\",%s]},{\"$and\":[{\"$isArray\":\"%s\"},{\"$in\":[%s,\"%s\"]}]}",
+        (i == 0) ? "" : ",", vexpr, lit, vexpr, lit, vexpr);
+
+      if (pp >= (int) sizeof(pred) - 4)
+        return false;
+    }
+
+    snprintf(pred + pp, sizeof(pred) - pp, "]}");
+  }
   else
-    return false;                                    // ranges / value-lists keep the old path
+    return false;
 
   bool negative = (term->op == LdQUnequal) || (term->op == LdQNotPattern);
 
@@ -684,8 +757,8 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   //
   // Value leaf. Before falling back to the fixed <attr>.@none.value path — which
   // sees the default instance and nothing else — try the any-instance form
-  // (§ 8.5 + clause 7). It handles the ordinary comparison operators; anything
-  // it declines (ranges, value-lists, "[*]") drops through unchanged.
+  // (§ 8.5 + clause 7). It handles the comparison operators, ranges and
+  // value-lists; what it declines ("[*]") drops through unchanged.
   //
   {
     char attrPath[1024];
