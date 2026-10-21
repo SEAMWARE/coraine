@@ -942,6 +942,57 @@ last 100 ms - MongoDB's default. Orion-LD 1.15.0-next, its release build (`-O3`)
 - **The tails of a write** follow the throughput: p99 of a batch update 3.97 ms (corDB + history) against
   137 ms (MongoDB + TimescaleDB).
 
+### TimescaleDB: the write path
+
+The history of a write as the timescale plugin writes it - three versions of it, the same release
+broker (`b7434b8f`), only `timescale.so` swapped:
+
+- **a statement per row** - every row of a request an `INSERT` of its own, a transaction per request;
+- **multi-row** - the rows of a request in one `INSERT` per table, a transaction per request;
+- **writers** - the rows of many requests in one `INSERT` per table, one transaction, sent by a writer
+  thread (`--troeWriters`, 8 per tenant; [TimescaleDB history](installation.md#timescaledb-history---troe-timescale)).
+
+Requests/s, counted until the last history row is in the database: the run's requests over the time
+from its start until `troe_attrs` stopped growing for a second (a write that is queued is not done):
+
+| | a statement per row | multi-row | writers | writers / a statement per row |
+|---|---:|---:|---:|---:|
+| create | 4 427 | 6 152 | 17 765 | 4.0× |
+| create, 1 connection | 715 | 987 | 6 020 | 8.4× |
+| batch create (20) | 370 | 1 056 | 1 172 | 3.2× |
+
+With `--troeSync` - the response after the commit:
+
+| | multi-row | writers | writers / multi-row |
+|---|---:|---:|---:|
+| create | 6 094 | 10 356 | 1.7× |
+| create, 1 connection | 956 | 1 046 | 1.1× |
+| batch create (20) | 341 | 671 | 2.0× |
+
+The number of writers, the default dispatch (one run each):
+
+| `--troeWriters` | 2 | 4 | 8 | 16 |
+|---|---:|---:|---:|---:|
+| create | 10 029 | 14 260 | 17 244 | 16 335 |
+| create, 1 connection | 7 487 | 6 680 | 5 891 | 5 927 |
+| batch create (20) | 531 | 850 | 1 223 | 1 094 |
+
+The sweep ran with a queue of up to 64 MiB (8 MiB since), and a run's end taken at 0.2 s without growth.
+
+Eight physical cores shared by the broker, mongod 8.2 and PostgreSQL 16 + TimescaleDB (containers, host
+network, `synchronous_commit` on - every commit on the disk); the load (wrk) on the other eight. 50
+connections unless said, 5 s after a 2 s warm-up, both databases emptied before each measure. ABBA
+order - a statement per row, multi-row, writers, writers, multi-row, a statement per row - and the
+mean of the two runs of each; AMD Ryzen 9 8940HX, 2026-10-21.
+
+- **create, 50 connections, writers:** the eight cores are spent - broker 1.7, mongod 1.8, PostgreSQL
+  4.3. A statement per row: broker 1.0, mongod 0.5, PostgreSQL 4.6 - PostgreSQL's cores went on
+  transactions, not on rows (22 250 rows/s then, 88 900 now).
+- **create, 1 connection:** without `--troeSync` the request no longer waits for PostgreSQL at all; with
+  it, it waits for a commit, and one connection has no other request to share it with.
+- **batch create (20):** a request is 100 rows; with eight writers PostgreSQL is on 5.3-5.8 of the
+  eight cores either way. More writers than 8 gain nothing here, and fewer leave PostgreSQL cores idle.
+
 ### corDB on disk: what persistence costs
 
 `--dbDir` makes corDB survive a restart: every write appends its effect to a log - memory-mapped, so

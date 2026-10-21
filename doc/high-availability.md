@@ -130,9 +130,12 @@ Two things are each instance's own:
   clock, and those stamps order the instances of an attribute and give the Entity its `modifiedAt`.
   Keep the instances' clocks synchronised (NTP); a skew between two instances is a skew in the order
   of the writes they served.
-- **When the history is written.** By default an instance writes a request's history right after
-  its response. An instance that dies between the two leaves that write in the current state and not
-  in the history. `--troeSync` writes it before the response, at the cost of that much latency.
+- **When the history is written.** By default an instance queues a request's history for its
+  writers right after its response, and a writer writes it, with the history of the other requests
+  queued meanwhile, in one transaction ([TimescaleDB history](installation.md#timescaledb-history---troe-timescale)).
+  An instance that dies between the response and that commit leaves the write in the current state
+  and not in the history. `--troeSync` queues it before the response and answers after the commit,
+  at the cost of that much latency.
 
 ## Troubleshooting: instances that disagree
 

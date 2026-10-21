@@ -29,6 +29,7 @@ char*            timescaleDbUser      = NULL;
 char*            timescaleDbPwd       = NULL;
 int              timescaleDbPort      = 5432;
 int              timescalePoolSize    = 10;     // per-tenant connection pool size (--troePoolSize)
+int              timescaleWriters     = 8;      // per-tenant TRoE writer threads (--troeWriters)
 int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-instance cap
                                                   //
                                                   // Effectively a safety upper bound, not a working
@@ -60,6 +61,7 @@ CorArg timescaleArgV[] =
   { "--troePwd",  "-troePwd",  CorArgString, _vp &timescaleDbPwd,  CorArgOpt, _vp NULL,    NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", CorArgInt,    _vp &timescaleDbPort, CorArgOpt, _vp 5432,    _vp 1, _vp 65535, "TRoE postgres port" },
   { "--troePoolSize", "-troePoolSize", CorArgInt, _vp &timescalePoolSize, CorArgOpt, _vp 10,   _vp 1, _vp 256, "TRoE per-tenant postgres connection-pool size" },
+  { "--troeWriters", "-troeWriters", CorArgInt, _vp &timescaleWriters, CorArgOpt, _vp 8,   _vp 0, _vp 64, "TRoE per-tenant writer threads - they record the TRoE writes of concurrent requests in shared transactions, each on a connection of its own; 0: every request records its own" },
   { "--troeInstanceCap", "-troeCap", CorArgInt, _vp &timescaleInstanceCap, CorArgOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
   CORARGS_END
 };

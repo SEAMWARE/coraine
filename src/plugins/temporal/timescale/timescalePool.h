@@ -56,6 +56,7 @@ typedef struct TimescalePool
   sem_t           poolSem;         // binary: guards connV slot selection
   int             items;           // pool size (--troePoolSize)
   TimescaleConn*  connV;           // allocated array[items]
+  void*           writerP;         // the TRoE writers (timescaleWriter.c), NULL for --troeWriters 0
 } TimescalePool;
 
 
@@ -63,6 +64,14 @@ typedef struct TimescalePool
 // -----------------------------------------------------------------------------
 //
 // timescaleDbNameFor - physical database name for a tenant into buf.
+//
+extern PGconn*        timescaleConnect(const char* dbName);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleDbNameFor - see timescalePool.c
 //
 extern void           timescaleDbNameFor(Tenant* tenantP, char* buf, int bufSize);
 

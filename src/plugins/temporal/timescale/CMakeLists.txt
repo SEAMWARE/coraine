@@ -7,6 +7,8 @@ SET(TIMESCALE_SOURCES
   timescalePool.c
   timescaleInit.c
   timescaleMigrate.c
+  timescaleUnit.c
+  timescaleWriter.c
   timescaleEvent.c
   timescaleQuery.c
   timescaleHistoryWrite.c

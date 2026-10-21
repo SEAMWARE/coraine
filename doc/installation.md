@@ -307,6 +307,33 @@ at runtime: choose it knowing that.
   `--troe ramDB` - a ring of the latest TRoE events in RAM, a dev/test tool today.
 - Everything else - queries, subscriptions, registrations, tenants, geo-queries - is corDB's.
 
+### TimescaleDB history (`--troe timescale`)
+
+The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`, `corh_<tenant>`).
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `--troeHost` / `--troePort` | `localhost` / 5432 | the PostgreSQL server |
+| `--troeUser` / `--troePwd` | `postgres` / none | its user and password (`--troePwd` is a secret: `GET /admin/config` shows `***`) |
+| `--troeName` | `corh` | the database of the default tenant, and the prefix of the others |
+| `--troePoolSize` | 10 | connections per tenant for the temporal reads and the Temporal API's writes |
+| `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
+| `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
+
+**The writers.** A request renders the history rows of its writes and queues them for its tenant's
+writers; a writer takes everything queued - up to 512 requests, 4 MiB - and writes it in one
+transaction, one `INSERT` per table. Requests that arrive while it writes are the next one's. The
+queue holds at most 8 MiB; past that a request waits for room.
+
+- Without `--troeSync` (the default) a request queues its rows after its response. With
+  `--troeSync` it queues them before, and the response waits for the commit of the transaction its
+  rows went into.
+- A temporal read, and a write of the Temporal API, of a tenant waits for every row queued before it
+  to be written.
+- A stop (SIGTERM, SIGINT) writes what is queued before the broker exits. `kill -9`, a crash or an
+  OOM kill loses it: up to 8 MiB of history rows that the current state has, and, without
+  `--troeSync`, rows of requests already answered.
+
 ### Environment variables
 
 **Every** command-line option can also be given as an environment variable, named

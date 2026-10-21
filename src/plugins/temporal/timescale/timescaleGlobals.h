@@ -30,6 +30,7 @@ extern char*             timescaleDbUser;
 extern char*             timescaleDbPwd;
 extern int               timescaleDbPort;
 extern int               timescalePoolSize;
+extern int               timescaleWriters;
 extern int               timescaleInstanceCap;
 
 extern CorArg            timescaleArgV[];

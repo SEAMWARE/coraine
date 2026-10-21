@@ -407,6 +407,13 @@ static void shutdownInOrder(void)
   authClose();        // after the transports: closing them deletes subscriptions, through requests the plugin lets in
 #endif
 
+  //
+  // The TRoE plugin after everything that records history - the requests, the transports, the
+  // bridges, the periodic loop - and before the exit: a plugin may still hold writes it took
+  // (--troe timescale queues them for its writers), and its close is what sends them.
+  //
+  troeStop();
+
   // Graceful stop: free DB-plugin resources before exit so an in-memory store
   // (corDB) is released rather than leaked — exit(0) then lets valgrind (--vt)
   // and any leak gate see a clean shutdown.
