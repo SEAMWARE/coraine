@@ -122,7 +122,7 @@ echo
 
 echo "07. The entities - pressure 310, mode auto, unit1 and running as the model made them, level 2"
 echo "============================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Press,HydraulicUnit,Tank&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Press,HydraulicUnit,Tank&options=keyValues&orderBy=id'
 echo
 echo
 
