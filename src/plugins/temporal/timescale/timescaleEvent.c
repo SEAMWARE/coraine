@@ -9,12 +9,15 @@
 // Write path for the timescale TRoE plugin. Walks the attrSnapshot to
 // extract typed values into the v_text / v_number / v_bool / v_compound
 // columns and the sub_attrs JSONB. Each entry point acquires a connection
-// from the tenant's pool (thread-local timescaleConn).
+// from the tenant's pool (thread-local timescaleConn). The rows of an event
+// list go to the database as one multi-row INSERT per table (TsRows).
 //
 
+#include <stdarg.h>                                       // va_list
+#include <stdbool.h>                                      // bool
 #include <stddef.h>                                       // NULL
 #include <stdio.h>                                        // snprintf
-#include <stdlib.h>                                       // free
+#include <stdlib.h>                                       // free, realloc
 #include <string.h>                                       // strcmp
 #include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
@@ -76,6 +79,187 @@ void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
 {
   double secs = (double) ns / 1e9;
   snprintf(buf, bufSize, "to_timestamp(%.6f)", secs);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// TsRows - the rows of ONE multi-row INSERT, collected over an event list
+//
+// A statement per row made a batch create of 20 Entities 120 INSERTs, each parsed, planned, routed to
+// its chunk and executed on its own, and a round trip each. The rows of an event list go in one
+// statement per table instead, sent when the list is done - or before, at 1000 rows, far below the
+// 65535 parameters of a statement. sql and paramV are malloc'd; the parameter strings live in
+// corRest.kalloc, as before.
+//
+typedef struct TsRows
+{
+  const char*     table;      // for the error message
+  const char*     head;       // "INSERT INTO ... VALUES "
+  const char*     tail;       // after the last row: "" or an ON CONFLICT clause
+  struct TsRows*  firstP;     // sent before this one - troe_attrs' type fallback reads troe_entities
+  char*           sql;
+  int             sqlLen;
+  int             sqlSize;
+  const char**    paramV;
+  int             paramN;
+  int             paramSize;
+  int             rows;
+} TsRows;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsInit -
+//
+static void tsRowsInit(TsRows* rP, const char* table, const char* head, const char* tail, TsRows* firstP)
+{
+  memset(rP, 0, sizeof(*rP));
+  rP->table  = table;
+  rP->head   = head;
+  rP->tail   = tail;
+  rP->firstP = firstP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsRelease -
+//
+static void tsRowsRelease(TsRows* rP)
+{
+  free(rP->sql);
+  free(rP->paramV);
+  rP->sql    = NULL;
+  rP->paramV = NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsText - append to the statement text, growing it as needed
+//
+static bool tsRowsText(TsRows* rP, const char* fmt, ...)
+{
+  while (true)
+  {
+    int     avail = rP->sqlSize - rP->sqlLen;
+    va_list ap;
+
+    va_start(ap, fmt);
+    int n = (avail > 0) ? vsnprintf(&rP->sql[rP->sqlLen], avail, fmt, ap) : vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+
+    if (n < 0)
+      return false;
+
+    if (n < avail)
+    {
+      rP->sqlLen += n;
+      return true;
+    }
+
+    int   size = rP->sqlSize * 2 + n + 1024;
+    char* sql  = (char*) realloc(rP->sql, size);
+
+    if (sql == NULL)
+      return false;
+
+    rP->sql     = sql;
+    rP->sqlSize = size;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsParam - bind one more parameter (room reserved by tsRowsRowBegin), returns its number: $n
+//
+static int tsRowsParam(TsRows* rP, const char* value)
+{
+  rP->paramV[rP->paramN] = value;
+  return ++rP->paramN;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsFlush - send the rows collected so far as one INSERT, the rows of firstP before them
+//
+static int tsRowsFlush(TsRows* rP)
+{
+  if ((rP->firstP != NULL) && (tsRowsFlush(rP->firstP) != TROE_OK))
+    return TROE_ERR;
+
+  if (rP->rows == 0)
+    return TROE_OK;
+
+  int rc = TROE_OK;
+
+  if (tsRowsText(rP, "%s", rP->tail) == false)
+  {
+    COR_E("timescale: %s INSERT: out of memory", rP->table);
+    rc = TROE_ERR;
+  }
+  else
+  {
+    PGresult* res = PQexecParams(timescaleConn, rP->sql, rP->paramN, NULL, rP->paramV, NULL, NULL, 0);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+      COR_E("timescale: %s INSERT failed: %s", rP->table, PQerrorMessage(timescaleConn));
+      rc = TROE_ERR;
+    }
+    PQclear(res);
+  }
+
+  rP->sqlLen = 0;
+  rP->paramN = 0;
+  rP->rows   = 0;
+
+  return rc;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsRowsRowBegin - start a row of paramN parameters: the statement head or a comma, room for the params
+//
+static int tsRowsRowBegin(TsRows* rP, int paramN)
+{
+  if ((rP->rows >= 1000) && (tsRowsFlush(rP) != TROE_OK))
+    return TROE_ERR;
+
+  if (rP->paramN + paramN > rP->paramSize)
+  {
+    int          size   = rP->paramSize * 2 + paramN + 64;
+    const char** paramV = (const char**) realloc(rP->paramV, size * sizeof(const char*));
+
+    if (paramV == NULL)
+    {
+      COR_E("timescale: %s INSERT: out of memory", rP->table);
+      return TROE_ERR;
+    }
+
+    rP->paramV    = paramV;
+    rP->paramSize = size;
+  }
+
+  if (tsRowsText(rP, "%s", (rP->rows == 0) ? rP->head : ",") == false)
+  {
+    COR_E("timescale: %s INSERT: out of memory", rP->table);
+    return TROE_ERR;
+  }
+
+  ++rP->rows;
+  return TROE_OK;
 }
 
 
@@ -379,48 +563,68 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 
 // -----------------------------------------------------------------------------
 //
-// timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
-// Operates on the thread-local timescaleConn (set by the entry point).
+// entityRowAdd - one row of troe_entities, into the statement rowsP collects
 //
-int timescaleExecEntityInsertLocked(const TroeEvent* evP)
+static int entityRowAdd(TsRows* rowsP, const TroeEvent* evP)
 {
   char tsExpr[64];
   timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
 
   char typeLit[1024];
 
-  const char* paramV[3];
-  paramV[0] = evP->entityId != NULL ? evP->entityId : "";
-  paramV[1] = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
-  paramV[2] = opName(evP->op);
-
-  char sql[512];
-  snprintf(sql, sizeof(sql),
-           "INSERT INTO troe_entities (entity_id, entity_type, modified_at, op) "
-           "VALUES ($1, $2::text[], %s, $3) "
-           "ON CONFLICT (entity_id, modified_at, op) DO NOTHING",
-           tsExpr);
-
-  PGresult* res = PQexecParams(timescaleConn, sql, 3, NULL, paramV, NULL, NULL, 0);
-  ExecStatusType st = PQresultStatus(res);
-  if (st != PGRES_COMMAND_OK)
-  {
-    COR_E("timescale: troe_entities INSERT failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(res);
+  if (tsRowsRowBegin(rowsP, 3) != TROE_OK)
     return TROE_ERR;
-  }
-  PQclear(res);
-  return TROE_OK;
+
+  int idN   = tsRowsParam(rowsP, evP->entityId != NULL ? evP->entityId : "");
+  int typeN = tsRowsParam(rowsP, corAllocStrdup(&corRest.kalloc, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit))));
+  int opN   = tsRowsParam(rowsP, opName(evP->op));
+
+  return (tsRowsText(rowsP, "($%d, $%d::text[], %s, $%d)", idN, typeN, tsExpr, opN) == true) ? TROE_OK : TROE_ERR;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// timescaleExecAttrInsertLocked - INSERT one row into troe_attrs.
+// entityRowsInit -
+//
+static void entityRowsInit(TsRows* rowsP)
+{
+  tsRowsInit(rowsP, "troe_entities",
+             "INSERT INTO troe_entities (entity_id, entity_type, modified_at, op) VALUES ",
+             " ON CONFLICT (entity_id, modified_at, op) DO NOTHING",
+             NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
 // Operates on the thread-local timescaleConn (set by the entry point).
 //
-int timescaleExecAttrInsertLocked(const TroeEvent* evP)
+int timescaleExecEntityInsertLocked(const TroeEvent* evP)
+{
+  TsRows rows;
+
+  entityRowsInit(&rows);
+
+  int rc = entityRowAdd(&rows, evP);
+
+  if (rc == TROE_OK)
+    rc = tsRowsFlush(&rows);
+
+  tsRowsRelease(&rows);
+  return rc;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// attrRowAdd - one row of troe_attrs per instance, into the statement rowsP collects
+//
+static int attrRowAdd(TsRows* rowsP, const TroeEvent* evP)
 {
   AttrCols cols;
 
@@ -450,7 +654,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
       oneEv.attrSnapshot    = &one;
       oneEv.datasetId       = ((instP->name != NULL) && (strcmp(instP->name, "@none") != 0)) ? instP->name : "";
 
-      int r = timescaleExecAttrInsertLocked(&oneEv);
+      int r = attrRowAdd(rowsP, &oneEv);
       if (r != TROE_OK)
         return r;
     }
@@ -497,66 +701,94 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   char createdExpr[64];
   timescaleNsToSqlTimestamp((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdExpr, sizeof(createdExpr));
 
-  bool        ownInstanceId = ((evP->instanceId != NULL) && (evP->instanceId[0] != 0));
-  const char* idColumn      = (ownInstanceId == true) ? "instance_id, " : "";
-  const char* idParam       = (ownInstanceId == true) ? "$14, "         : "";
+  bool ownInstanceId = ((evP->instanceId != NULL) && (evP->instanceId[0] != 0));
+  char kindBuf[16];
+  char typeLit[1024];
 
-  // Bind params:
-  //   $1 entity_id, $2 entity_type, $3 attr_name, $4 dataset_id, $5 op,
-  //   $6 attr_kind, $7 observed_at iso, $8 v_text, $9 v_number, $10 v_bool,
-  //   $11 v_datetime, $12 v_compound, $13 sub_attrs, [$14 instance_id]
-  const char* paramV[14];
-  char        kindBuf[16];
-  char        typeLit[1024];
   snprintf(kindBuf, sizeof(kindBuf), "%d", cols.kind);
 
-  paramV[0]  = evP->entityId != NULL ? evP->entityId : "";
-  paramV[1]  = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
-  paramV[2]  = evP->attrName   != NULL ? evP->attrName   : "";
-  paramV[3]  = (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId;
-  paramV[4]  = opName(evP->op);
-  paramV[5]  = kindBuf;
-  paramV[6]  = cols.observedAtIso;
-  paramV[7]  = cols.v_text;
-  paramV[8]  = cols.v_number;
-  paramV[9]  = cols.v_bool;
-  paramV[10] = cols.v_datetime;
-  paramV[11] = cols.v_compound;
-  paramV[12] = cols.sub_attrs;
-  paramV[13] = evP->instanceId;
+  if (tsRowsRowBegin(rowsP, 14) != TROE_OK)
+    return TROE_ERR;
+
+  //
+  // Parameters as before: entity_id, entity_type, attr_name, dataset_id, op, attr_kind, observed_at iso,
+  // v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs - and an instance_id of its own for an
+  // imported instance, DEFAULT otherwise (so both kinds of row share one statement). The stack buffers
+  // are copied: the row is sent later.
+  //
+  int idN   = tsRowsParam(rowsP, evP->entityId != NULL ? evP->entityId : "");
+  int typeN = tsRowsParam(rowsP, corAllocStrdup(&corRest.kalloc, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit))));
+  int nameN = tsRowsParam(rowsP, evP->attrName != NULL ? evP->attrName : "");
+  int dsN   = tsRowsParam(rowsP, (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId);
+  int opN   = tsRowsParam(rowsP, opName(evP->op));
+  int kindN = tsRowsParam(rowsP, corAllocStrdup(&corRest.kalloc, kindBuf));
+  int obsN  = tsRowsParam(rowsP, cols.observedAtIso);
+  int txtN  = tsRowsParam(rowsP, cols.v_text);
+  int numN  = tsRowsParam(rowsP, cols.v_number);
+  int boolN = tsRowsParam(rowsP, cols.v_bool);
+  int dtN   = tsRowsParam(rowsP, cols.v_datetime);
+  int cmpN  = tsRowsParam(rowsP, cols.v_compound);
+  int subN  = tsRowsParam(rowsP, cols.sub_attrs);
+  char instExpr[16] = "DEFAULT";
+
+  if (ownInstanceId == true)
+    snprintf(instExpr, sizeof(instExpr), "$%d", tsRowsParam(rowsP, evP->instanceId));
 
   // No ON CONFLICT — instance_id (PK) is auto-generated by the
   // table's DEFAULT, so each row is unique by construction (an imported
   // instance brings its own, unique in the store it came from).
   // created_at and modified_at are seeded to the same instant on insert;
   // Modify-Instance later bumps modified_at while leaving created_at fixed.
-  char sql[2048];
-  snprintf(sql, sizeof(sql),
-           "INSERT INTO troe_attrs ("
-           "  %sentity_id, entity_type, attr_name, dataset_id, created_at, modified_at, op, attr_kind, "
-           "  observed_at, v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs) "
-           // An attribute event carries no entity snapshot, so $2 can come out
-           // empty for a multi-type Entity; fall back to the type list already
-           // recorded for this Entity rather than storing nothing.
-           "VALUES (%s$1, COALESCE(NULLIF($2::text[], '{}'),"
-           "                     (SELECT entity_type FROM troe_entities"
-           "                       WHERE entity_id = $1"
-           "                       ORDER BY modified_at DESC LIMIT 1),"
-           "                     '{}'::text[]), $3, $4, %s, %s, $5, $6::smallint, "
-           "        $7::timestamptz, $8, $9::double precision, $10::boolean, $11::timestamptz, "
-           "        $12::jsonb, $13::jsonb)",
-           idColumn, idParam, createdExpr, tsExpr);
+  bool ok = tsRowsText(rowsP,
+                       // An attribute event carries no entity snapshot, so the type can come out
+                       // empty for a multi-type Entity; fall back to the type list already
+                       // recorded for this Entity rather than storing nothing.
+                       "(%s, $%d, COALESCE(NULLIF($%d::text[], '{}'),"
+                       " (SELECT entity_type FROM troe_entities WHERE entity_id = $%d ORDER BY modified_at DESC LIMIT 1),"
+                       " '{}'::text[]), $%d, $%d, %s, %s, $%d, $%d::smallint,"
+                       " $%d::timestamptz, $%d, $%d::double precision, $%d::boolean, $%d::timestamptz,"
+                       " $%d::jsonb, $%d::jsonb)",
+                       instExpr, idN, typeN, idN, nameN, dsN, createdExpr, tsExpr, opN, kindN,
+                       obsN, txtN, numN, boolN, dtN, cmpN, subN);
 
-  PGresult* res = PQexecParams(timescaleConn, sql, (ownInstanceId == true) ? 14 : 13, NULL, paramV, NULL, NULL, 0);
-  ExecStatusType st = PQresultStatus(res);
-  if (st != PGRES_COMMAND_OK)
-  {
-    COR_E("timescale: troe_attrs INSERT failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(res);
-    return TROE_ERR;
-  }
-  PQclear(res);
-  return TROE_OK;
+  return (ok == true) ? TROE_OK : TROE_ERR;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// attrRowsInit - troe_attrs' statement, sent after the troe_entities rows of entityRowsP
+//
+static void attrRowsInit(TsRows* rowsP, TsRows* entityRowsP)
+{
+  tsRowsInit(rowsP, "troe_attrs",
+             "INSERT INTO troe_attrs (instance_id, entity_id, entity_type, attr_name, dataset_id, created_at, modified_at,"
+             " op, attr_kind, observed_at, v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs) VALUES ",
+             "",
+             entityRowsP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleExecAttrInsertLocked - INSERT the row(s) of one attribute event into troe_attrs.
+// Operates on the thread-local timescaleConn (set by the entry point).
+//
+int timescaleExecAttrInsertLocked(const TroeEvent* evP)
+{
+  TsRows rows;
+
+  attrRowsInit(&rows, NULL);
+
+  int rc = attrRowAdd(&rows, evP);
+
+  if (rc == TROE_OK)
+    rc = tsRowsFlush(&rows);
+
+  tsRowsRelease(&rows);
+  return rc;
 }
 
 
@@ -572,7 +804,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 // initial state too. A Replace is not expanded here - it defers its own
 // per-Attribute events.
 //
-static int fanOutAttrsFromEntity(const TroeEvent* evP)
+static int fanOutAttrsFromEntity(TsRows* attrRowsP, const TroeEvent* evP)
 {
   if (evP->entitySnapshot == NULL) return TROE_OK;
 
@@ -600,7 +832,7 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
     attrEv.attrSnapshot   = attrP;
     attrEv.entitySnapshot = evP->entitySnapshot;
 
-    int r = timescaleExecAttrInsertLocked(&attrEv);
+    int r = attrRowAdd(attrRowsP, &attrEv);
     if (r != TROE_OK) return r;
   }
   return TROE_OK;
@@ -635,17 +867,23 @@ int timescaleEventList(const TroeEvent* listHead, int count)
   }
   PQclear(beginR);
 
+  TsRows entityRows;
+  TsRows attrRows;
+
+  entityRowsInit(&entityRows);
+  attrRowsInit(&attrRows, &entityRows);
+
   int rc = TROE_OK;
   for (const TroeEvent* evP = listHead; evP != NULL; evP = evP->next)
   {
     int r;
     if (evP->op >= TroeOpAttrCreated)
     {
-      r = timescaleExecAttrInsertLocked(evP);
+      r = attrRowAdd(&attrRows, evP);
     }
     else
     {
-      r = timescaleExecEntityInsertLocked(evP);
+      r = entityRowAdd(&entityRows, evP);
 
       // Entity-level create / replace fan out into per-attr rows so
       // the initial state is queryable on the temporal-attrs side.
@@ -655,11 +893,18 @@ int timescaleEventList(const TroeEvent* listHead, int count)
       // event too wrote every one of its rows TWICE.
       //
       if (r == TROE_OK && evP->op == TroeOpEntityCreated)
-        r = fanOutAttrsFromEntity(evP);
+        r = fanOutAttrsFromEntity(&attrRows, evP);
     }
 
     if (r != TROE_OK) { rc = r; break; }
   }
+
+  // The troe_entities rows, then the troe_attrs rows - one statement each
+  if (rc == TROE_OK)
+    rc = tsRowsFlush(&attrRows);
+
+  tsRowsRelease(&attrRows);
+  tsRowsRelease(&entityRows);
 
   if (rc == TROE_OK)
   {
