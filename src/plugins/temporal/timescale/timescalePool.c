@@ -164,9 +164,18 @@ static void noticeToLog(void* arg, const char* message)
 PGconn* timescaleConnect(const char* dbName)
 {
   char cs[1024];
+  char csFull[1200];
+
   connStr(dbName, cs, sizeof(cs));
 
-  PGconn* conn = PQconnectdb(cs);
+  //
+  // A database that is gone must not hold a writer (or a request) for the minutes TCP takes to give
+  // up: a connect is given 5 s, an unanswered send 30 s, and an idle connection is probed after 10 s
+  // (3 probes, 5 s apart) - a slow statement is not cut short, the server answers the probes
+  //
+  snprintf(csFull, sizeof(csFull), "%s connect_timeout=5 keepalives=1 keepalives_idle=10 keepalives_interval=5 keepalives_count=3 tcp_user_timeout=30000", cs);
+
+  PGconn* conn = PQconnectdb(csFull);
   if (PQstatus(conn) != CONNECTION_OK)
   {
     COR_E("timescale: connection to db '%s' failed: %s", dbName, PQerrorMessage(conn));
@@ -197,11 +206,14 @@ PGconn* timescaleConnect(const char* dbName)
 // "already exists" (SQLSTATE 42P04) is success — the database is shared across
 // brokers and may have been created by another one (or a previous boot).
 //
-static int ensureDatabase(const char* dbName)
+static int ensureDatabase(const char* dbName, bool* unreachableP)
 {
   PGconn* admin = timescaleConnect("postgres");
   if (admin == NULL)
+  {
+    *unreachableP = true;
     return TROE_ERR;
+  }
 
   char sql[256];
   snprintf(sql, sizeof(sql), "CREATE DATABASE \"%s\"", dbName);
@@ -232,6 +244,21 @@ static int ensureDatabase(const char* dbName)
 //
 int timescalePoolEnsure(Tenant* tenantP)
 {
+  bool unreachable;
+
+  return timescalePoolEnsureReach(tenantP, &unreachable);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescalePoolEnsureReach -
+//
+int timescalePoolEnsureReach(Tenant* tenantP, bool* unreachableP)
+{
+  *unreachableP = false;
+
   if (tenantP == NULL)
     tenantP = &tenant0;
 
@@ -255,7 +282,7 @@ int timescalePoolEnsure(Tenant* tenantP)
   timescaleDbNameFor(tenantP, dbName, sizeof(dbName));
 
   // 1. Make sure the database exists.
-  if (ensureDatabase(dbName) != TROE_OK)
+  if (ensureDatabase(dbName, unreachableP) != TROE_OK)
   {
     pthread_mutex_unlock(&poolCreateMutex);
     return TROE_ERR;
@@ -265,12 +292,14 @@ int timescalePoolEnsure(Tenant* tenantP)
   PGconn* migConn = timescaleConnect(dbName);
   if (migConn == NULL)
   {
+    *unreachableP = true;
     pthread_mutex_unlock(&poolCreateMutex);
     return TROE_ERR;
   }
 
   if (timescaleMigrate(migConn) != 0)
   {
+    *unreachableP = (PQstatus(migConn) != CONNECTION_OK);   // the connection lost - not the schema
     COR_E("timescale: schema migration failed for db '%s'", dbName);
     PQfinish(migConn);
     pthread_mutex_unlock(&poolCreateMutex);

@@ -88,6 +88,16 @@ extern int            timescalePoolEnsure(Tenant* tenantP);
 
 // -----------------------------------------------------------------------------
 //
+// timescalePoolEnsureReach - timescalePoolEnsure, and on a failure *unreachableP: the database could
+// not be reached (no connection, the server starting up, the connection lost) - a try later may go
+// in; false: it was reached and refused (a schema this build does not know, permissions)
+//
+extern int            timescalePoolEnsureReach(Tenant* tenantP, bool* unreachableP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleConnGet - acquire a busy connection for the tenant (ensures the
 // pool first). Bounded wait; returns NULL on timeout / connection error.
 //

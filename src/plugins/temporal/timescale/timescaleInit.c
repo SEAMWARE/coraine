@@ -7,9 +7,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <stdbool.h>                                      // bool
 #include <stddef.h>                                       // NULL
+#include <unistd.h>                                       // sleep
 
-#include "corLog/corLog.h"                                // COR_E, COR_I
+#include "corLog/corLog.h"                                // COR_E, COR_W, COR_I
 #include "corArgs/corArgsSecret.h"                // corArgsSecret
 
 #include "db/Tenant.h"                                    // tenant0
@@ -17,7 +19,7 @@
 #include "troe/TroeDriver.h"                              // TROE_OK, TROE_ERR
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*
-#include "temporal/timescale/timescalePool.h"             // timescalePoolEnsure, timescalePoolCloseAll
+#include "temporal/timescale/timescalePool.h"             // timescalePoolEnsureReach, timescalePoolCloseAll
 #include "temporal/timescale/timescaleMigrate.h"          // timescaleIndexesParse
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
@@ -40,10 +42,32 @@ int timescaleInit(void)
   if (timescaleIndexesParse(timescaleIndexes) != 0)
     return TROE_ERR;
 
-  if (timescalePoolEnsure(&tenant0) != TROE_OK)
+  //
+  // A database that is not there yet - started together with the broker, restarting - is waited for,
+  // as mongoc waits for its server (--dbTimeout): a try a second, for --troeConnectTimeout seconds.
+  // One that is there and refuses (a schema version this build does not know) is not: a try later
+  // finds it the same.
+  //
+  bool unreachable;
+
+  for (int tryNo = 0; timescalePoolEnsureReach(&tenant0, &unreachable) != TROE_OK; tryNo++)
   {
-    COR_E("timescale: failed to initialise the default-tenant database");
-    return TROE_ERR;
+    if (unreachable == false)
+    {
+      COR_E("timescale: failed to initialise the default-tenant database");
+      return TROE_ERR;
+    }
+
+    if (tryNo >= timescaleConnectTimeout)
+    {
+      COR_E("timescale: failed to initialise the default-tenant database (%d s, --troeConnectTimeout)", timescaleConnectTimeout);
+      return TROE_ERR;
+    }
+
+    if (tryNo == 0)
+      COR_W("timescale: the history database cannot be reached - trying again once a second, for %d s (--troeConnectTimeout)", timescaleConnectTimeout);
+
+    sleep(1);
   }
 
   COR_I("timescale: ready (%s:%d, base db '%s', pool size %d)",

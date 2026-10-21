@@ -30,6 +30,8 @@ char*            timescaleDbPwd       = NULL;
 int              timescaleDbPort      = 5432;
 int              timescalePoolSize    = 10;     // per-tenant connection pool size (--troePoolSize)
 int              timescaleWriters     = 8;      // per-tenant TRoE writer threads (--troeWriters)
+int              timescaleConnectTimeout = 30;  // --troeConnectTimeout: seconds a start waits for the database
+int              timescaleDownExit    = 0;      // --troeDownExit: seconds the history database may be unreachable - 0: no exit
 char*            timescaleIndexes     = NULL;   // the optional indexes (--troeIndexes) - timescaleMigrate.c
 int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-instance cap
                                                   //
@@ -63,6 +65,8 @@ CorArg timescaleArgV[] =
   { "--troePort", "-troePort", CorArgInt,    _vp &timescaleDbPort, CorArgOpt, _vp 5432,    _vp 1, _vp 65535, "TRoE postgres port" },
   { "--troePoolSize", "-troePoolSize", CorArgInt, _vp &timescalePoolSize, CorArgOpt, _vp 10,   _vp 1, _vp 256, "TRoE per-tenant postgres connection-pool size" },
   { "--troeWriters", "-troeWriters", CorArgInt, _vp &timescaleWriters, CorArgOpt, _vp 8,   _vp 0, _vp 64, "TRoE per-tenant writer threads - they record the TRoE writes of concurrent requests in shared transactions, each on a connection of its own; 0: every request records its own" },
+  { "--troeConnectTimeout", "-troeConnectTimeout", CorArgInt, _vp &timescaleConnectTimeout, CorArgOpt, _vp 30, _vp 0, _vp 3600, "Seconds a start waits for the TRoE database, trying once a second; 0: one try" },
+  { "--troeDownExit", "-troeDownExit", CorArgInt, _vp &timescaleDownExit, CorArgOpt, _vp 0, _vp 0, _vp 86400, "Exit (code 1) once the TRoE database has been unreachable this many seconds, or at the first row of history that would be lost; 0: keep serving the current state and its subscriptions, the history held in memory (up to 8 MiB) and retried, past that lost" },
   { "--troeIndexes", "-troeIndexes", CorArgString, _vp &timescaleIndexes, CorArgOpt, _vp "none", NULL, NULL, "TRoE indexes beyond the basic ones, a comma list: attrObserved (attr_name, observed_at), geo (GiST on GeoProperty values), time (modified_at); none: none of them. Each costs every write" },
   { "--troeInstanceCap", "-troeCap", CorArgInt, _vp &timescaleInstanceCap, CorArgOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
   CORARGS_END
