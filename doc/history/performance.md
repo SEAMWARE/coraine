@@ -4,6 +4,20 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-21 - size on disk measured again; the smallest broker
+
+The size tables were from 2026-10-01. Measured again on main `f4f4a92a`, the same way (stripped, against a
+bare `ubuntu:26.04`), with `coraine-build --release --bridges none`:
+
+- `corHttp` + `corDB`: 4.28 → 4.83 MiB. coraine's own code 1.00 → 1.66 MiB: the executable ~0.95 →
+  1.46 MiB (Service Execution, the bridge layer's DataChannels and AssetChannels, auth, the transports,
+  SSE, the policy API - built since), `corDB.so` 39 → 189 KiB (the store on disk and its history).
+- The added libraries 3 → 2: libmosquitto is no longer counted - the tables are without bridges now.
+- libmicrohttpd's nine libraries 7.29 → 7.72 MiB (libmicrohttpd 1.0.10). `corHttp` is in both HTTP
+  server builds since the bridges' ports (#429), so the built-in server no longer adds 12 KiB.
+- New: the smallest broker - every switch off but `HEALTH`, `CHANNEL_STATUS_IN`, `CHANNEL_CHECKS` -
+  1.35 MiB and no library; its executable 20 % smaller than the default build's.
+
 ## 2026-10-10 - 0.5.0: the broker's own code profile-guided (#307)
 
 Until #307 (2026-10-09) `make pgo` and `make tune` profile-guided the libraries only: CMake's

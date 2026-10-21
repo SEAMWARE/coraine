@@ -368,7 +368,7 @@ as the last build, usually debug. Each needs an archive per flavour first (`doc/
 
 ### Embedded deployment
 
-The broker adds 4.3 MiB to a machine, holds 17 MiB resident and answers 12 ms after `exec`; constrained
+The broker adds 4.8 MiB to a machine (1.35 MiB with every switch off), holds 17 MiB resident and answers 12 ms after `exec`; constrained
 hardware is a build-configuration question, not a redesign - conditional compilation is what makes
 that true.
 

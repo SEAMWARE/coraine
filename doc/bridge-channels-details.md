@@ -200,7 +200,7 @@ troe, etc, etc and the IPC will be the cor binary protocol, once ready."*
 **Small site - one process.** The broker and the agents collapse into the same
 binary: no agent service, no agent database, no provisioning API of its own, no
 network hop to do work the broker is already doing. The footprint for that is
-measured, not hoped for - `corHttp` + `corDB` adds **4.28 MiB and three
+measured, not hoped for - `corHttp` + `corDB` adds **4.83 MiB and two
 libraries**, ~17 MiB idle RSS (see `performance.md`).
 
 **Edge - a conditionally compiled coraine.** Not a different program: the same
