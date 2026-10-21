@@ -284,6 +284,9 @@ a Channel's, a DataChannel's or an AssetChannel's, never two of them.
 - The plugin contract is `corBridge/BridgeDriver.h`: append-only, with an ABI
   version handshake; a feature compiled out of the broker is a NULL pointer,
   never a `#if` inside the struct.
+- A bridge is handed each channel with its type - Channel, DataChannel or
+  AssetChannel (`channelTypedAdd`, bridge ABI 15) - and may refuse a type it does
+  not carry: the channel is then `dormant`, with the bridge's reason.
 - Each bridge is its own repository (`corDdsBridge`, `corMqttBridge`,
   `corModbusBridge`); the `.so` installs as
   `/opt/seamware/plugins/bridge/<name>.so`.

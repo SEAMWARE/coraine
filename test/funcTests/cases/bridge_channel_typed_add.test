@@ -1,0 +1,103 @@
+#
+# FILE            bridge_channel_typed_add.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# channelTypedAdd (bridge ABI 15): the broker hands each channel to its bridge WITH its type - Channel,
+# DataChannel or AssetChannel - so a bridge can refuse a type it does not carry, as an IoT Agent bridge
+# carries DataChannels only. The loopback's "refuseTypes" makes it refuse Channels; its DataChannel on the
+# same bridge is carried.
+#
+#   01  GET /channels/{id}: the Channel is dormant, the bridge's reason
+#   02  GET /dataChannels/{id}: the DataChannel is available
+#   03  its record was written
+#
+# REQUIRE_FEATURE: DATA_CHANNELS CHANNEL_STATUS_IN
+#
+--NAME--
+Bridges: channelTypedAdd - a bridge refuses a channel type it does not carry, and carries the others
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF2
+{
+  "loopback": {
+    "refuseTypes": { "Channel": "this bridge carries DataChannels only" },
+    "emitAtStart": { "D1": { "@deviceId": "th1", "t": 21 } },
+    "ngsild": {
+      "defaultEntity": false,
+      "topics": { "P1": { "entityId": "urn:ngsi-ld:Machine:1", "entityType": "Machine", "attribute": "temperature" } },
+      "dataChannels": {
+        "D1": { "entities": [ { "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{@deviceId}",
+                                "attributes": { "temperature": { "column": "t" } } } ] }
+      }
+    }
+  }
+}
+EOF2
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. The Channel P1 - dormant, the bridge's reason"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/channels/urn:ngsi-ld:Channel:loopback:P1 | grep -E '"status"|"statusReason"'
+echo
+echo
+
+
+echo "02. The DataChannel D1 - available"
+echo "=================================="
+corCurl --url /ngsi-ld/v1/dataChannels/urn:ngsi-ld:DataChannel:loopback:D1 | grep -E '"status"|"statusReason"'
+echo
+echo
+
+
+echo "03. Its record was written"
+echo "=========================="
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th1 temperature
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Thermometer:th1?options=keyValues'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The Channel P1 - dormant, the bridge's reason
+=================================================
+  "status": "dormant",
+  "statusReason": "this bridge carries DataChannels only",
+
+
+02. The DataChannel D1 - available
+==================================
+  "status": "available",
+
+
+03. Its record was written
+==========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 88
+
+{
+  "id": "urn:ngsi-ld:Thermometer:th1",
+  "temperature": 21,
+  "type": "Thermometer"
+}
+
+
+
