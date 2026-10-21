@@ -37,7 +37,7 @@
 #include "bridge/channelCache.h"                      // channelCreate, CHANNEL_*
 #if COR_FEATURE_DATA_CHANNELS
 #include "bridge/RecordMap.h"                         // RecordMap
-#include "bridge/recordMap.h"                         // recordMapParse, recordMapFree
+#include "bridge/recordMap.h"                         // recordMapParse, recordMapFree, recordOtherParse
 #include "bridge/dataChannelCache.h"                  // dataChannelCreate
 #endif
 #if COR_FEATURE_ASSET_CHANNELS
@@ -378,11 +378,11 @@ static int channelsLoad(const char*        alias,
 //
 //   "dataChannels": { "<endpoint>": { "entities": [ ... ], "idEncoding": "merge", "channelInfo": [ ... ] } }
 //
-// What "entities" and "idEncoding" say is RecordMap.h's. An entry that cannot be used is warned about and
-// skipped, as an incomplete topic is; an endpoint that is also a Channel's, or named twice, is fatal, as it
-// is for topics.
+// What "entities", "idEncoding" and "otherColumns" say is RecordMap.h's; an entry without "otherColumns"
+// takes the bridge's (otherColumnsDefault). An entry that cannot be used is warned about and skipped, as an
+// incomplete topic is; an endpoint that is also a Channel's, or named twice, is fatal, as it is for topics.
 //
-static int dataChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenantP, CorAlloc* kaP)
+static int dataChannelsLoad(const char* alias, CorNode* sectionP, RecordOther otherColumnsDefault, Tenant* tenantP, CorAlloc* kaP)
 {
   if (sectionP->type != CorObject)
   {
@@ -403,6 +403,9 @@ static int dataChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenant
       COR_W("bridge '%s': DataChannel '%s' - %s - skipped", alias, endpoint, (why != NULL) ? why : "?");
       continue;
     }
+
+    if (mapP->otherColumns == RecordOtherUnset)
+      mapP->otherColumns = (otherColumnsDefault != RecordOtherUnset) ? otherColumnsDefault : RecordOtherNone;
 
     bool  infoOk;
     char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
@@ -745,7 +748,17 @@ int channelConfigLoad(const char* path, bool explicitly, Tenant* tenantP)
 #if COR_FEATURE_DATA_CHANNELS
     if (dataChannelsP != NULL)
     {
-      int dataChannels = dataChannelsLoad(alias, dataChannelsP, tenantP, &kalloc);
+      //
+      // The bridge's "otherColumns" - the default for its DataChannels: an IoT Agent's file says "property"
+      // once, as iotagent-json keeps every key a device sends
+      //
+      const char* why          = NULL;
+      RecordOther otherColumns = recordOtherParse(corTreeLookup(ngsildP, "otherColumns"), &why);
+
+      if (why != NULL)
+        COR_W("bridge '%s': %s - ignored", alias, why);
+
+      int dataChannels = dataChannelsLoad(alias, dataChannelsP, otherColumns, tenantP, &kalloc);
 
       if (dataChannels > 0)
         COR_I("bridge '%s': %d DataChannel%s configured", alias, dataChannels, (dataChannels == 1) ? "" : "s");
