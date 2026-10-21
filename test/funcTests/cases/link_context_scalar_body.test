@@ -1,0 +1,225 @@
+#
+# FILE            link_context_scalar_body.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+A JSON scalar body with a Link header - 400, and the broker keeps running
+
+--TAGS--
+entity attribute subscription batch context
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# A body that is a JSON scalar - a string, a number, true - is no NGSI-LD payload. With a Link header the
+# @context it names was added to the body's root as a member, and a scalar has no members: the broker
+# crashed (SIGSEGV) on every such request, before it answered. The ETSI suite's 055_03_05 sends one.
+#
+# 01. Create an entity urn:E1 with an attribute speed
+# 02. POST /entities, body "x", Link header - 400
+# 03. PATCH /entities/urn:E1/attrs/speed, body "x", Link header - 400
+# 04. PUT /entities/urn:E1/attrs/speed, body 42, Link header - 400
+# 05. POST /entities/urn:E1/attrs, body true, Link header - 400
+# 06. POST /entityOperations/upsert, body "x", Link header - 400
+# 07. POST /subscriptions, body 42, Link header - 400
+# 08. GET /entities/urn:E1 - the broker still answers, speed unchanged
+#
+LINK='Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+echo "01. Create an entity urn:E1 with an attribute speed"
+echo "==================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "speed": { "type": "Property", "value": 1 }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. POST /entities, body \"x\", Link header - 400"
+echo "==============================================="
+corCurl --url /ngsi-ld/v1/entities --payload '"x"' -H "$LINK"
+echo
+echo
+
+
+echo "03. PATCH /entities/urn:E1/attrs/speed, body \"x\", Link header - 400"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/speed -X PATCH --payload '"x"' -H "$LINK"
+echo
+echo
+
+
+echo "04. PUT /entities/urn:E1/attrs/speed, body 42, Link header - 400"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/speed -X PUT --payload '42' -H "$LINK"
+echo
+echo
+
+
+echo "05. POST /entities/urn:E1/attrs, body true, Link header - 400"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload 'true' -H "$LINK"
+echo
+echo
+
+
+echo "06. POST /entityOperations/upsert, body \"x\", Link header - 400"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '"x"' -H "$LINK"
+echo
+echo
+
+
+echo "07. POST /subscriptions, body 42, Link header - 400"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '42' -H "$LINK"
+echo
+echo
+
+
+echo "08. GET /entities/urn:E1 - the broker still answers, speed unchanged"
+echo "===================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1
+echo
+echo
+
+
+--EXPECT--
+01. Create an entity urn:E1 with an attribute speed
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. POST /entities, body "x", Link header - 400
+===============================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "Entity payload must be a JSON object",
+  "status": 400,
+  "title": "Invalid Entity",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+03. PATCH /entities/urn:E1/attrs/speed, body "x", Link header - 400
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "attribute fragment must be a JSON object",
+  "status": 400,
+  "title": "Not a JSON Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. PUT /entities/urn:E1/attrs/speed, body 42, Link header - 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "detail": "attribute fragment must be a JSON object",
+  "status": 400,
+  "title": "Not a JSON Object",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. POST /entities/urn:E1/attrs, body true, Link header - 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "Entity payload must be a JSON object",
+  "status": 400,
+  "title": "Invalid Entity",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
+
+
+
+06. POST /entityOperations/upsert, body "x", Link header - 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "detail": "Batch Entity Upsert body must be a JSON array",
+  "status": 400,
+  "title": "Not a JSON Array",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST /subscriptions, body 42, Link header - 400
+===================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 177
+
+{
+  "detail": "Subscription payload must be a JSON object",
+  "status": 400,
+  "title": "Invalid Subscription",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET /entities/urn:E1 - the broker still answers, speed unchanged
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:E1",
+  "speed": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
