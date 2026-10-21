@@ -38,10 +38,10 @@ OPC UA Write, BACnet WriteProperty and LWM2M Write. A model or record source has
 so without write-back such a write either needs a Channel per attribute - defeating the mapping - or a
 service per writable attribute.
 
-**The design:** a DataChannel or AssetChannel may be outbound too, with a Channel's rule. Built for the
-DataChannel (`COR_FEATURE_CHANNEL_WRITE_BACK`, [DataChannels](bridge-channels.md#datachannels)): a
-`channelDirection` of its own, a `column` attribute only, `merge` refused with `both`; the AssetChannel's
-is not built.
+**The design:** a DataChannel or AssetChannel may be outbound too, with a Channel's rule. Built for both
+(`COR_FEATURE_CHANNEL_WRITE_BACK`): the DataChannel's ([DataChannels](bridge-channels.md#datachannels)) a
+`column` attribute only, `merge` refused with `both`; the AssetChannel's
+([asset-channels.md](asset-channels.md)) an attribute made from a node only.
 
 - **Opt-in, per channel**: `channelDirection` - `in` (the default, as today) or `both`. A member of the
   shared base ([asset-channels.md § 2](asset-channels.md#2-what-the-three-share)), so every channel type
@@ -63,7 +63,7 @@ is not built.
 - **An id read back** needs an id template that can be inverted: `idEncoding: percent`. `merge` is lossy
   (`South Boston` and `South_Boston` name one entity), so a DataChannel with `channelDirection: both`
   and `idEncoding: merge` is refused at start.
-- `COR_FEATURE_CHANNEL_WRITE_BACK`, sized before it becomes a declared switch.
+- `COR_FEATURE_CHANNEL_WRITE_BACK`: -25,048 bytes (release build).
 
 ## 3. DDS services and actions as Service Executions
 

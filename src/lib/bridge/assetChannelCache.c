@@ -90,6 +90,39 @@ AssetChannel* assetChannelFirst(void)
 
 
 
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+static int outCounter = 0;                            // AssetChannels with channelDirection both - set at start only
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelDirectionSet -
+//
+void assetChannelDirectionSet(AssetChannel* acP, BridgeDirection direction)
+{
+  if ((acP->direction != BridgeDirectionBoth) && (direction == BridgeDirectionBoth))
+    outCounter++;
+  else if ((acP->direction == BridgeDirectionBoth) && (direction != BridgeDirectionBoth))
+    outCounter--;
+
+  acP->direction = direction;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelOutCount -
+//
+int assetChannelOutCount(void)
+{
+  return outCounter;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // assetChannelCreate -
@@ -205,7 +238,7 @@ int assetChannelStatusSet(const char* bridgeName, const char* endpoint, ChannelS
 
 
 
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //
 // assetChannelMappedFree -
@@ -282,7 +315,7 @@ void assetChannelsRelease(void)
 
     assetMapFree(acP->mapP);
     free(acP->model);
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
     assetChannelMappedFree(acP->mappedV, acP->mapped);
 #endif
     pthread_mutex_destroy(&acP->modelMutex);

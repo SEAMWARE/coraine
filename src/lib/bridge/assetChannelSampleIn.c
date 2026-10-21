@@ -77,7 +77,7 @@ typedef struct AssetModel
   AssetEntity*  entityV;
   int           entities;
   int           entitiesMax;
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   CorNode*      curEntityP;                           // the entity being made: its attributes are recorded
   const char*   curEntityId;
   AssetMapped*  mappedV;                              // what the entities made have - in the request's arena, names compact
@@ -481,7 +481,7 @@ static CorNode* plainJson(CorNode* containerP, const char* name)
 
 
 
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //
 // mappedAdd - an attribute of the entity being made, and the node it comes from (NULL: none) - the first
@@ -680,7 +680,7 @@ static void childrenMap(AssetModel* modelP, CorNode* entityP, CorNode* nodeP, co
     if (isLeaf(childP) == true)
     {
       attrAdd(entityP, leafProperty(childP, name));
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
       if (entityP == modelP->curEntityP)              // an attribute of the entity, not a sub-attribute
         mappedAdd(modelP, name, str(childP, "id"));
 #endif
@@ -738,7 +738,7 @@ static CorNode* entityMake(AssetModel* modelP, AssetEntity* entP)
   corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "id",   entP->id));
   corTreeChildAdd(entityP, corTreeString(corRest.kallocP, "type", entP->type));
 
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   modelP->curEntityP  = entityP;
   modelP->curEntityId = entP->id;
 #endif
@@ -747,7 +747,7 @@ static CorNode* entityMake(AssetModel* modelP, AssetEntity* entP)
   childrenMap(modelP, entityP, entP->nodeP, NULL, modelP->mapP->layout);
   referencesMap(modelP, entityP, entP->nodeP);
 
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   //
   // Every other attribute - a container's, a Relationship, the semanticId: no one node it comes from
   //
@@ -915,7 +915,7 @@ static bool modelFind(AssetModel* modelP, AssetMap* mapP, CorNode* treeP)
   modelP->entities    = 0;
   modelP->entitiesMax = nodeCount(treeP);
   modelP->entityV     = (AssetEntity*) corAlloc(&corRest.kalloc, modelP->entitiesMax * sizeof(AssetEntity));
-#if COR_FEATURE_CHANNEL_CHECKS
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   modelP->curEntityP  = NULL;
   modelP->curEntityId = NULL;
   modelP->mappedV     = NULL;
@@ -957,8 +957,8 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
   if (written == 0)
     return BRIDGE_ERR;
 
-#if COR_FEATURE_CHANNEL_CHECKS
-  mappedKeep(acP, &model);                            // what a client's write is checked against - the model's names; values do not change them
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
+  mappedKeep(acP, &model);                            // what a client's write is checked against and written back to - the model's names; values do not change them
 #endif
 
   __atomic_add_fetch(&acP->modelsIn, 1, __ATOMIC_RELAXED);
@@ -1052,6 +1052,37 @@ static int valuesIn(AssetChannel* acP, CorNode* valuesP)
 
   return BRIDGE_OK;
 }
+
+
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodeValueSet -
+//
+void assetChannelNodeValueSet(AssetChannel* acP, const char* nodeId, CorNode* valueP)
+{
+  pthread_mutex_lock(&acP->modelMutex);
+
+  char*      text  = (acP->model != NULL) ? corAllocStrdup(&corRest.kalloc, acP->model) : NULL;
+  CorNode*   treeP = (text != NULL) ? corJsonParse(corRest.corJsonP, text) : NULL;
+  AssetModel model;
+
+  if ((treeP != NULL) && (modelFind(&model, acP->mapP, treeP) == true))
+  {
+    AssetEntity* inP   = NULL;
+    CorNode*     nodeP = nodeById(&model, treeP, nodeId, NULL, &inP);
+
+    if (nodeP != NULL)
+    {
+      memberSet(nodeP, "value", valueP);
+      modelKeep(acP, treeP);
+    }
+  }
+
+  pthread_mutex_unlock(&acP->modelMutex);
+}
+#endif
 
 
 

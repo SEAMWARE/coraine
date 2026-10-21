@@ -9,6 +9,8 @@
 //
 #include <stdint.h>                                   // int64_t
 
+#include "corTree/CorNode.h"                          // CorNode
+
 #include "bridge/AssetChannel.h"                      // AssetChannel
 
 
@@ -31,5 +33,17 @@
 //         values of no node), BRIDGE_ERR (nothing written - the reasons logged)
 //
 extern int assetChannelSampleIn(AssetChannel* acP, const char* json, int64_t publishTime);
+
+
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodeValueSet - a node's value in the AssetChannel's kept model: a client's write the bridge took.
+// Values coming in write their entities from the kept model - a model still holding the value from before the
+// write would write it back over the client's
+//
+extern void assetChannelNodeValueSet(AssetChannel* acP, const char* nodeId, CorNode* valueP);
+#endif
 
 #endif  // BRIDGE_ASSETCHANNEL_SAMPLE_IN_H_
