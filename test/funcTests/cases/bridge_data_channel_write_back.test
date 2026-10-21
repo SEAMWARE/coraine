@@ -1,0 +1,302 @@
+#
+# FILE            bridge_data_channel_write_back.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# DataChannel write-back (doc/bridge-service-execution.md § 2): "channelDirection": "both" - a client's
+# write to an attribute the DataChannel maps is published to the bridge first, as a record fragment: the
+# columns of the entity's id template, read back out of the id (percent-decoded), and the attribute's
+# column. Stored only when the bridge takes it.
+#
+# The loopback hands a published record back as the next one on the endpoint, so a write that went out
+# comes back in: recordsOut and recordsIn both count it, and the record lands on the same entity - the
+# columns read back right ('hall a', not 'hall%20a').
+#   L1  both, percent: urn:ngsi-ld:Lamp:{room}-{@deviceId}; 'on' from column 'state', a constant 'kind'
+#   L2  in (the default): a write to its entity is not published
+#   L3  both with idEncoding merge - skipped;  L4  both with "{a}{b}" - skipped
+#   L5  both, but the bridge refuses what is published to it (topicMode refuse): 400, nothing stored
+#
+# REQUIRE_FEATURE: CHANNEL_WRITE_BACK
+#
+--NAME--
+Bridges: DataChannel write-back - channelDirection both, the record fragment to the bridge first
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "L1": { "room": "hall a", "@deviceId": "l1", "state": false },
+      "L2": { "@deviceId": "s1", "t": 20 },
+      "L5": { "@deviceId": "r1", "state": 1 }
+    },
+    "topicMode": { "L5": "refuse" },
+    "ngsild": {
+      "defaultEntity": false,
+      "dataChannels": {
+        "L1": { "channelDirection": "both", "idEncoding": "percent",
+                "entities": [ { "type": "Lamp", "id": "urn:ngsi-ld:Lamp:{room}-{@deviceId}",
+                                "attributes": { "on": { "column": "state" }, "kind": { "value": "lamp" } } } ] },
+        "L2": { "entities": [ { "type": "Sensor", "id": "urn:ngsi-ld:Sensor:{@deviceId}", "attributes": { "t": { "column": "t" } } } ] },
+        "L3": { "channelDirection": "both",
+                "entities": [ { "type": "Lamp", "id": "urn:ngsi-ld:Lamp:{@deviceId}", "attributes": { "on": { "column": "state" } } } ] },
+        "L4": { "channelDirection": "both", "idEncoding": "percent",
+                "entities": [ { "type": "Lamp", "id": "urn:ngsi-ld:Lamp:{a}{b}", "attributes": { "on": { "column": "state" } } } ] },
+        "L5": { "channelDirection": "both", "idEncoding": "percent",
+                "entities": [ { "type": "Refuser", "id": "urn:ngsi-ld:Refuser:{@deviceId}", "attributes": { "on": { "column": "state" } } } ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+LAMP='urn:ngsi-ld:Lamp:hall%2520a-l1'                # the id has hall%20a: in a URL, its '%' is %25
+
+dc() {  # dc <endpoint> - its direction and counters
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/dataChannels" | python3 -c "
+import json, sys
+for d in json.load(sys.stdin):
+    if d['channelTarget'] == sys.argv[1]:
+        print(sys.argv[1], d.get('channelDirection', '-'), 'recordsIn', d['recordsIn'], 'recordsOut', d.get('recordsOut', '-'))" "$1"
+}
+awaitRecordsIn() {  # awaitRecordsIn <endpoint> <n>
+  local i
+  for i in $(seq 1 50); do dc "$1" | grep -q "recordsIn $2 " && return 0; sleep 0.1; done
+  echo "awaitRecordsIn: $1 never had $2"
+}
+
+corAwaitBody 10 "/ngsi-ld/v1/entities/$LAMP" '"on"'
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:s1 '"t"'
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Refuser:r1 '"on"'
+
+echo "01. The DataChannels - L3 and L4 skipped (merge; two placeholders side by side), L1 and L5 write back"
+echo "======================================================================================================"
+curl -s "localhost:$CB_PORT/ngsi-ld/v1/dataChannels" | grep -o '"channelTarget": *"[^"]*"'
+dc L1
+dc L2
+dc L5
+grep -c "DataChannel 'L3' - 'channelDirection' \"both\" needs \"idEncoding\": \"percent\"" /tmp/coraine.CB.log
+grep -c "DataChannel 'L4' - two placeholders side by side" /tmp/coraine.CB.log
+echo
+echo
+
+
+echo "02. PATCH the lamp's 'on' - published to L1 first (recordsOut 1); it comes back in on the same entity (recordsIn 2)"
+echo "==================================================================================================================="
+corCurl --url "/ngsi-ld/v1/entities/$LAMP/attrs" -X PATCH --payload '{ "on": { "type": "Property", "value": true } }'
+awaitRecordsIn L1 2
+dc L1
+corCurl --url "/ngsi-ld/v1/entities/$LAMP?format=simplified"
+corCurl --url '/ngsi-ld/v1/entities?type=Lamp&count=true&limit=0'
+echo
+echo
+
+
+echo "03. PATCH the constant 'kind' - not a column's value: 422, nothing written"
+echo "========================================================================="
+corCurl --url "/ngsi-ld/v1/entities/$LAMP/attrs" -X PATCH --payload '{ "kind": { "type": "Property", "value": "bulb" } }'
+echo
+echo
+
+
+echo "04. PATCH 'on' and 'kind' - 'on' written back, 'kind' not: 207"
+echo "==============================================================="
+corCurl --url "/ngsi-ld/v1/entities/$LAMP/attrs" -X PATCH --payload '{ "on": { "type": "Property", "value": false }, "kind": { "type": "Property", "value": "bulb" } }'
+awaitRecordsIn L1 3
+dc L1
+corCurl --url "/ngsi-ld/v1/entities/$LAMP?format=simplified"
+echo
+echo
+
+
+echo "05. PATCH an attribute L1 does not map - stored, not published"
+echo "=============================================================="
+corCurl --url "/ngsi-ld/v1/entities/$LAMP/attrs" -X PATCH --payload '{ "note": { "type": "Property", "value": "x" } }'
+dc L1
+echo
+echo
+
+
+echo "06. PATCH the sensor's 't' - L2 is inbound only: stored, nothing published"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:s1/attrs -X PATCH --payload '{ "t": { "type": "Property", "value": 99 } }'
+dc L2
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Sensor:s1?format=simplified&pick=t'
+echo
+echo
+
+
+echo "07. PATCH the refuser's 'on' - the bridge refuses the record: 400, the value stays 1"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Refuser:r1/attrs -X PATCH --payload '{ "on": { "type": "Property", "value": 2 } }'
+dc L5
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Refuser:r1?format=simplified&pick=on'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The DataChannels - L3 and L4 skipped (merge; two placeholders side by side), L1 and L5 write back
+======================================================================================================
+"channelTarget": "L1"
+"channelTarget": "L2"
+"channelTarget": "L5"
+L1 both recordsIn 1 recordsOut 0
+L2 - recordsIn 1 recordsOut -
+L5 both recordsIn 1 recordsOut 0
+1
+1
+
+
+02. PATCH the lamp's 'on' - published to L1 first (recordsOut 1); it comes back in on the same entity (recordsIn 2)
+===================================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+L1 both recordsIn 2 recordsOut 1
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:ngsi-ld:Lamp:hall%20a-l1",
+  "kind": "lamp",
+  "on": true,
+  "type": "Lamp"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-Results-Count: 1
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+03. PATCH the constant 'kind' - not a column's value: 422, nothing written
+=========================================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 324
+
+{
+  "detail": "'https://uri.etsi.org/ngsi-ld/default-context/kind' of DataChannel 'L1' on bridge 'loopback': it is not one column's value in the mapping - it cannot be written back - not written",
+  "status": 422,
+  "title": "Operation Not Supported",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+04. PATCH 'on' and 'kind' - 'on' written back, 'kind' not: 207
+===============================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 386
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/kind",
+      "reason": "'https://uri.etsi.org/ngsi-ld/default-context/kind' of DataChannel 'L1' on bridge 'loopback': it is not one column's value in the mapping - it cannot be written back - not written"
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/on"
+  ]
+}
+
+L1 both recordsIn 3 recordsOut 2
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 94
+
+{
+  "id": "urn:ngsi-ld:Lamp:hall%20a-l1",
+  "kind": "lamp",
+  "on": false,
+  "type": "Lamp"
+}
+
+
+
+05. PATCH an attribute L1 does not map - stored, not published
+==============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+L1 both recordsIn 3 recordsOut 2
+
+
+06. PATCH the sensor's 't' - L2 is inbound only: stored, nothing published
+==========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+L2 - recordsIn 1 recordsOut -
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 14
+
+{
+  "t": 99
+}
+
+
+
+07. PATCH the refuser's 'on' - the bridge refuses the record: 400, the value stays 1
+====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/on' does not fit the record of 'L5'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+L5 both recordsIn 1 recordsOut 0
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 14
+
+{
+  "on": 1
+}
+
+
+
