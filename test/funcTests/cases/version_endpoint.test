@@ -30,12 +30,11 @@
 # have reached a release unnoticed.
 #
 # The member LIST is what makes this an mhd-only test. `stack` answers "what is
-# linked into this binary", and corHttp is linked only into a built-in-server
-# build - so the two flavours legitimately report different member sets, and
-# neither one is a pattern the other can satisfy. The built-in set is pinned in
-# version_endpoint_builtin.test; between them every flavour the nightly builds
-# has its own list asserted, in full, rather than a REGEX that would accept any
-# list at all.
+# linked into this binary": corHttp is - for a bridge's port
+# (COR_FEATURE_BRIDGE_HTTP_LISTEN) - and libmicrohttpd, a shared library, is not
+# a member. The built-in set is pinned in version_endpoint_builtin.test; between
+# them every flavour the nightly builds has its own list asserted, in full,
+# rather than a REGEX that would accept any list at all.
 #
 # REQUIRE_HTTPSERVER: mhd
 #
@@ -82,6 +81,7 @@ Content-Length: REGEX([0-9]+)
     "corBase": "REGEX([0-9a-f]{40})",
     "corBridge": "REGEX([0-9a-f]{40})",
     "corHash": "REGEX([0-9a-f]{40})",
+    "corHttp": "REGEX([0-9a-f]{40})",
     "corJson": "REGEX([0-9a-f]{40})",
     "corJsonld": "REGEX([0-9a-f]{40})",
     "corLog": "REGEX([0-9a-f]{40})",
@@ -112,6 +112,7 @@ Content-Length: REGEX([0-9]+)
     "corBase": "REGEX([0-9a-f]{40})",
     "corBridge": "REGEX([0-9a-f]{40})",
     "corHash": "REGEX([0-9a-f]{40})",
+    "corHttp": "REGEX([0-9a-f]{40})",
     "corJson": "REGEX([0-9a-f]{40})",
     "corJsonld": "REGEX([0-9a-f]{40})",
     "corLog": "REGEX([0-9a-f]{40})",

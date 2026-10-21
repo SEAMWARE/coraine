@@ -239,11 +239,11 @@ jobs:
       # minutes since the build, and a release tag pointing at a commit the
       # release does not contain is worse than no tag.
       #
-      # corTest, corLibs and corHttp are not linked into the broker - corHttp only
-      # when COR_HTTP_SERVER=builtin, which a release is not - so they are not in
+      # corTest and corLibs are not linked into the broker, so they are not in
       # the manifest. They are tagged at the commit bootstrap.sh checked out,
       # which is what a reproduction of this build would need. corHttp is in both
-      # lists on purpose: a builtin build puts it in the manifest, and tagRepo is
+      # lists on purpose: the manifest has it when it is linked (the built-in
+      # server, a bridge's port - COR_FEATURE_BRIDGE_HTTP_LISTEN), and tagRepo is
       # idempotent, so the second attempt finds the tag and leaves it alone.
       #
       # ⭐ corDdsBridge (and corModbusBridge, modbus.so, and corMqttBridge, mqtt.so) is in that second list for a different reason, and it is

@@ -145,7 +145,7 @@ The second needs Service Execution on the central broker - coraine has it; other
 4. **The southbound HTTP listener** (port 7896: HTTP measures, pull commands - the device is the
    client) - decided (2026-10-14): the broker opens it for the plugin, `BridgeBroker.httpListen(port,
    handler)` - its own HTTP code, no auth plugin and no NGSI-LD route on that port, opened only when the
-   bridge config names the port.
+   bridge config names the port. Built: bridge ABI 16, `COR_FEATURE_BRIDGE_HTTP_LISTEN`.
 5. **Measures and lazy attributes** - their own notes. Decided (2026-10-14): commands are Service
    Executions, lazy attributes stay a Context Source Registration - a read of data that lives in the
    device, with `attrs`, `q` and the rest of a query. iotagent-json has no lazy attribute that reaches

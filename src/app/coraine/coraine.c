@@ -105,6 +105,9 @@
 #endif
 
 #include "bridge/bridgeService.h"                   // bridgeServiceUpdateIn, bridgeServiceApplySet
+#if COR_FEATURE_BRIDGE_HTTP_LISTEN
+#include "bridge/bridgeHttpListen.h"                // bridgeHttpListen, bridgeHttpListenStop
+#endif
 #if COR_FEATURE_SERVICE_EXECUTION
 #include "serviceExecution/seExecution.h"            // seExecutionTick, seExecutionRetentionNs
 #include "serviceExecution/seRequest.h"              // SE_PARAM_*
@@ -702,9 +705,14 @@ static BridgeBroker bridgeBroker =
   bridgeEndpointDiscoveredIn,
   bridgeServiceUpdateIn,
 #if COR_FEATURE_CHANNEL_STATUS_IN
-  bridgeChannelStatusIn
+  bridgeChannelStatusIn,
 #else
-  NULL                                                // channelStatusIn: not in this build
+  NULL,                                               // channelStatusIn: not in this build
+#endif
+#if COR_FEATURE_BRIDGE_HTTP_LISTEN
+  bridgeHttpListen
+#else
+  NULL                                                // httpListen: not in this build
 #endif
 };
 
@@ -981,6 +989,11 @@ static void bridgesClose(void)
 {
   for (int i = 0; i < bridgeCount; i++)
   {
+#if COR_FEATURE_BRIDGE_HTTP_LISTEN
+    if (bridges[i].alias != NULL)
+      bridgeHttpListenStop(bridges[i].alias);         // no handler of the bridge runs once close() begins
+#endif
+
     if (bridges[i].close != NULL)
       bridges[i].close();
   }
