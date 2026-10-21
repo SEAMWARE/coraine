@@ -190,6 +190,8 @@ and, as values change:
 | `typeName`, `typeDefinition` | its type's name, and id |
 | `semanticIds` | its meaning: the `semanticId` sub-Property (§ 3) |
 | `value`, `unit`, `sourceTime` | a leaf's value (JSON, converted by the bridge), `unitCode`, `observedAt` |
+| `attributeType` | a leaf's attribute type when it is not a Property: `LanguageProperty` (the value a language map, `{ "en": "ACME Presses" }` - an AAS MultiLanguageProperty) or `ListProperty` (the value an array - an AAS SubmodelElementList); a value that is not one makes a Property |
+| `contentType` | a leaf's MIME type (an AAS File, a Blob): a `contentType` sub-Property |
 | `children` | the nodes it contains |
 | `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
 
@@ -242,5 +244,5 @@ Decided (KZ, 2026-10-17):
    mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
 4. The OPC UA bridge, its own repository, on the bridge ABI as it is: the model and its values as the node
    tree (§ 3.3). The client library is to choose.
-5. AAS, the second source - the plan for AAS engineers: [aas.md](aas.md).
+5. AAS, the second source, its own repository (corAasBridge): [aas.md](aas.md), written for AAS engineers.
 6. Operations and methods as services (§ 4).

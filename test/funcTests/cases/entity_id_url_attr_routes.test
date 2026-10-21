@@ -1,0 +1,250 @@
+#
+# FILE            entity_id_url_attr_routes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An entity whose id is a URL (an AAS id: https://acme.example/ids/sm/press-17/operational) - percent-encoded in
+# the path, '/'s and all - on every route of its attributes: each one reaches the attribute, not an entity named
+# '<id>/attrs/<attr>'. The entity's own routes (GET, PATCH, PUT, DELETE /entities/{id}) still reach the entity.
+# A channel whose id is a URL: /channels/{id}/goals reaches the channel's goals.
+#
+--NAME--
+An entity id that is a URL - every attribute route reaches the attribute
+
+--TAGS--
+routes
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+E='https%3A%2F%2Facme.example%2Fids%2Fsm%2Fpress-17%2Foperational'
+
+echo "01. Create the entity"
+echo "====================="
+corCurl --url /ngsi-ld/v1/entities -X POST --payload '{ "id": "https://acme.example/ids/sm/press-17/operational", "type": "OperationalData",
+                                                       "pressure": { "type": "Property", "value": 212.5 }, "mode": { "type": "Property", "value": "auto" } }'
+echo
+echo
+
+
+echo "02. GET /entities/{id}/attrs/pressure - the attribute"
+echo "====================================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/pressure"
+echo
+echo
+
+
+echo "03. GET /entities/{id}/attrs/pressure/value - its value"
+echo "======================================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/pressure/value"
+echo
+echo
+
+
+echo "04. PATCH /entities/{id}/attrs/pressure 300"
+echo "==========================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/pressure" -X PATCH --payload '{ "value": 300 }'
+echo
+echo
+
+
+echo "05. PUT /entities/{id}/attrs/pressure/value 301"
+echo "==============================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/pressure/value" -X PUT --payload '301'
+echo
+echo
+
+
+echo "06. PUT /entities/{id}/attrs/mode \"manual\""
+echo "=========================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/mode" -X PUT --payload '{ "type": "Property", "value": "manual" }'
+echo
+echo
+
+
+echo "07. PATCH /entities/{id}/attrs - pressure 302"
+echo "============================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs" -X PATCH --payload '{ "pressure": { "type": "Property", "value": 302 } }'
+echo
+echo
+
+
+echo "08. DELETE /entities/{id}/attrs/mode"
+echo "===================================="
+corCurl --url "/ngsi-ld/v1/entities/$E/attrs/mode" -X DELETE
+echo
+echo
+
+
+echo "09. PATCH /entities/{id} - a merge: running true"
+echo "================================================"
+corCurl --url "/ngsi-ld/v1/entities/$E" -X PATCH --payload '{ "running": { "type": "Property", "value": true } }'
+echo
+echo
+
+
+echo "10. GET /entities/{id} - pressure 302, no mode, running"
+echo "======================================================="
+corCurl --url "/ngsi-ld/v1/entities/$E?options=keyValues"
+echo
+echo
+
+
+echo "11. PUT /entities/{id} - replaced: pressure 1"
+echo "============================================="
+corCurl --url "/ngsi-ld/v1/entities/$E" -X PUT --payload '{ "id": "https://acme.example/ids/sm/press-17/operational", "type": "OperationalData", "pressure": { "type": "Property", "value": 1 } }'
+corCurl --url "/ngsi-ld/v1/entities/$E?options=keyValues" | grep -E '^HTTP|pressure|running'
+echo
+echo
+
+
+echo "12. DELETE /entities/{id} - gone"
+echo "================================"
+corCurl --url "/ngsi-ld/v1/entities/$E" -X DELETE
+corCurl --url "/ngsi-ld/v1/entities/$E" | grep -E '^HTTP|detail'
+echo
+echo
+
+
+echo "13. GET /channels/{a URL}/goals - the goals of channel 'https://acme.example/ch/1', not channel '.../goals'"
+echo "=========================================================================================================="
+corCurl --url "/ngsi-ld/v1/channels/https%3A%2F%2Facme.example%2Fch%2F1/goals" | grep -E '^HTTP|detail'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+
+--EXPECT--
+01. Create the entity
+=====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/https://acme.example/ids/sm/press-17/operational
+Content-Length: 0
+
+
+
+
+02. GET /entities/{id}/attrs/pressure - the attribute
+=====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 43
+
+{
+  "type": "Property",
+  "value": 212.5
+}
+
+
+
+03. GET /entities/{id}/attrs/pressure/value - its value
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 5
+
+212.5
+
+
+04. PATCH /entities/{id}/attrs/pressure 300
+===========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. PUT /entities/{id}/attrs/pressure/value 301
+===============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. PUT /entities/{id}/attrs/mode "manual"
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. PATCH /entities/{id}/attrs - pressure 302
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+08. DELETE /entities/{id}/attrs/mode
+====================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. PATCH /entities/{id} - a merge: running true
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+10. GET /entities/{id} - pressure 302, no mode, running
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 130
+
+{
+  "id": "https://acme.example/ids/sm/press-17/operational",
+  "pressure": 302,
+  "running": true,
+  "type": "OperationalData"
+}
+
+
+
+11. PUT /entities/{id} - replaced: pressure 1
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+  "pressure": 1,
+
+
+12. DELETE /entities/{id} - gone
+================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 404 Not Found
+  "detail": "entity 'https://acme.example/ids/sm/press-17/operational' not found",
+
+
+13. GET /channels/{a URL}/goals - the goals of channel 'https://acme.example/ch/1', not channel '.../goals'
+==========================================================================================================
+HTTP/1.1 404 Not Found
+  "detail": "channel 'https://acme.example/ch/1' not found",
+
+

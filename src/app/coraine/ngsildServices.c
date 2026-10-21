@@ -206,22 +206,28 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/services/*/*", SVCX(getEntityServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS, LdOpNone          },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*/services/*/*", SVCX(deleteEntityServiceExecution), 0,                                    LdOpNone          },
 
-  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS | GET_ENTITIES_PARAM_PAGE, LdOpQueryEntities  },
-  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS,   LdOpRetrieveEntity },
-  { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
-  { CorVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
-  { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY | BRIDGE_PARAM_DDS_SYNC,   LdOpMergeEntity    },
-  { CorVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY, LdOpReplaceEntity },
+  //
+  // An entity's attributes before the entity: the routes are tried in this order, and an entity id that is a URL
+  // (https://acme.example/ids/sm/press-17) is one wildcard, '/'s and all - /entities/* would take
+  // /entities/https://acme.example/x/attrs/pressure as the entity 'https://acme.example/x/attrs/pressure'.
+  // The value-only sub-resource (TS 104-176 § 7.6) precedes /attrs/* so the trailing-literal route wins over
+  // the single-attribute route.
+  //
   { CorVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS,  LdOpAppendAttrs },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS | BRIDGE_PARAM_DDS_SYNC, LdOpUpdateAttrs },
-  // value-only sub-resource (TS 104-176 § 7.6) — MUST precede /attrs/* so the
-  // trailing-literal route wins over the single-attribute route.
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*/value", getEntityAttrValue, LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*/value", putEntityAttrValue, LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR | BRIDGE_PARAM_DDS_SYNC,  LdOpUpdateAttrs    },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR,    LdOpReplaceAttr    },
   { CorVerbDelete, "/ngsi-ld/v1/entities/*/attrs/*", deleteEntityAttr, LD_PARAMS_DELETE_ENTITY_ATTR, LdOpDeleteAttr     },
+
+  { CorVerbGet,    "/ngsi-ld/v1/entities",   getEntities,  LD_PARAMS_GET_ENTITIES | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS | GET_ENTITIES_PARAM_PAGE, LdOpQueryEntities  },
+  { CorVerbGet,    "/ngsi-ld/v1/entities/*", getEntity,    LD_PARAMS_GET_ENTITY | SE_PARAM_INCLUDE_SERVICES | SE_PARAM_SERVICE_DETAILS,   LdOpRetrieveEntity },
+  { CorVerbPost,   "/ngsi-ld/v1/entities",   postEntities, LD_PARAMS_POST_ENTITIES,  LdOpCreateEntity   },
+  { CorVerbDelete, "/ngsi-ld/v1/entities/*", deleteEntity, LD_PARAMS_DELETE_ENTITY,  LdOpDeleteEntity   },
+  { CorVerbPatch,  "/ngsi-ld/v1/entities/*", patchEntity,  LD_PARAMS_PATCH_ENTITY | BRIDGE_PARAM_DDS_SYNC,   LdOpMergeEntity    },
+  { CorVerbPut,    "/ngsi-ld/v1/entities/*", replaceEntity, LD_PARAMS_REPLACE_ENTITY, LdOpReplaceEntity },
   { CorVerbDelete, "/ngsi-ld/v1/entities",         purgeEntities,    LD_PARAMS_PURGE_ENTITIES,     LdOpPurgeEntity    },
 
   // Discovery (§ 5.7.5 – § 5.7.10)
@@ -248,11 +254,11 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/bridges",          getBridges,  0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/bridges/*",        getBridge,   0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels",         getChannels, 0, LdOpNone },
-  { CorVerbGet,    "/ngsi-ld/v1/channels/*",       getChannel,  0, LdOpNone },
   { CorVerbPost,   "/ngsi-ld/v1/channels/*/goals",   postChannelGoals,  0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals",   getChannelGoals,   0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/channels/*/goals/*", getChannelGoal,    0, LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/channels/*/goals/*", deleteChannelGoal, 0, LdOpNone },
+  { CorVerbGet,    "/ngsi-ld/v1/channels/*",       getChannel,  0, LdOpNone },     // after its goals: a channel id may be a URL
   { CorVerbGet,    "/ngsi-ld/v1/dataChannels",     DCHN(getDataChannels), 0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/dataChannels/*",   DCHN(getDataChannel),  0, LdOpNone },
   { CorVerbGet,    "/ngsi-ld/v1/assetChannels",    ACHN(getAssetChannels), 0, LdOpNone },
