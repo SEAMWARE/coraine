@@ -17,6 +17,7 @@
 #include <stdbool.h>                                      // bool
 #include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // strtol
+#include <string.h>                                       // strlen, strncmp
 #include <libpq-fe.h>                                     // PG*
 
 #include "corLog/corLog.h"                                // COR_E, COR_I, COR_V
@@ -353,6 +354,141 @@ static int ensureHypertable(PGconn* conn)
 
 // -----------------------------------------------------------------------------
 //
+// The indexes of the history that are the operator's choice (--troeIndexes)
+//
+// Always there - the migrations make them, and the queries of the Temporal API are built on them:
+// the primary keys, (entity_id, attr_name, observed_at) and (entity_id, attr_name, modified_at) - a
+// retrieve and the correlated EXISTS of a query look an Entity's Attribute up in time - and
+// entity_type (GIN), for a query by type.
+//
+// The others cost every write and serve a query shape the Temporal API's own queries do not have
+// (doc/installation.md, "TimescaleDB history"). An index chosen is created at the start, if it is
+// not there; one not chosen is dropped, if it is.
+//
+typedef struct TsOptIndex
+{
+  const char*  name;        // in --troeIndexes
+  const char*  index;
+  const char*  createSql;
+} TsOptIndex;
+
+static const TsOptIndex optIndexV[] =
+{
+  { "attrObserved", "troe_attrs_attr_observed",   "CREATE INDEX IF NOT EXISTS troe_attrs_attr_observed ON troe_attrs (attr_name, observed_at DESC)" },
+  { "geo",          "troe_attrs_geo",             "CREATE INDEX IF NOT EXISTS troe_attrs_geo ON troe_attrs USING GIST (geo)"                         },
+  { "time",         "troe_attrs_modified_at_idx", "CREATE INDEX IF NOT EXISTS troe_attrs_modified_at_idx ON troe_attrs (modified_at DESC)"          }
+};
+
+static unsigned int optIndexMask = 0;    // bit ix: optIndexV[ix] chosen
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleIndexesParse -
+//
+int timescaleIndexesParse(const char* list)
+{
+  optIndexMask = 0;
+
+  if ((list == NULL) || (list[0] == 0) || (strcmp(list, "none") == 0))
+    return 0;
+
+  const char* nameP = list;
+
+  while (*nameP != 0)
+  {
+    const char* endP = strchr(nameP, ',');
+    int         len  = (endP != NULL) ? (int) (endP - nameP) : (int) strlen(nameP);
+    bool        found = false;
+
+    for (unsigned int ix = 0; ix < sizeof(optIndexV) / sizeof(optIndexV[0]); ix++)
+    {
+      if ((strncmp(nameP, optIndexV[ix].name, len) == 0) && (optIndexV[ix].name[len] == 0))
+      {
+        optIndexMask |= (1u << ix);
+        found         = true;
+      }
+    }
+
+    if (found == false)
+    {
+      COR_E("timescale: --troeIndexes: unknown index '%.*s' (the choice: attrObserved, geo, time)", len, nameP);
+      return -1;
+    }
+
+    nameP += len;
+    if (*nameP == ',')
+      nameP++;
+  }
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// indexExists -
+//
+static bool indexExists(PGconn* conn, const char* index)
+{
+  const char* paramV[1] = { index };
+  PGresult*   res       = PQexecParams(conn, "SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1",
+                                       1, NULL, paramV, NULL, NULL, 0);
+  bool        exists    = (PQresultStatus(res) == PGRES_TUPLES_OK) && (PQntuples(res) > 0);
+
+  PQclear(res);
+  return exists;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// indexesApply - the indexes of --troeIndexes created, the others dropped
+//
+// troe_entities_id_modified goes too: (entity_id, modified_at DESC) is the front of troe_entities'
+// primary key, (entity_id, modified_at, op), which serves every lookup it served.
+//
+static int indexesApply(PGconn* conn)
+{
+  if (indexExists(conn, "troe_entities_id_modified") == true)
+  {
+    COR_I("timescale: db '%s': dropping index troe_entities_id_modified (its primary key serves it)", PQdb(conn));
+    if (execSimple(conn, "DROP INDEX IF EXISTS troe_entities_id_modified") != 0)
+      return -1;
+  }
+
+  for (unsigned int ix = 0; ix < sizeof(optIndexV) / sizeof(optIndexV[0]); ix++)
+  {
+    bool chosen = ((optIndexMask & (1u << ix)) != 0);
+    bool exists = indexExists(conn, optIndexV[ix].index);
+
+    if ((chosen == true) && (exists == false))
+    {
+      COR_I("timescale: db '%s': creating index %s (--troeIndexes %s) - over every row of the history", PQdb(conn), optIndexV[ix].index, optIndexV[ix].name);
+      if (execSimple(conn, optIndexV[ix].createSql) != 0)
+        return -1;
+    }
+    else if ((chosen == false) && (exists == true))
+    {
+      char sql[128];
+
+      COR_I("timescale: db '%s': dropping index %s (not in --troeIndexes)", PQdb(conn), optIndexV[ix].index);
+      snprintf(sql, sizeof(sql), "DROP INDEX IF EXISTS %s", optIndexV[ix].index);
+      if (execSimple(conn, sql) != 0)
+        return -1;
+    }
+  }
+
+  return 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleMigrate -
 //
 int timescaleMigrate(PGconn* conn)
@@ -440,7 +576,11 @@ int timescaleMigrate(PGconn* conn)
     // still works. The error is logged inside ensureHypertable().
   }
 
-  // 5. Release advisory lock.
+  // 5. The indexes the operator chose (--troeIndexes) - after the hypertable, which makes the "time" one
+  if (indexesApply(conn) != 0)
+    return -1;
+
+  // 6. Release advisory lock.
   char unlockSql[128];
   snprintf(unlockSql, sizeof(unlockSql), "SELECT pg_advisory_unlock(%lld)",
            (long long) TIMESCALE_MIGRATE_ADVISORY_LOCK_ID);

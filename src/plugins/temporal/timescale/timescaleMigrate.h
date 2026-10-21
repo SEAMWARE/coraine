@@ -21,4 +21,13 @@
 
 extern int timescaleMigrate(PGconn* conn);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleIndexesParse - the indexes of --troeIndexes (a comma list, "none" or empty: none), for
+// timescaleMigrate to create - and to drop the others. -1 for a name it does not know.
+//
+extern int timescaleIndexesParse(const char* list);
+
 #endif  // TIMESCALE_TIMESCALEMIGRATE_H_
