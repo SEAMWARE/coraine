@@ -116,13 +116,25 @@ bool tsBufElement(TsBuf* bP, bool first, const char* s)
     *outP++ = ',';
 
   *outP++ = '"';
-  for (const char* cP = s; *cP != 0; cP++)
+
+  // Runs of what needs no escape copied as they are - most values have nothing to escape
+  const char* cP = s;
+
+  while (*cP != 0)
   {
-    if      (*cP == '\'') *outP++ = '\'';    // SQL
-    else if (*cP == '"')  *outP++ = '\\';    // array
-    else if (*cP == '\\') *outP++ = '\\';    // array
-    *outP++ = *cP;
+    size_t plain = strcspn(cP, "'\"\\");
+
+    memcpy(outP, cP, plain);
+    outP += plain;
+    cP   += plain;
+
+    if (*cP == 0)
+      break;
+
+    *outP++ = (*cP == '\'') ? '\'' : '\\';   // a quote doubled for SQL; a '"' or a '\\' escaped for the array
+    *outP++ = *cP++;
   }
+
   *outP++ = '"';
 
   bP->len = (int) (outP - bP->s);

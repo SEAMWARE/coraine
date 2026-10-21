@@ -383,11 +383,50 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 
 // -----------------------------------------------------------------------------
 //
-// nsToSecs - epoch nanoseconds as seconds, the element to_timestamp() takes (timescaleUnitsExec)
+// nsToSecs - epoch nanoseconds as seconds with six decimals, the element to_timestamp() takes
+// (timescaleUnitsExec), rounded to the microsecond
+//
+// Integers only: a double through "%.6f" is glibc's multi-precision float printer, and it was more
+// than half of what a request's history cost the broker - two timestamps a row.
 //
 static const char* nsToSecs(uint64_t ns, char* buf, int bufSize)
 {
-  snprintf(buf, bufSize, "%.6f", (double) ns / 1e9);
+  uint64_t secs = ns / 1000000000;
+  uint64_t us   = (ns % 1000000000 + 500) / 1000;
+
+  if (us == 1000000)
+  {
+    secs += 1;
+    us    = 0;
+  }
+
+  char  digits[24];
+  int   n    = 0;
+  char* outP = buf;
+
+  do
+  {
+    digits[n++] = '0' + (char) (secs % 10);
+    secs       /= 10;
+  } while ((secs != 0) && (n < (int) sizeof(digits)));
+
+  if (n + 8 > bufSize)
+  {
+    buf[0] = 0;
+    return buf;
+  }
+
+  while (n > 0)
+    *outP++ = digits[--n];
+
+  *outP++ = '.';
+  for (int ix = 5; ix >= 0; ix--)
+  {
+    outP[ix] = '0' + (char) (us % 10);
+    us      /= 10;
+  }
+  outP[6] = 0;
+
   return buf;
 }
 
@@ -421,7 +460,7 @@ static void entityRowAdd(TsUnit* uP, const TroeEvent* evP)
 //
 // attrRowAdd - one row of troe_attrs per instance, into the unit
 //
-static void attrRowAdd(TsUnit* uP, const TroeEvent* evP)
+static void attrRowAdd(TsUnit* uP, const TroeEvent* evP, const char* typeLitP)
 {
   AttrCols cols;
 
@@ -451,7 +490,7 @@ static void attrRowAdd(TsUnit* uP, const TroeEvent* evP)
       oneEv.attrSnapshot    = &one;
       oneEv.datasetId       = ((instP->name != NULL) && (strcmp(instP->name, "@none") != 0)) ? instP->name : "";
 
-      attrRowAdd(uP, &oneEv);
+      attrRowAdd(uP, &oneEv, typeLitP);
     }
 
     return;
@@ -504,7 +543,7 @@ static void attrRowAdd(TsUnit* uP, const TroeEvent* evP)
 
   ok =       tsBufElement(&colV[0],  first, ((evP->instanceId != NULL) && (evP->instanceId[0] != 0)) ? evP->instanceId : NULL);
   ok = ok && tsBufElement(&colV[1],  first, (evP->entityId != NULL) ? evP->entityId : "");
-  ok = ok && tsBufElement(&colV[2],  first, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
+  ok = ok && tsBufElement(&colV[2],  first, (typeLitP != NULL) ? typeLitP : entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
   ok = ok && tsBufElement(&colV[3],  first, (evP->attrName != NULL) ? evP->attrName : "");
   ok = ok && tsBufElement(&colV[4],  first, (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId);
   ok = ok && tsBufElement(&colV[5],  first, nsToSecs((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdSecs, sizeof(createdSecs)));
@@ -574,7 +613,7 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   TsUnit* uP = tsUnitNew();
 
   if (uP != NULL)
-    attrRowAdd(uP, evP);
+    attrRowAdd(uP, evP, NULL);
 
   return unitExecLocked(uP);
 }
@@ -597,6 +636,9 @@ static void fanOutAttrsFromEntity(TsUnit* uP, const TroeEvent* evP)
   if (evP->entitySnapshot == NULL) return;
 
   TroeOp attrOp = TroeOpAttrCreated;
+  char   typeLit[1024];
+
+  entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));   // the Entity's, the same for each of its Attributes
 
   for (CorNode* attrP = evP->entitySnapshot->value.head; attrP != NULL; attrP = attrP->next)
   {
@@ -620,7 +662,7 @@ static void fanOutAttrsFromEntity(TsUnit* uP, const TroeEvent* evP)
     attrEv.attrSnapshot   = attrP;
     attrEv.entitySnapshot = evP->entitySnapshot;
 
-    attrRowAdd(uP, &attrEv);
+    attrRowAdd(uP, &attrEv, typeLit);
   }
 }
 
@@ -652,7 +694,7 @@ static int eventListRecord(const TroeEvent* listHead, bool wait)
   for (const TroeEvent* evP = listHead; evP != NULL; evP = evP->next)
   {
     if (evP->op >= TroeOpAttrCreated)
-      attrRowAdd(uP, evP);
+      attrRowAdd(uP, evP, NULL);
     else
     {
       entityRowAdd(uP, evP);
