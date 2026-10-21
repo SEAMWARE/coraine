@@ -1,0 +1,176 @@
+#
+# FILE            bridge_asset_channel_leaf_kinds.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The kind of an AssetChannel's leaf (doc/asset-channels.md § 3.3) - what an AAS model needs: a leaf's
+# "attributeType" LanguageProperty (its value a language map: an AAS MultiLanguageProperty) or ListProperty
+# (an array: a SubmodelElementList) makes that attribute type; a value that is not one makes a Property.
+# A leaf's "contentType" (an AAS File) is a contentType sub-Property. A value that changes keeps the kind.
+#
+#   https://acme.example/ids/sm/p17/nameplate   a submodel (entities natural):
+#     ManufacturerName   LanguageProperty, { "en": "ACME Presses", "de": "ACME Pressen" }
+#     Markings           ListProperty, [ "CE", "UKCA" ]
+#     Manual             a File - its URL, contentType application/pdf
+#     Broken             LanguageProperty, but its value a string - a Property
+#     Nothing            ListProperty, but its value an object - a Property
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS
+#
+--NAME--
+Bridges: an AssetChannel leaf's kind - LanguageProperty, ListProperty, a contentType sub-Property
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+SM='https://acme.example/ids/sm/p17/nameplate'
+NAMEPLATE='{ "model": { "node": "submodel", "id": "'$SM'", "name": "Nameplate", "typeName": "Nameplate",
+             "semanticIds": [ "https://admin-shell.io/idta/nameplate/3/0/Nameplate" ],
+             "children": [
+               { "node": "property", "id": "'$SM'#ManufacturerName", "name": "ManufacturerName", "attributeType": "LanguageProperty",
+                 "value": { "en": "ACME Presses", "de": "ACME Pressen" }, "semanticIds": [ "0112/2///61987#ABA565#009" ] },
+               { "node": "property", "id": "'$SM'#Markings", "name": "Markings", "attributeType": "ListProperty", "value": [ "CE", "UKCA" ] },
+               { "node": "property", "id": "'$SM'#Manual", "name": "Manual", "value": "https://acme.example/p17.pdf", "contentType": "application/pdf" },
+               { "node": "property", "id": "'$SM'#Broken", "name": "Broken", "attributeType": "LanguageProperty", "value": "plain" },
+               { "node": "property", "id": "'$SM'#Nothing", "name": "Nothing", "attributeType": "ListProperty", "value": { "a": 1 } } ] } }'
+VALUES='{ "values": [ { "id": "'$SM'#ManufacturerName", "value": { "en": "ACME Presses Ltd" } } ] }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": { "$SM": $NAMEPLATE },
+    "emitLater":   { "$SM": $VALUES },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": { "$SM": { "entities": "natural" } }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+E='https%3A%2F%2Facme.example%2Fids%2Fsm%2Fp17%2Fnameplate'
+
+echo "01. The nameplate - a LanguageProperty, a ListProperty, a contentType; the two that do not fit are Properties"
+echo "============================================================================================================="
+corAwaitBody 10 "/ngsi-ld/v1/entities/$E" '"manufacturerName"'
+corCurl --url "/ngsi-ld/v1/entities/$E"
+echo
+echo
+
+
+echo "02. The manufacturer's name changes at the source (emitLater) - still a LanguageProperty"
+echo "========================================================================================"
+corAwaitBody 10 "/ngsi-ld/v1/entities/$E" 'Ltd'
+corCurl --url "/ngsi-ld/v1/entities/$E?pick=manufacturerName"
+echo
+echo
+
+
+echo "03. q - the language map's English (langProperties: manufacturerName is a LanguageProperty), the list's members"
+echo "=================================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Nameplate&q=manufacturerName%5Ben%5D==%22ACME%20Presses%20Ltd%22&langProperties=manufacturerName&pick=id' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=Nameplate&q=markings==%22UKCA%22&pick=id' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The nameplate - a LanguageProperty, a ListProperty, a contentType; the two that do not fit are Properties
+=============================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 847
+
+{
+  "broken": {
+    "type": "Property",
+    "value": "plain"
+  },
+  "id": "https://acme.example/ids/sm/p17/nameplate",
+  "manual": {
+    "contentType": {
+      "type": "Property",
+      "value": "application/pdf"
+    },
+    "type": "Property",
+    "value": "https://acme.example/p17.pdf"
+  },
+  "manufacturerName": {
+    "languageMap": {
+      "de": "ACME Pressen",
+      "en": "ACME Presses"
+    },
+    "semanticId": {
+      "type": "Property",
+      "value": "0112/2///61987#ABA565#009"
+    },
+    "type": "LanguageProperty"
+  },
+  "markings": {
+    "type": "ListProperty",
+    "valueList": [
+      "CE",
+      "UKCA"
+    ]
+  },
+  "nothing": {
+    "type": "Property",
+    "value": {
+      "a": 1
+    }
+  },
+  "semanticId": {
+    "type": "Property",
+    "value": "https://admin-shell.io/idta/nameplate/3/0/Nameplate"
+  },
+  "type": "Nameplate"
+}
+
+
+
+02. The manufacturer's name changes at the source (emitLater) - still a LanguageProperty
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 218
+
+{
+  "manufacturerName": {
+    "languageMap": {
+      "en": "ACME Presses Ltd"
+    },
+    "semanticId": {
+      "type": "Property",
+      "value": "0112/2///61987#ABA565#009"
+    },
+    "type": "LanguageProperty"
+  }
+}
+
+
+
+03. q - the language map's English (langProperties: manufacturerName is a LanguageProperty), the list's members
+==================================================================================================================
+HTTP/1.1 200 OK
+    "id": "https://acme.example/ids/sm/p17/nameplate"
+HTTP/1.1 200 OK
+    "id": "https://acme.example/ids/sm/p17/nameplate"
+
+

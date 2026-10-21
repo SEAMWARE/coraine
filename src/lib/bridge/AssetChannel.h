@@ -24,6 +24,7 @@
 //   <node>: { "node": "<kind>", "id": "<the source's id>", "name": "<its name>", "typeName": "<its type's name>",
 //             "typeDefinition": "<id>", "semanticIds": [ "<id>", ... ],
 //             "value": <json>, "unit": "<UN/CEFACT code>", "sourceTime": "<ISO 8601>",
+//             "attributeType": "LanguageProperty" | "ListProperty", "contentType": "<MIME type>",
 //             "children": [ <node>, ... ], "references": [ { "type": "<name>", "target": "<node id>" }, ... ] }
 //
 // The same tree from every model bridge - OPC UA, AAS - so that every model maps the same way, here.
