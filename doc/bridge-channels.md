@@ -287,6 +287,9 @@ a Channel's, a DataChannel's or an AssetChannel's, never two of them.
 - A bridge is handed each channel with its type - Channel, DataChannel or
   AssetChannel (`channelTypedAdd`, bridge ABI 15) - and may refuse a type it does
   not carry: the channel is then `dormant`, with the bridge's reason.
+- A bridge may ask the broker to serve a port for it, where a device is the
+  client (`httpListen`, bridge ABI 16): plain HTTP, every request handed to the
+  bridge - no NGSI-LD route and no authentication on that port.
 - Each bridge is its own repository (`corDdsBridge`, `corMqttBridge`,
   `corModbusBridge`); the `.so` installs as
   `/opt/seamware/plugins/bridge/<name>.so`.
