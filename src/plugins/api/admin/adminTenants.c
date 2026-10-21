@@ -11,6 +11,7 @@
 #include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
+#include "corNgsild/corNgsild.h"                    // corNgsild
 
 #include "db/Tenant.h"                            // Tenant, tenantList
 
@@ -34,5 +35,6 @@ bool adminGetTenants(void)
     corTreeChildAdd(root, corTreeString(allocP, NULL, tP->name));
 
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
   return true;
 }

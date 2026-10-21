@@ -12,6 +12,7 @@
 #include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeBoolean, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
+#include "corNgsild/corNgsild.h"                    // corNgsild
 #include "corLog/corLogGlobals.h"                 // corLogVerbose, corLogDebug, corLogInfo
 #include "corLog/corLogTraceLevelGet.h"           // corLogTraceLevelGet
 #include "corLog/corLogTraceLevelSet.h"           // corLogTraceLevelSet
@@ -77,6 +78,7 @@ bool adminGetLog(void)
 #endif
 
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
   return true;
 }
 

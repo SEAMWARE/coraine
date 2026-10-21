@@ -11,6 +11,7 @@
 #include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
+#include "corNgsild/corNgsild.h"                    // corNgsild
 
 #include "db/DbDriver.h"                         // db
 #include "plugin/ApiPlugin.h"                     // apiPlugins, apiPluginCount
@@ -44,5 +45,6 @@ bool adminGetPlugins(void)
   corTreeChildAdd(root, apiArray);
 
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
   return true;
 }

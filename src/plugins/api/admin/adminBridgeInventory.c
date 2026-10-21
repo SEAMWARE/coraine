@@ -12,7 +12,7 @@
 #include "corJson/corJsonParse.h"                 // corJsonParse
 #include "corTree/CorNode.h"                      // CorNode
 #include "corRest/CorRestState.h"                 // corRest
-#include "corNgsild/corNgsild.h"                  // ldError, LD_ERROR_*
+#include "corNgsild/corNgsild.h"                  // corNgsild, ldError, LD_ERROR_*
 #include "corBridge/BridgeDriver.h"               // bridges, bridgeCount, BridgeDriver
 #include "corBridge/BridgeBroker.h"               // BRIDGE_*
 
@@ -106,5 +106,6 @@ bool adminGetBridgeInventory(void)
   }
 
   corRest.out.responseTree = treeP;
+  corNgsild.rawResponse = true;                       // not an Entity: the bridge's JSON as it is
   return true;
 }

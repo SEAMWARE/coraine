@@ -9,7 +9,9 @@
 # to browse. The broker hands "from" and "depth" to the bridge and answers its JSON as it is.
 #
 # The loopback bridge's inventory echoes the request - { "bridge", "from", "depth" }; from "nope" is not
-# found (404), from "down" a transport that cannot answer (503).
+# found (404), from "down" a transport that cannot answer (503), from "nested" a node as a bridge describes
+# one: an object of several members, an object of one object, a modifiedAt - not an Entity, none of it
+# rendered as one.
 #
 # REQUIRE_FEATURE: BRIDGE_INVENTORY
 #
@@ -63,6 +65,13 @@ echo
 echo "06. GET /admin/bridges/nosuch/inventory - no such bridge loaded: 404"
 echo "===================================================================="
 corCurl --url /admin/bridges/nosuch/inventory
+echo
+echo
+
+
+echo "07. GET /admin/bridges/loopback/inventory?from=nested - objects in objects, a modifiedAt: as the bridge has them"
+echo "==============================================================================================================="
+corCurl --url '/admin/bridges/loopback/inventory?from=nested'
 echo
 echo
 
@@ -163,6 +172,31 @@ Content-Length: 154
   "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET /admin/bridges/loopback/inventory?from=nested - objects in objects, a modifiedAt: as the bridge has them
+===============================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 255
+
+{
+  "bridge": "loopback",
+  "children": {
+    "Temperature": {
+      "id": "ns=2;s=Press17.Temperature"
+    }
+  },
+  "from": "nested",
+  "node": {
+    "browseName": "Press17",
+    "id": "ns=2;s=Press17",
+    "modifiedAt": "2026-10-21T08:00:00.000Z"
+  }
 }
 
 

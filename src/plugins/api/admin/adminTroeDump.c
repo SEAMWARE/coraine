@@ -15,7 +15,7 @@
 #include "corAlloc/CorAlloc.h"                    // CorAlloc
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
-#include "corNgsild/corNgsild.h"                    // ldError, LD_ERROR_*
+#include "corNgsild/corNgsild.h"                    // corNgsild, ldError, LD_ERROR_*
 
 #include "troe/TroeDriver.h"                      // troe
 
@@ -39,5 +39,6 @@ bool adminGetTroeDump(void)
   troe.dumpInfo(&corRest.kalloc, root);
 
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
   return true;
 }
