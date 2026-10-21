@@ -8,8 +8,9 @@
 //
 
 #include <stddef.h>                                       // NULL
+#include <unistd.h>                                       // sleep
 
-#include "corLog/corLog.h"                                // COR_E, COR_I
+#include "corLog/corLog.h"                                // COR_E, COR_W, COR_I
 #include "corArgs/corArgsSecret.h"                // corArgsSecret
 
 #include "db/Tenant.h"                                    // tenant0
@@ -40,10 +41,22 @@ int timescaleInit(void)
   if (timescaleIndexesParse(timescaleIndexes) != 0)
     return TROE_ERR;
 
-  if (timescalePoolEnsure(&tenant0) != TROE_OK)
+  //
+  // A database that is not there yet - started together with the broker, restarting - is waited for,
+  // as mongoc waits for its server (--dbTimeout): a try a second, for --troeConnectTimeout seconds
+  //
+  for (int tryNo = 0; timescalePoolEnsure(&tenant0) != TROE_OK; tryNo++)
   {
-    COR_E("timescale: failed to initialise the default-tenant database");
-    return TROE_ERR;
+    if (tryNo >= timescaleConnectTimeout)
+    {
+      COR_E("timescale: failed to initialise the default-tenant database (%d s, --troeConnectTimeout)", timescaleConnectTimeout);
+      return TROE_ERR;
+    }
+
+    if (tryNo == 0)
+      COR_W("timescale: the history database cannot be reached - trying again once a second, for %d s (--troeConnectTimeout)", timescaleConnectTimeout);
+
+    sleep(1);
   }
 
   COR_I("timescale: ready (%s:%d, base db '%s', pool size %d)",

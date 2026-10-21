@@ -18,6 +18,8 @@
 #   - 12 MiB of history while down: some of it lost - every row either recorded or counted lost
 #   - --troeSync: a request does not wait for a commit that is not coming
 #   - --troeDownExit 3: the broker exits, code 1
+#   - a start while the database is down waits for it (--troeConnectTimeout), and serves once it is back
+#   - --troeConnectTimeout 2, the database still down: the start fails, code 1
 #
 # Reads timescale's own tables (psql) - not a store-independent check:
 # REQUIRE_TROEDB: timescale
@@ -167,6 +169,41 @@ echo
 echo
 
 
+echo "07. A start while the database is down - it waits, the database back after 2 s, it serves"
+echo "============================================================================================"
+dbBlock
+$COR_BROKER --foreground --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 15 > $XLOG 2>&1 &
+xpid=$!
+sleep 2
+echo "serving while down: $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$XP/version")"
+dbUnblock
+for _ in $(seq 1 150); do
+  curl -s -o /dev/null "http://localhost:$XP/version" && break
+  sleep 0.1
+done
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$XP/ngsi-ld/v1/entities" -H 'Content-Type: application/json' -d '{"id":"urn:X7","type":"T","p":{"type":"Property","value":7}}'
+kill $xpid
+wait $xpid
+echo "exit: $?"
+$PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id = 'urn:X7'), (SELECT count(*) FROM troe_attrs WHERE entity_id = 'urn:X7')"
+grep -c "the history database cannot be reached - trying again once a second, for 15 s (--troeConnectTimeout)" $XLOG
+rm -f $XLOG
+echo
+echo
+
+
+echo "08. --troeConnectTimeout 2, the database still down - the start fails, code 1"
+echo "======================================================================"
+dbBlock
+timeout 20 $COR_BROKER --foreground --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 2 > $XLOG 2>&1
+echo "exit: $?"
+grep -c "failed to initialise the default-tenant database (2 s, --troeConnectTimeout)" $XLOG
+rm -f $XLOG
+dbUnblock
+echo
+echo
+
+
 --EXPECT--
 01. The history database taken away - five Entities created, the broker serving
 ================================================================================
@@ -209,6 +246,21 @@ recorded + lost rows: 400
 06. --troeDownExit 3, the database taken away: the broker exits, code 1
 =======================================================================
 201
+exit: 1
+1
+
+
+07. A start while the database is down - it waits, the database back after 2 s, it serves
+============================================================================================
+serving while down: 000
+201
+exit: 0
+1|1
+1
+
+
+08. --troeConnectTimeout 2, the database still down - the start fails, code 1
+======================================================================
 exit: 1
 1
 

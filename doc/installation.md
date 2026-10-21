@@ -318,6 +318,7 @@ The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`,
 | `--troeName` | `corh` | the database of the default tenant, and the prefix of the others |
 | `--troePoolSize` | 10 | connections per tenant for the temporal reads and the Temporal API's writes |
 | `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
+| `--troeConnectTimeout` | 30 | seconds a start waits for the database, trying once a second (as `--dbTimeout` for MongoDB); 0: one try |
 | `--troeDownExit` | 0 | seconds the database may be unreachable before the broker exits (code 1) - see [The database down](#the-database-down). 0: never; the broker keeps serving the current state |
 | `--troeIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
 | `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
@@ -406,7 +407,8 @@ timescale: TRoE: HISTORY LOST in db 'corh': the database cannot be reached and t
 
 ##### The database back
 
-The first try that goes in ends the outage - at most 5 s after the database takes connections
+**The broker repairs itself; nothing is lost while the history held stayed under 8 MiB** - and,
+with `--troeDownExit`, while the database came back in time. The first try that goes in ends the outage - at most 5 s after the database takes connections
 again (measured: 3.2 s, after an outage of 3 s). Then:
 
 - **Everything held is written**, in the order it was taken, in batches as always. Every row
@@ -428,8 +430,14 @@ attribute's instances skip from the last one held before the cap was reached to 
 written after the database was back. Nothing writes them afterwards: the broker no longer has them.
 
 A broker **stopped** during an outage (SIGTERM) tries once, and loses what it holds (logged, as
-above). A broker **started** during an outage does not start: `troeStart failed`, exit code 1 - its
-start creates and migrates the history's tables.
+above). A broker **started** during an outage waits for the database - a try a second, for
+`--troeConnectTimeout` seconds (30) - and starts once it is there; its start creates and migrates
+the history's tables, so it does not serve meanwhile. Past that it does not start: exit code 1.
+
+```
+timescale: the history database cannot be reached - trying again once a second, for 30 s (--troeConnectTimeout)
+timescale: failed to initialise the default-tenant database (30 s, --troeConnectTimeout)
+```
 
 ##### `--troeDownExit`
 
@@ -455,10 +463,10 @@ What it costs, and what it buys:
   current state has their write. The current-state stores keep what they acknowledged.
 - **Without `--troeSync`** the history held - of requests already answered, up to 8 MiB - is lost at
   the exit: the option bounds the loss to the queue, it does not avoid it.
-- **The broker does not start while the database is down** (above). An orchestrator that restarts it
-  (Kubernetes, `restart: on-failure`) restarts it into the same failure until PostgreSQL is back: with
-  `--troeDownExit` an outage of the history is an outage of the broker. That is the trade - no
-  history lost, nothing served meanwhile.
+- **A restarted broker waits for the database** (`--troeConnectTimeout`, above), and fails again
+  past it. An orchestrator that restarts it (Kubernetes, `restart: on-failure`) restarts it until
+  PostgreSQL is back: with `--troeDownExit` an outage of the history is an outage of the broker. That
+  is the trade - no history lost, nothing served meanwhile.
 
 ##### Connections
 
