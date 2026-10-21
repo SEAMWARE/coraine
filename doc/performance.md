@@ -976,6 +976,7 @@ Step by step - each an A/B against the step before, ABBA, the mean of the two ru
 | another writer only when none writes, or 8 requests wait | 23 003 (22 553) | 7 289 (5 875) | 1 715 (1 706) |
 | a batch up to 1 MiB (was 4) | 22 939 (22 646) | 7 284 (7 271) | 1 837 (1 706) |
 | the optional indexes off by default (`--troeIndexes none`) | see the first table | | |
+| a row's timestamps from integers, not `%.6f` | 24 670 (24 782) | 7 449 (7 437) | 2 170 (2 237) |
 
 (in parentheses: the step before, in the same ABBA - runs differ by a few per cent from one to the
 next.) The waiting request's own condition is a `--troeSync` step: create 10 892 → 11 306, batch
@@ -983,6 +984,11 @@ create 712 → 760 - and the broker's cores on that batch create 1.10 → 0.65. 
 writers against the request's own transaction: create 6 094 → 10 356, 1 connection 956 → 1 046,
 batch create 341 → 671; unnesting: 10 429 → 10 742, 1 029 → 951, 685 → 709; the writer wake-up:
 11 103 → 11 777, 974 → 962, 754 → 759.
+
+**The broker's share:** the history work after a create's response was 99 960 instructions
+(callgrind, c1), more than half of it glibc's multi-precision float printer on the two epoch-second
+timestamps of each row; from integers, 47 450. The requests/s did not move - the broker's cores on
+batch create did, 0.88 → 0.75. A create costs the broker 82 µs without history, 97 µs with.
 
 **Unnesting:** one `INSERT` of 1000 rows into `troe_attrs` took 55 ms as a `VALUES` list - 25
 executing, 9 planning, the rest parsing its 16 000 expressions - and 22 ms as `INSERT ... SELECT
