@@ -12,6 +12,7 @@
 #include "corArgs/CorArgInfo.h"                   // CorArgInfo, CorArgValueFrom
 #include "corArgs/corArgsInit.h"                  // corArgInfoV
 #include "corRest/CorRestState.h"                 // corRest
+#include "corNgsild/corNgsild.h"                    // corNgsild
 #include "corTree/CorNode.h"                      // CorNode
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeArray, corTreeString, corTreeChildAdd, ...
 
@@ -156,6 +157,7 @@ bool adminGetConfig(void)
 
   corTreeChildAdd(root, optsP);
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
 
   return true;
 }

@@ -1197,7 +1197,8 @@ static const char* loopbackStatusIn(const char* endpoint)
 //
 // loopbackInventory - what GET /admin/bridges/loopback/inventory answers (ABI 14): the request echoed -
 // { "bridge": "loopback", "from": <from|null>, "depth": <n> } - for the tests of the broker's side.
-// from "nope": not found; from "down": the transport cannot answer
+// from "nope": not found; from "down": the transport cannot answer; from "nested": a node as a bridge
+// describes one - objects in objects, a modifiedAt - for the answer to be the bridge's JSON as it is
 //
 static int loopbackInventory(const char* from, int depth, int timeoutMs, char** jsonP, char* errBuf, int errBufLen)
 {
@@ -1215,6 +1216,14 @@ static int loopbackInventory(const char* from, int depth, int timeoutMs, char** 
   {
     snprintf(errBuf, errBufLen, "the loopback's transport is down");
     return BRIDGE_ERR;
+  }
+
+  if ((from != NULL) && (strcmp(from, "nested") == 0))
+  {
+    *jsonP = strdup("{\"bridge\":\"loopback\",\"from\":\"nested\","
+                    "\"node\":{\"id\":\"ns=2;s=Press17\",\"browseName\":\"Press17\",\"modifiedAt\":\"2026-10-21T08:00:00.000Z\"},"
+                    "\"children\":{\"Temperature\":{\"id\":\"ns=2;s=Press17.Temperature\"}}}");
+    return (*jsonP != NULL) ? BRIDGE_OK : BRIDGE_ERR;
   }
 
   if ((from != NULL) && ((strchr(from, '"') != NULL) || (strchr(from, '\\') != NULL)))

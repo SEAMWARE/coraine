@@ -23,7 +23,7 @@
 #include "corRest/version.h"                       // CORREST_VERSION
 #include "corRest/CorRestState.h"                   // corRest
 #include "corJsonld/corJsonld.h"                    // CORJSONLD_VERSION
-#include "corNgsild/corNgsild.h"                    // CORNGSILD_VERSION
+#include "corNgsild/corNgsild.h"                    // corNgsild, CORNGSILD_VERSION
 
 #include "corTree/corTreeBuilder.h"                 // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
 
@@ -92,5 +92,6 @@ bool adminGetVersion(void)
   }
 
   corRest.out.responseTree = root;
+  corNgsild.rawResponse = true;                       // not an Entity
   return true;
 }
