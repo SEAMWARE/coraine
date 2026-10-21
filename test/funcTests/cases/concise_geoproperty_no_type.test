@@ -1,0 +1,214 @@
+#
+# FILE            concise_geoproperty_no_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.3 Normalized-to-Concise Compaction, step 2: the "type" of an Attribute is removed - for a
+# GeoProperty too, whose type the Concise-to-Normalized Expansion infers from a "value" holding a
+# GeoJSON geometry. A GeoProperty that does not collapse to the bare geometry - a datasetId (ETSI
+# 018_23_11), an observedAt, a sub-attribute - is { "value": <geometry>, ... } in concise, no "type".
+# The concise output, sent back, is a GeoProperty again.
+#
+--NAME--
+Concise GeoProperty without "type" - datasetId, observedAt, sub-attribute
+
+--TAGS--
+entity retrieve concise geo
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 with location (default + datasetId instance), loc2 (observedAt), loc3 (sub-attribute)"
+echo "================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "location": [
+    { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } },
+    { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] }, "datasetId": "urn:ngsi-ld:ds:gps" }
+  ],
+  "loc2": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [5, 6] }, "observedAt": "2026-10-21T10:00:00.000Z" },
+  "loc3": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [7, 8] }, "accuracy": { "type": "Property", "value": 3 } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 in concise - no GeoProperty carries a \"type\""
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise'
+echo
+echo
+
+
+echo "03. Create E2 from the concise attributes of step 02"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E2",
+  "type": "T",
+  "location": [
+    { "type": "Point", "coordinates": [1, 2] },
+    { "value": { "type": "Point", "coordinates": [3, 4] }, "datasetId": "urn:ngsi-ld:ds:gps" }
+  ],
+  "loc2": { "value": { "type": "Point", "coordinates": [5, 6] }, "observedAt": "2026-10-21T10:00:00.000Z" },
+  "loc3": { "value": { "type": "Point", "coordinates": [7, 8] }, "accuracy": 3 }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET E2 normalized - every one a GeoProperty"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with location (default + datasetId instance), loc2 (observedAt), loc3 (sub-attribute)
+=================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 in concise - no GeoProperty carries a "type"
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 605
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "loc2": {
+    "observedAt": "2026-10-21T10:00:00Z",
+    "value": {
+      "coordinates": [
+        5,
+        6
+      ],
+      "type": "Point"
+    }
+  },
+  "loc3": {
+    "accuracy": 3,
+    "value": {
+      "coordinates": [
+        7,
+        8
+      ],
+      "type": "Point"
+    }
+  },
+  "location": [
+    {
+      "coordinates": [
+        1,
+        2
+      ],
+      "type": "Point"
+    },
+    {
+      "datasetId": "urn:ngsi-ld:ds:gps",
+      "value": {
+        "coordinates": [
+          3,
+          4
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "type": "T"
+}
+
+
+
+03. Create E2 from the concise attributes of step 02
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E2
+Content-Length: 0
+
+
+
+
+04. GET E2 normalized - every one a GeoProperty
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 801
+
+{
+  "id": "urn:ngsi-ld:T:E2",
+  "loc2": {
+    "observedAt": "2026-10-21T10:00:00Z",
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        5,
+        6
+      ],
+      "type": "Point"
+    }
+  },
+  "loc3": {
+    "accuracy": {
+      "type": "Property",
+      "value": 3
+    },
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        7,
+        8
+      ],
+      "type": "Point"
+    }
+  },
+  "location": [
+    {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "datasetId": "urn:ngsi-ld:ds:gps",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          3,
+          4
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "type": "T"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
