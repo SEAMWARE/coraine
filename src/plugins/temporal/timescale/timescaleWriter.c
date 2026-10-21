@@ -37,7 +37,7 @@
 // writers are behind, and a queue without a bound would only turn that into memory.
 //
 #define BATCH_UNITS_MAX   512
-#define BATCH_BYTES_MAX   (4 * 1024 * 1024)
+#define BATCH_BYTES_MAX   (1 * 1024 * 1024)
 #define QUEUE_BYTES_MAX   (8 * 1024 * 1024)
 
 
