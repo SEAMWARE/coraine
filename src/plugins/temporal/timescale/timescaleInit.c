@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <stdbool.h>                                      // bool
 #include <stddef.h>                                       // NULL
 #include <unistd.h>                                       // sleep
 
@@ -18,7 +19,7 @@
 #include "troe/TroeDriver.h"                              // TROE_OK, TROE_ERR
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*
-#include "temporal/timescale/timescalePool.h"             // timescalePoolEnsure, timescalePoolCloseAll
+#include "temporal/timescale/timescalePool.h"             // timescalePoolEnsureReach, timescalePoolCloseAll
 #include "temporal/timescale/timescaleMigrate.h"          // timescaleIndexesParse
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
@@ -43,10 +44,20 @@ int timescaleInit(void)
 
   //
   // A database that is not there yet - started together with the broker, restarting - is waited for,
-  // as mongoc waits for its server (--dbTimeout): a try a second, for --troeConnectTimeout seconds
+  // as mongoc waits for its server (--dbTimeout): a try a second, for --troeConnectTimeout seconds.
+  // One that is there and refuses (a schema version this build does not know) is not: a try later
+  // finds it the same.
   //
-  for (int tryNo = 0; timescalePoolEnsure(&tenant0) != TROE_OK; tryNo++)
+  bool unreachable;
+
+  for (int tryNo = 0; timescalePoolEnsureReach(&tenant0, &unreachable) != TROE_OK; tryNo++)
   {
+    if (unreachable == false)
+    {
+      COR_E("timescale: failed to initialise the default-tenant database");
+      return TROE_ERR;
+    }
+
     if (tryNo >= timescaleConnectTimeout)
     {
       COR_E("timescale: failed to initialise the default-tenant database (%d s, --troeConnectTimeout)", timescaleConnectTimeout);

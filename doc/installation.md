@@ -433,6 +433,9 @@ A broker **stopped** during an outage (SIGTERM) tries once, and loses what it ho
 above). A broker **started** during an outage waits for the database - a try a second, for
 `--troeConnectTimeout` seconds (30) - and starts once it is there; its start creates and migrates
 the history's tables, so it does not serve meanwhile. Past that it does not start: exit code 1.
+Only a database it cannot reach is waited for - no connection, a server still starting up, a
+connection lost during the migration; one that answers and refuses (a schema version newer than
+this build knows, a permission) fails the start at once.
 
 ```
 timescale: the history database cannot be reached - trying again once a second, for 30 s (--troeConnectTimeout)
