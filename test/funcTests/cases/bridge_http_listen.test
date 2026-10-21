@@ -1,0 +1,152 @@
+#
+# FILE            bridge_http_listen.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# BridgeBroker.httpListen (bridge ABI 16) - a port the broker serves for a bridge plugin, where a device is
+# the client (an IoT Agent's southbound port). The loopback asks for port 18997 ("httpListen") and answers
+# its requests (loopbackHttpHandle):
+#   - a request echoed: the method, the path percent-decoded, a parameter ('+' a space, %2B a '+'), a
+#     header, the body's length
+#   - POST /sample?endpoint=P1: the body is a sample on P1 - the handler calls back into the broker
+#   - a handler answering a status no HTTP knows: the broker answers 500
+#   - the NGSI-LD API is not on that port: /ngsi-ld/v1/entities is the loopback's, echoed
+#   - a body over 1 MB is not read: the handler gets bodyTooBig
+#
+# REQUIRE_FEATURE: BRIDGE_HTTP_LISTEN
+#
+--NAME--
+Bridges: httpListen - a port the broker serves for a bridge plugin
+
+--TAGS--
+bridge plugins
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "httpListen": { "18997": true },
+    "ngsild": {
+      "defaultEntity": false,
+      "topics": { "P1": { "entityId": "urn:ngsi-ld:Machine:1", "entityType": "Machine", "attribute": "temperature" } }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+
+echo "01. GET on the bridge's port - the request echoed: path decoded, q with '+' a space and %2B a '+', the header"
+echo "=============================================================================================================="
+curl -s -w '\n%{http_code} %{content_type}\n' -H 'X-Loopback: hello' 'http://localhost:18997/iot/d%2Fx?q=a+b%2Bc&k=1'
+echo
+echo
+
+
+echo "02. POST with a body - its length"
+echo "================================="
+curl -s -w '\n%{http_code}\n' -X POST -H 'Content-Type: text/plain' -d 't|21.5|h|40' 'http://localhost:18997/iot/d'
+echo
+echo
+
+
+echo "03. POST /sample?endpoint=P1 - the handler hands the body to the broker: the Machine's temperature"
+echo "=================================================================================================="
+curl -s -w '%{http_code}\n' -X POST -d '22.5' 'http://localhost:18997/sample?endpoint=P1'
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1 '22.5'
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Machine:1?pick=temperature&format=simplified'
+echo
+echo
+
+
+echo "04. POST /sample?endpoint=NOPE - no channel has it: the handler's 404"
+echo "====================================================================="
+curl -s -w '%{http_code}\n' -X POST -d '1' 'http://localhost:18997/sample?endpoint=NOPE'
+echo
+echo
+
+
+echo "05. A handler answering 42 - the broker's 500"
+echo "============================================="
+curl -s -o /dev/null -w '%{http_code}\n' 'http://localhost:18997/bad'
+echo
+echo
+
+
+echo "06. No NGSI-LD on the bridge's port - /ngsi-ld/v1/entities is the loopback's"
+echo "============================================================================"
+curl -s -w '\n%{http_code}\n' 'http://localhost:18997/ngsi-ld/v1/entities'
+echo
+echo
+
+
+echo "07. A body over 1 MB - not read: the handler is told, its length 0"
+echo "=================================================================="
+head -c 1200000 /dev/zero | tr '\0' 'a' > /tmp/coraine_big_body
+curl -s -w '\n%{http_code}\n' -X POST -H 'Content-Type: text/plain' --data-binary @/tmp/coraine_big_body 'http://localhost:18997/iot/d'
+rm -f /tmp/coraine_big_body
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. GET on the bridge's port - the request echoed: path decoded, q with '+' a space and %2B a '+', the header
+==============================================================================================================
+{"method":"GET","path":"/iot/d/x","q":"a b+c","x-loopback":"hello","bodyLen":0,"bodyTooBig":false}
+200 application/json
+
+
+02. POST with a body - its length
+=================================
+{"method":"POST","path":"/iot/d","q":"","x-loopback":"","bodyLen":11,"bodyTooBig":false}
+200
+
+
+03. POST /sample?endpoint=P1 - the handler hands the body to the broker: the Machine's temperature
+==================================================================================================
+204
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 26
+
+{
+  "temperature": 22.5
+}
+
+
+
+04. POST /sample?endpoint=NOPE - no channel has it: the handler's 404
+=====================================================================
+404
+
+
+05. A handler answering 42 - the broker's 500
+=============================================
+500
+
+
+06. No NGSI-LD on the bridge's port - /ngsi-ld/v1/entities is the loopback's
+============================================================================
+{"method":"GET","path":"/ngsi-ld/v1/entities","q":"","x-loopback":"","bodyLen":0,"bodyTooBig":false}
+200
+
+
+07. A body over 1 MB - not read: the handler is told, its length 0
+==================================================================
+{"method":"POST","path":"/iot/d","q":"","x-loopback":"","bodyLen":0,"bodyTooBig":true}
+200
+
+

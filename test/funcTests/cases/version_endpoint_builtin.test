@@ -9,15 +9,15 @@
 #
 # The endpoint itself is covered by version_endpoint.test, which pins the
 # response shape, the headers and the mhd member list. This file exists for the
-# one thing that file cannot say: `stack` reports what is LINKED IN, and corHttp
-# is linked only here. On an mhd build corHttp is compiled but not linked, and
-# stackManifest.sh leaves it out on purpose - listing it would be a claim about
-# the binary that is not true of it.
+# one thing that file cannot say: `stack` reports what is LINKED IN, and here
+# corHttp is the HTTP server. On an mhd build it is linked only for a bridge's
+# port (COR_FEATURE_BRIDGE_HTTP_LISTEN), and stackManifest.sh leaves it out of a
+# build without that - listing it would be a claim about the binary that is not
+# true of it.
 #
-# So the two flavours report two different member sets and each one is pinned in
-# full. The alternative - one test with a pattern loose enough for both - would
-# accept a build that linked neither, which is the only failure worth catching
-# here.
+# So each flavour's member set is pinned in full. The alternative - one test with
+# a pattern loose enough for both - would accept a build that linked neither,
+# which is the only failure worth catching here.
 #
 # The shas are REGEXed, as in version_endpoint.test: they change with every
 # library commit, and pinning them would make this a tripwire for other people's
