@@ -300,10 +300,10 @@ HTTP/1.1 201 Created
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 187
+Content-Length: 181
 
 {
-  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx/attrs' not found",
+  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
   "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
@@ -364,10 +364,10 @@ Content-Length: 181
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 226
+Content-Length: 181
 
 {
-  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx/attrs/http://a.b.c/list/of/attributes/A1.xxx' not found",
+  "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
   "status": 404,
   "title": "Not Found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
