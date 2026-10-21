@@ -74,6 +74,8 @@ typedef struct TsWriter
   TsUnit*                head;
   TsUnit*                tail;
   int64_t                queuedBytes;
+  int                    queuedN;      // units in the queue
+  int                    busyN;        // writers sending a batch
   uint64_t               seq;          // seq of the last unit queued
   bool                   stop;
   int                    threadN;
@@ -181,6 +183,8 @@ static void* writerMain(void* arg)
       pthread_cond_signal(&wP->workCond);    // more to do - for another writer
 
     wP->queuedBytes -= bytes;
+    wP->queuedN     -= unitN;
+    wP->busyN       += 1;
     pthread_cond_broadcast(&wP->roomCond);
     pthread_mutex_unlock(&wP->mutex);
 
@@ -188,6 +192,7 @@ static void* writerMain(void* arg)
 
     pthread_mutex_lock(&wP->mutex);
 
+    wP->busyN   -= 1;
     tP->batchSeq = 0;
     for (int ix = 0; ix < unitN; ix++)
     {
@@ -342,8 +347,16 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, bool wait, int* rcP)
     wP->tail->next = uP;
   wP->tail         = uP;
   wP->queuedBytes += bytes;
+  wP->queuedN     += 1;
 
-  pthread_cond_signal(&wP->workCond);
+  //
+  // Another writer only when none is sending, or the queue is past what a batch of a few requests
+  // is: a writer that is busy takes what queued meanwhile when it is done, in one transaction. Woken
+  // for every unit, under a light load each writer took one request and Postgres paid a transaction
+  // for each.
+  //
+  if ((wP->busyN == 0) || (wP->queuedN >= 8))
+    pthread_cond_signal(&wP->workCond);
 
   if (wait == true)
   {
