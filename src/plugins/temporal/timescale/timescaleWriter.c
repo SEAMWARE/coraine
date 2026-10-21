@@ -68,7 +68,8 @@ typedef struct TsWriter
   struct TimescalePool*  poolP;
   pthread_mutex_t        mutex;
   pthread_cond_t         workCond;     // a unit is queued, or stop
-  pthread_cond_t         doneCond;     // a batch is done - waiting submitters and barriers
+  pthread_cond_t         doneCond;     // a batch is done - for the barriers (a waiting submitter has its unit's)
+  int                    barrierN;     // threads waiting in timescaleWriterBarrier
   pthread_cond_t         roomCond;     // the queue is below its cap again
   TsUnit*                head;
   TsUnit*                tail;
@@ -191,12 +192,16 @@ static void* writerMain(void* arg)
     for (int ix = 0; ix < unitN; ix++)
     {
       if (unitV[ix]->wait == true)
+      {
         unitV[ix]->done = true;              // the submitter frees it
+        pthread_cond_signal(&unitV[ix]->doneCond);
+      }
       else
         tsUnitFree(unitV[ix]);
     }
 
-    pthread_cond_broadcast(&wP->doneCond);
+    if (wP->barrierN > 0)
+      pthread_cond_broadcast(&wP->doneCond);
   }
 
   pthread_mutex_unlock(&wP->mutex);
@@ -313,11 +318,16 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, bool wait, int* rcP)
   uP->wait = wait;
   uP->done = false;
 
+  if (wait == true)
+    pthread_cond_init(&uP->doneCond, NULL);
+
   pthread_mutex_lock(&wP->mutex);
 
   if (wP->stop == true)                      // shutting down - the caller writes it itself
   {
     pthread_mutex_unlock(&wP->mutex);
+    if (wait == true)
+      pthread_cond_destroy(&uP->doneCond);
     return false;
   }
 
@@ -338,10 +348,11 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, bool wait, int* rcP)
   if (wait == true)
   {
     while (uP->done == false)
-      pthread_cond_wait(&wP->doneCond, &wP->mutex);
+      pthread_cond_wait(&uP->doneCond, &wP->mutex);
 
     *rcP = uP->rc;
     pthread_mutex_unlock(&wP->mutex);
+    pthread_cond_destroy(&uP->doneCond);
     tsUnitFree(uP);
     return true;
   }
@@ -391,8 +402,10 @@ void timescaleWriterBarrier(TimescalePool* poolP)
 
   uint64_t target = wP->seq;
 
+  wP->barrierN += 1;
   while (recordedSeq(wP) < target)
     pthread_cond_wait(&wP->doneCond, &wP->mutex);
+  wP->barrierN -= 1;
 
   pthread_mutex_unlock(&wP->mutex);
 }

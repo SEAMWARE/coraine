@@ -17,6 +17,7 @@
 
 #include <stdbool.h>                                      // bool
 #include <stdint.h>                                       // uint64_t
+#include <pthread.h>                                      // pthread_cond_t
 #include <libpq-fe.h>                                     // PGconn
 
 
@@ -56,6 +57,7 @@ typedef struct TsUnit
 
   bool            wait;          // the submitter waits for the commit (--troeSync)
   bool            done;          // set by the writer, under its mutex, for a waited-for unit
+  pthread_cond_t  doneCond;      // signalled with done - initialised only for a waited-for unit
   int             rc;            // TROE_OK / TROE_ERR, valid once done
 } TsUnit;
 
