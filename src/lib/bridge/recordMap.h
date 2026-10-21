@@ -7,6 +7,8 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <stdbool.h>                                  // bool
+
 #include "corAlloc/CorAlloc.h"                        // CorAlloc
 #include "corTree/CorNode.h"                          // CorNode
 
@@ -26,6 +28,23 @@
 // @return the map, malloc'd (recordMapFree), or NULL
 //
 extern RecordMap* recordMapParse(CorNode* entryP, CorAlloc* kaP, const char** whyP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// recordOtherParse - an "otherColumns" member (a DataChannel's, or a bridge's default): RecordOtherUnset
+// when there is none; on a value that is neither "none" nor "property", *whyP says so
+//
+extern RecordOther recordOtherParse(CorNode* nodeP, const char** whyP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// recordColumnUsed - whether the mapping uses the column (an attribute's, or a template's)
+//
+extern bool recordColumnUsed(RecordMap* mapP, const char* column);
 
 
 

@@ -295,6 +295,8 @@ static LoopbackMeta  statusIns[LOOPBACK_CHANNELS_MAX];   // endpoint -> "statusI
 static int           statusInCount = 0;
 static LoopbackMeta  payloadChecks[LOOPBACK_CHANNELS_MAX];   // endpoint -> "payloadCheck" (loopbackPayloadCheckPair)
 static int           payloadCheckCount = 0;
+static LoopbackMeta  refuseTypes[3];                     // channel type -> why it is refused ("refuseTypes", ABI 15)
+static int           refuseTypeCount = 0;
 
 static LoopbackMeta  echoes[LOOPBACK_CHANNELS_MAX];   // endpoint -> the request's sub-attribute name
 static int           echoCount = 0;
@@ -603,6 +605,7 @@ static void loopbackGoalModesLoad(void);
 static void loopbackTopicModesLoad(void);
 static void loopbackStatusInsLoad(void);
 static void loopbackPayloadChecksLoad(void);
+static void loopbackRefuseTypesLoad(void);
 
 
 static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
@@ -644,6 +647,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackTopicModesLoad();
   loopbackStatusInsLoad();
   loopbackPayloadChecksLoad();
+  loopbackRefuseTypesLoad();
   loopbackEmitAtStart();
   loopbackEmitLater();
   loopbackDiscoverAtStart();
@@ -1391,6 +1395,13 @@ static void loopbackClose(void)
   }
   payloadCheckCount = 0;
 
+  for (int i = 0; i < refuseTypeCount; i++)
+  {
+    free(refuseTypes[i].endpoint);
+    free(refuseTypes[i].meta);
+  }
+  refuseTypeCount = 0;
+
   pthread_mutex_lock(&heldGoalMutex);
   for (int i = 0; i < heldGoalCount; i++)
   {
@@ -1407,6 +1418,66 @@ static void loopbackClose(void)
 //
 // loopbackChannelAdd -
 //
+static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, BridgeDirection direction);
+
+
+
+#if BRIDGE_ABI_VERSION >= 15
+// -----------------------------------------------------------------------------
+//
+// loopbackRefuseTypePair / loopbackRefuseTypesLoad - "refuseTypes": the channel types the loopback does not
+// carry, and why (ABI 15, channelTypedAdd) - as an IoT Agent bridge carries DataChannels only:
+//
+//   "refuseTypes": { "Channel": "this bridge carries DataChannels only" }
+//
+static void loopbackRefuseTypePair(const char* type, const char* reason)
+{
+  if (refuseTypeCount >= (int) (sizeof(refuseTypes) / sizeof(refuseTypes[0])))
+    return;
+
+  refuseTypes[refuseTypeCount].endpoint = strdup(type);   // the type's name, in the endpoint slot
+  refuseTypes[refuseTypeCount].meta     = strdup(reason);
+  ++refuseTypeCount;
+}
+
+static void loopbackRefuseTypesLoad(void)
+{
+  loopbackConfigPairs("\"refuseTypes\"", loopbackRefuseTypePair);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// loopbackChannelTypedAdd - channelAdd, unless "refuseTypes" names the type: then the channel is reported
+// dormant with the reason, and refused
+//
+static int loopbackChannelTypedAdd(const char* endpoint, BridgeChannelType type, BridgeChannelKind kind, BridgeDirection direction, const char* info)
+{
+  (void) info;
+
+  const char* name = (type == BridgeChannelTypeDataChannel)  ? "DataChannel"  :
+                     (type == BridgeChannelTypeAssetChannel) ? "AssetChannel" : "Channel";
+
+  for (int ix = 0; ix < refuseTypeCount; ix++)
+  {
+    if (strcmp(refuseTypes[ix].endpoint, name) != 0)
+      continue;
+
+    if ((brokerP->abiVersion >= 12) && (brokerP->channelStatusIn != NULL))
+      brokerP->channelStatusIn("loopback", endpoint, BridgeChannelDormant, refuseTypes[ix].meta);
+
+    return BRIDGE_UNSUPPORTED;
+  }
+
+  return loopbackChannelAdd(endpoint, kind, direction);
+}
+#else
+static void loopbackRefuseTypesLoad(void) {}
+#endif
+
+
+
 static int loopbackChannelAdd(const char* endpoint, BridgeChannelKind kind, BridgeDirection direction)
 {
   if ((endpoint == NULL) || (*endpoint == 0))
@@ -1923,6 +1994,11 @@ void bridgeRegister(BridgeDriver* driverP)
 #if BRIDGE_ABI_VERSION >= 14
   if (hostAbi >= 14)
     driverP->inventory = loopbackInventory;
+#endif
+
+#if BRIDGE_ABI_VERSION >= 15
+  if (hostAbi >= 15)
+    driverP->channelTypedAdd = loopbackChannelTypedAdd;
 #endif
 
   //

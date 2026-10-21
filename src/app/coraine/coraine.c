@@ -759,6 +759,35 @@ static void bridgeChannelsInit(void)
 
 // -----------------------------------------------------------------------------
 //
+// channelHandOver - one channel to its bridge: channelTypedAdd (ABI 15) when the plugin has it - the type and
+// the channelInfo come with it - else channelAddInfo (ABI 9), else channelAdd, and a channelInfo the plugin
+// cannot be given is said, not silently dropped. BRIDGE_UNSUPPORTED when the plugin can be handed none
+//
+static int channelHandOver(int ix, const char* endpoint, BridgeChannelType type, BridgeChannelKind kind, BridgeDirection direction, const char* info, const char* what)
+{
+#if BRIDGE_ABI_VERSION >= 15
+  if ((bridges[ix].abiVersion >= 15) && (bridges[ix].channelTypedAdd != NULL))
+    return bridges[ix].channelTypedAdd(endpoint, type, kind, direction, info);
+#else
+  (void) type;
+#endif
+
+  if ((bridges[ix].abiVersion >= 9) && (bridges[ix].channelAddInfo != NULL))
+    return bridges[ix].channelAddInfo(endpoint, kind, direction, info);
+
+  if (bridges[ix].channelAdd == NULL)
+    return BRIDGE_UNSUPPORTED;
+
+  if (info != NULL)
+    COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for %s'%s'", bridges[ix].alias, bridges[ix].abiVersion, what, endpoint);
+
+  return bridges[ix].channelAdd(endpoint, kind, direction);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // bridgesInit - open the transports, and hand each Channel to its Bridge
 //
 // LAST in startup: from here on, samples arrive on threads of the transports'
@@ -811,22 +840,12 @@ static void bridgesInit(void)
       if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, channelP->bridgeName) != 0))
         continue;
 
-      //
-      // channelAddInfo (ABI 9) when the plugin has it - the Channel's channelInfo comes with it - else
-      // channelAdd, and a channelInfo the plugin cannot be given is said, not silently dropped.
-      //
-      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
-
-      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
-        break;
-
-      if ((withInfo == false) && (channelP->info != NULL))
-        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for '%s'", channelP->bridgeName, bridges[i].abiVersion, channelP->endpoint);
-
       char* reasonBefore = channelP->statusReason;   // a reason the plugin gives inside the call (channelStatusIn) replaces it
 
-      int r = (withInfo == true) ? bridges[i].channelAddInfo(channelP->endpoint, channelP->kind, channelP->direction, channelP->info)
-                                 : bridges[i].channelAdd(channelP->endpoint, channelP->kind, channelP->direction);
+      int r = channelHandOver(i, channelP->endpoint, BridgeChannelTypeChannel, channelP->kind, channelP->direction, channelP->info, "");
+
+      if ((r == BRIDGE_UNSUPPORTED) && (bridges[i].channelAdd == NULL) && (bridges[i].channelAddInfo == NULL))
+        break;                                       // a plugin that carries no channel at all
       //
       // Refused - an address or a channelInfo the transport cannot use. The Channel stays, DORMANT, with the
       // reason: GET /channels is where an operator (and a test) looks, not the log.
@@ -871,18 +890,12 @@ static void bridgesInit(void)
       if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, dcP->bridgeName) != 0))
         continue;
 
-      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
-
-      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
-        break;
-
-      if ((withInfo == false) && (dcP->info != NULL))
-        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for DataChannel '%s'", dcP->bridgeName, bridges[i].abiVersion, dcP->endpoint);
-
       char* reasonBefore = dcP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
 
-      int r = (withInfo == true) ? bridges[i].channelAddInfo(dcP->endpoint, BridgeChannelTopic, BridgeDirectionIn, dcP->info)
-                                 : bridges[i].channelAdd(dcP->endpoint, BridgeChannelTopic, BridgeDirectionIn);
+      int r = channelHandOver(i, dcP->endpoint, BridgeChannelTypeDataChannel, BridgeChannelTopic, BridgeDirectionIn, dcP->info, "DataChannel ");
+
+      if ((r == BRIDGE_UNSUPPORTED) && (bridges[i].channelAdd == NULL) && (bridges[i].channelAddInfo == NULL))
+        break;                                       // a plugin that carries no channel at all
 
       if (r != BRIDGE_OK)
       {
@@ -923,18 +936,12 @@ static void bridgesInit(void)
       if ((bridges[i].alias == NULL) || (strcmp(bridges[i].alias, acP->bridgeName) != 0))
         continue;
 
-      bool withInfo = (bridges[i].abiVersion >= 9) && (bridges[i].channelAddInfo != NULL);
-
-      if ((withInfo == false) && (bridges[i].channelAdd == NULL))
-        break;
-
-      if ((withInfo == false) && (acP->info != NULL))
-        COR_W("bridge '%s' takes no channelInfo (ABI %d) - ignored for AssetChannel '%s'", acP->bridgeName, bridges[i].abiVersion, acP->endpoint);
-
       char* reasonBefore = acP->statusReason;        // a reason the plugin gives inside the call (channelStatusIn) replaces it
 
-      int r = (withInfo == true) ? bridges[i].channelAddInfo(acP->endpoint, BridgeChannelTopic, BridgeDirectionIn, acP->info)
-                                 : bridges[i].channelAdd(acP->endpoint, BridgeChannelTopic, BridgeDirectionIn);
+      int r = channelHandOver(i, acP->endpoint, BridgeChannelTypeAssetChannel, BridgeChannelTopic, BridgeDirectionIn, acP->info, "AssetChannel ");
+
+      if ((r == BRIDGE_UNSUPPORTED) && (bridges[i].channelAdd == NULL) && (bridges[i].channelAddInfo == NULL))
+        break;                                       // a plugin that carries no channel at all
 
       if (r != BRIDGE_OK)
       {
