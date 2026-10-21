@@ -339,44 +339,136 @@ queue holds at most 8 MiB; past that a request waits for room.
 
 #### The database down
 
-The database is down when a write finds no connection to it, or the server cannot take writes:
-shutting down, a standby (read-only), out of disk, out of connections. A write that fails for its
-rows (a value the database refuses) loses only that request's rows, and is logged.
+The database is down when a write of the history finds no connection to it, or a server that cannot
+take writes: shutting down, a standby (read-only), out of disk, out of connections (SQLSTATE classes
+08, 53, 57, 58, and 25006). A write that fails for its rows - a value the database refuses - is not
+that: it loses only that request's rows, and is logged.
 
-**The current state and its subscriptions are served as before** - every write is answered and
-notifies as it would. What changes is the history:
+**The current state and its subscriptions are served as before.** The history is held in memory
+and retried, and recorded when the database is back - up to 8 MiB of it; past that it is lost, and
+counted. Or, with `--troeDownExit`, the broker exits instead of losing any.
 
-- **It is held, and retried.** The rows stay queued; one writer tries again 100 ms later, then twice
-  as late each time, up to 5 s. Once a try goes in, the writers write everything held, in order.
-- **Past 8 MiB held, it is lost.** The rows of every request that does not fit are dropped and
-  counted. The log says so: `THE HISTORY IS NOT BEING RECORDED` when the database goes, `HISTORY
-  LOST` - with the rows lost since the start - at most every 10 s while rows are dropped, and, when
-  it is back, how long it was gone and how many rows were lost meanwhile.
-- **Nothing waits for it.** A `--troeSync` request is answered without waiting for its commit (its
-  rows are held as any other), a temporal read or a Temporal API write is answered at once - with an
-  error, as the database is down - and an import is told its rows did not go in.
-- **The [health report](#health-port) shows it**: `status` is `degraded` and `troe.history` says
-  `recording: false`, for how long, how many bytes are held and how many rows were lost. `/ready`
-  stays 200: the temporal store is not a part of it.
-- **A stop** while the database is down tries once, and the rows held are lost (and logged).
+##### During the outage
 
-How much 8 MiB is depends on the rows. Held for perfRun's Entity (five Attributes, ~550 bytes of
-JSON): 1 481 bytes for its create, 245 for a PATCH of one of its Attributes - 8 MiB is some 5 660
-creates, a quarter of a second at the 24 025 creates/s of [the write path](performance.md#timescaledb-the-write-path),
-or some 34 200 Attribute PATCHes.
+What a client gets, measured (`ALTER DATABASE ... ALLOW_CONNECTIONS false`, its connections
+terminated):
 
-With **`--troeDownExit <s>`** the broker exits (code 1) instead of losing history: once the database
-has been unreachable for that many seconds with history to write, or at the first row that does not
-fit, whichever comes first. A `--troeSync` request then waits for its commit while the database is
-down, so with `--troeSync --troeDownExit` no write is answered unless its history is recorded - the
-requests in flight when the broker exits are not answered at all. Without `--troeSync` the rows held
-(up to 8 MiB, of requests already answered) are lost at the exit.
+| Request | Answer |
+|---|---|
+| A write of the current state (POST, PATCH, PUT, DELETE, batch) | as always - 201, 204, ...; its subscriptions notify. Its history is held |
+| A write with `--troeSync` | as always, without waiting for the commit - its history is held as any other (with `--troeDownExit`: it waits, see below) |
+| A read of the current state | as always |
+| A temporal read (`GET /temporal/entities`, `/temporal/entities/{id}`, the queries) | **500** `InternalError`, at once - `"temporal retrieve failed for entity '<id>'"`, `"temporal query failed"` |
+| A Temporal API write (`POST /temporal/entities`, ...) | **500** `InternalError`, at once - `"temporal-entity create failed"` |
+| An import (`coraine-import`) | its rows not written - the import reports them |
+| `GET /ready` (health port) | **200** |
+| `GET /live` (health port) | 200 |
 
-A connection is given 5 s to connect; one whose server stops answering is given up after 30 s
-unanswered (TCP keepalives after 10 s idle) - a statement that is merely slow is not cut short.
+**A temporal read is a 500** because the history it would read is in the database: there is no
+other copy to answer from - what is held in memory is only what was written during the outage. It
+does not wait for the database: a read waits for the history queued before it only while the
+database is up.
 
-With `--troeWriters 0` there is nothing to hold: a request whose history does not go in loses it
-(counted, and logged), and with `--troeDownExit` the broker exits at the first one.
+**`/ready` stays 200** because the broker still serves what most requests ask for - the current state
+and its subscriptions - and because every instance of a cluster writes its history to the one
+PostgreSQL: a 503 for it would take every instance out of service at the same moment, and turn a
+history outage into an outage of everything. `/ready` is 503 for the current-state store, not the
+temporal one. The [health report](#health-port) says what is going on instead:
+
+```json
+"status": "degraded",
+"troe": { "plugin": "timescale", "loaded": true, "reachable": false, ...,
+          "history": { "recording": false, "notRecordingForMs": 3120, "heldBytes": 671, "lostRows": 0 } }
+```
+
+`reachable` is the once-a-second ping (an answer within the last 5 s); `history.recording` turns
+false at the first write that finds the database down.
+
+**The log** says it when it happens, as an error:
+
+```
+timescale: TRoE: the history database 'corh' cannot be reached - THE HISTORY IS NOT BEING RECORDED. Held in memory up to 8 MiB and retried; past that it is lost. The current state is served as before
+```
+
+**The history held.** The rows stay queued, in order. One writer tries again 100 ms later, then
+twice as late each time - 200 ms, 400 ms, ... - up to every 5 s; the other writers wait for it. The
+queue holds 8 MiB. Held for perfRun's Entity (five Attributes, ~550 bytes of JSON): 1 481 bytes for
+its create, 245 for a PATCH of one of its Attributes - 8 MiB is some 5 660 creates, a quarter of a
+second at the 24 025 creates/s of [the write path](performance.md#timescaledb-the-write-path), or
+some 34 200 Attribute PATCHes.
+
+**Past 8 MiB, the history is lost.** A request whose rows do not fit is answered as always, and
+its rows are dropped and counted (`lostRows`). The log, at most every 10 s while rows are dropped:
+
+```
+timescale: TRoE: HISTORY LOST in db 'corh': the database cannot be reached and the history held in memory is at its cap - 12841 row(s) of history lost since the start
+```
+
+##### The database back
+
+The first try that goes in ends the outage - at most 5 s after the database takes connections
+again (measured: 3.2 s, after an outage of 3 s). Then:
+
+- **Everything held is written**, in the order it was taken, in batches as always. Every row
+  carries the times of its write - `modifiedAt`, `createdAt`, `observedAt` - not the time it went in:
+  the history is the same as if there had been no outage.
+- **Temporal reads answer again**, and see the history held: a read waits for every row queued
+  before it.
+- **The health report** turns back: `status` `ok`, `recording: true`, `heldBytes` 0. `lostRows` stays
+  - it counts since the start.
+- **The log** says how long it was gone and whether anything was lost:
+
+```
+timescale: TRoE: the history database 'corh' is back after 6 s - recording again, nothing lost
+timescale: TRoE: the history database 'corh' is back after 95 s - recording again. 12841 row(s) of history were LOST meanwhile
+```
+
+**What was lost stays lost.** The current state has those writes; the history does not - an
+attribute's instances skip from the last one held before the cap was reached to the first one
+written after the database was back. Nothing writes them afterwards: the broker no longer has them.
+
+A broker **stopped** during an outage (SIGTERM) tries once, and loses what it holds (logged, as
+above). A broker **started** during an outage does not start: `troeStart failed`, exit code 1 - its
+start creates and migrates the history's tables.
+
+##### `--troeDownExit`
+
+`--troeDownExit <s>` (0, the default: never) makes the broker exit, with code 1, instead of losing
+history:
+
+- **After `<s>` seconds** of the database down - counted from the first write that found it down,
+  checked at each try - while there is history held. A broker with nothing to write does not exit.
+- **Or at the first row that would be lost** - the 8 MiB full - whichever comes first.
+
+It exits at once (no clean stop - no request is answered after the decision), with one of:
+
+```
+timescale: TRoE: the history database 'corh' has been unreachable for 30 s; --troeDownExit: the broker exits, 412 request(s) of history held in memory not recorded
+timescale: TRoE: HISTORY LOST in db 'corh': the database cannot be reached and the history held in memory is at its cap - 3 row(s); --troeDownExit: the broker exits
+```
+
+What it costs, and what it buys:
+
+- **With `--troeSync --troeDownExit` no write is answered unless its history is recorded.** A
+  `--troeSync` write waits for its commit, the outage or not; the broker exits with those requests
+  unanswered - their clients see the connection closed, as for a crash, and do not know whether the
+  current state has their write. The current-state stores keep what they acknowledged.
+- **Without `--troeSync`** the history held - of requests already answered, up to 8 MiB - is lost at
+  the exit: the option bounds the loss to the queue, it does not avoid it.
+- **The broker does not start while the database is down** (above). An orchestrator that restarts it
+  (Kubernetes, `restart: on-failure`) restarts it into the same failure until PostgreSQL is back: with
+  `--troeDownExit` an outage of the history is an outage of the broker. That is the trade - no
+  history lost, nothing served meanwhile.
+
+##### Connections
+
+A connection is given 5 s to connect. One whose server stops answering is given up after 30 s
+without an acknowledgement (TCP keepalives after 10 s idle, 3 of them 5 s apart) - a statement that
+is merely slow is not cut short. Without that, a PostgreSQL host that vanishes (a network partition,
+a powered-off machine) would hold a writer for the minutes TCP takes to give up.
+
+With `--troeWriters 0` nothing is held: a request whose history does not go in loses it (counted,
+and logged), and with `--troeDownExit` the broker exits at the first one.
 
 #### The indexes of the history
 
