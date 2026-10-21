@@ -1,0 +1,374 @@
+#
+# FILE            concise_geoproperty_no_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.3.2.3 Normalized-to-Concise Compaction, step 2: the "type" of an Attribute is removed - for a
+# GeoProperty too, whose type the Concise-to-Normalized Expansion infers from a "value" holding a
+# GeoJSON geometry. A GeoProperty that does not collapse to the bare geometry - a datasetId (ETSI
+# 018_23_11), an observedAt, a sub-attribute - is { "value": <geometry>, ... } in concise, no "type".
+# The concise output, sent back, is a GeoProperty again. A concise value of the GeoJSON shape ("type" +
+# "coordinates") with a misspelled geometry is a GeoProperty with a bad geometry - a 400 - not a Property.
+# So is an object whose "type" names a GeoJSON geometry, whatever its other members: { "type": "Point",
+# "coodrinates": [1, 2] } is a geometry without coordinates, not an Attribute of type "Point".
+#
+--NAME--
+Concise GeoProperty without "type" - datasetId, observedAt, sub-attribute
+
+--TAGS--
+entity retrieve concise geo
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 with location (default + datasetId instance), loc2 (observedAt), loc3 (sub-attribute)"
+echo "================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "location": [
+    { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [1, 2] } },
+    { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [3, 4] }, "datasetId": "urn:ngsi-ld:ds:gps" }
+  ],
+  "loc2": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [5, 6] }, "observedAt": "2026-10-21T10:00:00.000Z" },
+  "loc3": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [7, 8] }, "accuracy": { "type": "Property", "value": 3 } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET E1 in concise - no GeoProperty carries a \"type\""
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?format=concise'
+echo
+echo
+
+
+echo "03. Create E2 from the concise attributes of step 02"
+echo "===================================================="
+payload='{
+  "id": "urn:ngsi-ld:T:E2",
+  "type": "T",
+  "location": [
+    { "type": "Point", "coordinates": [1, 2] },
+    { "value": { "type": "Point", "coordinates": [3, 4] }, "datasetId": "urn:ngsi-ld:ds:gps" }
+  ],
+  "loc2": { "value": { "type": "Point", "coordinates": [5, 6] }, "observedAt": "2026-10-21T10:00:00.000Z" },
+  "loc3": { "value": { "type": "Point", "coordinates": [7, 8] }, "accuracy": 3 }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET E2 normalized - every one a GeoProperty"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2'
+echo
+echo
+
+
+echo "05. Create E3 - concise loc with observedAt and the geometry type \"Piont\": 400"
+echo "================================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E3", "type": "T", "loc": { "value": { "type": "Piont", "coordinates": [1, 2] }, "observedAt": "2026-10-21T10:00:00.000Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Create E4 - concise loc with datasetId and the geometry type \"Piont\": 400"
+echo "==============================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E4", "type": "T", "loc": { "value": { "type": "Piont", "coordinates": [1, 2] }, "datasetId": "urn:ngsi-ld:ds:gps" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. Create E5 - loc { \"type\": \"Point\", \"coodrinates\": [1, 2, 3] }: 400, no coordinates"
+echo "=============================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E5", "type": "T", "loc": { "type": "Point", "coodrinates": [1, 2, 3] } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Create E6 - loc { \"type\": \"Point\" }: 400, no coordinates"
+echo "==============================================================="
+payload='{ "id": "urn:ngsi-ld:T:E6", "type": "T", "loc": { "type": "Point" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. Create E7 - concise loc, value { \"type\": \"Point\", \"coodrinates\": [1, 2] }, observedAt: 400"
+echo "============================================================================================"
+payload='{ "id": "urn:ngsi-ld:T:E7", "type": "T", "loc": { "value": { "type": "Point", "coodrinates": [1, 2] }, "observedAt": "2026-10-21T10:00:00.000Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Create E8 - loc a GeometryCollection: 400, not allowed in NGSI-LD"
+echo "===================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E8", "type": "T", "loc": { "type": "GeometryCollection", "geometries": [ { "type": "Point", "coordinates": [1, 2] } ] } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. GET the entities of type T - E1 and E2 only"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T' | grep '"id": "urn'
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 with location (default + datasetId instance), loc2 (observedAt), loc3 (sub-attribute)
+=================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E1
+Content-Length: 0
+
+
+
+
+02. GET E1 in concise - no GeoProperty carries a "type"
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 605
+
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "loc2": {
+    "observedAt": "2026-10-21T10:00:00Z",
+    "value": {
+      "coordinates": [
+        5,
+        6
+      ],
+      "type": "Point"
+    }
+  },
+  "loc3": {
+    "accuracy": 3,
+    "value": {
+      "coordinates": [
+        7,
+        8
+      ],
+      "type": "Point"
+    }
+  },
+  "location": [
+    {
+      "coordinates": [
+        1,
+        2
+      ],
+      "type": "Point"
+    },
+    {
+      "datasetId": "urn:ngsi-ld:ds:gps",
+      "value": {
+        "coordinates": [
+          3,
+          4
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "type": "T"
+}
+
+
+
+03. Create E2 from the concise attributes of step 02
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:T:E2
+Content-Length: 0
+
+
+
+
+04. GET E2 normalized - every one a GeoProperty
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 801
+
+{
+  "id": "urn:ngsi-ld:T:E2",
+  "loc2": {
+    "observedAt": "2026-10-21T10:00:00Z",
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        5,
+        6
+      ],
+      "type": "Point"
+    }
+  },
+  "loc3": {
+    "accuracy": {
+      "type": "Property",
+      "value": 3
+    },
+    "type": "GeoProperty",
+    "value": {
+      "coordinates": [
+        7,
+        8
+      ],
+      "type": "Point"
+    }
+  },
+  "location": [
+    {
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
+    },
+    {
+      "datasetId": "urn:ngsi-ld:ds:gps",
+      "type": "GeoProperty",
+      "value": {
+        "coordinates": [
+          3,
+          4
+        ],
+        "type": "Point"
+      }
+    }
+  ],
+  "type": "T"
+}
+
+
+
+05. Create E3 - concise loc with observedAt and the geometry type "Piont": 400
+=================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'Piont'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Create E4 - concise loc with datasetId and the geometry type "Piont": 400
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'Piont'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Create E5 - loc { "type": "Point", "coodrinates": [1, 2, 3] }: 400, no coordinates
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Create E6 - loc { "type": "Point" }: 400, no coordinates
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Create E7 - concise loc, value { "type": "Point", "coodrinates": [1, 2] }, observedAt: 400
+============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Create E8 - loc a GeometryCollection: 400, not allowed in NGSI-LD
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "GeoJSON GeometryCollection is not allowed in NGSI-LD (TS 104-175 § 5.2.6.4.5)",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. GET the entities of type T - E1 and E2 only
+===============================================
+    "id": "urn:ngsi-ld:T:E1",
+    "id": "urn:ngsi-ld:T:E2",
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

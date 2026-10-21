@@ -91,12 +91,12 @@ HTTP/1.1 201 Created
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 278
+Content-Length: 175
 
 {
-  "detail": "cannot change attribute 'https://uri.etsi.org/ngsi-ld/default-context/myGeo' type from 'GeoProperty' to 'Property' in a Merge Entity operation",
+  "detail": "GeoJSON must have a 'coordinates' array field",
   "status": 400,
-  "title": "Attribute Type Change",
+  "title": "Invalid GeoJSON",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
