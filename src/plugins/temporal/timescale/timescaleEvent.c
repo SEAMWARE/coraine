@@ -383,22 +383,32 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 
 // -----------------------------------------------------------------------------
 //
+// nsToSecs - epoch nanoseconds as seconds, the element to_timestamp() takes (timescaleUnitsExec)
+//
+static const char* nsToSecs(uint64_t ns, char* buf, int bufSize)
+{
+  snprintf(buf, bufSize, "%.6f", (double) ns / 1e9);
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // entityRowAdd - one row of troe_entities, into the unit
 //
 static void entityRowAdd(TsUnit* uP, const TroeEvent* evP)
 {
-  char   tsExpr[64];
+  char   secs[64];
   char   typeLit[1024];
-  TsBuf* bP = &uP->entityRows;
+  bool   first = (uP->entityRowN == 0);
+  TsBuf* colV  = uP->entityCol;
   bool   ok;
 
-  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
-
-  ok = tsBufText(bP, "%s(", (uP->entityRowN == 0) ? "" : ",");
-  ok = ok && tsBufLiteral(bP, (evP->entityId != NULL) ? evP->entityId : "", NULL);
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)), "text[]");
-  ok = ok && tsBufText(bP, ", %s, '%s')", tsExpr, opName(evP->op));
+  ok =       tsBufElement(&colV[0], first, (evP->entityId != NULL) ? evP->entityId : "");
+  ok = ok && tsBufElement(&colV[1], first, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
+  ok = ok && tsBufElement(&colV[2], first, nsToSecs(evP->modifiedAtNs, secs, sizeof(secs)));
+  ok = ok && tsBufElement(&colV[3], first, opName(evP->op));
 
   uP->entityRowN += 1;
   if (ok == false)
@@ -476,71 +486,38 @@ static void attrRowAdd(TsUnit* uP, const TroeEvent* evP)
 
   cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
 
-  char tsExpr[64];
-  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
-
   //
   // created_at is modified_at - unless the event is an imported instance (coraine-import) that
-  // carries a creation time of its own, and an instance id of its own (TroeDriver.h).
+  // carries a creation time of its own, and an instance id of its own (TroeDriver.h). Without one,
+  // the instance id is generated (timescaleUnitsExec). created_at and modified_at are seeded to the
+  // same instant on insert; Modify-Instance later bumps modified_at while leaving created_at fixed.
   //
-  char createdExpr[64];
-  timescaleNsToSqlTimestamp((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdExpr, sizeof(createdExpr));
-
-  const char* entityId = (evP->entityId != NULL) ? evP->entityId : "";
+  char        createdSecs[64];
+  char        modifiedSecs[64];
+  char        kindBuf[16];
   char        typeLit[1024];
-  TsBuf*      bP = &uP->attrRows;
+  bool        first = (uP->attrRowN == 0);
+  TsBuf*      colV  = uP->attrCol;
   bool        ok;
 
-  entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
+  snprintf(kindBuf, sizeof(kindBuf), "%d", cols.kind);
 
-  //
-  // instance_id: an imported instance brings its own, unique in the store it came from; otherwise
-  // the table's DEFAULT generates one - so each row is unique by construction and there is no
-  // ON CONFLICT. created_at and modified_at are seeded to the same instant on insert; Modify-Instance
-  // later bumps modified_at while leaving created_at fixed.
-  //
-  ok = tsBufText(bP, "%s(", (uP->attrRowN == 0) ? "" : ",");
-  if ((evP->instanceId != NULL) && (evP->instanceId[0] != 0))
-    ok = ok && tsBufLiteral(bP, evP->instanceId, NULL);
-  else
-    ok = ok && tsBufText(bP, "DEFAULT");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, entityId, NULL);
-  ok = ok && tsBufText(bP, ", ");
-
-  //
-  // An attribute event carries no entity snapshot, so the type can come out empty for a multi-type
-  // Entity; the type list already recorded for this Entity then, rather than storing nothing. Only
-  // then - the subquery is not paid for by the rows that know their type.
-  //
-  if (strcmp(typeLit, "{}") == 0)
-  {
-    ok = ok && tsBufText(bP, "COALESCE((SELECT entity_type FROM troe_entities WHERE entity_id = ");
-    ok = ok && tsBufLiteral(bP, entityId, NULL);
-    ok = ok && tsBufText(bP, " ORDER BY modified_at DESC LIMIT 1), '{}'::text[])");
-  }
-  else
-    ok = ok && tsBufLiteral(bP, typeLit, "text[]");
-
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, (evP->attrName != NULL) ? evP->attrName : "", NULL);
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId, NULL);
-  ok = ok && tsBufText(bP, ", %s, %s, '%s', %d, ", createdExpr, tsExpr, opName(evP->op), cols.kind);
-  ok = ok && tsBufLiteral(bP, cols.observedAtIso, "timestamptz");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.v_text, "text");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.v_number, "double precision");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.v_bool, "boolean");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.v_datetime, "timestamptz");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.v_compound, "jsonb");
-  ok = ok && tsBufText(bP, ", ");
-  ok = ok && tsBufLiteral(bP, cols.sub_attrs, "jsonb");
-  ok = ok && tsBufText(bP, ")");
+  ok =       tsBufElement(&colV[0],  first, ((evP->instanceId != NULL) && (evP->instanceId[0] != 0)) ? evP->instanceId : NULL);
+  ok = ok && tsBufElement(&colV[1],  first, (evP->entityId != NULL) ? evP->entityId : "");
+  ok = ok && tsBufElement(&colV[2],  first, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
+  ok = ok && tsBufElement(&colV[3],  first, (evP->attrName != NULL) ? evP->attrName : "");
+  ok = ok && tsBufElement(&colV[4],  first, (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId);
+  ok = ok && tsBufElement(&colV[5],  first, nsToSecs((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdSecs, sizeof(createdSecs)));
+  ok = ok && tsBufElement(&colV[6],  first, nsToSecs(evP->modifiedAtNs, modifiedSecs, sizeof(modifiedSecs)));
+  ok = ok && tsBufElement(&colV[7],  first, opName(evP->op));
+  ok = ok && tsBufElement(&colV[8],  first, kindBuf);
+  ok = ok && tsBufElement(&colV[9],  first, cols.observedAtIso);
+  ok = ok && tsBufElement(&colV[10], first, cols.v_text);
+  ok = ok && tsBufElement(&colV[11], first, cols.v_number);
+  ok = ok && tsBufElement(&colV[12], first, cols.v_bool);
+  ok = ok && tsBufElement(&colV[13], first, cols.v_datetime);
+  ok = ok && tsBufElement(&colV[14], first, cols.v_compound);
+  ok = ok && tsBufElement(&colV[15], first, cols.sub_attrs);
 
   uP->attrRowN += 1;
   if (ok == false)

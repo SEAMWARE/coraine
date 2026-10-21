@@ -9,10 +9,10 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
-// TsUnit - the TRoE rows of one event list (one request's events), rendered as SQL VALUES rows with
-// the values as literals. Units are self-contained (malloc'd, nothing of the request's arena), so a
+// TsUnit - the TRoE rows of one event list (one request's events), rendered as the elements of SQL
+// array literals, an array per column. Units are self-contained (malloc'd, nothing of the request's arena), so a
 // writer thread can send them after the request is gone, and several of them in one statement: the
-// rows of every unit of a batch go in ONE INSERT per table (timescaleUnitsExec).
+// rows of every unit of a batch go in ONE INSERT per table (timescaleUnitsExec), one array per column.
 //
 
 #include <stdbool.h>                                      // bool
@@ -38,14 +38,19 @@ typedef struct TsBuf
 //
 // TsUnit -
 //
+// A row is an element in each of its table's columns: the rows go to the database as one array per
+// column, unnested - INSERT ... SELECT ... FROM unnest('{...}'::text[], ...). As a VALUES list of 1000
+// rows, Postgres spent more time parsing and planning the statement's 16 000 expressions than
+// inserting its rows (55 ms for 1000 rows of troe_attrs, of which 25 executing; unnested: 22).
+//
 typedef struct TsUnit
 {
   struct TsUnit*  next;          // writer queue linkage
   uint64_t        seq;           // writer queue position (timescaleWriterBarrier)
 
-  TsBuf           entityRows;    // "(...),(...)" - VALUES rows of troe_entities
+  TsBuf           entityCol[4];  // troe_entities: entity_id, entity_type, modified_at (s), op
   int             entityRowN;
-  TsBuf           attrRows;      // "(...),(...)" - VALUES rows of troe_attrs
+  TsBuf           attrCol[16];   // troe_attrs: the columns of timescaleUnitsExec's unnest, in its order
   int             attrRowN;
   bool            oom;           // a row did not fit in memory - the unit is not sent
 
@@ -66,12 +71,14 @@ extern bool tsBufText(TsBuf* bP, const char* fmt, ...) __attribute__((format(pri
 
 // -----------------------------------------------------------------------------
 //
-// tsBufLiteral - append s as a single-quoted SQL literal, cast to `cast` when given; NULL is NULL
+// tsBufElement - append s as an element of a column: an array element ("..." - NULL is NULL), inside
+// the SQL literal of the array, so the quotes are doubled as well
 //
-// Only quotes are doubled: every connection runs with standard_conforming_strings on
-// (timescaleConnect), where a backslash is an ordinary character.
+// Only quotes are doubled for SQL: every connection runs with standard_conforming_strings on
+// (timescaleConnect), where a backslash is an ordinary character - and so the array's own escapes
+// (\" and \\) reach the array parser as they were written.
 //
-extern bool tsBufLiteral(TsBuf* bP, const char* s, const char* cast);
+extern bool tsBufElement(TsBuf* bP, bool first, const char* s);
 
 
 
