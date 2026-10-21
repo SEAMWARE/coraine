@@ -171,9 +171,12 @@ static int               goalModeCount = 0;
 //
 // Topics - what the loopback does with a sample, per endpoint
 //
-// "topicMode": { "<endpoint>": "accept" | "refuse" | "unannounced" }
+// "topicMode": { "<endpoint>": "accept" | "silent" | "refuse" | "unannounced" }
 //
 //   accept       published - and handed back in. The default.
+//   silent       published, and NOT handed back in - a source that does not
+//                report a write back (an AAS server read on a poll, an OPC UA
+//                bridge that drops the echo of its own write)
 //   refuse       refused as a value that does not fit the topic's type
 //                (BRIDGE_BAD_INPUT) - what the DDS plugin answers when the
 //                Enabler cannot serialize a sample for a topic it knows
@@ -603,6 +606,7 @@ static void loopbackEchoesLoad(void);
 static void loopbackSampleFromsLoad(void);
 static void loopbackGoalModesLoad(void);
 static void loopbackTopicModesLoad(void);
+static void loopbackAssetNodesLoad(void);
 static void loopbackStatusInsLoad(void);
 static void loopbackPayloadChecksLoad(void);
 static void loopbackRefuseTypesLoad(void);
@@ -646,6 +650,7 @@ static int loopbackInit(const char* configFile, const BridgeBroker* _brokerP)
   loopbackSampleFromsLoad();
   loopbackGoalModesLoad();
   loopbackTopicModesLoad();
+  loopbackAssetNodesLoad();
   loopbackStatusInsLoad();
   loopbackPayloadChecksLoad();
   loopbackRefuseTypesLoad();
@@ -1113,6 +1118,44 @@ static const char* loopbackTopicMode(const char* endpoint)
 
 // -----------------------------------------------------------------------------
 //
+// "assetNodes": { "<node id>": "<model root>" } - the nodes of a model, as a model bridge knows them: a value
+// published on one (an AssetChannel's write-back) is handed back in on the model's root, as the node's new
+// value - { "values": [ { "id": "<node id>", "value": <json> } ] } - what a server reports once written.
+// "topicMode" applies to the node id.
+//
+static LoopbackGoalMode  assetNodes[LOOPBACK_CHANNELS_MAX];
+static int               assetNodeCount = 0;
+
+static void loopbackAssetNodePair(const char* nodeId, const char* root)
+{
+  if (assetNodeCount >= LOOPBACK_CHANNELS_MAX)
+    return;
+
+  assetNodes[assetNodeCount].endpoint = strdup(nodeId);
+  assetNodes[assetNodeCount].mode     = strdup(root);
+  ++assetNodeCount;
+}
+
+static void loopbackAssetNodesLoad(void)
+{
+  loopbackConfigPairs("\"assetNodes\"", loopbackAssetNodePair);
+}
+
+static const char* loopbackAssetRoot(const char* nodeId)
+{
+  for (int ix = 0; ix < assetNodeCount; ix++)
+  {
+    if (strcmp(assetNodes[ix].endpoint, nodeId) == 0)
+      return assetNodes[ix].mode;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // loopbackStatusInPair / loopbackStatusInsLoad - "statusIn": what the transport says about a Channel (ABI 12)
 //
 //   "statusIn": { "P1": "dormant:the peer has no P1;available",
@@ -1373,6 +1416,13 @@ static void loopbackClose(void)
     free(topicModes[i].mode);
   }
   topicModeCount = 0;
+
+  for (int i = 0; i < assetNodeCount; i++)
+  {
+    free(assetNodes[i].endpoint);
+    free(assetNodes[i].mode);
+  }
+  assetNodeCount = 0;
 
   for (int i = 0; i < statusInCount; i++)
   {
@@ -1650,8 +1700,10 @@ static int loopbackPublish(const char* endpoint, const char* json)
   if ((endpoint == NULL) || (json == NULL))
     return BRIDGE_BAD_INPUT;
 
+  const char* root = loopbackAssetRoot(endpoint);    // a node of a model (assetNodes): back in on the root
+
   pthread_mutex_lock(&channelMutex);
-  bool known = (loopbackChannelLookup(endpoint) != NULL);
+  bool known = (loopbackChannelLookup((root != NULL) ? root : endpoint) != NULL);
   pthread_mutex_unlock(&channelMutex);
 
   if (known == false)
@@ -1664,6 +1716,25 @@ static int loopbackPublish(const char* endpoint, const char* json)
 
   if (strcmp(mode, "unannounced") == 0)
     return BRIDGE_ERR;
+
+  if (strcmp(mode, "silent") == 0)
+    return BRIDGE_OK;
+
+  if (root != NULL)
+  {
+    size_t size   = strlen(endpoint) + strlen(json) + 64;
+    char*  values = (char*) malloc(size);
+
+    if (values == NULL)
+      return BRIDGE_ERR;
+
+    snprintf(values, size, "{\"values\":[{\"id\":\"%s\",\"value\":%s}]}", endpoint, json);   // a node id has no '"' in a test
+
+    bool queued = loopbackQueue(root, values, NULL, 0, 0);
+
+    free(values);
+    return (queued == true) ? BRIDGE_OK : BRIDGE_ERR;
+  }
 
   return (loopbackQueue(endpoint, json, NULL, 0, 0) == true) ? BRIDGE_OK : BRIDGE_ERR;
 }

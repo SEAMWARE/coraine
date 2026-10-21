@@ -74,7 +74,26 @@ extern int assetChannelStatusSet(const char* bridgeName, const char* endpoint, C
 //
 extern void assetChannelsRelease(void);
 
-#if COR_FEATURE_CHANNEL_CHECKS
+
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// assetChannelDirectionSet - at start, before any request: Both counts in assetChannelOutCount
+//
+extern void assetChannelDirectionSet(AssetChannel* acP, BridgeDirection direction);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelOutCount - how many AssetChannels write back (channelDirection both)
+//
+extern int assetChannelOutCount(void);
+#endif
+
+
+#if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //
 // assetChannelMappedFree - a list of AssetMapped and their strings

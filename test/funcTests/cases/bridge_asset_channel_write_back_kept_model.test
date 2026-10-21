@@ -1,0 +1,122 @@
+#
+# FILE            bridge_asset_channel_write_back_kept_model.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# AssetChannel write-back and the broker's kept model (doc/asset-channels.md § 3.2): a value the bridge takes is
+# the node's value in the kept model too. Values coming in write their entity from the kept model - one still
+# holding the value from before a write would write it back over the client's.
+#
+# The loopback's "topicMode" silent: P17.Pressure's write is taken and not handed back in - a source that does
+# not report its own writes (an AAS server read on a poll, an OPC UA bridge dropping the echo). P17.Mode's is
+# handed back in - a value in, and the entity written again.
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS CHANNEL_WRITE_BACK
+#
+--NAME--
+Bridges: AssetChannel write-back - a value the bridge takes is in the kept model, values in do not undo it
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+PRESS='{ "model": { "node": "object", "id": "ns=2;s=Press17", "name": "Press17", "typeName": "Press",
+         "children": [
+           { "node": "variable", "id": "ns=2;s=P17.Pressure", "name": "Pressure", "value": 212.5 },
+           { "node": "variable", "id": "ns=2;s=P17.Mode", "name": "Mode", "value": "auto" } ] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": { "ns=2;s=Press17": $PRESS },
+    "assetNodes":  { "ns=2;s=P17.Pressure": "ns=2;s=Press17", "ns=2;s=P17.Mode": "ns=2;s=Press17" },
+    "topicMode":   { "ns=2;s=P17.Pressure": "silent" },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": { "ns=2;s=Press17": { "entities": "natural", "channelDirection": "both" } }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+ac() {  # ac - the AssetChannel's counters
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/assetChannels" | python3 -c "
+import json, sys
+for a in json.load(sys.stdin):
+    print(a['channelTarget'], 'valuesIn', a['valuesIn'], 'valuesOut', a.get('valuesOut', '-'))"
+}
+
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17 '"mode"'
+
+echo "01. PATCH pressure 300 - taken by the bridge, not handed back in"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/pressure -X PATCH --payload '{ "type": "Property", "value": 300 }'
+ac
+echo
+echo
+
+
+echo "02. PATCH mode \"manual\" - handed back in: a value in, the entity written again from the kept model"
+echo "=================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/mode -X PATCH --payload '{ "type": "Property", "value": "manual" }'
+for i in $(seq 1 50); do ac | grep -q 'valuesIn 1 ' && break; sleep 0.1; done
+ac
+echo
+echo
+
+
+echo "03. The entity - pressure 300, not the model's 212.5 from before the write; mode manual"
+echo "======================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17?options=keyValues'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. PATCH pressure 300 - taken by the bridge, not handed back in
+================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+ns=2;s=Press17 valuesIn 0 valuesOut 1
+
+
+02. PATCH mode "manual" - handed back in: a value in, the entity written again from the kept model
+==================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+ns=2;s=Press17 valuesIn 1 valuesOut 2
+
+
+03. The entity - pressure 300, not the model's 212.5 from before the write; mode manual
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 98
+
+{
+  "id": "urn:ngsi-ld:Press:Press17",
+  "mode": "manual",
+  "pressure": 300,
+  "type": "Press"
+}
+
+
+
