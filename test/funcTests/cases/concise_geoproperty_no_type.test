@@ -9,7 +9,8 @@
 # GeoProperty too, whose type the Concise-to-Normalized Expansion infers from a "value" holding a
 # GeoJSON geometry. A GeoProperty that does not collapse to the bare geometry - a datasetId (ETSI
 # 018_23_11), an observedAt, a sub-attribute - is { "value": <geometry>, ... } in concise, no "type".
-# The concise output, sent back, is a GeoProperty again.
+# The concise output, sent back, is a GeoProperty again. A concise value of the GeoJSON shape ("type" +
+# "coordinates") with a misspelled geometry is a GeoProperty with a bad geometry - a 400 - not a Property.
 #
 --NAME--
 Concise GeoProperty without "type" - datasetId, observedAt, sub-attribute
@@ -67,6 +68,29 @@ echo
 echo "04. GET E2 normalized - every one a GeoProperty"
 echo "==============================================="
 corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2'
+echo
+echo
+
+
+echo "05. Create E3 - concise loc with observedAt and the geometry type \"Piont\": 400"
+echo "================================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E3", "type": "T", "loc": { "value": { "type": "Piont", "coordinates": [1, 2] }, "observedAt": "2026-10-21T10:00:00.000Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. Create E4 - concise loc with datasetId and the geometry type \"Piont\": 400"
+echo "==============================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E4", "type": "T", "loc": { "value": { "type": "Piont", "coordinates": [1, 2] }, "datasetId": "urn:ngsi-ld:ds:gps" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "07. GET the entities of type T - E1 and E2 only"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T' | grep '"id": "urn'
 echo
 echo
 
@@ -207,6 +231,44 @@ Content-Length: 801
   "type": "T"
 }
 
+
+
+05. Create E3 - concise loc with observedAt and the geometry type "Piont": 400
+=================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'Piont'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Create E4 - concise loc with datasetId and the geometry type "Piont": 400
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Unknown GeoJSON geometry type: 'Piont'",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. GET the entities of type T - E1 and E2 only
+===============================================
+    "id": "urn:ngsi-ld:T:E1",
+    "id": "urn:ngsi-ld:T:E2",
 
 
 --TEARDOWN--
