@@ -39,14 +39,14 @@
 #include "bridge/RecordMap.h"                         // RecordMap
 #include "bridge/recordMap.h"                         // recordMapParse, recordMapFree, recordOtherParse
 #include "bridge/dataChannelCache.h"                  // dataChannelCreate, dataChannelLookup, dataChannelDirectionSet
-#if COR_FEATURE_CHANNEL_WRITE_BACK
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_DATA_CHANNELS
 #include "bridge/dataChannelWriteBack.h"              // dataChannelWriteBackTemplateOk
 #endif
 #endif
 #if COR_FEATURE_ASSET_CHANNELS
 #include "bridge/AssetMap.h"                          // AssetMap
 #include "bridge/assetMap.h"                          // assetMapParse, assetMapFree
-#include "bridge/assetChannelCache.h"                 // assetChannelCreate
+#include "bridge/assetChannelCache.h"                 // assetChannelCreate, assetChannelLookup, assetChannelDirectionSet
 #endif
 #include "bridge/bridgeDefaultEntity.h"               // bridgeDefaultEntitySet
 #include "bridge/bridgeGoal.h"                        // bridgeGoalNotifyDefaultSet
@@ -487,7 +487,7 @@ static int dataChannelsLoad(const char* alias, CorNode* sectionP, RecordOther ot
 //
 // assetChannelsLoad - a bridge's "assetChannels" section: one AssetChannel (AssetChannel.h) per endpoint
 //
-//   "assetChannels": { "<model root>": { "entities": "natural" | [ ... ], "attributeLayout": "attributes", "channelInfo": [ ... ] } }
+//   "assetChannels": { "<model root>": { "entities": "natural" | [ ... ], "attributeLayout": "attributes", "channelDirection": "in", "channelInfo": [ ... ] } }
 //
 // What "entities" and "attributeLayout" say is AssetMap.h's. An entry that cannot be used is warned about and
 // skipped, as an incomplete topic is; an endpoint that is also a Channel's, or named twice, is fatal, as it
@@ -515,6 +515,36 @@ static int assetChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenan
       continue;
     }
 
+    //
+    // channelDirection - "in" (the default) or "both": a client's write to an attribute made from a node goes to
+    // that node first
+    //
+    BridgeDirection direction  = BridgeDirectionIn;
+    CorNode*        directionP = corTreeLookup(entryP, "channelDirection");
+
+    if (directionP != NULL)
+    {
+      const char* bad = NULL;
+
+      if ((directionP->type != CorString) || ((strcmp(directionP->value.s, "in") != 0) && (strcmp(directionP->value.s, "both") != 0)))
+        bad = "'channelDirection' is \"in\" or \"both\"";
+      else if (strcmp(directionP->value.s, "both") == 0)
+      {
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+        direction = BridgeDirectionBoth;
+#else
+        bad = "'channelDirection' \"both\" - write-back is not in this build (COR_FEATURE_CHANNEL_WRITE_BACK)";
+#endif
+      }
+
+      if (bad != NULL)
+      {
+        COR_W("bridge '%s': AssetChannel '%s' - %s - skipped", alias, endpoint, bad);
+        assetMapFree(mapP);
+        continue;
+      }
+    }
+
     bool  infoOk;
     char* info = channelInfoText(alias, endpoint, corTreeLookup(entryP, "channelInfo"), &infoOk);
 
@@ -535,6 +565,12 @@ static int assetChannelsLoad(const char* alias, CorNode* sectionP, Tenant* tenan
 
     if (r != CHANNEL_OK)
       COR_X(1, "bridge '%s': AssetChannel '%s' could not be added (%d)", alias, endpoint, r);
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+    assetChannelDirectionSet(assetChannelLookup(alias, endpoint), direction);
+#else
+    (void) direction;
+#endif
 
     ++created;
   }

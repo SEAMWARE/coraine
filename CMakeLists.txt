@@ -55,7 +55,7 @@ option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridg
 option(COR_FEATURE_CHANNEL_CHECKS "Enable BridgeDriver.payloadCheck (bridge ABI 13) - a bridge plugin may refuse a client's write to an attribute one of its Channels or DataChannels maps (doc/bridge-channels.md)" ON)
 option(COR_FEATURE_ADMIN_CONFIG "Enable GET /admin/config - every option the broker runs with: its value, default and where it came from, a secret masked (the admin API plugin)" ON)
 option(COR_FEATURE_BRIDGE_INVENTORY "Enable GET /admin/bridges/{bridge}/inventory (bridge ABI 14) - what a bridge's transport can carry, for a mapping tool (c3's Configure)" ON)
-option(COR_FEATURE_CHANNEL_WRITE_BACK "Enable DataChannel write-back - channelDirection \"both\": a client's write to an attribute a DataChannel maps is published to the bridge first, as a record fragment, and stored only when the bridge takes it (doc/bridge-channels.md)" ON)
+option(COR_FEATURE_CHANNEL_WRITE_BACK "Enable DataChannel and AssetChannel write-back - channelDirection \"both\": a client's write to an attribute a DataChannel or an AssetChannel maps is published to the bridge first (a record fragment, a node's value), and stored only when the bridge takes it (doc/bridge-channels.md, doc/asset-channels.md)" ON)
 option(COR_FEATURE_BRIDGE_HTTP_LISTEN "Enable BridgeBroker.httpListen (bridge ABI 16) - a port the broker serves for a bridge plugin, where a device is the client (an IoT Agent's southbound port): corHttp, in either HTTP server build" ON)
 
 # Group: Protocols - the API over something else than HTTP
@@ -115,9 +115,9 @@ if (NOT COR_FEATURE_ADMIN_API)
 endif()
 
 #
-# Write-back is a DataChannel's: without DataChannels there is nothing to write back through.
+# Write-back is a DataChannel's and an AssetChannel's: without either there is nothing to write back through.
 #
-if (NOT COR_FEATURE_DATA_CHANNELS)
+if ((NOT COR_FEATURE_DATA_CHANNELS) AND (NOT COR_FEATURE_ASSET_CHANNELS))
   set(COR_FEATURE_CHANNEL_WRITE_BACK OFF)
 endif()
 

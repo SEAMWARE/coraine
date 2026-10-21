@@ -597,9 +597,14 @@ int channelCount(void)
 //
 int channelOutCount(void)
 {
-#if COR_FEATURE_CHANNEL_WRITE_BACK
-  return outCounter + dataChannelOutCount();          // a DataChannel that writes back sends too
-#else
-  return outCounter;
+  int out = outCounter;
+
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_DATA_CHANNELS
+  out += dataChannelOutCount();                       // a DataChannel that writes back sends too
 #endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK && COR_FEATURE_ASSET_CHANNELS
+  out += assetChannelOutCount();                      // and an AssetChannel that does
+#endif
+
+  return out;
 }

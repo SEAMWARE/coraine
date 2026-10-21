@@ -1,0 +1,266 @@
+#
+# FILE            bridge_asset_channel_write_back.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# AssetChannel write-back (doc/asset-channels.md): "channelDirection": "both" - a client's write to an attribute
+# the AssetChannel's last model made from a node is published to the bridge first, on that node (its "id" in
+# the model), the value as the application's own JSON. Stored only when the bridge takes it. An attribute made
+# of no one node (a Relationship, a container's) has nowhere to go: 422.
+#
+# The loopback's "assetNodes" says which nodes are in which model: a value published on one is handed back in
+# on the model's root as that node's new value ({ "values": [ ... ] }), as a server reports a node written.
+#   ns=2;s=Press17   both - P17.Pressure and P17.Mode its nodes, P17.Mode refused (topicMode refuse);
+#                    P17.Unit1.Running a node the loopback does not know (503)
+#   ns=2;s=Tank1     in (the default) - a write to its entity is stored, and not published
+#   ns=2;s=Bad1      "channelDirection": "sideways" - skipped
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS CHANNEL_WRITE_BACK
+#
+--NAME--
+Bridges: AssetChannel write-back - channelDirection both, the value to the attribute's node first
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+PRESS='{ "model": { "node": "object", "id": "ns=2;s=Press17", "name": "Press17", "typeName": "Press",
+         "children": [
+           { "node": "folder", "name": "Hydraulics", "children": [
+               { "node": "variable", "id": "ns=2;s=P17.Pressure", "name": "Pressure", "value": 212.5 } ] },
+           { "node": "variable", "id": "ns=2;s=P17.Mode", "name": "Mode", "value": "auto" },
+           { "node": "object", "id": "ns=2;s=P17.Unit1", "name": "Unit1", "typeName": "HydraulicUnit",
+             "children": [ { "node": "variable", "id": "ns=2;s=P17.Unit1.Running", "name": "Running", "value": true } ] } ] } }'
+TANK='{ "model": { "node": "object", "id": "ns=2;s=Tank1", "name": "Tank1", "typeName": "Tank",
+        "children": [ { "node": "variable", "id": "ns=2;s=Tank1.Level", "name": "Level", "value": 1.5 } ] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": { "ns=2;s=Press17": $PRESS, "ns=2;s=Tank1": $TANK },
+    "assetNodes":  { "ns=2;s=P17.Pressure": "ns=2;s=Press17", "ns=2;s=P17.Mode": "ns=2;s=Press17", "ns=2;s=Tank1.Level": "ns=2;s=Tank1" },
+    "topicMode":   { "ns=2;s=P17.Mode": "refuse" },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": {
+        "ns=2;s=Press17": { "entities": "natural", "channelDirection": "both" },
+        "ns=2;s=Tank1":   { "entities": "natural" },
+        "ns=2;s=Bad1":    { "entities": "natural", "channelDirection": "sideways" }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+ac() {  # ac - each AssetChannel: its direction and counters
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/assetChannels" | python3 -c "
+import json, sys
+for a in sorted(json.load(sys.stdin), key=lambda a: a['channelTarget']):
+    print(a['channelTarget'], a.get('channelDirection', '-'), 'valuesIn', a['valuesIn'], 'valuesOut', a.get('valuesOut', '-'))"
+}
+awaitValuesIn() {  # awaitValuesIn <endpoint> <n>
+  local i
+  for i in $(seq 1 50); do ac | grep -q "^$1 .*valuesIn $2 " && return 0; sleep 0.1; done
+  echo "awaitValuesIn: $1 never had $2"
+}
+
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17 '"mode"'
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:Tank1 '"level"'
+
+echo "01. PATCH hydraulicsPressure 300 - published on ns=2;s=P17.Pressure, then stored; handed back in as its value"
+echo "=============================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/hydraulicsPressure -X PATCH --payload '{ "type": "Property", "value": 300 }'
+awaitValuesIn ns=2\;s=Press17 1
+ac
+echo
+echo
+
+
+echo "02. PATCH mode - the bridge refuses what is published on ns=2;s=P17.Mode: 400, nothing stored"
+echo "============================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/mode -X PATCH --payload '{ "type": "Property", "value": "manual" }'
+echo
+echo
+
+
+echo "03. PATCH unit1 - a Relationship, made of no one node: 422"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs/unit1 -X PATCH --payload '{ "type": "Relationship", "object": "urn:ngsi-ld:HydraulicUnit:Other" }'
+echo
+echo
+
+
+echo "04. PATCH running of the unit - a node the bridge cannot reach: 503, nothing stored"
+echo "==================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:HydraulicUnit:Press17:Unit1/attrs/running -X PATCH --payload '{ "type": "Property", "value": false }'
+echo
+echo
+
+
+echo "05. POST /attrs - hydraulicsPressure 310 and unit1: 207, the pressure published and stored, unit1 not written"
+echo "=============================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Press:Press17/attrs -X POST \
+        --payload '{ "hydraulicsPressure": { "type": "Property", "value": 310 }, "unit1": { "type": "Relationship", "object": "urn:ngsi-ld:HydraulicUnit:Other" } }'
+awaitValuesIn ns=2\;s=Press17 2
+echo
+echo
+
+
+echo "06. PATCH level of Tank1 - its AssetChannel is 'in': stored, not published"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Tank:Tank1/attrs/level -X PATCH --payload '{ "type": "Property", "value": 2 }'
+echo
+echo
+
+
+echo "07. The entities - pressure 310, mode auto, unit1 and running as the model made them, level 2"
+echo "============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Press,HydraulicUnit,Tank&options=keyValues&orderBy=id'
+echo
+echo
+
+
+echo "08. GET /assetChannels - Press17 both, two values out and back in; Tank1 in; Bad1 skipped"
+echo "========================================================================================="
+ac
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. PATCH hydraulicsPressure 300 - published on ns=2;s=P17.Pressure, then stored; handed back in as its value
+==============================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+ns=2;s=Press17 both valuesIn 1 valuesOut 1
+ns=2;s=Tank1 - valuesIn 0 valuesOut -
+
+
+02. PATCH mode - the bridge refuses what is published on ns=2;s=P17.Mode: 400, nothing stored
+============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 192
+
+{
+  "detail": "the value of 'mode' does not fit the node of 'ns=2;s=P17.Mode'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. PATCH unit1 - a Relationship, made of no one node: 422
+==========================================================
+HTTP/1.1 422 Unprocessable Content
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 288
+
+{
+  "detail": "'https://uri.etsi.org/ngsi-ld/default-context/unit1' of AssetChannel 'ns=2;s=Press17' on bridge 'loopback' is made of no one node - not written",
+  "status": 422,
+  "title": "Operation Not Supported",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+}
+
+
+
+04. PATCH running of the unit - a node the bridge cannot reach: 503, nothing stored
+===================================================================================
+HTTP/1.1 503 Service Unavailable
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 223
+
+{
+  "detail": "'ns=2;s=P17.Unit1.Running' on bridge 'loopback' could not be reached - nothing was written",
+  "status": 503,
+  "title": "Service Unavailable",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
+}
+
+
+
+05. POST /attrs - hydraulicsPressure 310 and unit1: 207, the pressure published and stored, unit1 not written
+==============================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 392
+
+{
+  "notUpdated": [
+    {
+      "attributeName": "https://uri.etsi.org/ngsi-ld/default-context/unit1",
+      "reason": "'https://uri.etsi.org/ngsi-ld/default-context/unit1' of AssetChannel 'ns=2;s=Press17' on bridge 'loopback' is made of no one node - not written",
+      "statusCode": 422
+    }
+  ],
+  "updated": [
+    "https://uri.etsi.org/ngsi-ld/default-context/hydraulicsPressure"
+  ]
+}
+
+
+
+06. PATCH level of Tank1 - its AssetChannel is 'in': stored, not published
+==========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. The entities - pressure 310, mode auto, unit1 and running as the model made them, level 2
+=============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 369
+
+[
+  {
+    "id": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1",
+    "running": true,
+    "type": "HydraulicUnit"
+  },
+  {
+    "hydraulicsPressure": 310,
+    "id": "urn:ngsi-ld:Press:Press17",
+    "mode": "auto",
+    "type": "Press",
+    "unit1": "urn:ngsi-ld:HydraulicUnit:Press17:Unit1"
+  },
+  {
+    "id": "urn:ngsi-ld:Tank:Tank1",
+    "level": 2,
+    "type": "Tank"
+  }
+]
+
+
+
+08. GET /assetChannels - Press17 both, two values out and back in; Tank1 in; Bad1 skipped
+=========================================================================================
+ns=2;s=Press17 both valuesIn 2 valuesOut 2
+ns=2;s=Tank1 - valuesIn 0 valuesOut -
+
+

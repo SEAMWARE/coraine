@@ -121,6 +121,13 @@ CorNode* assetChannelRender(AssetChannel* acP)
 #if COR_FEATURE_CHANNEL_CHECKS
   corTreeChildAdd(bodyP, corTreeInteger(allocP, "payloadsRefused", (long long) __atomic_load_n(&acP->payloadsRefused, __ATOMIC_RELAXED)));
 #endif
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+  if (acP->direction == BridgeDirectionBoth)          // only then: "in" is the default, and what every AssetChannel was
+  {
+    corTreeChildAdd(bodyP, corTreeString(allocP,  "channelDirection", "both"));
+    corTreeChildAdd(bodyP, corTreeInteger(allocP, "valuesOut", (long long) __atomic_load_n(&acP->valuesOut, __ATOMIC_RELAXED)));
+  }
+#endif
 
   return bodyP;
 }
