@@ -944,32 +944,51 @@ last 100 ms - MongoDB's default. Orion-LD 1.15.0-next, its release build (`-O3`)
 
 ### TimescaleDB: the write path
 
-The history of a write as the timescale plugin writes it - three versions of it, the same release
-broker (`b7434b8f`), only `timescale.so` swapped:
+The history of a write as the timescale plugin writes it ([TimescaleDB history](installation.md#timescaledb-history---troe-timescale)),
+the same release broker, only `timescale.so` swapped. Requests/s **counted until the last history row
+is in the database**: the run's requests over the time from its start until `troe_attrs` stopped
+growing for a second - a write that is queued is not done.
 
-- **a statement per row** - every row of a request an `INSERT` of its own, a transaction per request;
-- **multi-row** - the rows of a request in one `INSERT` per table, a transaction per request;
-- **writers** - the rows of many requests in one `INSERT` per table, one transaction, sent by a writer
-  thread (`--troeWriters`, 8 per tenant; [TimescaleDB history](installation.md#timescaledb-history---troe-timescale)).
-
-Requests/s, counted until the last history row is in the database: the run's requests over the time
-from its start until `troe_attrs` stopped growing for a second (a write that is queued is not done):
-
-| | a statement per row | multi-row | writers | writers / a statement per row |
-|---|---:|---:|---:|---:|
-| create | 4 427 | 6 152 | 17 765 | 4.0× |
-| create, 1 connection | 715 | 987 | 6 020 | 8.4× |
-| batch create (20) | 370 | 1 056 | 1 172 | 3.2× |
-
-With `--troeSync` - the response after the commit:
-
-| | multi-row | writers | writers / multi-row |
+| | before (a statement per row) | now | |
 |---|---:|---:|---:|
-| create | 6 094 | 10 356 | 1.7× |
-| create, 1 connection | 956 | 1 046 | 1.1× |
-| batch create (20) | 341 | 671 | 2.0× |
+| create | 4 446 | 24 025 | 5.4× |
+| create, 1 connection | 710 | 7 601 | 10.7× |
+| batch create (20) | 372 | 2 321 | 6.2× |
+| create, `--troeSync` | 4 336 | 12 725 | 2.9× |
+| create, 1 connection, `--troeSync` | 682 | 994 | 1.5× |
+| batch create (20), `--troeSync` | 248 | 813 | 3.3× |
 
-The number of writers, the default dispatch (one run each):
+Where the cores went, create, 50 connections (eight shared): before - broker 1.0, mongod 0.5,
+PostgreSQL 4.6, 22 300 history rows/s; now - broker 2.3, mongod 2.6, PostgreSQL 2.5, 120 000 rows/s.
+The eight cores are spent: the broker without history, on the same eight, creates 43 666/s on 3.6
+cores (82 µs a create; 97 µs with the history). With `--troeSync` a request waits for a commit
+for each event it records: a batch create of 20, 20 in a row.
+
+Step by step - each an A/B against the step before, ABBA, the mean of the two runs of each:
+
+| Step | create | create, 1 conn. | batch create (20) |
+|---|---:|---:|---:|
+| a statement per row (before) | 4 427 | 715 | 370 |
+| the rows of a request in one `INSERT` per table | 6 152 | 987 | 1 056 |
+| writers (8): the rows of many requests in one transaction | 17 765 | 6 020 | 1 172 |
+| a column an array, unnested, instead of a `VALUES` list | 23 343 (17 853) | 5 872 (6 110) | 1 691 (1 242) |
+| a waiting `--troeSync` request woken by its own condition | - | - | - |
+| another writer only when none writes, or 8 requests wait | 23 003 (22 553) | 7 289 (5 875) | 1 715 (1 706) |
+| a batch up to 1 MiB (was 4) | 22 939 (22 646) | 7 284 (7 271) | 1 837 (1 706) |
+| the optional indexes off by default (`--troeIndexes none`) | see the first table | | |
+
+(in parentheses: the step before, in the same ABBA - runs differ by a few per cent from one to the
+next.) The waiting request's own condition is a `--troeSync` step: create 10 892 → 11 306, batch
+create 712 → 760 - and the broker's cores on that batch create 1.10 → 0.65. With `--troeSync`, the
+writers against the request's own transaction: create 6 094 → 10 356, 1 connection 956 → 1 046,
+batch create 341 → 671; unnesting: 10 429 → 10 742, 1 029 → 951, 685 → 709; the writer wake-up:
+11 103 → 11 777, 974 → 962, 754 → 759.
+
+**Unnesting:** one `INSERT` of 1000 rows into `troe_attrs` took 55 ms as a `VALUES` list - 25
+executing, 9 planning, the rest parsing its 16 000 expressions - and 22 ms as `INSERT ... SELECT
+... FROM unnest(<an array per column>)`; prepared, the same 22.
+
+**The number of writers** (before unnesting, one run each; the queue up to 64 MiB then, 8 since):
 
 | `--troeWriters` | 2 | 4 | 8 | 16 |
 |---|---:|---:|---:|---:|
@@ -977,21 +996,24 @@ The number of writers, the default dispatch (one run each):
 | create, 1 connection | 7 487 | 6 680 | 5 891 | 5 927 |
 | batch create (20) | 531 | 850 | 1 223 | 1 094 |
 
-The sweep ran with a queue of up to 64 MiB (8 MiB since), and a run's end taken at 0.2 s without growth.
+With the 1 MiB batches, batch create (20): 4 writers 1 639, 8 1 892, 16 1 543.
+
+**The indexes** (each index updated for every row). Dropped one after another, writers, a `VALUES`
+list: batch create (20) 1 221 with all; without `time` and `troe_entities_id_modified`, the same;
+then without `attrObserved` +10 %, without `geo` +11 %, without (`entity_id`, `attr_name`,
+`observed_at`) +5 % - one of the basic ones, kept. After unnesting, batch create (20) / create:
+all 1 671 / 23 092; without the `entity_type` GINs 1 898 / 23 073; without `time`, `attrObserved`,
+`geo` and (`entity_id`, `attr_name`, `observed_at`) 2 252 / 25 906; without those and the GINs
+2 545 / 26 850. What each serves, and what a query costs without it:
+[the indexes of the history](installation.md#the-indexes-of-the-history).
+
+Not the write path: PostgreSQL wrote 7.5 WAL records and 1 415 bytes per history row, 0.01 full-page
+images - no checkpoint pressure.
 
 Eight physical cores shared by the broker, mongod 8.2 and PostgreSQL 16 + TimescaleDB (containers, host
 network, `synchronous_commit` on - every commit on the disk); the load (wrk) on the other eight. 50
-connections unless said, 5 s after a 2 s warm-up, both databases emptied before each measure. ABBA
-order - a statement per row, multi-row, writers, writers, multi-row, a statement per row - and the
-mean of the two runs of each; AMD Ryzen 9 8940HX, 2026-10-21.
-
-- **create, 50 connections, writers:** the eight cores are spent - broker 1.7, mongod 1.8, PostgreSQL
-  4.3. A statement per row: broker 1.0, mongod 0.5, PostgreSQL 4.6 - PostgreSQL's cores went on
-  transactions, not on rows (22 250 rows/s then, 88 900 now).
-- **create, 1 connection:** without `--troeSync` the request no longer waits for PostgreSQL at all; with
-  it, it waits for a commit, and one connection has no other request to share it with.
-- **batch create (20):** a request is 100 rows; with eight writers PostgreSQL is on 5.3-5.8 of the
-  eight cores either way. More writers than 8 gain nothing here, and fewer leave PostgreSQL cores idle.
+connections unless said, 5 s after a 2 s warm-up, both databases emptied before each measure; AMD
+Ryzen 9 8940HX, 2026-10-21.
 
 ### corDB on disk: what persistence costs
 
