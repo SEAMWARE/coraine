@@ -8,13 +8,15 @@
 //
 // Write path for the timescale TRoE plugin. Walks the attrSnapshot to
 // extract typed values into the v_text / v_number / v_bool / v_compound
-// columns and the sub_attrs JSONB. Each entry point acquires a connection
-// from the tenant's pool (thread-local timescaleConn).
+// columns and the sub_attrs JSONB. The rows of an event list are rendered
+// into one unit (timescaleUnit.h) and handed to the tenant's TRoE writers
+// (timescaleWriter.h), which record the units of concurrent requests in
+// shared transactions.
 //
 
+#include <stdbool.h>                                      // bool
 #include <stddef.h>                                       // NULL
 #include <stdio.h>                                        // snprintf
-#include <stdlib.h>                                       // free
 #include <string.h>                                       // strcmp
 #include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
@@ -40,6 +42,8 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
+#include "temporal/timescale/timescaleUnit.h"             // TsUnit, tsBuf*, timescaleUnitsExec
+#include "temporal/timescale/timescaleWriter.h"           // timescaleWriterSubmit
 #include "temporal/timescale/timescaleEvent.h"            // Own interface
 
 
@@ -77,6 +81,7 @@ void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
   double secs = (double) ns / 1e9;
   snprintf(buf, bufSize, "to_timestamp(%.6f)", secs);
 }
+
 
 
 
@@ -376,51 +381,86 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 
 
 
-
 // -----------------------------------------------------------------------------
 //
-// timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
-// Operates on the thread-local timescaleConn (set by the entry point).
+// nsToSecs - epoch nanoseconds as seconds with six decimals, the element to_timestamp() takes
+// (timescaleUnitsExec), rounded to the microsecond
 //
-int timescaleExecEntityInsertLocked(const TroeEvent* evP)
+// Integers only: a double through "%.6f" is glibc's multi-precision float printer, and it was more
+// than half of what a request's history cost the broker - two timestamps a row.
+//
+static const char* nsToSecs(uint64_t ns, char* buf, int bufSize)
 {
-  char tsExpr[64];
-  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
+  uint64_t secs = ns / 1000000000;
+  uint64_t us   = (ns % 1000000000 + 500) / 1000;
 
-  char typeLit[1024];
-
-  const char* paramV[3];
-  paramV[0] = evP->entityId != NULL ? evP->entityId : "";
-  paramV[1] = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
-  paramV[2] = opName(evP->op);
-
-  char sql[512];
-  snprintf(sql, sizeof(sql),
-           "INSERT INTO troe_entities (entity_id, entity_type, modified_at, op) "
-           "VALUES ($1, $2::text[], %s, $3) "
-           "ON CONFLICT (entity_id, modified_at, op) DO NOTHING",
-           tsExpr);
-
-  PGresult* res = PQexecParams(timescaleConn, sql, 3, NULL, paramV, NULL, NULL, 0);
-  ExecStatusType st = PQresultStatus(res);
-  if (st != PGRES_COMMAND_OK)
+  if (us == 1000000)
   {
-    COR_E("timescale: troe_entities INSERT failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(res);
-    return TROE_ERR;
+    secs += 1;
+    us    = 0;
   }
-  PQclear(res);
-  return TROE_OK;
+
+  char  digits[24];
+  int   n    = 0;
+  char* outP = buf;
+
+  do
+  {
+    digits[n++] = '0' + (char) (secs % 10);
+    secs       /= 10;
+  } while ((secs != 0) && (n < (int) sizeof(digits)));
+
+  if (n + 8 > bufSize)
+  {
+    buf[0] = 0;
+    return buf;
+  }
+
+  while (n > 0)
+    *outP++ = digits[--n];
+
+  *outP++ = '.';
+  for (int ix = 5; ix >= 0; ix--)
+  {
+    outP[ix] = '0' + (char) (us % 10);
+    us      /= 10;
+  }
+  outP[6] = 0;
+
+  return buf;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// timescaleExecAttrInsertLocked - INSERT one row into troe_attrs.
-// Operates on the thread-local timescaleConn (set by the entry point).
+// entityRowAdd - one row of troe_entities, into the unit
 //
-int timescaleExecAttrInsertLocked(const TroeEvent* evP)
+static void entityRowAdd(TsUnit* uP, const TroeEvent* evP)
+{
+  char   secs[64];
+  char   typeLit[1024];
+  bool   first = (uP->entityRowN == 0);
+  TsBuf* colV  = uP->entityCol;
+  bool   ok;
+
+  ok =       tsBufElement(&colV[0], first, (evP->entityId != NULL) ? evP->entityId : "");
+  ok = ok && tsBufElement(&colV[1], first, entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
+  ok = ok && tsBufElement(&colV[2], first, nsToSecs(evP->modifiedAtNs, secs, sizeof(secs)));
+  ok = ok && tsBufElement(&colV[3], first, opName(evP->op));
+
+  uP->entityRowN += 1;
+  if (ok == false)
+    uP->oom = true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// attrRowAdd - one row of troe_attrs per instance, into the unit
+//
+static void attrRowAdd(TsUnit* uP, const TroeEvent* evP, const char* typeLitP)
 {
   AttrCols cols;
 
@@ -450,12 +490,10 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
       oneEv.attrSnapshot    = &one;
       oneEv.datasetId       = ((instP->name != NULL) && (strcmp(instP->name, "@none") != 0)) ? instP->name : "";
 
-      int r = timescaleExecAttrInsertLocked(&oneEv);
-      if (r != TROE_OK)
-        return r;
+      attrRowAdd(uP, &oneEv, typeLitP);
     }
 
-    return TROE_OK;
+    return;
   }
 
   if (evP->op == TroeOpAttrDeleted)
@@ -487,76 +525,97 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 
   cols.dsId = (cols.dsId != NULL) ? cols.dsId : "";
 
-  char tsExpr[64];
-  timescaleNsToSqlTimestamp(evP->modifiedAtNs, tsExpr, sizeof(tsExpr));
-
   //
   // created_at is modified_at - unless the event is an imported instance (coraine-import) that
-  // carries a creation time of its own, and an instance id of its own (TroeDriver.h).
+  // carries a creation time of its own, and an instance id of its own (TroeDriver.h). Without one,
+  // the instance id is generated (timescaleUnitsExec). created_at and modified_at are seeded to the
+  // same instant on insert; Modify-Instance later bumps modified_at while leaving created_at fixed.
   //
-  char createdExpr[64];
-  timescaleNsToSqlTimestamp((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdExpr, sizeof(createdExpr));
-
-  bool        ownInstanceId = ((evP->instanceId != NULL) && (evP->instanceId[0] != 0));
-  const char* idColumn      = (ownInstanceId == true) ? "instance_id, " : "";
-  const char* idParam       = (ownInstanceId == true) ? "$14, "         : "";
-
-  // Bind params:
-  //   $1 entity_id, $2 entity_type, $3 attr_name, $4 dataset_id, $5 op,
-  //   $6 attr_kind, $7 observed_at iso, $8 v_text, $9 v_number, $10 v_bool,
-  //   $11 v_datetime, $12 v_compound, $13 sub_attrs, [$14 instance_id]
-  const char* paramV[14];
+  char        createdSecs[64];
+  char        modifiedSecs[64];
   char        kindBuf[16];
   char        typeLit[1024];
+  bool        first = (uP->attrRowN == 0);
+  TsBuf*      colV  = uP->attrCol;
+  bool        ok;
+
   snprintf(kindBuf, sizeof(kindBuf), "%d", cols.kind);
 
-  paramV[0]  = evP->entityId != NULL ? evP->entityId : "";
-  paramV[1]  = entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));
-  paramV[2]  = evP->attrName   != NULL ? evP->attrName   : "";
-  paramV[3]  = (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId;
-  paramV[4]  = opName(evP->op);
-  paramV[5]  = kindBuf;
-  paramV[6]  = cols.observedAtIso;
-  paramV[7]  = cols.v_text;
-  paramV[8]  = cols.v_number;
-  paramV[9]  = cols.v_bool;
-  paramV[10] = cols.v_datetime;
-  paramV[11] = cols.v_compound;
-  paramV[12] = cols.sub_attrs;
-  paramV[13] = evP->instanceId;
+  ok =       tsBufElement(&colV[0],  first, ((evP->instanceId != NULL) && (evP->instanceId[0] != 0)) ? evP->instanceId : NULL);
+  ok = ok && tsBufElement(&colV[1],  first, (evP->entityId != NULL) ? evP->entityId : "");
+  ok = ok && tsBufElement(&colV[2],  first, (typeLitP != NULL) ? typeLitP : entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit)));
+  ok = ok && tsBufElement(&colV[3],  first, (evP->attrName != NULL) ? evP->attrName : "");
+  ok = ok && tsBufElement(&colV[4],  first, (evP->datasetId != NULL && evP->datasetId[0] != 0) ? evP->datasetId : cols.dsId);
+  ok = ok && tsBufElement(&colV[5],  first, nsToSecs((evP->createdAtNs != 0) ? evP->createdAtNs : evP->modifiedAtNs, createdSecs, sizeof(createdSecs)));
+  ok = ok && tsBufElement(&colV[6],  first, nsToSecs(evP->modifiedAtNs, modifiedSecs, sizeof(modifiedSecs)));
+  ok = ok && tsBufElement(&colV[7],  first, opName(evP->op));
+  ok = ok && tsBufElement(&colV[8],  first, kindBuf);
+  ok = ok && tsBufElement(&colV[9],  first, cols.observedAtIso);
+  ok = ok && tsBufElement(&colV[10], first, cols.v_text);
+  ok = ok && tsBufElement(&colV[11], first, cols.v_number);
+  ok = ok && tsBufElement(&colV[12], first, cols.v_bool);
+  ok = ok && tsBufElement(&colV[13], first, cols.v_datetime);
+  ok = ok && tsBufElement(&colV[14], first, cols.v_compound);
+  ok = ok && tsBufElement(&colV[15], first, cols.sub_attrs);
 
-  // No ON CONFLICT — instance_id (PK) is auto-generated by the
-  // table's DEFAULT, so each row is unique by construction (an imported
-  // instance brings its own, unique in the store it came from).
-  // created_at and modified_at are seeded to the same instant on insert;
-  // Modify-Instance later bumps modified_at while leaving created_at fixed.
-  char sql[2048];
-  snprintf(sql, sizeof(sql),
-           "INSERT INTO troe_attrs ("
-           "  %sentity_id, entity_type, attr_name, dataset_id, created_at, modified_at, op, attr_kind, "
-           "  observed_at, v_text, v_number, v_bool, v_datetime, v_compound, sub_attrs) "
-           // An attribute event carries no entity snapshot, so $2 can come out
-           // empty for a multi-type Entity; fall back to the type list already
-           // recorded for this Entity rather than storing nothing.
-           "VALUES (%s$1, COALESCE(NULLIF($2::text[], '{}'),"
-           "                     (SELECT entity_type FROM troe_entities"
-           "                       WHERE entity_id = $1"
-           "                       ORDER BY modified_at DESC LIMIT 1),"
-           "                     '{}'::text[]), $3, $4, %s, %s, $5, $6::smallint, "
-           "        $7::timestamptz, $8, $9::double precision, $10::boolean, $11::timestamptz, "
-           "        $12::jsonb, $13::jsonb)",
-           idColumn, idParam, createdExpr, tsExpr);
+  uP->attrRowN += 1;
+  if (ok == false)
+    uP->oom = true;
+}
 
-  PGresult* res = PQexecParams(timescaleConn, sql, (ownInstanceId == true) ? 14 : 13, NULL, paramV, NULL, NULL, 0);
-  ExecStatusType st = PQresultStatus(res);
-  if (st != PGRES_COMMAND_OK)
-  {
-    COR_E("timescale: troe_attrs INSERT failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(res);
-    return TROE_ERR;
-  }
-  PQclear(res);
-  return TROE_OK;
+
+
+// -----------------------------------------------------------------------------
+//
+// unitExecLocked - send a unit on the thread-local timescaleConn and free it
+//
+static int unitExecLocked(TsUnit* uP)
+{
+  int rc = TROE_ERR;
+
+  if (uP == NULL)
+    COR_E("timescale: TRoE INSERT: out of memory");
+  else if (uP->oom == true)
+    COR_E("timescale: TRoE INSERT: out of memory");
+  else
+    rc = timescaleUnitsExec(timescaleConn, &uP, 1);
+
+  tsUnitFree(uP);
+  return rc;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleExecEntityInsertLocked - INSERT one row into troe_entities.
+// Operates on the thread-local timescaleConn (set by the entry point).
+//
+int timescaleExecEntityInsertLocked(const TroeEvent* evP)
+{
+  TsUnit* uP = tsUnitNew();
+
+  if (uP != NULL)
+    entityRowAdd(uP, evP);
+
+  return unitExecLocked(uP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleExecAttrInsertLocked - INSERT the row(s) of one attribute event into troe_attrs.
+// Operates on the thread-local timescaleConn (set by the entry point).
+//
+int timescaleExecAttrInsertLocked(const TroeEvent* evP)
+{
+  TsUnit* uP = tsUnitNew();
+
+  if (uP != NULL)
+    attrRowAdd(uP, evP, NULL);
+
+  return unitExecLocked(uP);
 }
 
 
@@ -572,11 +631,14 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
 // initial state too. A Replace is not expanded here - it defers its own
 // per-Attribute events.
 //
-static int fanOutAttrsFromEntity(const TroeEvent* evP)
+static void fanOutAttrsFromEntity(TsUnit* uP, const TroeEvent* evP)
 {
-  if (evP->entitySnapshot == NULL) return TROE_OK;
+  if (evP->entitySnapshot == NULL) return;
 
   TroeOp attrOp = TroeOpAttrCreated;
+  char   typeLit[1024];
+
+  entityTypeArrayLiteral(evP, typeLit, sizeof(typeLit));   // the Entity's, the same for each of its Attributes
 
   for (CorNode* attrP = evP->entitySnapshot->value.head; attrP != NULL; attrP = attrP->next)
   {
@@ -600,52 +662,42 @@ static int fanOutAttrsFromEntity(const TroeEvent* evP)
     attrEv.attrSnapshot   = attrP;
     attrEv.entitySnapshot = evP->entitySnapshot;
 
-    int r = timescaleExecAttrInsertLocked(&attrEv);
-    if (r != TROE_OK) return r;
+    attrRowAdd(uP, &attrEv, typeLit);
   }
-  return TROE_OK;
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// timescaleEventList - drain a queue of events as one transaction.
+// eventListRecord - the rows of an event list as one unit: to the tenant's writers, or sent here
 //
-// The deferred-event queue is built per request (troeDispatchPending drains
-// the per-request queue), so every event in one list shares the request's
-// tenant — a single connection / single transaction covers the whole list.
-int timescaleEventList(const TroeEvent* listHead, int count)
+// The event list is built per request (troeDispatchPending drains the per-request queue), so every
+// event in one list shares the request's tenant.
+//
+// wait: the caller is told how it went - the writers' commit is waited for. Without it the unit
+// is the writers' once submitted, and this returns at once (the deferred dispatch - after the
+// response).
+//
+static int eventListRecord(const TroeEvent* listHead, bool wait)
 {
   if (listHead == NULL) return TROE_ERR;
-  (void) count;
 
-  TimescaleConn* cP = timescaleConnGet(listHead->tenantP);
-  if (cP == NULL) return TROE_ERR;
-  timescaleConn = cP->conn;
+  TsUnit* uP = tsUnitNew();
 
-  PGresult* beginR = PQexec(timescaleConn, "BEGIN");
-  if (PQresultStatus(beginR) != PGRES_COMMAND_OK)
+  if (uP == NULL)
   {
-    COR_E("timescale: BEGIN failed: %s", PQerrorMessage(timescaleConn));
-    PQclear(beginR);
-    timescaleConn = NULL;
-    timescaleConnRelease(cP);
+    COR_E("timescale: TRoE INSERT: out of memory");
     return TROE_ERR;
   }
-  PQclear(beginR);
 
-  int rc = TROE_OK;
   for (const TroeEvent* evP = listHead; evP != NULL; evP = evP->next)
   {
-    int r;
     if (evP->op >= TroeOpAttrCreated)
-    {
-      r = timescaleExecAttrInsertLocked(evP);
-    }
+      attrRowAdd(uP, evP, NULL);
     else
     {
-      r = timescaleExecEntityInsertLocked(evP);
+      entityRowAdd(uP, evP);
 
       // Entity-level create / replace fan out into per-attr rows so
       // the initial state is queryable on the temporal-attrs side.
@@ -654,30 +706,63 @@ int timescaleEventList(const TroeEvent* listHead, int count)
       // body (and a deletion per instance it removed), so fanning out its entity
       // event too wrote every one of its rows TWICE.
       //
-      if (r == TROE_OK && evP->op == TroeOpEntityCreated)
-        r = fanOutAttrsFromEntity(evP);
+      if (evP->op == TroeOpEntityCreated)
+        fanOutAttrsFromEntity(uP, evP);
     }
-
-    if (r != TROE_OK) { rc = r; break; }
   }
 
-  if (rc == TROE_OK)
+  if (uP->oom == true)
   {
-    PGresult* commitR = PQexec(timescaleConn, "COMMIT");
-    if (PQresultStatus(commitR) != PGRES_COMMAND_OK)
-    {
-      COR_E("timescale: COMMIT failed: %s", PQerrorMessage(timescaleConn));
-      rc = TROE_ERR;
-    }
-    PQclear(commitR);
-  }
-  else
-  {
-    PGresult* rollbackR = PQexec(timescaleConn, "ROLLBACK");
-    PQclear(rollbackR);
+    COR_E("timescale: TRoE INSERT: out of memory");
+    tsUnitFree(uP);
+    return TROE_ERR;
   }
 
+  int rc = TROE_OK;
+
+  if (timescaleWriterSubmit(listHead->tenantP, uP, wait, &rc) == true)
+    return rc;
+
+  // No writers (--troeWriters 0, or shutting down): one transaction of its own, here
+  TimescaleConn* cP = timescaleConnGet(listHead->tenantP);
+
+  if (cP == NULL)
+  {
+    tsUnitFree(uP);
+    return TROE_ERR;
+  }
+
+  timescaleConn = cP->conn;
+  rc            = unitExecLocked(uP);
   timescaleConn = NULL;
   timescaleConnRelease(cP);
+
   return rc;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleEventList - record a list of events, as one transaction
+//
+// --troeSync waits for the commit: the response is not to leave before its history is recorded.
+//
+int timescaleEventList(const TroeEvent* listHead, int count)
+{
+  (void) count;
+  return eventListRecord(listHead, troeSync);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleHistoryImport - the events of an import (coraine-import): as an event list, waited for -
+// the import reports what did not make it, and exits when it is done
+//
+int timescaleHistoryImport(const TroeEvent* listHead, int count)
+{
+  (void) count;
+  return eventListRecord(listHead, true);
 }

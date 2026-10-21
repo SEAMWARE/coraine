@@ -21,6 +21,7 @@
 
 
 extern int timescaleEventList  (const TroeEvent* listHead, int count);
+extern int timescaleHistoryImport(const TroeEvent* listHead, int count);
 
 //
 // Row-insert primitives — operate on the thread-local timescaleConn (set by

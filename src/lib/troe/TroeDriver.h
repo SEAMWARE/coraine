@@ -426,8 +426,10 @@ typedef struct TroeDriver
   // historyImport - history that comes from another store (coraine-import, doc/migration.md): the
   // events written AS THEY ARE - the instanceId, createdAtNs and modifiedAtNs they carry, the times
   // in their snapshots - and nothing else recorded for them. For a plugin that takes no live events
-  // (--troe corDB records history at its own write sites); a plugin without it is given the import's
-  // events through eventList / entityEvent / attrEvent. Last in the struct: a plugin built against
+  // (--troe corDB records history at its own write sites), or whose eventList returns before the
+  // events are written (--troe timescale queues them for its writers - its historyImport waits); a
+  // plugin without it is given the import's events through eventList / entityEvent / attrEvent.
+  // Last in the struct: a plugin built against
   // an older header never sets it.
   //
   TroeEventListFunc                 historyImport;

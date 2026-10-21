@@ -30,6 +30,7 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*, timescalePoolSize
 #include "temporal/timescale/timescaleMigrate.h"          // timescaleMigrate
+#include "temporal/timescale/timescaleWriter.h"           // timescaleWriterStart, timescaleWriterStop, timescaleWriterBarrier
 #include "temporal/timescale/timescalePool.h"             // Own interface
 
 
@@ -51,6 +52,8 @@
 // directly via Tenant.troePoolP — no registry, no per-access list lock.
 //
 static pthread_mutex_t  poolCreateMutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void poolFree(TimescalePool* poolP);
 
 
 
@@ -152,9 +155,13 @@ static void noticeToLog(void* arg, const char* message)
 
 // -----------------------------------------------------------------------------
 //
-// connectTo - open a fresh connection to one database, or NULL on failure.
+// timescaleConnect - open a fresh connection to one database, or NULL on failure.
 //
-static PGconn* connectTo(const char* dbName)
+// standard_conforming_strings is set, not trusted to be the server's default: the TRoE rows go as
+// literals (timescaleUnit.c) that double their quotes and nothing else - a backslash must be a
+// backslash.
+//
+PGconn* timescaleConnect(const char* dbName)
 {
   char cs[1024];
   connStr(dbName, cs, sizeof(cs));
@@ -168,6 +175,17 @@ static PGconn* connectTo(const char* dbName)
   }
 
   PQsetNoticeProcessor(conn, noticeToLog, NULL);
+
+  PGresult* res = PQexec(conn, "SET standard_conforming_strings = on");
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+    COR_E("timescale: db '%s': SET standard_conforming_strings failed: %s", dbName, PQerrorMessage(conn));
+    PQclear(res);
+    PQfinish(conn);
+    return NULL;
+  }
+  PQclear(res);
+
   return conn;
 }
 
@@ -181,7 +199,7 @@ static PGconn* connectTo(const char* dbName)
 //
 static int ensureDatabase(const char* dbName)
 {
-  PGconn* admin = connectTo("postgres");
+  PGconn* admin = timescaleConnect("postgres");
   if (admin == NULL)
     return TROE_ERR;
 
@@ -244,7 +262,7 @@ int timescalePoolEnsure(Tenant* tenantP)
   }
 
   // 2. Connect once and run pending migrations on that connection.
-  PGconn* migConn = connectTo(dbName);
+  PGconn* migConn = timescaleConnect(dbName);
   if (migConn == NULL)
   {
     pthread_mutex_unlock(&poolCreateMutex);
@@ -295,6 +313,14 @@ int timescalePoolEnsure(Tenant* tenantP)
   connV[0].conn = migConn;          // seed slot 0 with the migration connection
   connV[0].busy = false;
 
+  // 4. The TRoE writers - before the pool is published, no unit can be submitted before they are there
+  if (timescaleWriterStart(poolP) != TROE_OK)
+  {
+    poolFree(poolP);
+    pthread_mutex_unlock(&poolCreateMutex);
+    return TROE_ERR;
+  }
+
   __atomic_store_n(&tenantP->troePoolP, poolP, __ATOMIC_RELEASE);
 
   pthread_mutex_unlock(&poolCreateMutex);
@@ -321,6 +347,9 @@ TimescaleConn* timescaleConnGet(Tenant* tenantP)
   }
 
   TimescalePool* poolP = (TimescalePool*) tenantP->troePoolP;
+
+  // A read, or a history write, sees every TRoE write queued before it
+  timescaleWriterBarrier(poolP);
 
   // Bounded wait for a free slot.
   struct timespec ts;
@@ -359,7 +388,7 @@ TimescaleConn* timescaleConnGet(Tenant* tenantP)
   // Connect / heal outside the pool lock.
   if (cP->conn == NULL)
   {
-    cP->conn = connectTo(poolP->dbName);
+    cP->conn = timescaleConnect(poolP->dbName);
   }
   else if (PQstatus(cP->conn) != CONNECTION_OK)
   {
@@ -367,7 +396,7 @@ TimescaleConn* timescaleConnGet(Tenant* tenantP)
     if (PQstatus(cP->conn) != CONNECTION_OK)
     {
       PQfinish(cP->conn);
-      cP->conn = connectTo(poolP->dbName);
+      cP->conn = timescaleConnect(poolP->dbName);
     }
   }
 
@@ -419,6 +448,8 @@ static void poolFree(TimescalePool* poolP)
   if (poolP == NULL)
     return;
 
+  timescaleWriterStop(poolP);                // what is queued goes to the database first
+
   for (int i = 0; i < poolP->items; i++)
   {
     if (poolP->connV[i].conn != NULL)
@@ -464,7 +495,7 @@ int timescalePoolDrop(Tenant* tenantP)
 
   // DROP DATABASE on the admin connection. WITH (FORCE) terminates any
   // straggler sessions (PostgreSQL 13+).
-  PGconn* admin = connectTo("postgres");
+  PGconn* admin = timescaleConnect("postgres");
   if (admin != NULL)
   {
     char sql[256];

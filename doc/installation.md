@@ -307,6 +307,82 @@ at runtime: choose it knowing that.
   `--troe ramDB` - a ring of the latest TRoE events in RAM, a dev/test tool today.
 - Everything else - queries, subscriptions, registrations, tenants, geo-queries - is corDB's.
 
+### TimescaleDB history (`--troe timescale`)
+
+The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`, `corh_<tenant>`).
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `--troeHost` / `--troePort` | `localhost` / 5432 | the PostgreSQL server |
+| `--troeUser` / `--troePwd` | `postgres` / none | its user and password (`--troePwd` is a secret: `GET /admin/config` shows `***`) |
+| `--troeName` | `corh` | the database of the default tenant, and the prefix of the others |
+| `--troePoolSize` | 10 | connections per tenant for the temporal reads and the Temporal API's writes |
+| `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
+| `--troeIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
+| `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
+
+**The writers.** A request renders the history rows of its writes and queues them for its tenant's
+writers; a writer takes everything queued - up to 512 requests, 1 MiB - and writes it in one
+transaction, one `INSERT` per table, each column of the rows an array (`INSERT ... SELECT ... FROM
+unnest(...)`). A second writer starts on the queue when none is writing, or when 8 requests wait. Requests that arrive while it writes are the next one's. The
+queue holds at most 8 MiB; past that a request waits for room.
+
+- Without `--troeSync` (the default) a request queues its rows after its response. With
+  `--troeSync` it queues them before, and the response waits for the commit of the transaction its
+  rows went into.
+- A temporal read, and a write of the Temporal API, of a tenant waits for every row queued before it
+  to be written.
+- A stop (SIGTERM, SIGINT) writes what is queued before the broker exits. `kill -9`, a crash or an
+  OOM kill loses it: up to 8 MiB of history rows that the current state has, and, without
+  `--troeSync`, rows of requests already answered.
+
+#### The indexes of the history
+
+Every index costs every write: PostgreSQL updates each of them for each row. These are always there,
+because the Temporal API's retrieves and queries are built on them:
+
+| Index | Serves |
+|-------|--------|
+| `troe_attrs` primary key (`instance_id`, `modified_at`) | an instance by its `instanceId` (modify / delete an instance) |
+| `troe_attrs` (`entity_id`, `attr_name`, `observed_at`) | an Entity's Attribute over time, `timeproperty=observedAt` (the default) |
+| `troe_attrs` (`entity_id`, `attr_name`, `modified_at`) | the same with `timeproperty=modifiedAt` / `createdAt` / `deletedAt` |
+| `troe_attrs` and `troe_entities` `entity_type` (GIN) | a query by `type` |
+| `troe_entities` primary key (`entity_id`, `modified_at`, `op`) | an Entity's history: its existence, its types, its `createdAt` / `modifiedAt` |
+
+The others are a choice, `--troeIndexes` - for queries that go to PostgreSQL directly (a dashboard, a
+report), not through the broker: the Temporal API's queries find their rows through the Entity first,
+and none of them uses these.
+
+| `--troeIndexes` | The index | Serves |
+|-----------------|-----------|--------|
+| `attrObserved` | `troe_attrs` (`attr_name`, `observed_at`) | one Attribute of every Entity in a time window |
+| `geo` | GiST on `troe_attrs.geo` (the GeoProperty values) | the rows within a distance of a point, or in an area, whatever the Entity |
+| `time` | `troe_attrs` (`modified_at`) - TimescaleDB's own on a hypertable | every row in a time window |
+
+They are applied at the start, before the broker serves: an index chosen is created, over every row
+there is - on a large history that takes a while, and the writes of other brokers to that database
+wait meanwhile; one not chosen is dropped. Every
+broker writing to the same PostgreSQL (`--high-availability`, `coraine-import`) should run with the
+same choice.
+
+What they change, on a history of one million rows (2000 Entities, a number and a GeoProperty each,
+250 instances per Attribute over ten days), best of three, ms:
+
+| Query | the three indexes | none of them |
+|-------|---:|---:|
+| `GET /temporal/entities/{id}?attrs=speed&timerel=after` (a day) | 1 | 1 |
+| `GET /temporal/entities?type=Vehicle&attrs=speed&timerel=after` (an hour), `limit=10` | 11 | 8 |
+| `GET /temporal/entities?attrs=speed&timerel=after` (an hour), `limit=10` | 11 | 7 |
+| `GET /temporal/entities?type=Vehicle&georel=near;maxDistance==5000&...&timerel=after` (an hour) | 17 | 13 |
+| SQL: `attr_name = speed AND observed_at > ` (an hour) - `attrObserved` | 4 | 71 |
+| SQL: `modified_at > ` (an hour) - `time` | 3 | 41 |
+| SQL: `ST_DWithin(geo, <point>, 500)` - `geo` | 13 | 144 |
+
+Without its index, a query of the last three kinds reads every row of the history - for a window of
+`modified_at`, every row of the chunks (7 days each) that window falls in: it grows with the history,
+the indexed one does not.
+What they cost a write: [Performance](performance.md), "TimescaleDB: the write path".
+
 ### Environment variables
 
 **Every** command-line option can also be given as an environment variable, named

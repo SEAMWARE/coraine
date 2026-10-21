@@ -1,0 +1,136 @@
+#
+# FILE            troe_timescale_writers.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TRoE timescale plugin: the writers (--troeWriters) - the rows of a request are SQL literals, sent by
+# a writer thread, in a transaction it may share with other requests' rows:
+#   - a quote, a backslash and a compound value reach the database as they were sent
+#   - an Attribute event of a multi-type Entity takes the types recorded for the Entity
+#   - --troeWriters 0: the request sends its own rows, the same rows
+#   - a stop sends what the writers hold: every Entity created before the stop has its history,
+#     although the default dispatch records it after the response. The race is forced: troe_attrs
+#     is locked while the Entities are created and the broker stopped, so the one writer is stuck
+#     on the first request's rows, and the rows of the other 19 are still in its queue when the
+#     stop comes (a statement already sent is not the question - Postgres runs it to its end
+#     whether the client is still there or not).
+#
+# Reads timescale's own tables (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
+--NAME--
+TRoE timescale - the writers: literals, the type fallback, --troeWriters 0, the stop
+
+--TAGS--
+troe timescale postgres
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+PSQL="psql -h $COR_TROE_HOST -p $COR_TROE_PORT -U postgres -d $COR_TROE_DB -tA -F|"
+
+echo "01. POST an Entity whose values hold a quote, a backslash and a compound value"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:W1","type":["Vehicle","Car"],"name":{"type":"Property","value":"O'"'"'Brien \\ the \"first\""},"cfg":{"type":"Property","value":{"a":"it'"'"'s","b":[1,2]}}}' | head -1
+echo
+echo
+
+
+echo "02. PATCH an Attribute of the multi-type Entity - the event has no Entity snapshot"
+echo "=================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:W1/attrs/name -X PATCH --payload '{"value":"x'"'"'y"}' | head -1
+echo
+echo
+
+
+echo "03. troe_attrs: the values as sent, both types on every row"
+echo "==========================================================="
+$PSQL -c "SELECT regexp_replace(attr_name, '.*/', ''), op, coalesce(v_text, v_compound::text), array_to_string(ARRAY(SELECT regexp_replace(t, '.*/', '') FROM unnest(entity_type) AS t), ',') FROM troe_attrs ORDER BY modified_at, attr_name"
+echo
+echo
+
+
+echo "04. Restart with --troeWriters 0, POST urn:W2 - the request sends its own rows"
+echo "=============================================================================="
+coraineStop
+coraineStart --troe timescale --troeSync --troeWriters 0
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:W2","type":"Vehicle","name":{"type":"Property","value":"a'"'"'b\\c"}}' | head -1
+$PSQL -c "SELECT entity_id, regexp_replace(attr_name, '.*/', ''), v_text FROM troe_attrs WHERE entity_id = 'urn:W2'"
+echo
+echo
+
+
+echo "05. Restart deferred (no --troeSync), one writer, lock troe_attrs, create 20 Entities, stop"
+echo "==========================================================================================="
+coraineStop
+coraineStart --troe timescale --troeWriters 1
+$PSQL -c "BEGIN; LOCK TABLE troe_attrs IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(3); COMMIT;" >/dev/null &
+lockPid=$!
+for i in $(seq 1 100)
+do
+  locked=$($PSQL -c "SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'troe_attrs' AND l.mode = 'AccessExclusiveLock' AND l.granted")
+  [ "$locked" == 1 ] && break
+  sleep 0.02
+done
+echo "troe_attrs locked: $locked"
+for i in $(seq 1 20)
+do
+  corCurl --url /ngsi-ld/v1/entities --payload "{\"id\":\"urn:S$i\",\"type\":\"Sensor\",\"t\":{\"type\":\"Property\",\"value\":$i}}" | head -1
+done | sort | uniq -c
+coraineStop
+wait $lockPid
+echo
+echo
+
+
+echo "06. Every one of them has its history: 20 Entity rows, 20 Attribute rows"
+echo "========================================================================"
+$PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id LIKE 'urn:S%'), (SELECT count(*) FROM troe_attrs WHERE entity_id LIKE 'urn:S%')"
+echo
+echo
+
+
+--EXPECT--
+01. POST an Entity whose values hold a quote, a backslash and a compound value
+==============================================================================
+HTTP/1.1 201 Created
+
+
+02. PATCH an Attribute of the multi-type Entity - the event has no Entity snapshot
+==================================================================================
+HTTP/1.1 204 No Content
+
+
+03. troe_attrs: the values as sent, both types on every row
+===========================================================
+cfg|created|{"https://uri.etsi.org/ngsi-ld/default-context/a": "it's", "https://uri.etsi.org/ngsi-ld/default-context/b": [1, 2]}|Vehicle,Car
+name|created|O'Brien \ the "first"|Vehicle,Car
+name|modified|x'y|Vehicle,Car
+
+
+04. Restart with --troeWriters 0, POST urn:W2 - the request sends its own rows
+==============================================================================
+HTTP/1.1 201 Created
+urn:W2|name|a'b\c
+
+
+05. Restart deferred (no --troeSync), one writer, lock troe_attrs, create 20 Entities, stop
+===========================================================================================
+troe_attrs locked: 1
+     20 HTTP/1.1 201 Created
+
+
+06. Every one of them has its history: 20 Entity rows, 20 Attribute rows
+========================================================================
+20|20
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

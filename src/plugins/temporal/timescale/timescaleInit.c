@@ -18,6 +18,7 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*
 #include "temporal/timescale/timescalePool.h"             // timescalePoolEnsure, timescalePoolCloseAll
+#include "temporal/timescale/timescaleMigrate.h"          // timescaleIndexesParse
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
 
@@ -35,6 +36,9 @@
 int timescaleInit(void)
 {
   corArgsSecret("--troePwd");                      // never shown: GET /admin/config masks it
+
+  if (timescaleIndexesParse(timescaleIndexes) != 0)
+    return TROE_ERR;
 
   if (timescalePoolEnsure(&tenant0) != TROE_OK)
   {
