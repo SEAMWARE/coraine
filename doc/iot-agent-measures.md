@@ -1,6 +1,6 @@
 # IoT Agent measures as DataChannel records - design note
 
-**Status: a design for review.** Measures are the second job of an IoT Agent: the data a device sends
+**Status: designed, decisions taken (KZ, 2026-10-20, § 5). Built in the broker: the DataChannel additions a-d and f, and the per-bridge `otherColumns` ([DataChannels](bridge-channels.md#datachannels)); the plugin's measures are next.** Measures are the second job of an IoT Agent: the data a device sends
 up. Commands are the first, and are Service Executions ([IoT Agents as Service Executors](iot-agent-executor.md)).
 Lazy attributes, the third, stay a Context Source Registration (decided 2026-10-14).
 
@@ -95,18 +95,34 @@ one. A measure goes to the device's DataChannel when there is one, else the grou
 the measure is refused: dropped with a warning on MQTT, an error on HTTP. That is `autoprovision: false`
 for an apikey with no group DataChannel, and `true` for one that has it.
 
+The HTTP error is iotagent-json's - its status and `name`, so a device or a tool that checks them sees
+no difference; the `message` is ours:
+
+| The apikey | 404, `name` |
+|---|---|
+| no DataChannel at all - no group | `DEVICE_GROUP_NOT_FOUND` |
+| device DataChannels, no group DataChannel (`autoprovision: false`), and not this device | `DEVICE_NOT_FOUND` |
+
+The body is `{ "name", "message" }`, as iotagent-json's (`HTTPBinding.js` `handleError`).
+
+The bridge carries **DataChannels only**: a plain Channel on it (`<apikey>/<deviceId>/<key>` to one
+attribute) is refused at start. Allowing them later is additive.
+
 ### 2.3 The record and its time
 
-- **The record** is the measure object as the device sent it, plus the device id and the apikey under
-  reserved names (decision 1), so that the id template can name them:
-  `"id": "urn:ngsi-ld:Thermometer:{deviceId}"`.
+- **The record** is the measure object as the device sent it, plus the device id and the apikey as
+  the columns **`@deviceId`** and **`@apikey`**, so that the id template can name them:
+  `"id": "urn:ngsi-ld:Thermometer:{@deviceId}"`. No device key collides with them, and no @context
+  can name an attribute so: JSON-LD 1.1 reserves every term of the form `@` followed by letters, and
+  ignores one that a context defines. They never become attributes, `otherColumns` or not.
 - `id` / `type` keys renamed `measure_id` / `measure_type`, as iotagent-json does.
 - **The time** (the record's `publishTime`, and so every attribute's `observedAt`): the `TimeInstant`
   member (ISO 8601; removed from the record), else `t`, else the arrival time - iotagent-json's order.
 - **A multi-measure array** is one record per element, in ascending `TimeInstant` order.
 - **A single measure** (`.../attrs/<name>`) is the record `{"<name>": <value>}`.
-- The tenant is the DataChannel's (iotagent-json's `service`); the subservice has no NGSI-LD counterpart
-  (decision 5).
+- The tenant is the DataChannel's (iotagent-json's `service`). The subservice (`fiware-servicepath`) is
+  the entity's **scope** - NGSI-LD's version of NGSIv2's Service-Path: `/garden/north` is a scope as it
+  is - set in the DataChannel's entity mapping (`"scope"`, addition f). No subservice, no scope.
 
 ### 2.4 What DataChannels need first
 
@@ -120,8 +136,14 @@ DataChannels today: `column` (Property, `as` `number` / `boolean` / `string`), `
 | c. | `static_attributes` | `{ "value": <constant> }` |
 | d. | `unitCode` metadata | `"unitCode"` on an attribute's mapping |
 | e. | the device id in the entity id | the reserved columns of § 2.3 - the plugin's part; nothing in the broker |
+| f. | the subservice | `"scope"` on an entity's mapping: a scope, or a template (`/{District}`), the entity's `scope` |
 
-a-d are additions to the broker's DataChannel mapping, each useful to the CKAN bridge too. All are
+**`otherColumns` per bridge**: `"otherColumns"` in the bridge's `ngsild` section is the default for every
+DataChannel of the bridge, and a DataChannel's own replaces it - the IoT Agent bridge's file says
+`property` once, the CKAN bridge's says nothing and keeps the mapped columns only. Columns starting
+with `@` are never other columns.
+
+a-d and f are additions to the broker's DataChannel mapping, each useful to the CKAN bridge too. All are
 additive: a mapping that does not use them reads as today.
 
 ### 2.5 Not in this step
@@ -141,20 +163,22 @@ additive: a mapping that does not use them reads as today.
 { "iotajson": {
     "server":     { "uri": "mqtt://mosquitto:1883" },
     "southbound": { "port": 7896 },
-    "ngsild": { "dataChannels": {
-      "thermo-key": {
-        "otherColumns": "property",
-        "entities": [ { "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{deviceId}",
-                        "attributes": {
-                          "temperature": { "column": "t", "as": "number", "unitCode": "CEL" },
-                          "location":    { "geo": "loc" } } } ] } } } } }
+    "ngsild": {
+      "otherColumns": "property",
+      "dataChannels": {
+        "thermo-key": {
+          "entities": [ { "type": "Thermometer", "id": "urn:ngsi-ld:Thermometer:{@deviceId}",
+                          "scope": "/garden/north",
+                          "attributes": {
+                            "temperature": { "column": "t", "as": "number", "unitCode": "CEL" },
+                            "location":    { "geo": "loc" } } } ] } } } } }
 ```
 
 A device `th1` publishes `{"t": "21.5", "h": 40, "loc": "40.4, -3.7"}` on `/json/thermo-key/th1/attrs`.
 The broker upserts:
 
 ```json
-{ "id": "urn:ngsi-ld:Thermometer:th1", "type": "Thermometer",
+{ "id": "urn:ngsi-ld:Thermometer:th1", "type": "Thermometer", "scope": "/garden/north",
   "temperature": { "type": "Property", "value": 21.5, "unitCode": "CEL", "observedAt": "<arrival>" },
   "location":    { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [-3.7, 40.4] },
                    "observedAt": "<arrival>" },
@@ -163,20 +187,19 @@ The broker upserts:
 
 ## 4. The first PRs, if this holds
 
-1. **coraine**: the DataChannel additions a-d, each with its functests on the loopback bridge.
+1. **coraine**: the DataChannel additions a-d and f, and the per-bridge `otherColumns`, each with its
+   functests on the loopback bridge.
 2. **corIotaJsonBridge**: MQTT measures (`[/json]/+/+/attrs[/+]`) and HTTP measures on the southbound
    port; the plugin takes DataChannels (it refuses Channels today); the record, its time, arrays.
    Its tests against the broker of 1.
 
-## 5. Open decisions
+## 5. Decisions (KZ, 2026-10-20)
 
-1. **The reserved columns**: `deviceId` and `apikey` - plain names that a device's own key could
-   collide with - or a prefix no device sends (`@deviceId`, `@apikey`)?
-2. **`otherColumns` for an IoT DataChannel**: iotagent-json's default is to store every key. Keep the
-   DataChannel default (only mapped columns) and write `"otherColumns": "property"` in each group, or a
-   per-bridge default?
-3. **A measure with no DataChannel on HTTP**: iotagent-json answers with an error; which status and name
-   to answer - to be checked against its tests when built.
-4. **Plain Channels on this bridge** (`<apikey>/<deviceId>/<key>` to one attribute): allow them, or
-   DataChannels only?
-5. **The subservice** (`fiware-servicepath`): drop it, or keep it as a Property of the entity?
+1. **The reserved columns**: `@deviceId` and `@apikey` - no device sends such a key, and no @context
+   has such a term (§ 2.3).
+2. **`otherColumns`**: a per-bridge default, a DataChannel's own replacing it (§ 2.4) - as the DDS
+   bridge's catch-all entity takes what nothing else claims.
+3. **A measure with no DataChannel on HTTP**: iotagent-json's 404 and `name` - `DEVICE_GROUP_NOT_FOUND`,
+   `DEVICE_NOT_FOUND` - our own `message` (§ 2.2).
+4. **Plain Channels on this bridge**: no - DataChannels only (§ 2.2).
+5. **The subservice**: the entity's `scope` (§ 2.3, addition f).

@@ -23,6 +23,22 @@
 //     { "type": "District", "id": "urn:ngsi-ld:District:{District}",
 //       "attributes": { "name": { "column": "District" } } } ] } }
 //
+// More of the vocabulary - what an IoT Agent's measure needs (doc/iot-agent-measures.md § 2.4):
+//
+//   { "column": "t", "as": "integer" | "float" | "datetime" | "json", "unitCode": "CEL" }
+//   { "geo": "loc" }             a GeoProperty from one column: "lat, lng", or GeoJSON (an object or its text)
+//   { "json": "cfg" }            a JsonProperty
+//   { "vocab": "state" }         a VocabProperty
+//   { "languageMap": "label" }   a LanguageProperty, the column an object of { "<lang>": "<text>" }
+//   { "value": <any JSON> }      a Property whose value is always that - a static attribute
+//
+//   an entity's "scope": "/garden/{Zone}"   - a template, the entity's scope
+//   the entry's "otherColumns": "property"  - every column the mapping does not use becomes a Property of
+//                                             its own name, on the first entity the record makes; "none"
+//                                             (the default) drops them. A bridge's ngsild "otherColumns" is
+//                                             the default for its DataChannels. A column whose name starts
+//                                             with '@' is the bridge's (an IoT Agent's @deviceId) - never one
+//
 // INBOUND ONLY. The broker writes what a record says; nothing is ever published back to it.
 //
 // Compiled in with COR_FEATURE_DATA_CHANNELS.
@@ -39,6 +55,10 @@
 //   Number    a string that holds a number becomes the number ("15" -> 15, "42.35" -> 42.35)
 //   Boolean   "yes"/"true"/"y"/"1" -> true, "no"/"false"/"n"/"0" -> false (any case); a JSON
 //             boolean as it is
+//   Integer   a number, or a string holding one, that is whole ("15", 15.0 -> 15)
+//   Float     a number, or a string holding one, as a floating point number ("15" -> 15.0)
+//   DateTime  an ISO 8601 date-time, normalised to UTC (milliseconds, when it has them) - a DateTime value
+//   Json      a string holding JSON, parsed; any other value as it is
 //
 // A value that cannot become what was asked for leaves the attribute out of that record's entity.
 //
@@ -47,7 +67,11 @@ typedef enum RecordAs
   RecordAsIs      = 0,
   RecordAsString  = 1,
   RecordAsNumber  = 2,
-  RecordAsBoolean = 3
+  RecordAsBoolean = 3,
+  RecordAsInteger = 4,
+  RecordAsFloat   = 5,
+  RecordAsDateTime = 6,
+  RecordAsJson    = 7
 } RecordAs;
 
 
@@ -59,12 +83,22 @@ typedef enum RecordAs
 //   Column        a Property, the value of one column
 //   Point         a GeoProperty Point, [longitude, latitude] from two columns
 //   Relationship  a Relationship, its object a template over the columns
+//   Geo           a GeoProperty from one column: "lat, lng" or GeoJSON
+//   Json          a JsonProperty, the value of one column
+//   Vocab         a VocabProperty, the value (a string, or an array of them) of one column
+//   LanguageMap   a LanguageProperty, the column an object of language -> text
+//   Constant      a Property whose value is the mapping's own - no column
 //
 typedef enum RecordAttrKind
 {
   RecordAttrColumn       = 0,
   RecordAttrPoint        = 1,
-  RecordAttrRelationship = 2
+  RecordAttrRelationship = 2,
+  RecordAttrGeo          = 3,
+  RecordAttrJson         = 4,
+  RecordAttrVocab        = 5,
+  RecordAttrLanguageMap  = 6,
+  RecordAttrConstant     = 7
 } RecordAttrKind;
 
 
@@ -77,11 +111,13 @@ typedef struct RecordAttr
 {
   char*               name;                           // EXPANDED, as a plain Channel's attribute
   RecordAttrKind      kind;
-  char*               column;                         // Column: the column
+  char*               column;                         // Column, Geo, Json, Vocab, LanguageMap: the column
   RecordAs            as;                             // Column: what its value becomes
   char*               longitude;                      // Point: the column holding the longitude
   char*               latitude;                       // Point: the column holding the latitude
   char*               object;                         // Relationship: a template, "urn:ngsi-ld:District:{District}"
+  char*               constant;                       // Constant: the value as JSON text
+  char*               unitCode;                       // the attribute's unitCode, NULL: none
   struct RecordAttr*  next;
 } RecordAttr;
 
@@ -117,6 +153,7 @@ typedef struct RecordEntity
 {
   char*                 type;                         // EXPANDED
   char*                 id;                           // a template
+  char*                 scope;                        // a template, NULL: no scope
   RecordAttr*           attrs;
   struct RecordEntity*  next;
 } RecordEntity;
@@ -127,10 +164,26 @@ typedef struct RecordEntity
 //
 // RecordMap - a DataChannel's mapping
 //
+// -----------------------------------------------------------------------------
+//
+// RecordOther - what becomes of a column the mapping does not use
+//
+typedef enum RecordOther
+{
+  RecordOtherUnset    = 0,                            // the entry said nothing: the bridge's default, else None
+  RecordOtherNone     = 1,                            // dropped
+  RecordOtherProperty = 2                             // a Property of its own name, on the first entity made
+} RecordOther;
+
+
+
 typedef struct RecordMap
 {
   RecordEntity*     entities;
   RecordIdEncoding  idEncoding;
+  RecordOther       otherColumns;
+  char**            columnV;                          // every column the mapping uses - not "other"
+  int               columns;
   char*             text;                             // "entities" as the file said it, for GET /dataChannels
 } RecordMap;
 

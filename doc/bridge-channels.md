@@ -204,12 +204,35 @@ endpoint:
   - `percent`: each byte outside `[A-Za-z0-9._-]` becomes `%XX`
     (`South Boston` -> `South%20Boston`). Two different values never name the
     same entity.
-- **`attributes`**: `{ "column": ... }` a Property, `"as"` `number`, `boolean`
-  (`yes`/`true`/`y`/`1`, `no`/`false`/`n`/`0`) or `string` converting the
-  value; `{ "point": { "longitude": ..., "latitude": ... } }` a GeoProperty
-  Point; `{ "relationship": <template> }` a Relationship. An absent, null or
-  empty column, or a value that does not convert, leaves the attribute out.
-  Names and types are expanded as a Channel's are.
+- **`attributes`**:
+  - `{ "column": ... }` a Property; `"as"` converts the value: `number`,
+    `integer` (a whole number: `"15"`, `15.0`), `float`, `boolean`
+    (`yes`/`true`/`y`/`1`, `no`/`false`/`n`/`0`), `string`, `datetime` (ISO
+    8601, normalised to UTC - a DateTime value), `json` (a string holding JSON,
+    parsed);
+  - `{ "point": { "longitude": ..., "latitude": ... } }` a GeoProperty Point
+    from two columns; `{ "geo": ... }` a GeoProperty from one column: `"lat, lng"`
+    (latitude first) or GeoJSON, an object or its text;
+  - `{ "relationship": <template> }` a Relationship;
+  - `{ "json": ... }` a JsonProperty, `{ "vocab": ... }` a VocabProperty,
+    `{ "languageMap": ... }` a LanguageProperty (the column an object of language
+    to text);
+  - `{ "value": <JSON> }` a Property whose value is always that - no column, no
+    `observedAt`;
+  - `"unitCode"` with `column` or `value`.
+
+  An absent, null or empty column, or a value that does not convert, leaves the
+  attribute out. Names and types are expanded as a Channel's are.
+- **`scope`** on an entity: a template, the entity's scope (`"/garden/{Zone}"`).
+  The `/` of the template stay; what a column puts in is encoded as an id is. A
+  column without a value: no scope, the entity is still made.
+- **`otherColumns`**: `"property"` - every column the mapping does not use
+  becomes a Property of its own name on the first entity the record makes;
+  `"none"`, the default, drops them. `otherColumns` in the bridge's `ngsild`
+  section is the default for its DataChannels, a DataChannel's own replaces it.
+  Never an other column: a name starting with `@` (the bridge's own, as an IoT
+  Agent's `@deviceId`), `id`, `type`, a name NGSI-LD does not allow (§ 4.6.2), a
+  column with no value, and a name the mapping made an attribute of already.
 - **The write** is one batch upsert per record, `options=update`, local: the
   entities are created when they are not there, their mapped attributes
   replaced, other attributes left alone - with the checks, notifications and
@@ -261,6 +284,9 @@ a Channel's, a DataChannel's or an AssetChannel's, never two of them.
 - The plugin contract is `corBridge/BridgeDriver.h`: append-only, with an ABI
   version handshake; a feature compiled out of the broker is a NULL pointer,
   never a `#if` inside the struct.
+- A bridge is handed each channel with its type - Channel, DataChannel or
+  AssetChannel (`channelTypedAdd`, bridge ABI 15) - and may refuse a type it does
+  not carry: the channel is then `dormant`, with the bridge's reason.
 - Each bridge is its own repository (`corDdsBridge`, `corMqttBridge`,
   `corModbusBridge`); the `.so` installs as
   `/opt/seamware/plugins/bridge/<name>.so`.
