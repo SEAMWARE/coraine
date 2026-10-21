@@ -39,7 +39,8 @@
 //                                             the default for its DataChannels. A column whose name starts
 //                                             with '@' is the bridge's (an IoT Agent's @deviceId) - never one
 //
-// INBOUND ONLY. The broker writes what a record says; nothing is ever published back to it.
+// The broker writes what a record says. Back to it goes only a client's write, on a DataChannel with
+// channelDirection both (COR_FEATURE_CHANNEL_WRITE_BACK, dataChannelWriteBack.h).
 //
 // Compiled in with COR_FEATURE_DATA_CHANNELS.
 //

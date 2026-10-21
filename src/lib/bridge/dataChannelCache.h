@@ -56,6 +56,24 @@ extern DataChannel* dataChannelFirst(void);
 
 
 
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+// -----------------------------------------------------------------------------
+//
+// dataChannelDirectionSet - at start, before any request: Both counts in dataChannelOutCount
+//
+extern void dataChannelDirectionSet(DataChannel* dcP, BridgeDirection direction);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dataChannelOutCount - how many DataChannels write back (channelDirection both)
+//
+extern int dataChannelOutCount(void);
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // dataChannelStatusSet - a DataChannel's status and statusReason, as its bridge reports them
