@@ -11,6 +11,8 @@
 # 018_23_11), an observedAt, a sub-attribute - is { "value": <geometry>, ... } in concise, no "type".
 # The concise output, sent back, is a GeoProperty again. A concise value of the GeoJSON shape ("type" +
 # "coordinates") with a misspelled geometry is a GeoProperty with a bad geometry - a 400 - not a Property.
+# So is an object whose "type" names a GeoJSON geometry, whatever its other members: { "type": "Point",
+# "coodrinates": [1, 2] } is a geometry without coordinates, not an Attribute of type "Point".
 #
 --NAME--
 Concise GeoProperty without "type" - datasetId, observedAt, sub-attribute
@@ -88,7 +90,39 @@ echo
 echo
 
 
-echo "07. GET the entities of type T - E1 and E2 only"
+echo "07. Create E5 - loc { \"type\": \"Point\", \"coodrinates\": [1, 2, 3] }: 400, no coordinates"
+echo "=============================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E5", "type": "T", "loc": { "type": "Point", "coodrinates": [1, 2, 3] } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Create E6 - loc { \"type\": \"Point\" }: 400, no coordinates"
+echo "==============================================================="
+payload='{ "id": "urn:ngsi-ld:T:E6", "type": "T", "loc": { "type": "Point" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. Create E7 - concise loc, value { \"type\": \"Point\", \"coodrinates\": [1, 2] }, observedAt: 400"
+echo "============================================================================================"
+payload='{ "id": "urn:ngsi-ld:T:E7", "type": "T", "loc": { "value": { "type": "Point", "coodrinates": [1, 2] }, "observedAt": "2026-10-21T10:00:00.000Z" } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Create E8 - loc a GeometryCollection: 400, not allowed in NGSI-LD"
+echo "===================================================================="
+payload='{ "id": "urn:ngsi-ld:T:E8", "type": "T", "loc": { "type": "GeometryCollection", "geometries": [ { "type": "Point", "coordinates": [1, 2] } ] } }'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "11. GET the entities of type T - E1 and E2 only"
 echo "==============================================="
 corCurl --url '/ngsi-ld/v1/entities?type=T' | grep '"id": "urn'
 echo
@@ -265,7 +299,71 @@ Content-Length: 168
 
 
 
-07. GET the entities of type T - E1 and E2 only
+07. Create E5 - loc { "type": "Point", "coodrinates": [1, 2, 3] }: 400, no coordinates
+==============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. Create E6 - loc { "type": "Point" }: 400, no coordinates
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. Create E7 - concise loc, value { "type": "Point", "coodrinates": [1, 2] }, observedAt: 400
+============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 175
+
+{
+  "detail": "GeoJSON must have a 'coordinates' array field",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. Create E8 - loc a GeometryCollection: 400, not allowed in NGSI-LD
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 208
+
+{
+  "detail": "GeoJSON GeometryCollection is not allowed in NGSI-LD (TS 104-175 § 5.2.6.4.5)",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. GET the entities of type T - E1 and E2 only
 ===============================================
     "id": "urn:ngsi-ld:T:E1",
     "id": "urn:ngsi-ld:T:E2",
