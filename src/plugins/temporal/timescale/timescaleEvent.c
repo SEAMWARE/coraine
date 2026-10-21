@@ -43,7 +43,7 @@
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
 #include "temporal/timescale/timescaleUnit.h"             // TsUnit, tsBuf*, timescaleUnitsExec
-#include "temporal/timescale/timescaleWriter.h"           // timescaleWriterSubmit
+#include "temporal/timescale/timescaleWriter.h"           // timescaleWriterSubmit, timescaleHistoryLost, TsWait
 #include "temporal/timescale/timescaleEvent.h"            // Own interface
 
 
@@ -569,16 +569,18 @@ static void attrRowAdd(TsUnit* uP, const TroeEvent* evP, const char* typeLitP)
 //
 // unitExecLocked - send a unit on the thread-local timescaleConn and free it
 //
-static int unitExecLocked(TsUnit* uP)
+static int unitExecLocked(TsUnit* uP, bool* downP)
 {
   int rc = TROE_ERR;
+
+  *downP = false;
 
   if (uP == NULL)
     COR_E("timescale: TRoE INSERT: out of memory");
   else if (uP->oom == true)
     COR_E("timescale: TRoE INSERT: out of memory");
   else
-    rc = timescaleUnitsExec(timescaleConn, &uP, 1);
+    rc = timescaleUnitsExec(timescaleConn, &uP, 1, downP);
 
   tsUnitFree(uP);
   return rc;
@@ -598,7 +600,8 @@ int timescaleExecEntityInsertLocked(const TroeEvent* evP)
   if (uP != NULL)
     entityRowAdd(uP, evP);
 
-  return unitExecLocked(uP);
+  bool down;
+  return unitExecLocked(uP, &down);
 }
 
 
@@ -615,7 +618,8 @@ int timescaleExecAttrInsertLocked(const TroeEvent* evP)
   if (uP != NULL)
     attrRowAdd(uP, evP, NULL);
 
-  return unitExecLocked(uP);
+  bool down;
+  return unitExecLocked(uP, &down);
 }
 
 
@@ -670,16 +674,34 @@ static void fanOutAttrsFromEntity(TsUnit* uP, const TroeEvent* evP)
 
 // -----------------------------------------------------------------------------
 //
+// poolDbName - the tenant's history database, for the log
+//
+static const char* poolDbName(Tenant* tenantP)
+{
+  if (tenantP == NULL)
+    tenantP = &tenant0;
+
+  TimescalePool* poolP = (TimescalePool*) tenantP->troePoolP;
+
+  return (poolP != NULL) ? poolP->dbName : ((timescaleDbName != NULL) ? timescaleDbName : "corh");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // eventListRecord - the rows of an event list as one unit: to the tenant's writers, or sent here
 //
 // The event list is built per request (troeDispatchPending drains the per-request queue), so every
 // event in one list shares the request's tenant.
 //
-// wait: the caller is told how it went - the writers' commit is waited for. Without it the unit
-// is the writers' once submitted, and this returns at once (the deferred dispatch - after the
-// response).
+// wait: what the caller waits for (TsWait). TsWaitNone: the unit is the writers' once submitted,
+// and this returns at once (the deferred dispatch - after the response).
 //
-static int eventListRecord(const TroeEvent* listHead, bool wait)
+// With no writers, a unit the database is down for is lost (timescaleHistoryLost) - but for an
+// import's: the import is told.
+//
+static int eventListRecord(const TroeEvent* listHead, TsWait wait)
 {
   if (listHead == NULL) return TROE_ERR;
 
@@ -724,18 +746,25 @@ static int eventListRecord(const TroeEvent* listHead, bool wait)
     return rc;
 
   // No writers (--troeWriters 0, or shutting down): one transaction of its own, here
-  TimescaleConn* cP = timescaleConnGet(listHead->tenantP);
+  TimescaleConn* cP   = timescaleConnGet(listHead->tenantP);
+  int            rowN = tsUnitRows(uP);
+  bool           down = true;
 
-  if (cP == NULL)
+  if (cP != NULL)
+  {
+    timescaleConn = cP->conn;
+    rc            = unitExecLocked(uP, &down);
+    timescaleConn = NULL;
+    timescaleConnRelease(cP);
+  }
+  else
   {
     tsUnitFree(uP);
-    return TROE_ERR;
+    rc = TROE_ERR;
   }
 
-  timescaleConn = cP->conn;
-  rc            = unitExecLocked(uP);
-  timescaleConn = NULL;
-  timescaleConnRelease(cP);
+  if ((rc != TROE_OK) && (down == true) && (wait != TsWaitResult))
+    timescaleHistoryLost(poolDbName(listHead->tenantP), rowN, "the history database cannot be reached");
 
   return rc;
 }
@@ -751,7 +780,7 @@ static int eventListRecord(const TroeEvent* listHead, bool wait)
 int timescaleEventList(const TroeEvent* listHead, int count)
 {
   (void) count;
-  return eventListRecord(listHead, troeSync);
+  return eventListRecord(listHead, (troeSync == true) ? TsWaitCommit : TsWaitNone);
 }
 
 
@@ -764,5 +793,5 @@ int timescaleEventList(const TroeEvent* listHead, int count)
 int timescaleHistoryImport(const TroeEvent* listHead, int count)
 {
   (void) count;
-  return eventListRecord(listHead, true);
+  return eventListRecord(listHead, TsWaitResult);
 }

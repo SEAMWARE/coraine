@@ -22,6 +22,7 @@
 #include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 #if COR_FEATURE_HEALTH
 #include "temporal/timescale/timescalePool.h"             // timescalePing
+#include "temporal/timescale/timescaleWriter.h"           // timescaleHistoryStatus
 #endif
 
 
@@ -61,5 +62,6 @@ void troeRegister(TroeDriver* driverP)
   driverP->dumpInfo     = NULL;
 #if COR_FEATURE_HEALTH
   driverP->ping         = timescalePing;   // the health port's pinger (src/app/coraine/health.h)
+  driverP->historyStatus = timescaleHistoryStatus;   // ... and its report: recording, held, lost
 #endif
 }

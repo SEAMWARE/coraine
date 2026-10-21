@@ -326,6 +326,12 @@ static int reportRender(char* buf, int size, bool* liveP, bool* readyP)
   bool    tLoaded  = atomic_load(&troeLoaded);
   bool    storeOk  = reachable(&storePinger, sLoaded, nowMs);
   bool    troeOk   = reachable(&troePinger, tLoaded, nowMs);
+  TroeHistoryStatus history = { true, 0, 0, 0 };
+
+  if (tLoaded && (troe.historyStatus != NULL))
+    troe.historyStatus(&history);
+
+  bool    historyOk = history.recording;
   int     level    = memoryBudgetLevel();
   int64_t fin      = atomic_load_explicit(&finished, memory_order_relaxed);
   int64_t lastFin  = atomic_load_explicit(&lastFinishedMs, memory_order_relaxed);
@@ -345,12 +351,18 @@ static int reportRender(char* buf, int size, bool* liveP, bool* readyP)
   *liveP  = (stalled == false);
   bool isStopping = atomic_load(&stopping);
 
-  *readyP = isUp && storeOk && troeOk && (level < 2) && (stalled == false) && (isStopping == false);
+  //
+  // The temporal store is not a part of /ready: unreachable, the broker still serves the current state
+  // and its subscriptions - and every instance of a cluster shares the one temporal store, so a 503
+  // would take them all out of service at once. It makes the status "degraded", and the report says
+  // what the history held and lost.
+  //
+  *readyP = isUp && storeOk && (level < 2) && (stalled == false) && (isStopping == false);
 
   if (isStopping)                      status = "stopping";
   else if (isUp == false)              status = "starting";
   else if (stalled || !storeOk)        status = "down";
-  else if (!troeOk || (level > 0))     status = "degraded";
+  else if (!troeOk || !historyOk || (level > 0)) status = "degraded";
   else                                 status = "ok";
 
   int n = snprintf(buf, size, "{\"status\":\"%s\",\"uptime\":%lld,\"store\":", status, (long long) ((nowMs - startMs) / 1000));
@@ -358,6 +370,14 @@ static int reportRender(char* buf, int size, bool* liveP, bool* readyP)
   if (n < size) n += storeRender(&buf[n], size - n, db.alias, &storePinger, sLoaded, nowMs);
   if (n < size) n += snprintf(&buf[n], size - n, ",\"troe\":");
   if (n < size) n += storeRender(&buf[n], size - n, troe.alias, &troePinger, tLoaded, nowMs);
+
+  if ((n < size) && tLoaded && (troe.historyStatus != NULL) && (n > 0))
+  {
+    n -= 1;   // into the troe object: its closing brace
+    n += snprintf(&buf[n], size - n, ",\"history\":{\"recording\":%s,\"notRecordingForMs\":%lld,\"heldBytes\":%lld,\"lostRows\":%lld}}",
+                  history.recording ? "true" : "false", (long long) history.downForMs,
+                  (long long) history.heldBytes, (long long) history.lostRows);
+  }
 
   if (n < size)
     n += snprintf(&buf[n], size - n,

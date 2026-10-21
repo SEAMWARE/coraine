@@ -55,8 +55,10 @@ typedef struct TsUnit
   int             attrRowN;
   bool            oom;           // a row did not fit in memory - the unit is not sent
 
-  bool            wait;          // the submitter waits for the commit (--troeSync)
+  bool            wait;          // a submitter waits for the unit - under the writer's mutex, false once it is gone
+  bool            waitResult;    // ... for its outcome (an import): not queued while the database is down
   bool            done;          // set by the writer, under its mutex, for a waited-for unit
+  bool            released;      // the database went down: the submitter stops waiting, the unit stays queued
   pthread_cond_t  doneCond;      // signalled with done - initialised only for a waited-for unit
   int             rc;            // TROE_OK / TROE_ERR, valid once done
 } TsUnit;
@@ -109,6 +111,18 @@ extern int tsUnitBytes(const TsUnit* uP);
 //
 // troe_entities first: troe_attrs' type fallback reads it.
 //
-extern int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN);
+// *downP, on a failure: the database's state made it fail, not the rows - the connection is gone, or
+// the server cannot take writes (shutting down, a standby, out of disk, out of connections); the
+// same rows would go in once the database is back.
+//
+extern int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN, bool* downP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tsUnitRows - the rows of a unit, both tables
+//
+extern int tsUnitRows(const TsUnit* uP);
 
 #endif  // TIMESCALE_TIMESCALEUNIT_H_

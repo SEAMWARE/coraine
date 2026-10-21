@@ -370,6 +370,23 @@ typedef int  (*TroePingFunc)(int timeoutMs);
 
 // -----------------------------------------------------------------------------
 //
+// TroeHistoryStatus - is the history being recorded? For a plugin that records out of the request
+// (--troe timescale's writers): what it holds that is not recorded yet, and what it lost
+//
+typedef struct TroeHistoryStatus
+{
+  bool     recording;      // false: the plugin's database cannot be reached - the history is held, then lost
+  int64_t  downForMs;      // how long it has not been recording - 0 while recording
+  int64_t  heldBytes;      // the history taken and not recorded yet
+  int64_t  lostRows;       // rows of history lost since the start
+} TroeHistoryStatus;
+
+typedef void (*TroeHistoryStatusFunc)(TroeHistoryStatus* sP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // The entity AS IT WAS at a point in time - the timepoint resources (/temporal/timepoint/entities[/{id}],
 // /temporal/timepoint/entityOperations/query): Core API retrieve and query, evaluated at atNs
 //
@@ -441,6 +458,8 @@ typedef struct TroeDriver
   //
   TroeEntityAtRetrieveFunc          entityAtRetrieve;
   TroeEntityAtQueryFunc             entityAtQuery;
+
+  TroeHistoryStatusFunc             historyStatus;  // NULL-allowed - appended (the health report)
 } TroeDriver;
 
 //

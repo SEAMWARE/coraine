@@ -14,7 +14,7 @@
 #include <stddef.h>                                       // NULL
 #include <stdio.h>                                        // vsnprintf
 #include <stdlib.h>                                       // calloc, free, realloc
-#include <string.h>                                       // memcpy, strlen
+#include <string.h>                                       // memcpy, strlen, strcmp
 #include <libpq-fe.h>                                     // PG*
 
 #include "corLog/corLog.h"                                // COR_E
@@ -194,6 +194,45 @@ int tsUnitBytes(const TsUnit* uP)
 
 // -----------------------------------------------------------------------------
 //
+// tsUnitRows -
+//
+int tsUnitRows(const TsUnit* uP)
+{
+  return uP->entityRowN + uP->attrRowN;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dbStateError - a failure the database's state caused, not the statement (see timescaleUnitsExec)
+//
+// SQLSTATE classes: 08 connection exception, 53 insufficient resources (disk full, out of memory, too
+// many connections), 57 operator intervention (shutting down, cannot connect now), 58 system error
+// (I/O); 25006: a read-only transaction - the server is a standby. A deadlock (40P01) is not one of
+// them: the writer's one-by-one retry is what it takes. No SQLSTATE at all: libpq's own failure, the connection.
+//
+static bool dbStateError(PGconn* conn, PGresult* res)
+{
+  if (PQstatus(conn) != CONNECTION_OK)
+    return true;
+
+  const char* state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
+
+  if ((state == NULL) || (strlen(state) != 5))
+    return true;
+
+  if (strcmp(state, "25006") == 0)
+    return true;
+
+  return ((state[0] == '0') && (state[1] == '8')) ||
+         ((state[0] == '5') && ((state[1] == '3') || (state[1] == '7') || (state[1] == '8')));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // insertAppend - the INSERT of one table: head, an array per column - the elements of every unit's
 // rows - and tail
 //
@@ -258,7 +297,7 @@ static bool insertAppend(TsBuf* sqlP, TsUnit** unitV, int unitN, bool entities, 
 // multi-type Entity; the type list already recorded for this Entity then, rather than storing nothing.
 // COALESCE evaluates the subquery only for such a row.
 //
-int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN)
+int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN, bool* downP)
 {
   static const char* entityColTypeV[] = { "text[]", "text[]", "float8[]", "text[]" };
   static const char* attrColTypeV[]   = { "text[]", "text[]", "text[]", "text[]", "text[]", "float8[]", "float8[]", "text[]",
@@ -266,6 +305,8 @@ int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN)
                                           "text[]", "text[]" };
   TsBuf sql = { NULL, 0, 0 };
   bool  ok  = true;
+
+  *downP = false;
 
   ok = ok && insertAppend(&sql, unitV, unitN, true,
                           "INSERT INTO troe_entities (entity_id, entity_type, modified_at, op)"
@@ -298,7 +339,9 @@ int timescaleUnitsExec(PGconn* conn, TsUnit** unitV, int unitN)
 
   if (PQresultStatus(res) != PGRES_COMMAND_OK)
   {
-    COR_E("timescale: TRoE INSERT failed: %s", PQerrorMessage(conn));
+    *downP = dbStateError(conn, res);
+    if (*downP == false)
+      COR_E("timescale: TRoE INSERT failed: %s", PQerrorMessage(conn));
     rc = TROE_ERR;
   }
 

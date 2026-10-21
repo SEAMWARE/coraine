@@ -164,9 +164,18 @@ static void noticeToLog(void* arg, const char* message)
 PGconn* timescaleConnect(const char* dbName)
 {
   char cs[1024];
+  char csFull[1200];
+
   connStr(dbName, cs, sizeof(cs));
 
-  PGconn* conn = PQconnectdb(cs);
+  //
+  // A database that is gone must not hold a writer (or a request) for the minutes TCP takes to give
+  // up: a connect is given 5 s, an unanswered send 30 s, and an idle connection is probed after 10 s
+  // (3 probes, 5 s apart) - a slow statement is not cut short, the server answers the probes
+  //
+  snprintf(csFull, sizeof(csFull), "%s connect_timeout=5 keepalives=1 keepalives_idle=10 keepalives_interval=5 keepalives_count=3 tcp_user_timeout=30000", cs);
+
+  PGconn* conn = PQconnectdb(csFull);
   if (PQstatus(conn) != CONNECTION_OK)
   {
     COR_E("timescale: connection to db '%s' failed: %s", dbName, PQerrorMessage(conn));

@@ -136,6 +136,10 @@ Two things are each instance's own:
   An instance that dies between the response and that commit leaves the write in the current state
   and not in the history. `--troeSync` queues it before the response and answers after the commit,
   at the cost of that much latency.
+- **The shared PostgreSQL down.** Every instance keeps serving the current state; each holds the
+  history of the writes it serves, up to 8 MiB, and loses what does not fit; `/ready` stays 200
+  ([The database down](installation.md#the-database-down)). `--troeDownExit` makes an instance exit
+  instead.
 
 ## Troubleshooting: instances that disagree
 

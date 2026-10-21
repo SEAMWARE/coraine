@@ -71,10 +71,13 @@ for longer than `--healthStallTimeout` seconds (default 30) and no request has f
 time - the broker is stuck. A broker over its memory budget, or one whose MongoDB or PostgreSQL does
 not answer, is not cured by a restart: a restart empties the caches, drops every connection and, with
 `corDB`, loads the whole store again. Those make **`/ready`** answer 503, and Kubernetes takes the pod
-out of the Service's endpoints until they pass.
+out of the Service's endpoints until they pass - but for the temporal store: a PostgreSQL that does
+not answer leaves `/ready` at 200, the broker serving the current state and its subscriptions, and
+the history held, then lost ([The database down](installation.md#the-database-down)). Every pod
+shares the one PostgreSQL; a 503 for it would take all of them out at once.
 
-`/ready` answers 503 while the store loads at startup, while the current-state or the temporal store
-does not answer its ping, over the hard memory budget, while stuck, and from SIGTERM on. No
+`/ready` answers 503 while the store loads at startup, while the current-state store does not answer
+its ping, over the hard memory budget, while stuck, and from SIGTERM on. No
 `startupProbe` is needed: the health port opens before the store loads, so `/live` answers 200 through
 a long load of a persistent `corDB`, and `/ready` turns 200 when it is done.
 

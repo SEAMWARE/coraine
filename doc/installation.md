@@ -318,6 +318,7 @@ The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`,
 | `--troeName` | `corh` | the database of the default tenant, and the prefix of the others |
 | `--troePoolSize` | 10 | connections per tenant for the temporal reads and the Temporal API's writes |
 | `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
+| `--troeDownExit` | 0 | seconds the database may be unreachable before the broker exits (code 1) - see [The database down](#the-database-down). 0: never; the broker keeps serving the current state |
 | `--troeIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
 | `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
 
@@ -335,6 +336,47 @@ queue holds at most 8 MiB; past that a request waits for room.
 - A stop (SIGTERM, SIGINT) writes what is queued before the broker exits. `kill -9`, a crash or an
   OOM kill loses it: up to 8 MiB of history rows that the current state has, and, without
   `--troeSync`, rows of requests already answered.
+
+#### The database down
+
+The database is down when a write finds no connection to it, or the server cannot take writes:
+shutting down, a standby (read-only), out of disk, out of connections. A write that fails for its
+rows (a value the database refuses) loses only that request's rows, and is logged.
+
+**The current state and its subscriptions are served as before** - every write is answered and
+notifies as it would. What changes is the history:
+
+- **It is held, and retried.** The rows stay queued; one writer tries again 100 ms later, then twice
+  as late each time, up to 5 s. Once a try goes in, the writers write everything held, in order.
+- **Past 8 MiB held, it is lost.** The rows of every request that does not fit are dropped and
+  counted. The log says so: `THE HISTORY IS NOT BEING RECORDED` when the database goes, `HISTORY
+  LOST` - with the rows lost since the start - at most every 10 s while rows are dropped, and, when
+  it is back, how long it was gone and how many rows were lost meanwhile.
+- **Nothing waits for it.** A `--troeSync` request is answered without waiting for its commit (its
+  rows are held as any other), a temporal read or a Temporal API write is answered at once - with an
+  error, as the database is down - and an import is told its rows did not go in.
+- **The [health report](#health-port) shows it**: `status` is `degraded` and `troe.history` says
+  `recording: false`, for how long, how many bytes are held and how many rows were lost. `/ready`
+  stays 200: the temporal store is not a part of it.
+- **A stop** while the database is down tries once, and the rows held are lost (and logged).
+
+How much 8 MiB is depends on the rows. Held for perfRun's Entity (five Attributes, ~550 bytes of
+JSON): 1 481 bytes for its create, 245 for a PATCH of one of its Attributes - 8 MiB is some 5 660
+creates, a quarter of a second at the 24 025 creates/s of [the write path](performance.md#timescaledb-the-write-path),
+or some 34 200 Attribute PATCHes.
+
+With **`--troeDownExit <s>`** the broker exits (code 1) instead of losing history: once the database
+has been unreachable for that many seconds with history to write, or at the first row that does not
+fit, whichever comes first. A `--troeSync` request then waits for its commit while the database is
+down, so with `--troeSync --troeDownExit` no write is answered unless its history is recorded - the
+requests in flight when the broker exits are not answered at all. Without `--troeSync` the rows held
+(up to 8 MiB, of requests already answered) are lost at the exit.
+
+A connection is given 5 s to connect; one whose server stops answering is given up after 30 s
+unanswered (TCP keepalives after 10 s idle) - a statement that is merely slow is not cut short.
+
+With `--troeWriters 0` there is nothing to hold: a request whose history does not go in loses it
+(counted, and logged), and with `--troeDownExit` the broker exits at the first one.
 
 #### The indexes of the history
 
@@ -758,7 +800,7 @@ Without the option nothing listens. It opens before the store is loaded.
 | Request | 200 | 503 |
 |---|---|---|
 | `GET /live` | the broker makes progress | a request has been in flight for longer than `--healthStallTimeout` seconds (default 30) and no request has finished in that time. Never for memory or a database |
-| `GET /ready` | the broker serves | the store is still loading; the current-state or the temporal store does not answer its ping; over the [memory budget](#memory-budget); stuck (as `/live`); stopping (from SIGTERM on) |
+| `GET /ready` | the broker serves | the store is still loading; the current-state store does not answer its ping; over the [memory budget](#memory-budget); stuck (as `/live`); stopping (from SIGTERM on) |
 | `GET <anything else>` | always | — |
 
 A connection that sends nothing (a TCP probe) is closed unanswered. Every answer has the same body,
@@ -777,9 +819,10 @@ the report:
 
 | Member | |
 |---|---|
-| `status` | `starting` (the store loading), `ok`, `degraded` (the temporal store unreachable, or over 90% of the memory budget), `down` (the store unreachable, or stuck), `stopping` |
+| `status` | `starting` (the store loading), `ok`, `degraded` (the temporal store unreachable or not recording, or over 90% of the memory budget), `down` (the store unreachable, or stuck), `stopping` |
 | `uptime` | seconds since the health port opened |
 | `store`, `troe` | the current-state and the temporal plugin. `mongoc` and `timescale` are pinged once a second, on a connection of their own, with a 1 s timeout: `reachable` is an answer within the last 5 s, `lastPingAgoMs` and `pingLatencyUs` are the last ping's. `corDB` and `none` are in the broker's process: reachable once loaded |
+| `troe.history` | `--troe timescale` only: `recording` (false: the database is down - [The database down](#the-database-down)), `notRecordingForMs`, `heldBytes` (history taken and not written yet) and `lostRows` (since the start) |
 | `memory` | the [memory budget](#memory-budget) in bytes (0: none), what counts against it, the whole resident set, `level` (`ok`, `soft` - writes refused, `hard` - everything but deletes and monitoring refused) and the requests refused for it |
 | `requests` | the requests in flight, how many have finished, and how long ago the last one did (`null`: none yet) |
 
