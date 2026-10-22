@@ -50,6 +50,73 @@ typedef struct StorageFormat
   bool       (*upgrade)(const char* dbName);           // NULL: the format before it is read as it is
 } StorageFormat;
 
+#if COR_FEATURE_Q_PREFILTER
+// -----------------------------------------------------------------------------
+//
+// datasetIdsMark - storage format 2: every attribute with an instance of a datasetId marked
+// ("@datasetIds": true next to its instances, mongocTreeToBson.c) - one update of the whole collection,
+// done in the database: an entity member that is an object is an attribute (its dataset wrapper), and
+// one with a member that is an object and not "@none" holds an instance of a datasetId
+//
+static bool datasetIdsMark(const char* dbName)
+{
+  const char* pipeline =
+    "{ \"0\": { \"$replaceWith\": { \"$arrayToObject\": { \"$map\": {"
+    "    \"input\": { \"$objectToArray\": \"$$ROOT\" }, \"as\": \"m\","
+    "    \"in\": { \"$cond\": ["
+    "      { \"$and\": ["
+    "        { \"$eq\": [ { \"$type\": \"$$m.v\" }, \"object\" ] },"
+    "        { \"$anyElementTrue\": [ { \"$map\": {"
+    "            \"input\": { \"$objectToArray\": \"$$m.v\" }, \"as\": \"i\","
+    "            \"in\": { \"$and\": [ { \"$ne\": [ \"$$i.k\", \"@none\" ] },"
+    "                                  { \"$ne\": [ \"$$i.k\", \"@datasetIds\" ] },"
+    "                                  { \"$eq\": [ { \"$type\": \"$$i.v\" }, \"object\" ] } ] } } } ] }"
+    "      ] },"
+    "      { \"k\": \"$$m.k\", \"v\": { \"$mergeObjects\": [ \"$$m.v\", { \"@datasetIds\": true } ] } },"
+    "      \"$$m\""
+    "    ] }"
+    "} } } } }";
+
+  bson_error_t          error;
+  bson_t*               updateP = bson_new_from_json((const uint8_t*) pipeline, -1, &error);
+
+  if (updateP == NULL)
+  {
+    COR_E("mongoc: database '%s': the datasetId marks: %s", dbName, error.message);
+    return false;
+  }
+
+  mongoc_client_t*      clientP = mongoc_client_pool_pop(poolP);
+  mongoc_collection_t*  collP   = mongoc_client_get_collection(clientP, dbName, "entities");
+  bson_t                filter  = BSON_INITIALIZER;
+  bson_t                reply;
+  bool                  ok      = mongoc_collection_update_many(collP, &filter, updateP, NULL, &reply, &error);
+
+  if (ok == false)
+    COR_E("mongoc: database '%s': the datasetId marks: %s", dbName, error.message);
+  else
+  {
+    bson_iter_t iter;
+    int64_t     marked = 0;
+
+    if (bson_iter_init_find(&iter, &reply, "modifiedCount") && BSON_ITER_HOLDS_NUMBER(&iter))
+      marked = bson_iter_as_int64(&iter);
+
+    COR_I("mongoc: database '%s': %ld entities with an instance of a datasetId marked", dbName, (long) marked);
+  }
+
+  bson_destroy(&reply);
+  bson_destroy(&filter);
+  bson_destroy(updateP);
+  mongoc_collection_destroy(collP);
+  mongoc_client_pool_push(poolP, clientP);
+
+  return ok;
+}
+#endif
+
+
+
 static const StorageFormat formatV[] =
 {
   //
@@ -58,7 +125,16 @@ static const StorageFormat formatV[] =
   // recorded) is read as it is; 0.4.x reads what 0.5.0 writes WRONG (attributes without type and
   // createdAt).
   //
-  { 1, "system timestamps and attribute types once per entity (coraine 0.5.0)", NULL }
+  { 1, "system timestamps and attribute types once per entity (coraine 0.5.0)", NULL },
+
+#if COR_FEATURE_Q_PREFILTER
+  //
+  // coraine 0.6.0: an attribute with an instance of a datasetId is marked so - the q pre-filter takes an
+  // attribute without the mark for one with its default instance only. A release before it reads the
+  // mark as an instance, and writes an instance of a datasetId without it: what q then misses.
+  //
+  { 2, "attributes with an instance of a datasetId marked (coraine 0.6.0)", datasetIdsMark }
+#endif
 };
 
 

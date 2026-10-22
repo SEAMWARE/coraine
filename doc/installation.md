@@ -559,9 +559,9 @@ name no file:
 Every store records the version of the format its data is written in. At start, a broker checks
 it in every store it opens:
 
-| Store | Where the version is | 0.5.0 writes |
+| Store | Where the version is | 0.6.0 writes |
 |-------|----------------------|------------|
-| `mongoc` | `<database>.metadata`, document `{ _id: "storageFormat", version: <n> }` - in the default tenant's database and in every tenant's | 1 |
+| `mongoc` | `<database>.metadata`, document `{ _id: "storageFormat", version: <n> }` - in the default tenant's database and in every tenant's | 2 (1 without `COR_FEATURE_Q_PREFILTER`) |
 | `corDB` with `--dbDir` | `<--dbDir>/_storageFormat`: the number, as text | 1 |
 | `timescale` (TRoE) | the schema version: `max(version)` of `troe_schema_version`, in every tenant's database | 3 |
 
@@ -581,6 +581,38 @@ types once per entity. coraine 0.4.x reads that format wrong - attributes that 0
 come back without `type` and `createdAt` - and 0.4.x predates the check, so it cannot refuse it.
 **Downgrading to 0.4.x is not supported once 0.5.0 has written to a database: do not run 0.4.x on
 data 0.5.0 has written.** From 0.5.0 on, a release refuses data written by a newer one.
+
+`mongoc` version 2 is the format of coraine 0.6.0: an attribute with an instance of a datasetId is
+marked so in its document - `"@datasetIds": true`, next to its instances - for the
+[q pre-filter](#q-and-the-mongoc-indexes). It is never in a response. A database in version 1 is
+upgraded at start: one update of each database's `entities` collection, in the database, marks the
+attributes (the log says how many entities). coraine 0.5.x refuses a version 2 database. **Every
+broker on a database is stopped before the first 0.6.0 starts on it** - a rolling upgrade, with 0.5.x
+and 0.6.0 serving the same database, is not supported across this version: 0.5.x writes an instance of
+a datasetId without the mark, and `q` on 0.6.0 then misses it. To go back to 0.5.x, remove the marks
+and record version 1, every broker stopped:
+
+```
+db.entities.find().forEach(e => {
+  const u = {};
+  Object.keys(e).forEach(k => { if (e[k] && (typeof e[k] === "object") && (e[k]["@datasetIds"] === true)) u[k + ".@datasetIds"] = 1; });
+  if (Object.keys(u).length > 0) db.entities.updateOne({ _id: e._id }, { $unset: u });
+});
+db.metadata.updateOne({ _id: "storageFormat" }, { $set: { version: 1 } });
+```
+
+in the default tenant's database and in every tenant's.
+
+### q and the mongoc indexes
+
+A `q` value term reaches every instance of an attribute (clause 7): with `mongoc`, a `$expr` over the
+attribute's instances, which no index serves. With `COR_FEATURE_Q_PREFILTER` (in the build by default)
+a condition goes in front of it that an index can serve: the term on the default instance
+(`<attr>.@none.value`, with its sub-attribute and value path), or the attribute marked as having an
+instance of a datasetId (`<attr>.@datasetIds`). The `$expr` still decides, so the answer is the same.
+With an index on each of the two, a query examines the entities that match and the ones marked, not
+the collection. The operators served: `==` (a value, a range, a list), `<`, `<=`, `>`, `>=` and `~=`.
+`!=` and `!~=` match an entity by a value it does not have, and read the collection as before.
 
 The check runs in `coraine-import` too: it opens the stores the way the broker does.
 

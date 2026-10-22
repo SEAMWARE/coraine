@@ -76,6 +76,7 @@ DATA_CHANNELS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 GEOQ=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 TIMEPOINT=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SSE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+Q_PREFILTER=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 
 
 --TEARDOWN--

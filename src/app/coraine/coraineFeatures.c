@@ -59,6 +59,7 @@ const CoraineFeature coraineFeatures[] =
   { "TIMEPOINT",         COR_FEATURE_TIMEPOINT         },
   { "AUTH_OIDC",         COR_FEATURE_AUTH_OIDC         },
   { "AUTH_METADATA",     COR_FEATURE_AUTH_METADATA     },
+  { "Q_PREFILTER",       COR_FEATURE_Q_PREFILTER       },
   { NULL,                false                         }
 };
 
