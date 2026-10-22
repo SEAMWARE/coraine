@@ -57,6 +57,7 @@ typedef struct TimescalePool
   int             items;           // pool size (--troePoolSize)
   TimescaleConn*  connV;           // allocated array[items]
   void*           writerP;         // the TRoE writers (timescaleWriter.c), NULL for --troeWriters 0
+  void*           indexesP;        // the indexes that serve q (timescaleIndexes.c), NULL until discovered
 } TimescalePool;
 
 

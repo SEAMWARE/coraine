@@ -34,6 +34,9 @@ extern int               timescaleWriters;
 extern int               timescaleDownExit;
 extern int               timescaleConnectTimeout;
 extern char*             timescaleIndexes;
+#if COR_FEATURE_DB_INDEXES
+extern char*             timescaleDbIndexes;
+#endif
 extern int               timescaleInstanceCap;
 
 extern CorArg            timescaleArgV[];

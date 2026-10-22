@@ -41,6 +41,7 @@
 #include "corJsonld/corLdInit.h"                   // corLdCoreContext
 
 #include "db/DbDriver.h"                           // db
+#include "troe/TroeDriver.h"                       // troe
 #endif
 
 #include "metrics/metrics.h"                       // Own interface
@@ -577,8 +578,11 @@ static void sseCounts(void)
 //                                 a query MongoDB's planner answers with another index uses neither
 //   ngsild_index_updates_total    the writes that changed it (corDB)
 //
-// Labels: id, attribute, type (a declaration narrowed to one), tenant ("" = the default), snapshot (a
-// Snapshot's store) - the names compacted with the core @context.
+// The history's (GET /admin/troeIndexes, troe.indexList): ngsild_troe_index_built, _bytes, _accesses_total -
+// timescale: the index scans Postgres counted (pg_stat_user_indexes), its indexes made in the database too.
+//
+// Labels: id, attribute ("" for an index of every attribute), type (a declaration narrowed to one), tenant
+// ("" = the default), snapshot (a Snapshot's store) - the names compacted with the core @context.
 //
 typedef struct IndexSeries
 {
@@ -594,7 +598,16 @@ static const IndexSeries indexSeries[] =
   { "ngsild_index_entries",        "entries",  "gauge",   "Values in a declared index" },
   { "ngsild_index_bytes",          "bytes",    "gauge",   "Size of a declared index" },
   { "ngsild_index_accesses_total", "accesses", "counter", "q terms a declared index served (mongoc: the uses of its two MongoDB indexes, since the database server started)" },
-  { "ngsild_index_updates_total",  "updates",  "counter", "Writes that changed a declared index" }
+  { "ngsild_index_updates_total",  "updates",  "counter", "Writes that changed a declared index" },
+  { NULL, NULL, NULL, NULL }
+};
+
+static const IndexSeries troeIndexSeries[] =
+{
+  { "ngsild_troe_index_built",          "built",    "gauge",   "Index of the history that serves q there: 1, else 0" },
+  { "ngsild_troe_index_bytes",          "bytes",    "gauge",   "Size of an index of the history that serves q" },
+  { "ngsild_troe_index_accesses_total", "accesses", "counter", "Scans of an index of the history that serves q (timescale: Postgres's count, its chunks' added up)" },
+  { NULL, NULL, NULL, NULL }
 };
 
 
@@ -663,14 +676,13 @@ static const char* stringOf(CorNode* nP, const char* name)
 //
 // indexSeriesWrite - every series of the declared indexes
 //
-static void indexSeriesWrite(Out* oP, CorNode* arrayP)
+static void indexSeriesWrite(Out* oP, CorNode* arrayP, const IndexSeries* seriesV)
 {
   CorLdContext* coreP = corLdCoreContext();
 
-  for (unsigned int sIx = 0; sIx < sizeof(indexSeries) / sizeof(indexSeries[0]); sIx++)
+  for (const IndexSeries* sP = seriesV; sP->name != NULL; sP++)
   {
-    const IndexSeries* sP     = &indexSeries[sIx];
-    bool               header = false;
+    bool header = false;
 
     for (CorNode* declP = arrayP->value.head; declP != NULL; declP = declP->next)
     {
@@ -679,7 +691,7 @@ static void indexSeriesWrite(Out* oP, CorNode* arrayP)
       const char* type    = stringOf(declP, "type");
       CorNode*    tenantsP = corTreeLookup(declP, "tenants");
 
-      if ((id == NULL) || (attr == NULL) || (tenantsP == NULL) || (tenantsP->type != CorArray))
+      if ((id == NULL) || (tenantsP == NULL) || (tenantsP->type != CorArray))
         continue;
 
       for (CorNode* tP = tenantsP->value.head; tP != NULL; tP = tP->next)
@@ -702,7 +714,7 @@ static void indexSeriesWrite(Out* oP, CorNode* arrayP)
 
         outAdd(oP, "%s{", sP->name);
         labelAdd(oP, "",  "id",        id);
-        labelAdd(oP, ",", "attribute", corLdCompact(coreP, attr));
+        labelAdd(oP, ",", "attribute", (attr != NULL)? corLdCompact(coreP, attr) : "");
         if (type != NULL)
           labelAdd(oP, ",", "type", corLdCompact(coreP, type));
         labelAdd(oP, ",", "tenant", (tenant != NULL)? tenant : "");
@@ -722,26 +734,38 @@ static void indexSeriesWrite(Out* oP, CorNode* arrayP)
 //
 static char* indexMetrics(int* lenP)
 {
-  CorNode* arrayP = NULL;
+  CorNode* arrayP     = NULL;
+  CorNode* troeArrayP = NULL;
 
   *lenP = 0;
 
   if ((db.indexList == NULL) || (db.indexList(&arrayP) != DB_OK) || (arrayP == NULL) || (arrayP->value.head == NULL))
-    return NULL;
+    arrayP = NULL;
+  if ((troe.indexList == NULL) || (troe.indexList(&troeArrayP) != DB_OK) || (troeArrayP == NULL) || (troeArrayP->value.head == NULL))
+    troeArrayP = NULL;
 
   Out out = { NULL, 0, 0 };
 
-  indexSeriesWrite(&out, arrayP);                    // measured
-  if (out.len == 0)
-    return NULL;
+  for (int pass = 0; pass < 2; pass++)               // measured, then written
+  {
+    if (arrayP != NULL)
+      indexSeriesWrite(&out, arrayP, indexSeries);
+    if (troeArrayP != NULL)
+      indexSeriesWrite(&out, troeArrayP, troeIndexSeries);
 
-  out.size = out.len + 1;
-  out.len  = 0;
-  out.buf  = (char*) corAlloc(&corRest.kalloc, out.size);
-  if (out.buf == NULL)
-    return NULL;
+    if (out.len == 0)
+      return NULL;
 
-  indexSeriesWrite(&out, arrayP);
+    if (pass == 0)
+    {
+      out.size = out.len + 1;
+      out.len  = 0;
+      out.buf  = (char*) corAlloc(&corRest.kalloc, out.size);
+      if (out.buf == NULL)
+        return NULL;
+    }
+  }
+
   *lenP = out.len;
   return out.buf;
 }

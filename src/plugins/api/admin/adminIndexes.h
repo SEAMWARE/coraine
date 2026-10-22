@@ -15,10 +15,14 @@
 
 // -----------------------------------------------------------------------------
 //
-// adminGetIndexes, adminPostIndexes, adminDeleteIndex - /admin/indexes (adminIndexes.c)
+// adminGetIndexes, adminPostIndexes, adminDeleteIndex - /admin/indexes; adminGetTroeIndexes, adminPostTroeIndexes,
+// adminDeleteTroeIndex - /admin/troeIndexes (adminIndexes.c)
 //
 extern bool adminGetIndexes(void);
 extern bool adminPostIndexes(void);
 extern bool adminDeleteIndex(void);
+extern bool adminGetTroeIndexes(void);
+extern bool adminPostTroeIndexes(void);
+extern bool adminDeleteTroeIndex(void);
 
 #endif  // ADMIN_ADMININDEXES_H_

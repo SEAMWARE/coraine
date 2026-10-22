@@ -2120,6 +2120,56 @@ then `POST /admin/indexes {"attribute": "temp"}` and its `DELETE`. Times are the
 - **mongoc**: a change creates or drops that declaration's MongoDB indexes only (the first `POST` of the
   three, 2.1 s, on a collection just loaded).
 
+### Declared indexes of the TimescaleDB history
+
+A declared attribute of the history (`--troeDbIndexes`, `/admin/troeIndexes` -
+[TimescaleDB (the history)](installation.md#timescaledb-the-history)) is two partial indexes of `troe_attrs`. A
+temporal query with a `q` term on it selects its entities from the index ("candidates"):
+`FROM troe_entities WHERE entity_id IN (SELECT entity_id FROM troe_attrs WHERE <the term> AND <the window>)`
+inside the selector's `DISTINCT ON (entity_id)`. Without such a term, it selects as before: the latest row of
+every entity, each checked by `q` (`EXISTS`).
+
+**The queries.** 2026-10-22, PostgreSQL 16.14 with TimescaleDB 2.29.2 (the `timescale/timescaledb-ha:pg16`
+image), a history of 100 000 entities, 2 900 010 rows of `troe_attrs`. The entity selector's SQL as the broker
+sends it, its execution time (`EXPLAIN ANALYZE`), two runs each, ms. The index: `(v_number) WHERE attr_name =
+'<speed>'`. Both forms give the same entities.
+
+| entities that match `q` | today, no index | today's SQL, the index | candidates, no index | candidates, the index |
+|---|---:|---:|---:|---:|
+| none, page of 20 / `count=true` | 618 / 618 | | | 0.1 / 0.1 |
+| 10, page of 20 | 626 | 42 | | 1.2 |
+| 10, `count=true` | 617 | 42 | | 1.1 |
+| 1 000 (1 %), page of 20 | 15 | | 240 | 17 |
+| 1 000 (1 %), `count=true` | 618 | 618 | | 45 |
+| half, `count=true` | 490 | | | 357 |
+
+- **The index needs the candidates form.** With the index and today's SQL, 10 matches take 42 ms, and 1 000
+  take as long as without the index.
+- **The candidates form needs the index.** Without it, the 1 % page takes 240 ms instead of 15 ms: the broker
+  uses the candidates form only for a term an index serves (`pg_indexes`, read by the broker).
+- **A page that matches early gains nothing**: today's selector walks the entities in `entity_id` order and
+  stops at the page's end, so the 1 % page finds its 20 at once.
+- The times are the SQL's. A request also reads the history of every entity on its page.
+
+**The writes.** 2026-10-22, the release build of coraine (`feat/troe-db-indexes`), corDB on disk (`--dbDir`, a
+new directory each run) for the current state, `--troe timescale` on the same PostgreSQL (a new database each
+run). 10 000 entities of type `V` with `speed` and `temp`, created in batches of 1 000. wrk, 8 threads, 50
+connections, 10 s a scenario: a `PATCH` of `speed`, a `PATCH` of `temp`, a batch create of 20 new entities. The
+runs in the order off, on, on, off; on: the two indexes of a declaration of `speed`, created after the broker's
+start. **History rows/s**: the rows of `troe_attrs` the scenario wrote, divided by the time until the writers
+had written them all; the figure is the mean of the two runs of each.
+
+| scenario | requests/s off / on | history rows/s off | on | on / off |
+|---|---|---:|---:|---:|
+| `PATCH` of `speed` | 97 174 / 95 497 | 95 396 | 93 910 | -1.6 % |
+| `PATCH` of `temp` | 92 198 / 89 916 | 90 081 | 87 979 | -2.3 % |
+| batch create of 20 | 5 324 / 5 086 | 181 029 | 173 291 | -4.3 % |
+
+Each run, off / on / on / off, history rows/s: `PATCH` of `speed` 97 444 / 95 375 / 92 444 / 93 348; `PATCH` of
+`temp` 91 451 / 88 699 / 87 258 / 88 710; batch create 184 049 / 179 536 / 167 046 / 178 009. The first run is
+the fastest in all three scenarios, and the `PATCH` of `temp`, whose rows the indexes do not hold, loses more than
+the `PATCH` of `speed`: a difference of this size is within what the runs vary.
+
 ## The HTTP server
 
 ### libmicrohttpd 1.0.10 against 1.0.2

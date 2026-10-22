@@ -15,6 +15,9 @@
 //                                request's @context (Link header), the core one without
 //   DELETE /admin/indexes/{id}   a declaration of the admin API taken away
 //
+// /admin/troeIndexes: the same for the history - the TRoE store's (troe.index*), timescale's
+// --troeDbIndexes; its indexes made in the database too (declaredBy "database")
+//
 #include <stddef.h>                               // NULL
 #include <stdio.h>                                // snprintf
 
@@ -29,6 +32,7 @@
 #include "corNgsild/corNgsild.h"                  // corNgsild, ldError, ldContextResolve, LD_ERROR_*
 
 #include "db/DbDriver.h"                          // db, DB_*
+#include "troe/TroeDriver.h"                      // troe
 
 #include "api/admin/adminIndexes.h"               // Own interface
 
@@ -36,14 +40,32 @@
 
 // -----------------------------------------------------------------------------
 //
+// IndexStore - the store of a resource: the current state's (db) or the history's (troe)
+//
+typedef struct IndexStore
+{
+  const char*        alias;
+  DbIndexListFunc    list;
+  DbIndexAddFunc     add;
+  DbIndexDeleteFunc  del;
+  const char*        path;               // for Location
+} IndexStore;
+
+static IndexStore currentState(void) { IndexStore s = { db.alias,   db.indexList,   db.indexAdd,   db.indexDelete,   "/admin/indexes"     }; return s; }
+static IndexStore history(void)      { IndexStore s = { troe.alias, troe.indexList, troe.indexAdd, troe.indexDelete, "/admin/troeIndexes" }; return s; }
+
+
+
+// -----------------------------------------------------------------------------
+//
 // storeHasIndexes - false: 501 said
 //
-static bool storeHasIndexes(void)
+static bool storeHasIndexes(IndexStore* sP)
 {
-  if ((db.indexList != NULL) && (db.indexAdd != NULL) && (db.indexDelete != NULL))
+  if ((sP->list != NULL) && (sP->add != NULL) && (sP->del != NULL))
     return true;
 
-  ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "the store '%s' has no declared indexes", (db.alias != NULL)? db.alias : "?");
+  ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "the store '%s' has no declared indexes", (sP->alias != NULL)? sP->alias : "?");
   return false;
 }
 
@@ -83,16 +105,16 @@ static void declCompact(CorNode* declP)
 
 // -----------------------------------------------------------------------------
 //
-// adminGetIndexes -
+// indexesGet -
 //
-bool adminGetIndexes(void)
+static bool indexesGet(IndexStore* sP)
 {
   CorNode* arrayP = NULL;
 
-  if (storeHasIndexes() == false)
+  if (storeHasIndexes(sP) == false)
     return true;
 
-  db.indexList(&arrayP);
+  sP->list(&arrayP);
 
   ldContextResolve();
   for (CorNode* declP = arrayP->value.head; declP != NULL; declP = declP->next)
@@ -107,13 +129,13 @@ bool adminGetIndexes(void)
 
 // -----------------------------------------------------------------------------
 //
-// adminPostIndexes -
+// indexesPost -
 //
-bool adminPostIndexes(void)
+static bool indexesPost(IndexStore* sP)
 {
   CorNode* bodyP = corRest.in.requestTree;
 
-  if (storeHasIndexes() == false)
+  if (storeHasIndexes(sP) == false)
     return true;
 
   CorNode* attrP   = (bodyP != NULL)? corTreeLookup(bodyP, "attribute") : NULL;
@@ -148,7 +170,7 @@ bool adminPostIndexes(void)
 
   char      errorText[512];
   CorNode*  declP = NULL;
-  int       rc    = db.indexAdd(attrIri, typeIri, (tenantP != NULL)? tenantP->value.s : NULL, &declP, errorText, sizeof(errorText));
+  int       rc    = sP->add(attrIri, typeIri, (tenantP != NULL)? tenantP->value.s : NULL, &declP, errorText, sizeof(errorText));
 
   if (rc != DB_OK)
   {
@@ -159,7 +181,7 @@ bool adminPostIndexes(void)
   CorNode* idP = corTreeLookup(declP, "id");
   char     location[64];
 
-  snprintf(location, sizeof(location), "/admin/indexes/%s", ((idP != NULL) && (idP->type == CorString))? idP->value.s : "");
+  snprintf(location, sizeof(location), "%s/%s", sP->path, ((idP != NULL) && (idP->type == CorString))? idP->value.s : "");
   corRestOutHeaderAdd("Location", corAllocStrdup(&corRest.kalloc, location));   // the header keeps the pointer
 
   declCompact(declP);
@@ -174,15 +196,15 @@ bool adminPostIndexes(void)
 
 // -----------------------------------------------------------------------------
 //
-// adminDeleteIndex -
+// indexDelete -
 //
-bool adminDeleteIndex(void)
+static bool indexDelete(IndexStore* sP)
 {
-  if (storeHasIndexes() == false)
+  if (storeHasIndexes(sP) == false)
     return true;
 
   char errorText[512];
-  int  rc = db.indexDelete(corRest.in.wildcard[0], errorText, sizeof(errorText));
+  int  rc = sP->del(corRest.in.wildcard[0], errorText, sizeof(errorText));
 
   if (rc != DB_OK)
     errorFromDb(rc, errorText);
@@ -191,3 +213,16 @@ bool adminDeleteIndex(void)
 
   return true;
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// The service routines: /admin/indexes - the current state's; /admin/troeIndexes - the history's
+//
+bool adminGetIndexes(void)      { IndexStore s = currentState(); return indexesGet(&s);  }
+bool adminPostIndexes(void)     { IndexStore s = currentState(); return indexesPost(&s); }
+bool adminDeleteIndex(void)     { IndexStore s = currentState(); return indexDelete(&s); }
+bool adminGetTroeIndexes(void)  { IndexStore s = history();      return indexesGet(&s);  }
+bool adminPostTroeIndexes(void) { IndexStore s = history();      return indexesPost(&s); }
+bool adminDeleteTroeIndex(void) { IndexStore s = history();      return indexDelete(&s); }

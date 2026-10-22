@@ -16,6 +16,10 @@ SET(TIMESCALE_SOURCES
   ${CMAKE_SOURCE_DIR}/src/plugins/shared/dbPluginAbi.c
 )
 
+IF (COR_FEATURE_DB_INDEXES)
+  LIST(APPEND TIMESCALE_SOURCES timescaleIndexes.c)       # --troeDbIndexes, /admin/troeIndexes
+ENDIF()
+
 ADD_LIBRARY(troeTimescale SHARED ${TIMESCALE_SOURCES})
 ADD_DEPENDENCIES(troeTimescale dbAbiStamp)          # dbAbiStamp.h - dbPluginAbi
 TARGET_INCLUDE_DIRECTORIES(troeTimescale PRIVATE ${LIBPQ_INCLUDE_DIRS})

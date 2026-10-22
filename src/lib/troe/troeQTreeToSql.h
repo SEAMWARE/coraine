@@ -58,4 +58,23 @@ extern const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP);
 //
 extern const char* troeQTreeToRowSql(LdQNode* qTree, CorAlloc* allocP);
 
+
+
+//
+// TroeServedFunc - does an index of the store serve a value term on attr (an expanded IRI) in column
+// (v_number, v_text)? NULL: no; else what the term's subquery adds to be the index's (its partial
+// condition beyond the attribute - "" for none)
+//
+typedef const char* (*TroeServedFunc)(const char* attr, const char* column, void* servedData);
+
+
+
+//
+// troeQTreeToCandidateSql - the entities q can match, from the indexes of the store: an
+// "entity_id IN (SELECT entity_id FROM troe_attrs WHERE <term>/*W*/)" per term an index serves (servedF),
+// the AND of those of an AND, the OR of an OR whose every member has them. NULL: q has none - a query
+// takes the entities as without. Only a narrowing: q itself still decides.
+//
+extern const char* troeQTreeToCandidateSql(LdQNode* qTree, TroeServedFunc servedF, void* servedData, CorAlloc* allocP);
+
 #endif  // TROE_TROEQTREETOSQL_H_

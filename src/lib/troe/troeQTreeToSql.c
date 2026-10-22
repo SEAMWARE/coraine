@@ -122,12 +122,69 @@ static int jsonbPath(LdQTerm* tP, char* dst, int max)
 // refuse the query rather than run it unfiltered — an ignored filter answers
 // with entities that do not match, which is worse than an error.
 //
-static const char* termToSql(LdQTerm* tP, bool row, CorAlloc* allocP)
+// MODE_CANDIDATES: the entities with an instance that meets the term, for a
+// term an index of the store serves (servedF) - "entity_id IN (SELECT
+// entity_id FROM troe_attrs WHERE attr_name = '<iri>'<extra> AND <cond>/*W*/)";
+// NULL for a term none serves.
+//
+#define MODE_EXISTS      0
+#define MODE_ROW         1
+#define MODE_CANDIDATES  2
+
+static const char* termToSql(LdQTerm* tP, int mode, TroeServedFunc servedF, void* servedData, CorAlloc* allocP)
 {
+  bool row = (mode == MODE_ROW);
   char attrEsc[1024];
   escapeSqlLit(tP->attr, attrEsc, sizeof(attrEsc));
 
-  bool deep = (tP->subPathN > 0) || (tP->valuePathN > 0);
+  bool        deep  = (tP->subPathN > 0) || (tP->valuePathN > 0);
+  const char* extra = NULL;
+
+  if (mode == MODE_CANDIDATES)
+  {
+    //
+    // Served: a value of the attribute itself (number or string) - ==, a range or a list of one type,
+    // <, <=, >, >=. Not !=, ~=, existence: they match by a value an instance does not have, or every one.
+    //
+    const char* column = NULL;
+
+    if (deep == false)
+    {
+      LdQValueType vType = tP->valueType;
+
+      if ((vType == LdQValueList) && (tP->value.list.count > 0))
+      {
+        vType = tP->value.list.itemTypeV[0];
+        for (int i = 1; i < tP->value.list.count; i++)
+        {
+          if (tP->value.list.itemTypeV[i] != vType)
+            vType = LdQNoValue;
+        }
+        if ((vType != LdQNumber) && (vType != LdQString))
+          vType = LdQNoValue;
+        else if (tP->op != LdQEqual)
+          vType = LdQNoValue;
+      }
+      else if (vType == LdQRange)
+      {
+        if (tP->op != LdQEqual)
+          vType = LdQNoValue;
+      }
+      else if ((vType == LdQNumber) || (vType == LdQString))
+      {
+        if ((tP->op != LdQEqual) && (tP->op != LdQGreater) && (tP->op != LdQLess) && (tP->op != LdQGreaterEq) && (tP->op != LdQLessEq))
+          vType = LdQNoValue;
+      }
+      else
+        vType = LdQNoValue;
+
+      if      ((vType == LdQNumber) || (vType == LdQRange)) column = "v_number";
+      else if (vType == LdQString)                          column = "v_text";
+    }
+
+    if ((column == NULL) || (servedF == NULL) || ((extra = servedF(tP->attr, column, servedData)) == NULL))
+      return NULL;
+  }
 
   //
   // observedAt is NOT in sub_attrs — timescaleEvent.c lifts it into its own
@@ -371,10 +428,12 @@ static const char* termToSql(LdQTerm* tP, bool row, CorAlloc* allocP)
     snprintf(cond, sizeof(cond), "%s %s %s", lhs, opSym, lit);
   }
 
-  int   sz  = (int) strlen(attrEsc) + (int) strlen(guard) + (int) strlen(cond) + 128;
+  int   sz  = (int) strlen(attrEsc) + (int) strlen(guard) + (int) strlen(cond) + ((extra != NULL)? (int) strlen(extra) : 0) + 128;
   char* buf = (char*) corAlloc(allocP, sz);
 
-  if (row)
+  if (mode == MODE_CANDIDATES)
+    snprintf(buf, sz, "entity_id IN (SELECT entity_id FROM troe_attrs WHERE attr_name = '%s'%s AND %s/*W*/)", attrEsc, extra, cond);
+  else if (row)
     snprintf(buf, sz, "(attr_name <> '%s' OR (%s%s))", attrEsc, guard, cond);
   else
     snprintf(buf, sz,
@@ -389,12 +448,12 @@ static const char* termToSql(LdQTerm* tP, bool row, CorAlloc* allocP)
 //
 // nodeToSql - recursive walker.
 //
-static const char* nodeToSql(LdQNode* qP, bool row, CorAlloc* allocP)
+static const char* nodeToSql(LdQNode* qP, int mode, TroeServedFunc servedF, void* servedData, CorAlloc* allocP)
 {
   if (qP == NULL) return NULL;
 
   if (qP->type == LdQTermNode)
-    return termToSql(&qP->term, row, allocP);
+    return termToSql(&qP->term, mode, servedF, servedData, allocP);
 
   if (qP->type == LdQAndNode || qP->type == LdQOrNode)
   {
@@ -403,20 +462,36 @@ static const char* nodeToSql(LdQNode* qP, bool row, CorAlloc* allocP)
     // Recurse children, joining with AND/OR.
     const char* sep = (qP->type == LdQAndNode) ? " AND " : " OR ";
 
-    // Compile children first to know total size.
-    const char** parts = (const char**) corAlloc(allocP, sizeof(char*) * qP->group.count);
-    int totalLen = 4;  // "(" + ")" + slack
+    //
+    // Compile children first to know total size. The candidates of an AND: those of the children that
+    // have them (each of the others is still checked by the q itself); of an OR: none unless every child
+    // has them.
+    //
+    bool         someOk   = (mode == MODE_CANDIDATES) && (qP->type == LdQAndNode);
+    const char** parts    = (const char**) corAlloc(allocP, sizeof(char*) * qP->group.count);
+    int          totalLen = 4;  // "(" + ")" + slack
+    int          partN    = 0;
     for (int i = 0; i < qP->group.count; i++)
     {
-      parts[i] = nodeToSql(qP->group.childV[i], row, allocP);
-      if (parts[i] == NULL) return NULL;  // unsupported child → bail
-      totalLen += (int) strlen(parts[i]) + (int) strlen(sep);
+      const char* part = nodeToSql(qP->group.childV[i], mode, servedF, servedData, allocP);
+
+      if (part == NULL)
+      {
+        if (someOk == true)
+          continue;
+        return NULL;  // unsupported child → bail
+      }
+      parts[partN++] = part;
+      totalLen += (int) strlen(part) + (int) strlen(sep);
     }
+
+    if (partN == 0)
+      return NULL;
 
     char* buf = (char*) corAlloc(allocP, totalLen);
     int   p   = 0;
     buf[p++] = '(';
-    for (int i = 0; i < qP->group.count; i++)
+    for (int i = 0; i < partN; i++)
     {
       if (i > 0)
       {
@@ -444,7 +519,7 @@ static const char* nodeToSql(LdQNode* qP, bool row, CorAlloc* allocP)
 //
 const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP)
 {
-  return nodeToSql(qTree, false, allocP);
+  return nodeToSql(qTree, MODE_EXISTS, NULL, NULL, allocP);
 }
 
 
@@ -455,5 +530,16 @@ const char* troeQTreeToSql(LdQNode* qTree, CorAlloc* allocP)
 //
 const char* troeQTreeToRowSql(LdQNode* qTree, CorAlloc* allocP)
 {
-  return nodeToSql(qTree, true, allocP);
+  return nodeToSql(qTree, MODE_ROW, NULL, NULL, allocP);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeQTreeToCandidateSql -
+//
+const char* troeQTreeToCandidateSql(LdQNode* qTree, TroeServedFunc servedF, void* servedData, CorAlloc* allocP)
+{
+  return nodeToSql(qTree, MODE_CANDIDATES, servedF, servedData, allocP);
 }
