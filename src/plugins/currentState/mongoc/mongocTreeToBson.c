@@ -112,14 +112,38 @@ bool mongocSysTimesOpaque(const char* name)
 
 
 
+#if COR_FEATURE_Q_PREFILTER
+// -----------------------------------------------------------------------------
+//
+// datasetIdsHas - an attribute (its dataset wrapper) with an instance of a datasetId
+//
+// Such an attribute is marked in its document - "@datasetIds": true, next to its instances - for the q
+// pre-filter (mongocEntityQuery.c): an attribute without the mark has its default instance only, and a
+// value term is served by an index on <attr>.@none.value. The mark is written with the attribute, in the
+// same $set, so the two cannot disagree; mongocBsonToTree leaves it out.
+//
+static bool datasetIdsHas(CorNode* wrapperP)
+{
+  for (CorNode* instP = wrapperP->value.head; instP != NULL; instP = instP->next)
+  {
+    if ((instP->type == CorObject) && (instP->name != NULL) && (strcmp(instP->name, "@none") != 0))
+      return true;
+  }
+
+  return false;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // nodeToBson - recursive helper
 //
 // entityCreatedAt: see SysTimes above (0: every time written). level: the node's depth below the entity
-// (0: the entity), inValue: the node is inside a value.
+// (0: the entity), inValue: the node is inside a value, wrapper: the node is an attribute's dataset wrapper.
 //
-static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayIndex, int64_t entityCreatedAt, int level, bool inValue)
+static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayIndex, int64_t entityCreatedAt, int level, bool inValue, bool wrapper)
 {
   char  indexStr[16];
   const char* key;
@@ -180,8 +204,15 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
         if (timed && mongocPropertyType(childP))
           continue;                                   // a type that is not there is Property
 
-        nodeToBson(childP, &child, false, ix++, entityCreatedAt, level + 1, inValue || mongocSysTimesOpaque(childP->name));
+        nodeToBson(childP, &child, false, ix++, entityCreatedAt, level + 1, inValue || mongocSysTimesOpaque(childP->name), false);
       }
+
+#if COR_FEATURE_Q_PREFILTER
+      if (wrapper && datasetIdsHas(nodeP))
+        bson_append_bool(&child, "@datasetIds", 11, true);
+#else
+      (void) wrapper;
+#endif
 
       bson_append_document_end(bsonP, &child);
     }
@@ -194,7 +225,7 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
 
       int ix = 0;
       for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)
-        nodeToBson(childP, &child, true, ix++, entityCreatedAt, level, inValue);
+        nodeToBson(childP, &child, true, ix++, entityCreatedAt, level, inValue, false);
 
       bson_append_array_end(bsonP, &child);
     }
@@ -209,9 +240,10 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
 
 // -----------------------------------------------------------------------------
 //
-// treeToBson - a document's members: "id" written as "_id"
+// treeToBson - a document's members: "id" written as "_id" - an entity's (entity: true): its members that
+// are objects are its attributes
 //
-static void treeToBson(CorNode* treeP, bson_t* bsonP, int64_t entityCreatedAt)
+static void treeToBson(CorNode* treeP, bson_t* bsonP, int64_t entityCreatedAt, bool entity)
 {
   bson_init(bsonP);
 
@@ -231,7 +263,7 @@ static void treeToBson(CorNode* treeP, bson_t* bsonP, int64_t entityCreatedAt)
       ldNodeRename(childP, "_id");
       idRewritten  = true;
     }
-    nodeToBson(childP, bsonP, false, 0, entityCreatedAt, 1, mongocSysTimesOpaque(childP->name));
+    nodeToBson(childP, bsonP, false, 0, entityCreatedAt, 1, mongocSysTimesOpaque(childP->name), entity);
     if (idRewritten)
       ldNodeRename(childP, "id");
   }
@@ -245,7 +277,7 @@ static void treeToBson(CorNode* treeP, bson_t* bsonP, int64_t entityCreatedAt)
 //
 void mongocTreeToBson(CorNode* treeP, bson_t* bsonP)
 {
-  treeToBson(treeP, bsonP, 0);
+  treeToBson(treeP, bsonP, 0, false);
 }
 
 
@@ -273,7 +305,7 @@ int64_t mongocEntityCreatedAt(CorNode* entityP)
 //
 void mongocEntityToBson(CorNode* entityP, bson_t* bsonP)
 {
-  treeToBson(entityP, bsonP, mongocEntityCreatedAt(entityP));
+  treeToBson(entityP, bsonP, mongocEntityCreatedAt(entityP), true);
 }
 
 
@@ -290,7 +322,7 @@ void mongocNodeAppend(bson_t* parentP, const char* key, CorNode* nodeP)
 {
   char* origName = nodeP->name;
   ldNodeRename(nodeP, (char*) key);
-  nodeToBson(nodeP, parentP, false, 0, 0, 0, false);
+  nodeToBson(nodeP, parentP, false, 0, 0, 0, false, false);
   ldNodeRename(nodeP, origName);
 }
 
@@ -305,6 +337,6 @@ void mongocAttrAppend(bson_t* parentP, const char* key, CorNode* attrP, int64_t 
 {
   char* origName = attrP->name;
   ldNodeRename(attrP, (char*) key);
-  nodeToBson(attrP, parentP, false, 0, entityCreatedAt, 1, false);
+  nodeToBson(attrP, parentP, false, 0, entityCreatedAt, 1, false, true);
   ldNodeRename(attrP, origName);
 }

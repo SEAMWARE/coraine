@@ -1,0 +1,246 @@
+#
+# FILE            q_prefilter_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The q pre-filter of the mongoc plugin (COR_FEATURE_Q_PREFILTER): a value term goes to the database as
+# a condition on the default instance (<attr>.@none.value), that an index can serve, OR the attribute's
+# mark of an instance of a datasetId (<attr>.@datasetIds: true) - in front of the exact $expr over every
+# instance. The mark is the store's: written with the attribute by every write, never in a response, and
+# put on the attributes of a database in storage format 1 at start (format 2).
+#
+#   - marked: an attribute with an instance of a datasetId, at create, POST attrs, merge; unmarked when
+#     the last such instance goes (DELETE attr ?datasetId, replace)
+#   - q finds a value on an instance of a datasetId, on the default instance, both; the positive and the
+#     negative operators, a range, a value list
+#   - a response never holds the mark
+#   - a database in format 1, its marks removed: the start marks them again, records 2, q finds them
+#
+# Reads mongoc's own documents (mongosh) - not a store-independent check:
+# REQUIRE_DB: mongoc
+#
+--NAME--
+mongoc - the q pre-filter: attributes with an instance of a datasetId marked, q unchanged
+
+--TAGS--
+mongoc query q datasetid storage upgrade
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+MONGO="mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet $COR_ROLE_DB_PREFIX"
+
+#
+# marks - each entity, the short names of its attributes marked in the database
+#
+marks() {
+  $MONGO --eval 'db.entities.find().sort({_id: 1}).forEach(e => {
+    const m = Object.keys(e).filter(k => (e[k] !== null) && (typeof e[k] === "object") && (e[k]["@datasetIds"] === true));
+    print(e._id + ": " + (m.length ? m.map(k => k.replace(/.*\//, "")).sort().join(",") : "-"));
+  })'
+}
+
+#
+# ids <q> - the ids of the entities of type T that q matches
+#
+ids() {
+  local r=$(curl -s -G "http://localhost:$CB_PORT/ngsi-ld/v1/entities" --data-urlencode "type=T" --data-urlencode "q=$1")
+  echo "q=$1: $(jq -r '.[].id' <<< "$r" | sort | paste -sd ' ')"
+}
+
+create() {
+  corCurl --url /ngsi-ld/v1/entities --payload "$1" | head -1
+}
+
+
+echo "01. Four entities: speed on the default instance, on one of a datasetId, on both - E2, E3 marked"
+echo "================================================================================================"
+create '{"id": "urn:E1", "type": "T", "speed": {"type": "Property", "value": 10}}'
+create '{"id": "urn:E2", "type": "T", "speed": [{"type": "Property", "value": 1}, {"type": "Property", "value": 50, "datasetId": "urn:ds:1"}]}'
+create '{"id": "urn:E3", "type": "T", "speed": {"type": "Property", "value": 70, "datasetId": "urn:ds:2"}, "name": {"type": "Property", "value": "three"}}'
+create '{"id": "urn:E4", "type": "T", "speed": {"type": "Property", "value": 90}, "name": {"type": "Property", "value": "four"}}'
+marks
+echo
+echo
+
+
+echo "02. q - every instance, as before"
+echo "================================="
+ids 'speed>40'
+ids 'speed==50'
+ids 'speed==1'
+ids 'speed==1..60'
+ids 'speed==50,70'
+ids 'speed!=70'
+ids 'speed<5'
+ids 'name~=thr'
+ids 'name!~=thr'
+ids 'speed>40;name=="four"'
+ids 'speed==50|name=="three"'
+echo
+echo
+
+
+echo "03. A response never holds the mark"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2 | grep -c '@datasetIds'
+curl -s "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=T" | grep -c '@datasetIds'
+echo
+echo
+
+
+echo "04. E2's instance of a datasetId deleted - E2 unmarked, not found by speed>40"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E2/attrs/speed?datasetId=urn:ds:1' -X DELETE | head -1
+marks
+ids 'speed>40'
+echo
+echo
+
+
+echo "05. POST attrs: an instance of a datasetId on E1 (60) - E1 marked and found"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"speed": {"type": "Property", "value": 60, "datasetId": "urn:ds:3"}}' | head -1
+marks
+ids 'speed>40'
+ids 'speed==60'
+echo
+echo
+
+
+echo "06. Merge: an instance of a datasetId on E4's name - E4's name marked"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E4 -X PATCH --payload '{"name": {"type": "Property", "value": "vier", "datasetId": "urn:ds:de"}}' | head -1
+marks
+ids 'name=="vier"'
+echo
+echo
+
+
+echo "07. Replace: E3 with its default instance only - unmarked"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E3 -X PUT --payload '{"id": "urn:E3", "type": "T", "speed": {"type": "Property", "value": 71}}' | head -1
+marks
+ids 'speed>40'
+echo
+echo
+
+
+echo "08. A database in storage format 1, every mark removed: the start marks them again, records 2"
+echo "============================================================================================="
+coraineStop
+$MONGO --eval 'db.entities.find().forEach(e => {
+  const u = {};
+  Object.keys(e).forEach(k => { if ((e[k] !== null) && (typeof e[k] === "object") && (e[k]["@datasetIds"] === true)) u[k + ".@datasetIds"] = 1; });
+  if (Object.keys(u).length > 0) db.entities.updateOne({_id: e._id}, {$unset: u});
+}); db.metadata.updateOne({_id: "storageFormat"}, {$set: {version: 1}})' > /dev/null
+marks
+coraineStart -v
+marks
+$MONGO --eval 'print("version " + db.metadata.findOne({_id: "storageFormat"}).version)'
+grep -o "mongoc: database '[^']*': [0-9]* entities with an instance of a datasetId marked" /tmp/coraine.CB.log | sed "s/'$COR_ROLE_DB_PREFIX'/'<db>'/"
+ids 'speed>40'
+ids 'name=="vier"'
+echo
+echo
+
+
+--EXPECT--
+01. Four entities: speed on the default instance, on one of a datasetId, on both - E2, E3 marked
+================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+urn:E1: -
+urn:E2: speed
+urn:E3: speed
+urn:E4: -
+
+
+02. q - every instance, as before
+=================================
+q=speed>40: urn:E2 urn:E3 urn:E4
+q=speed==50: urn:E2
+q=speed==1: urn:E2
+q=speed==1..60: urn:E1 urn:E2
+q=speed==50,70: urn:E2 urn:E3
+q=speed!=70: urn:E1 urn:E2 urn:E4
+q=speed<5: urn:E2
+q=name~=thr: urn:E3
+q=name!~=thr: urn:E4
+q=speed>40;name=="four": urn:E4
+q=speed==50|name=="three": urn:E2 urn:E3
+
+
+03. A response never holds the mark
+===================================
+0
+0
+
+
+04. E2's instance of a datasetId deleted - E2 unmarked, not found by speed>40
+=============================================================================
+HTTP/1.1 204 No Content
+urn:E1: -
+urn:E2: -
+urn:E3: speed
+urn:E4: -
+q=speed>40: urn:E3 urn:E4
+
+
+05. POST attrs: an instance of a datasetId on E1 (60) - E1 marked and found
+===========================================================================
+HTTP/1.1 204 No Content
+urn:E1: speed
+urn:E2: -
+urn:E3: speed
+urn:E4: -
+q=speed>40: urn:E1 urn:E3 urn:E4
+q=speed==60: urn:E1
+
+
+06. Merge: an instance of a datasetId on E4's name - E4's name marked
+=====================================================================
+HTTP/1.1 204 No Content
+urn:E1: speed
+urn:E2: -
+urn:E3: speed
+urn:E4: name
+q=name=="vier": urn:E4
+
+
+07. Replace: E3 with its default instance only - unmarked
+=========================================================
+HTTP/1.1 204 No Content
+urn:E1: speed
+urn:E2: -
+urn:E3: -
+urn:E4: name
+q=speed>40: urn:E1 urn:E3 urn:E4
+
+
+08. A database in storage format 1, every mark removed: the start marks them again, records 2
+=============================================================================================
+urn:E1: -
+urn:E2: -
+urn:E3: -
+urn:E4: -
+urn:E1: speed
+urn:E2: -
+urn:E3: -
+urn:E4: name
+version 2
+mongoc: database '<db>': 2 entities with an instance of a datasetId marked
+q=speed>40: urn:E1 urn:E3 urn:E4
+q=name=="vier": urn:E4
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

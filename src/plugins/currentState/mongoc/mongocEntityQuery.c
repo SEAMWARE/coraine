@@ -279,6 +279,141 @@ static void bsonAppendLangWildcard(bson_t* docP, const char* langPath, LdQTerm* 
 
 
 
+#if COR_FEATURE_Q_PREFILTER
+// -----------------------------------------------------------------------------
+//
+// bsonAppendInstancePrefilter - what an index can serve, in front of the exact $expr of a positive term
+//
+// The $expr of bsonAppendMultiInstanceTerm looks into every instance of the Attribute, and no index can
+// serve it: every query with a q value term read the whole collection. In front of it goes a condition
+// that an index on <attr>.@none.value can serve, and that holds for every Entity the $expr matches:
+//
+//   { $and: [ { $or: [ { <attr>.@none[.sub...].value[.member...]: <the same comparison> },
+//                      { <attr>.@datasetIds: true } ] } ] }
+//
+// An Attribute with an instance of a datasetId is marked so (@datasetIds, mongocTreeToBson.c) and always
+// passes on to the $expr; one without has only the default instance, and the field path
+// compares as the $expr does - type-bracketed, an array value by its elements - or wider (a Relationship,
+// an array whose elements meet a range's bounds one each), never narrower. The $expr still decides.
+//
+// Only the positive operators: != and !~= match an Entity whose value is NOT the one compared, and that
+// no index lists. A DateTime range matches nothing ($expr) - left as it is.
+//
+// In a $and of its own: a lone q term goes into the filter's top level, which may hold a $or (a type
+// expression).
+//
+static void bsonAppendInstancePrefilter(bson_t* docP, const char* attrPath, LdQTerm* term)
+{
+  if ((term->op == LdQUnequal) || (term->op == LdQNotPattern) || (term->valueType == LdQDateRange))
+    return;
+
+  char path[2048];
+  int  pos = snprintf(path, sizeof(path), "%s.@none", attrPath);
+
+  for (int i = 0; i < term->subPathN; i++)
+    pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
+
+  pos += snprintf(path + pos, sizeof(path) - pos, ".value");
+
+  for (int i = 0; i < term->valuePathN; i++)
+    pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->valuePathV[i]));
+
+  if (pos >= (int) sizeof(path))
+    return;
+
+  const char* relOp = NULL;
+
+  switch (term->op)
+  {
+  case LdQGreater:   relOp = "$gt";  break;
+  case LdQLess:      relOp = "$lt";  break;
+  case LdQGreaterEq: relOp = "$gte"; break;
+  case LdQLessEq:    relOp = "$lte"; break;
+  default:                           break;
+  }
+
+  bson_t andArray, andElem, orArray, orElem, opDoc, inArray;
+
+  bson_append_array_begin(docP, "$and", 4, &andArray);
+  bson_append_document_begin(&andArray, "0", 1, &andElem);
+  bson_append_array_begin(&andElem, "$or", 3, &orArray);
+  bson_append_document_begin(&orArray, "0", 1, &orElem);
+
+  if (term->valueType == LdQString)
+  {
+    if (term->op == LdQPattern)
+    {
+      bson_append_document_begin(&orElem, path, -1, &opDoc);
+      bson_append_regex(&opDoc, "$regex", 6, term->value.s, "");
+      bson_append_document_end(&orElem, &opDoc);
+    }
+    else if (relOp != NULL)
+    {
+      bson_append_document_begin(&orElem, path, -1, &opDoc);
+      bson_append_utf8(&opDoc, relOp, -1, term->value.s, -1);
+      bson_append_document_end(&orElem, &opDoc);
+    }
+    else
+      bson_append_utf8(&orElem, path, -1, term->value.s, -1);
+  }
+  else if (term->valueType == LdQNumber)
+  {
+    if (relOp != NULL)
+    {
+      bson_append_document_begin(&orElem, path, -1, &opDoc);
+      bson_append_double(&opDoc, relOp, -1, term->value.n);
+      bson_append_document_end(&orElem, &opDoc);
+    }
+    else
+      bson_append_double(&orElem, path, -1, term->value.n);
+  }
+  else if (term->valueType == LdQBool)
+    bson_append_bool(&orElem, path, -1, term->value.b);
+  else if (term->valueType == LdQRange)
+  {
+    bson_append_document_begin(&orElem, path, -1, &opDoc);
+    bson_append_double(&opDoc, "$gte", 4, term->value.numRange.lo);
+    bson_append_double(&opDoc, "$lte", 4, term->value.numRange.hi);
+    bson_append_document_end(&orElem, &opDoc);
+  }
+  else if (term->valueType == LdQValueList)
+  {
+    bson_append_document_begin(&orElem, path, -1, &opDoc);
+    bson_append_array_begin(&opDoc, "$in", 3, &inArray);
+
+    for (int i = 0; i < term->value.list.count; i++)
+    {
+      char         key[16];
+      int          keyLen   = snprintf(key, sizeof(key), "%d", i);
+      LdQValueType itemType = term->value.list.itemTypeV[i];
+
+      if (itemType == LdQNumber)
+        bson_append_double(&inArray, key, keyLen, strtod(term->value.list.values[i], NULL));
+      else if (itemType == LdQBool)
+        bson_append_bool(&inArray, key, keyLen, strcmp(term->value.list.values[i], "true") == 0);
+      else
+        bson_append_utf8(&inArray, key, keyLen, term->value.list.values[i], -1);
+    }
+
+    bson_append_array_end(&opDoc, &inArray);
+    bson_append_document_end(&orElem, &opDoc);
+  }
+
+  bson_append_document_end(&orArray, &orElem);
+
+  snprintf(path, sizeof(path), "%s.@datasetIds", attrPath);
+  bson_append_document_begin(&orArray, "1", 1, &orElem);
+  bson_append_bool(&orElem, path, -1, true);
+  bson_append_document_end(&orArray, &orElem);
+
+  bson_append_array_end(&andElem, &orArray);
+  bson_append_document_end(&andArray, &andElem);
+  bson_append_array_end(docP, &andArray);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // bsonAppendMultiInstanceTerm - one q term against EVERY instance of an Attribute
@@ -585,6 +720,9 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
   if (condP == NULL)
     return false;
 
+#if COR_FEATURE_Q_PREFILTER
+  bsonAppendInstancePrefilter(docP, attrPath, term);
+#endif
   bson_append_document(docP, "$expr", 5, condP);
   bson_destroy(condP);
 

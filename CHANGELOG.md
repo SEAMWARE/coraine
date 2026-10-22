@@ -15,7 +15,16 @@ bump may still change behaviour; the entry says so where it does.
 
 ### Faster
 
+- `mongoc`: a `q` value term can be served by an index. It still finds a value on any instance of an
+  attribute, as before; an index on `<attr>.@none.value` and one on `<attr>.@datasetIds` now serve it.
+  ([q and the mongoc indexes](doc/installation.md#q-and-the-mongoc-indexes))
+
 ### Changed behaviour
+
+- `mongoc` storage format 2: an attribute with an instance of a datasetId is marked in its document. A
+  database is upgraded at the first start of 0.6.0, and 0.5.x then refuses it. Stop every broker on a
+  database before starting 0.6.0 on it: a rolling upgrade from 0.5.x is not supported.
+  ([Storage format](doc/installation.md#storage-format))
 
 ### Fixed
 

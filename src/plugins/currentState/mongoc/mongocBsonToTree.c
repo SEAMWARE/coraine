@@ -113,6 +113,11 @@ static void bsonIterToNode(CorAlloc* allocP, CorAlloc* kaP, bson_iter_t* iterP, 
       // Rename _id back to id
       if (strcmp(key, "_id") == 0)
         key = "id";
+#if COR_FEATURE_Q_PREFILTER
+      // An attribute's mark of an instance of a datasetId (mongocTreeToBson.c): the store's, not the attribute's
+      else if ((level == 2) && (key[0] == '@') && (strcmp(key, "@datasetIds") == 0))
+        continue;
+#endif
     }
 
     switch (btype)
