@@ -72,7 +72,27 @@ then
 fi
 echo "  rewritten: $(echo "$files" | grep -c .) files"
 
-left=$(grep -rnIE "$FORGE" --exclude-dir=.git --exclude-dir=.venv --exclude-dir=__pycache__ . | wc -l)
+#
+# resources/variables.py builds the suite's own @context (ngsild_test_suite_context, the default of
+# most keywords' context argument) over two lines, the branch an f-string:
+#
+#     "https://forge.etsi.org/rep/cim/ngsi-ld-test-suite/-/raw/"
+#     f"{_context_branch}/resources/jsonld-contexts/ngsi-ld-test-suite-compound.jsonld"
+#
+# - no line holds the whole URL, so the rewrite above does not see it. Two adjacent strings are
+# joined by Python, so the two pieces become the context server's.
+#
+SPLIT='"https://forge\.etsi\.org/rep/cim/ngsi-ld-test-suite/-/raw/"(\s*)f"\{[A-Za-z_]+\}/resources/jsonld-contexts/'
+if [ -f resources/variables.py ]
+then
+  CS="$CS" perl -0pi -e 's#'"$SPLIT"'#"$ENV{CS}/jsonldContexts/"$1"#g' resources/variables.py
+fi
+
+#
+# Left: a whole URL, or one cut off after "-/raw/" - a URL split as above in a form the rewrite does
+# not know. Either would have the broker fetch from forge, and the run fail the day forge is down.
+#
+left=$(grep -rnIE "$FORGE|forge\.etsi\.org/rep/cim/ngsi-ld-test-suite/-/raw/[\"']" --exclude-dir=.git --exclude-dir=.venv --exclude-dir=__pycache__ . | wc -l)
 if [ "$left" -ne 0 ]
 then
   echo "etsiForgeFree.sh: $left forge @context reference(s) left in $SUITE" >&2
