@@ -22,7 +22,8 @@
 #     from 0); the same again 409; a bad body 400; a query of another type is not served by it
 #   - "updates": the writes that changed an index - an entity with the attribute created or deleted, its values
 #     changed - counted for the declarations whose values changed only: a write of another attribute, or of
-#     the same value, changes no index
+#     the same value, changes no index - but an entity that gains the type of a
+#     declaration narrowed to it enters its index
 #   - a tenant created later: its index built by its first query
 #   - a restart on the same --dbDir without --dbIndexes: the admin API's declaration is still there, speed is
 #     not
@@ -180,6 +181,9 @@ c -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:N1"
 ids T 'temp==31'
 ids T 'speed==26'
 ids T 'speed==25'
+ids T 'temp==20'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:H2" -d '{"type": "T"}'
+ids T 'temp==20'
 decls
 echo
 echo
@@ -303,8 +307,11 @@ temp type=T tenant=- by api: [] built=true entries=2 accesses=1 updates=2
 type=T q=temp==31: urn:E25
 type=T q=speed==26: urn:E25
 type=T q=speed==25: 
+type=T q=temp==20: urn:H1
+204
+type=T q=temp==20: urn:H1 urn:H2
 speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3
-temp type=T tenant=- by api: [] built=true entries=2 accesses=2 updates=2
+temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3
 
 
 07. A tenant created now: its index built by its first query
@@ -312,13 +319,13 @@ temp type=T tenant=- by api: [] built=true entries=2 accesses=2 updates=2
 201
 t1: urn:X
 speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3 [t1] built=true entries=0 accesses=0 updates=0
-temp type=T tenant=- by api: [] built=true entries=2 accesses=2 updates=2 [t1] built=true entries=1 accesses=1 updates=0
+temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3 [t1] built=true entries=1 accesses=1 updates=0
 
 
 08. Restarted on the same --dbDir without --dbIndexes: the admin API's declaration, not speed
 =============================================================================================
 temp type=T tenant=- by api: [] built=false entries=0 accesses=0 updates=0 [t1] built=false entries=0 accesses=0 updates=0
-type=T q=temp==20: urn:H1
+type=T q=temp==20: urn:H1 urn:H2
 
 
 09. DELETE: an unknown 404, the admin API's 204 - and after a restart, still gone
