@@ -66,7 +66,7 @@ Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 
 
 | Package | What it holds |
 |---------|---------------|
-| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine` |
+| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine`, and c³, the control center (`/usr/bin/c3`, its pages in `/usr/share/c3/www`): Explore, Operate and Configure; Compile with `coraine-dev` |
 | `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
 From the signed apt repository, **https://seamware.github.io/apt**:
@@ -143,14 +143,27 @@ coraine-<version>/
 ├── coraine/
 ├── corBase/  corLog/  corAlloc/  corArgs/  corHash/  corTree/  corJson/  corProm/
 ├── corPlugin/  corBridge/  corHttp/  corRest/  corJsonld/  corNgsild/  corDB/
-├── corDdsBridge/  corModbusBridge/  corMqttBridge/
-└── corTools/  corTest/  corLibs/
+├── corDdsBridge/  corModbusBridge/  corMqttBridge/  corCkanBridge/  corOpcuaBridge/
+├── corTools/  corTest/  corLibs/
+└── c3/
 ```
 
 `coraine-build [options] <dir>` unpacks it into `<dir>` (without the `coraine-<version>/` level) and builds
 there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/install` (`bin/`,
 `plugins/`, `etc/`, and `env`, which points `PATH`, `SEAMWARE_PLUGIN_DIR`, `SEAMWARE_ETC_DIR` and
 `CORAINE_CONTEXTSOURCEEXTRAS` at it). Given a `<dir>` it has unpacked before, it reuses that source.
+
+**From git clones, without `coraine-dev`.** `--source <clones>` takes a directory of clones instead of
+the tarball - coraine and every Cor-Lib side by side, as `corLibs/bootstrap.sh` clones them. The
+tarball is made from them as the packages' is (`<clones>/coraine/packaging/deb/source.sh`): coraine at
+the commit checked out, each lib at `origin/main` (`LIBS_REF=HEAD`: the branch each clone has checked
+out). Committed trees only - an uncommitted change is not built. Run the coraine clone's own script:
+
+```sh
+~/git/coraine/packaging/deb/coraine-build --source ~/git --pgo ~/coraine-pgo
+```
+
+c³ built from such clones does the same when `coraine-dev` is not installed.
 
 With the DDS bridge built (`--bridges dds`), `etc/bridges.json` holds the image's DDS defaults
 (`etc/dds-default.json`: domain 0, no topics) and `etc/dds-types/` is its types directory: the bridge

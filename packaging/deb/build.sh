@@ -92,6 +92,12 @@ fi
 "$HERE/coraine-build" --source "$SRC" --"$BUILD_KIND" "$WORK/tree"
 INST=$WORK/tree/install
 
+#
+# c³, the control center - on the libraries coraine-build left built in the tree
+#
+[ -f "$WORK/tree/c3/makefile" ] || die "no c3 in $SRC (source.sh puts it there)"
+make -C "$WORK/tree/c3" COR_LIBS=.. BUILD=release C3_CLONES=      # no clones on the machine it is installed on
+
 # ------------------------------------------------------------------------------------------------- #
 # coraine
 # ------------------------------------------------------------------------------------------------- #
@@ -106,6 +112,7 @@ install -m 0644 "$HERE/coraine/default"         "$S/etc/default/coraine"
 install -m 0755 "$HERE/coraine/postinst" "$HERE/coraine/prerm" "$HERE/coraine/postrm" "$S/DEBIAN/"
 echo /etc/default/coraine > "$S/DEBIAN/conffiles"
 install -m 0644 "$WORK"/coraine-*/MANIFEST.txt "$S/usr/share/doc/coraine/MANIFEST.txt"
+make -C "$WORK/tree/c3" install DESTDIR="$S" PREFIX=/usr        # /usr/bin/c3, /usr/share/c3/www
 
 if [ "$BUNDLE" = 1 ]; then
   install -d "$S/opt/seamware/lib" "$S/usr/share/doc/coraine/mongo-c-driver"
@@ -232,6 +239,7 @@ tar --sort=name --owner=0 --group=0 --numeric-owner -C "$DBG" -cJf "$OUT/coraine
 
 find "$S" "$D" -type d -exec chmod 0755 {} +
 find "$S/opt" -type f -exec chmod 0644 {} +
+find "$S/usr/share/c3" -type f -exec chmod 0644 {} +
 [ ! -d "$D/opt" ] || find "$D/opt" -type f -exec chmod 0644 {} +
 
 #
@@ -265,8 +273,9 @@ Description: NGSI-LD context broker (ETSI GS CIM 009)
  This package holds the broker, coraine-import (moves another broker's
  database into coraine's stores), the plugins - corDB, ramDB, mongoc,
  timescale, the admin API, the WebSocket transport, the MQTT and Modbus
- bridges - and the systemd unit coraine.service, installed but not enabled:
- see /etc/default/coraine.$( [ "$BUNDLE" = 0 ] || printf '\n .\n The MongoDB C driver v2 is bundled, privately, in /opt/seamware/lib.' )
+ bridges - the systemd unit coraine.service, installed but not enabled (see
+ /etc/default/coraine), and c3, the control center: explore, operate and
+ configure brokers in a browser; with coraine-dev also build them.$( [ "$BUNDLE" = 0 ] || printf '\n .\n The MongoDB C driver v2 is bundled, privately, in /opt/seamware/lib.' )
 EOF
 
 cat > "$D/DEBIAN/control" <<EOF

@@ -13,6 +13,11 @@ bump may still change behaviour; the entry says so where it does.
 
 ### New
 
+- c³, the control center, is in the `coraine` package (`/usr/bin/c3`); its Compile page builds brokers
+  with `coraine-dev` installed. `coraine-build --source <dir>` builds from a directory of git clones
+  instead of the `coraine-dev` tarball, and c³ built from clones builds from them.
+  ([coraine-dev](doc/installation.md#coraine-dev-build-your-own))
+
 - Declared indexes: the attributes whose `q` an index of the store serves - narrowed to an entity type or a
   tenant if so declared: `--dbValueIndexes` at start (the attributes' IRIs), `/admin/indexes` on a running broker; each declaration is
   an index in every tenant it covers, a tenant created later included. `mongoc`: two MongoDB indexes per

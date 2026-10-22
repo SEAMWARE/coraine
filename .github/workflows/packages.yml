@@ -80,6 +80,14 @@ jobs:
         working-directory: stack/corLibs
         run: NOBUILD=1 ./bootstrap.sh
 
+      # c³, the control center: in the coraine package, built on the same libs
+      - uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/c3
+          path: stack/c3
+          ref: main
+          fetch-depth: 0              # a release checks out its tag below, as every lib's
+
       #
       # A tag (a release): every lib AT it - a lib without it fails the run rather than ship its main
       #
