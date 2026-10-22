@@ -272,10 +272,11 @@ Description: NGSI-LD context broker (ETSI GS CIM 009)
  .
  This package holds the broker, coraine-import (moves another broker's
  database into coraine's stores), the plugins - corDB, ramDB, mongoc,
- timescale, the admin API, the WebSocket transport, the MQTT and Modbus
- bridges - the systemd unit coraine.service, installed but not enabled (see
- /etc/default/coraine), and c3, the control center: explore, operate and
- configure brokers in a browser; with coraine-dev also build them.$( [ "$BUNDLE" = 0 ] || printf '\n .\n The MongoDB C driver v2 is bundled, privately, in /opt/seamware/lib.' )
+ timescale, the admin API, the auth plugins (fdsc, oidc), the WebSocket
+ transport, the MQTT and Modbus bridges - the systemd unit coraine.service,
+ installed but not enabled (see /etc/default/coraine), and c3, the control
+ center: explore, operate and configure brokers in a browser; with
+ coraine-dev also build them.$( [ "$BUNDLE" = 0 ] || printf '\n .\n The MongoDB C driver v2 is bundled, privately, in /opt/seamware/lib.' )
 EOF
 
 cat > "$D/DEBIAN/control" <<EOF
