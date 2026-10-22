@@ -2095,6 +2095,31 @@ on `other` 757 -> 729, no `q` 270 679 -> 265 843; `PATCH` of `other` 133 752 -> 
 (`create` only, a new store each run): 390 000 off; on, 165 000 to 200 000 with `speed` in the entity, 330 000
 to 385 000 without it.
 
+### Building a declared index
+
+What a change of the declarations costs on a running broker ([Declared indexes](installation.md#declared-indexes)).
+2026-10-22, the release build of coraine `bbfb0db0` with corDB `2e8a455`, one tenant, 1 000 000 entities of type
+`V`, each with `speed` (i mod 1 000) and `temp` (i mod 50), created in batches of 1 000; `--dbIndexes speed`,
+then `POST /admin/indexes {"attribute": "temp"}` and its `DELETE`. Times are the request's (curl
+`time_total`), on an idle broker.
+
+| step | corDB (`--dbDir`, 3 runs) | mongoc (MongoDB 8.2 local, 3 runs) |
+|---|---|---|
+| the first `q=speed==5`: builds the store's index | 0.512 / 0.530 / 0.494 s | - (built at the tenant's setup) |
+| the same `q`, built | 0.4 - 0.6 ms | - |
+| `POST` `temp`: corDB builds both declarations' entries, mongoc creates `temp`'s two indexes | 0.862 / 0.869 / 0.887 s | 2.057 / 1.138 / 1.144 s |
+| `DELETE` `temp`: corDB drops the store's index, mongoc `temp`'s two | 0.111 / 0.107 / 0.111 s | 0.0011 / 0.0009 / 0.0008 s |
+| the next `q=speed==5`: corDB builds `speed`'s entries again | 0.483 / 0.432 / 0.511 s | - |
+
+- **corDB keeps one index a store for all the declarations** (the entities, their order, an entry per
+  value and declaration): a change of the declarations drops it, and builds it again - at once for a `POST`,
+  by the next query that can use it after a `DELETE`. Its counters (`accesses`, `updates`) start from 0.
+  The build reads the store under its read lock: the store's writes wait.
+- **About 0.5 µs an entity and declaration** (one: 0.5 s, two: 0.87 s for 1 000 000), in every tenant's store
+  a declaration covers.
+- **mongoc**: a change creates or drops that declaration's MongoDB indexes only (the first `POST` of the
+  three, 2.1 s, on a collection just loaded).
+
 ## The HTTP server
 
 ### libmicrohttpd 1.0.10 against 1.0.2

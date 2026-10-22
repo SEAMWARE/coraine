@@ -1,0 +1,181 @@
+#
+# FILE            db_indexes_metrics_corDB.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: DB_INDEXES METRICS
+#
+# The declared indexes on /admin/metrics, corDB: what GET /admin/indexes shows, one series per declaration
+# and tenant - ngsild_index_built, ngsild_index_entries, ngsild_index_bytes, ngsild_index_accesses_total
+# (the q terms an index served), ngsild_index_updates_total (the writes that changed it). Labels: id,
+# attribute, type (a declaration narrowed to one), tenant ("" = the default) - the names compacted with the
+# core @context.
+#
+#   - --dbIndexes speed: a series per family for the default tenant - not built before a query uses it
+#   - two entities, a q on speed: built, 2 entries, 1 access
+#   - a PATCH of speed: 1 update; a PATCH of another attribute: none
+#   - POST a declaration narrowed to a type: its series, the type a label - in every tenant, t1 too; every
+#     store's indexes built again at once, speed's too (corDB: its counters from 0)
+#   - DELETE it: its series gone; speed's index dropped, built again by the next q that can use it
+#   - started without --dbIndexes on a new --dbDir: no ngsild_index_ at all
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB - the declared indexes on /admin/metrics: built, entries, bytes, accesses, updates per declaration and tenant
+
+--TAGS--
+cordb metrics admin q
+
+--INIT--
+rm -rf /tmp/corTest-db_indexes_metrics_corDB /tmp/corTest-db_indexes_metrics_corDB-2
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB --dbIndexes speed
+
+--RUN--
+B=http://localhost:$CB_PORT
+
+#
+# metrics - the declared indexes' series, their generated ids as <id>
+#
+metrics() {
+  curl -s "$B/admin/metrics" | grep -aE '^ngsild_index_' | sed 's/id="[0-9a-f]*"/id="<id>"/'
+}
+
+code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
+
+
+echo "01. --dbIndexes speed: a series per family for the default tenant - not built before a query uses it"
+echo "======================================================================================================"
+curl -s "$B/admin/metrics" | grep -aE '^# TYPE ngsild_index_'
+metrics
+echo
+echo
+
+
+echo "02. Two entities, a q on speed: built, 2 entries, 1 access"
+echo "=========================================================="
+code -d '{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":10},"color":{"type":"Property","value":"red"}}' $B/ngsi-ld/v1/entities
+code -d '{"id":"urn:ngsi-ld:Vehicle:V2","type":"Vehicle","speed":{"type":"Property","value":20}}' $B/ngsi-ld/v1/entities
+curl -s -G $B/ngsi-ld/v1/entities --data-urlencode 'type=Vehicle' --data-urlencode 'q=speed>15' | jq -r '.[].id'
+metrics | grep -v '^ngsild_index_bytes'
+metrics | grep '^ngsild_index_bytes' | awk '{ print $1, ($2 > 0)? "> 0" : $2 }'
+echo
+echo
+
+
+echo "03. A PATCH of speed: 1 update; a PATCH of another attribute: none"
+echo "=================================================================="
+code -X PATCH -d '{"speed":{"type":"Property","value":30}}' $B/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs
+code -X PATCH -d '{"color":{"type":"Property","value":"blue"}}' $B/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:V1/attrs
+metrics | grep -E '^ngsild_index_(updates|accesses)'
+echo
+echo
+
+
+echo "04. POST a declaration narrowed to a type: its series, the type a label; every index built again at once"
+echo "======================================================================================================="
+code -H 'NGSILD-Tenant: t1' -d '{"id":"urn:ngsi-ld:Room:R1","type":"Room","temperature":{"type":"Property","value":21}}' $B/ngsi-ld/v1/entities
+code -d '{"attribute":"temperature","type":"Room"}' $B/admin/indexes
+metrics | grep -E '^ngsild_index_(built|entries|accesses)'
+echo
+echo
+
+
+echo "05. DELETE it: its series gone; speed's index dropped, built again by the next q that can use it"
+echo "===================================================================================================="
+id=$(curl -s $B/admin/indexes | jq -r '.[] | select(.attribute == "temperature") | .id')
+code -X DELETE $B/admin/indexes/$id
+metrics | grep -E '^ngsild_index_built'
+curl -s -G $B/ngsi-ld/v1/entities --data-urlencode 'type=Vehicle' --data-urlencode 'q=speed>15' | jq -r '.[].id' | sort
+metrics | grep -E '^ngsild_index_(built|entries|accesses)'
+echo
+echo
+
+
+echo "06. Started without --dbIndexes on a new --dbDir: no ngsild_index_ at all"
+echo "========================================================================="
+coraineStop
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB-2
+curl -s "$B/admin/metrics" | grep -ac 'ngsild_index_'
+echo
+echo
+
+
+--EXPECT--
+01. --dbIndexes speed: a series per family for the default tenant - not built before a query uses it
+======================================================================================================
+# TYPE ngsild_index_built gauge
+# TYPE ngsild_index_entries gauge
+# TYPE ngsild_index_bytes gauge
+# TYPE ngsild_index_accesses_total counter
+# TYPE ngsild_index_updates_total counter
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_entries{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_bytes{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_updates_total{id="<id>",attribute="speed",tenant=""} 0
+
+
+02. Two entities, a q on speed: built, 2 entries, 1 access
+==========================================================
+201
+201
+urn:ngsi-ld:Vehicle:V2
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_entries{id="<id>",attribute="speed",tenant=""} 2
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_updates_total{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_bytes{id="<id>",attribute="speed",tenant=""} > 0
+
+
+03. A PATCH of speed: 1 update; a PATCH of another attribute: none
+==================================================================
+204
+204
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_updates_total{id="<id>",attribute="speed",tenant=""} 1
+
+
+04. POST a declaration narrowed to a type: its series, the type a label; every index built again at once
+=======================================================================================================
+201
+201
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 1
+ngsild_index_built{id="<id>",attribute="temperature",type="Room",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="temperature",type="Room",tenant="t1"} 1
+ngsild_index_entries{id="<id>",attribute="speed",tenant=""} 2
+ngsild_index_entries{id="<id>",attribute="speed",tenant="t1"} 0
+ngsild_index_entries{id="<id>",attribute="temperature",type="Room",tenant=""} 0
+ngsild_index_entries{id="<id>",attribute="temperature",type="Room",tenant="t1"} 1
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant="t1"} 0
+ngsild_index_accesses_total{id="<id>",attribute="temperature",type="Room",tenant=""} 0
+ngsild_index_accesses_total{id="<id>",attribute="temperature",type="Room",tenant="t1"} 0
+
+
+05. DELETE it: its series gone; speed's index dropped, built again by the next q that can use it
+====================================================================================================
+204
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 0
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 0
+urn:ngsi-ld:Vehicle:V1
+urn:ngsi-ld:Vehicle:V2
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 0
+ngsild_index_entries{id="<id>",attribute="speed",tenant=""} 2
+ngsild_index_entries{id="<id>",attribute="speed",tenant="t1"} 0
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant="t1"} 0
+
+
+06. Started without --dbIndexes on a new --dbDir: no ngsild_index_ at all
+=========================================================================
+0
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-db_indexes_metrics_corDB /tmp/corTest-db_indexes_metrics_corDB-2

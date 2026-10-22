@@ -638,7 +638,8 @@ later included - `mongoc` and `corDB` (`ramDB` too) each have their own.
 | a query without a `q` on it | the same | the same |
 
 Which one weighs more is the workload's: how often the attribute is written, how often it is queried. `GET
-/admin/indexes` counts both on corDB (`updates`, `accesses`).
+/admin/indexes` counts both on corDB (`updates`, `accesses`), and so does `/admin/metrics`
+([In /admin/metrics](#in-adminmetrics)).
 
 Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
@@ -659,6 +660,17 @@ Declared on a running broker, through the admin API (`--apiPlugins admin`):
 | `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
 | `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the index built in every tenant it covers, the declaration kept in the default tenant's store. 409 if declared already, 400 for another body |
 | `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
+
+**Declare the indexes at start** (`--dbIndexes`). The admin API changes them on a running broker, and
+a change costs a build of the indexes; on corDB, a build of **every** declaration's, in every tenant's store,
+the writes to the store waiting meanwhile. 1 000 000 entities with both attributes, one tenant, the release
+build ([Performance](performance.md#building-a-declared-index)):
+
+| | corDB | mongoc |
+|---|---|---|
+| the start | nothing built; the first query that can use an index builds the store's: 0.5 s | the indexes created at the tenant's setup |
+| `POST` a second declaration | 0.87 s: both built again, at once; their figures from 0 | 1.1 - 2.1 s: its two MongoDB indexes; the other's untouched |
+| `DELETE` it | 0.11 s: both dropped; the next query that can use the other builds it again, 0.5 s, its figures from 0 | 1 ms: its two MongoDB indexes dropped |
 
 `<id>` is the declaration's, 8 hex digits of its attribute, type and tenant. Names in a request are expanded
 with its @context (`Link` header), the core one without; a response compacts them with it. The `POST` answers
@@ -697,6 +709,31 @@ are documents of the default tenant's store (collection `dbIndexes`), on disk wi
 per tenant: `built`, `entries` (values), `bytes`, `accesses` (the `q` terms it served) and `updates` (the writes
 that changed it: an entity with the attribute created or deleted, its values changed), since it was built.
 More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
+
+#### In /admin/metrics
+
+`GET /admin/metrics` has the figures of `GET /admin/indexes`, a series per declaration and tenant, read from the
+store at every scrape:
+
+| metric | type | mongoc | corDB |
+|---|---|---|---|
+| `ngsild_index_built` | gauge | 1: the indexes are there | 1: built, 0: not yet (the next query that can use it builds it) |
+| `ngsild_index_entries` | gauge | - | the values in it |
+| `ngsild_index_bytes` | gauge | both indexes (`$collStats`) | its size |
+| `ngsild_index_accesses_total` | counter | the uses of both indexes (`$indexStats`), since MongoDB started - a query the planner answers with another index uses neither | the `q` terms it served |
+| `ngsild_index_updates_total` | counter | - | the writes that changed it |
+
+Labels: `id`, `attribute`, `type` (a declaration narrowed to one), `tenant` (`""`: the default), `snapshot` (a
+Snapshot's store) - names compacted with the core @context:
+
+```
+ngsild_index_accesses_total{id="0e819997",attribute="speed",tenant=""} 1
+ngsild_index_accesses_total{id="08516489",attribute="temperature",type="Room",tenant="t1"} 0
+```
+
+A declaration taken away takes its series with it. A counter starts again from 0 when its index is built
+again (corDB: any change of the declarations, a start; mongoc: MongoDB's restart). A scrape asks every
+tenant's store - on mongoc two aggregations per declaration and tenant.
 
 ## Migrating from another broker
 
