@@ -145,12 +145,26 @@ static void condWaitMs(pthread_cond_t* condP, pthread_mutex_t* mutexP, int64_t m
 
 // -----------------------------------------------------------------------------
 //
-// queueAdd - a unit's bytes into (or, negative, out of) the counts of the queue (mutex held)
+// queueCount - bytes into (or, negative, out of) the counts of the queue only (mutex held)
 //
-static void queueAdd(TsWriter* wP, int64_t bytes, int n)
+// A batch a writer takes leaves the queue but is still held - it is held until it is recorded or
+// lost: what the health report says is held must not drop to nothing while a try is in flight.
+//
+static void queueCount(TsWriter* wP, int64_t bytes, int n)
 {
   wP->queuedBytes += bytes;
   wP->queuedN     += n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// queueAdd - a unit's bytes into (or, negative, out of) the queue and what is held (mutex held)
+//
+static void queueAdd(TsWriter* wP, int64_t bytes, int n)
+{
+  queueCount(wP, bytes, n);
   atomic_fetch_add(&heldBytes, bytes);
 }
 
@@ -464,7 +478,7 @@ static void* writerMain(void* arg)
     else if (probe == false)
       pthread_cond_signal(&wP->workCond);    // more to do - for another writer
 
-    queueAdd(wP, -bytes, -unitN);
+    queueCount(wP, -bytes, -unitN);
     wP->busyN += 1;
     pthread_cond_broadcast(&wP->roomCond);
     pthread_mutex_unlock(&wP->mutex);
@@ -484,8 +498,14 @@ static void* writerMain(void* arg)
     if ((probe == true) && (doneN > 0) && (wP->down == true))
       writerUp(wP);
 
+    int64_t doneBytes = 0;
+
     for (int ix = 0; ix < doneN; ix++)
+    {
+      doneBytes += tsUnitBytes(unitV[ix]);
       unitDone(unitV[ix]);
+    }
+    atomic_fetch_add(&heldBytes, -doneBytes);
 
     if ((doneN < unitN) && (wP->stop == false))
     {
@@ -504,7 +524,7 @@ static void* writerMain(void* arg)
         backBytes += tsUnitBytes(unitV[ix]);
       }
 
-      queueAdd(wP, backBytes, unitN - doneN);
+      queueCount(wP, backBytes, unitN - doneN);   // still held - they never stopped being
       writerDown(wP);
     }
     else if (doneN < unitN)
@@ -513,14 +533,17 @@ static void* writerMain(void* arg)
       // Stopping, and the database down: what is held cannot be recorded - this batch's units and
       // every one still queued; one try, not one per batch
       //
-      int rowN = 0;
+      int     rowN      = 0;
+      int64_t lostBytes = 0;
 
       for (int ix = doneN; ix < unitN; ix++)
       {
-        rowN += tsUnitRows(unitV[ix]);
+        rowN      += tsUnitRows(unitV[ix]);
+        lostBytes += tsUnitBytes(unitV[ix]);
         unitV[ix]->rc = TROE_ERR;
         unitDone(unitV[ix]);
       }
+      atomic_fetch_add(&heldBytes, -lostBytes);
 
       while (wP->head != NULL)
       {
