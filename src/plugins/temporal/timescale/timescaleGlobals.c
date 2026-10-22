@@ -72,7 +72,7 @@ CorArg timescaleArgV[] =
   { "--troeDownExit", "-troeDownExit", CorArgInt, _vp &timescaleDownExit, CorArgOpt, _vp 0, _vp 0, _vp 86400, "Exit (code 1) once the TRoE database has been unreachable this many seconds, or at the first row of history that would be lost; 0: keep serving the current state and its subscriptions, the history held in memory (up to 8 MiB) and retried, past that lost" },
   { "--troeSqlIndexes", "-troeSqlIndexes", CorArgString, _vp &timescaleSqlIndexes, CorArgOpt, _vp "none", NULL, NULL, "TRoE indexes beyond the basic ones, a comma list: attrObserved (attr_name, observed_at), geo (GiST on GeoProperty values), time (modified_at); none: none of them. Each costs every write" },
 #if COR_FEATURE_DB_INDEXES
-  { "--troeValueIndexes", "-troeValueIndexes", CorArgString, _vp &timescaleValueIndexes, CorArgOpt, _vp NULL, NULL, NULL, "TRoE declared indexes: the attributes whose q value terms an index of the history serves - names, comma-separated, or a JSON array of { attribute, type?, tenant? }. Each costs the writes of its attribute's history" },
+  { "--troeValueIndexes", "-troeValueIndexes", CorArgString, _vp &timescaleValueIndexes, CorArgOpt, _vp NULL, NULL, NULL, "TRoE declared indexes: the attributes whose q value terms an index of the history serves, expanded (IRIs) - comma-separated, or a JSON array of { attribute, type?, tenant? }. Each costs the writes of its attribute's history" },
 #endif
   { "--troeInstanceCap", "-troeCap", CorArgInt, _vp &timescaleInstanceCap, CorArgOpt, _vp 1000000, _vp 1, _vp 1000000, "Default per-attribute temporal page limit when ?firstN/?lastN absent (§ 6.4.7.3)" },
   CORARGS_END

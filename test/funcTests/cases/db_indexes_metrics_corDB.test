@@ -31,7 +31,7 @@ cordb metrics admin q
 
 --INIT--
 rm -rf /tmp/corTest-db_indexes_metrics_corDB /tmp/corTest-db_indexes_metrics_corDB-2
-coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB --dbValueIndexes speed
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB --dbValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 
 --RUN--
 B=http://localhost:$CB_PORT

@@ -19,7 +19,7 @@
 #   - DELETE: one of --dbValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
 #   - started without --dbValueIndexes: the indexes of speed are dropped
 #   - --dbValueIndexes as a JSON array, a tenant named: only that tenant's database gets them
-#   - --dbValueIndexes not an array of declarations: the broker does not start
+#   - --dbValueIndexes not an array of declarations, or a short name (the option takes IRIs): the broker does not start
 #
 # Reads mongoc's own indexes and its profiler (mongosh) - not a store-independent check:
 # REQUIRE_DB: mongoc
@@ -32,7 +32,7 @@ mongoc query q admin cli
 
 --INIT--
 corDbDrop
-coraineStart --apiPlugins admin --dbValueIndexes speed
+coraineStart --apiPlugins admin --dbValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 
 --RUN--
 corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
@@ -105,7 +105,7 @@ echo
 
 echo "05. Restarted with --dbValueIndexes speed: the admin API's declaration is still there"
 echo "================================================================================"
-restart --dbValueIndexes speed
+restart --dbValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 decls
 echo
 echo
@@ -136,7 +136,7 @@ echo
 
 echo "08. --dbValueIndexes a JSON array, the tenant t1 named: only t1's database"
 echo "====================================================================="
-restart --dbValueIndexes '[{"attribute":"temp","type":"T","tenant":"t1"}]'      # no spaces: coraineStart splits its arguments
+restart --dbValueIndexes '[{"attribute":"https://uri.etsi.org/ngsi-ld/default-context/temp","type":"https://uri.etsi.org/ngsi-ld/default-context/T","tenant":"t1"}]'      # no spaces: coraineStart splits its arguments
 echo "default: [$(idx $COR_ROLE_DB_PREFIX)]"
 idx $COR_ROLE_DB_PREFIX-t1
 decls
@@ -144,12 +144,15 @@ echo
 echo
 
 
-echo "09. --dbValueIndexes not an array of declarations: the broker does not start"
+echo "09. --dbValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "======================================================================="
 coraineStop
 timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "mongoc: --dbValueIndexes: each declaration is .*" /tmp/dbIndexes.$$ | head -1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes speed > /tmp/dbIndexes.$$ 2>&1
+echo "exit: $?"
+grep -o "mongoc: --dbValueIndexes: .* is not an IRI.*" /tmp/dbIndexes.$$ | head -1
 rm -f /tmp/dbIndexes.$$
 echo
 echo
@@ -232,10 +235,12 @@ cor_v_<id> temp.@none.value partial type
 temp type=T tenant=t1 by dbValueIndexes: [t1] built=true
 
 
-09. --dbValueIndexes not an array of declarations: the broker does not start
+09. --dbValueIndexes not an array of declarations, or a short name: the broker does not start
 =======================================================================
 exit: 1
 mongoc: --dbValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+exit: 1
+mongoc: --dbValueIndexes: 'speed' is not an IRI - the option takes attributes and entity types expanded (the core @context's: https://uri.etsi.org/ngsi-ld/default-context/speed)
 
 
 --TEARDOWN--
