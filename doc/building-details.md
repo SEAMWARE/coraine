@@ -210,7 +210,7 @@ more knobs measured on it - the ones that depend on the workload, not on the dep
 The workload file says where the entities live, what a typical entity looks like and how many there are,
 who is notified, and what the broker is asked and how hard
 ([The workload file](extreme-performance.md#the-workload-file)). The best of each knob goes to
-`etc/tune.env` in the install (`CORAINE_*` and `LD_PRELOAD`). ~15 minutes; needs what Profile-guided
+`etc/tune.env` in the install (`TUNE_DBLOCKPREFER`, `TUNE_ALLOCATOR` - applied by the image's entry point and by c³'s Operate). ~15 minutes; needs what Profile-guided
 needs, and jemalloc and tcmalloc to compare them (`libjemalloc2`, `libtcmalloc-minimal4`; a missing one
 is left out). [Extreme performance](extreme-performance.md).
 
