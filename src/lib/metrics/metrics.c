@@ -32,6 +32,16 @@
 #include "corNgsild/LdEntityMap.h"                  // LdEntityMapStore, LdEntityMap
 
 #include "db/Tenant.h"                             // tenant0, tenantList
+#if COR_FEATURE_DB_INDEXES
+#include <stdio.h>                                 // snprintf, vsnprintf
+#include <stdarg.h>                                // va_list
+
+#include "corTree/corTreeLookup.h"                 // corTreeLookup
+#include "corJsonld/corLdCompact.h"                // corLdCompact
+#include "corJsonld/corLdInit.h"                   // corLdCoreContext
+
+#include "db/DbDriver.h"                           // db
+#endif
 
 #include "metrics/metrics.h"                       // Own interface
 
@@ -552,6 +562,193 @@ static void sseCounts(void)
 
 
 
+#if COR_FEATURE_DB_INDEXES
+// -----------------------------------------------------------------------------
+//
+// The declared indexes (doc/installation.md, "Declared indexes"): what GET /admin/indexes shows, one series
+// per declaration and tenant. Read from the store at every scrape (db.indexList) and written here, after
+// corProm's metrics - a series comes and goes with its declaration, and corProm's metrics have no labels.
+//
+//   ngsild_index_built            1: the index is there (corDB builds it at the first query that can use it)
+//   ngsild_index_entries          the values in it (corDB)
+//   ngsild_index_bytes            its size
+//   ngsild_index_accesses_total   the q terms it served (corDB); mongoc: the uses of its two indexes (value,
+//                                 datasetId marker) as MongoDB counts them - $indexStats, since mongod started -
+//                                 a query MongoDB's planner answers with another index uses neither
+//   ngsild_index_updates_total    the writes that changed it (corDB)
+//
+// Labels: id, attribute, type (a declaration narrowed to one), tenant ("" = the default), snapshot (a
+// Snapshot's store) - the names compacted with the core @context.
+//
+typedef struct IndexSeries
+{
+  const char* name;
+  const char* member;
+  const char* promType;
+  const char* help;
+} IndexSeries;
+
+static const IndexSeries indexSeries[] =
+{
+  { "ngsild_index_built",          "built",    "gauge",   "Declared index there: 1, else 0 (corDB builds one at the first query that can use it)" },
+  { "ngsild_index_entries",        "entries",  "gauge",   "Values in a declared index" },
+  { "ngsild_index_bytes",          "bytes",    "gauge",   "Size of a declared index" },
+  { "ngsild_index_accesses_total", "accesses", "counter", "q terms a declared index served (mongoc: the uses of its two MongoDB indexes, since the database server started)" },
+  { "ngsild_index_updates_total",  "updates",  "counter", "Writes that changed a declared index" }
+};
+
+
+
+// -----------------------------------------------------------------------------
+//
+// Out - the text written; buf == NULL: only measured
+//
+typedef struct Out
+{
+  char*  buf;
+  int    size;
+  int    len;
+} Out;
+
+static void outAdd(Out* oP, const char* fmt, ...)
+{
+  va_list ap;
+  int     room = (oP->buf != NULL)? oP->size - oP->len : 0;
+
+  va_start(ap, fmt);
+  int n = vsnprintf((oP->buf != NULL)? &oP->buf[oP->len] : NULL, (room > 0)? room : 0, fmt, ap);
+  va_end(ap);
+
+  if (n > 0)
+    oP->len += n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// labelAdd - name="value", the value escaped as the text format says (backslash, double quote, newline)
+//
+static void labelAdd(Out* oP, const char* comma, const char* name, const char* value)
+{
+  outAdd(oP, "%s%s=\"", comma, name);
+
+  for (const char* cP = value; *cP != 0; ++cP)
+  {
+    if      (*cP == '\\') outAdd(oP, "\\\\");
+    else if (*cP == '"')  outAdd(oP, "\\\"");
+    else if (*cP == '\n') outAdd(oP, "\\n");
+    else                  outAdd(oP, "%c", *cP);
+  }
+
+  outAdd(oP, "\"");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// stringOf - a declaration's member, NULL if not there
+//
+static const char* stringOf(CorNode* nP, const char* name)
+{
+  CorNode* mP = corTreeLookup(nP, name);
+
+  return ((mP != NULL) && (mP->type == CorString))? mP->value.s : NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// indexSeriesWrite - every series of the declared indexes
+//
+static void indexSeriesWrite(Out* oP, CorNode* arrayP)
+{
+  CorLdContext* coreP = corLdCoreContext();
+
+  for (unsigned int sIx = 0; sIx < sizeof(indexSeries) / sizeof(indexSeries[0]); sIx++)
+  {
+    const IndexSeries* sP     = &indexSeries[sIx];
+    bool               header = false;
+
+    for (CorNode* declP = arrayP->value.head; declP != NULL; declP = declP->next)
+    {
+      const char* id      = stringOf(declP, "id");
+      const char* attr    = stringOf(declP, "attribute");
+      const char* type    = stringOf(declP, "type");
+      CorNode*    tenantsP = corTreeLookup(declP, "tenants");
+
+      if ((id == NULL) || (attr == NULL) || (tenantsP == NULL) || (tenantsP->type != CorArray))
+        continue;
+
+      for (CorNode* tP = tenantsP->value.head; tP != NULL; tP = tP->next)
+      {
+        CorNode*    valueP   = corTreeLookup(tP, sP->member);
+        const char* tenant   = stringOf(tP, "tenant");
+        const char* snapshot = stringOf(tP, "snapshot");
+        int64_t     value;
+
+        if      (valueP == NULL)              continue;  // not a figure of this store (mongoc: entries, updates)
+        else if (valueP->type == CorInt)      value = valueP->value.i;
+        else if (valueP->type == CorBoolean)  value = (valueP->value.b == true)? 1 : 0;
+        else                                  continue;
+
+        if (header == false)
+        {
+          outAdd(oP, "# HELP %s %s\n# TYPE %s %s\n", sP->name, sP->help, sP->name, sP->promType);
+          header = true;
+        }
+
+        outAdd(oP, "%s{", sP->name);
+        labelAdd(oP, "",  "id",        id);
+        labelAdd(oP, ",", "attribute", corLdCompact(coreP, attr));
+        if (type != NULL)
+          labelAdd(oP, ",", "type", corLdCompact(coreP, type));
+        labelAdd(oP, ",", "tenant", (tenant != NULL)? tenant : "");
+        if (snapshot != NULL)
+          labelAdd(oP, ",", "snapshot", snapshot);
+        outAdd(oP, "} %lld\n", (long long) value);
+      }
+    }
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// indexMetrics - the declared indexes' series, in corRest.kalloc - NULL if none (*lenP: their length)
+//
+static char* indexMetrics(int* lenP)
+{
+  CorNode* arrayP = NULL;
+
+  *lenP = 0;
+
+  if ((db.indexList == NULL) || (db.indexList(&arrayP) != DB_OK) || (arrayP == NULL) || (arrayP->value.head == NULL))
+    return NULL;
+
+  Out out = { NULL, 0, 0 };
+
+  indexSeriesWrite(&out, arrayP);                    // measured
+  if (out.len == 0)
+    return NULL;
+
+  out.size = out.len + 1;
+  out.len  = 0;
+  out.buf  = (char*) corAlloc(&corRest.kalloc, out.size);
+  if (out.buf == NULL)
+    return NULL;
+
+  indexSeriesWrite(&out, arrayP);
+  *lenP = out.len;
+  return out.buf;
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // metricsRender -
@@ -573,8 +770,15 @@ bool metricsRender(void)
   // Prometheus text format, and corPromRender cannot report it: on an exact fit it
   // returns the same length it would have returned had everything fitted.
   //
+  char* indexBuf = NULL;
+  int   indexLen = 0;
+
+#if COR_FEATURE_DB_INDEXES
+  indexBuf = indexMetrics(&indexLen);
+#endif
+
   int   bufSize = corPromRenderSize();
-  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize + 1);
+  char* buf     = (char*) corAlloc(&corRest.kalloc, bufSize + indexLen + 1);
 
   if (buf == NULL)
   {
@@ -591,6 +795,12 @@ bool metricsRender(void)
   {
     corRest.out.httpStatusCode = 500;
     return true;
+  }
+
+  if (indexBuf != NULL)
+  {
+    memcpy(&buf[rendered], indexBuf, indexLen + 1);
+    rendered += indexLen;
   }
 
   corRest.out.payload        = buf;

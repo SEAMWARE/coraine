@@ -1,0 +1,154 @@
+#
+# FILE            db_indexes_metrics_mongoc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: DB_INDEXES METRICS
+#
+# The declared indexes on /admin/metrics, mongoc: what GET /admin/indexes shows, one series per declaration
+# and tenant - ngsild_index_built, ngsild_index_bytes (its two MongoDB indexes, $collStats),
+# ngsild_index_accesses_total (the uses of its two MongoDB indexes, $indexStats). No entries, no updates:
+# MongoDB counts an index's uses, not its writes. Labels: id, attribute, type (a declaration narrowed to
+# one), tenant ("" = the default) - the names compacted with the core @context.
+#
+#   - --dbIndexes speed: built at start, 0 accesses; no ngsild_index_entries, no ngsild_index_updates_total
+#   - 200 entities, q=speed>190: both indexes used - 2 accesses
+#   - a tenant created now: its series
+#   - POST a declaration narrowed to a type: its series, the type a label, in both tenants
+#   - DELETE it: its series gone
+#   - started without --dbIndexes: no ngsild_index_ at all
+#
+# Counts as MongoDB's planner chooses (a few entities: the sort index serves the query, not these):
+# REQUIRE_DB: mongoc
+#
+--NAME--
+mongoc - the declared indexes on /admin/metrics: built, bytes, accesses per declaration and tenant
+
+--TAGS--
+mongoc metrics admin q
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --dbIndexes speed
+
+--RUN--
+B=http://localhost:$CB_PORT
+
+#
+# metrics - the declared indexes' series, their generated ids as <id>, a size as "> 0"
+#
+metrics() {
+  curl -s "$B/admin/metrics" | grep -aE '^ngsild_index_' | sed 's/id="[0-9a-f]*"/id="<id>"/' | awk '/^ngsild_index_bytes/ { print $1, ($2 > 0)? "> 0" : $2; next } { print }'
+}
+
+code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
+
+
+echo "01. --dbIndexes speed: built at start, 0 accesses; no entries, no updates"
+echo "========================================================================="
+curl -s "$B/admin/metrics" | grep -aE '^# TYPE ngsild_index_'
+metrics
+echo
+echo
+
+
+echo "02. 200 entities, q=speed>190: both indexes used - 2 accesses"
+echo "============================================================="
+for i in $(seq 1 200); do echo "{\"id\":\"urn:ngsi-ld:Vehicle:V$i\",\"type\":\"Vehicle\",\"speed\":{\"type\":\"Property\",\"value\":$i}}"; done | jq -s . > /tmp/dbIndexesMetrics.$$
+code -d @/tmp/dbIndexesMetrics.$$ $B/ngsi-ld/v1/entityOperations/create
+rm -f /tmp/dbIndexesMetrics.$$
+echo "ids: $(curl -s -G $B/ngsi-ld/v1/entities --data-urlencode 'type=Vehicle' --data-urlencode 'q=speed>190' --data-urlencode 'limit=100' | jq -r '.[].id' | sort -V | paste -sd ' ')"
+metrics | grep '^ngsild_index_accesses'
+echo
+echo
+
+
+echo "03. A tenant created now: its series"
+echo "===================================="
+code -H 'NGSILD-Tenant: t1' -d '{"id":"urn:ngsi-ld:Room:R1","type":"Room","temperature":{"type":"Property","value":21}}' $B/ngsi-ld/v1/entities
+metrics
+echo
+echo
+
+
+echo "04. POST a declaration narrowed to a type: its series, the type a label, in both tenants"
+echo "======================================================================================="
+code -d '{"attribute":"temperature","type":"Room"}' $B/admin/indexes
+metrics | grep '^ngsild_index_built'
+echo
+echo
+
+
+echo "05. DELETE it: its series gone"
+echo "=============================="
+id=$(curl -s $B/admin/indexes | jq -r '.[] | select(.attribute == "temperature") | .id')
+code -X DELETE $B/admin/indexes/$id
+metrics | grep '^ngsild_index_built'
+echo
+echo
+
+
+echo "06. Started without --dbIndexes: no ngsild_index_ at all"
+echo "========================================================"
+coraineStop
+coraineStart --apiPlugins admin
+curl -s "$B/admin/metrics" | grep -ac 'ngsild_index_'
+echo
+echo
+
+
+--EXPECT--
+01. --dbIndexes speed: built at start, 0 accesses; no entries, no updates
+=========================================================================
+# TYPE ngsild_index_built gauge
+# TYPE ngsild_index_bytes gauge
+# TYPE ngsild_index_accesses_total counter
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_bytes{id="<id>",attribute="speed",tenant=""} > 0
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 0
+
+
+02. 200 entities, q=speed>190: both indexes used - 2 accesses
+=============================================================
+201
+ids: urn:ngsi-ld:Vehicle:V191 urn:ngsi-ld:Vehicle:V192 urn:ngsi-ld:Vehicle:V193 urn:ngsi-ld:Vehicle:V194 urn:ngsi-ld:Vehicle:V195 urn:ngsi-ld:Vehicle:V196 urn:ngsi-ld:Vehicle:V197 urn:ngsi-ld:Vehicle:V198 urn:ngsi-ld:Vehicle:V199 urn:ngsi-ld:Vehicle:V200
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 2
+
+
+03. A tenant created now: its series
+====================================
+201
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 1
+ngsild_index_bytes{id="<id>",attribute="speed",tenant=""} > 0
+ngsild_index_bytes{id="<id>",attribute="speed",tenant="t1"} > 0
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 2
+ngsild_index_accesses_total{id="<id>",attribute="speed",tenant="t1"} 0
+
+
+04. POST a declaration narrowed to a type: its series, the type a label, in both tenants
+=======================================================================================
+201
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 1
+ngsild_index_built{id="<id>",attribute="temperature",type="Room",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="temperature",type="Room",tenant="t1"} 1
+
+
+05. DELETE it: its series gone
+==============================
+204
+ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 1
+
+
+06. Started without --dbIndexes: no ngsild_index_ at all
+========================================================
+0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

@@ -21,6 +21,9 @@ bump may still change behaviour; the entry says so where it does.
   attribute up to x416 (corDB) and x919 (mongoc) faster, a write of it +2.8 / +2.5 µs, a write of another
   attribute +0.13 / +0.3 µs; on corDB only the entities with a value of a declared attribute are in its index.
   ([Declared indexes](doc/installation.md#declared-indexes))
+- The declared indexes in `/admin/metrics`: `ngsild_index_built`, `_entries`, `_bytes`, `_accesses_total`,
+  `_updates_total`, a series per declaration and tenant - what an index gains and costs on the workload, over
+  time. ([In /admin/metrics](doc/installation.md#in-adminmetrics))
 
 ### Faster
 

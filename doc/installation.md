@@ -638,7 +638,8 @@ later included - `mongoc` and `corDB` (`ramDB` too) each have their own.
 | a query without a `q` on it | the same | the same |
 
 Which one weighs more is the workload's: how often the attribute is written, how often it is queried. `GET
-/admin/indexes` counts both on corDB (`updates`, `accesses`).
+/admin/indexes` counts both on corDB (`updates`, `accesses`), and so does `/admin/metrics`
+([In /admin/metrics](#in-adminmetrics)).
 
 Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
@@ -697,6 +698,31 @@ are documents of the default tenant's store (collection `dbIndexes`), on disk wi
 per tenant: `built`, `entries` (values), `bytes`, `accesses` (the `q` terms it served) and `updates` (the writes
 that changed it: an entity with the attribute created or deleted, its values changed), since it was built.
 More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
+
+#### In /admin/metrics
+
+`GET /admin/metrics` has the figures of `GET /admin/indexes`, a series per declaration and tenant, read from the
+store at every scrape:
+
+| metric | type | mongoc | corDB |
+|---|---|---|---|
+| `ngsild_index_built` | gauge | 1: the indexes are there | 1: built, 0: not yet (the next query that can use it builds it) |
+| `ngsild_index_entries` | gauge | - | the values in it |
+| `ngsild_index_bytes` | gauge | both indexes (`$collStats`) | its size |
+| `ngsild_index_accesses_total` | counter | the uses of both indexes (`$indexStats`), since MongoDB started - a query the planner answers with another index uses neither | the `q` terms it served |
+| `ngsild_index_updates_total` | counter | - | the writes that changed it |
+
+Labels: `id`, `attribute`, `type` (a declaration narrowed to one), `tenant` (`""`: the default), `snapshot` (a
+Snapshot's store) - names compacted with the core @context:
+
+```
+ngsild_index_accesses_total{id="0e819997",attribute="speed",tenant=""} 1
+ngsild_index_accesses_total{id="08516489",attribute="temperature",type="Room",tenant="t1"} 0
+```
+
+A declaration taken away takes its series with it. A counter starts again from 0 when its index is built
+again (corDB: any change of the declarations, a start; mongoc: MongoDB's restart). A scrape asks every
+tenant's store - on mongoc two aggregations per declaration and tenant.
 
 ## Migrating from another broker
 
