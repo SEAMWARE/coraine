@@ -35,8 +35,8 @@ bump may still change behaviour; the entry says so where it does.
   broker; each declaration is two partial indexes of `troe_attrs` (`v_number`, `v_text`) in every tenant it
   covers. The indexes made in the database that serve a `q` value term are found too (`pg_indexes`) and listed
   with `declaredBy: "database"`. A temporal query whose `q` has a term an index serves takes its entities from
-  the index: a selective `q` 626 ms -> 1.2 ms (the selector's SQL, 100 000 entities), a count of 1 % of them
-  618 -> 45 ms; the history's writes -1.6 to -4.3 %. In `/admin/metrics`: `ngsild_troe_index_built`, `_bytes`,
+  the index: a temporal query whose `q` 10 of 100 000 entities match x62 (10.2 -> 638 requests/s), a count of
+  1 % of them x16; the history's writes -1.6 to -4.3 %. In `/admin/metrics`: `ngsild_troe_index_built`, `_bytes`,
   `_accesses_total`. Trace level 404 traces the selector's SQL.
   ([TimescaleDB (the history)](doc/installation.md#timescaledb-the-history))
 

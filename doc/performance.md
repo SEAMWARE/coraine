@@ -2151,6 +2151,29 @@ sends it, its execution time (`EXPLAIN ANALYZE`), two runs each, ms. The index: 
   stops at the page's end, so the 1 % page finds its 20 at once.
 - The times are the SQL's. A request also reads the history of every entity on its page.
 
+**The requests.** 2026-10-22, the same history; the release build of coraine (main after #448, built by
+`coraine-build --source ~/git --release`), corDB in memory for the current state, `--troe timescale`. A temporal
+query `GET /ngsi-ld/v1/temporal/entities?type=V&timerel=after&timeAt=2000-01-01T00:00:00Z&timeproperty=modifiedAt`
+with the `q` and the page below; wrk, 4 threads, 8 connections, 15 s a query after 3 requests to warm. The runs
+in the order off, on, on, off (two ABBA sets: the 10-match queries in their own); on: `--troeValueIndexes` on
+`speed`, its two indexes made at the broker's start; off: no index of `speed` in the database (dropped before
+the run - the broker would find it). Requests/s of the two runs of each, the median time of one request.
+
+| `q`, matches | off: requests/s | p50 | on: requests/s | p50 | on / off |
+|---|---|---:|---|---:|---:|
+| `speed==5000`, 10, page of 20 | 9.92 / 10.52 | 774 ms | 638.4 / 637.6 | 12.3 ms | x62 |
+| `speed==5000`, 10, `count=true` | 5.13 / 4.93 | 1.52 s | 606.3 / 604.8 | 13.0 ms | x120 |
+| `speed==99999`, none | 10.72 / 10.52 | 757 ms | 11 358 / 11 209 | 0.7 ms | x1 062 |
+| `speed==3`, 1 000 (1 %), page of 20 | 251.8 / 253.2 | 31.3 ms | 252.4 / 249.7 | 31.3 ms | 1.00 |
+| `speed==3`, 1 000 (1 %), `count=true` | 9.99 / 9.92 | 800 ms | 161.6 / 161.0 | 49.5 ms | x16.2 |
+| `speed<500`, half, `count=true` | 12.92 / 12.92 | 609 ms | 13.45 / 12.92 | 589 ms | +2.1 % |
+
+- **A page of 10 matches: x62, the SQL's x520.** With the index, the request reads the history of its 10
+  entities (12 ms), the selector 1.2 ms of it.
+- `count=true` without the index runs the selector twice (the page and the count): 1.5 s.
+- The half-match count gains nothing at request level (the SQL's 490 -> 357 ms is within the request's
+  other work and the runs' spread).
+
 **The writes.** 2026-10-22, the release build of coraine (`feat/troe-db-indexes`), corDB on disk (`--dbDir`, a
 new directory each run) for the current state, `--troe timescale` on the same PostgreSQL (a new database each
 run). 10 000 entities of type `V` with `speed` and `temp`, created in batches of 1 000. wrk, 8 threads, 50
