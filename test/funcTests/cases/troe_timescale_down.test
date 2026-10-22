@@ -65,6 +65,18 @@ recordingWait() {
   echo "recording never turned $1"
 }
 
+#
+# historyWritten - until the report says recording and nothing held: every row held is recorded (or
+# counted lost) - "recording" alone is the first try that went through, not the last; at most 30 s
+#
+historyWritten() {
+  for _ in $(seq 1 300); do
+    [ "$(history '"\(.troe.history.recording) \(.troe.history.heldBytes)"')" == "true 0" ] && return 0
+    sleep 0.1
+  done
+  echo "the history held was never all written"
+}
+
 for _ in $(seq 1 50); do
   [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$HP/ready")" = 200 ] && break
   sleep 0.1
@@ -97,7 +109,7 @@ echo
 echo "03. The database back - the five recorded, nothing lost"
 echo "======================================================="
 dbUnblock
-recordingWait true
+historyWritten
 history '.troe.history | "recording: \(.recording), held: \(.heldBytes), lost: \(.lostRows)"'
 history '"status: \(.status)"'
 $PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id LIKE 'urn:D%'), (SELECT count(*) FROM troe_attrs WHERE entity_id LIKE 'urn:D%')"
@@ -118,9 +130,10 @@ done | sort | uniq -c
 lost=$(history .troe.history.lostRows)
 echo "lost: $([ "$lost" -gt 0 ] && echo some || echo none)"
 dbUnblock
-recordingWait true
+historyWritten
+lost=$(history .troe.history.lostRows)
 recorded=$($PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id LIKE 'urn:L%') + (SELECT count(*) FROM troe_attrs WHERE entity_id LIKE 'urn:L%')")
-echo "recorded + lost rows: $((recorded + $(history .troe.history.lostRows)))"
+echo "recorded + lost rows: $((recorded + lost))"
 grep -c "HISTORY LOST in db '$COR_TROE_DB': the database cannot be reached and the history held in memory is at its cap" /tmp/coraine.CB.log
 grep -c "the history database '$COR_TROE_DB' is back after [0-9]* s - recording again. $lost row(s) of history were LOST meanwhile" /tmp/coraine.CB.log
 echo
@@ -137,8 +150,9 @@ for _ in $(seq 1 50); do
 done
 dbBlock
 curl -s -m 20 -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' -d '{"id":"urn:S1","type":"T","p":{"type":"Property","value":1}}'
+recordingWait false
 dbUnblock
-recordingWait true
+historyWritten
 $PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id = 'urn:S1'), (SELECT count(*) FROM troe_attrs WHERE entity_id = 'urn:S1')"
 coraineStop
 echo

@@ -232,8 +232,8 @@ static void extractCols(CorNode* attrSnapshot, AttrCols* cP)
     //
     // Under the default deferred dispatch nobody could see it: the event is
     // handed to the plugin from brokerPostResponseHook, long after the entity
-    // has been stored and rendered. --troeSync runs the plugin where the
-    // service routine produces the event - BEFORE the current-state write - and
+    // has been stored and rendered. --troeSync once ran the plugin where the
+    // service routine produced the event - BEFORE the current-state write - and
     // the truncation reached the database. Eleven ETSI batch TPs went red the
     // first night the conformance broker took the flag.
     //
@@ -696,7 +696,7 @@ static const char* poolDbName(Tenant* tenantP)
 // event in one list shares the request's tenant.
 //
 // wait: what the caller waits for (TsWait). TsWaitNone: the unit is the writers' once submitted,
-// and this returns at once (the deferred dispatch - after the response).
+// and this returns at once - a request's history, after the response or (--troeSync) before it.
 //
 // With no writers, a unit the database is down for is lost (timescaleHistoryLost) - but for an
 // import's: the import is told.
@@ -775,12 +775,13 @@ static int eventListRecord(const TroeEvent* listHead, TsWait wait)
 //
 // timescaleEventList - record a list of events, as one transaction
 //
-// --troeSync waits for the commit: the response is not to leave before its history is recorded.
+// Never waited for: with --troeSync the list is queued before the response, and a temporal read
+// waits for what is queued (timescaleWriterBarrier) - no response waits for the database.
 //
 int timescaleEventList(const TroeEvent* listHead, int count)
 {
   (void) count;
-  return eventListRecord(listHead, (troeSync == true) ? TsWaitCommit : TsWaitNone);
+  return eventListRecord(listHead, TsWaitNone);
 }
 
 

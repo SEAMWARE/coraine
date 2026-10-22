@@ -238,7 +238,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--port` / `-p` | 1026 | TCP listen port |
 | `--database` / `-db` | `mongoc` | current-state plugin (short name or path) |
 | `--troe` / `-troe` | `none` | temporal plugin (`none` disables history) |
-| `--troeSync` / `-troeSync` | off | record temporal writes before the response, so a temporal read sees them at once |
+| `--troeSync` / `-troeSync` | off | hand temporal writes over before the response, so a temporal read sees them at once - the response does not wait for the database |
 | `--apiPlugins` / `-api` | — | comma-separated API plugins (e.g. `admin`) |
 | `--pretty-print` / `-pp` | 0 | JSON indentation (0 = compact) |
 | `--connectionPoolSize` / `-cps` | 32 | HTTP server thread-pool size |
@@ -330,13 +330,15 @@ unnest(...)`). A second writer starts on the queue when none is writing, or when
 queue holds at most 8 MiB; past that a request waits for room.
 
 - Without `--troeSync` (the default) a request queues its rows after its response. With
-  `--troeSync` it queues them before, and the response waits for the commit of the transaction its
-  rows went into.
+  `--troeSync` it queues them before - once its service routine is done - so a temporal read that
+  follows the response sees them. No response waits for the commit.
+- Measured, `--troeSync` against the default (eight cores, ABBA): writes 1-3 % fewer a second with
+  50 connections, 2-6 % with one ([Performance](performance.md#--troesync-handed-over-before-the-response)).
 - A temporal read, and a write of the Temporal API, of a tenant waits for every row queued before it
   to be written.
 - A stop (SIGTERM, SIGINT) writes what is queued before the broker exits. `kill -9`, a crash or an
-  OOM kill loses it: up to 8 MiB of history rows that the current state has, and, without
-  `--troeSync`, rows of requests already answered.
+  OOM kill loses it: history rows of requests already answered, which the current state has - up to
+  8 MiB, the rows of the last few milliseconds while the database keeps up.
 
 #### The database down
 
@@ -347,7 +349,7 @@ that: it loses only that request's rows, and is logged.
 
 **The current state and its subscriptions are served as before.** The history is held in memory
 and retried, and recorded when the database is back - up to 8 MiB of it; past that it is lost, and
-counted. Or, with `--troeDownExit`, the broker exits instead of losing any.
+counted. Or, with `--troeDownExit`, the broker exits instead of serving on.
 
 ##### During the outage
 
@@ -357,7 +359,6 @@ terminated):
 | Request | Answer |
 |---|---|
 | A write of the current state (POST, PATCH, PUT, DELETE, batch) | as always - 201, 204, ...; its subscriptions notify. Its history is held |
-| A write with `--troeSync` | as always, without waiting for the commit - its history is held as any other (with `--troeDownExit`: it waits, see below) |
 | A read of the current state | as always |
 | A temporal read (`GET /temporal/entities`, `/temporal/entities/{id}`, the queries) | **500** `InternalError`, at once - `"temporal retrieve failed for entity '<id>'"`, `"temporal query failed"` |
 | A Temporal API write (`POST /temporal/entities`, ...) | **500** `InternalError`, at once - `"temporal-entity create failed"` |
@@ -444,8 +445,8 @@ timescale: failed to initialise the default-tenant database (30 s, --troeConnect
 
 ##### `--troeDownExit`
 
-`--troeDownExit <s>` (0, the default: never) makes the broker exit, with code 1, instead of losing
-history:
+`--troeDownExit <s>` (0, the default: never) makes the broker exit, with code 1, instead of serving
+on without its history:
 
 - **After `<s>` seconds** of the database down - counted from the first write that found it down,
   checked at each try - while there is history held. A broker with nothing to write does not exit.
@@ -460,16 +461,13 @@ timescale: TRoE: HISTORY LOST in db 'corh': the database cannot be reached and t
 
 What it costs, and what it buys:
 
-- **With `--troeSync --troeDownExit` no write is answered unless its history is recorded.** A
-  `--troeSync` write waits for its commit, the outage or not; the broker exits with those requests
-  unanswered - their clients see the connection closed, as for a crash, and do not know whether the
-  current state has their write. The current-state stores keep what they acknowledged.
-- **Without `--troeSync`** the history held - of requests already answered, up to 8 MiB - is lost at
-  the exit: the option bounds the loss to the queue, it does not avoid it.
+- **The history held** - of requests already answered, up to 8 MiB - is lost at the exit: the option
+  bounds the loss to the queue, it does not avoid it. The current-state stores keep what they
+  acknowledged.
 - **A restarted broker waits for the database** (`--troeConnectTimeout`, above), and fails again
   past it. An orchestrator that restarts it (Kubernetes, `restart: on-failure`) restarts it until
   PostgreSQL is back: with `--troeDownExit` an outage of the history is an outage of the broker. That
-  is the trade - no history lost, nothing served meanwhile.
+  is the trade - a loss bounded by the queue, and nothing served meanwhile.
 
 ##### Connections
 

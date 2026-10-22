@@ -145,12 +145,26 @@ static void condWaitMs(pthread_cond_t* condP, pthread_mutex_t* mutexP, int64_t m
 
 // -----------------------------------------------------------------------------
 //
-// queueAdd - a unit's bytes into (or, negative, out of) the counts of the queue (mutex held)
+// queueCount - bytes into (or, negative, out of) the counts of the queue only (mutex held)
 //
-static void queueAdd(TsWriter* wP, int64_t bytes, int n)
+// A batch a writer takes leaves the queue but is still held - it is held until it is recorded or
+// lost: what the health report says is held must not drop to nothing while a try is in flight.
+//
+static void queueCount(TsWriter* wP, int64_t bytes, int n)
 {
   wP->queuedBytes += bytes;
   wP->queuedN     += n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// queueAdd - a unit's bytes into (or, negative, out of) the queue and what is held (mutex held)
+//
+static void queueAdd(TsWriter* wP, int64_t bytes, int n)
+{
+  queueCount(wP, bytes, n);
   atomic_fetch_add(&heldBytes, bytes);
 }
 
@@ -279,8 +293,7 @@ static void unitDone(TsUnit* uP)
 // -----------------------------------------------------------------------------
 //
 // waitersRelease - the database went down: a submitter waiting for its outcome is told it failed,
-// and taken out of the queue; one waiting for its commit stops waiting - its unit stays queued -
-// unless --troeDownExit, where no response leaves before its history is recorded (mutex held)
+// and taken out of the queue (mutex held)
 //
 static void waitersRelease(TsWriter* wP)
 {
@@ -291,7 +304,7 @@ static void waitersRelease(TsWriter* wP)
   {
     TsUnit* nextP = uP->next;
 
-    if ((uP->wait == true) && (uP->waitResult == true))
+    if (uP->wait == true)
     {
       if (prevP == NULL)
         wP->head = nextP;
@@ -305,14 +318,7 @@ static void waitersRelease(TsWriter* wP)
       unitDone(uP);
     }
     else
-    {
-      if ((uP->wait == true) && (timescaleDownExit == 0))
-      {
-        uP->released = true;
-        pthread_cond_signal(&uP->doneCond);
-      }
       prevP = uP;
-    }
 
     uP = nextP;
   }
@@ -472,7 +478,7 @@ static void* writerMain(void* arg)
     else if (probe == false)
       pthread_cond_signal(&wP->workCond);    // more to do - for another writer
 
-    queueAdd(wP, -bytes, -unitN);
+    queueCount(wP, -bytes, -unitN);
     wP->busyN += 1;
     pthread_cond_broadcast(&wP->roomCond);
     pthread_mutex_unlock(&wP->mutex);
@@ -492,8 +498,14 @@ static void* writerMain(void* arg)
     if ((probe == true) && (doneN > 0) && (wP->down == true))
       writerUp(wP);
 
+    int64_t doneBytes = 0;
+
     for (int ix = 0; ix < doneN; ix++)
+    {
+      doneBytes += tsUnitBytes(unitV[ix]);
       unitDone(unitV[ix]);
+    }
+    atomic_fetch_add(&heldBytes, -doneBytes);
 
     if ((doneN < unitN) && (wP->stop == false))
     {
@@ -512,7 +524,7 @@ static void* writerMain(void* arg)
         backBytes += tsUnitBytes(unitV[ix]);
       }
 
-      queueAdd(wP, backBytes, unitN - doneN);
+      queueCount(wP, backBytes, unitN - doneN);   // still held - they never stopped being
       writerDown(wP);
     }
     else if (doneN < unitN)
@@ -521,14 +533,17 @@ static void* writerMain(void* arg)
       // Stopping, and the database down: what is held cannot be recorded - this batch's units and
       // every one still queued; one try, not one per batch
       //
-      int rowN = 0;
+      int     rowN      = 0;
+      int64_t lostBytes = 0;
 
       for (int ix = doneN; ix < unitN; ix++)
       {
-        rowN += tsUnitRows(unitV[ix]);
+        rowN      += tsUnitRows(unitV[ix]);
+        lostBytes += tsUnitBytes(unitV[ix]);
         unitV[ix]->rc = TROE_ERR;
         unitDone(unitV[ix]);
       }
+      atomic_fetch_add(&heldBytes, -lostBytes);
 
       while (wP->head != NULL)
       {
@@ -680,8 +695,7 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
   }
 
   //
-  // The database down: an import is told at once; a --troeSync request does not wait for a commit
-  // that is not coming - but with --troeDownExit it does: the broker exits before it answers
+  // The database down: an import is told at once
   //
   if ((wP->down == true) && (wait == TsWaitResult))
   {
@@ -691,9 +705,6 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
     *rcP = TROE_ERR;
     return true;
   }
-
-  if ((wP->down == true) && (wait == TsWaitCommit) && (timescaleDownExit == 0))
-    wait = TsWaitNone;
 
   while ((wP->queuedBytes > 0) && (wP->queuedBytes + bytes > QUEUE_BYTES_MAX) && (wP->stop == false) && (wP->down == false))
     pthread_cond_wait(&wP->roomCond, &wP->mutex);
@@ -710,11 +721,9 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
   }
 
   uP->next       = NULL;
-  uP->wait       = (wait != TsWaitNone);
-  uP->waitResult = (wait == TsWaitResult);
-  uP->done       = false;
-  uP->released   = false;
-  uP->seq        = ++wP->seq;
+  uP->wait = (wait == TsWaitResult);
+  uP->done = false;
+  uP->seq  = ++wP->seq;
 
   if (uP->wait == true)
     pthread_cond_init(&uP->doneCond, NULL);
@@ -742,23 +751,14 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
     return true;
   }
 
-  while ((uP->done == false) && (uP->released == false))
+  while (uP->done == false)
     pthread_cond_wait(&uP->doneCond, &wP->mutex);
 
   pthread_cond_destroy(&uP->doneCond);
 
-  if (uP->done == true)
-  {
-    *rcP = uP->rc;
-    pthread_mutex_unlock(&wP->mutex);
-    tsUnitFree(uP);
-    return true;
-  }
-
-  // Released - the database went down: the unit stays queued, the writers' to free
-  uP->wait = false;
+  *rcP = uP->rc;
   pthread_mutex_unlock(&wP->mutex);
-  *rcP = TROE_ERR;
+  tsUnitFree(uP);
   return true;
 }
 
