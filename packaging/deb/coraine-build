@@ -394,7 +394,7 @@ find "$B/src/plugins" -name '*.so' | while read -r so; do
   case "$kind" in
     currentState) d=db/currentState ;;
     temporal)     d=troe/temporal ;;
-    api|bridge|transport) d=$kind ;;
+    api|auth|bridge|transport) d=$kind ;;
     *) continue ;;
   esac
   mkdir -p "$INST/plugins/$d"
