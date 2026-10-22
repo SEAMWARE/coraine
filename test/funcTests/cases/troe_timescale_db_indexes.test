@@ -26,7 +26,7 @@
 #     every tenant
 #   - a restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes are
 #     dropped, the one made in the database is not
-#   - --troeValueIndexes not an array of declarations: the broker does not start
+#   - --troeValueIndexes not an array of declarations, or a short name (the option takes IRIs): the broker does not start
 #
 # Reads timescale's own indexes (psql) - not a store-independent check:
 # REQUIRE_TROEDB: timescale
@@ -40,7 +40,7 @@ troe timescale postgres admin cli q
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --apiPlugins admin --troe timescale --troeValueIndexes speed
+coraineStart --apiPlugins admin --troe timescale --troeValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 
 --RUN--
 B=http://localhost:$CB_PORT
@@ -192,12 +192,15 @@ echo
 echo
 
 
-echo "08. --troeValueIndexes not an array of declarations: the broker does not start"
+echo "08. --troeValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "==========================================================================="
 coraineStop
 timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "timescale: --troeValueIndexes: each declaration is .*" /tmp/troeValueIndexes.$$ | head -1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes speed > /tmp/troeValueIndexes.$$ 2>&1
+echo "exit: $?"
+grep -o "timescale: --troeValueIndexes: .* is not an IRI.*" /tmp/troeValueIndexes.$$ | head -1
 rm -f /tmp/troeValueIndexes.$$
 echo
 echo
@@ -293,10 +296,12 @@ CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'temp'::text)
 
 
-08. --troeValueIndexes not an array of declarations: the broker does not start
+08. --troeValueIndexes not an array of declarations, or a short name: the broker does not start
 ===========================================================================
 exit: 1
 timescale: --troeValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+exit: 1
+timescale: --troeValueIndexes: 'speed' is not an IRI - the option takes attributes and entity types expanded (the core @context's: https://uri.etsi.org/ngsi-ld/default-context/speed)
 
 
 --TEARDOWN--

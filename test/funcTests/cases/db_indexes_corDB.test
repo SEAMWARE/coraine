@@ -31,7 +31,7 @@
 #   - a restart on the same --dbDir without --dbValueIndexes: the admin API's declaration is still there, speed is
 #     not
 #   - DELETE: an unknown 404, the admin API's 204
-#   - --dbValueIndexes not an array of declarations: the broker does not start
+#   - --dbValueIndexes not an array of declarations, or a short name (the option takes IRIs): the broker does not start
 #
 # REQUIRE_DB: corDB
 #
@@ -43,7 +43,7 @@ cordb query q admin cli persistence
 
 --INIT--
 rm -rf /tmp/corTest-db_indexes_corDB
-coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_corDB --dbValueIndexes speed
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_corDB --dbValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 
 --RUN--
 DIR=/tmp/corTest-db_indexes_corDB
@@ -240,12 +240,15 @@ echo
 echo
 
 
-echo "11. --dbValueIndexes not an array of declarations: the broker does not start"
+echo "11. --dbValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "======================================================================="
 coraineStop
 timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexesCorDB.$$ 2>&1
 echo "exit: $?"
 grep -o "corDB: --dbValueIndexes: each declaration is .*" /tmp/dbIndexesCorDB.$$ | head -1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes speed > /tmp/dbIndexesCorDB.$$ 2>&1
+echo "exit: $?"
+grep -o "corDB: --dbValueIndexes: .* is not an IRI.*" /tmp/dbIndexesCorDB.$$ | head -1
 rm -f /tmp/dbIndexesCorDB.$$
 echo
 echo
@@ -372,10 +375,12 @@ type=T q=temp==20: urn:H1 urn:H2
 declarations: []
 
 
-11. --dbValueIndexes not an array of declarations: the broker does not start
+11. --dbValueIndexes not an array of declarations, or a short name: the broker does not start
 =======================================================================
 exit: 1
 corDB: --dbValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+exit: 1
+corDB: --dbValueIndexes: 'speed' is not an IRI - the option takes attributes and entity types expanded (the core @context's: https://uri.etsi.org/ngsi-ld/default-context/speed)
 
 
 --TEARDOWN--

@@ -52,8 +52,6 @@
 #include "corJson/CorJson.h"                         // CorJson
 #include "corJson/corJsonCreate.h"                   // corJsonCreate
 #include "corJson/corJsonParse.h"                    // corJsonParse
-#include "corJsonld/corLdInit.h"                     // corLdCoreContext
-#include "corJsonld/corLdExpand.h"                   // corLdExpand
 #include "corNgsild/LdQ.h"                           // LdQNode
 #include "corRest/CorRestState.h"                    // corRest
 
@@ -392,16 +390,22 @@ static bool declsLoad(PGconn* conn)
 
 // -----------------------------------------------------------------------------
 //
-// optionDeclare - one declaration of --troeValueIndexes: its names expanded with the core @context (a name
-// with a ':' is taken as it is)
+// optionDeclare - one declaration of --troeValueIndexes: its attribute and type are IRIs. The option has no @context,
+// and the core one is not necessarily the one the clients' names are expanded with: a short name (no ':')
+// is an error, not a guess
 //
-static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, const char* tenant)
+static bool optionDeclare(const char* attr, const char* type, const char* tenant)
 {
-  char  errorText[256];
-  char* attrIri = corLdExpand(corLdCoreContext(), attr, allocP, NULL, NULL);
-  char* typeIri = (type != NULL)? corLdExpand(corLdCoreContext(), type, allocP, NULL, NULL) : NULL;
+  char        errorText[256];
+  const char* shortName = (strchr(attr, ':') == NULL)? attr : ((type != NULL) && (strchr(type, ':') == NULL))? type : NULL;
 
-  if (declAdd((attrIri != NULL)? attrIri : attr, (typeIri != NULL)? typeIri : type, tenant, false, errorText, sizeof(errorText)) != DB_OK)
+  if (shortName != NULL)
+  {
+    COR_E("timescale: --troeValueIndexes: '%s' is not an IRI - the option takes attributes and entity types expanded (the core @context's: https://uri.etsi.org/ngsi-ld/default-context/%s)", shortName, shortName);
+    return false;
+  }
+
+  if (declAdd(attr, type, tenant, false, errorText, sizeof(errorText)) != DB_OK)
   {
     COR_E("timescale: --troeValueIndexes: %s", errorText);
     return false;
@@ -414,7 +418,7 @@ static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, 
 
 // -----------------------------------------------------------------------------
 //
-// optionParse - --troeValueIndexes: attribute names, comma-separated - or a JSON array of
+// optionParse - --troeValueIndexes: attribute IRIs, comma-separated - or a JSON array of
 // { "attribute": , "type"?: , "tenant"?: }
 //
 static bool optionParse(const char* option)
@@ -456,7 +460,7 @@ static bool optionParse(const char* option)
         ok = false;
       }
       else
-        ok = optionDeclare(&alloc, attrP->value.s, (typeP != NULL)? typeP->value.s : NULL, (tenantP != NULL)? tenantP->value.s : NULL);
+        ok = optionDeclare(attrP->value.s, (typeP != NULL)? typeP->value.s : NULL, (tenantP != NULL)? tenantP->value.s : NULL);
     }
   }
   else
@@ -467,7 +471,7 @@ static bool optionParse(const char* option)
     for (int ix = 0; (ok == true) && (ix < nameN); ix++)
     {
       if (nameV[ix][0] != 0)
-        ok = optionDeclare(&alloc, nameV[ix], NULL, NULL);
+        ok = optionDeclare(nameV[ix], NULL, NULL);
     }
   }
 

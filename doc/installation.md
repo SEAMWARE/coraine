@@ -645,12 +645,16 @@ Which one weighs more is the workload's: how often the attribute is written, how
 Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
 ```
---dbValueIndexes speed,temperature
---dbValueIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
+--dbValueIndexes https://example.org/ontology/speed,https://example.org/ontology/temperature
+--dbValueIndexes '[{"attribute": "https://example.org/ontology/speed", "type": "https://example.org/ontology/Vehicle"},
+                   {"attribute": "https://example.org/ontology/temperature", "tenant": "t1"}]'
 ```
 
-- names, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
-- a short name is expanded with the core @context; an IRI is taken as it is
+- the attributes and entity types **expanded** - their IRIs, as the clients' @context expands them. The option has
+  no @context, so a short name (no `:`) is an error: the broker does not start, and says the core @context's IRI
+  of the name (`https://uri.etsi.org/ngsi-ld/default-context/speed`) - the one to use when the clients send no
+  @context of their own
+- IRIs, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
 - an error in it: the broker does not start
 - taken out of `--dbValueIndexes`: its index is gone at the next start
 
@@ -723,8 +727,8 @@ covers:
 | `cor_t_<id>` | `v_text` | the same |
 
 ```
---troeValueIndexes speed,temperature
---troeValueIndexes '[{"attribute": "speed", "type": "Vehicle"}]'
+--troeValueIndexes https://example.org/ontology/speed,https://example.org/ontology/temperature
+--troeValueIndexes '[{"attribute": "https://example.org/ontology/speed", "type": "https://example.org/ontology/Vehicle"}]'
 ```
 
 The option has the same format and rules as `--dbValueIndexes`. The admin API:

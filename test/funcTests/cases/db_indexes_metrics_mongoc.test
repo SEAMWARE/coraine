@@ -31,7 +31,7 @@ mongoc metrics admin q
 
 --INIT--
 corDbDrop
-coraineStart --apiPlugins admin --dbValueIndexes speed
+coraineStart --apiPlugins admin --dbValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
 
 --RUN--
 B=http://localhost:$CB_PORT
