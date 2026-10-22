@@ -208,7 +208,7 @@ Six things worth taking from that table:
 - **`--database corDB --dbDir <dir> --troe corDB` needs no other service at all** —
   the store and its temporal history on disk, in the same process. On eight cores
   the history costs a write 4-43 % (PATCH: 120 379/s against 145 664 without it);
-  in TimescaleDB it costs coraine + MongoDB 52-97 % (PATCH: 8 478/s against 17 486).
+  in TimescaleDB it costs coraine + MongoDB 1-80 % (PATCH: 13 215/s against 17 486).
 - **The page size is the claim.** 12 577 requests/s per core at `limit=20` is
   **251 540 entities/s per core**; at `limit=1` it is 82 672 of each; at
   `limit=100` it is **275 000 entities/s**. A requests/s figure without the

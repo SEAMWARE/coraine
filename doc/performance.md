@@ -893,46 +893,48 @@ cores of machine to do what `corDB` does on one.
 
 | | coraine + MongoDB | coraine + MongoDB + TimescaleDB | coraine, corDB on disk | coraine, corDB on disk + history | coraine, ramDB | Orion-LD + MongoDB | Orion-LD + MongoDB + PostgreSQL |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| create | 43 811 | 4 680 | 117 299 | 83 325 | 201 907 | 6 508 | 5 009 |
-| create, 1 connection | 8 181 | 748 | 28 540 | 22 816 | 31 407 | 4 203 | 1 043 |
-| batch create (20) | 12 070 | 391 | 13 864 | 7 955 | 51 141 | 3 610 | 1 804 |
-| merge | 27 150 | 7 453 | 101 528 | 80 441 | 124 902 | 6 437 | 5 308 |
-| `PATCH` | 17 486 | 8 478 | 145 664 | 120 379 | 174 382 | 6 519 | 5 497 |
-| `PATCH`, 1 connection | 3 891 | 888 | 38 332 | 36 714 | 39 631 | 3 504 | 964 |
-| batch update (20) | 3 130 | 790 | 34 762 | 23 239 | 40 501 | 2 472 | 2 120 |
-| `DELETE` | 28 399 | 9 920 | 205 280 | 183 448 | 221 244 | 18 912 | 9 343 |
-| batch delete (20) | 7 351 | 2 134 | 67 070 | 48 329 | 69 480 | 3 163 | 2 467 |
-| `GET /entities/{id}` | 55 595 | 53 776 | 481 812 | 493 889 | 469 348 | 31 727 | 31 441 |
-| query, `limit=20` | 24 143 | 22 501 | 76 649 | 78 933 | 76 213 | 5 543 | 5 507 |
+| create | 43 811 | 25 605 | 117 299 | 83 325 | 201 907 | 6 508 | 5 009 |
+| create, 1 connection | 8 181 | 8 112 | 28 540 | 22 816 | 31 407 | 4 203 | 1 043 |
+| batch create (20) | 12 070 | 2 463 | 13 864 | 7 955 | 51 141 | 3 610 | 1 804 |
+| merge | 27 150 | 19 195 | 101 528 | 80 441 | 124 902 | 6 437 | 5 308 |
+| `PATCH` | 17 486 | 13 215 | 145 664 | 120 379 | 174 382 | 6 519 | 5 497 |
+| `PATCH`, 1 connection | 3 891 | 3 424 | 38 332 | 36 714 | 39 631 | 3 504 | 964 |
+| batch update (20) | 3 130 | 2 227 | 34 762 | 23 239 | 40 501 | 2 472 | 2 120 |
+| `DELETE` | 28 399 | 23 547 | 205 280 | 183 448 | 221 244 | 18 912 | 9 343 |
+| batch delete (20) | 7 351 | 6 278 | 67 070 | 48 329 | 69 480 | 3 163 | 2 467 |
+| `GET /entities/{id}` | 55 595 | 51 998 | 481 812 | 493 889 | 469 348 | 31 727 | 31 441 |
+| query, `limit=20` | 24 143 | 22 957 | 76 649 | 78 933 | 76 213 | 5 543 | 5 507 |
 
 **Latency, p50 / p95 / p99, ms:**
 
 | | coraine + MongoDB | coraine + MongoDB + TimescaleDB | coraine, corDB on disk | coraine, corDB on disk + history | coraine, ramDB | Orion-LD + MongoDB | Orion-LD + MongoDB + PostgreSQL |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| create | 1.08 / 1.44 / 2.37 | 8.97 / 22.3 / 34.7 | 0.32 / 8.38 / 15.6 | 0.42 / 16.4 / 35.9 | 0.23 / 0.37 / 0.45 | 6.86 / 14.6 / 19.3 | 9.41 / 18.3 / 25.4 |
-| create, 1 connection | 0.11 / 0.18 / 0.20 | 1.32 / 1.44 / 21.5 | 0.03 / 0.04 / 1.02 | 0.04 / 0.06 / 1.32 | 0.03 / 0.03 / 0.04 | 0.23 / 0.28 / 0.34 | 0.92 / 1.13 / 1.21 |
-| batch create (20) | 3.60 / 9.55 / 27.3 | 109 / 261 / 357 | 2.35 / 10.1 / 12.5 | 4.09 / 24.8 / 78.6 | 0.83 / 1.92 / 2.85 | 12.4 / 27.9 / 38.3 | 26.2 / 46.6 / 61.8 |
-| merge | 1.76 / 2.15 / 2.50 | 6.09 / 11.5 / 13.7 | 0.46 / 0.86 / 1.06 | 0.54 / 1.15 / 1.43 | 0.38 / 0.63 / 0.76 | 7.35 / 11.9 / 15.2 | 8.95 / 17.0 / 22.9 |
-| `PATCH` | 2.73 / 3.20 / 3.48 | 5.10 / 11.8 / 15.6 | 0.32 / 0.56 / 0.69 | 0.36 / 0.76 / 0.94 | 0.26 / 0.45 / 0.54 | 7.25 / 11.8 / 14.7 | 8.63 / 16.6 / 22.8 |
-| `PATCH`, 1 connection | 0.24 / 0.29 / 0.31 | 1.12 / 1.27 / 1.35 | 0.02 / 0.03 / 0.03 | 0.03 / 0.03 / 0.03 | 0.02 / 0.02 / 0.03 | 0.28 / 0.29 / 0.32 | 1.04 / 1.09 / 1.19 |
-| batch update (20) | 15.3 / 17.8 / 19.1 | 58.1 / 112 / 137 | 1.32 / 1.83 / 2.51 | 1.95 / 2.97 / 3.97 | 1.17 / 1.37 / 1.50 | 18.6 / 31.4 / 39.3 | 21.7 / 40.9 / 53.8 |
-| `DELETE` | 1.65 / 1.98 / 2.49 | 3.51 / 9.92 / 13.4 | 0.19 / 0.37 / 0.45 | 0.23 / 0.40 / 0.47 | 0.17 / 0.37 / 0.46 | 2.46 / 3.91 / 5.37 | 5.09 / 8.93 / 12.0 |
-| batch delete (20) | 5.71 / 13.3 / 15.9 | 16.2 / 47.9 / 65.4 | 0.66 / 0.86 / 0.96 | 0.92 / 1.34 / 1.49 | 0.57 / 0.80 / 1.18 | 13.7 / 27.0 / 35.9 | 16.5 / 38.1 / 75.2 |
-| `GET /entities/{id}` | 0.86 / 1.11 / 1.33 | 0.89 / 1.14 / 1.36 | 0.10 / 0.17 / 0.18 | 0.09 / 0.13 / 0.14 | 0.10 / 0.16 / 0.17 | 1.47 / 2.79 / 4.11 | 1.48 / 2.84 / 4.18 |
-| query, `limit=20` | 1.98 / 2.76 / 3.36 | 2.12 / 2.99 / 3.60 | 0.63 / 1.16 / 1.17 | 0.54 / 0.93 / 0.94 | 0.60 / 1.06 / 1.08 | 7.94 / 17.2 / 21.7 | 8.01 / 17.5 / 22.4 |
+| create | 1.08 / 1.44 / 2.37 | 1.59 / 13.9 / 28.5 | 0.32 / 8.38 / 15.6 | 0.42 / 16.4 / 35.9 | 0.23 / 0.37 / 0.45 | 6.86 / 14.6 / 19.3 | 9.41 / 18.3 / 25.4 |
+| create, 1 connection | 0.11 / 0.18 / 0.20 | 0.11 / 0.15 / 0.17 | 0.03 / 0.04 / 1.02 | 0.04 / 0.06 / 1.32 | 0.03 / 0.03 / 0.04 | 0.23 / 0.28 / 0.34 | 0.92 / 1.13 / 1.21 |
+| batch create (20) | 3.60 / 9.55 / 27.3 | 18.4 / 68.3 / 109 | 2.35 / 10.1 / 12.5 | 4.09 / 24.8 / 78.6 | 0.83 / 1.92 / 2.85 | 12.4 / 27.9 / 38.3 | 26.2 / 46.6 / 61.8 |
+| merge | 1.76 / 2.15 / 2.50 | 2.44 / 4.10 / 4.78 | 0.46 / 0.86 / 1.06 | 0.54 / 1.15 / 1.43 | 0.38 / 0.63 / 0.76 | 7.35 / 11.9 / 15.2 | 8.95 / 17.0 / 22.9 |
+| `PATCH` | 2.73 / 3.20 / 3.48 | 3.56 / 5.98 / 6.70 | 0.32 / 0.56 / 0.69 | 0.36 / 0.76 / 0.94 | 0.26 / 0.45 / 0.54 | 7.25 / 11.8 / 14.7 | 8.63 / 16.6 / 22.8 |
+| `PATCH`, 1 connection | 0.24 / 0.29 / 0.31 | 0.28 / 0.33 / 0.37 | 0.02 / 0.03 / 0.03 | 0.03 / 0.03 / 0.03 | 0.02 / 0.02 / 0.03 | 0.28 / 0.29 / 0.32 | 1.04 / 1.09 / 1.19 |
+| batch update (20) | 15.3 / 17.8 / 19.1 | 21.5 / 28.9 / 32.8 | 1.32 / 1.83 / 2.51 | 1.95 / 2.97 / 3.97 | 1.17 / 1.37 / 1.50 | 18.6 / 31.4 / 39.3 | 21.7 / 40.9 / 53.8 |
+| `DELETE` | 1.65 / 1.98 / 2.49 | 1.94 / 3.42 / 4.33 | 0.19 / 0.37 / 0.45 | 0.23 / 0.40 / 0.47 | 0.17 / 0.37 / 0.46 | 2.46 / 3.91 / 5.37 | 5.09 / 8.93 / 12.0 |
+| batch delete (20) | 5.71 / 13.3 / 15.9 | 6.93 / 14.8 / 19.2 | 0.66 / 0.86 / 0.96 | 0.92 / 1.34 / 1.49 | 0.57 / 0.80 / 1.18 | 13.7 / 27.0 / 35.9 | 16.5 / 38.1 / 75.2 |
+| `GET /entities/{id}` | 0.86 / 1.11 / 1.33 | 0.92 / 1.21 / 1.48 | 0.10 / 0.17 / 0.18 | 0.09 / 0.13 / 0.14 | 0.10 / 0.16 / 0.17 | 1.47 / 2.79 / 4.11 | 1.48 / 2.84 / 4.18 |
+| query, `limit=20` | 1.98 / 2.76 / 3.36 | 2.07 / 3.00 / 3.66 | 0.63 / 1.16 / 1.17 | 0.54 / 0.93 / 0.94 | 0.60 / 1.06 / 1.08 | 7.94 / 17.2 / 21.7 | 8.01 / 17.5 / 22.4 |
 
 Eight physical cores for the whole deployment - the broker, and the databases it needs (mongod 8.2 and
 PostgreSQL 16 + TimescaleDB as containers on the host network - no port mapping - pinned to the same
 cores); the load generator on the other eight, standing in for clients. 50 connections unless said,
-median of 3 × 5 s, `test/perf/perfRun.sh`, AMD Ryzen 9 8940HX, 2026-10-05. coraine a PGO release,
+median of 3 × 5 s, `test/perf/perfRun.sh`, AMD Ryzen 9 8940HX, 2026-10-05 - the column coraine +
+MongoDB + TimescaleDB 2026-10-21, its history written by the writers (`--troeWriters`, 8); the reads,
+which no history touches, came out 3-6 % apart across the two dates. coraine a PGO release,
 corDB on disk with `--dbDir`, its log memory-mapped: a write's record is in the kernel before the
 response, so a broker that dies loses nothing it acknowledged, and a machine that dies at most the
 last 100 ms - MongoDB's default. Orion-LD 1.15.0-next, its release build (`-O3`), `-mongocOnly`.
 
-- **History is where it shows.** In a database server it costs a write 52-97 % (coraine + MongoDB +
-  TimescaleDB: create 43 811 → 4 680; Orion-LD + PostgreSQL 14-75 %); in corDB 4-43 %, and coraine with corDB
-  and its history outruns MongoDB without any on every write but batch create (20) - and MongoDB + TimescaleDB
-  11-41×.
+- **History is where it shows.** In a database server it costs a write 1-80 % (coraine + MongoDB +
+  TimescaleDB: create 43 811 → 25 605, batch create (20) 12 070 → 2 463; Orion-LD + PostgreSQL 14-75 %);
+  in corDB 4-43 %, and coraine with corDB and its history outruns MongoDB without any on every write but
+  batch create (20) - and MongoDB + TimescaleDB 2.8-11×.
 - **Against Orion-LD with its history**: coraine with corDB and its history is 4.4-38× on every row,
   reads included.
 - **Persistence costs little:** ramDB, no disk at all, is 1.0-1.7× corDB on disk; 3.7× on batch
@@ -940,7 +942,7 @@ last 100 ms - MongoDB's default. Orion-LD 1.15.0-next, its release build (`-O3`)
 - **Reads** do not touch history in any configuration. corDB answers a retrieve 8.7× MongoDB's rate,
   481 812 a second at a p99 of 0.18 ms.
 - **The tails of a write** follow the throughput: p99 of a batch update 3.97 ms (corDB + history) against
-  137 ms (MongoDB + TimescaleDB).
+  32.8 ms (MongoDB + TimescaleDB).
 
 ### TimescaleDB: the write path
 
