@@ -13,13 +13,13 @@
 # attribute, type (a declaration narrowed to one), tenant ("" = the default) - the names compacted with the
 # core @context.
 #
-#   - --dbIndexes speed: a series per family for the default tenant - not built before a query uses it
+#   - --dbValueIndexes speed: a series per family for the default tenant - not built before a query uses it
 #   - two entities, a q on speed: built, 2 entries, 1 access
 #   - a PATCH of speed: 1 update; a PATCH of another attribute: none
 #   - POST a declaration narrowed to a type: its series, the type a label - in every tenant, t1 too; every
 #     store's indexes built again at once, speed's too (corDB: its counters from 0)
 #   - DELETE it: its series gone; speed's index dropped, built again by the next q that can use it
-#   - started without --dbIndexes on a new --dbDir: no ngsild_index_ at all
+#   - started without --dbValueIndexes on a new --dbDir: no ngsild_index_ at all
 #
 # REQUIRE_DB: corDB
 #
@@ -31,7 +31,7 @@ cordb metrics admin q
 
 --INIT--
 rm -rf /tmp/corTest-db_indexes_metrics_corDB /tmp/corTest-db_indexes_metrics_corDB-2
-coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB --dbIndexes speed
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB --dbValueIndexes speed
 
 --RUN--
 B=http://localhost:$CB_PORT
@@ -46,7 +46,7 @@ metrics() {
 code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
 
 
-echo "01. --dbIndexes speed: a series per family for the default tenant - not built before a query uses it"
+echo "01. --dbValueIndexes speed: a series per family for the default tenant - not built before a query uses it"
 echo "======================================================================================================"
 curl -s "$B/admin/metrics" | grep -aE '^# TYPE ngsild_index_'
 metrics
@@ -94,7 +94,7 @@ echo
 echo
 
 
-echo "06. Started without --dbIndexes on a new --dbDir: no ngsild_index_ at all"
+echo "06. Started without --dbValueIndexes on a new --dbDir: no ngsild_index_ at all"
 echo "========================================================================="
 coraineStop
 coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_metrics_corDB-2
@@ -104,7 +104,7 @@ echo
 
 
 --EXPECT--
-01. --dbIndexes speed: a series per family for the default tenant - not built before a query uses it
+01. --dbValueIndexes speed: a series per family for the default tenant - not built before a query uses it
 ======================================================================================================
 # TYPE ngsild_index_built gauge
 # TYPE ngsild_index_entries gauge
@@ -171,7 +171,7 @@ ngsild_index_accesses_total{id="<id>",attribute="speed",tenant=""} 1
 ngsild_index_accesses_total{id="<id>",attribute="speed",tenant="t1"} 0
 
 
-06. Started without --dbIndexes on a new --dbDir: no ngsild_index_ at all
+06. Started without --dbValueIndexes on a new --dbDir: no ngsild_index_ at all
 =========================================================================
 0
 

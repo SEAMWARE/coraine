@@ -357,7 +357,7 @@ typedef int  (*DbEntityTypesFunc)(Tenant* tenantP, const char* entityId, CorNode
 
 // -----------------------------------------------------------------------------
 //
-// The declared indexes (/admin/indexes; a store's own option at start, mongoc's --dbIndexes) - NULL-allowed,
+// The declared indexes (/admin/indexes; a store's own option at start, mongoc's --dbValueIndexes) - NULL-allowed,
 // the three together: the store has no declared indexes, and /admin/indexes answers 501.
 //
 // A declaration: an attribute - an entity type and a tenant too, if given - whose q value terms an index

@@ -1,0 +1,305 @@
+#
+# FILE            troe_timescale_db_indexes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: DB_INDEXES
+#
+# Declared indexes of the history, timescale (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an
+# index of troe_attrs serves - declared at start (--troeValueIndexes) or through the admin API
+# (/admin/troeIndexes). Each declaration is two partial indexes of troe_attrs in the database of every
+# tenant it covers: cor_n_<id> (v_number) and cor_t_<id> (v_text), WHERE attr_name = <attr> (and the type,
+# if one is declared). The indexes made in the database that serve a q value term are found too.
+#
+#   - --troeValueIndexes speed: its two indexes; GET /admin/troeIndexes lists it, by "troeValueIndexes"
+#   - a temporal query with a q on speed takes its entities from the index - "candidates" in the SQL the
+#     broker traces (level 404), and the index's scans counted - the same entities as q: an AND with a term
+#     on another attribute, an OR of two served terms; an OR with a term no index serves: every entity
+#   - POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400 - its
+#     indexes narrowed to the type
+#   - a tenant whose history is opened later gets the indexes of the declarations that cover it
+#   - an index made in the database (psql) on one attribute's v_text: listed, by "database", in
+#     /admin/metrics too, and used by a q on that attribute
+#   - DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in
+#     every tenant
+#   - a restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes are
+#     dropped, the one made in the database is not
+#   - --troeValueIndexes not an array of declarations: the broker does not start
+#
+# Reads timescale's own indexes (psql) - not a store-independent check:
+# REQUIRE_TROEDB: timescale
+#
+--NAME--
+TRoE timescale - declared indexes: --troeValueIndexes and /admin/troeIndexes, created per tenant, used by q, found in the database
+
+--TAGS--
+troe timescale postgres admin cli q
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --apiPlugins admin --troe timescale --troeValueIndexes speed
+
+--RUN--
+B=http://localhost:$CB_PORT
+PSQL="psql -h $COR_TROE_HOST -p $COR_TROE_PORT -U $COR_TROE_USER -X -q -tA"
+
+#
+# idx <db> - the indexes of troe_attrs that are not the broker's basic ones, their ids as <id>
+#
+idx() {
+  $PSQL -d "$1" -c "SELECT indexdef FROM pg_indexes WHERE tablename = 'troe_attrs' AND indexname NOT LIKE 'troe_attrs%' ORDER BY indexname" | sed -e 's/cor_\([nt]\)_[0-9a-f]\{8\}/cor_\1_<id>/' -e 's/https:\/\/uri.etsi.org\/ngsi-ld\/default-context\///g'
+}
+
+#
+# decls - GET /admin/troeIndexes, one line per declaration
+#
+decls() {
+  curl -s "$B/admin/troeIndexes" | jq -r '.[] | "\(.attribute // "-") type=\(.type // "-") tenant=\(.tenant // "-") by \(.declaredBy): " + ([.tenants[] | "[\(.tenant)] built=\(.built)"] | join(" "))'
+}
+
+#
+# accesses <attribute> - the scans GET /admin/troeIndexes counts for an attribute's index, in the default tenant
+# (the attribute as the response names it: compacted)
+#
+accesses() {
+  curl -s "$B/admin/troeIndexes" | jq -r --arg a "$1" '[.[] | select(.attribute == $a) | .tenants[] | select(.tenant == "") | .accesses] | add // 0'
+}
+
+#
+# used <attribute> - "used" once the index's scans are more than before ($2) - Postgres counts them when
+# a backend reports its statistics, up to a second after the query, and at once for the next query after that
+#
+used() {
+  local n
+  for i in $(seq 1 40); do
+    n=$(accesses "$1")
+    [ "$n" -gt "$2" ] && echo "$1: used" && return
+    sleep 0.5
+  done
+  echo "$1: NOT used ($n)"
+}
+
+#
+# sel - how the temporal query just made selected its entities, from the broker's trace of its SQL (level 404):
+# "candidates" when the entity selector takes the entities of the indexes' rows only, "every entity" if not
+#
+sel() {
+  grep -a 'entity selector: ' /tmp/coraine.CB.log | tail -n 1 | grep -qE 'FROM troe_entities WHERE \(*entity_id IN' && echo "candidates" || echo "every entity"
+}
+
+#
+# tq <q> [type] - the ids of a temporal query with q, over the whole history, and how its entities were selected
+#
+tq() {
+  local ids
+  ids=$(curl -s -G "$B/ngsi-ld/v1/temporal/entities" --data-urlencode "type=${2:-V}" --data-urlencode "q=$1" --data-urlencode 'timerel=after' --data-urlencode 'timeAt=2000-01-01T00:00:00Z' --data-urlencode 'timeproperty=modifiedAt' --data-urlencode 'limit=100' --data-urlencode 'lastN=1' | jq -r '.[].id' | sort -V | paste -sd ' ')
+  echo "q=$1 ($(sel)): $ids"
+}
+
+code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
+
+
+echo "01. --troeValueIndexes speed: its two indexes, listed by GET /admin/troeIndexes"
+echo "============================================================================"
+idx $COR_TROE_DB
+decls
+echo
+echo
+
+
+echo "02. 2000 entities; temporal queries with q on speed take their entities from the index - the same entities as q"
+echo "==============================================================================================================="
+for b in 0 1; do
+  for i in $(seq 1 1000); do n=$((b * 1000 + i)); echo "{\"id\":\"urn:V$n\",\"type\":\"V\",\"speed\":{\"type\":\"Property\",\"value\":$n},\"name\":{\"type\":\"Property\",\"value\":\"n$n\"}}"; done | jq -s . > /tmp/troeValueIndexes.$$
+  code -d @/tmp/troeValueIndexes.$$ $B/ngsi-ld/v1/entityOperations/create
+done
+rm -f /tmp/troeValueIndexes.$$
+curl -s -o /dev/null -X POST "$B/admin/log?traceLevels=404"   # the SQL of each temporal query traced: sel
+before=$(accesses speed)
+tq 'speed==1234'
+tq 'speed>1997'
+tq 'speed==10..12'
+tq 'speed==7,1500'
+tq 'speed>1990;name=="n1995"'
+tq 'speed==3|speed==1999'
+tq 'speed==3|name=="n4"'
+sleep 1.1
+tq 'speed==5'
+used speed $before
+echo
+echo
+
+
+echo "03. POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400 - its indexes narrowed to the type"
+echo "============================================================================================================================="
+curl -s -i "$B/admin/troeIndexes" -H 'Content-Type: application/json' -d '{"attribute": "temp", "type": "Room"}' | tr -d '\r' | sed -n '1p;s/^Location: \/admin\/troeIndexes\/[0-9a-f]\{8\}$/Location: \/admin\/troeIndexes\/<id>/p;/^{/,$p' | sed 's/"id": "[0-9a-f]\{8\}"/"id": "<id>"/'
+echo
+code -d '{"attribute": "temp", "type": "Room"}' $B/admin/troeIndexes
+code -d '{"type": "Room"}' $B/admin/troeIndexes
+idx $COR_TROE_DB
+echo
+echo
+
+
+echo "04. A tenant whose history is opened now: the indexes of both declarations"
+echo "=========================================================================="
+code -H 'NGSILD-Tenant: t1' -d '{"id":"urn:R1","type":"Room","temp":{"type":"Property","value":21}}' $B/ngsi-ld/v1/entities
+sleep 0.5
+idx ${COR_TROE_DB}_t1
+decls
+echo
+echo
+
+
+echo "05. An index made in the database on name's v_text: listed, by \"database\", in /admin/metrics too, used by a q on name"
+echo "======================================================================================================================"
+$PSQL -d $COR_TROE_DB -c "CREATE INDEX by_hand ON troe_attrs (v_text) WHERE attr_name = 'https://uri.etsi.org/ngsi-ld/default-context/name'; ANALYZE troe_attrs"
+decls
+curl -s "$B/admin/metrics" | grep -aE '^ngsild_troe_index_built' | sed 's/id="[0-9a-f]\{8\}"/id="<id>"/'
+before=$(accesses name)
+tq 'name=="n1717"'
+sleep 1.1
+tq 'name=="n1718"'
+used name $before
+echo
+echo
+
+
+echo "06. DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant"
+echo "================================================================================================================"
+speedId=$(curl -s $B/admin/troeIndexes | jq -r '.[] | select(.declaredBy == "troeValueIndexes") | .id')
+tempId=$(curl -s $B/admin/troeIndexes | jq -r '.[] | select(.declaredBy == "api") | .id')
+code -X DELETE $B/admin/troeIndexes/$speedId
+code -X DELETE $B/admin/troeIndexes/00000000
+code -X DELETE $B/admin/troeIndexes/$tempId
+idx $COR_TROE_DB
+idx ${COR_TROE_DB}_t1
+echo
+echo
+
+
+echo "07. A restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept"
+echo "============================================================================================================================================"
+code -d '{"attribute": "temp"}' $B/admin/troeIndexes
+coraineStop
+coraineStart --apiPlugins admin --troe timescale
+decls
+idx $COR_TROE_DB
+echo
+echo
+
+
+echo "08. --troeValueIndexes not an array of declarations: the broker does not start"
+echo "==========================================================================="
+coraineStop
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
+echo "exit: $?"
+grep -o "timescale: --troeValueIndexes: each declaration is .*" /tmp/troeValueIndexes.$$ | head -1
+rm -f /tmp/troeValueIndexes.$$
+echo
+echo
+
+
+--EXPECT--
+01. --troeValueIndexes speed: its two indexes, listed by GET /admin/troeIndexes
+============================================================================
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
+speed type=- tenant=- by troeValueIndexes: [] built=true
+
+
+02. 2000 entities; temporal queries with q on speed take their entities from the index - the same entities as q
+===============================================================================================================
+201
+201
+q=speed==1234 (candidates): urn:V1234
+q=speed>1997 (candidates): urn:V1998 urn:V1999 urn:V2000
+q=speed==10..12 (candidates): urn:V10 urn:V11 urn:V12
+q=speed==7,1500 (candidates): urn:V7 urn:V1500
+q=speed>1990;name=="n1995" (candidates): urn:V1995
+q=speed==3|speed==1999 (candidates): urn:V3 urn:V1999
+q=speed==3|name=="n4" (every entity): urn:V3 urn:V4
+q=speed==5 (candidates): urn:V5
+speed: used
+
+
+03. POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400 - its indexes narrowed to the type
+=============================================================================================================================
+HTTP/1.1 201 Created
+Location: /admin/troeIndexes/<id>
+{
+  "id": "<id>",
+  "attribute": "temp",
+  "type": "Room",
+  "declaredBy": "api"
+}
+
+409
+400
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE ((attr_name = 'temp'::text) AND (entity_type && ARRAY['Room'::text]))
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE ((attr_name = 'temp'::text) AND (entity_type && ARRAY['Room'::text]))
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
+
+
+04. A tenant whose history is opened now: the indexes of both declarations
+==========================================================================
+201
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE ((attr_name = 'temp'::text) AND (entity_type && ARRAY['Room'::text]))
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE ((attr_name = 'temp'::text) AND (entity_type && ARRAY['Room'::text]))
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
+speed type=- tenant=- by troeValueIndexes: [] built=true [t1] built=true
+temp type=Room tenant=- by api: [] built=true [t1] built=true
+
+
+05. An index made in the database on name's v_text: listed, by "database", in /admin/metrics too, used by a q on name
+======================================================================================================================
+speed type=- tenant=- by troeValueIndexes: [] built=true [t1] built=true
+temp type=Room tenant=- by api: [] built=true [t1] built=true
+name type=- tenant= by database: [] built=true
+ngsild_troe_index_built{id="<id>",attribute="speed",tenant=""} 1
+ngsild_troe_index_built{id="<id>",attribute="speed",tenant="t1"} 1
+ngsild_troe_index_built{id="<id>",attribute="temp",type="Room",tenant=""} 1
+ngsild_troe_index_built{id="<id>",attribute="temp",type="Room",tenant="t1"} 1
+ngsild_troe_index_built{id="by_hand",attribute="name",tenant=""} 1
+q=name=="n1717" (candidates): urn:V1717
+q=name=="n1718" (candidates): urn:V1718
+name: used
+
+
+06. DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
+================================================================================================================
+409
+404
+204
+CREATE INDEX by_hand ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'name'::text)
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
+
+
+07. A restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept
+============================================================================================================================================
+201
+temp type=- tenant=- by api: [] built=true
+name type=- tenant= by database: [] built=true
+CREATE INDEX by_hand ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'name'::text)
+CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'temp'::text)
+CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'temp'::text)
+
+
+08. --troeValueIndexes not an array of declarations: the broker does not start
+===========================================================================
+exit: 1
+timescale: --troeValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

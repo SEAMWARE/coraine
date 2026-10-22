@@ -14,7 +14,7 @@ bump may still change behaviour; the entry says so where it does.
 ### New
 
 - Declared indexes: the attributes whose `q` an index of the store serves - narrowed to an entity type or a
-  tenant if so declared: `--dbIndexes` at start, `/admin/indexes` on a running broker; each declaration is
+  tenant if so declared: `--dbValueIndexes` at start, `/admin/indexes` on a running broker; each declaration is
   an index in every tenant it covers, a tenant created later included. `mongoc`: two MongoDB indexes per
   declaration; `corDB`: a value index in the store, which a `q` on the attribute takes its candidates from,
   and `GET /admin/indexes` counts the `q` terms it served and the writes that changed it. A `q` on a declared
@@ -26,6 +26,14 @@ bump may still change behaviour; the entry says so where it does.
 - The declared indexes in `/admin/metrics`: `ngsild_index_built`, `_entries`, `_bytes`, `_accesses_total`,
   `_updates_total`, a series per declaration and tenant - what an index gains and costs on the workload, over
   time. ([In /admin/metrics](doc/installation.md#in-adminmetrics))
+- Declared indexes of the TimescaleDB history: `--troeValueIndexes` at start, `/admin/troeIndexes` on a running
+  broker; each declaration is two partial indexes of `troe_attrs` (`v_number`, `v_text`) in every tenant it
+  covers. The indexes made in the database that serve a `q` value term are found too (`pg_indexes`) and listed
+  with `declaredBy: "database"`. A temporal query whose `q` has a term an index serves takes its entities from
+  the index: a selective `q` 626 ms -> 1.2 ms (the selector's SQL, 100 000 entities), a count of 1 % of them
+  618 -> 45 ms; the history's writes -1.6 to -4.3 %. In `/admin/metrics`: `ngsild_troe_index_built`, `_bytes`,
+  `_accesses_total`. Trace level 404 traces the selector's SQL.
+  ([TimescaleDB (the history)](doc/installation.md#timescaledb-the-history))
 
 ### Faster
 

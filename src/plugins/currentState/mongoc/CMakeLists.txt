@@ -71,7 +71,7 @@ IF (COR_FEATURE_HEALTH)
 ENDIF()
 
 #
-# The declared indexes (--dbIndexes, DbDriver index*) - served through the q pre-filter (mongocEntityQuery.c):
+# The declared indexes (--dbValueIndexes, DbDriver index*) - served through the q pre-filter (mongocEntityQuery.c):
 # without it there is nothing for an index to serve
 #
 IF (COR_FEATURE_DB_INDEXES AND COR_FEATURE_Q_PREFILTER)

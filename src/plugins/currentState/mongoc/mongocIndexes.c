@@ -8,7 +8,7 @@
 //
 // The declared indexes (doc/installation.md, "Declared indexes"): an attribute - narrowed to an entity
 // type, to a tenant, if so declared - whose q value terms an index serves. Declared at start
-// (--dbIndexes) or through the admin API (/admin/indexes, kept in the default tenant's database:
+// (--dbValueIndexes) or through the admin API (/admin/indexes, kept in the default tenant's database:
 // <db>.metadata { _id: "dbIndexes", declarations: [ { attribute, type?, tenant? } ] }).
 //
 // A declaration is two indexes in the entities collection of every tenant it covers - the q pre-filter's
@@ -23,7 +23,7 @@
 // names the type too (8.2: a query of 20 000 entities read them all through the type index) - and it
 // holds the few attributes with an instance of a datasetId whatever their entity's type. <id> is the declaration's: 8 hex digits of
 // a CRC-32C of its attribute, type and tenant. An index of this plugin's naming (cor_v_*, cor_d_*) that
-// no declaration names is dropped at a tenant's setup: a declaration taken out of --dbIndexes is gone at
+// no declaration names is dropped at a tenant's setup: a declaration taken out of --dbValueIndexes is gone at
 // the next start.
 //
 #include <stdbool.h>                                 // bool
@@ -78,14 +78,14 @@ typedef struct IndexDecl
   char*  attr;           // expanded
   char*  type;           // expanded - NULL: every type
   char*  tenant;         // NULL: every tenant
-  bool   api;            // made through /admin/indexes (kept in the database) - false: --dbIndexes
+  bool   api;            // made through /admin/indexes (kept in the database) - false: --dbValueIndexes
 } IndexDecl;
 
 
 
 // -----------------------------------------------------------------------------
 //
-// declV - the declarations, --dbIndexes's first. 24 at most: two indexes each, and MongoDB's limit is 64
+// declV - the declarations, --dbValueIndexes's first. 24 at most: two indexes each, and MongoDB's limit is 64
 // indexes per collection, the broker's own and the geo ones among them
 //
 static IndexDecl        declV[24];
@@ -155,7 +155,7 @@ static int declAdd(const char* attr, const char* type, const char* tenant, bool 
   int ix = declLookup(d.id);
   if (ix >= 0)
   {
-    snprintf(errorText, errorTextLen, "'%s' is declared already (%s, by %s)", attr, d.id, declV[ix].api? "the admin API" : "--dbIndexes");
+    snprintf(errorText, errorTextLen, "'%s' is declared already (%s, by %s)", attr, d.id, declV[ix].api? "the admin API" : "--dbValueIndexes");
     declFree(&d);
     return DB_ALREADY_EXISTS;
   }
@@ -393,7 +393,7 @@ static bool declsLoad(void)
 
 // -----------------------------------------------------------------------------
 //
-// optionDeclare - one declaration of --dbIndexes: its names expanded with the core @context (a name
+// optionDeclare - one declaration of --dbValueIndexes: its names expanded with the core @context (a name
 // with a ':' is taken as it is)
 //
 static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, const char* tenant)
@@ -404,7 +404,7 @@ static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, 
 
   if (declAdd((attrIri != NULL)? attrIri : attr, (typeIri != NULL)? typeIri : type, tenant, false, errorText, sizeof(errorText)) != DB_OK)
   {
-    COR_E("mongoc: --dbIndexes: %s", errorText);
+    COR_E("mongoc: --dbValueIndexes: %s", errorText);
     return false;
   }
 
@@ -415,7 +415,7 @@ static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, 
 
 // -----------------------------------------------------------------------------
 //
-// optionParse - --dbIndexes: attribute names, comma-separated - or a JSON array of
+// optionParse - --dbValueIndexes: attribute names, comma-separated - or a JSON array of
 // { "attribute": , "type"?: , "tenant"?: }
 //
 static bool optionParse(const char* option)
@@ -441,7 +441,7 @@ static bool optionParse(const char* option)
 
     if ((treeP == NULL) || (treeP->type != CorArray))
     {
-      COR_E("mongoc: --dbIndexes: not a JSON array of { \"attribute\", \"type\", \"tenant\" }");
+      COR_E("mongoc: --dbValueIndexes: not a JSON array of { \"attribute\", \"type\", \"tenant\" }");
       ok = false;
     }
 
@@ -453,7 +453,7 @@ static bool optionParse(const char* option)
 
       if ((attrP == NULL) || (attrP->type != CorString) || ((typeP != NULL) && (typeP->type != CorString)) || ((tenantP != NULL) && (tenantP->type != CorString)))
       {
-        COR_E("mongoc: --dbIndexes: each declaration is { \"attribute\": <string>, \"type\"?: <string>, \"tenant\"?: <string> }");
+        COR_E("mongoc: --dbValueIndexes: each declaration is { \"attribute\": <string>, \"type\"?: <string>, \"tenant\"?: <string> }");
         ok = false;
       }
       else
@@ -480,7 +480,7 @@ static bool optionParse(const char* option)
 
 // -----------------------------------------------------------------------------
 //
-// mongocIndexesInit - --dbIndexes's declarations, then the admin API's: before any tenant is set up
+// mongocIndexesInit - --dbValueIndexes's declarations, then the admin API's: before any tenant is set up
 //
 int mongocIndexesInit(void)
 {
@@ -743,7 +743,7 @@ static CorNode* declToTree(IndexDecl* dP, bool stats)
     corTreeChildAdd(declP, corTreeString(corRest.kallocP, "type", dP->type));
   if (dP->tenant != NULL)
     corTreeChildAdd(declP, corTreeString(corRest.kallocP, "tenant", dP->tenant));
-  corTreeChildAdd(declP, corTreeString(corRest.kallocP, "declaredBy", dP->api? "api" : "dbIndexes"));
+  corTreeChildAdd(declP, corTreeString(corRest.kallocP, "declaredBy", dP->api? "api" : "dbValueIndexes"));
 
   if (stats == true)
   {
@@ -813,7 +813,7 @@ int mongocIndexAdd(const char* attr, const char* type, const char* tenant, CorNo
 // -----------------------------------------------------------------------------
 //
 // mongocIndexDelete - a declaration of the admin API taken away: its indexes dropped in every tenant.
-// One of --dbIndexes is not (DB_BAD_INPUT): it is the start's, and comes back with it
+// One of --dbValueIndexes is not (DB_BAD_INPUT): it is the start's, and comes back with it
 //
 int mongocIndexDelete(const char* id, char* errorText, int errorTextLen)
 {
@@ -830,7 +830,7 @@ int mongocIndexDelete(const char* id, char* errorText, int errorTextLen)
   }
   else if (declV[ix].api == false)
   {
-    snprintf(errorText, errorTextLen, "'%s' is declared by --dbIndexes - taken out of it, it is gone at the next start", id);
+    snprintf(errorText, errorTextLen, "'%s' is declared by --dbValueIndexes - taken out of it, it is gone at the next start", id);
     rc = DB_BAD_INPUT;
   }
   else

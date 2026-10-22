@@ -354,7 +354,7 @@ static int ensureHypertable(PGconn* conn)
 
 // -----------------------------------------------------------------------------
 //
-// The indexes of the history that are the operator's choice (--troeIndexes)
+// The indexes of the history that are the operator's choice (--troeSqlIndexes)
 //
 // Always there - the migrations make them, and the queries of the Temporal API are built on them:
 // the primary keys, (entity_id, attr_name, observed_at) and (entity_id, attr_name, modified_at) - a
@@ -367,7 +367,7 @@ static int ensureHypertable(PGconn* conn)
 //
 typedef struct TsOptIndex
 {
-  const char*  name;        // in --troeIndexes
+  const char*  name;        // in --troeSqlIndexes
   const char*  index;
   const char*  createSql;
 } TsOptIndex;
@@ -385,9 +385,9 @@ static unsigned int optIndexMask = 0;    // bit ix: optIndexV[ix] chosen
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesParse -
+// timescaleSqlIndexesParse -
 //
-int timescaleIndexesParse(const char* list)
+int timescaleSqlIndexesParse(const char* list)
 {
   optIndexMask = 0;
 
@@ -413,7 +413,7 @@ int timescaleIndexesParse(const char* list)
 
     if (found == false)
     {
-      COR_E("timescale: --troeIndexes: unknown index '%.*s' (the choice: attrObserved, geo, time)", len, nameP);
+      COR_E("timescale: --troeSqlIndexes: unknown index '%.*s' (the choice: attrObserved, geo, time)", len, nameP);
       return -1;
     }
 
@@ -446,7 +446,7 @@ static bool indexExists(PGconn* conn, const char* index)
 
 // -----------------------------------------------------------------------------
 //
-// indexesApply - the indexes of --troeIndexes created, the others dropped
+// indexesApply - the indexes of --troeSqlIndexes created, the others dropped
 //
 // troe_entities_id_modified goes too: (entity_id, modified_at DESC) is the front of troe_entities'
 // primary key, (entity_id, modified_at, op), which serves every lookup it served.
@@ -467,7 +467,7 @@ static int indexesApply(PGconn* conn)
 
     if ((chosen == true) && (exists == false))
     {
-      COR_I("timescale: db '%s': creating index %s (--troeIndexes %s) - over every row of the history", PQdb(conn), optIndexV[ix].index, optIndexV[ix].name);
+      COR_I("timescale: db '%s': creating index %s (--troeSqlIndexes %s) - over every row of the history", PQdb(conn), optIndexV[ix].index, optIndexV[ix].name);
       if (execSimple(conn, optIndexV[ix].createSql) != 0)
         return -1;
     }
@@ -475,7 +475,7 @@ static int indexesApply(PGconn* conn)
     {
       char sql[128];
 
-      COR_I("timescale: db '%s': dropping index %s (not in --troeIndexes)", PQdb(conn), optIndexV[ix].index);
+      COR_I("timescale: db '%s': dropping index %s (not in --troeSqlIndexes)", PQdb(conn), optIndexV[ix].index);
       snprintf(sql, sizeof(sql), "DROP INDEX IF EXISTS %s", optIndexV[ix].index);
       if (execSimple(conn, sql) != 0)
         return -1;
@@ -576,7 +576,7 @@ int timescaleMigrate(PGconn* conn)
     // still works. The error is logged inside ensureHypertable().
   }
 
-  // 5. The indexes the operator chose (--troeIndexes) - after the hypertable, which makes the "time" one
+  // 5. The indexes the operator chose (--troeSqlIndexes) - after the hypertable, which makes the "time" one
   if (indexesApply(conn) != 0)
     return -1;
 

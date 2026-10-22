@@ -320,7 +320,8 @@ The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`,
 | `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
 | `--troeConnectTimeout` | 30 | seconds a start waits for the database, trying once a second (as `--dbTimeout` for MongoDB); 0: one try |
 | `--troeDownExit` | 0 | seconds the database may be unreachable before the broker exits (code 1) - see [The database down](#the-database-down). 0: never; the broker keeps serving the current state |
-| `--troeIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
+| `--troeSqlIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
+| `--troeValueIndexes` | none | the declared indexes of the history: attributes whose `q` value terms an index serves - see [Declared indexes](#timescaledb-the-history) |
 | `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
 
 **The writers.** A request renders the history rows of its writes and queues them for its tenant's
@@ -492,11 +493,11 @@ because the Temporal API's retrieves and queries are built on them:
 | `troe_attrs` and `troe_entities` `entity_type` (GIN) | a query by `type` |
 | `troe_entities` primary key (`entity_id`, `modified_at`, `op`) | an Entity's history: its existence, its types, its `createdAt` / `modifiedAt` |
 
-The others are a choice, `--troeIndexes` - for queries that go to PostgreSQL directly (a dashboard, a
+The others are a choice, `--troeSqlIndexes` - for queries that go to PostgreSQL directly (a dashboard, a
 report), not through the broker: the Temporal API's queries find their rows through the Entity first,
 and none of them uses these.
 
-| `--troeIndexes` | The index | Serves |
+| `--troeSqlIndexes` | The index | Serves |
 |-----------------|-----------|--------|
 | `attrObserved` | `troe_attrs` (`attr_name`, `observed_at`) | one Attribute of every Entity in a time window |
 | `geo` | GiST on `troe_attrs.geo` (the GeoProperty values) | the rows within a distance of a point, or in an area, whatever the Entity |
@@ -644,24 +645,24 @@ Which one weighs more is the workload's: how often the attribute is written, how
 Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
 ```
---dbIndexes speed,temperature
---dbIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
+--dbValueIndexes speed,temperature
+--dbValueIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
 ```
 
 - names, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
 - a short name is expanded with the core @context; an IRI is taken as it is
 - an error in it: the broker does not start
-- taken out of `--dbIndexes`: its index is gone at the next start
+- taken out of `--dbValueIndexes`: its index is gone at the next start
 
 Declared on a running broker, through the admin API (`--apiPlugins admin`):
 
 | request | answer |
 |---|---|
-| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
+| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbValueIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
 | `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the index built in every tenant it covers, the declaration kept in the default tenant's store. 409 if declared already, 400 for another body |
-| `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
+| `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbValueIndexes`, 404 for none |
 
-**Declare the indexes at start** (`--dbIndexes`). The admin API changes them on a running broker, and
+**Declare the indexes at start** (`--dbValueIndexes`). The admin API changes them on a running broker, and
 a change costs a build of the indexes; on corDB, a build of **every** declaration's, in every tenant's store,
 the writes to the store waiting meanwhile. 1 000 000 entities with both attributes, one tenant, the release
 build ([Performance](performance.md#building-a-declared-index)):
@@ -676,7 +677,7 @@ build ([Performance](performance.md#building-a-declared-index)):
 with its @context (`Link` header), the core one without; a response compacts them with it. The `POST` answers
 once the index is built - on a large store, that takes a while. Another broker on the same database sees a
 declaration made through the API when it starts again. In the build by default;
-`-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbIndexes`, `/admin/indexes` 501).
+`-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbValueIndexes` and no `--troeValueIndexes`; `/admin/indexes` and `/admin/troeIndexes` answer 501).
 
 #### mongoc
 
@@ -710,6 +711,71 @@ per tenant: `built`, `entries` (values), `bytes`, `accesses` (the `q` terms it s
 that changed it: an entity with the attribute created or deleted, its values changed), since it was built.
 More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
 
+#### TimescaleDB (the history)
+
+The history has declarations of its own: `--troeValueIndexes`, and `/admin/troeIndexes`, which works the same way
+as `/admin/indexes`. Each declaration is two partial indexes of `troe_attrs`, in the database of every tenant it
+covers:
+
+| index | column | partial |
+|---|---|---|
+| `cor_n_<id>` | `v_number` | `attr_name = '<attr>'`, and `entity_type && ARRAY['<type>']` when a type is declared |
+| `cor_t_<id>` | `v_text` | the same |
+
+```
+--troeValueIndexes speed,temperature
+--troeValueIndexes '[{"attribute": "speed", "type": "Vehicle"}]'
+```
+
+The option has the same format and rules as `--dbValueIndexes`. The admin API:
+
+| request | answer |
+|---|---|
+| `GET /admin/troeIndexes` | every declaration (`declaredBy`: `troeValueIndexes` or `api`), then every index made in a tenant's database that serves a `q` value term (`declaredBy`: `database`, `id`: the index's name, `definition`: its `CREATE INDEX`). `tenants`: per tenant, `built`, `bytes` and `accesses` (scans since PostgreSQL's statistics were reset); a hypertable's chunk indexes are added up |
+| `POST /admin/troeIndexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/troeIndexes/<id>`: its two indexes created in every tenant whose history is open, over every row of the history. 409 if declared already, 400 for another body. An index that cannot be created: none of them kept, 500 |
+| `DELETE /admin/troeIndexes/{id}` | 204: its indexes dropped in every tenant. 409 for a declaration of `--troeValueIndexes`, 404 for none |
+
+A tenant's declared indexes are applied when its history is opened: the ones its declarations need are created,
+and an index named `cor_n_*` / `cor_t_*` that no declaration names is dropped. **Declare the indexes at start**:
+`POST` creates them over the whole history, in every tenant, and on a large history that takes a while. The admin
+API's declarations are kept in the default tenant's database (table `troe_db_indexes`).
+
+**Indexes made in the database** are found too. PostgreSQL keeps any index of `troe_attrs` up to date, whoever
+made it, and the broker reads `pg_indexes` to know which attributes have one. These forms serve a `q` value term:
+
+```
+CREATE INDEX ... ON troe_attrs (v_number) WHERE attr_name = '<attribute IRI>'                       -- or v_text
+CREATE INDEX ... ON troe_attrs (v_number) WHERE attr_name = '<IRI>' AND entity_type && ARRAY['<type IRI>']
+CREATE INDEX ... ON troe_attrs (attr_name, v_number)                                               -- every attribute
+```
+
+The indexes are read when a tenant's history is opened, at every `GET /admin/troeIndexes` and `/admin/metrics`,
+and by a query once the last read is 60 s old. An index made in the database is therefore used within a minute,
+and an index dropped there stops being used within a minute. An index of another form is not used.
+
+**A query** whose `q` has a term an index serves takes its entities from the index: the entities with an instance
+in the time window that meets the term, each then checked by the whole `q`. The terms an index serves are a
+number or string value of the attribute itself with `==`, a range, a list, `<`, `<=`, `>` or `>=`. An AND uses
+the terms of it that an index serves, and an OR uses the index only when every one of its terms is served. For a
+declaration narrowed to a type, the query must be of that one type. Without such a term, the query selects as
+before: the latest row of every entity, each checked by `q`. That form is the faster one when no index serves
+the term: the candidates form without an index reads more ([Performance](performance.md#declared-indexes-of-the-timescaledb-history)).
+
+What it gains and costs, 100 000 entities, 2.9 million rows of history, the release build:
+
+| | without | with the index |
+|---|---|---|
+| `q` on the attribute, 10 matches, the entity selector of a page of 20 | 626 ms | 1.2 ms |
+| the same, `count=true` | 617 ms | 1.1 ms |
+| 1 % of the entities match, `count=true` | 618 ms | 45 ms |
+| 1 % match, a page | 15 ms | 17 ms |
+| half of them match, `count=true` | 490 ms | 357 ms |
+| the history rows a `PATCH` of the attribute writes, per second | | -1.6 % |
+| the same, a `PATCH` of another attribute | | -2.3 % |
+| a batch create of 20 entities with the attribute | | -4.3 % |
+
+The times are the entity selector's SQL alone. A request also reads the history of every entity on its page.
+
 #### In /admin/metrics
 
 `GET /admin/metrics` has the figures of `GET /admin/indexes`, a series per declaration and tenant, read from the
@@ -729,6 +795,14 @@ Snapshot's store) - names compacted with the core @context:
 ```
 ngsild_index_accesses_total{id="0e819997",attribute="speed",tenant=""} 1
 ngsild_index_accesses_total{id="08516489",attribute="temperature",type="Room",tenant="t1"} 0
+```
+
+The history's indexes (`--troe timescale`) have the figures of `GET /admin/troeIndexes`: `ngsild_troe_index_built`,
+`ngsild_troe_index_bytes` and `ngsild_troe_index_accesses_total` (scans), with the same labels. An index made in the
+database has its name as `id`:
+
+```
+ngsild_troe_index_built{id="by_hand",attribute="name",tenant=""} 1
 ```
 
 A declaration taken away takes its series with it. A counter starts again from 0 when its index is built

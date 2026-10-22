@@ -27,7 +27,7 @@ and stay options you set.
 
 **Declared indexes** are the workload's too, and `make tune` does not choose them: an index on an attribute
 makes a `q` on it up to hundreds of times faster, and every write of it slower - on corDB +2.8 µs a write, +3.5 µs a
-create, -21 % to -48 % at full load; a write of another attribute +0.13 µs, a create without it +0.11 µs ([Declared indexes](installation.md#declared-indexes)). `--dbIndexes`, or
+create, -21 % to -48 % at full load; a write of another attribute +0.13 µs, a create without it +0.11 µs ([Declared indexes](installation.md#declared-indexes)). `--dbValueIndexes`, or
 `/admin/indexes` on a running broker.
 
 ## The three knobs

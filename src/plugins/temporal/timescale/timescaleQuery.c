@@ -38,7 +38,8 @@
 #include <time.h>                                         // gmtime_r, time_t
 #include <libpq-fe.h>                                     // PG*
 
-#include "corLog/corLog.h"                                // COR_E
+#include "corLog/corLog.h"                                // COR_E, COR_T
+#include "coraineTraceLevels.h"                            // CtTroeSql
 #include "corTree/corTreeBuilder.h"                       // corTreeObject, corTreeArray, corTreeString, corTreeInteger, corTreeFloat, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeLookup.h"                        // corTreeLookup
 #include "corJson/corJsonParse.h"                         // corJsonParse
@@ -57,6 +58,9 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
+#if COR_FEATURE_DB_INDEXES
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesCandidates
+#endif
 #include "temporal/timescale/timescaleQuery.h"            // Own interface
 
 
@@ -1751,18 +1755,45 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     qCorr = b;
   }
 
+  //
+  // The entities q can match, from the indexes that serve its terms (timescaleValueIndexes.c): the latest rows of
+  // those only - without such an index, of every entity, each then checked by q
+  //
+  const char* candidates = "";
+#if COR_FEATURE_DB_INDEXES
+  if (fP->qSqlPredicate != NULL)
+  {
+    const char* cand = timescaleValueIndexesCandidates(timescaleConn, tenantP, fP, &corRest.kalloc);
+
+    if (cand != NULL)
+    {
+      int         wsz = (int) (strlen(timePred) + strlen(opPred)) + 1;
+      char*       win = (char*) corAlloc(&corRest.kalloc, wsz);
+
+      snprintf(win, wsz, "%s%s", timePred, opPred);
+
+      const char* c  = qWindowed(cand, win, &corRest.kalloc);
+      int         sz = (int) strlen(c) + 8;
+      char*       b  = (char*) corAlloc(&corRest.kalloc, sz);
+
+      snprintf(b, sz, " WHERE %s", c);
+      candidates = b;
+    }
+  }
+#endif
+
   // Correlated geo predicate (§ 11.3.3) — pushes ?georel near into SQL.
   const char* geoPred = geoPredicateCorrelated(fP, tCol, timePred, opPred, &corRest.kalloc);
 
   // WHERE body shared by the page query and the count query.
-  int   wSize = 16384 + (int) (strlen(qCorr) + strlen(geoPred));
+  int   wSize = 16384 + (int) (strlen(qCorr) + strlen(geoPred) + strlen(candidates));
   char* where = (char*) corAlloc(&corRest.kalloc, wSize);
   snprintf(where, wSize,
     "FROM (SELECT DISTINCT ON (entity_id) entity_id, entity_type, modified_at "
-    "FROM troe_entities ORDER BY entity_id, modified_at DESC) latest "
+    "FROM troe_entities%s ORDER BY entity_id, modified_at DESC) latest "
     "WHERE TRUE%s%s%s "
     "AND EXISTS (SELECT 1 FROM troe_attrs WHERE entity_id = latest.entity_id%s%s%s%s)%s%s",
-    idClause, typeClause, patternClause, timePred, opPred, attrPred, dsPred, qCorr, geoPred);
+    candidates, idClause, typeClause, patternClause, timePred, opPred, attrPred, dsPred, qCorr, geoPred);
 
   // Page query — fetch limit+1 so we can tell whether more entities remain.
   int   pSize = wSize + 256;
@@ -1770,6 +1801,8 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   snprintf(pageSql, pSize,
     "SELECT entity_id, array_to_json(entity_type)::text %s ORDER BY entity_id LIMIT %d OFFSET %d",
     where, limit + 1, offset);
+
+  COR_T(CtTroeSql, "entity selector: %s", pageSql);
 
   PGresult* eRes = PQexecParams(timescaleConn, pageSql, nParams, NULL,
                                 (nParams > 0) ? paramV : NULL, NULL, NULL, 0);

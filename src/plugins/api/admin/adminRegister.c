@@ -15,7 +15,7 @@
 
 #include "api/admin/adminBridgeInventory.h"        // adminGetBridgeInventory, ADMIN_INVENTORY_PARAMS
 #include "api/admin/adminConfig.h"                 // adminGetConfig
-#include "api/admin/adminIndexes.h"                // adminGetIndexes, adminPostIndexes, adminDeleteIndex
+#include "api/admin/adminIndexes.h"                // adminGetIndexes, adminPostIndexes, adminDeleteIndex, adminGetTroeIndexes, ...
 #include "api/admin/adminVersion.h"               // adminGetVersion
 #include "api/admin/adminHealth.h"                // adminGetHealth
 #include "api/admin/adminLog.h"                   // adminGetLog, adminPutLog, adminPostLog, adminPatchLog, adminDeleteLog
@@ -125,15 +125,18 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/admin/bridges/*/inventory", INVENTORY(adminGetBridgeInventory), ADMIN_INVENTORY_PARAMS, 0 },
   { CorVerbGet,    "/admin/config",  CONFIG(adminGetConfig), 0,         0 },
   { CorVerbGet,    "/admin/indexes", INDEXES(adminGetIndexes), 0,       0 },
+  { CorVerbGet,    "/admin/troeIndexes", INDEXES(adminGetTroeIndexes), 0, 0 },
   // PUT
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
   { CorVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
   { CorVerbPost,   "/admin/subStats/flush",  SUBS(adminPostSubStatsFlush), 0,            0 },
   { CorVerbPost,   "/admin/indexes",         INDEXES(adminPostIndexes),    0,            0, NULL, { .features = { .plainJsonBody = 1 } } },  // the body is the admin API's own JSON
+  { CorVerbPost,   "/admin/troeIndexes",     INDEXES(adminPostTroeIndexes), 0,           0, NULL, { .features = { .plainJsonBody = 1 } } },
   // DELETE
   { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   { CorVerbDelete, "/admin/indexes/*", INDEXES(adminDeleteIndex), 0,    0 },
+  { CorVerbDelete, "/admin/troeIndexes/*", INDEXES(adminDeleteTroeIndex), 0, 0 },
   // PATCH
   { CorVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
 };

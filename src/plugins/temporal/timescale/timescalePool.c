@@ -31,6 +31,9 @@
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*, timescalePoolSize
 #include "temporal/timescale/timescaleMigrate.h"          // timescaleMigrate
 #include "temporal/timescale/timescaleWriter.h"           // timescaleWriterStart, timescaleWriterStop, timescaleWriterBarrier
+#if COR_FEATURE_DB_INDEXES
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesApply, timescaleValueIndexesDiscover, timescaleValueIndexesPoolFree
+#endif
 #include "temporal/timescale/timescalePool.h"             // Own interface
 
 
@@ -306,6 +309,10 @@ int timescalePoolEnsureReach(Tenant* tenantP, bool* unreachableP)
     return TROE_ERR;
   }
 
+#if COR_FEATURE_DB_INDEXES
+  timescaleValueIndexesApply(migConn, tenantP);   // the declared indexes of the tenant
+#endif
+
   // 3. Build the pool. The migration connection is kept as the first slot.
   int items = (timescalePoolSize > 0) ? timescalePoolSize : 10;
 
@@ -341,6 +348,10 @@ int timescalePoolEnsureReach(Tenant* tenantP, bool* unreachableP)
 
   connV[0].conn = migConn;          // seed slot 0 with the migration connection
   connV[0].busy = false;
+
+#if COR_FEATURE_DB_INDEXES
+  timescaleValueIndexesDiscover(migConn, poolP);   // the indexes that serve q, the declared ones and others
+#endif
 
   // 4. The TRoE writers - before the pool is published, no unit can be submitted before they are there
   if (timescaleWriterStart(poolP) != TROE_OK)
@@ -488,6 +499,9 @@ static void poolFree(TimescalePool* poolP)
     }
   }
 
+#if COR_FEATURE_DB_INDEXES
+  timescaleValueIndexesPoolFree(poolP);
+#endif
   sem_destroy(&poolP->queueSem);
   sem_destroy(&poolP->poolSem);
   free(poolP->connV);

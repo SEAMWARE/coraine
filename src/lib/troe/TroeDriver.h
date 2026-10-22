@@ -22,6 +22,7 @@
 #include "corTree/CorNode.h"                              // CorNode
 
 #include "db/Tenant.h"                                    // Tenant
+#include "db/DbDriver.h"                                  // DbIndexListFunc, DbIndexAddFunc, DbIndexDeleteFunc
 
 
 
@@ -460,6 +461,15 @@ typedef struct TroeDriver
   TroeEntityAtQueryFunc             entityAtQuery;
 
   TroeHistoryStatusFunc             historyStatus;  // NULL-allowed - appended (the health report)
+
+  //
+  // The declared indexes of the history (/admin/troeIndexes; the plugin's own option at start,
+  // timescale's --troeValueIndexes) - as DbDriver's indexList, indexAdd, indexDelete, the DB_* codes too.
+  // NULL-allowed, the three together - appended: /admin/troeIndexes answers 501
+  //
+  DbIndexListFunc                   indexList;
+  DbIndexAddFunc                    indexAdd;
+  DbIndexDeleteFunc                 indexDelete;
 } TroeDriver;
 
 //
