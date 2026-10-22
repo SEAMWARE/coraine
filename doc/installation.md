@@ -782,16 +782,19 @@ What it gains and costs, 100 000 entities, 2.9 million rows of history, the rele
 
 | | without | with the index |
 |---|---|---|
-| `q` on the attribute, 10 matches, the entity selector of a page of 20 | 626 ms | 1.2 ms |
-| the same, `count=true` | 617 ms | 1.1 ms |
-| 1 % of the entities match, `count=true` | 618 ms | 45 ms |
-| 1 % match, a page | 15 ms | 17 ms |
-| half of them match, `count=true` | 490 ms | 357 ms |
+| `q` on the attribute, 10 matches, a page of 20 | 10.2 requests/s, 774 ms | 638 requests/s, 12.3 ms |
+| the same, `count=true` | 5.0 requests/s, 1.52 s | 605 requests/s, 13.0 ms |
+| no entity matches | 10.6 requests/s, 757 ms | 11 283 requests/s, 0.7 ms |
+| 1 % of the entities match, `count=true` | 9.95 requests/s, 800 ms | 161 requests/s, 49.5 ms |
+| 1 % match, a page | 252 requests/s, 31 ms | 251 requests/s, 31 ms |
+| half of them match, `count=true` | 12.9 requests/s, 609 ms | 13.2 requests/s, 589 ms |
 | the history rows a `PATCH` of the attribute writes, per second | | -1.6 % |
 | the same, a `PATCH` of another attribute | | -2.3 % |
 | a batch create of 20 entities with the attribute | | -4.3 % |
 
-The times are the entity selector's SQL alone. A request also reads the history of every entity on its page.
+The queries: temporal queries through the broker (`timerel=after`, `timeproperty=modifiedAt`), wrk with 8
+connections - requests per second and the median time of one. A request also reads the history of every
+entity on its page; the entity selector's SQL alone: [Performance](performance.md#declared-indexes-of-the-timescaledb-history).
 
 #### In /admin/metrics
 
