@@ -13,6 +13,9 @@
 #include "db/Tenant.h"                               // Tenant
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
 #include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
+#if COR_FEATURE_DB_INDEXES
+#include "currentState/mongoc/mongocIndexes.h"                    // mongocIndexesApply
+#endif
 #include "currentState/mongoc/mongocTenantSetup.h"                // Own interface
 
 
@@ -108,6 +111,13 @@ int mongocTenantSetup(Tenant* tenantP)
   // Scan existing entities for GeoProperty attributes and create 2dsphere indexes
   //
   mongocGeoIndexInit(tenantP, collP);
+
+#if COR_FEATURE_DB_INDEXES
+  //
+  // The declared indexes (--dbIndexes, /admin/indexes) that cover this tenant
+  //
+  mongocIndexesApply(tenantP, collP);
+#endif
 
   mongoc_collection_destroy(collP);
   mongoc_client_pool_push(poolP, clientP);

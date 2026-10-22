@@ -1,0 +1,243 @@
+#
+# FILE            db_indexes_mongoc.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Declared indexes on mongoc (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an index serves -
+# declared at start (--dbIndexes) or through the admin API (/admin/indexes). Each declaration is two
+# indexes in the entities collection of every tenant it covers: cor_v_<id> on <attr>.@none.value (partial
+# on the type, if one is declared) and cor_d_<id> on <attr>.@datasetIds (partial: the marked ones).
+#
+#   - --dbIndexes speed: its two indexes; GET /admin/indexes lists it, by "dbIndexes"
+#   - POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400
+#   - a query of that type and a q on that attribute is served by the two indexes (the profiler says
+#     which), and answers as before
+#   - a tenant created later gets the indexes of the declarations that cover it
+#   - a restart: the admin API's declaration is still there
+#   - DELETE: one of --dbIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
+#   - started without --dbIndexes: the indexes of speed are dropped
+#   - --dbIndexes as a JSON array, a tenant named: only that tenant's database gets them
+#   - --dbIndexes not an array of declarations: the broker does not start
+#
+# Reads mongoc's own indexes and its profiler (mongosh) - not a store-independent check:
+# REQUIRE_DB: mongoc
+#
+--NAME--
+mongoc - declared indexes: --dbIndexes and /admin/indexes, created per tenant, used by q
+
+--TAGS--
+mongoc query q admin cli
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin --dbIndexes speed
+
+--RUN--
+corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
+M="mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet"
+
+#
+# idx <db> - the declared indexes of a database: name, key (its attribute's short name), partial filter
+#
+idx() {
+  $M "$1" --eval 'db.entities.getIndexes().filter(i => i.name.startsWith("cor_")).map(i => {
+    const k = Object.keys(i.key)[0].replace(/^.*\//, "");
+    const f = i.partialFilterExpression ? " partial " + Object.keys(i.partialFilterExpression).map(p => p.replace(/^.*\//, "")).join(",") : "";
+    return i.name.replace(/_[0-9a-f]{8}$/, "_<id>") + " " + k + f;
+  }).sort().forEach(l => print(l))'
+}
+
+#
+# decls - GET /admin/indexes, one line per declaration
+#
+decls() {
+  curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | "\(.attribute) type=\(.type // "-") tenant=\(.tenant // "-") by \(.declaredBy): " + ([.tenants[] | "[\(.tenant)] built=\(.built)"] | join(" "))'
+}
+
+restart() {
+  coraineStop
+  coraineStart --apiPlugins admin "$@"
+}
+
+
+echo "01. --dbIndexes speed: its two indexes, listed by GET /admin/indexes"
+echo "====================================================================="
+idx $COR_ROLE_DB_PREFIX
+decls
+echo
+echo
+
+
+echo "02. POST temp narrowed to the type T: 201; the same again 409; bad bodies 400"
+echo "============================================================================="
+curl -s -i "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"attribute": "temp", "type": "T"}' | tr -d '\r' | sed -n '1p;s/^Location: \/admin\/indexes\/[0-9a-f]\{8\}$/Location: \/admin\/indexes\/<id>/p;/^{/,$p' | sed 's/"id": "[0-9a-f]\{8\}"/"id": "<id>"/'
+echo
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"attribute": "temp", "type": "T"}'
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"type": "T"}'
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"attribute": "temp", "kind": "x"}'
+idx $COR_ROLE_DB_PREFIX
+echo
+echo
+
+
+echo "03. type=T&q=temp>190: served by the two indexes of temp, the same entities"
+echo "==========================================================================="
+for i in $(seq 1 200); do t=T; [ $((i % 2)) = 0 ] && t=V; echo "{\"id\":\"urn:P$i\",\"type\":\"$t\",\"temp\":{\"type\":\"Property\",\"value\":$i}}"; done | jq -s . > /tmp/dbIndexes.$$
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/create" -H 'Content-Type: application/json' -d @/tmp/dbIndexes.$$
+rm -f /tmp/dbIndexes.$$
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' -d '{"id": "urn:DS", "type": "T", "temp": {"type": "Property", "value": 999, "datasetId": "urn:ds:1"}}'
+$M $COR_ROLE_DB_PREFIX --eval 'db.system.profile.drop(); db.setProfilingLevel(2)' > /dev/null
+echo "ids: $(curl -s "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=T&q=temp%3E190&limit=100" | jq -r '.[].id' | sort | paste -sd ' ')"
+$M $COR_ROLE_DB_PREFIX --eval 'db.setProfilingLevel(0); db.system.profile.find({ns: /\.entities$/, op: "query"}).forEach(p => print("plan: " + p.planSummary.replace(/https:\/\/[^ ]*\//g, "").replace(/_[0-9a-f]{8}/g, "_<id>") + ", documents examined: " + p.docsExamined))'
+echo
+echo
+
+
+echo "04. A tenant created now: the indexes of both declarations"
+echo "=========================================================="
+curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' -H 'NGSILD-Tenant: t1' -d '{"id": "urn:X", "type": "T"}'
+idx $COR_ROLE_DB_PREFIX-t1
+echo
+echo
+
+
+echo "05. Restarted with --dbIndexes speed: the admin API's declaration is still there"
+echo "================================================================================"
+restart --dbIndexes speed
+decls
+echo
+echo
+
+
+echo "06. DELETE: --dbIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants"
+echo "========================================================================================================"
+sid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | select(.declaredBy == "dbIndexes") | .id')
+aid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | select(.declaredBy == "api") | .id')
+curl -s -X DELETE "http://localhost:$CB_PORT/admin/indexes/$sid" | jq -r '"\(.status) \(.detail)"' | sed 's/[0-9a-f]\{8\}/<id>/'
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "http://localhost:$CB_PORT/admin/indexes/00000000"
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "http://localhost:$CB_PORT/admin/indexes/$aid"
+idx $COR_ROLE_DB_PREFIX
+idx $COR_ROLE_DB_PREFIX-t1
+decls
+echo
+echo
+
+
+echo "07. Started without --dbIndexes: the indexes of speed dropped"
+echo "============================================================="
+restart
+echo "default: [$(idx $COR_ROLE_DB_PREFIX)]"
+echo "t1:      [$(idx $COR_ROLE_DB_PREFIX-t1)]"
+echo
+echo
+
+
+echo "08. --dbIndexes a JSON array, the tenant t1 named: only t1's database"
+echo "====================================================================="
+restart --dbIndexes '[{"attribute":"temp","type":"T","tenant":"t1"}]'      # no spaces: coraineStart splits its arguments
+echo "default: [$(idx $COR_ROLE_DB_PREFIX)]"
+idx $COR_ROLE_DB_PREFIX-t1
+decls
+echo
+echo
+
+
+echo "09. --dbIndexes not an array of declarations: the broker does not start"
+echo "======================================================================="
+coraineStop
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
+echo "exit: $?"
+grep -o "mongoc: --dbIndexes: each declaration is .*" /tmp/dbIndexes.$$ | head -1
+rm -f /tmp/dbIndexes.$$
+echo
+echo
+
+
+--EXPECT--
+01. --dbIndexes speed: its two indexes, listed by GET /admin/indexes
+=====================================================================
+cor_d_<id> speed.@datasetIds partial speed.@datasetIds
+cor_v_<id> speed.@none.value
+speed type=- tenant=- by dbIndexes: [] built=true
+
+
+02. POST temp narrowed to the type T: 201; the same again 409; bad bodies 400
+=============================================================================
+HTTP/1.1 201 Created
+Location: /admin/indexes/<id>
+{
+  "id": "<id>",
+  "attribute": "temp",
+  "type": "T",
+  "declaredBy": "api"
+}
+
+409
+400
+400
+cor_d_<id> speed.@datasetIds partial speed.@datasetIds
+cor_d_<id> temp.@datasetIds partial temp.@datasetIds
+cor_v_<id> speed.@none.value
+cor_v_<id> temp.@none.value partial type
+
+
+03. type=T&q=temp>190: served by the two indexes of temp, the same entities
+===========================================================================
+201
+201
+ids: urn:DS urn:P191 urn:P193 urn:P195 urn:P197 urn:P199
+plan: IXSCAN { temp.@none.value: 1 }, IXSCAN { temp.@datasetIds: 1 }, documents examined: 6
+
+
+04. A tenant created now: the indexes of both declarations
+==========================================================
+201
+cor_d_<id> speed.@datasetIds partial speed.@datasetIds
+cor_d_<id> temp.@datasetIds partial temp.@datasetIds
+cor_v_<id> speed.@none.value
+cor_v_<id> temp.@none.value partial type
+
+
+05. Restarted with --dbIndexes speed: the admin API's declaration is still there
+================================================================================
+speed type=- tenant=- by dbIndexes: [] built=true [t1] built=true
+temp type=T tenant=- by api: [] built=true [t1] built=true
+
+
+06. DELETE: --dbIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants
+========================================================================================================
+409 '<id>' is declared by --dbIndexes - taken out of it, it is gone at the next start
+404
+204
+cor_d_<id> speed.@datasetIds partial speed.@datasetIds
+cor_v_<id> speed.@none.value
+cor_d_<id> speed.@datasetIds partial speed.@datasetIds
+cor_v_<id> speed.@none.value
+speed type=- tenant=- by dbIndexes: [] built=true [t1] built=true
+
+
+07. Started without --dbIndexes: the indexes of speed dropped
+=============================================================
+default: []
+t1:      []
+
+
+08. --dbIndexes a JSON array, the tenant t1 named: only t1's database
+=====================================================================
+default: []
+cor_d_<id> temp.@datasetIds partial temp.@datasetIds
+cor_v_<id> temp.@none.value partial type
+temp type=T tenant=t1 by dbIndexes: [t1] built=true
+
+
+09. --dbIndexes not an array of declarations: the broker does not start
+=======================================================================
+exit: 1
+mongoc: --dbIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

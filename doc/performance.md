@@ -1502,6 +1502,46 @@ of a rare type 7-24x faster and an ordinary query by type up to 3 % faster. It s
 38 828 against 2 891, `PATCH` 137 386 against 25 407, retrieve 497 354 against 72 328 (wrk on six cores - for the
 largest `corDB` rates the load generator may be the limit).
 
+### The q pre-filter and declared indexes on mongoc
+
+A `q` value term on `mongoc` is a `$expr` over every instance of the attribute, and no index serves it. The
+pre-filter (`COR_FEATURE_Q_PREFILTER`) adds a condition in front of it that an index can serve
+([q and the mongoc indexes](installation.md#q-and-the-mongoc-indexes)). A declared index provides that index
+([Declared indexes](installation.md#declared-indexes)).
+
+**Reads.** Measured in mongosh, 2026-10-22, MongoDB 8.2.12: 200 000 documents in the shape mongoc writes, the
+filter mongoc builds for `q=speed>=995`, 1 200 matches:
+
+| filter | time |
+|---|---:|
+| `$expr` only (before the pre-filter) | 258.8 ms |
+| pre-filter + `$expr`, no index | 73.4 ms |
+| pre-filter + `$expr`, the two indexes of a declaration | 3.4 ms - 1 200 documents examined |
+
+The broker's own query, read from MongoDB's profiler, with `--dbIndexes` and `/admin/indexes`
+(`db_indexes_mongoc.test`): `type=T&q=temp>190` over 201 entities uses both indexes of `temp` and examines the
+6 entities it returns. A query whose type a declaration narrowed to another type does not use them.
+
+**Writes: what the mark costs.** Every write of an attribute checks whether it has an instance of a datasetId,
+to write the mark. A/B, 2026-10-22 10:43-11:47: release build of `main` `3197d718`; A = its `mongoc.so`, B =
+`mongoc.so` from the same source with `-DCOR_FEATURE_Q_PREFILTER=OFF`, only the plugin swapped between runs. perfRun
+with its defaults (5 s x 3 repeats, 8 threads, no pinning), MongoDB 8.2.12 local, the perf database dropped
+before each run. Order ON, OFF, OFF, ON; the figure is the mean of the two runs of each:
+
+| scenario | ON / OFF |
+|---|---:|
+| create, 50 connections | +1.0 % |
+| create, 1 connection | -0.6 % |
+| batch create of 20, 50 connections | +0.1 % |
+| PATCH, 50 connections | -0.1 % |
+| PATCH, 1 connection | +0.6 % |
+| merge, 50 connections | -1.0 % |
+| big entity PATCH / create, 50 connections | +1.3 % / +1.0 % |
+
+The reads, whose code is the same in A and B, moved by -1.8 to +2.7 % in the same runs: the writes are within the
+noise. perfRun's entities have no instance of a datasetId, so no mark is written - this is the check every write
+pays. A marked attribute writes 18 bytes more (`"@datasetIds": true`).
+
 ### mongoc: every scenario, 2026-10-08
 
 `test/perf/perfRun.sh mongoc` on `main` `6493d6c2` (with the `{type, createdAt, _id}` index), three runs

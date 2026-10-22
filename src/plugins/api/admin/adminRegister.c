@@ -15,6 +15,7 @@
 
 #include "api/admin/adminBridgeInventory.h"        // adminGetBridgeInventory, ADMIN_INVENTORY_PARAMS
 #include "api/admin/adminConfig.h"                 // adminGetConfig
+#include "api/admin/adminIndexes.h"                // adminGetIndexes, adminPostIndexes, adminDeleteIndex
 #include "api/admin/adminVersion.h"               // adminGetVersion
 #include "api/admin/adminHealth.h"                // adminGetHealth
 #include "api/admin/adminLog.h"                   // adminGetLog, adminPutLog, adminPostLog, adminPatchLog, adminDeleteLog
@@ -61,6 +62,12 @@
 #  define CONFIG(handler)  handler
 #else
 #  define CONFIG(handler)  corNotInThisBuild
+#endif
+
+#if COR_FEATURE_DB_INDEXES
+#  define INDEXES(handler)  handler
+#else
+#  define INDEXES(handler)  corNotInThisBuild
 #endif
 
 
@@ -117,13 +124,16 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/admin/troe/dump", adminGetTroeDump, 0,             0 },
   { CorVerbGet,    "/admin/bridges/*/inventory", INVENTORY(adminGetBridgeInventory), ADMIN_INVENTORY_PARAMS, 0 },
   { CorVerbGet,    "/admin/config",  CONFIG(adminGetConfig), 0,         0 },
+  { CorVerbGet,    "/admin/indexes", INDEXES(adminGetIndexes), 0,       0 },
   // PUT
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
   { CorVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
   { CorVerbPost,   "/admin/subStats/flush",  SUBS(adminPostSubStatsFlush), 0,            0 },
+  { CorVerbPost,   "/admin/indexes",         INDEXES(adminPostIndexes),    0,            0, NULL, { .features = { .plainJsonBody = 1 } } },  // the body is the admin API's own JSON
   // DELETE
   { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
+  { CorVerbDelete, "/admin/indexes/*", INDEXES(adminDeleteIndex), 0,    0 },
   // PATCH
   { CorVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
 };

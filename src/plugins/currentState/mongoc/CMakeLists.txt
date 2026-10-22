@@ -71,6 +71,13 @@ IF (COR_FEATURE_HEALTH)
 ENDIF()
 
 #
+# The declared indexes (--dbIndexes, DbDriver index*)
+#
+IF (COR_FEATURE_DB_INDEXES)
+  LIST(APPEND SOURCES mongocIndexes.c)
+ENDIF()
+
+#
 # The document store (DbDriver doc*) - Service Execution's registrations and executions
 #
 LIST(APPEND SOURCES mongocDoc.c)

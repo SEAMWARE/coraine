@@ -45,7 +45,7 @@ coraine/
 | Beyond NGSI-LD | `SERVICE_EXECUTION` |
 | Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
-| Stores and tools | `MONGOC`, `Q_PREFILTER`, `MIGRATE` |
+| Stores and tools | `MONGOC`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
 All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Nine are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires`:
@@ -444,6 +444,13 @@ attributes with an instance of a datasetId marked in their documents - storage f
 the collection; no mark is written, and the plugin writes storage format 1 and refuses a database in
 format 2. Size: 3,976 bytes of `mongoc.so` (release build); the broker itself is the same.
 
+#### `DB_INDEXES`
+
+Declared indexes: `mongoc`'s `--dbIndexes` and the admin API's `/admin/indexes`
+([Declared indexes](installation.md#declared-indexes)). Off: no `--dbIndexes`; `/admin/indexes` answers 501. Off by
+itself when `Q_PREFILTER` is. Size: 16,029 bytes of `mongoc.so` and 4,300 of `admin.so` (release build); the broker
+itself is the same.
+
 #### `MIGRATE`
 
 `coraine-import`: another broker's database written into coraine's stores
@@ -472,6 +479,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_HEALTH=OFF` | 5,312 bytes (and 432 from `mongoc.so`, 782 from `timescale.so`) | no `--healthPort` - the health port, its pingers and the `ping` of the `mongoc` and `timescale` plugins are not built |
 | `COR_FEATURE_RESPONSE_BUDGET=OFF` | 5,056 bytes (and 256 from `mongoc.so`, 1,472 from `timescale.so`; release build. `corDB.so`, built in its own repository, keeps its counting, which nothing then turns on) | no `--maxResponseSize` - no byte budget on an entity query, a temporal query or the forwarded part of a distributed one ([Response size](installation.md#response-size)) |
 | `COR_FEATURE_Q_PREFILTER=OFF` | 3,976 bytes of `mongoc.so` (release build); the broker 0 | no `q` pre-filter - a `q` value term reads the whole collection; storage format 1 ([q and the mongoc indexes](installation.md#q-and-the-mongoc-indexes)) |
+| `COR_FEATURE_DB_INDEXES=OFF` | 16,029 bytes of `mongoc.so`, 4,300 of `admin.so` (release build); the broker 0 | no declared indexes - no `--dbIndexes`, `/admin/indexes` answers 501 ([Declared indexes](installation.md#declared-indexes)) |
 | `COR_FEATURE_AUTO_ENTITY_MAP=OFF` | 3,680 bytes (release build) | no automatic EntityMaps and no `--autoEntityMaps` - a query paginated past its first page is paged by `offset` / `limit`, locally and forwarded; a map only when a client asks for one (`--entityMapMemory` still caps those) ([EntityMaps](installation.md#entitymaps)) |
 | `COR_WITH_GEOQ=0` (`GEOQ`) | in `mongoc.so`, `corDB.so` and `ramDB.so` 33 KiB stripped, and GEOS: libgeos_c and libgeos are not loaded (3.17 MiB); the broker grows 8 KiB (its refusals) | no geo-queries - `georel`, a `geoQ` in a query body, a subscription or a Service Execution object, ordering by distance are answered 501; corDB accepts any polygon |
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
