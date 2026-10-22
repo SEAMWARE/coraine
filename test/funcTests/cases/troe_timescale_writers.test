@@ -16,12 +16,15 @@
 #     on the first request's rows, and the rows of the other 19 are still in its queue when the
 #     stop comes (a statement already sent is not the question - Postgres runs it to its end
 #     whether the client is still there or not).
+#   - --troeSync hands the rows over before the response but does not wait for their commit: with
+#     troe_attrs locked for 3 s a write is answered at once, and a temporal read that follows it
+#     waits for the lock and finds the write
 #
 # Reads timescale's own tables (psql) - not a store-independent check:
 # REQUIRE_TROEDB: timescale
 #
 --NAME--
-TRoE timescale - the writers: literals, the type fallback, --troeWriters 0, the stop
+TRoE timescale - the writers: literals, the type fallback, --troeWriters 0, the stop, --troeSync not waiting
 
 --TAGS--
 troe timescale postgres
@@ -95,6 +98,26 @@ echo
 echo
 
 
+echo "07. --troeSync, troe_attrs locked for 3 s: the POST answered at once, a temporal GET after it finds it"
+echo "======================================================================================================"
+coraineStart --troe timescale --troeSync --troeWriters 1
+$PSQL -c "BEGIN; LOCK TABLE troe_attrs IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(3); COMMIT;" >/dev/null &
+lockPid=$!
+for i in $(seq 1 100)
+do
+  locked=$($PSQL -c "SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'troe_attrs' AND l.mode = 'AccessExclusiveLock' AND l.granted")
+  [ "$locked" == 1 ] && break
+  sleep 0.02
+done
+echo "troe_attrs locked: $locked"
+t=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' -d '{"id":"urn:Y1","type":"Sensor","t":{"type":"Property","value":71}}')
+echo "POST: ${t% *}, answered in under 1 s: $(awk -v s="${t#* }" 'BEGIN { print (s < 1) ? "yes" : "no (" s " s)" }')"
+curl -s "http://localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/urn:Y1" | jq -c '[.t] | flatten | map(.value)'
+wait $lockPid
+echo
+echo
+
+
 --EXPECT--
 01. POST an Entity whose values hold a quote, a backslash and a compound value
 ==============================================================================
@@ -128,6 +151,13 @@ troe_attrs locked: 1
 06. Every one of them has its history: 20 Entity rows, 20 Attribute rows
 ========================================================================
 20|20
+
+
+07. --troeSync, troe_attrs locked for 3 s: the POST answered at once, a temporal GET after it finds it
+======================================================================================================
+troe_attrs locked: 1
+POST: 201, answered in under 1 s: yes
+[71]
 
 
 --TEARDOWN--

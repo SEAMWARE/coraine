@@ -503,9 +503,11 @@ extern TroeDriver troe;
 //
 // That is fine for a broker and awkward for a conformance suite, which writes
 // through the Core API and reads the temporal representation on the next line.
-// With this on, the event is dispatched where the service routine produces it,
-// so temporal reads are read-your-writes. Writes pay the storage latency inline;
-// that is the trade, and it is opt-in.
+// With this on, a request's events are handed to the plugin once its service
+// routine is done and before the response is sent, so temporal reads are
+// read-your-writes. Handed over, not committed: timescale queues them for its
+// writers and a temporal read waits for that queue; no response waits for the
+// database. Writes pay the handing over inline; it is opt-in.
 //
 extern bool troeSync;
 

@@ -15,9 +15,10 @@
 #
 # Deferred (the default) that is invisible: the temporal event is dispatched from
 # brokerPostResponseHook, long after the entity has been stored and rendered. With
-# --troeSync the plugin runs where the service routine produces the event, i.e.
-# BEFORE the current-state write - so the truncation reaches the database and the
-# entity comes back missing whatever followed its first sub-attribute.
+# --troeSync the events are handed over once the service routine is done, before
+# the response is rendered. When the plugin ran where the service routine produced
+# the event - BEFORE the current-state write - the truncation reached the database
+# and the entity came back missing whatever followed its first sub-attribute.
 #
 # observedAt is the field that follows unitCode in the most ordinary attribute
 # there is, which is how this surfaced: eleven ETSI batch TPs (004_01..004_04,

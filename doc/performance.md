@@ -961,8 +961,9 @@ growing for a second - a write that is queued is not done.
 Where the cores went, create, 50 connections (eight shared): before - broker 1.0, mongod 0.5,
 PostgreSQL 4.6, 22 300 history rows/s; now - broker 2.3, mongod 2.6, PostgreSQL 2.5, 120 000 rows/s.
 The eight cores are spent: the broker without history, on the same eight, creates 43 666/s on 3.6
-cores (82 µs a create; 97 µs with the history). With `--troeSync` a request waits for a commit
-for each event it records: a batch create of 20, 20 in a row.
+cores (82 µs a create; 97 µs with the history). The `--troeSync` rows of this section are a
+`--troeSync` whose response waited for the commit, for each event it recorded: a batch create of 20,
+20 in a row. It no longer waits ([below](#--troesync-handed-over-before-the-response)).
 
 Step by step - each an A/B against the step before, ABBA, the mean of the two runs of each:
 
@@ -993,6 +994,36 @@ batch create did, 0.88 → 0.75. A create costs the broker 82 µs without histor
 **Unnesting:** one `INSERT` of 1000 rows into `troe_attrs` took 55 ms as a `VALUES` list - 25
 executing, 9 planning, the rest parsing its 16 000 expressions - and 22 ms as `INSERT ... SELECT
 ... FROM unnest(<an array per column>)`; prepared, the same 22.
+
+### `--troeSync`: handed over before the response
+
+`--troeSync` hands a request's history to the writers once its service routine is done, before the
+response, instead of after it; the response does not wait for the commit. Against the default, one
+PGO build, eight cores shared by the broker, mongod 8.2 and PostgreSQL 16 + TimescaleDB, `perfRun.sh`,
+ABBA - A the default, B handed over before the response:
+
+| requests/s | A | A | B | B | A, run to run | B against A |
+|---|---:|---:|---:|---:|---:|---:|
+| create | 25 657 | 26 132 | 25 291 | 25 772 | 1.8 % | -1.4 % |
+| create, 1 connection | 8 003 | 8 089 | 7 488 | 7 570 | 1.1 % | -6.4 % |
+| batch create (20) | 2 406 | 2 393 | 2 383 | 2 363 | 0.5 % | -1.1 % |
+| merge | 19 163 | 19 364 | 18 944 | 18 901 | 1.0 % | -1.8 % |
+| `PATCH` | 13 273 | 12 969 | 12 843 | 12 832 | 2.3 % | -2.2 % |
+| `PATCH`, 1 connection | 3 446 | 3 444 | 3 353 | 3 360 | 0.1 % | -2.6 % |
+| batch update (20) | 2 217 | 2 077 | 2 058 | 2 052 | 6.5 % | -4.3 % |
+| `DELETE` | 23 725 | 24 362 | 23 710 | 22 905 | 2.6 % | -3.1 % |
+| batch delete (20) | 6 224 | 6 241 | 6 178 | 6 132 | 0.3 % | -1.2 % |
+| `PATCH`, subscriptions | 12 936 | 12 914 | 12 938 | 12 902 | 0.2 % | 0.0 % |
+| `GET /entities/{id}` | 52 268 | 52 203 | 52 045 | 52 045 | 0.1 % | -0.4 % |
+
+With one connection the work after the response overlaps the client's round trip; before it, it is
+added to each request's latency - about 6 µs a create. With 50 connections the cores are spent
+either way. The same writes with the commit waited for (the nightly run of 2026-10-21, the same
+deployment): create 13 558, create on 1 connection 958, batch create 876, `PATCH` 12 028, `PATCH` on
+1 connection 825, batch update 611, batch delete 1 572.
+
+A fifth run, a second B, is left out: it ran on battery, the lid closed - 15-20 % lower on every
+test, the reads too. The B in the table is the one run again on mains.
 
 **The number of writers** (before unnesting, one run each; the queue up to 64 MiB then, 8 since):
 

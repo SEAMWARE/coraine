@@ -279,8 +279,7 @@ static void unitDone(TsUnit* uP)
 // -----------------------------------------------------------------------------
 //
 // waitersRelease - the database went down: a submitter waiting for its outcome is told it failed,
-// and taken out of the queue; one waiting for its commit stops waiting - its unit stays queued -
-// unless --troeDownExit, where no response leaves before its history is recorded (mutex held)
+// and taken out of the queue (mutex held)
 //
 static void waitersRelease(TsWriter* wP)
 {
@@ -291,7 +290,7 @@ static void waitersRelease(TsWriter* wP)
   {
     TsUnit* nextP = uP->next;
 
-    if ((uP->wait == true) && (uP->waitResult == true))
+    if (uP->wait == true)
     {
       if (prevP == NULL)
         wP->head = nextP;
@@ -305,14 +304,7 @@ static void waitersRelease(TsWriter* wP)
       unitDone(uP);
     }
     else
-    {
-      if ((uP->wait == true) && (timescaleDownExit == 0))
-      {
-        uP->released = true;
-        pthread_cond_signal(&uP->doneCond);
-      }
       prevP = uP;
-    }
 
     uP = nextP;
   }
@@ -680,8 +672,7 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
   }
 
   //
-  // The database down: an import is told at once; a --troeSync request does not wait for a commit
-  // that is not coming - but with --troeDownExit it does: the broker exits before it answers
+  // The database down: an import is told at once
   //
   if ((wP->down == true) && (wait == TsWaitResult))
   {
@@ -691,9 +682,6 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
     *rcP = TROE_ERR;
     return true;
   }
-
-  if ((wP->down == true) && (wait == TsWaitCommit) && (timescaleDownExit == 0))
-    wait = TsWaitNone;
 
   while ((wP->queuedBytes > 0) && (wP->queuedBytes + bytes > QUEUE_BYTES_MAX) && (wP->stop == false) && (wP->down == false))
     pthread_cond_wait(&wP->roomCond, &wP->mutex);
@@ -710,11 +698,9 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
   }
 
   uP->next       = NULL;
-  uP->wait       = (wait != TsWaitNone);
-  uP->waitResult = (wait == TsWaitResult);
-  uP->done       = false;
-  uP->released   = false;
-  uP->seq        = ++wP->seq;
+  uP->wait = (wait == TsWaitResult);
+  uP->done = false;
+  uP->seq  = ++wP->seq;
 
   if (uP->wait == true)
     pthread_cond_init(&uP->doneCond, NULL);
@@ -742,23 +728,14 @@ bool timescaleWriterSubmit(Tenant* tenantP, TsUnit* uP, TsWait wait, int* rcP)
     return true;
   }
 
-  while ((uP->done == false) && (uP->released == false))
+  while (uP->done == false)
     pthread_cond_wait(&uP->doneCond, &wP->mutex);
 
   pthread_cond_destroy(&uP->doneCond);
 
-  if (uP->done == true)
-  {
-    *rcP = uP->rc;
-    pthread_mutex_unlock(&wP->mutex);
-    tsUnitFree(uP);
-    return true;
-  }
-
-  // Released - the database went down: the unit stays queued, the writers' to free
-  uP->wait = false;
+  *rcP = uP->rc;
   pthread_mutex_unlock(&wP->mutex);
-  *rcP = TROE_ERR;
+  tsUnitFree(uP);
   return true;
 }
 

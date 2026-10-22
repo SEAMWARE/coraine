@@ -134,8 +134,8 @@ Two things are each instance's own:
   writers right after its response, and a writer writes it, with the history of the other requests
   queued meanwhile, in one transaction ([TimescaleDB history](installation.md#timescaledb-history---troe-timescale)).
   An instance that dies between the response and that commit leaves the write in the current state
-  and not in the history. `--troeSync` queues it before the response and answers after the commit,
-  at the cost of that much latency.
+  and not in the history - with `--troeSync` too, which queues it before the response but does not
+  wait for the commit.
 - **The shared PostgreSQL down.** Every instance keeps serving the current state; each holds the
   history of the writes it serves, up to 8 MiB, and loses what does not fit; `/ready` stays 200
   ([The database down](installation.md#the-database-down)). `--troeDownExit` makes an instance exit

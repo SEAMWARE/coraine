@@ -10,8 +10,9 @@
 // per-connection corNgsild (so the worker that runs the request and the I/O
 // thread that drains it post-response share one queue); the events themselves
 // are allocated from the per-request kalloc arena. Each request's queue is
-// drained at brokerPostResponseHook time, then reset. Memory of the events is
-// reclaimed when the request arena is reset.
+// drained at brokerPostResponseHook time - with --troeSync before the response,
+// once the service routine is done (coraine.c, brokerRenderHook) - then reset.
+// Memory of the events is reclaimed when the request arena is reset.
 //
 
 #include <stddef.h>                                   // NULL
@@ -44,33 +45,7 @@ static void queueAppend(const TroeEvent* evP)
 
 
 
-bool troeSync = false;   // --troeSync: write through instead of deferring
-
-
-
-// -----------------------------------------------------------------------------
-//
-// dispatchOne - hand a single event straight to the plugin (--troeSync).
-//
-// Deliberately NOT "queue it and drain now": draining would also flush events
-// queued earlier in the same request, which is harmless but would make the
-// order of storage writes depend on the flag. One event in, one event out.
-//
-static void dispatchOne(const TroeEvent* evP)
-{
-  TroeEvent* mut = (TroeEvent*) evP;
-  mut->next = NULL;
-
-  if (troe.eventList != NULL)
-    troe.eventList(mut, 1);
-  else if (evP->op >= TroeOpAttrCreated)
-  {
-    if (troe.attrEvent != NULL)
-      troe.attrEvent(evP);
-  }
-  else if (troe.entityEvent != NULL)
-    troe.entityEvent(evP);
-}
+bool troeSync = false;   // --troeSync: a request's events handed over before its response, not after it
 
 
 
@@ -82,12 +57,6 @@ void troeDeferEntityEvent(const TroeEvent* evP)
 {
   if (evP == NULL)
     return;
-
-  if (troeSync)
-  {
-    dispatchOne(evP);
-    return;
-  }
 
   queueAppend(evP);
 }
@@ -102,12 +71,6 @@ void troeDeferAttrEvent(const TroeEvent* evP)
 {
   if (evP == NULL)
     return;
-
-  if (troeSync)
-  {
-    dispatchOne(evP);
-    return;
-  }
 
   queueAppend(evP);
 }

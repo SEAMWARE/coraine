@@ -265,7 +265,7 @@ static CorArg kargV[] =
 #endif
   { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
-  { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "record TRoE writes BEFORE the response, so a temporal read sees them at once; default defers them until after it" },
+  { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
   { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
 #if COR_FEATURE_AUTH
@@ -1462,6 +1462,21 @@ static void brokerPostResponseHook(void)
 
 
 
+// -----------------------------------------------------------------------------
+//
+// brokerRenderHook - --troeSync: the request's TRoE events handed over before the response, then
+// corNgsild's render hook (chained on - it runs once the service routine is done)
+//
+static CorRestHook renderNext = NULL;
+
+static void brokerRenderHook(void)
+{
+  troeDispatchPending();
+  renderNext();
+}
+
+
+
 #if COR_FEATURE_METRICS
 // -----------------------------------------------------------------------------
 //
@@ -1942,6 +1957,11 @@ int main(int argC, char* argV[])
   corRestSetServiceInitHook(ldUrlWildcardOptionsInit);
   corRestSetPreServiceHook(brokerPreServiceHook);
   corRestSetPostResponseHook(brokerPostResponseHook);
+  if (troeSync == true)
+  {
+    renderNext = corRestPayloadRenderHookGet();
+    corRestSetPayloadRenderHook(brokerRenderHook);
+  }
   inlineDispatchInit(dbName, troeName, noInline);
   memoryBudgetInit(memoryLimit);
 #if COR_FEATURE_METRICS

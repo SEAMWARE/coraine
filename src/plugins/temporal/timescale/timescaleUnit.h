@@ -55,10 +55,8 @@ typedef struct TsUnit
   int             attrRowN;
   bool            oom;           // a row did not fit in memory - the unit is not sent
 
-  bool            wait;          // a submitter waits for the unit - under the writer's mutex, false once it is gone
-  bool            waitResult;    // ... for its outcome (an import): not queued while the database is down
+  bool            wait;          // a submitter waits for the unit's outcome (an import) - not queued while the database is down
   bool            done;          // set by the writer, under its mutex, for a waited-for unit
-  bool            released;      // the database went down: the submitter stops waiting, the unit stays queued
   pthread_cond_t  doneCond;      // signalled with done - initialised only for a waited-for unit
   int             rc;            // TROE_OK / TROE_ERR, valid once done
 } TsUnit;

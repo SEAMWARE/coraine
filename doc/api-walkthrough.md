@@ -125,4 +125,6 @@ curl -X DELETE http://localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:A10
   it. The consequence is that a `201` does not mean the temporal row is
   queryable yet - create an entity and read its temporal representation in the
   same breath and it may not be there. Start the broker with `--troeSync` when
-  you want read-your-writes instead; writes then pay the storage latency inline.
+  you want read-your-writes instead: the history is handed over before the
+  response (not committed - nothing waits for the database), and a temporal read
+  waits for what was handed over before it. Writes pay 1-6 % for it.
