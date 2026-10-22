@@ -13,7 +13,7 @@
 #include "db/Tenant.h"                               // Tenant
 #include "currentState/mongoc/mongocGeoIndex.h"                   // mongocGeoIndexInit
 #include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
-#if COR_FEATURE_DB_INDEXES
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
 #include "currentState/mongoc/mongocIndexes.h"                    // mongocIndexesApply
 #endif
 #include "currentState/mongoc/mongocTenantSetup.h"                // Own interface
@@ -112,7 +112,7 @@ int mongocTenantSetup(Tenant* tenantP)
   //
   mongocGeoIndexInit(tenantP, collP);
 
-#if COR_FEATURE_DB_INDEXES
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
   //
   // The declared indexes (--dbIndexes, /admin/indexes) that cover this tenant
   //

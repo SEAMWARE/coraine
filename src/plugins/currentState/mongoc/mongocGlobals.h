@@ -24,7 +24,7 @@ extern char*           mongocDbUser;
 extern char*           mongocDbPwd;
 extern char*           mongocDbURI;
 extern unsigned short  mongocDbTimeout;
-#if COR_FEATURE_DB_INDEXES
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
 extern char*           mongocDbIndexes;
 #endif
 extern char*           mongocGlobalDb;

@@ -603,6 +603,8 @@ db.metadata.updateOne({ _id: "storageFormat" }, { $set: { version: 1 } });
 
 in the default tenant's database and in every tenant's.
 
+The check runs in `coraine-import` too: it opens the stores the way the broker does.
+
 ### q and the mongoc indexes
 
 A `q` value term reaches every instance of an attribute (clause 7): with `mongoc`, a `$expr` over the
@@ -617,19 +619,26 @@ the collection. The operators served: `==` (a value, a range, a list), `<`, `<=`
 ### Declared indexes
 
 An attribute whose `q` value terms an index serves is **declared** - narrowed to one entity type, to one
-tenant, if so declared. With `mongoc`, each declaration is two indexes in the `entities` collection of every
-tenant it covers, a tenant created later included:
+tenant, if so declared. A declaration is an index of the store in every tenant it covers, a tenant created
+later included - `mongoc` and `corDB` (`ramDB` too) each have their own.
 
-| index | key | partial |
+**What a declared index gains and costs**, per request, at full load: 100 000 entities, one attribute declared,
+`--dbDir` for corDB, MongoDB 8.2 local for mongoc ([Performance](performance.md#cordbs-declared-indexes)):
+
+| request | corDB | mongoc |
 |---|---|---|
-| `cor_v_<id>` | `<attr>.@none.value` | on `type` when a type is declared |
-| `cor_d_<id>` | `<attr>.@datasetIds` | the marked attributes only |
+| `q` on the attribute, 10 matches | 1 053 µs -> 2.9 µs (x362) | 167 ms -> 181 µs (x919) |
+| `q` on the attribute, 1 % of the entities match | 106 µs -> 6.0 µs (x17.6) | 12.3 ms -> 4.5 ms (x2.8) |
+| `q` on the attribute, half the entities match (a page) | the same | the same |
+| a write of the attribute (`PATCH`) | +3.0 µs (-23 %) | +2.5 µs (-5 %) |
+| a create with the attribute | +3.0 µs (-43 %) | +0.7 µs (-4 %) |
+| a write of another attribute | +0.7 µs (-7 %) | +0.3 µs (-0.6 %) |
+| a query without a `q` on it | the same | the same |
 
-`<id>` is the declaration's, 8 hex digits. A query uses them when it has a value term on the attribute
-(`==`, a range, a list, `<`, `<=`, `>`, `>=`, `~=`) and, for a declaration narrowed to a type, `type=` that one
-type. Every index costs writes and disk: declare the attributes queries filter on.
+Which one weighs more is the workload's: how often the attribute is written, how often it is queried. `GET
+/admin/indexes` counts both on corDB (`updates`, `accesses`).
 
-Declared at start, by the store plugin's option (`mongoc`):
+Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
 ```
 --dbIndexes speed,temperature
@@ -639,24 +648,53 @@ Declared at start, by the store plugin's option (`mongoc`):
 - names, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
 - a short name is expanded with the core @context; an IRI is taken as it is
 - an error in it: the broker does not start
-- taken out of `--dbIndexes`: its indexes are dropped at the next start (an index named `cor_v_*` or `cor_d_*` that
-  no declaration names is dropped at a tenant's setup)
+- taken out of `--dbIndexes`: its index is gone at the next start
 
 Declared on a running broker, through the admin API (`--apiPlugins admin`):
 
 | request | answer |
 |---|---|
-| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, `built`, `bytes` (both indexes) and `accesses` (the times a query used them since MongoDB started) |
-| `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the indexes created in every tenant it covers, the declaration kept in the default tenant's database (`metadata`, `{ _id: "dbIndexes" }`). 409 if declared already, 400 for another body |
-| `DELETE /admin/indexes/{id}` | 204: its indexes dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
+| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
+| `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the index built in every tenant it covers, the declaration kept in the default tenant's store. 409 if declared already, 400 for another body |
+| `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
 
-Names in a request are expanded with its @context (`Link` header), the core one without; a response compacts
-them with it. The `POST` answers once the indexes are built - on a large collection, that takes a while.
-Another broker on the same database sees a declaration made through the API when it starts again; a tenant it
-sets up before that does not get it. A store without declared indexes (`corDB`) answers 501. In the build by
-default; `-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbIndexes`, `/admin/indexes` 501).
+`<id>` is the declaration's, 8 hex digits of its attribute, type and tenant. Names in a request are expanded
+with its @context (`Link` header), the core one without; a response compacts them with it. The `POST` answers
+once the index is built - on a large store, that takes a while. Another broker on the same database sees a
+declaration made through the API when it starts again. In the build by default;
+`-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbIndexes`, `/admin/indexes` 501).
 
-The check runs in `coraine-import` too: it opens the stores the way the broker does.
+#### mongoc
+
+Each declaration is two indexes in the `entities` collection:
+
+| index | key | partial |
+|---|---|---|
+| `cor_v_<id>` | `<attr>.@none.value` | on `type` when a type is declared |
+| `cor_d_<id>` | `<attr>.@datasetIds` | the marked attributes only |
+
+A query uses them through the pre-filter ([q and the mongoc indexes](#q-and-the-mongoc-indexes)): a value term
+on the attribute (`==`, a range, a list, `<`, `<=`, `>`, `>=`, `~=`) and, for a declaration narrowed to a type,
+`type=` that one type. The admin API's declarations are kept in the default tenant's database (`metadata`,
+`{ _id: "dbIndexes" }`); a tenant another broker sets up before it starts again does not get them. An index
+named `cor_v_*` or `cor_d_*` that no declaration names is dropped at a tenant's setup. `GET`'s figures per
+tenant: `built`, `bytes` (both indexes) and `accesses` (the times a query used them since MongoDB started).
+Without the pre-filter (`-DCOR_FEATURE_Q_PREFILTER=OFF`) mongoc has no declared indexes, and answers 501.
+
+#### corDB
+
+Each declaration is a value index in the tenant's store: the attribute's values - every instance's, an
+array's elements - each with its entity, in order. A query whose `q` has a term on the attribute with `==`, a
+range, a list, `<`, `<=`, `>` or `>=` matches only the entities with a value the term can match, in the
+store's order - an AND by its term with the fewest, an OR when all its terms are served; for a declaration
+narrowed to a type, the query is of that type. The answer is the one the walk of the store gives.
+
+Built by the first query that can use it, and at once when the admin API declares one; not on disk - a
+start builds it again. A change of the declarations builds every index again. The admin API's declarations
+are documents of the default tenant's store (collection `dbIndexes`), on disk with `--dbDir`. `GET`'s figures
+per tenant: `built`, `entries` (values), `bytes`, `accesses` (the `q` terms it served) and `updates` (the writes
+that changed it: an entity with the attribute created or deleted, its values changed), since it was built.
+More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
 
 ## Migrating from another broker
 

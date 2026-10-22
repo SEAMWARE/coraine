@@ -76,7 +76,7 @@ option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, 
 # Group: Stores and tools - the plugins and programs built beside the broker
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
 option(COR_FEATURE_Q_PREFILTER     "Enable the q pre-filter of the mongoc plugin: a value term is served by an index on <attr>.@none.value, the entities with a datasetId instance marked (@dsAttrs, storage format 2)" ON)
-option(COR_FEATURE_DB_INDEXES     "Enable declared indexes: the attributes whose q an index of the store serves - mongoc's --dbIndexes and the admin API's /admin/indexes (needs Q_PREFILTER)" ON)
+option(COR_FEATURE_DB_INDEXES     "Enable declared indexes: the attributes whose q an index of the store serves - the store plugin's --dbIndexes (mongoc, corDB) and the admin API's /admin/indexes" ON)
 option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
 
 #
@@ -139,14 +139,6 @@ endif()
 #
 if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
   set(COR_FEATURE_POLICY_API OFF)
-endif()
-
-#
-# A declared index serves q through the pre-filter (mongocEntityQuery.c): without it there is nothing for
-# the index to serve.
-#
-if (NOT COR_FEATURE_Q_PREFILTER)
-  set(COR_FEATURE_DB_INDEXES OFF)
 endif()
 
 foreach(feature ${COR_FEATURES})

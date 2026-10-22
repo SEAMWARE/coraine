@@ -14,8 +14,11 @@ bump may still change behaviour; the entry says so where it does.
 ### New
 
 - Declared indexes: the attributes whose `q` an index of the store serves - narrowed to an entity type or a
-  tenant if so declared. `mongoc`: `--dbIndexes` at start, `/admin/indexes` on a running broker; each
-  declaration is created in every tenant it covers, a tenant created later included.
+  tenant if so declared: `--dbIndexes` at start, `/admin/indexes` on a running broker; each declaration is
+  an index in every tenant it covers, a tenant created later included. `mongoc`: two MongoDB indexes per
+  declaration; `corDB`: a value index in the store, which a `q` on the attribute takes its candidates from,
+  and `GET /admin/indexes` counts the `q` terms it served and the writes that changed it. A `q` on a declared
+  attribute up to x362 (corDB) and x919 (mongoc) faster, a write of it +3.0 / +2.5 µs.
   ([Declared indexes](doc/installation.md#declared-indexes))
 
 ### Faster

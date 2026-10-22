@@ -25,6 +25,11 @@ The published image (and `make pgo`):
 deployment. The last two are the deployment's (how durable a write must be, how many cores there are)
 and stay options you set.
 
+**Declared indexes** are the workload's too, and `make tune` does not choose them: an index on an attribute
+makes a `q` on it up to hundreds of times faster, and every write of it slower - on corDB +3 µs a write, -23 %
+to -43 % at full load ([Declared indexes](installation.md#declared-indexes)). `--dbIndexes`, or
+`/admin/indexes` on a running broker.
+
 ## The three knobs
 
 - **The profile.** PGO lays the code out for the paths the training ran - the hot ones together, the
