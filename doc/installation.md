@@ -661,6 +661,17 @@ Declared on a running broker, through the admin API (`--apiPlugins admin`):
 | `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the index built in every tenant it covers, the declaration kept in the default tenant's store. 409 if declared already, 400 for another body |
 | `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
 
+**Declare the indexes at start** (`--dbIndexes`). The admin API changes them on a running broker, and
+a change costs a build of the indexes; on corDB, a build of **every** declaration's, in every tenant's store,
+the writes to the store waiting meanwhile. 1 000 000 entities with both attributes, one tenant, the release
+build ([Performance](performance.md#building-a-declared-index)):
+
+| | corDB | mongoc |
+|---|---|---|
+| the start | nothing built; the first query that can use an index builds the store's: 0.5 s | the indexes created at the tenant's setup |
+| `POST` a second declaration | 0.87 s: both built again, at once; their figures from 0 | 1.1 - 2.1 s: its two MongoDB indexes; the other's untouched |
+| `DELETE` it | 0.11 s: both dropped; the next query that can use the other builds it again, 0.5 s, its figures from 0 | 1 ms: its two MongoDB indexes dropped |
+
 `<id>` is the declaration's, 8 hex digits of its attribute, type and tenant. Names in a request are expanded
 with its @context (`Link` header), the core one without; a response compacts them with it. The `POST` answers
 once the index is built - on a large store, that takes a while. Another broker on the same database sees a

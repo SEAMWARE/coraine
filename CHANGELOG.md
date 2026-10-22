@@ -20,6 +20,8 @@ bump may still change behaviour; the entry says so where it does.
   and `GET /admin/indexes` counts the `q` terms it served and the writes that changed it. A `q` on a declared
   attribute up to x416 (corDB) and x919 (mongoc) faster, a write of it +2.8 / +2.5 µs, a write of another
   attribute +0.13 / +0.3 µs; on corDB only the entities with a value of a declared attribute are in its index.
+  Declare them at start: on corDB a change through the admin API builds every declaration's index again
+  (1 000 000 entities: 0.87 s for two), the store's writes waiting.
   ([Declared indexes](doc/installation.md#declared-indexes))
 - The declared indexes in `/admin/metrics`: `ngsild_index_built`, `_entries`, `_bytes`, `_accesses_total`,
   `_updates_total`, a series per declaration and tenant - what an index gains and costs on the workload, over
