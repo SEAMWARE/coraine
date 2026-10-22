@@ -449,4 +449,4 @@ echo
 echo "Run it:"
 echo "  . $INST/env"
 echo "  $NAME -fg --database corDB"
-[ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - CORAINE_* and LD_PRELOAD, see doc/extreme-performance.md)"
+[ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - TUNE_DBLOCKPREFER, TUNE_ALLOCATOR: --dbLockPrefer and the allocator to preload (LD_PRELOAD), see doc/extreme-performance.md)"
