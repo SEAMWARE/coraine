@@ -34,6 +34,11 @@
 #                      for one role (a cor-agent, an edge node) named after it. 1-64 of A-Z a-z 0-9 . _ -,
 #                      starting with a letter or a digit; not coraine-import
 #   --source <file>    the source tarball (default /usr/share/coraine/src/coraine-src.tar.xz - coraine-dev)
+#   --source <dir>     instead: a directory of git clones - coraine and every Cor-Lib side by side, as
+#                      corLibs/bootstrap.sh clones them (~/git). Exported as the packages' tarball is
+#                      (<dir>/coraine/packaging/deb/source.sh): coraine at the commit checked out, each lib
+#                      at origin/main (LIBS_REF=HEAD: the branch each clone has checked out). Committed
+#                      trees only - uncommitted changes are not built. coraine-dev is not needed
 #   -h, --help
 #
 # The result, in <dir>/install - nothing is written outside <dir>, and root is not needed:
@@ -83,7 +88,7 @@ while [ $# -gt 0 ]; do
     --bridges)        BRIDGES=${2:?--bridges needs a list (or none)}; shift ;;
     --bridges=*)      BRIDGES=${1#--bridges=} ;;
     --json)           JSON=1 ;;
-    --source)         SOURCE=${2:?--source needs a file}; shift ;;
+    --source)         SOURCE=${2:?--source needs a file or a directory}; shift ;;
     --name)           NAME=${2:?--name needs a name}; shift ;;
     --name=*)         NAME=${1#--name=} ;;
     -h|--help)        usage; exit 0 ;;
@@ -108,8 +113,28 @@ if [ -f "$DIR/coraine/makefile" ] && [ -f "$DIR/SOURCE" ]; then
 elif [ -n "$(ls -A "$DIR")" ]; then
   die "$DIR is neither empty nor a coraine-build directory"
 else
-  [ -f "$SOURCE" ] || die "no source tarball at $SOURCE (is coraine-dev installed? --source names another)"
-  tar -xJf "$SOURCE" -C "$DIR" --strip-components=1
+  if [ -d "$SOURCE" ] && { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; }; then
+    #
+    # The lists only read the clones (CMakeLists.txt, each bridge's makefile): linked, not exported - as they
+    # are checked out
+    #
+    [ -x "$SOURCE/coraine/packaging/deb/version.sh" ] || die "--source $SOURCE: no coraine clone in it (coraine/packaging/deb/version.sh)"
+    for d in "$SOURCE"/*/; do ln -s "$(cd "$d" && pwd)" "$DIR/$(basename "$d")"; done
+    echo "version=$(cd "$SOURCE/coraine" && packaging/deb/version.sh)" > "$DIR/SOURCE"
+  elif [ -d "$SOURCE" ]; then
+    #
+    # A directory of clones: the tarball made from them, as the packages' is, then unpacked like any other
+    #
+    [ -x "$SOURCE/coraine/packaging/deb/source.sh" ] || die "--source $SOURCE: no coraine clone in it (coraine/packaging/deb/source.sh)"
+    TARDIR=$(mktemp -d)
+    BASE=$(cd "$SOURCE" && pwd) REF=${LIBS_REF:-origin/main} "$SOURCE/coraine/packaging/deb/source.sh" "$TARDIR" \
+      || { rm -rf "$TARDIR"; die "--source $SOURCE: the source could not be exported from the clones (above)"; }
+    tar -xJf "$TARDIR/coraine-src.tar.xz" -C "$DIR" --strip-components=1
+    rm -rf "$TARDIR"
+  else
+    [ -f "$SOURCE" ] || die "no source tarball at $SOURCE (is coraine-dev installed? --source names another, or a directory of clones)"
+    tar -xJf "$SOURCE" -C "$DIR" --strip-components=1
+  fi
 fi
 . "$DIR/SOURCE"      # version, gitSha, commitDate
 

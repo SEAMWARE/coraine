@@ -7,6 +7,7 @@
 #                                    MANIFEST.txt            every repo and the commit that went in
 #                                    coraine/                git archive HEAD of this checkout
 #                                    corBase/ ... corLibs/   each Cor-Lib, exported by docker/vendor-libs.sh
+#                                    c3/                     c³, the control center - in the coraine package
 #   <out-dir>/version              the upstream version (version.sh)
 #
 # It is what the packages are built from (build.sh) and what coraine-dev ships in /usr/share/coraine/src,
@@ -51,12 +52,22 @@ for t in "$TOP"/docker/vendor/*.tar; do
 done
 
 #
+# c³, the control center: built with the broker, from the same libs, into the coraine package (build.sh).
+# Its committed tree at REF, as a lib's
+#
+[ -d "$BASE/c3/.git" ] || { echo "source.sh: no c3 clone at $BASE/c3" >&2; exit 1; }
+C3_SHA=$(git -C "$BASE/c3" rev-parse "$REF^{commit}")
+C3_BRANCH=$( [ "$REF" = HEAD ] && git -C "$BASE/c3" rev-parse --abbrev-ref HEAD || echo "$REF")
+git -C "$BASE/c3" archive --format=tar --prefix=c3/ "$C3_SHA" | tar -xf - -C "$ROOT"
+
+#
 # MANIFEST.txt: vendor-libs.sh's, plus coraine itself. A copy goes where stackManifest.sh looks for it
 # (coraine/docker/vendor/MANIFEST.txt) - a tree without .git then still reports each library's commit
 # on GET /version.
 #
 {
   cat "$TOP/docker/vendor/MANIFEST.txt"
+  printf '%-10s %-24s %s\n' c3 "$C3_BRANCH" "$C3_SHA"
   printf '%-10s %-24s %s\n' coraine "$(git -C "$TOP" rev-parse --abbrev-ref HEAD)" "$SHA"
 } > "$ROOT/MANIFEST.txt"
 mkdir -p "$ROOT/coraine/docker/vendor"

@@ -36,7 +36,7 @@ apt-get install -y --no-install-recommends "$deb" curl systemd > /tmp/apt.log ||
 dpkg -s coraine | sed -n '/^Version/p;/^Depends/p'
 
 step "2. every library resolves"
-for f in /usr/bin/coraine /usr/bin/coraine-import $(find /opt/seamware -type f -name '*.so*'); do
+for f in /usr/bin/coraine /usr/bin/coraine-import /usr/bin/c3 $(find /opt/seamware -type f -name '*.so*'); do
   if ldd "$f" | grep -q 'not found'; then ldd "$f"; fail "$f: a library is not found"; fi
 done
 if [ -f /opt/seamware/lib/libmongoc2.so.2 ]; then
@@ -46,6 +46,7 @@ if [ -f /opt/seamware/lib/libmongoc2.so.2 ]; then
 fi
 ldd /usr/bin/coraine | grep -E 'microhttpd|ssl'
 coraine --version
+[ -f /usr/share/c3/www/index.html ] || fail "c3's pages are not in /usr/share/c3/www"
 
 step "3. the unit, the user, the state directory"
 systemd-analyze verify /usr/lib/systemd/system/coraine.service 2>&1 | grep -v 'Failed to .*\(bus\|D-Bus\)' | tee /tmp/verify.log || true
