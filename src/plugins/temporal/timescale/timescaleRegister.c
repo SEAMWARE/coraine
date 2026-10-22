@@ -24,7 +24,7 @@
 #include "temporal/timescale/timescalePool.h"             // timescalePing
 #include "temporal/timescale/timescaleWriter.h"           // timescaleHistoryStatus
 #if COR_FEATURE_DB_INDEXES
-#include "temporal/timescale/timescaleIndexes.h"          // timescaleIndexList, timescaleIndexAdd, timescaleIndexDelete
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexList, timescaleValueIndexAdd, timescaleValueIndexDelete
 #endif
 #endif
 
@@ -67,9 +67,9 @@ void troeRegister(TroeDriver* driverP)
   driverP->ping         = timescalePing;   // the health port's pinger (src/app/coraine/health.h)
   driverP->historyStatus = timescaleHistoryStatus;   // ... and its report: recording, held, lost
 #if COR_FEATURE_DB_INDEXES
-  driverP->indexList     = timescaleIndexList;       // /admin/troeIndexes
-  driverP->indexAdd      = timescaleIndexAdd;
-  driverP->indexDelete   = timescaleIndexDelete;
+  driverP->indexList     = timescaleValueIndexList;       // /admin/troeIndexes
+  driverP->indexAdd      = timescaleValueIndexAdd;
+  driverP->indexDelete   = timescaleValueIndexDelete;
 #endif
 #endif
 }

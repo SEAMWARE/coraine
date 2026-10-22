@@ -33,9 +33,9 @@ extern int               timescalePoolSize;
 extern int               timescaleWriters;
 extern int               timescaleDownExit;
 extern int               timescaleConnectTimeout;
-extern char*             timescaleIndexes;
+extern char*             timescaleSqlIndexes;
 #if COR_FEATURE_DB_INDEXES
-extern char*             timescaleDbIndexes;
+extern char*             timescaleValueIndexes;
 #endif
 extern int               timescaleInstanceCap;
 

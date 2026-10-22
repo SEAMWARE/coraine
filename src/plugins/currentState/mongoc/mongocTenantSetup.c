@@ -114,7 +114,7 @@ int mongocTenantSetup(Tenant* tenantP)
 
 #if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
   //
-  // The declared indexes (--dbIndexes, /admin/indexes) that cover this tenant
+  // The declared indexes (--dbValueIndexes, /admin/indexes) that cover this tenant
   //
   mongocIndexesApply(tenantP, collP);
 #endif

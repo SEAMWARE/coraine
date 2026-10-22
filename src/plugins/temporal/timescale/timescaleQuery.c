@@ -59,7 +59,7 @@
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
 #if COR_FEATURE_DB_INDEXES
-#include "temporal/timescale/timescaleIndexes.h"          // timescaleIndexesCandidates
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesCandidates
 #endif
 #include "temporal/timescale/timescaleQuery.h"            // Own interface
 
@@ -1756,14 +1756,14 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
   }
 
   //
-  // The entities q can match, from the indexes that serve its terms (timescaleIndexes.c): the latest rows of
+  // The entities q can match, from the indexes that serve its terms (timescaleValueIndexes.c): the latest rows of
   // those only - without such an index, of every entity, each then checked by q
   //
   const char* candidates = "";
 #if COR_FEATURE_DB_INDEXES
   if (fP->qSqlPredicate != NULL)
   {
-    const char* cand = timescaleIndexesCandidates(timescaleConn, tenantP, fP, &corRest.kalloc);
+    const char* cand = timescaleValueIndexesCandidates(timescaleConn, tenantP, fP, &corRest.kalloc);
 
     if (cand != NULL)
     {

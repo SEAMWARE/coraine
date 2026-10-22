@@ -6,11 +6,11 @@
 # Copyright 2026 Seamware
 #
 # Declared indexes on corDB (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an index serves -
-# declared at start (--dbIndexes) or through the admin API (/admin/indexes). Each declaration is a value
+# declared at start (--dbValueIndexes) or through the admin API (/admin/indexes). Each declaration is a value
 # index in the store of every tenant it covers - the values of every instance, an array's elements - built by
 # the first query that can use it, at once in every store when the admin API declares it.
 #
-#   - --dbIndexes speed: listed by GET /admin/indexes, by "dbIndexes" - not built before a query uses it
+#   - --dbValueIndexes speed: listed by GET /admin/indexes, by "dbValueIndexes" - not built before a query uses it
 #   - a q on speed: served by the index (its "accesses"), the same entities as the walk; an instance of a
 #     datasetId found too
 #   - every write changes the index: PATCH, merge, POST attrs, DELETE attr, replace, DELETE, the batch
@@ -28,22 +28,22 @@
 #   - entities without a declared value are not in an index; one that gains a value takes its place in the
 #     store's order - 24 of them in one gap of the numbering, which is numbered again; PUT and DELETE attr in
 #     and out
-#   - a restart on the same --dbDir without --dbIndexes: the admin API's declaration is still there, speed is
+#   - a restart on the same --dbDir without --dbValueIndexes: the admin API's declaration is still there, speed is
 #     not
 #   - DELETE: an unknown 404, the admin API's 204
-#   - --dbIndexes not an array of declarations: the broker does not start
+#   - --dbValueIndexes not an array of declarations: the broker does not start
 #
 # REQUIRE_DB: corDB
 #
 --NAME--
-corDB - declared indexes: --dbIndexes and /admin/indexes, kept by every write, used by q
+corDB - declared indexes: --dbValueIndexes and /admin/indexes, kept by every write, used by q
 
 --TAGS--
 cordb query q admin cli persistence
 
 --INIT--
 rm -rf /tmp/corTest-db_indexes_corDB
-coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_corDB --dbIndexes speed
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_corDB --dbValueIndexes speed
 
 --RUN--
 DIR=/tmp/corTest-db_indexes_corDB
@@ -97,7 +97,7 @@ c() {
 }
 
 
-echo "01. --dbIndexes speed: listed, by dbIndexes - not built before a query uses it"
+echo "01. --dbValueIndexes speed: listed, by dbValueIndexes - not built before a query uses it"
 echo "==============================================================================="
 decls
 echo
@@ -220,7 +220,7 @@ echo
 echo
 
 
-echo "09. Restarted on the same --dbDir without --dbIndexes: the admin API's declaration, not speed"
+echo "09. Restarted on the same --dbDir without --dbValueIndexes: the admin API's declaration, not speed"
 echo "============================================================================================="
 restart
 decls
@@ -240,21 +240,21 @@ echo
 echo
 
 
-echo "11. --dbIndexes not an array of declarations: the broker does not start"
+echo "11. --dbValueIndexes not an array of declarations: the broker does not start"
 echo "======================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbIndexes '[{"type": "T"}]' > /tmp/dbIndexesCorDB.$$ 2>&1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexesCorDB.$$ 2>&1
 echo "exit: $?"
-grep -o "corDB: --dbIndexes: each declaration is .*" /tmp/dbIndexesCorDB.$$ | head -1
+grep -o "corDB: --dbValueIndexes: each declaration is .*" /tmp/dbIndexesCorDB.$$ | head -1
 rm -f /tmp/dbIndexesCorDB.$$
 echo
 echo
 
 
 --EXPECT--
-01. --dbIndexes speed: listed, by dbIndexes - not built before a query uses it
+01. --dbValueIndexes speed: listed, by dbValueIndexes - not built before a query uses it
 ===============================================================================
-speed type=- tenant=- by dbIndexes: [] built=false entries=0 accesses=0 updates=0
+speed type=- tenant=- by dbValueIndexes: [] built=false entries=0 accesses=0 updates=0
 
 
 02. 40 entities, T and V; one with speed on an instance of a datasetId - q on speed served by the index
@@ -269,7 +269,7 @@ type=T q=speed<4: urn:E1 urn:E3 urn:DS
 type=T q=speed>36|speed==1: urn:E1 urn:E37 urn:E39 urn:DS
 type=T q=speed>30;speed<36: urn:E31 urn:E33 urn:E35 urn:DS
 type=T q=speed!=3;speed<6: urn:E1 urn:E5 urn:DS
-speed type=- tenant=- by dbIndexes: [] built=true entries=42 accesses=10 updates=0
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=42 accesses=10 updates=0
 
 
 03. Every write: the index as the store - PATCH, merge, POST attrs, DELETE attr, replace, DELETE, batch
@@ -309,7 +309,7 @@ type=T q=speed>20: urn:E1 urn:E3 urn:E5 urn:E7 urn:E11 urn:E15 urn:E17 urn:E19 u
 400
 type=T q=temp==20: urn:H1
 type=V q=temp==20: urn:H2
-speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=0
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=40 accesses=0 updates=0
 temp type=T tenant=- by api: [] built=true entries=1 accesses=1 updates=0
 
 
@@ -317,12 +317,12 @@ temp type=T tenant=- by api: [] built=true entries=1 accesses=1 updates=0
 =============================================================================================
 204
 204
-speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=0
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=40 accesses=0 updates=0
 temp type=T tenant=- by api: [] built=true entries=2 accesses=1 updates=2
 204
 204
 204
-speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=1
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=40 accesses=0 updates=1
 temp type=T tenant=- by api: [] built=true entries=2 accesses=1 updates=2
 201
 204
@@ -332,7 +332,7 @@ type=T q=speed==25:
 type=T q=temp==20: urn:H1
 204
 type=T q=temp==20: urn:H1 urn:H2
-speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=40 accesses=2 updates=3
 temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3
 
 
@@ -340,7 +340,7 @@ temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3
 ============================================================
 201
 t1: urn:X
-speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3 [t1] built=true entries=0 accesses=0 updates=0
+speed type=- tenant=- by dbValueIndexes: [] built=true entries=40 accesses=2 updates=3 [t1] built=true entries=0 accesses=0 updates=0
 temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3 [t1] built=true entries=1 accesses=1 updates=0
 
 
@@ -359,7 +359,7 @@ type=T q=speed>5000: urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R7 urn:R8 urn
 type=T q=speed>5000: urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R8 urn:R9 urn:R10 urn:R11 urn:R12 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20 urn:R21 urn:R22 urn:R23 urn:R24 urn:R25 urn:RZ
 
 
-09. Restarted on the same --dbDir without --dbIndexes: the admin API's declaration, not speed
+09. Restarted on the same --dbDir without --dbValueIndexes: the admin API's declaration, not speed
 =============================================================================================
 temp type=T tenant=- by api: [] built=false entries=0 accesses=0 updates=0 [t1] built=false entries=0 accesses=0 updates=0
 type=T q=temp==20: urn:H1 urn:H2
@@ -372,10 +372,10 @@ type=T q=temp==20: urn:H1 urn:H2
 declarations: []
 
 
-11. --dbIndexes not an array of declarations: the broker does not start
+11. --dbValueIndexes not an array of declarations: the broker does not start
 =======================================================================
 exit: 1
-corDB: --dbIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+corDB: --dbValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
 
 
 --TEARDOWN--

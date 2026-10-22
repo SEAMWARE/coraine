@@ -320,8 +320,8 @@ The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`,
 | `--troeWriters` | 8 | writer threads per tenant, each on a connection of its own, opened the first time it writes. 0: no writers - every request writes its own history, in a transaction of its own |
 | `--troeConnectTimeout` | 30 | seconds a start waits for the database, trying once a second (as `--dbTimeout` for MongoDB); 0: one try |
 | `--troeDownExit` | 0 | seconds the database may be unreachable before the broker exits (code 1) - see [The database down](#the-database-down). 0: never; the broker keeps serving the current state |
-| `--troeIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
-| `--troeDbIndexes` | none | the declared indexes of the history: attributes whose `q` value terms an index serves - see [Declared indexes](#timescaledb-the-history) |
+| `--troeSqlIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
+| `--troeValueIndexes` | none | the declared indexes of the history: attributes whose `q` value terms an index serves - see [Declared indexes](#timescaledb-the-history) |
 | `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
 
 **The writers.** A request renders the history rows of its writes and queues them for its tenant's
@@ -493,11 +493,11 @@ because the Temporal API's retrieves and queries are built on them:
 | `troe_attrs` and `troe_entities` `entity_type` (GIN) | a query by `type` |
 | `troe_entities` primary key (`entity_id`, `modified_at`, `op`) | an Entity's history: its existence, its types, its `createdAt` / `modifiedAt` |
 
-The others are a choice, `--troeIndexes` - for queries that go to PostgreSQL directly (a dashboard, a
+The others are a choice, `--troeSqlIndexes` - for queries that go to PostgreSQL directly (a dashboard, a
 report), not through the broker: the Temporal API's queries find their rows through the Entity first,
 and none of them uses these.
 
-| `--troeIndexes` | The index | Serves |
+| `--troeSqlIndexes` | The index | Serves |
 |-----------------|-----------|--------|
 | `attrObserved` | `troe_attrs` (`attr_name`, `observed_at`) | one Attribute of every Entity in a time window |
 | `geo` | GiST on `troe_attrs.geo` (the GeoProperty values) | the rows within a distance of a point, or in an area, whatever the Entity |
@@ -645,24 +645,24 @@ Which one weighs more is the workload's: how often the attribute is written, how
 Declared at start, by the store plugin's option (`mongoc`, `corDB`):
 
 ```
---dbIndexes speed,temperature
---dbIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
+--dbValueIndexes speed,temperature
+--dbValueIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
 ```
 
 - names, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
 - a short name is expanded with the core @context; an IRI is taken as it is
 - an error in it: the broker does not start
-- taken out of `--dbIndexes`: its index is gone at the next start
+- taken out of `--dbValueIndexes`: its index is gone at the next start
 
 Declared on a running broker, through the admin API (`--apiPlugins admin`):
 
 | request | answer |
 |---|---|
-| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
+| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbValueIndexes` or `api`), and `tenants` - for each tenant it covers, the store's figures (below) |
 | `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the index built in every tenant it covers, the declaration kept in the default tenant's store. 409 if declared already, 400 for another body |
-| `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
+| `DELETE /admin/indexes/{id}` | 204: its index dropped in every tenant. 409 for a declaration of `--dbValueIndexes`, 404 for none |
 
-**Declare the indexes at start** (`--dbIndexes`). The admin API changes them on a running broker, and
+**Declare the indexes at start** (`--dbValueIndexes`). The admin API changes them on a running broker, and
 a change costs a build of the indexes; on corDB, a build of **every** declaration's, in every tenant's store,
 the writes to the store waiting meanwhile. 1 000 000 entities with both attributes, one tenant, the release
 build ([Performance](performance.md#building-a-declared-index)):
@@ -677,7 +677,7 @@ build ([Performance](performance.md#building-a-declared-index)):
 with its @context (`Link` header), the core one without; a response compacts them with it. The `POST` answers
 once the index is built - on a large store, that takes a while. Another broker on the same database sees a
 declaration made through the API when it starts again. In the build by default;
-`-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbIndexes` and no `--troeDbIndexes`; `/admin/indexes` and `/admin/troeIndexes` answer 501).
+`-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbValueIndexes` and no `--troeValueIndexes`; `/admin/indexes` and `/admin/troeIndexes` answer 501).
 
 #### mongoc
 
@@ -713,7 +713,7 @@ More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---decl
 
 #### TimescaleDB (the history)
 
-The history has declarations of its own: `--troeDbIndexes`, and `/admin/troeIndexes`, which works the same way
+The history has declarations of its own: `--troeValueIndexes`, and `/admin/troeIndexes`, which works the same way
 as `/admin/indexes`. Each declaration is two partial indexes of `troe_attrs`, in the database of every tenant it
 covers:
 
@@ -723,17 +723,17 @@ covers:
 | `cor_t_<id>` | `v_text` | the same |
 
 ```
---troeDbIndexes speed,temperature
---troeDbIndexes '[{"attribute": "speed", "type": "Vehicle"}]'
+--troeValueIndexes speed,temperature
+--troeValueIndexes '[{"attribute": "speed", "type": "Vehicle"}]'
 ```
 
-The option has the same format and rules as `--dbIndexes`. The admin API:
+The option has the same format and rules as `--dbValueIndexes`. The admin API:
 
 | request | answer |
 |---|---|
-| `GET /admin/troeIndexes` | every declaration (`declaredBy`: `troeDbIndexes` or `api`), then every index made in a tenant's database that serves a `q` value term (`declaredBy`: `database`, `id`: the index's name, `definition`: its `CREATE INDEX`). `tenants`: per tenant, `built`, `bytes` and `accesses` (scans since PostgreSQL's statistics were reset); a hypertable's chunk indexes are added up |
+| `GET /admin/troeIndexes` | every declaration (`declaredBy`: `troeValueIndexes` or `api`), then every index made in a tenant's database that serves a `q` value term (`declaredBy`: `database`, `id`: the index's name, `definition`: its `CREATE INDEX`). `tenants`: per tenant, `built`, `bytes` and `accesses` (scans since PostgreSQL's statistics were reset); a hypertable's chunk indexes are added up |
 | `POST /admin/troeIndexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/troeIndexes/<id>`: its two indexes created in every tenant whose history is open, over every row of the history. 409 if declared already, 400 for another body. An index that cannot be created: none of them kept, 500 |
-| `DELETE /admin/troeIndexes/{id}` | 204: its indexes dropped in every tenant. 409 for a declaration of `--troeDbIndexes`, 404 for none |
+| `DELETE /admin/troeIndexes/{id}` | 204: its indexes dropped in every tenant. 409 for a declaration of `--troeValueIndexes`, 404 for none |
 
 A tenant's declared indexes are applied when its history is opened: the ones its declarations need are created,
 and an index named `cor_n_*` / `cor_t_*` that no declaration names is dropped. **Declare the indexes at start**:

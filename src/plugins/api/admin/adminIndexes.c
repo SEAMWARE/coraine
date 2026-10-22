@@ -16,7 +16,7 @@
 //   DELETE /admin/indexes/{id}   a declaration of the admin API taken away
 //
 // /admin/troeIndexes: the same for the history - the TRoE store's (troe.index*), timescale's
-// --troeDbIndexes; its indexes made in the database too (declaredBy "database")
+// --troeValueIndexes; its indexes made in the database too (declaredBy "database")
 //
 #include <stddef.h>                               // NULL
 #include <stdio.h>                                // snprintf

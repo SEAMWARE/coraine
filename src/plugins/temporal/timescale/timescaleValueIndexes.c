@@ -1,5 +1,5 @@
 //
-// FILE            timescaleIndexes.c
+// FILE            timescaleValueIndexes.c
 //
 // AUTHOR          Ken Zangelin
 //
@@ -8,7 +8,7 @@
 //
 // The declared indexes of the history (doc/installation.md, "Declared indexes"): an attribute - narrowed
 // to an entity type, to a tenant, if so declared - whose q value terms an index of troe_attrs serves.
-// Declared at start (--troeDbIndexes) or through the admin API (/admin/troeIndexes, kept in the default
+// Declared at start (--troeValueIndexes) or through the admin API (/admin/troeIndexes, kept in the default
 // tenant's database: the table troe_db_indexes).
 //
 // A declaration is two partial indexes of troe_attrs in the database of every tenant it covers:
@@ -62,9 +62,9 @@
 #include "troe/TroeDriver.h"                         // TroeQueryFilter
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToCandidateSql
 
-#include "temporal/timescale/timescaleGlobals.h"     // timescaleDbIndexes
+#include "temporal/timescale/timescaleGlobals.h"     // timescaleValueIndexes
 #include "temporal/timescale/timescalePool.h"        // TimescalePool, timescaleConnGet, timescaleConnRelease
-#include "temporal/timescale/timescaleIndexes.h"     // Own interface
+#include "temporal/timescale/timescaleValueIndexes.h"     // Own interface
 
 
 
@@ -78,14 +78,14 @@ typedef struct IndexDecl
   char*  attr;           // expanded
   char*  type;           // expanded - NULL: every type
   char*  tenant;         // NULL: every tenant
-  bool   api;            // made through /admin/troeIndexes (kept in the database) - false: --troeDbIndexes
+  bool   api;            // made through /admin/troeIndexes (kept in the database) - false: --troeValueIndexes
 } IndexDecl;
 
 
 
 // -----------------------------------------------------------------------------
 //
-// declV - the declarations, --troeDbIndexes's first. Two indexes each, and every one costs every write of
+// declV - the declarations, --troeValueIndexes's first. Two indexes each, and every one costs every write of
 // its attribute's history
 //
 static IndexDecl        declV[32];
@@ -216,7 +216,7 @@ static int declAdd(const char* attr, const char* type, const char* tenant, bool 
   int ix = declLookup(d.id);
   if (ix >= 0)
   {
-    snprintf(errorText, errorTextLen, "'%s' is declared already (%s, by %s)", attr, d.id, declV[ix].api? "the admin API" : "--troeDbIndexes");
+    snprintf(errorText, errorTextLen, "'%s' is declared already (%s, by %s)", attr, d.id, declV[ix].api? "the admin API" : "--troeValueIndexes");
     declFree(&d);
     return DB_ALREADY_EXISTS;
   }
@@ -392,7 +392,7 @@ static bool declsLoad(PGconn* conn)
 
 // -----------------------------------------------------------------------------
 //
-// optionDeclare - one declaration of --troeDbIndexes: its names expanded with the core @context (a name
+// optionDeclare - one declaration of --troeValueIndexes: its names expanded with the core @context (a name
 // with a ':' is taken as it is)
 //
 static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, const char* tenant)
@@ -403,7 +403,7 @@ static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, 
 
   if (declAdd((attrIri != NULL)? attrIri : attr, (typeIri != NULL)? typeIri : type, tenant, false, errorText, sizeof(errorText)) != DB_OK)
   {
-    COR_E("timescale: --troeDbIndexes: %s", errorText);
+    COR_E("timescale: --troeValueIndexes: %s", errorText);
     return false;
   }
 
@@ -414,7 +414,7 @@ static bool optionDeclare(CorAlloc* allocP, const char* attr, const char* type, 
 
 // -----------------------------------------------------------------------------
 //
-// optionParse - --troeDbIndexes: attribute names, comma-separated - or a JSON array of
+// optionParse - --troeValueIndexes: attribute names, comma-separated - or a JSON array of
 // { "attribute": , "type"?: , "tenant"?: }
 //
 static bool optionParse(const char* option)
@@ -423,7 +423,7 @@ static bool optionParse(const char* option)
   CorAlloc     alloc;
   bool         ok = true;
 
-  corAllocBufferInit(&alloc, buf, sizeof(buf), 16 * 1024, NULL, "troeDbIndexes");
+  corAllocBufferInit(&alloc, buf, sizeof(buf), 16 * 1024, NULL, "troeValueIndexes");
 
   char* text = corAllocStrdup(&alloc, option);
 
@@ -440,7 +440,7 @@ static bool optionParse(const char* option)
 
     if ((treeP == NULL) || (treeP->type != CorArray))
     {
-      COR_E("timescale: --troeDbIndexes: not a JSON array of { \"attribute\", \"type\", \"tenant\" }");
+      COR_E("timescale: --troeValueIndexes: not a JSON array of { \"attribute\", \"type\", \"tenant\" }");
       ok = false;
     }
 
@@ -452,7 +452,7 @@ static bool optionParse(const char* option)
 
       if ((attrP == NULL) || (attrP->type != CorString) || ((typeP != NULL) && (typeP->type != CorString)) || ((tenantP != NULL) && (tenantP->type != CorString)))
       {
-        COR_E("timescale: --troeDbIndexes: each declaration is { \"attribute\": <string>, \"type\"?: <string>, \"tenant\"?: <string> }");
+        COR_E("timescale: --troeValueIndexes: each declaration is { \"attribute\": <string>, \"type\"?: <string>, \"tenant\"?: <string> }");
         ok = false;
       }
       else
@@ -479,13 +479,13 @@ static bool optionParse(const char* option)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesInit -
+// timescaleValueIndexesInit -
 //
-int timescaleIndexesInit(void)
+int timescaleValueIndexesInit(void)
 {
   pthread_mutex_lock(&declMutex);
 
-  bool ok = (timescaleDbIndexes == NULL) || (optionParse(timescaleDbIndexes) == true);
+  bool ok = (timescaleValueIndexes == NULL) || (optionParse(timescaleValueIndexes) == true);
 
   pthread_mutex_unlock(&declMutex);
 
@@ -496,9 +496,9 @@ int timescaleIndexesInit(void)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesLoad -
+// timescaleValueIndexesLoad -
 //
-int timescaleIndexesLoad(void)
+int timescaleValueIndexesLoad(void)
 {
   TimescaleConn* cP = timescaleConnGet(&tenant0);
 
@@ -511,8 +511,8 @@ int timescaleIndexesLoad(void)
   pthread_mutex_unlock(&declMutex);
 
   if (declN > before)
-    timescaleIndexesApply(cP->conn, &tenant0);    // the default tenant's pool was built before they were known
-  timescaleIndexesDiscover(cP->conn, (TimescalePool*) tenant0.troePoolP);
+    timescaleValueIndexesApply(cP->conn, &tenant0);    // the default tenant's pool was built before they were known
+  timescaleValueIndexesDiscover(cP->conn, (TimescalePool*) tenant0.troePoolP);
 
   timescaleConnRelease(cP);
 
@@ -526,9 +526,9 @@ int timescaleIndexesLoad(void)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesApply -
+// timescaleValueIndexesApply -
 //
-void timescaleIndexesApply(PGconn* conn, Tenant* tenantP)
+void timescaleValueIndexesApply(PGconn* conn, Tenant* tenantP)
 {
   char       errorText[512];
   PGresult*  res = PQexec(conn, "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'troe_attrs' "
@@ -680,9 +680,9 @@ static void servedFree(Served* servedV, int servedN)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesDiscover -
+// timescaleValueIndexesDiscover -
 //
-void timescaleIndexesDiscover(PGconn* conn, TimescalePool* poolP)
+void timescaleValueIndexesDiscover(PGconn* conn, TimescalePool* poolP)
 {
   if (poolP == NULL)
     return;
@@ -736,9 +736,9 @@ void timescaleIndexesDiscover(PGconn* conn, TimescalePool* poolP)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesPoolFree -
+// timescaleValueIndexesPoolFree -
 //
-void timescaleIndexesPoolFree(TimescalePool* poolP)
+void timescaleValueIndexesPoolFree(TimescalePool* poolP)
 {
   TenantIndexes* tiP = (TenantIndexes*) poolP->indexesP;
 
@@ -817,9 +817,9 @@ static const char* servedBy(const char* attr, const char* column, void* dataP)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexesCandidates -
+// timescaleValueIndexesCandidates -
 //
-const char* timescaleIndexesCandidates(PGconn* conn, Tenant* tenantP, TroeQueryFilter* fP, CorAlloc* allocP)
+const char* timescaleValueIndexesCandidates(PGconn* conn, Tenant* tenantP, TroeQueryFilter* fP, CorAlloc* allocP)
 {
   TimescalePool*  poolP = (TimescalePool*) tenantP->troePoolP;
   TenantIndexes*  tiP   = (poolP != NULL)? (TenantIndexes*) poolP->indexesP : NULL;
@@ -828,7 +828,7 @@ const char* timescaleIndexesCandidates(PGconn* conn, Tenant* tenantP, TroeQueryF
     return NULL;
 
   if (time(NULL) - tiP->at >= 60)                    // an index made or dropped in the database meanwhile
-    timescaleIndexesDiscover(conn, poolP);
+    timescaleValueIndexesDiscover(conn, poolP);
 
   ServedWork w = { NULL, 0, NULL, allocP };
 
@@ -954,7 +954,7 @@ static int tenantsSeen(TenantSeen** vPP)
     if (cP != NULL)
     {
       vP[ix].statsN = tenantStats(cP->conn, &vP[ix].statsV);
-      timescaleIndexesDiscover(cP->conn, (TimescalePool*) tP->troePoolP);
+      timescaleValueIndexesDiscover(cP->conn, (TimescalePool*) tP->troePoolP);
       timescaleConnRelease(cP);
     }
     ++ix;
@@ -999,7 +999,7 @@ static CorNode* declToTree(IndexDecl* dP, TenantSeen* seenV, int seenN)
     corTreeChildAdd(declP, corTreeString(corRest.kallocP, "type", dP->type));
   if (dP->tenant != NULL)
     corTreeChildAdd(declP, corTreeString(corRest.kallocP, "tenant", dP->tenant));
-  corTreeChildAdd(declP, corTreeString(corRest.kallocP, "declaredBy", dP->api? "api" : "troeDbIndexes"));
+  corTreeChildAdd(declP, corTreeString(corRest.kallocP, "declaredBy", dP->api? "api" : "troeValueIndexes"));
 
   if (seenV == NULL)
     return declP;
@@ -1039,10 +1039,10 @@ static CorNode* declToTree(IndexDecl* dP, TenantSeen* seenV, int seenN)
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexList - the declarations, then the indexes made in a tenant's database that serve a q value
+// timescaleValueIndexList - the declarations, then the indexes made in a tenant's database that serve a q value
 // term (declaredBy "database", id = the index's name)
 //
-int timescaleIndexList(CorNode** arrayPP)
+int timescaleValueIndexList(CorNode** arrayPP)
 {
   CorNode*     arrayP = corTreeArray(corRest.kallocP, NULL);
   TenantSeen*  seenV;
@@ -1117,7 +1117,7 @@ static bool tenantsEachConn(TenantConnFunc f, IndexDecl* dP, char* errorText, in
 
     bool go = f(tP, cP->conn, dP, errorText, errorTextLen);
 
-    timescaleIndexesDiscover(cP->conn, (TimescalePool*) tP->troePoolP);
+    timescaleValueIndexesDiscover(cP->conn, (TimescalePool*) tP->troePoolP);
     timescaleConnRelease(cP);
 
     if (go == false)
@@ -1153,10 +1153,10 @@ static bool dropIn(Tenant* tenantP, PGconn* conn, IndexDecl* dP, char* errorText
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexAdd - a declaration of the admin API: its indexes created in every tenant it covers, then
+// timescaleValueIndexAdd - a declaration of the admin API: its indexes created in every tenant it covers, then
 // kept. An index that cannot be created: none of them kept, the declaration not made (DB_ERR)
 //
-int timescaleIndexAdd(const char* attr, const char* type, const char* tenant, CorNode** declPP, char* errorText, int errorTextLen)
+int timescaleValueIndexAdd(const char* attr, const char* type, const char* tenant, CorNode** declPP, char* errorText, int errorTextLen)
 {
   pthread_mutex_lock(&declMutex);
 
@@ -1186,10 +1186,10 @@ int timescaleIndexAdd(const char* attr, const char* type, const char* tenant, Co
 
 // -----------------------------------------------------------------------------
 //
-// timescaleIndexDelete - a declaration of the admin API taken away: its indexes dropped in every tenant.
-// One of --troeDbIndexes is not (DB_BAD_INPUT): it is the start's, and comes back with it
+// timescaleValueIndexDelete - a declaration of the admin API taken away: its indexes dropped in every tenant.
+// One of --troeValueIndexes is not (DB_BAD_INPUT): it is the start's, and comes back with it
 //
-int timescaleIndexDelete(const char* id, char* errorText, int errorTextLen)
+int timescaleValueIndexDelete(const char* id, char* errorText, int errorTextLen)
 {
   int rc = DB_OK;
 
@@ -1204,7 +1204,7 @@ int timescaleIndexDelete(const char* id, char* errorText, int errorTextLen)
   }
   else if (declV[ix].api == false)
   {
-    snprintf(errorText, errorTextLen, "'%s' is declared by --troeDbIndexes - taken out of it, it is gone at the next start", id);
+    snprintf(errorText, errorTextLen, "'%s' is declared by --troeValueIndexes - taken out of it, it is gone at the next start", id);
     rc = DB_BAD_INPUT;
   }
   else

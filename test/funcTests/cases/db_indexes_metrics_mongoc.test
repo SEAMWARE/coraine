@@ -13,12 +13,12 @@
 # MongoDB counts an index's uses, not its writes. Labels: id, attribute, type (a declaration narrowed to
 # one), tenant ("" = the default) - the names compacted with the core @context.
 #
-#   - --dbIndexes speed: built at start, 0 accesses; no ngsild_index_entries, no ngsild_index_updates_total
+#   - --dbValueIndexes speed: built at start, 0 accesses; no ngsild_index_entries, no ngsild_index_updates_total
 #   - 200 entities, q=speed>190: both indexes used - 2 accesses
 #   - a tenant created now: its series
 #   - POST a declaration narrowed to a type: its series, the type a label, in both tenants
 #   - DELETE it: its series gone
-#   - started without --dbIndexes: no ngsild_index_ at all
+#   - started without --dbValueIndexes: no ngsild_index_ at all
 #
 # Counts as MongoDB's planner chooses (a few entities: the sort index serves the query, not these):
 # REQUIRE_DB: mongoc
@@ -31,7 +31,7 @@ mongoc metrics admin q
 
 --INIT--
 corDbDrop
-coraineStart --apiPlugins admin --dbIndexes speed
+coraineStart --apiPlugins admin --dbValueIndexes speed
 
 --RUN--
 B=http://localhost:$CB_PORT
@@ -46,7 +46,7 @@ metrics() {
 code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
 
 
-echo "01. --dbIndexes speed: built at start, 0 accesses; no entries, no updates"
+echo "01. --dbValueIndexes speed: built at start, 0 accesses; no entries, no updates"
 echo "========================================================================="
 curl -s "$B/admin/metrics" | grep -aE '^# TYPE ngsild_index_'
 metrics
@@ -90,7 +90,7 @@ echo
 echo
 
 
-echo "06. Started without --dbIndexes: no ngsild_index_ at all"
+echo "06. Started without --dbValueIndexes: no ngsild_index_ at all"
 echo "========================================================"
 coraineStop
 coraineStart --apiPlugins admin
@@ -100,7 +100,7 @@ echo
 
 
 --EXPECT--
-01. --dbIndexes speed: built at start, 0 accesses; no entries, no updates
+01. --dbValueIndexes speed: built at start, 0 accesses; no entries, no updates
 =========================================================================
 # TYPE ngsild_index_built gauge
 # TYPE ngsild_index_bytes gauge
@@ -144,7 +144,7 @@ ngsild_index_built{id="<id>",attribute="speed",tenant=""} 1
 ngsild_index_built{id="<id>",attribute="speed",tenant="t1"} 1
 
 
-06. Started without --dbIndexes: no ngsild_index_ at all
+06. Started without --dbValueIndexes: no ngsild_index_ at all
 ========================================================
 0
 

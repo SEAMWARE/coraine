@@ -20,9 +20,9 @@
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleDb*
 #include "temporal/timescale/timescalePool.h"             // timescalePoolEnsureReach, timescalePoolCloseAll
-#include "temporal/timescale/timescaleMigrate.h"          // timescaleIndexesParse
+#include "temporal/timescale/timescaleMigrate.h"          // timescaleSqlIndexesParse
 #if COR_FEATURE_DB_INDEXES
-#include "temporal/timescale/timescaleIndexes.h"          // timescaleIndexesInit, timescaleIndexesLoad
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesInit, timescaleValueIndexesLoad
 #endif
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
@@ -42,11 +42,11 @@ int timescaleInit(void)
 {
   corArgsSecret("--troePwd");                      // never shown: GET /admin/config masks it
 
-  if (timescaleIndexesParse(timescaleIndexes) != 0)
+  if (timescaleSqlIndexesParse(timescaleSqlIndexes) != 0)
     return TROE_ERR;
 
 #if COR_FEATURE_DB_INDEXES
-  if (timescaleIndexesInit() != 0)                  // --troeDbIndexes: before the default tenant's pool applies them
+  if (timescaleValueIndexesInit() != 0)                  // --troeValueIndexes: before the default tenant's pool applies them
     return TROE_ERR;
 #endif
 
@@ -79,7 +79,7 @@ int timescaleInit(void)
   }
 
 #if COR_FEATURE_DB_INDEXES
-  if (timescaleIndexesLoad() != 0)                  // the admin API's: kept in the default tenant's database
+  if (timescaleValueIndexesLoad() != 0)                  // the admin API's: kept in the default tenant's database
     return TROE_ERR;
 #endif
 

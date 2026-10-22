@@ -18,7 +18,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// mongocIndexesInit - --dbIndexes's declarations and the admin API's, before any tenant is set up: -1 on
+// mongocIndexesInit - --dbValueIndexes's declarations and the admin API's, before any tenant is set up: -1 on
 // an error (said why)
 //
 extern int mongocIndexesInit(void);

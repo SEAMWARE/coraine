@@ -17,7 +17,7 @@ SET(TIMESCALE_SOURCES
 )
 
 IF (COR_FEATURE_DB_INDEXES)
-  LIST(APPEND TIMESCALE_SOURCES timescaleIndexes.c)       # --troeDbIndexes, /admin/troeIndexes
+  LIST(APPEND TIMESCALE_SOURCES timescaleValueIndexes.c)       # --troeValueIndexes, /admin/troeIndexes
 ENDIF()
 
 ADD_LIBRARY(troeTimescale SHARED ${TIMESCALE_SOURCES})

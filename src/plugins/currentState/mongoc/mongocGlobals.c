@@ -24,7 +24,7 @@ char*           mongocDbPwd  = NULL;
 char*           mongocDbURI     = NULL;
 unsigned short  mongocDbTimeout = 30;
 #if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
-char*           mongocDbIndexes = NULL;        // --dbIndexes (mongocIndexes.c)
+char*           mongocDbIndexes = NULL;        // --dbValueIndexes (mongocIndexes.c)
 #endif
 
 // Reserved database for global (non-tenant) state — JSON-LD context
@@ -63,7 +63,7 @@ CorArg mongocArgV[] =
   { "--dbURI",     "-dbURI",     CorArgString, _vp &mongocDbURI, CorArgOpt, NULL,  NULL,  NULL,      "full database URI"              },
   { "--dbTimeout", "-dbTimeout", CorArgUShort, _vp &mongocDbTimeout, CorArgOpt, _vp 30,    _vp 1, _vp 3600,  "database connection timeout (s)" },
 #if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
-  { "--dbIndexes", "-dbIndexes", CorArgString, _vp &mongocDbIndexes, CorArgOpt, NULL,  NULL,  NULL,      "declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}" },
+  { "--dbValueIndexes", "-dbValueIndexes", CorArgString, _vp &mongocDbIndexes, CorArgOpt, NULL,  NULL,  NULL,      "declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}" },
 #endif
   CORARGS_END
 };

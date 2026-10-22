@@ -132,7 +132,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--dbSnapshotEvery/-dbSnapshotEvery <MiB of log after which a tenant is snapshotted>]
                 [--dbCompress/-dbCompress (compress the snapshots and the finished log segments (zstd, on the snapshot thread - the open segment never))]
                 [--dbLockPrefer/-dbLockPrefer <reads|writes - whom a tenant's store lock lets in first when both wait (doc/performance.md in coraine)>]
-                [--dbIndexes/-dbIndexes <declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}>]
+                [--dbValueIndexes/-dbValueIndexes <declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}>]
 
                 Plugins are loaded from /opt/seamware/plugins
 
@@ -198,7 +198,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--dbPwd/-dbPwd <database password>]
                 [--dbURI/-dbURI <full database URI>]
                 [--dbTimeout/-dbTimeout <database connection timeout (s)>]
-                [--dbIndexes/-dbIndexes <declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}>]
+                [--dbValueIndexes/-dbValueIndexes <declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}>]
 
                 Plugins are loaded from /opt/seamware/plugins
 
@@ -316,7 +316,7 @@ Usage: coraine  [--usage/-u (usage)]
   --dbSnapshotEvery       (-dbSnapshotEvery)    CORAINE_DBSNAPSHOTEVERY       Optional   Int      Default Value  
   --dbCompress            (-dbCompress)         CORAINE_DBCOMPRESS            Optional   Bool     Default Value  
   --dbLockPrefer          (-dbLockPrefer)       CORAINE_DBLOCKPREFER          Optional   String   Default Value  
-  --dbIndexes             (-dbIndexes)          CORAINE_DBINDEXES             Optional   String   Default Value  
+  --dbValueIndexes        (-dbValueIndexes)     CORAINE_DBVALUEINDEXES        Optional   String   Default Value  
 
 
 --TEARDOWN--

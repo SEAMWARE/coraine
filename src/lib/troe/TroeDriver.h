@@ -464,7 +464,7 @@ typedef struct TroeDriver
 
   //
   // The declared indexes of the history (/admin/troeIndexes; the plugin's own option at start,
-  // timescale's --troeDbIndexes) - as DbDriver's indexList, indexAdd, indexDelete, the DB_* codes too.
+  // timescale's --troeValueIndexes) - as DbDriver's indexList, indexAdd, indexDelete, the DB_* codes too.
   // NULL-allowed, the three together - appended: /admin/troeIndexes answers 501
   //
   DbIndexListFunc                   indexList;

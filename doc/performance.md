@@ -978,7 +978,7 @@ Step by step - each an A/B against the step before, ABBA, the mean of the two ru
 | a waiting `--troeSync` request woken by its own condition | - | - | - |
 | another writer only when none writes, or 8 requests wait | 23 003 (22 553) | 7 289 (5 875) | 1 715 (1 706) |
 | a batch up to 1 MiB (was 4) | 22 939 (22 646) | 7 284 (7 271) | 1 837 (1 706) |
-| the optional indexes off by default (`--troeIndexes none`) | see the first table | | |
+| the optional indexes off by default (`--troeSqlIndexes none`) | see the first table | | |
 | a row's timestamps from integers, not `%.6f` | 24 670 (24 782) | 7 449 (7 437) | 2 170 (2 237) |
 
 (in parentheses: the step before, in the same ABBA - runs differ by a few per cent from one to the
@@ -1518,7 +1518,7 @@ filter mongoc builds for `q=speed>=995`, 1 200 matches:
 | pre-filter + `$expr`, no index | 73.4 ms |
 | pre-filter + `$expr`, the two indexes of a declaration | 3.4 ms - 1 200 documents examined |
 
-The broker's own query, read from MongoDB's profiler, with `--dbIndexes` and `/admin/indexes`
+The broker's own query, read from MongoDB's profiler, with `--dbValueIndexes` and `/admin/indexes`
 (`db_indexes_mongoc.test`): `type=T&q=temp>190` over 201 entities uses both indexes of `temp` and examines the
 6 entities it returns. A query whose type a declaration narrowed to another type does not use them.
 
@@ -2024,7 +2024,7 @@ the mean of the two runs of each build, requests a second at c50 unless named:
 
 ### corDB's declared indexes
 
-A declared attribute (`--dbIndexes`, `/admin/indexes` - [Declared indexes](installation.md#declared-indexes))
+A declared attribute (`--dbValueIndexes`, `/admin/indexes` - [Declared indexes](installation.md#declared-indexes))
 is a value index in corDB's store, and a `q` term on it takes its candidates from the index instead of
 walking the store - corDB's README, "Queries by value - declared indexes".
 
@@ -2033,7 +2033,7 @@ corDB `83b3323` (corDB#36: only the entities with a declared value in the index)
 new directory each run), `--troe none`, the machine of [Profile-guided](#profile-guided-make-pgo). 100 000
 entities of type `T`: `speed` = i mod 10 000 (ten entities a value), `other` = i mod 7 919; 20 000 more without
 `speed` (`urn:F<i>`, for the `PUT`s); one query on `speed` after them (it builds the index). The same binary
-with `--dbIndexes speed` (on) and without (off). wrk, 8 threads, 50 connections, 5 s x 3 a scenario (the
+with `--dbValueIndexes speed` (on) and without (off). wrk, 8 threads, 50 connections, 5 s x 3 a scenario (the
 median); the runs in the order off, on, on, off, and the figure is the mean of the two runs of each. **µs a
 request** is 1 / the rate: what one request takes of the broker at full load - a cost a request more or less
 adds or saves.
@@ -2099,7 +2099,7 @@ to 385 000 without it.
 
 What a change of the declarations costs on a running broker ([Declared indexes](installation.md#declared-indexes)).
 2026-10-22, the release build of coraine `bbfb0db0` with corDB `2e8a455`, one tenant, 1 000 000 entities of type
-`V`, each with `speed` (i mod 1 000) and `temp` (i mod 50), created in batches of 1 000; `--dbIndexes speed`,
+`V`, each with `speed` (i mod 1 000) and `temp` (i mod 50), created in batches of 1 000; `--dbValueIndexes speed`,
 then `POST /admin/indexes {"attribute": "temp"}` and its `DELETE`. Times are the request's (curl
 `time_total`), on an idle broker.
 
@@ -2122,7 +2122,7 @@ then `POST /admin/indexes {"attribute": "temp"}` and its `DELETE`. Times are the
 
 ### Declared indexes of the TimescaleDB history
 
-A declared attribute of the history (`--troeDbIndexes`, `/admin/troeIndexes` -
+A declared attribute of the history (`--troeValueIndexes`, `/admin/troeIndexes` -
 [TimescaleDB (the history)](installation.md#timescaledb-the-history)) is two partial indexes of `troe_attrs`. A
 temporal query with a `q` term on it selects its entities from the index ("candidates"):
 `FROM troe_entities WHERE entity_id IN (SELECT entity_id FROM troe_attrs WHERE <the term> AND <the window>)`

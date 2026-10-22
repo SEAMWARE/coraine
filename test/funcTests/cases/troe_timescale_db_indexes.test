@@ -8,12 +8,12 @@
 # REQUIRE_FEATURE: DB_INDEXES
 #
 # Declared indexes of the history, timescale (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an
-# index of troe_attrs serves - declared at start (--troeDbIndexes) or through the admin API
+# index of troe_attrs serves - declared at start (--troeValueIndexes) or through the admin API
 # (/admin/troeIndexes). Each declaration is two partial indexes of troe_attrs in the database of every
 # tenant it covers: cor_n_<id> (v_number) and cor_t_<id> (v_text), WHERE attr_name = <attr> (and the type,
 # if one is declared). The indexes made in the database that serve a q value term are found too.
 #
-#   - --troeDbIndexes speed: its two indexes; GET /admin/troeIndexes lists it, by "troeDbIndexes"
+#   - --troeValueIndexes speed: its two indexes; GET /admin/troeIndexes lists it, by "troeValueIndexes"
 #   - a temporal query with a q on speed takes its entities from the index - "candidates" in the SQL the
 #     broker traces (level 404), and the index's scans counted - the same entities as q: an AND with a term
 #     on another attribute, an OR of two served terms; an OR with a term no index serves: every entity
@@ -22,17 +22,17 @@
 #   - a tenant whose history is opened later gets the indexes of the declarations that cover it
 #   - an index made in the database (psql) on one attribute's v_text: listed, by "database", in
 #     /admin/metrics too, and used by a q on that attribute
-#   - DELETE: one of --troeDbIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in
+#   - DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in
 #     every tenant
-#   - a restart without --troeDbIndexes: the admin API's declaration is still there, speed's indexes are
+#   - a restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes are
 #     dropped, the one made in the database is not
-#   - --troeDbIndexes not an array of declarations: the broker does not start
+#   - --troeValueIndexes not an array of declarations: the broker does not start
 #
 # Reads timescale's own indexes (psql) - not a store-independent check:
 # REQUIRE_TROEDB: timescale
 #
 --NAME--
-TRoE timescale - declared indexes: --troeDbIndexes and /admin/troeIndexes, created per tenant, used by q, found in the database
+TRoE timescale - declared indexes: --troeValueIndexes and /admin/troeIndexes, created per tenant, used by q, found in the database
 
 --TAGS--
 troe timescale postgres admin cli q
@@ -40,7 +40,7 @@ troe timescale postgres admin cli q
 --INIT--
 corDbDrop
 corTroeInit
-coraineStart --apiPlugins admin --troe timescale --troeDbIndexes speed
+coraineStart --apiPlugins admin --troe timescale --troeValueIndexes speed
 
 --RUN--
 B=http://localhost:$CB_PORT
@@ -102,7 +102,7 @@ tq() {
 code() { curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"; }
 
 
-echo "01. --troeDbIndexes speed: its two indexes, listed by GET /admin/troeIndexes"
+echo "01. --troeValueIndexes speed: its two indexes, listed by GET /admin/troeIndexes"
 echo "============================================================================"
 idx $COR_TROE_DB
 decls
@@ -113,10 +113,10 @@ echo
 echo "02. 2000 entities; temporal queries with q on speed take their entities from the index - the same entities as q"
 echo "==============================================================================================================="
 for b in 0 1; do
-  for i in $(seq 1 1000); do n=$((b * 1000 + i)); echo "{\"id\":\"urn:V$n\",\"type\":\"V\",\"speed\":{\"type\":\"Property\",\"value\":$n},\"name\":{\"type\":\"Property\",\"value\":\"n$n\"}}"; done | jq -s . > /tmp/troeDbIndexes.$$
-  code -d @/tmp/troeDbIndexes.$$ $B/ngsi-ld/v1/entityOperations/create
+  for i in $(seq 1 1000); do n=$((b * 1000 + i)); echo "{\"id\":\"urn:V$n\",\"type\":\"V\",\"speed\":{\"type\":\"Property\",\"value\":$n},\"name\":{\"type\":\"Property\",\"value\":\"n$n\"}}"; done | jq -s . > /tmp/troeValueIndexes.$$
+  code -d @/tmp/troeValueIndexes.$$ $B/ngsi-ld/v1/entityOperations/create
 done
-rm -f /tmp/troeDbIndexes.$$
+rm -f /tmp/troeValueIndexes.$$
 curl -s -o /dev/null -X POST "$B/admin/log?traceLevels=404"   # the SQL of each temporal query traced: sel
 before=$(accesses speed)
 tq 'speed==1234'
@@ -168,9 +168,9 @@ echo
 echo
 
 
-echo "06. DELETE: one of --troeDbIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant"
+echo "06. DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant"
 echo "================================================================================================================"
-speedId=$(curl -s $B/admin/troeIndexes | jq -r '.[] | select(.declaredBy == "troeDbIndexes") | .id')
+speedId=$(curl -s $B/admin/troeIndexes | jq -r '.[] | select(.declaredBy == "troeValueIndexes") | .id')
 tempId=$(curl -s $B/admin/troeIndexes | jq -r '.[] | select(.declaredBy == "api") | .id')
 code -X DELETE $B/admin/troeIndexes/$speedId
 code -X DELETE $B/admin/troeIndexes/00000000
@@ -181,7 +181,7 @@ echo
 echo
 
 
-echo "07. A restart without --troeDbIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept"
+echo "07. A restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept"
 echo "============================================================================================================================================"
 code -d '{"attribute": "temp"}' $B/admin/troeIndexes
 coraineStop
@@ -192,23 +192,23 @@ echo
 echo
 
 
-echo "08. --troeDbIndexes not an array of declarations: the broker does not start"
+echo "08. --troeValueIndexes not an array of declarations: the broker does not start"
 echo "==========================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeDbIndexes '[{"type": "T"}]' > /tmp/troeDbIndexes.$$ 2>&1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
-grep -o "timescale: --troeDbIndexes: each declaration is .*" /tmp/troeDbIndexes.$$ | head -1
-rm -f /tmp/troeDbIndexes.$$
+grep -o "timescale: --troeValueIndexes: each declaration is .*" /tmp/troeValueIndexes.$$ | head -1
+rm -f /tmp/troeValueIndexes.$$
 echo
 echo
 
 
 --EXPECT--
-01. --troeDbIndexes speed: its two indexes, listed by GET /admin/troeIndexes
+01. --troeValueIndexes speed: its two indexes, listed by GET /admin/troeIndexes
 ============================================================================
 CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
-speed type=- tenant=- by troeDbIndexes: [] built=true
+speed type=- tenant=- by troeValueIndexes: [] built=true
 
 
 02. 2000 entities; temporal queries with q on speed take their entities from the index - the same entities as q
@@ -252,13 +252,13 @@ CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE ((attr
 CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_name = 'speed'::text)
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE ((attr_name = 'temp'::text) AND (entity_type && ARRAY['Room'::text]))
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
-speed type=- tenant=- by troeDbIndexes: [] built=true [t1] built=true
+speed type=- tenant=- by troeValueIndexes: [] built=true [t1] built=true
 temp type=Room tenant=- by api: [] built=true [t1] built=true
 
 
 05. An index made in the database on name's v_text: listed, by "database", in /admin/metrics too, used by a q on name
 ======================================================================================================================
-speed type=- tenant=- by troeDbIndexes: [] built=true [t1] built=true
+speed type=- tenant=- by troeValueIndexes: [] built=true [t1] built=true
 temp type=Room tenant=- by api: [] built=true [t1] built=true
 name type=- tenant= by database: [] built=true
 ngsild_troe_index_built{id="<id>",attribute="speed",tenant=""} 1
@@ -271,7 +271,7 @@ q=name=="n1718" (candidates): urn:V1718
 name: used
 
 
-06. DELETE: one of --troeDbIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
+06. DELETE: one of --troeValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
 ================================================================================================================
 409
 404
@@ -283,7 +283,7 @@ CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'speed'::text)
 
 
-07. A restart without --troeDbIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept
+07. A restart without --troeValueIndexes: the admin API's declaration is still there, speed's indexes dropped, the one made in the database kept
 ============================================================================================================================================
 201
 temp type=- tenant=- by api: [] built=true
@@ -293,10 +293,10 @@ CREATE INDEX cor_n_<id> ON public.troe_attrs USING btree (v_number) WHERE (attr_
 CREATE INDEX cor_t_<id> ON public.troe_attrs USING btree (v_text) WHERE (attr_name = 'temp'::text)
 
 
-08. --troeDbIndexes not an array of declarations: the broker does not start
+08. --troeValueIndexes not an array of declarations: the broker does not start
 ===========================================================================
 exit: 1
-timescale: --troeDbIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+timescale: --troeValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
 
 
 --TEARDOWN--

@@ -6,33 +6,33 @@
 # Copyright 2026 Seamware
 #
 # Declared indexes on mongoc (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an index serves -
-# declared at start (--dbIndexes) or through the admin API (/admin/indexes). Each declaration is two
+# declared at start (--dbValueIndexes) or through the admin API (/admin/indexes). Each declaration is two
 # indexes in the entities collection of every tenant it covers: cor_v_<id> on <attr>.@none.value (partial
 # on the type, if one is declared) and cor_d_<id> on <attr>.@datasetIds (partial: the marked ones).
 #
-#   - --dbIndexes speed: its two indexes; GET /admin/indexes lists it, by "dbIndexes"
+#   - --dbValueIndexes speed: its two indexes; GET /admin/indexes lists it, by "dbValueIndexes"
 #   - POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400
 #   - a query of that type and a q on that attribute is served by the two indexes (the profiler says
 #     which), and answers as before
 #   - a tenant created later gets the indexes of the declarations that cover it
 #   - a restart: the admin API's declaration is still there
-#   - DELETE: one of --dbIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
-#   - started without --dbIndexes: the indexes of speed are dropped
-#   - --dbIndexes as a JSON array, a tenant named: only that tenant's database gets them
-#   - --dbIndexes not an array of declarations: the broker does not start
+#   - DELETE: one of --dbValueIndexes 409, an unknown 404, the admin API's 204 - its indexes dropped in every tenant
+#   - started without --dbValueIndexes: the indexes of speed are dropped
+#   - --dbValueIndexes as a JSON array, a tenant named: only that tenant's database gets them
+#   - --dbValueIndexes not an array of declarations: the broker does not start
 #
 # Reads mongoc's own indexes and its profiler (mongosh) - not a store-independent check:
 # REQUIRE_DB: mongoc
 #
 --NAME--
-mongoc - declared indexes: --dbIndexes and /admin/indexes, created per tenant, used by q
+mongoc - declared indexes: --dbValueIndexes and /admin/indexes, created per tenant, used by q
 
 --TAGS--
 mongoc query q admin cli
 
 --INIT--
 corDbDrop
-coraineStart --apiPlugins admin --dbIndexes speed
+coraineStart --apiPlugins admin --dbValueIndexes speed
 
 --RUN--
 corRoleLookup CB          # COR_ROLE_DB_PREFIX: the broker's database
@@ -62,7 +62,7 @@ restart() {
 }
 
 
-echo "01. --dbIndexes speed: its two indexes, listed by GET /admin/indexes"
+echo "01. --dbValueIndexes speed: its two indexes, listed by GET /admin/indexes"
 echo "====================================================================="
 idx $COR_ROLE_DB_PREFIX
 decls
@@ -103,17 +103,17 @@ echo
 echo
 
 
-echo "05. Restarted with --dbIndexes speed: the admin API's declaration is still there"
+echo "05. Restarted with --dbValueIndexes speed: the admin API's declaration is still there"
 echo "================================================================================"
-restart --dbIndexes speed
+restart --dbValueIndexes speed
 decls
 echo
 echo
 
 
-echo "06. DELETE: --dbIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants"
+echo "06. DELETE: --dbValueIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants"
 echo "========================================================================================================"
-sid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | select(.declaredBy == "dbIndexes") | .id')
+sid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | select(.declaredBy == "dbValueIndexes") | .id')
 aid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | select(.declaredBy == "api") | .id')
 curl -s -X DELETE "http://localhost:$CB_PORT/admin/indexes/$sid" | jq -r '"\(.status) \(.detail)"' | sed 's/[0-9a-f]\{8\}/<id>/'
 curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "http://localhost:$CB_PORT/admin/indexes/00000000"
@@ -125,7 +125,7 @@ echo
 echo
 
 
-echo "07. Started without --dbIndexes: the indexes of speed dropped"
+echo "07. Started without --dbValueIndexes: the indexes of speed dropped"
 echo "============================================================="
 restart
 echo "default: [$(idx $COR_ROLE_DB_PREFIX)]"
@@ -134,9 +134,9 @@ echo
 echo
 
 
-echo "08. --dbIndexes a JSON array, the tenant t1 named: only t1's database"
+echo "08. --dbValueIndexes a JSON array, the tenant t1 named: only t1's database"
 echo "====================================================================="
-restart --dbIndexes '[{"attribute":"temp","type":"T","tenant":"t1"}]'      # no spaces: coraineStart splits its arguments
+restart --dbValueIndexes '[{"attribute":"temp","type":"T","tenant":"t1"}]'      # no spaces: coraineStart splits its arguments
 echo "default: [$(idx $COR_ROLE_DB_PREFIX)]"
 idx $COR_ROLE_DB_PREFIX-t1
 decls
@@ -144,23 +144,23 @@ echo
 echo
 
 
-echo "09. --dbIndexes not an array of declarations: the broker does not start"
+echo "09. --dbValueIndexes not an array of declarations: the broker does not start"
 echo "======================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
 echo "exit: $?"
-grep -o "mongoc: --dbIndexes: each declaration is .*" /tmp/dbIndexes.$$ | head -1
+grep -o "mongoc: --dbValueIndexes: each declaration is .*" /tmp/dbIndexes.$$ | head -1
 rm -f /tmp/dbIndexes.$$
 echo
 echo
 
 
 --EXPECT--
-01. --dbIndexes speed: its two indexes, listed by GET /admin/indexes
+01. --dbValueIndexes speed: its two indexes, listed by GET /admin/indexes
 =====================================================================
 cor_d_<id> speed.@datasetIds partial speed.@datasetIds
 cor_v_<id> speed.@none.value
-speed type=- tenant=- by dbIndexes: [] built=true
+speed type=- tenant=- by dbValueIndexes: [] built=true
 
 
 02. POST temp narrowed to the type T: 201; the same again 409; bad bodies 400
@@ -200,42 +200,42 @@ cor_v_<id> speed.@none.value
 cor_v_<id> temp.@none.value partial type
 
 
-05. Restarted with --dbIndexes speed: the admin API's declaration is still there
+05. Restarted with --dbValueIndexes speed: the admin API's declaration is still there
 ================================================================================
-speed type=- tenant=- by dbIndexes: [] built=true [t1] built=true
+speed type=- tenant=- by dbValueIndexes: [] built=true [t1] built=true
 temp type=T tenant=- by api: [] built=true [t1] built=true
 
 
-06. DELETE: --dbIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants
+06. DELETE: --dbValueIndexes's 409, an unknown 404, the admin API's 204 - its indexes dropped in both tenants
 ========================================================================================================
-409 '<id>' is declared by --dbIndexes - taken out of it, it is gone at the next start
+409 '<id>' is declared by --dbValueIndexes - taken out of it, it is gone at the next start
 404
 204
 cor_d_<id> speed.@datasetIds partial speed.@datasetIds
 cor_v_<id> speed.@none.value
 cor_d_<id> speed.@datasetIds partial speed.@datasetIds
 cor_v_<id> speed.@none.value
-speed type=- tenant=- by dbIndexes: [] built=true [t1] built=true
+speed type=- tenant=- by dbValueIndexes: [] built=true [t1] built=true
 
 
-07. Started without --dbIndexes: the indexes of speed dropped
+07. Started without --dbValueIndexes: the indexes of speed dropped
 =============================================================
 default: []
 t1:      []
 
 
-08. --dbIndexes a JSON array, the tenant t1 named: only t1's database
+08. --dbValueIndexes a JSON array, the tenant t1 named: only t1's database
 =====================================================================
 default: []
 cor_d_<id> temp.@datasetIds partial temp.@datasetIds
 cor_v_<id> temp.@none.value partial type
-temp type=T tenant=t1 by dbIndexes: [t1] built=true
+temp type=T tenant=t1 by dbValueIndexes: [t1] built=true
 
 
-09. --dbIndexes not an array of declarations: the broker does not start
+09. --dbValueIndexes not an array of declarations: the broker does not start
 =======================================================================
 exit: 1
-mongoc: --dbIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+mongoc: --dbValueIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
 
 
 --TEARDOWN--

@@ -5,10 +5,10 @@
 #
 # Copyright 2026 Seamware
 #
-# TRoE timescale plugin: --troeIndexes - the indexes of the history beyond the basic ones are the
+# TRoE timescale plugin: --troeSqlIndexes - the indexes of the history beyond the basic ones are the
 # operator's choice, made at the start: an index chosen is created, one not chosen is dropped.
 #   - the default: the basic indexes only (and troe_entities_id_modified gone - its primary key serves it)
-#   - --troeIndexes attrObserved,geo: those two as well
+#   - --troeSqlIndexes attrObserved,geo: those two as well
 #   - started again without them: dropped
 #   - an index it does not know: the broker does not start
 #
@@ -16,7 +16,7 @@
 # REQUIRE_TROEDB: timescale
 #
 --NAME--
-TRoE timescale - --troeIndexes: the indexes beyond the basic ones
+TRoE timescale - --troeSqlIndexes: the indexes beyond the basic ones
 
 --TAGS--
 troe timescale postgres
@@ -39,28 +39,28 @@ echo
 echo
 
 
-echo "02. --troeIndexes attrObserved,geo"
+echo "02. --troeSqlIndexes attrObserved,geo"
 echo "=================================="
 coraineStop
-coraineStart --troe timescale --troeIndexes attrObserved,geo
+coraineStart --troe timescale --troeSqlIndexes attrObserved,geo
 indexes
 echo
 echo
 
 
-echo "03. Started again with --troeIndexes time - attrObserved and geo dropped, time created"
+echo "03. Started again with --troeSqlIndexes time - attrObserved and geo dropped, time created"
 echo "======================================================================================"
 coraineStop
-coraineStart --troe timescale --troeIndexes time
+coraineStart --troe timescale --troeSqlIndexes time
 indexes
 coraineStop
 echo
 echo
 
 
-echo "04. --troeIndexes nope - the broker does not start, and says why"
+echo "04. --troeSqlIndexes nope - the broker does not start, and says why"
 echo "================================================================"
-timeout 10 $COR_BROKER -fg --port 9 --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeIndexes attrObserved,nope > /tmp/troeIndexes.$$ 2>&1
+timeout 10 $COR_BROKER -fg --port 9 --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeSqlIndexes attrObserved,nope > /tmp/troeIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "unknown index 'nope'.*" /tmp/troeIndexes.$$ | head -1
 rm -f /tmp/troeIndexes.$$
@@ -79,7 +79,7 @@ troe_entities_pkey
 troe_entities_type
 
 
-02. --troeIndexes attrObserved,geo
+02. --troeSqlIndexes attrObserved,geo
 ==================================
 troe_attrs_attr_observed
 troe_attrs_geo
@@ -91,7 +91,7 @@ troe_entities_pkey
 troe_entities_type
 
 
-03. Started again with --troeIndexes time - attrObserved and geo dropped, time created
+03. Started again with --troeSqlIndexes time - attrObserved and geo dropped, time created
 ======================================================================================
 troe_attrs_id_attr_modified
 troe_attrs_id_attr_observed
@@ -102,7 +102,7 @@ troe_entities_pkey
 troe_entities_type
 
 
-04. --troeIndexes nope - the broker does not start, and says why
+04. --troeSqlIndexes nope - the broker does not start, and says why
 ================================================================
 exit: 1
 unknown index 'nope' (the choice: attrObserved, geo, time)
