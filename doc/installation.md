@@ -614,6 +614,48 @@ With an index on each of the two, a query examines the entities that match and t
 the collection. The operators served: `==` (a value, a range, a list), `<`, `<=`, `>`, `>=` and `~=`.
 `!=` and `!~=` match an entity by a value it does not have, and read the collection as before.
 
+### Declared indexes
+
+An attribute whose `q` value terms an index serves is **declared** - narrowed to one entity type, to one
+tenant, if so declared. With `mongoc`, each declaration is two indexes in the `entities` collection of every
+tenant it covers, a tenant created later included:
+
+| index | key | partial |
+|---|---|---|
+| `cor_v_<id>` | `<attr>.@none.value` | on `type` when a type is declared |
+| `cor_d_<id>` | `<attr>.@datasetIds` | the marked attributes only |
+
+`<id>` is the declaration's, 8 hex digits. A query uses them when it has a value term on the attribute
+(`==`, a range, a list, `<`, `<=`, `>`, `>=`, `~=`) and, for a declaration narrowed to a type, `type=` that one
+type. Every index costs writes and disk: declare the attributes queries filter on.
+
+Declared at start, by the store plugin's option (`mongoc`):
+
+```
+--dbIndexes speed,temperature
+--dbIndexes '[{"attribute": "speed", "type": "Vehicle"}, {"attribute": "temperature", "tenant": "t1"}]'
+```
+
+- names, comma-separated - or a JSON array of `{ "attribute", "type"?, "tenant"? }`
+- a short name is expanded with the core @context; an IRI is taken as it is
+- an error in it: the broker does not start
+- taken out of `--dbIndexes`: its indexes are dropped at the next start (an index named `cor_v_*` or `cor_d_*` that
+  no declaration names is dropped at a tenant's setup)
+
+Declared on a running broker, through the admin API (`--apiPlugins admin`):
+
+| request | answer |
+|---|---|
+| `GET /admin/indexes` | every declaration: `id`, `attribute`, `type`, `tenant`, `declaredBy` (`dbIndexes` or `api`), and `tenants` - for each tenant it covers, `built`, `bytes` (both indexes) and `accesses` (the times a query used them since MongoDB started) |
+| `POST /admin/indexes` `{ "attribute", "type"?, "tenant"? }` | 201, `Location: /admin/indexes/<id>`: the indexes created in every tenant it covers, the declaration kept in the default tenant's database (`metadata`, `{ _id: "dbIndexes" }`). 409 if declared already, 400 for another body |
+| `DELETE /admin/indexes/{id}` | 204: its indexes dropped in every tenant. 409 for a declaration of `--dbIndexes`, 404 for none |
+
+Names in a request are expanded with its @context (`Link` header), the core one without; a response compacts
+them with it. The `POST` answers once the indexes are built - on a large collection, that takes a while.
+Another broker on the same database sees a declaration made through the API when it starts again; a tenant it
+sets up before that does not get it. A store without declared indexes (`corDB`) answers 501. In the build by
+default; `-DCOR_FEATURE_DB_INDEXES=OFF` leaves them out (no `--dbIndexes`, `/admin/indexes` 501).
+
 The check runs in `coraine-import` too: it opens the stores the way the broker does.
 
 ## Migrating from another broker
@@ -634,6 +676,7 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 | `GET /admin/tenants` | the tenants in use |
 | `GET /admin/plugins` | which plugins are loaded |
 | `GET /admin/metrics` | Prometheus metrics (when compiled in) |
+| `GET`/`POST /admin/indexes`, `DELETE /admin/indexes/{id}` | the declared indexes of the store ([Declared indexes](#declared-indexes)) |
 | `GET /admin/config` | every option the broker runs with - its own and its plugins' - with its value, default, type, environment variable and where the value came from (`default`, `env`, `longOption`, `shortOption`, `configFile`); a plugin's under its `section`. A secret (`--dbPwd`, `--dbURI`, `--troePwd`) has `"secret": true` and its value `"***"`. What is compiled in is `GET /build`'s |
 | `GET /admin/bridges/{bridge}/inventory` | what a loaded bridge's source can carry, for a mapping tool: `?from=` where to start, in the source's terms (OPC UA: a NodeId; none: the Objects folder), `?depth=` how many levels (0-16, default 1; a bridge may cap it lower). The JSON is the bridge's own. 404: no such bridge loaded, or no such `from`; 501: the bridge has no inventory (or `COR_FEATURE_BRIDGE_INVENTORY` is off); 503: its source cannot answer (not connected, timed out) |
 

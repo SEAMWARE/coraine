@@ -22,6 +22,9 @@
 #include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
 #include "currentState/mongoc/mongocTenantSetup.h"                // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                    // mongocServerVersionGet
+#if COR_FEATURE_DB_INDEXES
+#include "currentState/mongoc/mongocIndexes.h"                    // mongocIndexesInit
+#endif
 #include "currentState/mongoc/mongocInit.h"                       // Own interface
 
 
@@ -175,6 +178,18 @@ int mongocInit(void)
   // tenantInit would orphan those caches — a startup leak).
   //
   tenantDbPrefixSet(mongocDbName);
+
+#if COR_FEATURE_DB_INDEXES
+  //
+  // The declared indexes - before any tenant is set up: each setup creates the ones that cover it
+  //
+  if (mongocIndexesInit() != 0)
+  {
+    bson_strfreev(dbNames);
+    return -1;
+  }
+#endif
+
   if (mongocTenantSetup(&tenant0) != 0)
   {
     bson_strfreev(dbNames);

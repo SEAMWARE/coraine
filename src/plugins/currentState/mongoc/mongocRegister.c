@@ -61,6 +61,9 @@
 #include "currentState/mongoc/mongocSnapshotDelete.h"               // mongocSnapshotDelete
 #include "currentState/mongoc/mongocTenantDrop.h"                   // mongocTenantDrop
 #include "currentState/mongoc/mongocTenantRelease.h"                // mongocTenantRelease
+#if COR_FEATURE_DB_INDEXES
+#include "currentState/mongoc/mongocIndexes.h"                     // mongocIndexList, mongocIndexAdd, mongocIndexDelete
+#endif
 #include "shared/dbPluginAbi.h"                          // dbPluginAbiBrokerCheck
 
 
@@ -116,6 +119,11 @@ void dbRegister(DbDriver* driverP)
   driverP->tenantSetup     = mongocTenantSetup;
   driverP->haWatchStart    = mongocHaWatchStart;
   driverP->versionInfo     = mongocVersionInfo;
+#if COR_FEATURE_DB_INDEXES
+  driverP->indexList       = mongocIndexList;
+  driverP->indexAdd        = mongocIndexAdd;
+  driverP->indexDelete     = mongocIndexDelete;
+#endif
 
   //
   // With COR_FEATURE_SUBSCRIPTIONS off these sources leave the plugin build

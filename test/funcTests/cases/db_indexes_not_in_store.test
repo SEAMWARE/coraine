@@ -1,0 +1,43 @@
+#
+# FILE            db_indexes_not_in_store.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# /admin/indexes on a store without declared indexes (corDB: DbDriver.indexList and the rest NULL) - 501
+# for each of its routes, the store named.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+/admin/indexes on a store without declared indexes: 501
+
+--TAGS--
+admin cordb
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+echo "01. GET, POST, DELETE /admin/indexes: 501"
+echo "=========================================="
+curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '"\(.status) \(.detail)"'
+curl -s "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"attribute": "temp"}' | jq -r '"\(.status) \(.detail)"'
+curl -s -X DELETE "http://localhost:$CB_PORT/admin/indexes/00000000" | jq -r '"\(.status) \(.detail)"'
+echo
+echo
+
+
+--EXPECT--
+01. GET, POST, DELETE /admin/indexes: 501
+==========================================
+501 the store 'corDB' has no declared indexes
+501 the store 'corDB' has no declared indexes
+501 the store 'corDB' has no declared indexes
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

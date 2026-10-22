@@ -357,6 +357,29 @@ typedef int  (*DbEntityTypesFunc)(Tenant* tenantP, const char* entityId, CorNode
 
 // -----------------------------------------------------------------------------
 //
+// The declared indexes (/admin/indexes; a store's own option at start, mongoc's --dbIndexes) - NULL-allowed,
+// the three together: the store has no declared indexes, and /admin/indexes answers 501.
+//
+// A declaration: an attribute - an entity type and a tenant too, if given - whose q value terms an index
+// of the store serves. Names expanded (the request's @context).
+//
+//   indexList    every declaration, a JSON array in corRest.kalloc - with each tenant's index: its size,
+//                how often a query used it. DB_OK
+//   indexAdd     a declaration made: its indexes created in every tenant it covers, the declaration kept
+//                in the store. DB_OK (*declPP: the declaration, in corRest.kalloc), DB_ALREADY_EXISTS,
+//                DB_BAD_INPUT, DB_ERR - errorText says why
+//   indexDelete  a declaration taken away by its id, its indexes dropped. DB_OK, DB_NOT_FOUND,
+//                DB_BAD_INPUT (one the store's start made - not the admin API's to take away), DB_ERR -
+//                errorText says why
+//
+typedef int  (*DbIndexListFunc)(CorNode** arrayPP);
+typedef int  (*DbIndexAddFunc)(const char* attr, const char* type, const char* tenant, CorNode** declPP, char* errorText, int errorTextLen);
+typedef int  (*DbIndexDeleteFunc)(const char* id, char* errorText, int errorTextLen);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // DbDriver -
 //
 typedef struct DbDriver
@@ -443,6 +466,11 @@ typedef struct DbDriver
 
   // Appended: NULL-allowed (see the typedef)
   DbEntityTypesFunc       entityTypes;
+
+  // Appended: NULL-allowed, the three together (see the typedefs)
+  DbIndexListFunc         indexList;
+  DbIndexAddFunc          indexAdd;
+  DbIndexDeleteFunc       indexDelete;
 } DbDriver;
 
 

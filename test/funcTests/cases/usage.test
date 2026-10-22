@@ -197,6 +197,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--dbPwd/-dbPwd <database password>]
                 [--dbURI/-dbURI <full database URI>]
                 [--dbTimeout/-dbTimeout <database connection timeout (s)>]
+                [--dbIndexes/-dbIndexes <declared indexes - the attributes whose q an index serves: names, comma-separated, or a JSON array of {attribute, type, tenant}>]
 
                 Plugins are loaded from /opt/seamware/plugins
 

@@ -13,6 +13,11 @@ bump may still change behaviour; the entry says so where it does.
 
 ### New
 
+- Declared indexes: the attributes whose `q` an index of the store serves - narrowed to an entity type or a
+  tenant if so declared. `mongoc`: `--dbIndexes` at start, `/admin/indexes` on a running broker; each
+  declaration is created in every tenant it covers, a tenant created later included.
+  ([Declared indexes](doc/installation.md#declared-indexes))
+
 ### Faster
 
 - `mongoc`: a `q` value term can be served by an index. It still finds a value on any instance of an
