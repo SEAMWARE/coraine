@@ -126,6 +126,10 @@ incorporated in the next release of the product, in roughly this order:
     what it is told to (entities, attributes - subscription-shaped). ([more](ideas.md#cordb-history-retention-and-a-selector))
 -   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
+-   **The declared indexes in `/metrics`** - each index's `accesses` (the `q` terms it served) and `updates`
+    (the writes that changed it), counters per attribute and tenant, today in `GET /admin/indexes`
+    ([Declared indexes](installation.md#declared-indexes)): what an index gains and costs on the user's own
+    workload, over time. mongoc: MongoDB counts an index's uses, not its writes.
 
 ## Medium term
 

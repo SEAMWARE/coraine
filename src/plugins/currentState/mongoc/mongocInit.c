@@ -22,7 +22,7 @@
 #include "currentState/mongoc/mongocStorageFormat.h"              // mongocStorageFormat
 #include "currentState/mongoc/mongocTenantSetup.h"                // mongocTenantSetup
 #include "currentState/mongoc/mongocVersion.h"                    // mongocServerVersionGet
-#if COR_FEATURE_DB_INDEXES
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
 #include "currentState/mongoc/mongocIndexes.h"                    // mongocIndexesInit
 #endif
 #include "currentState/mongoc/mongocInit.h"                       // Own interface
@@ -179,7 +179,7 @@ int mongocInit(void)
   //
   tenantDbPrefixSet(mongocDbName);
 
-#if COR_FEATURE_DB_INDEXES
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
   //
   // The declared indexes - before any tenant is set up: each setup creates the ones that cover it
   //

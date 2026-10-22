@@ -1542,6 +1542,25 @@ The reads, whose code is the same in A and B, moved by -1.8 to +2.7 % in the sam
 noise. perfRun's entities have no instance of a datasetId, so no mark is written - this is the check every write
 pays. A marked attribute writes 18 bytes more (`"@datasetIds": true`).
 
+**Through the broker**, the harness of [corDB's declared indexes](#cordbs-declared-indexes) (the same
+100 000 entities, wrk, 8 threads, 50 connections, off / on / on / off), `mongoc` release build `e3fef490`,
+MongoDB 8.2.12 local, the database dropped before each run; the create rows a run of their own:
+
+| scenario | off | on | on / off | µs a request, off -> on |
+|---|---:|---:|---:|---:|
+| `q=speed==1234` (10 matches), `limit=20` | 6 | 5 515 | x919 | 166 667 -> 181 |
+| `q=speed>9990` (90 matches), `limit=20` | 24.5 | 1 827 | x75 | 40 816 -> 547 |
+| `q=speed>9900` (990 matches, 1 %), `limit=20` | 81 | 224.5 | x2.8 | 12 346 -> 4 454 |
+| `q=speed>5000` (50 %), `limit=20` | 163 | 161.5 | -0.9 % | |
+| `q=speed>5000`, `count=true&limit=0` | under 1 | under 1 | | |
+| `q=other==1234` (not declared), `limit=20` | 6 | 6 | | |
+| no `q`, `limit=20` | 17 851 | 17 526 | -1.8 % | 56.0 -> 57.1 |
+| `PATCH` of `other` | 20 391 | 20 261 | -0.6 % | 49.04 -> 49.36 (+0.31) |
+| `PATCH` of `speed` | 20 447 | 19 436 | -4.9 % | 48.91 -> 51.45 (+2.54) |
+| create, with `speed` | 58 874 | 56 426 | -4.2 % | 16.99 -> 17.72 (+0.74) |
+
+The p50 of `q=speed==1234`: 3.85 s -> 8.6 ms.
+
 ### mongoc: every scenario, 2026-10-08
 
 `test/perf/perfRun.sh mongoc` on `main` `6493d6c2` (with the `{type, createdAt, _id}` index), three runs
@@ -2002,6 +2021,79 @@ the mean of the two runs of each build, requests a second at c50 unless named:
 - **The p99 of a create is a sixth to a seventh of what it was** (`create_c50`, `big_create_c50`), of a
   batch create under half.
 - **The other scenarios: -1.8 % to +1.0 %.**
+
+### corDB's declared indexes
+
+A declared attribute (`--dbIndexes`, `/admin/indexes` - [Declared indexes](installation.md#declared-indexes))
+is a value index in corDB's store, and a `q` term on it takes its candidates from the index instead of
+walking the store - corDB's README, "Queries by value - declared indexes".
+
+**The setup.** 2026-10-22, the release build of coraine (`main` after #444, and this section's changes) with
+corDB `83b3323` (corDB#36: only the entities with a declared value in the index), corDB on disk (`--dbDir`, a
+new directory each run), `--troe none`, the machine of [Profile-guided](#profile-guided-make-pgo). 100 000
+entities of type `T`: `speed` = i mod 10 000 (ten entities a value), `other` = i mod 7 919; 20 000 more without
+`speed` (`urn:F<i>`, for the `PUT`s); one query on `speed` after them (it builds the index). The same binary
+with `--dbIndexes speed` (on) and without (off). wrk, 8 threads, 50 connections, 5 s x 3 a scenario (the
+median); the runs in the order off, on, on, off, and the figure is the mean of the two runs of each. **µs a
+request** is 1 / the rate: what one request takes of the broker at full load - a cost a request more or less
+adds or saves.
+
+| scenario | off | on | on / off | µs a request, off -> on |
+|---|---:|---:|---:|---:|
+| `q=speed==1234` (10 matches), `limit=20` | 900 | 374 775 | x416 | 1 111 -> 2.7 |
+| `q=speed>9990` (90 matches), `limit=20` | 3 200 | 236 234 | x74 | 312.5 -> 4.2 |
+| `q=speed>9900` (990 matches, 1 %), `limit=20` | 9 467 | 166 934 | x17.6 | 105.6 -> 6.0 |
+| `q=speed>5000` (49 990 matches, 50 %), `limit=20` | 17 918 | 17 662 | -1.4 % | 55.8 -> 56.6 |
+| `q=speed>5000`, `count=true&limit=0` | 702 | 1 136 | +62 % | 1 423 -> 880 |
+| `q=other==1234` (not declared), `limit=20` | 651 | 645 | -0.9 % | 1 536 -> 1 550 |
+| no `q`, `limit=20` | 268 577 | 262 305 | -2.3 % | 3.72 -> 3.81 |
+| `PATCH` of `other` | 101 004 | 99 653 | -1.3 % | 9.90 -> 10.03 (+0.13) |
+| `PATCH` of `speed` | 96 419 | 75 753 | -21.4 % | 10.37 -> 13.20 (+2.83) |
+| create, with `speed` | 258 598 | 135 146 | -47.7 % | 3.87 -> 7.40 (+3.53) |
+| `PUT` of an entity without `speed` | 140 888 | 145 326 | +3.1 % | 7.10 -> 6.88 |
+| create, without `speed` (after the creates with it) | 324 030 | 292 666 | -9.7 % | 3.09 -> 3.42 (+0.33) |
+| create, without `speed` (alone, a new broker each run) | 287 252 | 278 716 | -3.0 % | 3.48 -> 3.59 (+0.11) |
+
+Each run, off / on / on / off: `q=speed==1234` 917 / 386 142 / 363 408 / 883; `PATCH` of `other` 101 127 /
+99 933 / 99 373 / 100 881; `PATCH` of `speed` 96 067 / 75 412 / 76 094 / 96 771; create with `speed` 251 042 /
+132 000 / 138 293 / 266 154; `PUT` without 133 094 / 145 713 / 144 938 / 148 682; create without, alone 292 422
+/ 278 069 / 279 363 / 282 082. The p50 at 50 connections: `q=speed==1234` 38 ms -> 98 µs, `PATCH` of `speed`
+470 -> 590 µs, create with `speed` 138 -> 333 µs.
+
+- **A `q` on the attribute**: the fewer entities it matches, the larger the gain - x416 for 10 matches,
+  x17.6 for 1 % of the store.
+- **A page of a `q` that half the store matches** comes from the walk, not from the index: the walk stops at
+  the page, the index gathers and sorts every candidate. corDB takes the index for a page when its
+  candidates are at most `sqrt(page x entities)`, 64 at least. Without that limit (the index for every `q` it
+  serves), corDB in RAM: 17 000 -> 5 500 a second.
+- **A write of the declared attribute: +2.8 µs** (`PATCH`) - its entries out of and into the index, under the
+  store's write lock. A create with it +3.5 µs: the index's entries and the entity's place in it.
+- **An entity without a declared value is not in the index.** A write of another attribute: the names the
+  write changed compared with the declared ones, +0.13 µs. A create or `PUT` of an entity without the
+  attribute: a check of its declared attributes. In instructions (callgrind, 2 000 requests into 20 000
+  entities): a `PATCH` of `other` 60 498 -> 60 906 (+408, +0.7 %), a create without `speed` 55 621 -> 56 267
+  (+646, +1.2 %).
+- **The creates without `speed` right after the creates with it: -9.7 %**; alone, -3.0 %, and the two runs
+  without the index alone differ by 3.6 %. The creates with `speed` before them leave about 2 million entries
+  in the index.
+- **Queries that the index does not serve: within the noise** (-2.3 % to -0.9 %).
+- The creates grow the store by about 1.2 million entities a run of 3 x 5 s, the index with it.
+
+**corDB `9eb1354`**, where every entity was in the index, the same setup without the 20 000: `PATCH` of `other`
+102 288 -> 100 584 (-1.7 %, +0.17 µs), of `speed` 97 887 -> 76 610 (-21.7 %), create with `speed` 255 664 ->
+149 855 (-41.4 %); `q=speed==1234` 1 054 -> 374 813 (x356). With the 20 000, alone: create without `speed`
+275 937 -> 247 034 (-10.5 %, +0.42 µs), `PUT` without it 140 940 -> 134 064 (-4.9 %, +0.36 µs).
+
+**corDB `0096e48`**, where every write compared the entity's declared values with its entries, the same
+setup: `PATCH` of `other` 101 896 -> 94 732 (-7.0 %, +0.74 µs), of `speed` 99 282 -> 76 274 (-23.2 %), create
+251 645 -> 142 892 (-43.2 %); `q=speed==1234` 950 -> 344 265 (x362), 1 % 9 399 -> 165 266 (x17.6).
+
+**corDB in RAM**, corDB `0096e48` without `--dbDir`: `q=speed==1234`
+1 069 -> 375 893, 1 % 9 607 -> 168 878, 50 % with `limit=20` 18 240 -> 17 692, its count 813 -> 1 219, `q`
+on `other` 757 -> 729, no `q` 270 679 -> 265 843; `PATCH` of `other` 133 752 -> 122 809 (-8.2 %), of `speed`
+126 593 -> 90 113 (-28.8 %, +3.2 µs), create 389 127 -> 179 871 (-53.8 %, +3.0 µs). Creates alone
+(`create` only, a new store each run): 390 000 off; on, 165 000 to 200 000 with `speed` in the entity, 330 000
+to 385 000 without it.
 
 ## The HTTP server
 

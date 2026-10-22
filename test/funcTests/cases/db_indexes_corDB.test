@@ -1,0 +1,383 @@
+#
+# FILE            db_indexes_corDB.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Declared indexes on corDB (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an index serves -
+# declared at start (--dbIndexes) or through the admin API (/admin/indexes). Each declaration is a value
+# index in the store of every tenant it covers - the values of every instance, an array's elements - built by
+# the first query that can use it, at once in every store when the admin API declares it.
+#
+#   - --dbIndexes speed: listed by GET /admin/indexes, by "dbIndexes" - not built before a query uses it
+#   - a q on speed: served by the index (its "accesses"), the same entities as the walk; an instance of a
+#     datasetId found too
+#   - every write changes the index: PATCH, merge, POST attrs, DELETE attr, replace, DELETE, the batch
+#     operations - the queries answer as the walk does (a DEBUG build walks the store as well, and aborts if
+#     the two differ)
+#   - pages, forwards and backwards, from the index's candidates: the whole result, in the store's order
+#   - "accesses": the q terms an index served - an AND's two terms on speed, two; != none
+#   - POST a declaration narrowed to a type: 201, every store's indexes built again at once (their counts
+#     from 0); the same again 409; a bad body 400; a query of another type is not served by it
+#   - "updates": the writes that changed an index - an entity with the attribute created or deleted, its values
+#     changed - counted for the declarations whose values changed only: a write of another attribute, or of
+#     the same value, changes no index - but an entity that gains the type of a
+#     declaration narrowed to it enters its index
+#   - a tenant created later: its index built by its first query
+#   - entities without a declared value are not in an index; one that gains a value takes its place in the
+#     store's order - 24 of them in one gap of the numbering, which is numbered again; PUT and DELETE attr in
+#     and out
+#   - a restart on the same --dbDir without --dbIndexes: the admin API's declaration is still there, speed is
+#     not
+#   - DELETE: an unknown 404, the admin API's 204
+#   - --dbIndexes not an array of declarations: the broker does not start
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB - declared indexes: --dbIndexes and /admin/indexes, kept by every write, used by q
+
+--TAGS--
+cordb query q admin cli persistence
+
+--INIT--
+rm -rf /tmp/corTest-db_indexes_corDB
+coraineStart --apiPlugins admin --dbDir /tmp/corTest-db_indexes_corDB --dbIndexes speed
+
+--RUN--
+DIR=/tmp/corTest-db_indexes_corDB
+
+#
+# decls - GET /admin/indexes, one line per declaration
+#
+decls() {
+  curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[] | "\(.attribute) type=\(.type // "-") tenant=\(.tenant // "-") by \(.declaredBy): " + ([.tenants[] | "[\(.tenant)] built=\(.built) entries=\(.entries) accesses=\(.accesses) updates=\(.updates)"] | join(" "))'
+}
+
+#
+# ids <type> <q> - the ids of the entities of the type that q matches
+#
+ids() {
+  echo "type=$1 q=$2: $(curl -s -G "http://localhost:$CB_PORT/ngsi-ld/v1/entities" --data-urlencode "type=$1" --data-urlencode "q=$2" --data-urlencode "limit=1000" | jq -r '.[].id' | paste -sd ' ')"
+}
+
+#
+# link <rel> - the link of a relation in the Link headers on stdin
+#
+link() {
+  grep -o "<[^>]*>;rel=\"$1\"" | sed 's/<\([^>]*\)>.*/\1/'
+}
+
+#
+# pages <url> <rel> - every page from url, following rel
+#
+pages() {
+  local u="$1"
+  local out=""
+
+  while [ -n "$u" ]
+  do
+    h=$(curl -s -D - "http://localhost:$CB_PORT$u" -o /tmp/dbIndexesCorDB.$$)
+    out="$out | $(jq -r '.[].id' /tmp/dbIndexesCorDB.$$ | paste -sd ' ')"
+    u=$(echo "$h" | tr -d '\r' | link $2)
+  done
+
+  rm -f /tmp/dbIndexesCorDB.$$
+  echo "$out"
+}
+
+restart() {
+  coraineStop
+  coraineStart --apiPlugins admin --dbDir $DIR "$@"
+}
+
+c() {
+  curl -s -o /dev/null -w "%{http_code}\n" -H 'Content-Type: application/json' "$@"
+}
+
+
+echo "01. --dbIndexes speed: listed, by dbIndexes - not built before a query uses it"
+echo "==============================================================================="
+decls
+echo
+echo
+
+
+echo "02. 40 entities, T and V; one with speed on an instance of a datasetId - q on speed served by the index"
+echo "======================================================================================================"
+for i in $(seq 1 40); do t=T; [ $((i % 2)) = 0 ] && t=V; echo "{\"id\":\"urn:E$i\",\"type\":\"$t\",\"speed\":{\"type\":\"Property\",\"value\":$i}}"; done | jq -s . > /tmp/dbIndexesCorDB.$$
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/create" -d @/tmp/dbIndexesCorDB.$$
+rm -f /tmp/dbIndexesCorDB.$$
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:DS", "type": "T", "speed": [{"type": "Property", "value": 2}, {"type": "Property", "value": 99, "datasetId": "urn:ds:1"}], "tags": {"type": "Property", "value": ["a", 7]}}'
+ids T 'speed>35'
+ids T 'speed==3'
+ids T 'speed==3,5,99'
+ids T 'speed==10..15'
+ids T 'speed<4'
+ids T 'speed>36|speed==1'
+ids T 'speed>30;speed<36'
+ids T 'speed!=3;speed<6'
+decls
+echo
+echo
+
+
+echo "03. Every write: the index as the store - PATCH, merge, POST attrs, DELETE attr, replace, DELETE, batch"
+echo "======================================================================================================"
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E1/attrs" -d '{"speed": {"type": "Property", "value": 500}}'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E3" -d '{"speed": {"type": "Property", "value": 600}}'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E5/attrs/speed" -d '{"value": 700}'
+c -X POST "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E7/attrs" -d '{"speed": {"type": "Property", "value": 800, "datasetId": "urn:ds:x"}}'
+c -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E9/attrs/speed"
+c -X PUT "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E11" -d '{"id": "urn:E11", "type": "T", "speed": {"type": "Property", "value": 900}}'
+c -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E13"
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/upsert" -d '[{"id": "urn:E15", "type": "T", "speed": {"type": "Property", "value": 1000}}]'
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/update" -d '[{"id": "urn:E17", "type": "T", "speed": {"type": "Property", "value": 1100}}]'
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/merge" -d '[{"id": "urn:E19", "type": "T", "speed": {"type": "Property", "value": 1200}}]'
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/delete" -d '["urn:E21"]'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E23" -d '{"type": "V"}'
+ids T 'speed>400'
+ids T 'speed<10'
+ids T 'speed==7..13'
+ids V 'speed==23'
+ids V 'speed==21..24'
+echo
+echo
+
+
+echo "04. Pages of 4 from the index's candidates, forwards then backwards: the whole result, in order"
+echo "==============================================================================================="
+ids T 'speed>20'
+pages "/ngsi-ld/v1/entities?type=T&q=speed%3E20&limit=4" next
+last=$(u="/ngsi-ld/v1/entities?type=T&q=speed%3E20&limit=4"; while n=$(curl -s -D - "http://localhost:$CB_PORT$u" -o /dev/null | tr -d '\r' | link next); [ -n "$n" ]; do u=$n; done; echo "$u")
+pages "$last" prev
+echo
+echo
+
+
+echo "05. POST temp narrowed to the type T: 201, built at once; the same again 409; a bad body 400"
+echo "============================================================================================"
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:H1", "type": "T", "temp": {"type": "Property", "value": 20}}'
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:H2", "type": "V", "temp": {"type": "Property", "value": 20}}'
+curl -s "http://localhost:$CB_PORT/admin/indexes" -H 'Content-Type: application/json' -d '{"attribute": "temp", "type": "T"}' | jq -c '.id = "<id>"'
+c "http://localhost:$CB_PORT/admin/indexes" -d '{"attribute": "temp", "type": "T"}'
+c "http://localhost:$CB_PORT/admin/indexes" -d '{"type": "T"}'
+ids T 'temp==20'
+ids V 'temp==20'
+decls
+echo
+echo
+
+
+echo "06. updates: the writes that changed an index - of the declarations whose values changed only"
+echo "============================================================================================="
+c -X POST "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E25/attrs" -d '{"temp": {"type": "Property", "value": 30}}'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E25/attrs" -d '{"temp": {"type": "Property", "value": 31}}'
+decls
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E25/attrs" -d '{"speed": {"type": "Property", "value": 26}}'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E25/attrs" -d '{"speed": {"type": "Property", "value": 26}}'
+c -X POST "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:E25/attrs" -d '{"color": {"type": "Property", "value": "red"}}'
+decls
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:N1", "type": "V", "speed": {"type": "Property", "value": 77}}'
+c -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:N1"
+ids T 'temp==31'
+ids T 'speed==26'
+ids T 'speed==25'
+ids T 'temp==20'
+c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:H2" -d '{"type": "T"}'
+ids T 'temp==20'
+decls
+echo
+echo
+
+
+echo "07. A tenant created now: its index built by its first query"
+echo "============================================================"
+c -H 'NGSILD-Tenant: t1' "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:X", "type": "T", "temp": {"type": "Property", "value": 5}}'
+echo "t1: $(curl -s -H 'NGSILD-Tenant: t1' "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=T&q=temp==5" | jq -r '.[].id')"
+decls
+echo
+echo
+
+
+echo "08. Entities that gain a value where they are: in the store's order - 24 in one gap, numbered again"
+echo "====================================================================================================="
+for i in $(seq 1 25); do echo "{\"id\":\"urn:R$i\",\"type\":\"T\",\"other\":{\"type\":\"Property\",\"value\":$i}}"; done | jq -s . > /tmp/dbIndexesCorDB.$$
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entityOperations/create" -d @/tmp/dbIndexesCorDB.$$
+rm -f /tmp/dbIndexesCorDB.$$
+c "http://localhost:$CB_PORT/ngsi-ld/v1/entities" -d '{"id": "urn:RZ", "type": "T", "speed": {"type": "Property", "value": 9999}}'
+ids T 'speed>5000'
+for i in $(seq 25 -1 1); do c -X PATCH "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:R$i/attrs" -d "{\"speed\": {\"type\": \"Property\", \"value\": $((5000 + i))}}"; done | sort | uniq -c
+ids T 'speed>5000'
+pages "/ngsi-ld/v1/entities?type=T&q=speed%3E5000&limit=7" next
+c -X PUT "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:R13" -d '{"id": "urn:R13", "type": "T", "other": {"type": "Property", "value": 13}}'
+c -X PUT "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:R3" -d '{"id": "urn:R3", "type": "T", "other": {"type": "Property", "value": 3}}'
+c -X PUT "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:R3" -d '{"id": "urn:R3", "type": "T", "speed": {"type": "Property", "value": 5003}}'
+c -X DELETE "http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:R7/attrs/speed"
+ids T 'speed>5000'
+echo
+echo
+
+
+echo "09. Restarted on the same --dbDir without --dbIndexes: the admin API's declaration, not speed"
+echo "============================================================================================="
+restart
+decls
+ids T 'temp==20'
+echo
+echo
+
+
+echo "10. DELETE: an unknown 404, the admin API's 204 - and after a restart, still gone"
+echo "================================================================================="
+aid=$(curl -s "http://localhost:$CB_PORT/admin/indexes" | jq -r '.[0].id')
+c -X DELETE "http://localhost:$CB_PORT/admin/indexes/00000000"
+c -X DELETE "http://localhost:$CB_PORT/admin/indexes/$aid"
+restart
+echo "declarations: $(curl -s "http://localhost:$CB_PORT/admin/indexes")"
+echo
+echo
+
+
+echo "11. --dbIndexes not an array of declarations: the broker does not start"
+echo "======================================================================="
+coraineStop
+timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbIndexes '[{"type": "T"}]' > /tmp/dbIndexesCorDB.$$ 2>&1
+echo "exit: $?"
+grep -o "corDB: --dbIndexes: each declaration is .*" /tmp/dbIndexesCorDB.$$ | head -1
+rm -f /tmp/dbIndexesCorDB.$$
+echo
+echo
+
+
+--EXPECT--
+01. --dbIndexes speed: listed, by dbIndexes - not built before a query uses it
+===============================================================================
+speed type=- tenant=- by dbIndexes: [] built=false entries=0 accesses=0 updates=0
+
+
+02. 40 entities, T and V; one with speed on an instance of a datasetId - q on speed served by the index
+======================================================================================================
+201
+201
+type=T q=speed>35: urn:E37 urn:E39 urn:DS
+type=T q=speed==3: urn:E3
+type=T q=speed==3,5,99: urn:E3 urn:E5 urn:DS
+type=T q=speed==10..15: urn:E11 urn:E13 urn:E15
+type=T q=speed<4: urn:E1 urn:E3 urn:DS
+type=T q=speed>36|speed==1: urn:E1 urn:E37 urn:E39 urn:DS
+type=T q=speed>30;speed<36: urn:E31 urn:E33 urn:E35 urn:DS
+type=T q=speed!=3;speed<6: urn:E1 urn:E5 urn:DS
+speed type=- tenant=- by dbIndexes: [] built=true entries=42 accesses=10 updates=0
+
+
+03. Every write: the index as the store - PATCH, merge, POST attrs, DELETE attr, replace, DELETE, batch
+======================================================================================================
+204
+204
+204
+204
+204
+204
+204
+204
+204
+204
+204
+204
+type=T q=speed>400: urn:E1 urn:E3 urn:E5 urn:E7 urn:E11 urn:E15 urn:E17 urn:E19
+type=T q=speed<10: urn:E7 urn:DS
+type=T q=speed==7..13: urn:E7
+type=V q=speed==23: urn:E23
+type=V q=speed==21..24: urn:E22 urn:E23 urn:E24
+
+
+04. Pages of 4 from the index's candidates, forwards then backwards: the whole result, in order
+===============================================================================================
+type=T q=speed>20: urn:E1 urn:E3 urn:E5 urn:E7 urn:E11 urn:E15 urn:E17 urn:E19 urn:E23 urn:E25 urn:E27 urn:E29 urn:E31 urn:E33 urn:E35 urn:E37 urn:E39 urn:DS
+ | urn:E1 urn:E3 urn:E5 urn:E7 | urn:E11 urn:E15 urn:E17 urn:E19 | urn:E23 urn:E25 urn:E27 urn:E29 | urn:E31 urn:E33 urn:E35 urn:E37 | urn:E39 urn:DS
+ | urn:E39 urn:DS | urn:E31 urn:E33 urn:E35 urn:E37 | urn:E23 urn:E25 urn:E27 urn:E29 | urn:E11 urn:E15 urn:E17 urn:E19 | urn:E1 urn:E3 urn:E5 urn:E7
+
+
+05. POST temp narrowed to the type T: 201, built at once; the same again 409; a bad body 400
+============================================================================================
+201
+201
+{"id":"<id>","attribute":"temp","type":"T","declaredBy":"api"}
+409
+400
+type=T q=temp==20: urn:H1
+type=V q=temp==20: urn:H2
+speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=0
+temp type=T tenant=- by api: [] built=true entries=1 accesses=1 updates=0
+
+
+06. updates: the writes that changed an index - of the declarations whose values changed only
+=============================================================================================
+204
+204
+speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=0
+temp type=T tenant=- by api: [] built=true entries=2 accesses=1 updates=2
+204
+204
+204
+speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=0 updates=1
+temp type=T tenant=- by api: [] built=true entries=2 accesses=1 updates=2
+201
+204
+type=T q=temp==31: urn:E25
+type=T q=speed==26: urn:E25
+type=T q=speed==25: 
+type=T q=temp==20: urn:H1
+204
+type=T q=temp==20: urn:H1 urn:H2
+speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3
+temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3
+
+
+07. A tenant created now: its index built by its first query
+============================================================
+201
+t1: urn:X
+speed type=- tenant=- by dbIndexes: [] built=true entries=40 accesses=2 updates=3 [t1] built=true entries=0 accesses=0 updates=0
+temp type=T tenant=- by api: [] built=true entries=3 accesses=4 updates=3 [t1] built=true entries=1 accesses=1 updates=0
+
+
+08. Entities that gain a value where they are: in the store's order - 24 in one gap, numbered again
+=====================================================================================================
+201
+201
+type=T q=speed>5000: urn:RZ
+     25 204
+type=T q=speed>5000: urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R7 urn:R8 urn:R9 urn:R10 urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20 urn:R21 urn:R22 urn:R23 urn:R24 urn:R25 urn:RZ
+ | urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R7 | urn:R8 urn:R9 urn:R10 urn:R11 urn:R12 urn:R13 urn:R14 | urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20 urn:R21 | urn:R22 urn:R23 urn:R24 urn:R25 urn:RZ
+204
+204
+204
+204
+type=T q=speed>5000: urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R8 urn:R9 urn:R10 urn:R11 urn:R12 urn:R14 urn:R15 urn:R16 urn:R17 urn:R18 urn:R19 urn:R20 urn:R21 urn:R22 urn:R23 urn:R24 urn:R25 urn:RZ
+
+
+09. Restarted on the same --dbDir without --dbIndexes: the admin API's declaration, not speed
+=============================================================================================
+temp type=T tenant=- by api: [] built=false entries=0 accesses=0 updates=0 [t1] built=false entries=0 accesses=0 updates=0
+type=T q=temp==20: urn:H1 urn:H2
+
+
+10. DELETE: an unknown 404, the admin API's 204 - and after a restart, still gone
+=================================================================================
+404
+204
+declarations: []
+
+
+11. --dbIndexes not an array of declarations: the broker does not start
+=======================================================================
+exit: 1
+corDB: --dbIndexes: each declaration is { "attribute": <string>, "type"?: <string>, "tenant"?: <string> }
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-db_indexes_corDB
