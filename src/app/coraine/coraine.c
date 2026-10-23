@@ -9,8 +9,8 @@
 #include <stdbool.h>                              // bool, true, false
 #include <stdio.h>                                // snprintf, fprintf
 #include <stdlib.h>                               // _exit
-#include <unistd.h>                               // pause
-#include <signal.h>                               // signal, SIGINT, SIGTERM
+#include <unistd.h>                               // pause, write, _exit
+#include <signal.h>                               // signal, SIGINT, SIGTERM, sig_atomic_t
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
 #include <string.h>                               // strcmp, memcpy, strpbrk
 #include <time.h>                                 // time
@@ -336,12 +336,29 @@ static sem_t shutdownSem;
 //
 // onSignal - SIGINT / SIGTERM: wake main, which shuts down in order
 //
-// Nothing but sem_post here. The handler runs in whichever thread the kernel
-// picked - a request worker, quite possibly - and the shutdown joins those
+// Once the broker serves, nothing but sem_post here. The handler runs in whichever thread
+// the kernel picked - a request worker, quite possibly - and the shutdown joins those
 // workers; a worker cannot join itself. sem_post is async-signal-safe.
 //
+// Before the HTTP server takes requests (serving false) there is nothing to shut down in order, and the
+// start-up may be waiting for a while - for a TRoE or DB server that is not there, a try a second for
+// --troeConnectTimeout seconds: the broker ends at once instead, saying so. write and _exit are
+// async-signal-safe. corDB's log is written through a mapping: what start-up wrote is in it.
+//
+static volatile sig_atomic_t serving = 0;
+
 static void onSignal(int sigNo)
 {
+  if (serving == 0)
+  {
+    static const char msg[] = "coraine: stopped during start-up (SIGTERM / SIGINT)\n";
+    ssize_t           n     = write(2, msg, sizeof(msg) - 1);
+
+    (void) n;
+    (void) sigNo;
+    _exit(0);
+  }
+
   (void) sigNo;
   sem_post(&shutdownSem);
 }
@@ -2254,6 +2271,8 @@ int main(int argC, char* argV[])
   if (haChannel == NULL)
     sseLeftoversDelete();
 #endif
+
+  serving = 1;    // a signal from here on shuts down in order (onSignal)
 
   if (corRestStart((unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestStart failed on port %u", port);
