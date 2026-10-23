@@ -23,6 +23,8 @@
 //
 #include <stdbool.h>                                 // bool
 
+#include "corTree/CorNode.h"                         // corNodeLayout - every transport plugin carries it (corPluginOpen)
+
 
 
 #define TRANSPORT_ABI_VERSION  1

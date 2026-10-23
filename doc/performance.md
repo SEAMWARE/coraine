@@ -225,6 +225,34 @@ counts anonymous memory, the arenas included.
 > request-arena footprint afterwards (202 MiB against 68): both are real numbers
 > about real deployments, and the label has to say which.
 
+### The stored trees
+
+What `corDB` keeps of an entity is a tree of `CorNode`s, and the subscription, registration and
+snapshot caches are trees too. They are allocated in the tree heap (corTree's `corTreeHeap.c`): a
+node, its name and a string value are one block, 8-byte aligned, carved from 16 KiB pages of one
+size each - no allocator header per block and no rounding to 16 bytes, which with `malloc` were 8
+to 23 bytes of every block. A node that is not an object or an array is 32 bytes there, not 40: an
+object's last child is the node's last 8 bytes ([the CorNode
+layout](plugin-architecture.md#the-cornode-layout)), and only a container has one.
+
+100 000 entities of perfRun's larger store (five attributes, 24 nodes each: 13 containers, 6
+strings, 3 integers, 2 floats), `corDB` in RAM, release builds, loaded in batches of 500, the
+broker's RSS after the load - two runs of each, in the order A B B A, within 0.2 %:
+
+| Build | RSS | Per entity | |
+|---|---:|---:|---:|
+| `malloc`, 40-byte nodes (0.5.x) | 270 MiB | 2 445 B | |
+| tree heap, 40-byte nodes | 240 MiB | 2 140 B | −11 % |
+| tree heap, 32-byte scalars (0.6.0) | 231 MiB | 2 047 B | −14.5 % |
+
+The load took the same time in all three (23.5 - 23.7 s). The nodes outside these trees - a
+request's, in its arena - stay 40 bytes: they are thrown away with the request, and code that
+turns a node into another kind in place does so on them.
+
+`COR_TREE_HEAP=malloc` puts the trees back in `malloc`, a block per node - for valgrind, which sees
+a block's bounds only in `malloc`'s (`corTest -vt` sets it). A build with AddressSanitizer does
+the same by itself.
+
 ## What else has to be running
 
 | `--database` / `--troe` | Also required | What that costs |

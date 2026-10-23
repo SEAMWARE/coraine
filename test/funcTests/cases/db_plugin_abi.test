@@ -15,11 +15,13 @@
 #   - the plugin's register function refuses a broker whose coraineDbAbi is missing (a broker older than
 #     the check) or differs, and exits
 #
-# The broker side with two small plugins built here: one with no stamp, one exporting "xxxx". The plugin
+# The broker side with two small plugins built here: one with no stamp, one exporting "xxxx" - both with
+# the broker's CorNode layout (corNodeLayout, plugin_node_layout.test), or that refuses them first. The plugin
 # side with the plugins as installed: corDB.so in a copy of this broker whose coraineDbAbi is renamed in
 # its dynamic symbol table (a broker without the symbol, as every broker before the check), and none.so
 # - its check is the same shared/dbPluginAbi.c as every DB / TRoE plugin's - in a small host program,
-# once without coraineDbAbi and once exporting "xxxx".
+# once without coraineDbAbi and once exporting "xxxx". The host exports corNodeLayout2, which every
+# plugin requires (plugin_node_layout.test).
 #
 --NAME--
 DB plugin interface stamp: a broker and a DB / TRoE plugin built against different headers refuse each other
@@ -67,6 +69,7 @@ echo
 echo "02. A DB plugin without dbPluginAbi - built before the check - is refused, exit 1"
 echo "================================================================================="
 cat > $D/noStamp.c << 'EOF'
+const int corNodeLayout = 2;
 void dbRegister(void* driverP) { (void) driverP; }
 void troeRegister(void* driverP) { (void) driverP; }
 EOF
@@ -82,6 +85,7 @@ echo
 echo "03. A DB plugin with another stamp is refused, exit 1"
 echo "====================================================="
 cat > $D/otherStamp.c << 'EOF'
+const int corNodeLayout = 2;
 const char dbPluginAbi[] = "xxxx";
 void dbRegister(void* driverP) { (void) driverP; }
 void troeRegister(void* driverP) { (void) driverP; }
@@ -131,6 +135,7 @@ echo "==========================================================================
 cat > $D/host.c << 'EOF'
 #include <dlfcn.h>
 #include <stdio.h>
+const int corNodeLayout2 = 2;                 /* the CorNode layout every plugin requires (corTree/CorNode.h) */
 #ifdef STAMP
 const char coraineDbAbi[] = STAMP;
 #endif
@@ -150,7 +155,7 @@ int main(int argC, char* argV[])
   return 0;
 }
 EOF
-gcc -o $D/hostNoStamp $D/host.c -ldl
+gcc -rdynamic -o $D/hostNoStamp $D/host.c -ldl
 gcc -rdynamic -DSTAMP='"xxxx"' -o $D/hostOtherStamp $D/host.c -ldl
 #
 # A none.so built with the sanitizers (test/sanitizer/sanSetup.sh) needs the AddressSanitizer runtime

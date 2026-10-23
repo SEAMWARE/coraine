@@ -13,7 +13,7 @@
 #include <unistd.h>                                   // access
 #include <dlfcn.h>                                    // dlopen, dlsym, dlclose, RTLD_NOLOAD
 
-#include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
+#include "corPlugin/corPlugin.h"                        // corPluginOpen, corPluginRefused, corPluginCloseAll, corPluginResolve, corPluginBaseDir, corPluginArgUpdate
 #include "corArgs/corArgs.h"                          // corArgsAdd, corArgsStatus, CorArg, CORARGS_SEPARATOR, CORARGS_END
 #include "corArgs/corArgsInit.h"                      // corArgInfoV
 #include "corLog/corLog.h"                            // COR_I, COR_X
@@ -501,9 +501,9 @@ bool pluginStoresLoad(const char* dbName, const char* troeName)
   //
   // A refused plugin ends the start here, its message the last thing said: going on would parse the
   // command line without the plugin's options and report one of them as unknown (--dbDir), hiding
-  // the reason
+  // the reason. Its interface stamp, or its CorNode layout (corPluginOpen)
   //
-  if (abiRefused)
+  if ((abiRefused == true) || (corPluginRefused() == true))
     exit(1);
 
   corPluginArgUpdate("--database", "db/currentState");

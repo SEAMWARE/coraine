@@ -1,0 +1,170 @@
+#
+# FILE            plugin_node_layout.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The CorNode layout a plugin was built against (corTree/CorNode.h: corNodeLayout). A plugin reads and
+# builds the broker's tree nodes by their fields, and a plugin built against another layout reads every
+# node at the wrong offsets - a bridge plugin built before the prefix layout (layout 2) crashed the broker
+# at start-up. So corPluginOpen refuses it, for every kind of plugin: the broker says which plugin, what
+# it was built against and what to do, and exits 1.
+#
+# Small plugins built here, one per kind: without corNodeLayout (built before it existed) and with
+# layout 1. The installed plugins carry the broker's layout and load.
+#
+--NAME--
+CorNode layout: a plugin of any kind built against another tree-node layout is refused, exit 1
+
+--TAGS--
+plugins cli bridge auth transport
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_pluginNodeLayout
+rm -rf $D
+mkdir -p $D
+
+#
+# run <args> - the broker started in the foreground for at most 3 s: its exit code (124 = still running
+# when the timeout ended it - it started) and the refusal it gave, if any
+#
+run() {
+  timeout 3 $COR_BROKER -fg --port $((CB_PORT + 3210)) "$@" > $D/out 2>&1
+  echo "exit: $?"
+  grep -E "tree-node layout" $D/out | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
+}
+
+#
+# plugin <name> <layout> - every kind's entry point, and corNodeLayout = <layout> (none: no corNodeLayout)
+#
+plugin() {
+  {
+    [ "$2" != none ] && echo "const int corNodeLayout = $2;"
+    for entry in dbRegister troeRegister apiRegister bridgeRegister authRegister transportRegister
+    do
+      echo "void $entry(void* p) { (void) p; }"
+    done
+  } > $D/$1.c
+  gcc -shared -fPIC -o $D/$1.so $D/$1.c
+}
+
+plugin noLayout none
+plugin layout1  1
+
+
+echo "01. The plugins as installed carry the broker's layout - they load"
+echo "=================================================================="
+run --database corDB --troe none --apiPlugins admin --transports ws
+echo
+echo
+
+
+echo "02. A DB plugin without corNodeLayout, and one with layout 1 - refused, exit 1"
+echo "=============================================================================="
+run --database $D/noLayout.so
+run --database $D/layout1.so
+echo
+echo
+
+
+echo "03. A TRoE plugin likewise"
+echo "=========================="
+run --database corDB --troe $D/noLayout.so
+run --database corDB --troe $D/layout1.so
+echo
+echo
+
+
+echo "04. An API plugin likewise"
+echo "=========================="
+run --database corDB --apiPlugins $D/noLayout.so
+run --database corDB --apiPlugins $D/layout1.so
+echo
+echo
+
+
+echo "05. A bridge plugin likewise"
+echo "============================"
+run --database corDB --bridges $D/noLayout.so
+run --database corDB --bridges $D/layout1.so
+echo
+echo
+
+
+echo "06. An auth plugin likewise"
+echo "==========================="
+run --database corDB --auth $D/noLayout.so
+run --database corDB --auth $D/layout1.so
+echo
+echo
+
+
+echo "07. A transport plugin likewise"
+echo "==============================="
+run --database corDB --transports $D/noLayout.so
+run --database corDB --transports $D/layout1.so
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_pluginNodeLayout
+
+--EXPECT--
+01. The plugins as installed carry the broker's layout - they load
+==================================================================
+exit: 124
+
+
+02. A DB plugin without corNodeLayout, and one with layout 1 - refused, exit 1
+==============================================================================
+exit: 1
+DB plugin '/tmp/corTest_pluginNodeLayout/noLayout.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+DB plugin '/tmp/corTest_pluginNodeLayout/layout1.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
+03. A TRoE plugin likewise
+==========================
+exit: 1
+TRoE plugin '/tmp/corTest_pluginNodeLayout/noLayout.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+TRoE plugin '/tmp/corTest_pluginNodeLayout/layout1.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
+04. An API plugin likewise
+==========================
+exit: 1
+API plugin '/tmp/corTest_pluginNodeLayout/noLayout.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+API plugin '/tmp/corTest_pluginNodeLayout/layout1.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
+05. A bridge plugin likewise
+============================
+exit: 1
+bridge plugin '/tmp/corTest_pluginNodeLayout/noLayout.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+bridge plugin '/tmp/corTest_pluginNodeLayout/layout1.so': refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
+06. An auth plugin likewise
+===========================
+exit: 1
+auth plugin '/tmp/corTest_pluginNodeLayout/noLayout.so' (/tmp/corTest_pluginNodeLayout/noLayout.so): refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+auth plugin '/tmp/corTest_pluginNodeLayout/layout1.so' (/tmp/corTest_pluginNodeLayout/layout1.so): refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
+07. A transport plugin likewise
+===============================
+exit: 1
+transport plugin '/tmp/corTest_pluginNodeLayout/noLayout.so' (/tmp/corTest_pluginNodeLayout/noLayout.so): refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+exit: 1
+transport plugin '/tmp/corTest_pluginNodeLayout/layout1.so' (/tmp/corTest_pluginNodeLayout/layout1.so): refused - built against another tree-node layout than this broker (plugin: CorNode layout 1; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+
+
