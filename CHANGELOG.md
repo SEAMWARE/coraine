@@ -46,7 +46,22 @@ bump may still change behaviour; the entry says so where it does.
   attribute, as before; an index on `<attr>.@none.value` and one on `<attr>.@datasetIds` now serve it.
   ([q and the mongoc indexes](doc/installation.md#q-and-the-mongoc-indexes))
 
+### Less memory
+
+- The trees the broker keeps - corDB's entities, the subscription, registration and snapshot caches - take
+  14.5 % less RAM: 100 000 entities of perfRun's larger store, 270 MiB → 231 MiB broker RSS. Their nodes are
+  in a heap of their own, 8-byte aligned and without malloc's per-block header (−11 %), and a node that is
+  not an object or an array is 32 bytes there instead of 40 (−3.6 %). On disk nothing changed: corDB's log
+  and cor:// encode nodes one by one, whatever their layout in memory.
+  ([The stored trees](doc/performance.md#the-stored-trees))
+
 ### Changed behaviour
+
+- Plugins built for 0.5.x do not load in 0.6.0, of any kind: the tree node (`CorNode`) has a new layout, and
+  every plugin reads nodes by their fields. The broker refuses such a plugin and exits 1, saying which and
+  why; rebuild it against 0.6.0's Cor-Libs (`coraine-dev`). A plugin built for 0.6.0 is refused by a 0.5.x
+  broker the same way (`undefined symbol: corNodeLayout2`).
+  ([The CorNode layout](doc/plugin-architecture.md#the-cornode-layout))
 
 - `mongoc` storage format 2: an attribute with an instance of a datasetId is marked in its document. A
   database is upgraded at the first start of 0.6.0, and 0.5.x then refuses it. Stop every broker on a
