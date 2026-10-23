@@ -20,7 +20,8 @@
 # side with the plugins as installed: corDB.so in a copy of this broker whose coraineDbAbi is renamed in
 # its dynamic symbol table (a broker without the symbol, as every broker before the check), and none.so
 # - its check is the same shared/dbPluginAbi.c as every DB / TRoE plugin's - in a small host program,
-# once without coraineDbAbi and once exporting "xxxx".
+# once without coraineDbAbi and once exporting "xxxx". The host exports corNodeLayout2, which every
+# plugin requires (plugin_node_layout.test).
 #
 --NAME--
 DB plugin interface stamp: a broker and a DB / TRoE plugin built against different headers refuse each other
@@ -134,6 +135,7 @@ echo "==========================================================================
 cat > $D/host.c << 'EOF'
 #include <dlfcn.h>
 #include <stdio.h>
+const int corNodeLayout2 = 2;                 /* the CorNode layout every plugin requires (corTree/CorNode.h) */
 #ifdef STAMP
 const char coraineDbAbi[] = STAMP;
 #endif
@@ -153,7 +155,7 @@ int main(int argC, char* argV[])
   return 0;
 }
 EOF
-gcc -o $D/hostNoStamp $D/host.c -ldl
+gcc -rdynamic -o $D/hostNoStamp $D/host.c -ldl
 gcc -rdynamic -DSTAMP='"xxxx"' -o $D/hostOtherStamp $D/host.c -ldl
 #
 # A none.so built with the sanitizers (test/sanitizer/sanSetup.sh) needs the AddressSanitizer runtime
