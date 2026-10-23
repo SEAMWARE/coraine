@@ -39,6 +39,7 @@
 #include <stdint.h>                                  // uint64_t
 
 #include "corArgs/corArgs.h"                         // CorArg
+#include "corTree/CorNode.h"                         // corNodeLayout - every auth plugin carries it (corPluginOpen)
 
 
 

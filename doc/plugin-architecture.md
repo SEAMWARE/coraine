@@ -150,8 +150,10 @@ coraine --database ../corDB/obj/debug/corDB.so
    `authRegister`). Handles are
    tracked for
    `corPluginCloseAll()` at shutdown.
-3. For a DB or TRoE plugin, its interface stamp is checked (next section) - before the
-   register function is called.
+   A plugin built against another `CorNode` layout than the broker is refused here, whatever
+   its kind ([The CorNode layout](#the-cornode-layout)).
+3. For a DB or TRoE plugin, its interface stamp is checked ([The DB plugin interface
+   stamp](#the-db-plugin-interface-stamp)) - before the register function is called.
 4. The register function is called with a zeroed driver struct, which it fills with
    its function pointers.
 
@@ -171,8 +173,36 @@ its structs and nothing else. A plugin that calls Cor-Lib functions must be buil
 against the **same** lib sources as the broker it will be loaded into — for a
 packaged broker, the `coraine-dev` source of the same version
 ([Installation](installation.md#coraine-dev-build-your-own)). A function the broker
-lacks fails the `dlopen`; a changed signature or struct layout is not detected. For a DB or TRoE plugin the
-headers its structs come from are checked at load, below.
+lacks fails the `dlopen`; a changed signature or struct layout is not detected - except the tree
+node's, `CorNode`, which every plugin is checked for, and, for a DB or TRoE plugin, every header
+its structs come from. Both below.
+
+## The CorNode layout
+
+Every kind of plugin reads and builds the broker's tree nodes (`CorNode`, corTree) by their fields,
+so a plugin built against another node layout than its broker reads every node at the wrong
+offsets. The layout has a number, `corNodeLayout` in `corTree/CorNode.h`: 2 since the prefix layout
+(`value` last, a container's tail its last 8 bytes; layout 1, before it, had no number). Every object
+built with that header carries it - a weak, exported symbol, so also a plugin built
+`-fvisibility=hidden` - and every driver header (`DbDriver.h`, `TroeDriver.h`, `ApiPlugin.h`,
+`AuthDriver.h`, `TransportDriver.h`, corBridge's `BridgeDriver.h`) includes it.
+
+| Plugin | Broker | What happens |
+|--------|--------|--------------|
+| built against the broker's layout | any | loads |
+| without `corNodeLayout`, or another number | this one | `corPluginOpen` refuses it before its register function: the broker prints why and exits 1 |
+| built against layout 2 | from before layout 2 | the plugin requires the symbol `corNodeLayout2`, which only a corTree with layout 2 defines: the `dlopen` fails (`undefined symbol: corNodeLayout2`), the broker prints it and exits 1 |
+
+A refusal, here a bridge built before layout 2:
+
+```text
+bridge plugin 'mqtt' (/opt/seamware/plugins/bridge/mqtt.so): refused - built against another tree-node layout than this broker (plugin: CorNode layout 1, or older - it has no corNodeLayout; broker: CorNode layout 2). It would read every node at the wrong offsets and crash the broker. Rebuild the plugin against this broker's Cor-Libs
+```
+
+The broker reads the plugin's own `corNodeLayout` - the one in the object its register function is
+in, not one of its dependencies'. A change of the layout is a new number and a new required symbol
+(`corNodeLayout3`), in `CorNode.h` and `CorNode.c`. Like the stamp below, the check is always
+compiled in.
 
 ## The DB plugin interface stamp
 

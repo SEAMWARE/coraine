@@ -27,7 +27,7 @@
 #include "corBase/corCpuCount.h"                   // corCpuCount
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
-#include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate
+#include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate, corPluginRefused
 #include "corRest/corRest.h"                        // corRestPrepare, corRestStart, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
 #include "corRest/corRestBackend.h"                  // corRestHttpLoopsSet, corRestConnectionMemorySet
 #include "corRest/corRestStop.h"                     // corRestStop
@@ -1732,6 +1732,13 @@ int main(int argC, char* argV[])
   corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
 
   bool startupError = pluginsLoad(argC, argV);
+
+  //
+  // A plugin built against another CorNode layout: its refusal is the last thing said - not the usage,
+  // nor one of its options reported unknown
+  //
+  if (corPluginRefused() == true)
+    exit(1);
 
   ks = corArgsParse(argC, argV);
   if (ks != CorArgsOk)

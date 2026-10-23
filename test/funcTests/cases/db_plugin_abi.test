@@ -15,7 +15,8 @@
 #   - the plugin's register function refuses a broker whose coraineDbAbi is missing (a broker older than
 #     the check) or differs, and exits
 #
-# The broker side with two small plugins built here: one with no stamp, one exporting "xxxx". The plugin
+# The broker side with two small plugins built here: one with no stamp, one exporting "xxxx" - both with
+# the broker's CorNode layout (corNodeLayout, plugin_node_layout.test), or that refuses them first. The plugin
 # side with the plugins as installed: corDB.so in a copy of this broker whose coraineDbAbi is renamed in
 # its dynamic symbol table (a broker without the symbol, as every broker before the check), and none.so
 # - its check is the same shared/dbPluginAbi.c as every DB / TRoE plugin's - in a small host program,
@@ -67,6 +68,7 @@ echo
 echo "02. A DB plugin without dbPluginAbi - built before the check - is refused, exit 1"
 echo "================================================================================="
 cat > $D/noStamp.c << 'EOF'
+const int corNodeLayout = 2;
 void dbRegister(void* driverP) { (void) driverP; }
 void troeRegister(void* driverP) { (void) driverP; }
 EOF
@@ -82,6 +84,7 @@ echo
 echo "03. A DB plugin with another stamp is refused, exit 1"
 echo "====================================================="
 cat > $D/otherStamp.c << 'EOF'
+const int corNodeLayout = 2;
 const char dbPluginAbi[] = "xxxx";
 void dbRegister(void* driverP) { (void) driverP; }
 void troeRegister(void* driverP) { (void) driverP; }
