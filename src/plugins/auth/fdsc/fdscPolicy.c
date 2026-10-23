@@ -35,6 +35,7 @@
 #include "corTree/corTreeBuilder.h"                  // corTreeString, corTreeInteger, corTreeArray, corTreeBoolean, corTreeChildAdd
 #include "corTree/corTreeClone.h"                    // corTreeClone
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
+#include "corTree/corTreeNodeCopy.h"                 // corTreeNodeCopy
 
 #include "corNgsild/LdOp.h"                          // LdOp*
 
@@ -530,7 +531,7 @@ static CorNode* rightValue(PolicySet* psP, CorNode* nodeP)
 
     if (copyP != NULL)
     {
-      *copyP      = *nodeP;
+      corTreeNodeCopy(copyP, nodeP);
       copyP->next = NULL;
       copyP->name = NULL;
     }
@@ -1397,7 +1398,7 @@ static CorNode* query(Ctx* cP)
       if (firstP == NULL)
         continue;
 
-      *firstP      = *oldP;
+      corTreeNodeCopy(firstP, oldP);
       firstP->name = NULL;
       firstP->next = NULL;
 
