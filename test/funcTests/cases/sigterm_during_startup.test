@@ -1,0 +1,92 @@
+#
+# FILE            sigterm_during_startup.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A SIGTERM / SIGINT before the broker serves ends it at once: start-up can wait a long time - for a TRoE
+# server that is not there, a try a second for --troeConnectTimeout seconds (30) - and a broker told to stop
+# then went on waiting, and stopped only when the wait was over. Once it serves, a signal shuts it down in
+# order, as before.
+#
+--NAME--
+SIGTERM / SIGINT during start-up: the broker stops at once, saying so
+
+--TAGS--
+cli troe
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_sigtermStartup
+rm -rf $D
+mkdir -p $D
+
+#
+# stopAfter <signal> <args> - the broker started in the background, the signal after 1 s: whether it was
+# gone 1 s later, and what it said about it
+#
+stopAfter() {
+  local sig=$1
+  shift
+  $COR_BROKER -fg --port $((CB_PORT + 3220)) "$@" > $D/out 2>&1 &
+  local pid=$!
+  sleep 1
+  kill -$sig $pid
+  sleep 1
+  if kill -0 $pid 2> /dev/null; then
+    echo "still running 1 s after the signal"
+    kill -9 $pid
+  else
+    echo "gone within 1 s"
+  fi
+  wait $pid 2> /dev/null
+  grep -c "stopped during start-up" $D/out
+}
+
+
+echo "01. SIGTERM while start-up waits for a TRoE server that is not there"
+echo "===================================================================="
+stopAfter TERM --database corDB --troe timescale --troeHost 127.0.0.1 --troePort 1
+echo
+echo
+
+
+echo "02. SIGINT likewise"
+echo "==================="
+stopAfter INT --database corDB --troe timescale --troeHost 127.0.0.1 --troePort 1
+echo
+echo
+
+
+echo "03. A broker that serves shuts down in order - no start-up message"
+echo "=================================================================="
+stopAfter TERM --database corDB --troe none
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_sigtermStartup
+
+--EXPECT--
+01. SIGTERM while start-up waits for a TRoE server that is not there
+====================================================================
+gone within 1 s
+1
+
+
+02. SIGINT likewise
+===================
+gone within 1 s
+1
+
+
+03. A broker that serves shuts down in order - no start-up message
+==================================================================
+gone within 1 s
+0
+
+
