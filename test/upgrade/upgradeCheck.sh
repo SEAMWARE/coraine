@@ -84,7 +84,7 @@ oldStart()   # oldStart <phase> <store args...>
 {
   local phase=$1; shift
   docker run -d --rm --name $OLD_CONTAINER --network host --user "$(id -u):$(id -g)" -v "$WORK:$WORK" -e PGPASSWORD \
-    --entrypoint coraine "$FROM" --foreground --port $PORT --httpEndpoint http://localhost:$PORT "$@" > /dev/null || return 1
+    --entrypoint coraine "$FROM" --port $PORT --httpEndpoint http://localhost:$PORT "$@" > /dev/null || return 1
   ( docker logs -f $OLD_CONTAINER > "$WORK/$phase.log" 2>&1 & )
   awaitBroker
 }
@@ -99,7 +99,7 @@ NEW_PID=""
 newStart()   # newStart <phase> <store args...>
 {
   local phase=$1; shift
-  $TO --foreground --port $PORT --httpEndpoint http://localhost:$PORT "$@" > "$WORK/$phase.log" 2>&1 &
+  $TO --port $PORT --httpEndpoint http://localhost:$PORT "$@" > "$WORK/$phase.log" 2>&1 &
   NEW_PID=$!
   awaitBroker
 }

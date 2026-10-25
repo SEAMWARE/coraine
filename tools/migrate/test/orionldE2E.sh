@@ -108,7 +108,7 @@ for store in corDB mongoc; do
   $IMPORTER $DBARGS $TROEARGS --file "$W/stream.ndjson" 2> "$W/import-$store.out" > "$W/import-$store.log" || { cat "$W/import-$store.out"; fail "import into $store"; }
   sed 's/^/   /' "$W/import-$store.out"
 
-  $BROKER -fg -p $PORT -pp 2 $DBARGS $TROEARGS > "$W/broker-$store.log" 2>&1 &
+  $BROKER -p $PORT -pp 2 $DBARGS $TROEARGS > "$W/broker-$store.log" 2>&1 &
   echo $! > "$W/broker.pid"
   for i in $(seq 1 50); do curl -s -o /dev/null "http://localhost:$PORT/ngsi-ld/v1/types" && break; sleep 0.1; done
 

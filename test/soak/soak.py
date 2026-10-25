@@ -133,7 +133,7 @@ if args.db == 'mongoc':
                  '--dbName', f'soak{int(time.time())}', '--troe', 'none']
 else:
     storeArgs = ['--database', 'corDB', '--dbDir', os.path.join(args.work, 'cordb'), '--troe', 'none']
-cmd = [args.broker, '--foreground', '--port', str(args.port), '--httpEndpoint', f'http://localhost:{args.port}'] + storeArgs
+cmd = [args.broker, '--port', str(args.port), '--httpEndpoint', f'http://localhost:{args.port}'] + storeArgs
 log('broker: ' + ' '.join(cmd))
 brokerLog = open(os.path.join(args.work, 'broker.log'), 'w')
 broker = subprocess.Popen(cmd, stdout=brokerLog, stderr=subprocess.STDOUT)

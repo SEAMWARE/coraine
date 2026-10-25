@@ -90,7 +90,7 @@ cp -p "$RAMDB" "$T/plugins/db/currentState/ramDB.so"
 
 echo "2. start the broker (-db ramDB, port $PORT)"
 COR_TEST_NO_REAP=on SEAMWARE_PLUGIN_DIR="$T/plugins" SEAMWARE_ETC_DIR="$T/etc" \
-  "$T/bin/coraine" -db ramDB -p "$PORT" -fg > "$T/broker.log" 2>&1 < /dev/null &
+  "$T/bin/coraine" -db ramDB -p "$PORT" > "$T/broker.log" 2>&1 < /dev/null &
 BPID=$!
 for i in $(seq 1 50); do curl -s -m 1 -o /dev/null "localhost:$PORT/version" && break; sleep 0.1; done
 code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:$PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' \

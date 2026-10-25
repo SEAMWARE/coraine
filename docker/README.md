@@ -51,6 +51,10 @@ docker run --rm -p 1026:1026 coraine:local --database corDB --apiPlugins admin
 docker run --rm -p 1026:1026 coraine:local --database mongoc --dbHost mongo
 ```
 
+The broker runs in the foreground and logs to stdout - its defaults, and what `docker logs` shows. No
+`--daemon` in a container: the process that detaches is PID 1, and the container stops with it
+([Running the broker](../doc/installation.md#running-the-broker-foreground-or-daemon-and-where-the-log-goes)).
+
 ## docker-compose
 
 - `docker/docker-compose.yml` — broker + MongoDB.

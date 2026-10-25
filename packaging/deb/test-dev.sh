@@ -49,7 +49,7 @@ done
 runuser -u builder -- bash -c ". $B/env && coraine --database mongoc -u" > /tmp/u.log 2>&1 || { cat /tmp/u.log; fail "the mongoc.so built does not load"; }
 echo "the mongoc plugin built: loads"
 
-setpriv --reuid=builder --regid=builder --init-groups -- bash -c ". $B/env && exec coraine -fg --port $PORT --database corDB" > /tmp/built.log 2>&1 &
+setpriv --reuid=builder --regid=builder --init-groups -- bash -c ". $B/env && exec coraine --port $PORT --database corDB" > /tmp/built.log 2>&1 &
 PID=$!
 for i in $(seq 1 50); do
   curl -sf "localhost:$PORT/version" > /dev/null && break

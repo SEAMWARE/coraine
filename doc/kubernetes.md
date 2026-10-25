@@ -11,8 +11,9 @@ example `0.5.0` (a release) or `0.5.0-<date>-<commit>` (a merge). There is no `l
 multi-arch (linux/amd64 and linux/arm64): the same tag pulls the image for the node's architecture;
 `<tag>-amd64` and `<tag>-arm64` pin one. The arm64 image is built without the DDS bridge.
 
-The image's entry point runs the broker in the foreground (`coraine -fg`), with the container's
-arguments appended: `args:` in a manifest replaces the image's default arguments
+The image's entry point runs the broker in the foreground, logging to stdout - the broker's defaults, and what
+the kubelet collects (`kubectl logs`); `--daemon` has no place in a pod: the container's main process
+would exit - with the container's arguments appended: `args:` in a manifest replaces the image's default arguments
 (`--database mongoc --troe none --apiPlugins admin`). Every option can also be given as an environment
 variable - `CORAINE_` + the long option in upper case (see
 [Environment variables](installation.md#environment-variables)).

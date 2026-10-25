@@ -106,7 +106,8 @@ commit (it sorts before `0.5.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `d
   journalctl -u coraine -f
   ```
 
-  It runs `coraine -fg` as the system user `coraine`, with the options in `/etc/default/coraine`
+  It runs `coraine` in the foreground (`Type=simple`, the log on stdout - in the journal) as the system
+  user `coraine`, with the options in `/etc/default/coraine`
   ([Environment variables](#environment-variables)). Out of the box: `corDB` on disk in
   `/var/lib/coraine/db`, no temporal history, port 1026. `systemctl stop` is a clean stop (SIGTERM -
   corDB syncs its log and snapshots, [corDB on disk](#cordb-on-disk)). An upgrade restarts a running
@@ -120,7 +121,7 @@ commit (it sorts before `0.5.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `d
 coraine-build --list-features
 coraine-build --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF ~/coraine-small
 . ~/coraine-small/install/env
-coraine -fg --database corDB
+coraine --database corDB
 ```
 
 What the package installs, and nothing else:
@@ -201,7 +202,7 @@ tar -xJf /usr/share/coraine/src/coraine-src.tar.xz -C ~/coraine-src --strip-comp
 cc -std=gnu11 -O2 -Wall -fPIC -I ~/coraine-src -c myBridge.c -o myBridge.o
 cc -shared myBridge.o -o myBridge.so                 # + the transport's own libraries, nothing of coraine's
 sudo install -m 0644 myBridge.so /opt/seamware/plugins/bridge/
-coraine -fg --bridges myBridge                        # the name of the .so, without .so
+coraine --bridges myBridge                            # the name of the .so, without .so
 ```
 
 The MQTT and Modbus bridges in the tarball (`corMqttBridge/`, `corModbusBridge/`) are built exactly this
@@ -236,6 +237,157 @@ coraine --port 1027 --database mongoc --dbHost localhost
 # Everything, including the selected plugins' own options
 coraine --apiPlugins admin --database mongoc --usage
 ```
+
+## Running the broker: foreground or daemon, and where the log goes
+
+By default the broker runs in the **foreground** and writes its log to **stdout**. That is what a
+container runtime (`docker logs`, `kubectl logs`), systemd (`Type=simple`, journald) and a terminal all
+take the log from, and what lets them see the broker's exit: the process they started is the broker.
+
+| Option | Environment variable | Default | Values |
+|--------|----------------------|---------|--------|
+| `--daemon` / `-bg` | `CORAINE_DAEMON` | off | run in the background - see below |
+| `--logTo` / `-logTo` | `CORAINE_LOGTO` | `stdout` | `stdout`, `file` (`<logDir>/coraine.log`), `both` (the file and stdout) |
+| `--logDir` / `-logDir` | `CORAINE_LOGDIR` | `/var/log/coraine` | the directory of the log file - read with `--logTo file` or `both` only |
+
+A boolean environment variable is on when its value is `true` (any case): `CORAINE_DAEMON=true`.
+Any other value - `1` included - is off.
+
+### The combinations
+
+| | `--logTo stdout` (the default) | `--logTo file` | `--logTo both` |
+|---|---|---|---|
+| foreground (the default) | the log on stdout | the log in `<logDir>/coraine.log`, nothing on stdout | each line in the file and on stdout |
+| `--daemon` | **refused** | the log in `<logDir>/coraine.log` | **refused** |
+
+A refused combination stops the broker before anything starts, exit code 1, with one line on stderr:
+
+```text
+coraine: --daemon with --logTo stdout: a daemon's stdout is /dev/null - use --logTo file
+coraine: --daemon with --logTo both: a daemon's stdout is /dev/null - use --logTo file
+coraine: --daemon and -fg contradict each other
+coraine: --logTo 'syslog' is none of stdout, file, both
+```
+
+### The log file
+
+- **Name:** `<logDir>/coraine.log` - with the defaults, `/var/log/coraine/coraine.log`.
+- **The directory is not created.** It must exist and be writable by the broker's user; if the file
+  cannot be opened, the broker does not start - exit code 1, and on stderr, for example:
+  `Unable to open '/var/log/coraine/coraine.log' for writing: No such file or directory`.
+  For a broker run as the user `coraine`: `sudo install -d -o coraine -g coraine -m 0755 /var/log/coraine`.
+- **At start**, a `coraine.log` already there is renamed `coraine.log.old` (one older file is kept;
+  an earlier `.old` is replaced), and the new file starts empty.
+- **Permissions:** created `0664`, minus the umask - `-rw-r--r--` under the usual umask 022.
+- **What is in it:** the same lines as on stdout - errors (`E:`) and warnings (`W:`) always, `-v` adds
+  the informational (`I:`) and verbose (`V:`) lines, `-t` the traces of a debug build. A broker
+  started with neither writes, on a quiet start, nothing at all - except, with `--daemon`, the line with
+  its pid (below).
+- **Rotation:** the broker does not reopen the file - it has no SIGHUP handler. Rotate it with
+  logrotate's `copytruncate`: the broker writes in append mode, so after the truncation its next line
+  lands at the start of the file. A `create`-style rotation (rename, then a signal) does not work: the
+  broker keeps writing to the renamed file.
+
+  ```text
+  /var/log/coraine/coraine.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+  }
+  ```
+
+  (`/etc/logrotate.d/coraine`). Lines written between logrotate's copy and its truncation are lost -
+  that is copytruncate's own window.
+
+### `--daemon`
+
+`coraine --daemon --logTo file` detaches from the terminal - the classic daemonize:
+
+1. `fork` - the command returns at once, **exit code 0**; the child is the broker;
+2. `setsid` - a session of its own, no controlling terminal;
+3. `chdir /` - the working directory is `/`;
+4. stdin, stdout and stderr on `/dev/null`.
+
+It happens after the options are checked and the log file is opened - a refused combination or a log
+file that cannot be opened is still said on the terminal - and before everything else. So:
+
+- **Exit code 0 means detached, not serving.** A start-up error after that point - a port in use, a
+  store that cannot be opened - is in the log file only (`X: ... corRestStart failed on port 1026`),
+  and the daemon is gone.
+- **A relative path is relative to `/`** from then on: `--dbDir db` means `/db`. `--logDir` is the
+  exception (the file is opened before the `chdir`). Give absolute paths.
+- **There is no pid file.** The pid is in the log, on a line written with or without `-v`:
+
+  ```text
+  I: 000000.000: coraine.c[<line>]: main: --daemon: detached, pid 236587
+  ```
+
+  and `pgrep -a -x coraine` or `ss -ltnp 'sport = :1026'` find it as well.
+- **Stopping it:** `kill <pid>` (SIGTERM) or SIGINT - the same ordered shutdown as in the foreground
+  (requests in flight finish, the stores close; corDB on disk syncs its log and writes its snapshots).
+  A signal during start-up, before the broker serves, ends it at once, and the line
+  `coraine: stopped during start-up (SIGTERM / SIGINT)` goes to the log file too.
+  SIGHUP is not handled: it ends the process without the ordered shutdown - do not send it.
+
+### `-fg` / `--foreground` - deprecated
+
+The foreground is the default, so `-fg` does nothing. It is accepted through 0.7.x and **refused from
+0.8.0**; a broker started with it (or with `CORAINE_FOREGROUND=true`) writes one warning line at
+start:
+
+```text
+W: 000000.000: coraine.c[<line>]: main: -fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
+```
+
+(`<line>`: the source line, which changes from build to build.)
+
+`-fg` is no longer listed by `coraine -u`. Drop it from scripts and units.
+
+### Examples
+
+```sh
+# A terminal: the foreground, the log on the screen (Ctrl-C is the ordered shutdown)
+coraine --database corDB --troe none
+
+# A terminal, the log kept as well - in ./coraine.log
+coraine --database corDB --troe none --logTo both --logDir .
+
+# In the background, from a shell (absolute paths: the daemon's working directory is /)
+mkdir -p ~/coraine-log ~/coraine-db
+coraine --daemon --logTo file --logDir ~/coraine-log --database corDB --dbDir ~/coraine-db --troe none
+grep -- '--daemon: detached' ~/coraine-log/coraine.log      # the pid
+kill "$(sed -n 's/^.*--daemon: detached, pid //p' ~/coraine-log/coraine.log)"
+
+# Docker: the image runs the broker in the foreground, logging to stdout - no --daemon in a container
+# (the process that detaches is the container's main process: the container stops with it)
+docker run --rm -p 1026:1026 coraine:local --database corDB
+docker logs <container>
+```
+
+**systemd.** The package's unit ([The coraine package](#the-coraine-package)) is `Type=simple`: the
+broker in the foreground, its stdout in the journal (`journalctl -u coraine`). Do not set
+`CORAINE_DAEMON=true` in `/etc/default/coraine`: under `Type=simple` a broker that detaches is a main
+process that exited, and systemd stops the service - and the detached broker with it.
+
+A unit of your own that wants the log in a file uses `--daemon` with `Type=forking` - systemd then
+takes the process that is left as the main one (the pid the log names):
+
+```ini
+[Service]
+Type=forking
+User=coraine
+Group=coraine
+ExecStart=/usr/bin/coraine --daemon --logTo file --logDir /var/log/coraine --database corDB --dbDir /var/lib/coraine/db
+KillSignal=SIGTERM
+TimeoutStopSec=120
+```
+
+A `Type=simple` unit can keep the log in a file as well, without `--daemon`: `--logTo file`
+(or `both`, for the journal too).
 
 ## Configuration
 
@@ -287,6 +439,9 @@ the ones most deployments set.
 | `--auth` | — | the auth plugin (`/opt/seamware/plugins/auth/<name>.so`): `fdsc` - the Data Space Connector's access tokens and ODRL policies, with options of its own (`--fdscDiscovery`, `--fdscPap`, ...); `oidc` - an OpenID provider's access tokens and a read and a write role (`--oidcIssuer`, ...). None: every request is let in. A plugin that cannot start stops the broker - see [Authorization](authorization.md) |
 | `--bridgeConfig` / `-brc` | `/opt/seamware/etc/bridges.json` if it exists | the bridge configuration file. A file named here and missing stops the broker; the default file missing means no Channels from a file. `SEAMWARE_ETC_DIR` moves the default |
 | `--high-availability` / `-ha` | — | keep the caches in step with the other instances (`mongo` = change streams; needs the `mongoc` DB **and** a replica set) - see [High Availability](high-availability.md) |
+| `--daemon` / `-bg` | off | run in the background - needs `--logTo file`; see [Running the broker](#running-the-broker-foreground-or-daemon-and-where-the-log-goes) |
+| `--logTo` / `-logTo` | `stdout` | where the log goes: `stdout`, `file` (`<logDir>/coraine.log`) or `both` |
+| `--logDir` / `-logDir` | `/var/log/coraine` | the directory of the log file (`--logTo file` or `both`) - it must exist |
 | `--version` / `-V` | — | print the version and exit |
 | `--traceLevels` / `-t` | — | trace levels for debugging |
 
@@ -558,6 +713,9 @@ What they cost a write: [Performance](performance.md), "TimescaleDB: the write p
 | `--maxRequestSize` | `CORAINE_MAXREQUESTSIZE` |
 | `--maxResponseSize` | `CORAINE_MAXRESPONSESIZE` |
 | `--high-precision` | `CORAINE_HIGH_PRECISION` |
+| `--daemon` | `CORAINE_DAEMON` (`true` to turn it on) |
+| `--logTo` | `CORAINE_LOGTO` |
+| `--logDir` | `CORAINE_LOGDIR` |
 | … | … |
 
 `coraine -U` (extended usage) prints the environment-variable name of every option
@@ -1219,8 +1377,8 @@ pgrep -a -x coraine              # a native installation
 docker ps --filter name=coraine  # the Docker image
 ```
 
-It runs in the background by default; `-fg` keeps it in the foreground (the Docker
-image runs it that way).
+It runs in the foreground by default; `--daemon` detaches it - see
+[Running the broker](#running-the-broker-foreground-or-daemon-and-where-the-log-goes).
 
 ### Network interfaces up and open
 
@@ -1243,13 +1401,16 @@ mongosh --quiet --eval 'db.getMongo().getDBNames()'
 
 ### Diagnosis
 
-- **The log:** `/tmp/coraine.log`. Errors (`E:`) and warnings (`W:`) are always
-  written there.
+- **The log:** stdout by default - the terminal, `docker logs`, `journalctl -u coraine` for the
+  package's service; with `--logTo file` or `both`, `<logDir>/coraine.log` (default
+  `/var/log/coraine/coraine.log`). Errors (`E:`) and warnings (`W:`) are always written; `-v` adds
+  the rest.
 - **Liveness:** `GET /admin/health`. **Loaded plugins:** `GET /admin/plugins`.
 - **More detail from a running broker:** raise the trace levels through
   `/admin/log` (see [Administration](#administration)) instead of restarting it with `-t`.
-- **The broker does not start:** run it with `-fg`, which prints the reason
-  on the terminal. A MongoDB that cannot be reached is the most common cause.
+- **The broker does not start:** run it in the foreground (no `--daemon`) with the default
+  `--logTo stdout`, which prints the reason on the terminal. A MongoDB that cannot be reached is the
+  most common cause.
 
 ## Multi-tenancy
 

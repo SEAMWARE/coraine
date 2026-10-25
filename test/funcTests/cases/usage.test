@@ -117,7 +117,9 @@ Usage: coraine  [--usage/-u (usage)]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                 [--version/-V (print version and exit)]
-                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--daemon/-bg (run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg)]
+                [--logDir/-logDir <the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old>]
+                [--logTo/-logTo <where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)>]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
@@ -181,7 +183,9 @@ Usage: coraine  [--usage/-u (usage)]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                 [--version/-V (print version and exit)]
-                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--daemon/-bg (run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg)]
+                [--logDir/-logDir <the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old>]
+                [--logTo/-logTo <where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)>]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
@@ -248,7 +252,9 @@ Usage: coraine  [--usage/-u (usage)]
                 [--distOpTimeout/-dtmo <default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads>]
                 [--cooldownMillis/-cms <default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)>]
                 [--version/-V (print version and exit)]
-                [--foreground/-fg (run in foreground (don't daemonize))]
+                [--daemon/-bg (run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg)]
+                [--logDir/-logDir <the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old>]
+                [--logTo/-logTo <where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)>]
                 [--insecureNotif/-insecureNotif (accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network))]
                 [--noInline/-noInline (hand every request to a worker thread - no request runs on the I/O thread that read it)]
                 [--memoryLimit/-memoryLimit <memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)>]
@@ -303,7 +309,9 @@ Usage: coraine  [--usage/-u (usage)]
   --distOpTimeout         (-dtmo)               CORAINE_DISTOPTIMEOUT         Optional   Int      Default Value  
   --cooldownMillis        (-cms)                CORAINE_COOLDOWNMILLIS        Optional   Int      Default Value  
   --version               (-V)                  CORAINE_VERSION               Optional   Bool     Default Value  
-  --foreground            (-fg)                 CORAINE_FOREGROUND            Optional   Bool     Default Value  
+  --daemon                (-bg)                 CORAINE_DAEMON                Optional   Bool     Default Value  
+  --logDir                (-logDir)             CORAINE_LOGDIR                Optional   String   Default Value  
+  --logTo                 (-logTo)              CORAINE_LOGTO                 Optional   String   Default Value  
   --insecureNotif         (-insecureNotif)      CORAINE_INSECURENOTIF         Optional   Bool     Default Value  
   --noInline              (-noInline)           CORAINE_NOINLINE              Optional   Bool     Default Value  
   --memoryLimit           (-memoryLimit)        CORAINE_MEMORYLIMIT           Optional   Int      Default Value  

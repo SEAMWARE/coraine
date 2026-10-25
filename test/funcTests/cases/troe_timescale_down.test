@@ -163,7 +163,7 @@ echo "06. --troeDownExit 3, the database taken away: the broker exits, code 1"
 echo "======================================================================="
 XP=$((CB_PORT + 3))
 XLOG=/tmp/troeDownExit.$$
-$COR_BROKER --foreground --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeWriters 1 --troeDownExit 3 > $XLOG 2>&1 &
+$COR_BROKER --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeWriters 1 --troeDownExit 3 > $XLOG 2>&1 &
 xpid=$!
 for _ in $(seq 1 100); do
   curl -s -o /dev/null "http://localhost:$XP/version" && break
@@ -186,7 +186,7 @@ echo
 echo "07. A start while the database is down - it waits, the database back after 2 s, it serves"
 echo "============================================================================================"
 dbBlock
-$COR_BROKER --foreground --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 15 > $XLOG 2>&1 &
+$COR_BROKER --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 15 > $XLOG 2>&1 &
 xpid=$!
 sleep 2
 echo "serving while down: $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$XP/version")"
@@ -209,7 +209,7 @@ echo
 echo "08. --troeConnectTimeout 2, the database still down - the start fails, code 1"
 echo "======================================================================"
 dbBlock
-timeout 20 $COR_BROKER --foreground --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 2 > $XLOG 2>&1
+timeout 20 $COR_BROKER --port $XP --database corDB --troe timescale --troeHost "$COR_TROE_HOST" --troePort "$COR_TROE_PORT" --troeName "$COR_TROE_DB" --troeConnectTimeout 2 > $XLOG 2>&1
 echo "exit: $?"
 grep -c "failed to initialise the default-tenant database (2 s, --troeConnectTimeout)" $XLOG
 rm -f $XLOG

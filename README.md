@@ -314,7 +314,8 @@ Selected common options (`--usage` for the full list):
 | `--database` / `-db` | `mongoc` | DB plugin (short name or path) |
 | `--troe` / `-troe` | `none` | TRoE plugin (`none` disables history) |
 | `--apiPlugins` / `-api` | — | comma-separated API plugins |
-| `--foreground` / `-fg` | — | accepted, no effect — the broker always runs in the foreground |
+| `--daemon` / `-bg` | off | run in the background (detached; needs `--logTo file`) - the broker runs in the foreground by default |
+| `--logTo` / `--logDir` | `stdout` / `/var/log/coraine` | where the log goes: `stdout`, `file` (`<logDir>/coraine.log`) or `both` |
 | `--pretty-print` / `-pp` | 0 | JSON indent (0 = compact) |
 | `--localOnly` / `-local` | off | disable distributed operations |
 | `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file - read at start and hosted |

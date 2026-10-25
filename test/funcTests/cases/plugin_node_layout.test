@@ -33,7 +33,7 @@ mkdir -p $D
 # when the timeout ended it - it started) and the refusal it gave, if any
 #
 run() {
-  timeout 3 $COR_BROKER -fg --port $((CB_PORT + 3210)) "$@" > $D/out 2>&1
+  timeout 3 $COR_BROKER --port $((CB_PORT + 3210)) "$@" > $D/out 2>&1
   echo "exit: $?"
   grep -E "tree-node layout" $D/out | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
 }

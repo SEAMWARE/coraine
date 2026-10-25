@@ -1,0 +1,147 @@
+#
+# FILE            log_to_file_stdout_both.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --logTo stdout|file|both and --logDir: the log goes to stdout (the default), to the file
+# <logDir>/coraine.log, or to both. A file of an earlier run is renamed coraine.log.old. A --logTo that is
+# none of the three, or a log file that cannot be opened, ends the broker at start, saying so on stderr.
+#
+--NAME--
+Where the log goes: --logTo stdout (default), file, both, and --logDir
+
+--TAGS--
+cli log troe
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_logTo
+rm -rf $D
+mkdir -p $D/log
+XP=$((CB_PORT + 3240))
+
+#
+# run <args> - the broker started, stopped (SIGTERM) once it serves; its stdout+stderr in $D/out.
+# Reports the lines of the log (one per run: the advertised endpoint, -v) on stdout and in the file.
+#
+run() {
+  $COR_BROKER --port $XP --database corDB --troe none -v "$@" > $D/out 2>&1 &
+  local pid=$!
+  for i in $(seq 1 100); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$XP/ngsi-ld/v1/entities?type=T")" = 200 ] && break
+    sleep 0.1
+  done
+  kill -TERM $pid
+  wait $pid
+  echo "exit code: $?"
+  echo "on stdout: $(grep -c 'Advertised HTTP endpoint' $D/out)"
+  if [ -f $D/log/coraine.log ]; then
+    echo "in $D/log/coraine.log: $(grep -c 'Advertised HTTP endpoint' $D/log/coraine.log)"
+  else
+    echo "no $D/log/coraine.log"
+  fi
+}
+
+
+echo "01. The default (stdout), with a --logDir - no file"
+echo "==================================================="
+run --logDir $D/log
+echo
+echo
+
+
+echo "02. --logTo file - the file only"
+echo "================================"
+run --logTo file --logDir $D/log
+echo
+echo
+
+
+echo "03. --logTo both - the file (the earlier one renamed .old) and stdout"
+echo "====================================================================="
+run --logTo both --logDir $D/log
+ls $D/log
+echo
+echo
+
+
+echo "04. --logTo none of the three - refused"
+echo "======================================="
+$COR_BROKER --port $XP --database corDB --troe none --logTo syslog 2>&1
+echo "exit code: $?"
+echo
+echo
+
+
+echo "05. --logTo file in a directory that is not there - refused"
+echo "==========================================================="
+$COR_BROKER --port $XP --database corDB --troe none --logTo file --logDir $D/nowhere 2>&1
+echo "exit code: $?"
+echo
+echo
+
+
+echo "06. --logTo file, SIGTERM during start-up - said in the file too"
+echo "================================================================="
+$COR_BROKER --port $XP --database corDB --troe timescale --troeHost 127.0.0.1 --troePort 1 --logTo file --logDir $D/log > $D/out 2>&1 &
+pid=$!
+sleep 1
+kill -TERM $pid
+wait $pid
+echo "exit code: $?"
+echo "on stderr: $(grep -c 'stopped during start-up' $D/out)"
+echo "in the file: $(grep -c 'stopped during start-up' $D/log/coraine.log)"
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_logTo
+
+--EXPECT--
+01. The default (stdout), with a --logDir - no file
+===================================================
+exit code: 0
+on stdout: 1
+no /tmp/corTest_logTo/log/coraine.log
+
+
+02. --logTo file - the file only
+================================
+exit code: 0
+on stdout: 0
+in /tmp/corTest_logTo/log/coraine.log: 1
+
+
+03. --logTo both - the file (the earlier one renamed .old) and stdout
+=====================================================================
+exit code: 0
+on stdout: 1
+in /tmp/corTest_logTo/log/coraine.log: 1
+coraine.log
+coraine.log.old
+
+
+04. --logTo none of the three - refused
+=======================================
+coraine: --logTo 'syslog' is none of stdout, file, both
+exit code: 1
+
+
+05. --logTo file in a directory that is not there - refused
+===========================================================
+Unable to open '/tmp/corTest_logTo/nowhere/coraine.log' for writing: No such file or directory
+exit code: 1
+
+
+06. --logTo file, SIGTERM during start-up - said in the file too
+=================================================================
+exit code: 0
+on stderr: 1
+in the file: 1
+
+
