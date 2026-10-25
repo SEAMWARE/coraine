@@ -48,7 +48,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// healthStart - open the port and start its thread; false: the port could not be opened
+// healthStart - open the port and start its thread; false: the port could not be opened (errno: why)
 //
 // After ldInit (the request tracking chains on corNgsild's pre-dispatch hook) and before dbStart.
 //
