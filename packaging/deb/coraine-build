@@ -138,6 +138,12 @@ else
 fi
 . "$DIR/SOURCE"      # version, gitSha, commitDate
 
+#
+# cmakeUnescape - an option()'s description as it reads, not as CMake quotes it: \" is ", \\ is \ - in
+# both lists (DATA_CHANNELS' "dataChannels" showed its backslashes)
+#
+cmakeUnescape() { sed 's/\\\(["\\]\)/\1/g'; }
+
 if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   # requires: CMakeLists.txt turns a switch off when another is off - every set() up to the endif()
   #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)
@@ -166,6 +172,7 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
       printf "%s\t%s\t%s\t%s\n", name, def, g, desc
     }
   ' "$DIR/coraine/CMakeLists.txt" \
+    | cmakeUnescape \
     | while IFS=$'\t' read -r name def group desc; do
         req=$(awk -v n="$name" '$1 == n { for (i = 2; i <= NF; i++) printf "%s\"%s\"", (i > 2 ? ", " : ""), $i }' "$DIR/.requires")
         [ "$first" = 1 ] || echo ","
@@ -181,6 +188,7 @@ fi
 if [ "$LIST" = 1 ]; then
   echo "coraine $version - feature switches (--features NAME=ON|OFF):"
   sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
+    | cmakeUnescape \
     | while read -r name def desc; do printf '  %-24s %-4s %s\n' "$name" "$def" "$desc"; done
   exit 0
 fi

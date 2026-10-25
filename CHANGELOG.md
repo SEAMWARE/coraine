@@ -70,6 +70,9 @@ bump may still change behaviour; the entry says so where it does.
 
 ### Fixed
 
+- `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
+  printed with CMake's backslashes, in the text list and in the `--json` one.
+
 ---
 
 ## 0.5.0 — 2026-10-10
