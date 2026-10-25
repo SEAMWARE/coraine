@@ -3496,7 +3496,8 @@ static bool queryEntities(PagePosition* posP)
             sourceCounted = true;
           }
 
-          if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
+          // The answer is its tree: parsed at reception (HTTP), or as it came (cor://, no text at all)
+          if (results[i].responseTree == NULL) continue;
 
           CorNode* remoteArray;
 

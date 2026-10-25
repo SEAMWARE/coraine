@@ -21,13 +21,13 @@ There are **six** kinds of plugin:
   Representation of Entities). Loaded via `--troe` / `-troe`; resolves to
   `<base>/troe/temporal/<name>.so`; register symbol `troeRegister`; fills the
   `TroeDriver` struct (`troe`). **One active at a time** (`none` disables history).
-  Bundled: `none` (default), `corDB`, `timescale`.
+  Bundled: `none` (default), `timescale`, `ramDB`, and `corDB`.
 
-  `corDB` names the same store on both axes on purpose: `--database corDB
-  --troe corDB` is one process keeping current state and history, and the two
-  plugins are separate `.so` files only because the seam is per family. A
-  `--database mongoc --troe corDB` combination is legal too — that is what the
-  TRoE functests run under the mongoc suite.
+  `--troe corDB` has no `.so` under `troe/temporal/`: corDB keeps the history inside
+  its own store - the same lock, the same log - and the loader takes the TRoE driver
+  from the current-state `corDB.so`'s own `troeRegister`. It therefore needs
+  `--database corDB`; `--database mongoc --troe corDB` (or `ramDB`) is refused at
+  start.
 
 - **API services** — extra HTTP endpoints beyond the NGSI-LD core (ops, admin,
   health, …). Loaded via `--apiPlugins` / `-api`; resolves to `<base>/api/<name>.so`;
@@ -71,7 +71,8 @@ There are **six** kinds of plugin:
   fills an `AuthDriver` (`src/lib/plugin/AuthDriver.h`, plain data, `AUTH_ABI_VERSION`).
   **One at most**; none = every request let in. A plugin that cannot load or init
   stops the broker. Bundled: `fdsc` - the FIWARE Data Space Connector's tokens and
-  policies ([Authorization](authorization.md)).
+  policies - and `oidc` - an OpenID provider's access tokens and their roles
+  ([Authorization](authorization.md)).
 
 All six are live.
 
@@ -116,12 +117,15 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
 │   └── ramDB.so         # the same, in RAM only
 ├── troe/temporal/
 │   ├── none.so            # no-op (temporal disabled)
-│   ├── corDB.so           # in-memory history (dev/test)
+│   ├── ramDB.so           # a ring of the latest TRoE events in RAM (dev/test)
 │   └── timescale.so       # TimescaleDB/Postgres history
 ├── api/
 │   └── admin.so           # health/version/log/tenants/plugins
 ├── auth/
-│   └── fdsc.so            # the Data Space Connector's tokens and policies (--auth fdsc)
+│   ├── fdsc.so            # the Data Space Connector's tokens and policies (--auth fdsc)
+│   └── oidc.so            # an OpenID provider's access tokens and roles (--auth oidc)
+├── transport/
+│   └── ws.so              # WebSocket (--transports ws)
 └── bridge/
     ├── loopback.so        # a transport that goes nowhere - test instrument
     ├── dds.so             # DDS, from corDdsBridge (not built by default)
@@ -297,14 +301,16 @@ the headers — read these before writing a plugin:
   `CorRestServiceSimplified[]` (verb + path + handler), optional URL `params`,
   optional `args`, and `init`/`close`/`versionInfo` hooks.
 - **`corBridge`** — the bridge contract, three structs in three headers, at
-  `BRIDGE_ABI_VERSION` **11**. Each slot below carries the revision that added it.
+  `BRIDGE_ABI_VERSION` **16**. Each slot below carries the revision that added it;
+  the history comments in `BridgeBroker.h` and `BridgeDriver.h` are the reference.
   - **`BridgeDriver.h`** — what a bridge `.so` fills in (`BridgeDriver`):
     `alias`, `version`, `abiVersion`, `args`; ABI 1: `init`, `close`,
     `channelAdd`, `channelDel`, `publish`, `versionInfo`; ABI 2:
     `serviceInvoke`, `serverIface`; ABI 3: `serviceInvokeTracked`; ABI 4:
     `actionGoalSend`, `actionGoalCancel`; ABI 9: `channelAddInfo`; ABI 10:
     `notifySchemes`, `notify`; ABI 11: `serviceSchemes`, `serviceExecute`,
-    `serviceCancel`. The broker does not call `channelDel` today: Channels come
+    `serviceCancel`; ABI 13: `payloadCheck`; ABI 14: `inventory`; ABI 15:
+    `channelTypedAdd`. The broker does not call `channelDel` today: Channels come
     from `--bridgeConfig` and from discovered endpoints, and none is removed while
     the broker runs.
   - **`BridgeBroker.h`** — what the broker hands the plugin in `init()`
@@ -312,7 +318,7 @@ the headers — read these before writing a plugin:
     `sampleQualifiedIn`; ABI 3: `replyIn`; ABI 4: `goalEventIn`; ABI 5:
     `goalEventPartIn`; ABI 6: `sampleMetaIn`, `replyMetaIn`, `goalEventMetaIn`;
     ABI 7: `replyExchangeIn`; ABI 8: `endpointDiscoveredIn`; ABI 11:
-    `serviceUpdateIn`.
+    `serviceUpdateIn`; ABI 12: `channelStatusIn`; ABI 16: `httpListen`.
   - **`BridgeServer.h`** — the peer side (`BridgeServer`, returned by
     `serverIface()`): `abiVersion`, `serviceServe`, `serviceUnserve`,
     `serviceReply`. The broker never uses it; the functional test client does.
@@ -342,6 +348,8 @@ the headers — read these before writing a plugin:
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/debug/traceLevels), `/admin/tenants`, `/admin/plugins`, `/admin/bridges/{bridge}/inventory` (what a bridge's source can carry, bridge ABI 14), `/admin/config` (every option, a secret masked). |
 | **fdsc** | Auth | VCVerifier's access tokens (RS256/ES256 by `kid`, `iss`, `exp`) and the ODRL-PAP's policies, decided as the Data Space Connector 10.87.0 decides them. libcrypto. See [Authorization](authorization.md). |
+| **oidc** | Auth | An OpenID provider's access tokens (Keycloak, ...; RS256/ES256 against its JWK Set) and two roles in them, one reading, one writing - decided per request, no policies. libcrypto. See [Authorization](authorization.md). |
+| **ws** | Transport | WebSocket, upgraded from `GET /ngsi-ld/v1/ws` on the HTTP port (`--transports ws`). See [WebSocket](websocket.md). |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
 | **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
 | **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself does not link libmosquitto. |

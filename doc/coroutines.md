@@ -80,7 +80,7 @@ Both are tested in `corBaseTest`, on x86-64 and on aarch64 (`make arm64-test`, u
 
 ## 4. The servers
 
-**Built-in HTTP server (corHttp).** One loop per core (`--httpLoops`), on one port: loop 0 accepts
+**Built-in HTTP server (corHttp).** `--httpLoops` loops (0, the default: one per core, at most 4; up to 64 when given), on one port: loop 0 accepts
 every connection and deals them out in turn (`corHttpAcceptShare`), so connections are spread evenly
 - the kernel's own `SO_REUSEPORT` hash splits a handful unevenly. A coroutine's response goes out on
 the loop's thread (`corHttpResumeHere`); one that finished without ever waiting is answered when the
