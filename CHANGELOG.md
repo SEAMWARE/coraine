@@ -70,6 +70,10 @@ bump may still change behaviour; the entry says so where it does.
 
 ### Fixed
 
+- A default user `@context` (`--defaultUserContext`) that cannot be retrieved answers a query 504
+  LdContextNotAvailable, as a create: `GET /entities?type=Room` answered 200 `[]` - `Room` expanded with the core
+  context alone, in silence.
+
 ---
 
 ## 0.5.0 — 2026-10-10
