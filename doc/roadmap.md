@@ -88,6 +88,34 @@ Recently built, and documented where it lives:
     debug), on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
 -   **corDB persistence, cheaper writes** - a write that updates attributes logs those attributes, not the
     entity: PATCH +11-13 % on disk ([Performance](performance.md)).
+-   **Declared indexes** - an attribute queried often is declared, and the broker keeps an index of its
+    values for `q`: on corDB and MongoDB (`--dbValueIndexes`) and on the TimescaleDB history
+    (`--troeValueIndexes`), in every tenant, a tenant created later included; listed in `/admin/indexes`
+    and `/admin/metrics` ([Extreme performance](extreme-performance.md)).
+-   **A faster TimescaleDB history** - TRoE writers and unnested rows (5-11x the history write rate), the
+    history database down without the current state going down (held, retried, then counted as lost), and
+    `--troeSync` for read-your-writes ([Performance](performance.md)).
+-   **Timepoint (NGSI-LD v2.1)** - an entity, or a query's entities, as they were at a point in time, from
+    the history inside corDB ([Timepoint](timepoint.md)).
+-   **The stored trees in less RAM** - the tree heap and 32-byte scalar nodes: broker RSS -14.5 % at
+    100 000 entities; a plugin built for another node layout is refused at start, with a message
+    ([Performance](performance.md)).
+-   **The OPC UA bridge** - Variables as attributes, Methods as Service Executions, the server's node tree
+    as the bridge's inventory, SignAndEncrypt with certificates (`--bridges opcua`,
+    [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)).
+-   **The FIWARE IoT Agents as bridge plugins - prototypes** - JSON, UltraLight 2.0, LwM2M, LoRaWAN,
+    Sigfox and ISOXML, each a public repository of its own (corIota*Bridge); OPC UA is the OPC UA bridge
+    ([FIWARE IoT Agents](iot-agents.md)).
+-   **What a running broker is** - `GET /admin/config` (every option it runs with, a secret masked), whether
+    its build has traces (`/admin/log`), a bridge's inventory for a mapping tool
+    (`/admin/bridges/{bridge}/inventory`).
+-   **c³ - Operate and Connect** - brokers started and stopped, natively or in a container, with their
+    services; their logs, log and trace levels, configuration and metrics as charts; the entity editor,
+    and signing in to a broker's security (an OpenID provider, or the Data Space Connector's verifier).
+    ([more](ideas.md#c-the-coraine-control-center))
+-   **The documentation in c³, and as a website** - the guides of c³'s Documentation page, written from
+    these pages for the reader, searchable, offline in c³; the same pages at
+    [seamware.github.io/docs](https://seamware.github.io/docs/).
 -   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
@@ -113,13 +141,15 @@ incorporated in the next release of the product, in roughly this order:
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
     and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
     arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
--   **c³ - a broker's metrics as charts** - Operate reads a running broker's `/admin/metrics`
-    (Prometheus text) and draws it over time: request rates and latencies, entities, subscriptions and
-    notifications (Server-Sent Events streams and events too), the memory against its budget - for
-    several brokers at once. ([more](ideas.md#c-the-coraine-control-center))
+-   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
+    (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
+    accepted until 0.8.0.
+-   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
+    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
 -   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
     NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
-    plugins beyond the FIWARE IoT Agents. ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
+    plugins beyond the FIWARE IoT Agents. A prototype is built; next, its release.
+    ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
@@ -133,7 +163,8 @@ The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
 -   **c³ - Configure** - the mapping tools in the Control Center: DDS topics, services and actions to entities and attributes, and the same for OPC UA. ([more](ideas.md#c-the-coraine-control-center))
--   **The IoT Agents as cor-agent plugins** - all seven FIWARE IoT Agents (JSON, UltraLight, LWM2M, OPC UA, LoRaWAN, Sigfox, ISOXML) as device protocols on the bridge contract; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
+-   **The IoT Agents as cor-agent plugins, released** - the six prototypes (JSON, UltraLight, LWM2M, LoRaWAN, Sigfox, ISOXML; OPC UA is the OPC UA bridge) brought to parity with the FIWARE IoT Agents and released; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
+-   **The design notes as guides** - Service Execution, the Cor Data Space Connector, the IoT Agents as Service Executors and their measures as DataChannel records: today design notes here, guides of the documentation once their designs settle.
 -   **A CSV bridge, and CKAN beyond `once`** - CSV files as DataChannels, as CKAN resources are; CKAN's `poll` (the dataset's activity stream) and `push` (a webhook) modes. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
 -   **NGSIv2 support** - the NGSIv2 API as an API plugin beside NGSI-LD, on the same stores: a way off Orion (NGSIv2) for deployments that cannot change their clients at once, and the other half of migrating from Orion together with the NGSIv2 reader for `coraine-import`. ([more](ideas.md#transports-as-plugins))
 -   **Aligning Bridges and Channels with ETSI** - 2027, after the Athens face-to-face. ([more](ideas.md#aligning-bridges-and-channels-with-etsi))
@@ -186,25 +217,24 @@ creation, Snapshots on corDB (writes and subscriptions included), the WebSocket 
 subscription candidate index, migrating from Orion-LD (`coraine-import`), linux/arm64 (images and the
 nightly suite on native ARM runners), the memory budget and admission control, security (`--auth fdsc`:
 per entity, per attribute, per tenant, notifications for the subscription's owner, the `/policy` API), the
-CKAN bridge with DataChannels, and c³ Compile. Open, in order:
+CKAN bridge with DataChannels, c³ Compile, the CorNode prefix layout (the tree heap, 32-byte scalar
+nodes), Server-Sent Events, declared indexes, Timepoint. Open, in order:
 
-1. **The rest of the CorNode prefix layout** - after the attribute type in the node: smaller nodes, fewer
-   cache misses walking trees; `perf stat` cache-misses on the GET scenarios before and after.
-2. **The other diversity builds** - ASan + UBSan, clang, Alpine / musl, every night. (`-funsigned-char`,
+1. **The other diversity builds** - ASan + UBSan, clang, Alpine / musl, every night. (`-funsigned-char`,
    ARM's `char`, passed the whole suite on 2026-10-08.)
-3. **Security, what is left** - `join=inline` in a notification decided for its owner; the connector's
+2. **Security, what is left** - `join=inline` in a notification decided for its owner; the connector's
    own rules as its team settles them (SEAMWARE/odrl-pap#59-#61: attribute paths, batch operations - a
    PR, odrl-pap#64 -, the actions).
-4. **One compound geo index** - prototype both variants, measure.
-5. **Hot and cold entity segments** - a design note.
-6. **The batch-delete regression** - low priority (attribute updates matter far more); the delete cost
+3. **One compound geo index** - prototype both variants, measure.
+4. **Hot and cold entity segments** - a design note.
+5. **The batch-delete regression** - low priority (attribute updates matter far more); the delete cost
    also grows with the number of policies (-18.6 % at 20 per entity, [Performance](performance.md)), not
    looked into.
 
 Smaller, alongside:
 
-- **Functest wall-clock** - from 2.43 s to 1.30 s a test is done; left: mongosh's ~0.27 s per drop (a
-  small libmongoc tool instead), mongoc's ~0.15 s on close (the topology monitor's join).
+- **Functest wall-clock** - from 2.43 s to 1.30 s a test is done, the drops by `corMongoDrop`; left:
+  mongoc's ~0.15 s on close (the topology monitor's join).
 - **A Grafana data source for NGSI-LD** - current state and temporal, queries; scoped after a
   conversation with its prospective user.
 - **More bridges** - Kafka (one proposal across the brokers that have one), WebSockets.
