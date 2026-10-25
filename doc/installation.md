@@ -241,7 +241,8 @@ coraine --apiPlugins admin --database mongoc --usage
 ## Configuration
 
 Every setting is a command-line option. **`coraine --usage`** (`-u`) prints the full
-list, and `-U` prints it with descriptions; the list changes with the plugins you
+list with a description of each option, and `-U` prints each option's environment variable and
+type; the defaults of a running broker are on `GET /admin/config`. The list changes with the plugins you
 select, because a plugin contributes its own options (for example `--dbHost`,
 `--dbPort`, `--dbUser` come from the `mongoc` plugin).
 
@@ -255,7 +256,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--troeSync` / `-troeSync` | off | hand temporal writes over before the response, so a temporal read sees them at once - the response does not wait for the database |
 | `--apiPlugins` / `-api` | — | comma-separated API plugins (e.g. `admin`) |
 | `--pretty-print` / `-pp` | 0 | JSON indentation (0 = compact) |
-| `--connectionPoolSize` / `-cps` | 32 | HTTP server thread-pool size |
+| `--connectionPoolSize` / `-cps` | 0: the number of cores for a store that never waits (`corDB` or `ramDB`, `--troe` `none` or `corDB`, no `--distributed`), 32 otherwise | HTTP server thread-pool size (libmicrohttpd) |
 | `--noInline` | off | hand every request to a worker thread. By default, with `corDB`, a request that waits on nothing runs on the thread that read it - about twice the throughput for retrieves and small queries. Metrics: `ngsild_requests_inline_total`, `ngsild_requests_worker_total` |
 | `--memoryLimit` | 85% of the container's limit | memory budget in MiB - see [Memory budget](#memory-budget) |
 | `--healthPort` | — (off) | TCP port for the health probes - see [Health port](#health-port) |
@@ -279,7 +280,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--high-precision` / `-hp` | off | nanosecond timestamps instead of microsecond |
 | `--asyncSnapshot` | off | run snapshot queries in the background |
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
-| `--contextSourceExtras` / `-csx` | `/opt/seamware/etc/contextSourceExtras.json` | JSON rendered verbatim on `/info/sourceIdentity` |
+| `--contextSourceExtras` / `-csx` | `$SEAMWARE_ETC_DIR/contextSourceExtras.json` (`/opt/seamware/etc/...` without the variable) if it exists | JSON rendered verbatim on `/info/sourceIdentity`. A file named here and missing stops the broker; the default file missing is not an error |
 | `--bridges` / `-br` | — | bridge plugins to load, comma-separated (`/opt/seamware/plugins/bridge/<name>.so`) - see [Bridges and Channels](bridge-channels.md) |
 | `--auth` | — | the auth plugin (`/opt/seamware/plugins/auth/<name>.so`): `fdsc` - the Data Space Connector's access tokens and ODRL policies, with options of its own (`--fdscDiscovery`, `--fdscPap`, ...); `oidc` - an OpenID provider's access tokens and a read and a write role (`--oidcIssuer`, ...). None: every request is let in. A plugin that cannot start stops the broker - see [Authorization](authorization.md) |
 | `--bridgeConfig` / `-brc` | `/opt/seamware/etc/bridges.json` if it exists | the bridge configuration file. A file named here and missing stops the broker; the default file missing means no Channels from a file. `SEAMWARE_ETC_DIR` moves the default |
@@ -336,7 +337,7 @@ The temporal history in PostgreSQL + TimescaleDB, a database per tenant (`corh`,
 | `--troeDownExit` | 0 | seconds the database may be unreachable before the broker exits (code 1) - see [The database down](#the-database-down). 0: never; the broker keeps serving the current state |
 | `--troeSqlIndexes` | `none` | indexes of the history beyond the basic ones, a comma list: `attrObserved`, `geo`, `time` - see [The indexes](#the-indexes-of-the-history) |
 | `--troeValueIndexes` | none | the declared indexes of the history: attributes whose `q` value terms an index serves - see [Declared indexes](#timescaledb-the-history) |
-| `--troeInstanceCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
+| `--troeInstanceCap` / `-troeCap` | 1000000 | instances per attribute a temporal query returns without `firstN` / `lastN` |
 
 **The writers.** A request renders the history rows of its writes and queues them for its tenant's
 writers; a writer takes everything queued - up to 512 requests, 1 MiB - and writes it in one
@@ -558,7 +559,7 @@ What they cost a write: [Performance](performance.md), "TimescaleDB: the write p
 | … | … |
 
 `coraine -U` (extended usage) prints the environment-variable name of every option
-alongside its type and default, so the list never has to be maintained by hand.
+alongside its type, so the list never has to be maintained by hand.
 A command-line argument overrides the environment variable.
 
 Two variables are read outside that mechanism. They move the installation's directories, and they
@@ -1228,7 +1229,7 @@ image runs it that way).
 ### Databases
 
 With the `mongoc` plugin, the default tenant is the database named by `--dbName`
-(default `mongoc`); every other tenant has a database of its own. After step 2 of the
+(default `cor`); every other tenant has a database of its own. After step 2 of the
 end-to-end test the database exists:
 
 ```sh

@@ -4,8 +4,9 @@ A lightweight **NGSI-LD Context Broker** written in C, fully implementing
 **ETSI GS CIM 009 v1.9.1** and passing the official ETSI NGSI-LD conformance test
 suite.<sup>\*</sup>
 
-coraine is small — one process, 18 MiB of RAM, answering its first request 13 ms
-after `exec`, with no other service required — and plugin-driven: the storage
+coraine is small — one process, 13 MiB of RAM idle and answering its first request 9 ms
+after `exec` (libmicrohttpd + `corDB`; 17 MiB and 12 ms with the built-in HTTP server;
+[Performance](performance.md), 2026-09-16), with no other service required — and plugin-driven: the storage
 backend, the temporal history, the extra API surfaces and (next) the wire
 protocol itself are shared libraries chosen at startup. The core
 broker speaks NGSI-LD; the plugins decide where data lives, what extra endpoints

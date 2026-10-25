@@ -37,17 +37,17 @@ coraine/
 
 | group | switches |
 |---|---|
-| NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `ICU_COLLATION` |
+| NGSI-LD API | `SUBSCRIPTIONS`, `REGISTRATIONS`, `AUTO_ENTITY_MAP`, `RESPONSE_BUDGET`, `TIMEPOINT`, `ICU_COLLATION` |
 | Snapshots | `SNAPSHOT_WRITE`, `SNAPSHOT_SUBSCRIPTIONS` |
 | JSON-LD @context | `CONTEXT_HOSTING` |
 | Geo | `GEOQ` |
-| Security | `AUTH`, `POLICY_API` |
-| Beyond NGSI-LD | `SERVICE_EXECUTION` |
+| Security | `AUTH`, `AUTH_OIDC`, `AUTH_METADATA`, `POLICY_API` |
+| Beyond NGSI-LD | `SERVICE_EXECUTION`, `DATA_CHANNELS`, `ASSET_CHANNELS`, `CHANNEL_STATUS_IN`, `CHANNEL_CHECKS`, `ADMIN_CONFIG`, `BRIDGE_INVENTORY`, `CHANNEL_WRITE_BACK`, `BRIDGE_HTTP_LISTEN` |
 | Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Nine are turned off
+All default ON except `ICU_COLLATION`. Nine are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires` (each one is needed) and,
 `CHANNEL_WRITE_BACK`'s, as `requiresAny` (one of them is enough):
 
@@ -194,8 +194,9 @@ stripped file grows and shrinks in 4 KiB pages: a switch whose code is under a p
 [`test/perf/pgoTrain.sh`](https://github.com/SEAMWARE/coraine/blob/main/test/perf/pgoTrain.sh) - perfRun's
 request shapes on corDB in RAM and on disk with history, a write that notifies, the three-broker
 forwarding chain over HTTP and cor:// - and rebuilt with the profile, the libraries with it. +1-10 % per
-core against Release ([Profile-guided](performance.md#profile-guided-make-pgo)). Needs `curl`, `wrk` and
-`python3`; libmicrohttpd only. Size: none.
+core against Release ([Profile-guided](performance.md#profile-guided-make-pgo)). The training needs `curl`
+and `wrk`; `coraine-build --pgo` checks for `python3` too, which only `--tune` runs. libmicrohttpd only.
+Size: none.
 
 #### Build mode: Tuned for a workload
 
@@ -296,6 +297,12 @@ it - distributed queries by default, local ones too with `--autoEntityMaps all`.
 The byte budget of a query (`--maxResponseSize`): a shorter page, or 403 TooManyResults. Off: no budget.
 Size: -12 KiB. [Response size](installation.md#response-size).
 
+#### `TIMEPOINT`
+
+The timepoint resources: an entity, and a query, as they were at `timeAt` (`/ngsi-ld/v1/temporal/timepoint/...`,
+read from the TRoE's history - [Timepoint](timepoint.md)). Off: the three routes are not built. Size: about
+2.4 KB.
+
 #### `ICU_COLLATION`
 
 Off by default. On: `orderBy` on strings by ICU root collation (§ 7.6.2.1), and `collation=<locale>`.
@@ -334,6 +341,18 @@ self-intersecting polygon (the check that mirrors a 2dsphere index is GEOS's). S
 Auth plugins: who sent a request and whether it may (`--auth`; `fdsc.so`, the FIWARE Data Space
 Connector's tokens and policies). Off: no `--auth`, every request let in, `fdsc.so` not built. Size:
 -113 KiB. [Authorization](authorization.md).
+
+#### `AUTH_OIDC`
+
+`oidc.so`: an OpenID provider's access tokens (Keycloak, ...), their roles reading or writing (`--auth oidc`).
+Off: `oidc.so` is not built - the broker is the same either way. Off by itself when `AUTH` is.
+[Authorization](authorization.md).
+
+#### `AUTH_METADATA`
+
+The resource's metadata (RFC 9728): `GET /.well-known/oauth-protected-resource` - how a client gets a token the
+auth plugin takes - and `resource_metadata` in every 401. Off: neither. Off by itself when `AUTH` is. Size:
+about 1 KB. [Authorization](authorization.md).
 
 #### `POLICY_API`
 
