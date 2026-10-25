@@ -65,7 +65,9 @@ that).
 |--------|--------|
 | `make` / `make release` | Release build (`BUILD_RELEASE/`) |
 | `make debug` | Debug build (`BUILD_DEBUG/`) |
-| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `wrk`; +1-10 % per core ([performance](performance.md)) |
+| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `curl` and `wrk` (and corLibs' `corRequest`, `corTestClient`); +1-10 % per core ([performance](performance.md)) |
+| `make install_pgo` | install the `make pgo` / `make tune` build (`BUILD_PGO/`) as `make install` does, with the profile-guided `corDB.so` |
+| `make tune WORKLOAD=<file.json>` | `make pgo` trained on your workload, then the allocator and `--dbLockPrefer` measured on it; the result in `tune-result.json` - needs what `make pgo` needs and `python3` ([Extreme performance](extreme-performance.md)) |
 | `make i` / `make di` | release/debug **+ install** |
 | `make ci` / `make cdi` | clean + the above |
 | `make install` | copy broker + plugins → `/usr/local/bin`, `/opt/seamware/plugins`, `/opt/seamware/etc` |
