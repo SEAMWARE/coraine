@@ -2,9 +2,18 @@
 
 > **Built:** the bridge family this rests on - DDS ([DDS and ROS 2](dds.md)), MQTT topics as Channels
 > ([The MQTT bridge](mqtt-bridge.md)), Modbus TCP registers ([The Modbus bridge](modbus-bridge.md)).
-> **Not built:** the *cor-agent* edge build, the other device protocols (LWM2M/CoAP, OPC-UA, LoRaWAN),
-> and a registration whose endpoint names a bridge (a value read on demand). Tracked from the
-> [roadmap](roadmap.md).
+> **Device protocols as bridge plugins:** OPC UA —
+> [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge) (`coraine-build --bridges opcua`); the
+> FIWARE IoT Agents' protocols, prototypes not released —
+> [corIotaLwm2mBridge](https://github.com/SEAMWARE/corIotaLwm2mBridge) (LwM2M over CoAP),
+> [corIotaLoraBridge](https://github.com/SEAMWARE/corIotaLoraBridge) (LoRaWAN: TTN v3, ChirpStack v4),
+> [corIotaSigfoxBridge](https://github.com/SEAMWARE/corIotaSigfoxBridge),
+> [corIotaUlBridge](https://github.com/SEAMWARE/corIotaUlBridge) (UltraLight 2.0, over MQTT and HTTP),
+> [corIotaJsonBridge](https://github.com/SEAMWARE/corIotaJsonBridge) (JSON),
+> [corIotaIsoxmlBridge](https://github.com/SEAMWARE/corIotaIsoxmlBridge) (ISOXML).
+>
+> **Not built:** the *cor-agent* edge build, and a registration whose endpoint names a bridge (a value
+> read on demand). Tracked from the [roadmap](roadmap.md).
 
 A FIWARE deployment normally has two tiers. Devices speak their own protocols —
 MQTT with an UltraLight payload, LWM2M over CoAP, OPC-UA, LoRaWAN — to an **IoT

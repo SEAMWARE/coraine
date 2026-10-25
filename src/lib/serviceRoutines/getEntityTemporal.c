@@ -618,7 +618,6 @@ bool getEntityTemporal(void)
       {
         int code = results[i].statusCode;
         if (code < 200 || code >= 300) continue;
-        if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
         CorNode* upP = results[i].responseTree;
         if (upP == NULL) continue;

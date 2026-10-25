@@ -85,6 +85,11 @@ bump may still change behaviour; the entry says so where it does.
 
 ### Fixed
 
+- A Context Source registered with a `cor://` endpoint: a forwarded query returned none of its entities
+  (`[]`), and a forwarded batch took none of its per-entity answers - a batch create reported `201` for an
+  entity the source refused. The same over `http://` was right, and so was a forwarded retrieve. The
+  temporal query and retrieve and the other batch operations took the same path and are fixed with it.
+
 ---
 
 ## 0.5.0 — 2026-10-10

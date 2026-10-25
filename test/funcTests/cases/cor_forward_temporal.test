@@ -1,0 +1,143 @@
+#
+# FILE            cor_forward_temporal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# cor:// - a Context Source behind a cor:// registration answers a forwarded temporal query and a
+# forwarded temporal retrieve as the same source behind an http:// registration does.
+#
+# A cor:// answer arrives as a tree, with no text (doc/cor-protocol-details.md § 5): the forward's result
+# carries responseTree and no responseBody. The temporal merge takes the tree.
+#
+# REQUIRE_FEATURE: COR_PROTOCOL
+# --troe corDB is the history inside the corDB store:
+# REQUIRE_DB: corDB
+#
+--NAME--
+cor:// - a forwarded temporal query and retrieve take what the cor:// source answered
+
+--TAGS--
+cor distop troe
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist --troe corDB
+coraineStart -role CP1 -dist --troe corDB -corPort $((CP1_PORT + 1000))
+
+--RUN--
+echo "01. CP1 holds urn:V1, with one instance of speed"
+echo "================================================"
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 1, "observedAt": "2026-10-01T12:00:00Z" }
+}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. CB registers CP1 over cor:// - queryTemporal and retrieveTemporal of the speed of every Vehicle"
+echo "=================================================================================================="
+payload='{
+  "id": "urn:Reg:T",
+  "type": "ContextSourceRegistration",
+  "endpoint": "cor://localhost:'$((CP1_PORT + 1000))'",
+  "operations": [ "queryTemporal", "retrieveTemporal" ],
+  "information": [ { "entities": [ { "type": "Vehicle" } ], "propertyNames": [ "speed" ] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. GET /temporal/entities?type=Vehicle on CB - urn:V1 and its instance, from CP1 over cor://"
+echo "============================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "04. GET /temporal/entities/urn:V1 on CB - the same, from CP1 over cor://"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:V1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+
+--EXPECT--
+01. CP1 holds urn:V1, with one instance of speed
+================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. CB registers CP1 over cor:// - queryTemporal and retrieveTemporal of the speed of every Vehicle
+==================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:Reg:T
+Content-Length: 0
+
+
+
+
+03. GET /temporal/entities?type=Vehicle on CB - urn:V1 and its instance, from CP1 over cor://
+=============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-10-01T12:00:00Z",
+        "type": "Property",
+        "value": 1
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. GET /temporal/entities/urn:V1 on CB - the same, from CP1 over cor://
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+      "observedAt": "2026-10-01T12:00:00Z",
+      "type": "Property",
+      "value": 1
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+

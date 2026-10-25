@@ -27,8 +27,9 @@ variable - `CORAINE_` + the long option in upper case (see
 | `--memoryLimit <MiB>` | a budget of its own, when 85% is not the margin wanted. Above the container's limit the broker logs a warning: the kernel kills first |
 | `MALLOC_ARENA_MAX=2` | glibc's per-thread arenas keep freed memory resident; measured with `corDB`, 10 000 entities took 67 MiB instead of 89, 100 000 took 335 MiB instead of 376 ([Performance](performance.md)). Not measured for throughput with many threads, so it is not the image's default |
 
-Over the budget the broker refuses requests (503 + `Retry-After`) instead of growing until the kernel
-kills it - with `corDB`, a kill takes the store's RAM with it, and a persistent store then has to be
+Over 90 % of the budget the broker refuses the writes that grow memory, over 100 % every request but
+deletes and monitoring (`/version`, `/metrics`, `/admin/*`) - 503 + `Retry-After` - instead of growing
+until the kernel kills it - with `corDB`, a kill takes the store's RAM with it, and a persistent store then has to be
 loaded again. What counts against the budget is the broker's anonymous and shared memory: not the
 `corDB` log, which is memory-mapped, file-backed page cache that the kernel reclaims.
 
