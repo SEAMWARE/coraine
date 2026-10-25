@@ -304,6 +304,11 @@ interval.
 | `--dbSnapshotEvery` | 64 | MiB of log after which a tenant is snapshotted (and at least as much as its last snapshot) |
 | `--dbCompress` | off | the snapshots and the finished log segments compressed (zstd, loaded only then - libzstd is already in the image); the open segment never. A store written with it is read with or without it |
 
+`--dbSync`, `--dbSyncInterval`, `--dbSnapshotEvery` and `--dbCompress` act on the disk: given without
+`--dbDir` (on the command line, in the configuration file or in the environment), the broker does not
+start - each one is named (`corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk
+for it to act on`). As `ramDB` refuses `--dbDir`, an option it does not have.
+
 What it costs: [Performance](performance.md), "corDB on disk". How it works:
 [corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md).
 
