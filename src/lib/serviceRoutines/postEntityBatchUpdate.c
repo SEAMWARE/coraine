@@ -1290,16 +1290,10 @@ bool postEntityBatchUpdate(void)
       {
         CsrAccum* a = &csrAccums[bIdx[bi]];
 
-        CorNode* respTreeP = NULL;
-        if (bResults[bi].responseBody != NULL && bResults[bi].responseBodyLen > 0)
-        {
-          CorNode* treeP = bResults[bi].responseTree;
-          if (treeP != NULL)
-          {
-            ldStripAtContext(treeP);
-            respTreeP = treeP;
-          }
-        }
+        CorNode* respTreeP = bResults[bi].responseTree;     // parsed at reception (HTTP), or as it came (cor://, no text)
+
+        if (respTreeP != NULL)
+          ldStripAtContext(respTreeP);
 
         bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * a->count);
         for (int k = 0; k < a->count; k++) groupOk[k] = false;
