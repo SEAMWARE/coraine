@@ -43,6 +43,11 @@ usage
 # head a section of the plain listing and have no columns to fill — and every
 # field is padded as a unit, so the columns actually line up.
 #
+# The last column of -U is the option's default value (- when it has none). It
+# used to name where the value came from - "Default Value" on every row, "Short
+# Option" on the ones given on the command line - which read as a column heading
+# printed in place of the value.
+#
 
 echo "01. Usage with corDB plugin (no extra CLI args)"
 echo "=================================================="
@@ -261,62 +266,62 @@ Usage: coraine  [--usage/-u (usage)]
 
 04. Extended usage (-U) - one aligned row per option, no separator rows
 =======================================================================
-  --usage                 (-u)                                                Optional   Bool     Default Value  
-  --Usage                 (-U)                                                Optional   Bool     Short Option   
-  --verbose               (-v)                  CORAINE_VERBOSE               Optional   Bool     Default Value  
-  --debug                 (-d)                  CORAINE_DEBUG                 Optional   Bool     Default Value  
-  --traceLevels           (-t)                  CORAINE_TRACELEVELS           Optional   String   Default Value  
-  --port                  (-p)                  CORAINE_PORT                  Optional   UShort   Default Value  
-  --corPort               (-corPort)            CORAINE_CORPORT               Optional   UShort   Default Value  
-  --database              (-db)                 CORAINE_DATABASE              Optional   String   Short Option   
-  --troe                  (-troe)               CORAINE_TROE                  Optional   String   Default Value  
-  --troeSync              (-troeSync)           CORAINE_TROESYNC              Optional   Bool     Default Value  
-  --apiPlugins            (-api)                CORAINE_APIPLUGINS            Optional   String   Default Value  
-  --bridges               (-br)                 CORAINE_BRIDGES               Optional   String   Default Value  
-  --auth                  (-auth)               CORAINE_AUTH                  Optional   String   Default Value  
-  --sseStreams            (-sseStreams)         CORAINE_SSESTREAMS            Optional   Int      Default Value  
-  --transports            (-transports)         CORAINE_TRANSPORTS            Optional   String   Default Value  
-  --bridgeConfig          (-brc)                CORAINE_BRIDGECONFIG          Optional   String   Default Value  
-  --ddsSync               (-ddsSync)            CORAINE_DDSSYNC               Optional   Bool     Default Value  
-  --ddsSyncTimeout        (-ddsSyncTimeout)     CORAINE_DDSSYNCTIMEOUT        Optional   Int      Default Value  
-  --ddsSyncWaitMax        (-ddsSyncWaitMax)     CORAINE_DDSSYNCWAITMAX        Optional   Int      Default Value  
-  --pretty-print          (-pp)                 CORAINE_PRETTY_PRINT          Optional   UInt     Default Value  
-  --connectionPoolSize    (-cps)                CORAINE_CONNECTIONPOOLSIZE    Optional   Int      Default Value  
-  --httpLoops             (-hl)                 CORAINE_HTTPLOOPS             Optional   Int      Default Value  
-  --httpConnectionMemory  (-hcm)                CORAINE_HTTPCONNECTIONMEMORY  Optional   Int      Default Value  
-  --notifyValueChangeOnly (-nvco)               CORAINE_NOTIFYVALUECHANGEONLY Optional   Bool     Default Value  
-  --corsOrigin            (-corsOrigin)         CORAINE_CORSORIGIN            Optional   String   Default Value  
-  --corsMaxAge            (-corsMaxAge)         CORAINE_CORSMAXAGE            Optional   Int      Default Value  
-  --defaultUserContext    (-duc)                CORAINE_DEFAULTUSERCONTEXT    Optional   String   Default Value  
-  --csourceAlias          (-csourceAlias)       CORAINE_CSOURCEALIAS          Optional   String   Default Value  
-  --httpEndpoint          (-he)                 CORAINE_HTTPENDPOINT          Optional   String   Default Value  
-  --contextSourceExtras   (-csx)                CORAINE_CONTEXTSOURCEEXTRAS   Optional   String   Default Value  
-  --distributed           (-dist)               CORAINE_DISTRIBUTED           Optional   Bool     Default Value  
-  --noSplitEntities       (-noSplitEntities)    CORAINE_NOSPLITENTITIES       Optional   Bool     Default Value  
-  --high-precision        (-hp)                 CORAINE_HIGH_PRECISION        Optional   Bool     Default Value  
-  --asyncSnapshot         (-asyncSnapshot)      CORAINE_ASYNCSNAPSHOT         Optional   Bool     Default Value  
-  --maxRequestSize        (-mrs)                CORAINE_MAXREQUESTSIZE        Optional   Int      Default Value  
-  --maxResponseSize       (-maxResponseSize)    CORAINE_MAXRESPONSESIZE       Optional   Int      Default Value  
-  --autoEntityMaps        (-autoEntityMaps)     CORAINE_AUTOENTITYMAPS        Optional   String   Default Value  
-  --entityMapMemory       (-entityMapMemory)    CORAINE_ENTITYMAPMEMORY       Optional   Int      Default Value  
-  --subStatsFlushInterval (-ssfi)               CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      Default Value  
-  --distOpTimeout         (-dtmo)               CORAINE_DISTOPTIMEOUT         Optional   Int      Default Value  
-  --cooldownMillis        (-cms)                CORAINE_COOLDOWNMILLIS        Optional   Int      Default Value  
-  --version               (-V)                  CORAINE_VERSION               Optional   Bool     Default Value  
-  --foreground            (-fg)                 CORAINE_FOREGROUND            Optional   Bool     Default Value  
-  --insecureNotif         (-insecureNotif)      CORAINE_INSECURENOTIF         Optional   Bool     Default Value  
-  --noInline              (-noInline)           CORAINE_NOINLINE              Optional   Bool     Default Value  
-  --memoryLimit           (-memoryLimit)        CORAINE_MEMORYLIMIT           Optional   Int      Default Value  
-  --healthPort            (-healthPort)         CORAINE_HEALTHPORT            Optional   UShort   Default Value  
-  --healthStallTimeout    (-healthStallTimeout) CORAINE_HEALTHSTALLTIMEOUT    Optional   Int      Default Value  
-  --high-availability     (-ha)                 CORAINE_HIGH_AVAILABILITY     Optional   String   Default Value  
-  --dbDir                 (-dbDir)              CORAINE_DBDIR                 Optional   String   Default Value  
-  --dbSync                (-dbSync)             CORAINE_DBSYNC                Optional   String   Default Value  
-  --dbSyncInterval        (-dbSyncInterval)     CORAINE_DBSYNCINTERVAL        Optional   Int      Default Value  
-  --dbSnapshotEvery       (-dbSnapshotEvery)    CORAINE_DBSNAPSHOTEVERY       Optional   Int      Default Value  
-  --dbCompress            (-dbCompress)         CORAINE_DBCOMPRESS            Optional   Bool     Default Value  
-  --dbLockPrefer          (-dbLockPrefer)       CORAINE_DBLOCKPREFER          Optional   String   Default Value  
-  --dbValueIndexes        (-dbValueIndexes)     CORAINE_DBVALUEINDEXES        Optional   String   Default Value  
+  --usage                 (-u)                                                Optional   Bool     false
+  --Usage                 (-U)                                                Optional   Bool     false
+  --verbose               (-v)                  CORAINE_VERBOSE               Optional   Bool     false
+  --debug                 (-d)                  CORAINE_DEBUG                 Optional   Bool     false
+  --traceLevels           (-t)                  CORAINE_TRACELEVELS           Optional   String   -
+  --port                  (-p)                  CORAINE_PORT                  Optional   UShort   1026
+  --corPort               (-corPort)            CORAINE_CORPORT               Optional   UShort   0
+  --database              (-db)                 CORAINE_DATABASE              Optional   String   mongoc
+  --troe                  (-troe)               CORAINE_TROE                  Optional   String   none
+  --troeSync              (-troeSync)           CORAINE_TROESYNC              Optional   Bool     false
+  --apiPlugins            (-api)                CORAINE_APIPLUGINS            Optional   String   -
+  --bridges               (-br)                 CORAINE_BRIDGES               Optional   String   -
+  --auth                  (-auth)               CORAINE_AUTH                  Optional   String   -
+  --sseStreams            (-sseStreams)         CORAINE_SSESTREAMS            Optional   Int      1000
+  --transports            (-transports)         CORAINE_TRANSPORTS            Optional   String   -
+  --bridgeConfig          (-brc)                CORAINE_BRIDGECONFIG          Optional   String   -
+  --ddsSync               (-ddsSync)            CORAINE_DDSSYNC               Optional   Bool     false
+  --ddsSyncTimeout        (-ddsSyncTimeout)     CORAINE_DDSSYNCTIMEOUT        Optional   Int      0
+  --ddsSyncWaitMax        (-ddsSyncWaitMax)     CORAINE_DDSSYNCWAITMAX        Optional   Int      8
+  --pretty-print          (-pp)                 CORAINE_PRETTY_PRINT          Optional   UInt     0
+  --connectionPoolSize    (-cps)                CORAINE_CONNECTIONPOOLSIZE    Optional   Int      0
+  --httpLoops             (-hl)                 CORAINE_HTTPLOOPS             Optional   Int      0
+  --httpConnectionMemory  (-hcm)                CORAINE_HTTPCONNECTIONMEMORY  Optional   Int      12
+  --notifyValueChangeOnly (-nvco)               CORAINE_NOTIFYVALUECHANGEONLY Optional   Bool     false
+  --corsOrigin            (-corsOrigin)         CORAINE_CORSORIGIN            Optional   String   -
+  --corsMaxAge            (-corsMaxAge)         CORAINE_CORSMAXAGE            Optional   Int      86400
+  --defaultUserContext    (-duc)                CORAINE_DEFAULTUSERCONTEXT    Optional   String   -
+  --csourceAlias          (-csourceAlias)       CORAINE_CSOURCEALIAS          Optional   String   -
+  --httpEndpoint          (-he)                 CORAINE_HTTPENDPOINT          Optional   String   -
+  --contextSourceExtras   (-csx)                CORAINE_CONTEXTSOURCEEXTRAS   Optional   String   -
+  --distributed           (-dist)               CORAINE_DISTRIBUTED           Optional   Bool     false
+  --noSplitEntities       (-noSplitEntities)    CORAINE_NOSPLITENTITIES       Optional   Bool     false
+  --high-precision        (-hp)                 CORAINE_HIGH_PRECISION        Optional   Bool     false
+  --asyncSnapshot         (-asyncSnapshot)      CORAINE_ASYNCSNAPSHOT         Optional   Bool     false
+  --maxRequestSize        (-mrs)                CORAINE_MAXREQUESTSIZE        Optional   Int      2
+  --maxResponseSize       (-maxResponseSize)    CORAINE_MAXRESPONSESIZE       Optional   Int      -1
+  --autoEntityMaps        (-autoEntityMaps)     CORAINE_AUTOENTITYMAPS        Optional   String   distributed
+  --entityMapMemory       (-entityMapMemory)    CORAINE_ENTITYMAPMEMORY       Optional   Int      64
+  --subStatsFlushInterval (-ssfi)               CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      60
+  --distOpTimeout         (-dtmo)               CORAINE_DISTOPTIMEOUT         Optional   Int      5000
+  --cooldownMillis        (-cms)                CORAINE_COOLDOWNMILLIS        Optional   Int      30000
+  --version               (-V)                  CORAINE_VERSION               Optional   Bool     false
+  --foreground            (-fg)                 CORAINE_FOREGROUND            Optional   Bool     false
+  --insecureNotif         (-insecureNotif)      CORAINE_INSECURENOTIF         Optional   Bool     false
+  --noInline              (-noInline)           CORAINE_NOINLINE              Optional   Bool     false
+  --memoryLimit           (-memoryLimit)        CORAINE_MEMORYLIMIT           Optional   Int      0
+  --healthPort            (-healthPort)         CORAINE_HEALTHPORT            Optional   UShort   0
+  --healthStallTimeout    (-healthStallTimeout) CORAINE_HEALTHSTALLTIMEOUT    Optional   Int      30
+  --high-availability     (-ha)                 CORAINE_HIGH_AVAILABILITY     Optional   String   -
+  --dbDir                 (-dbDir)              CORAINE_DBDIR                 Optional   String   -
+  --dbSync                (-dbSync)             CORAINE_DBSYNC                Optional   String   interval
+  --dbSyncInterval        (-dbSyncInterval)     CORAINE_DBSYNCINTERVAL        Optional   Int      100
+  --dbSnapshotEvery       (-dbSnapshotEvery)    CORAINE_DBSNAPSHOTEVERY       Optional   Int      64
+  --dbCompress            (-dbCompress)         CORAINE_DBCOMPRESS            Optional   Bool     false
+  --dbLockPrefer          (-dbLockPrefer)       CORAINE_DBLOCKPREFER          Optional   String   reads
+  --dbValueIndexes        (-dbValueIndexes)     CORAINE_DBVALUEINDEXES        Optional   String   -
 
 
 --TEARDOWN--
