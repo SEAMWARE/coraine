@@ -53,8 +53,8 @@ int timescaleInit(void)
   //
   // A database that is not there yet - started together with the broker, restarting - is waited for,
   // as mongoc waits for its server (--dbTimeout): a try a second, for --troeConnectTimeout seconds.
-  // One that is there and refuses (a schema version this build does not know) is not: a try later
-  // finds it the same.
+  // One that is there and refuses (a schema version this build does not know, the credentials of
+  // --troeUser / --troePwd) is not: a try later finds it the same.
   //
   bool unreachable;
 
