@@ -496,16 +496,10 @@ static void dispatchOneMode(Tenant*       tenantP,
 
     for (int i = 0; i < bItemCount; i++)
     {
-      CorNode* respTreeP = NULL;
-      if (bResults[i].responseBody != NULL && bResults[i].responseBodyLen > 0)
-      {
-        CorNode* treeP = bResults[i].responseTree;
-        if (treeP != NULL)
-        {
-          ldStripAtContext(treeP);
-          respTreeP = treeP;
-        }
-      }
+      CorNode* respTreeP = bResults[i].responseTree;     // parsed at reception (HTTP), or as it came (cor://, no text)
+
+      if (respTreeP != NULL)
+        ldStripAtContext(respTreeP);
 
       bool* groupOk = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * bFwdN[i]);
       for (int k = 0; k < bFwdN[i]; k++) groupOk[k] = false;
