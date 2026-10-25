@@ -237,7 +237,7 @@ layout](plugin-architecture.md#the-cornode-layout)), and only a container has on
 
 100 000 entities of perfRun's larger store (five attributes, 24 nodes each: 13 containers, 6
 strings, 3 integers, 2 floats), `corDB` in RAM, release builds, loaded in batches of 500, the
-broker's RSS after the load - two runs of each, in the order A B B A, within 0.2 %:
+broker's RSS after the load - two runs of each, in the order A B B A, within 0.2 % (2026-10-23):
 
 | Build | RSS | Per entity | |
 |---|---:|---:|---:|
@@ -2956,13 +2956,14 @@ row is the smallest it can be.
 
 ## An open question: `--connectionPoolSize`
 
-`corHttp` came out **slower than libmicrohttpd on one core** in the table above
-(5 901 against 6 588). The loop count is
+On 2026-09-16, `corHttp` measured **slower than libmicrohttpd on one core**: 5 901 req/s
+against 6 588 ([the 2026-09-16 numbers](history/performance.md)). The loop count is
 not the cause — `--httpLoops` resolves to 1 on one core, which is correct, and
 forcing 2 or 4 there makes it worse, as it should.
 
-The suspect is `--connectionPoolSize`, which defaults to 32. Swept on one core,
-built-in server:
+The suspect is `--connectionPoolSize` - 32 then, and 32 now for a store that may wait (0, the
+default, is the number of cores only for one that never waits: [Configuration](installation.md#core-options)).
+Swept on one core, built-in server, 2026-09-16:
 
 | `--connectionPoolSize` | req/s | p99 |
 |---:|---:|---:|

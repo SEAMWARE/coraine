@@ -63,9 +63,12 @@ docker compose -f docker/docker-compose.yml up
 ## Configuration
 
 Every option is a command-line argument; `coraine --usage` lists them all, including
-the arguments contributed by whichever plugins are selected. The one environment
-variable the broker reads is **`SEAMWARE_PLUGIN_DIR`**, which overrides where plugins
-are loaded from (default `/opt/seamware/plugins`).
+the arguments contributed by whichever plugins are selected. Every option is also
+an environment variable, `CORAINE_<OPTION>` (`--dbHost` = `CORAINE_DBHOST`; `coraine -U`
+lists them), and a command-line argument overrides it. Two more variables move the
+installation's directories: **`SEAMWARE_PLUGIN_DIR`**, where plugins are loaded from
+(default `/opt/seamware/plugins`), and **`SEAMWARE_ETC_DIR`**, where `bridges.json` and
+`contextSourceExtras.json` are looked for (default `/opt/seamware/etc`).
 
 The port is not fixed in the image: pass `--port` and publish what you chose.
 

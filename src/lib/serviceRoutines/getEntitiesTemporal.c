@@ -837,7 +837,6 @@ bool getEntitiesTemporal(void)
         {
           int upCode = results[i].statusCode;
           if (upCode < 200 || upCode >= 300) continue;
-          if (results[i].responseBody == NULL || results[i].responseBodyLen == 0) continue;
 
           CorNode* remoteArray = results[i].responseTree;
           if (remoteArray == NULL || remoteArray->type != CorArray) continue;
