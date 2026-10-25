@@ -1,0 +1,138 @@
+#
+# FILE            default_user_context_unreachable.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A default user @context (--defaultUserContext) that cannot be retrieved fails a request that would be
+# read with it - a query as a create: 504 LdContextNotAvailable, as for a Link header's @context
+# (link_context_unreachable_504.test).
+#
+# The bug: POST /entities without a Link header answered 504 (the parse hook names the default to the
+# expansion, which fails), GET /entities?type=Room answered 200 [] - ldContextResolve, the GET path, fell
+# back to the core context in silence when the default could not be used, so Room was expanded with core
+# alone and matched nothing. Now it reports the default as the @context it could not use, and the
+# pre-service hook answers 504 for GET and HEAD, as for a named one. A DELETE of a whole entity uses no
+# @context and is answered as before (here: 404, there is no such entity).
+#
+--NAME--
+Default user @context that cannot be retrieved: 504 on a query too, not 200 [] against core
+
+--TAGS--
+context error-handling
+
+--INIT--
+corDbDrop
+coraineStart --defaultUserContext http://127.0.0.1:1/duc.jsonld
+
+--RUN--
+
+echo "01. POST /entities, no Link header - 504"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:R1", "type": "Room"}'
+echo
+echo
+
+
+echo "02. GET /entities?type=Room, no Link header - 504"
+echo "================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Room'
+echo
+echo
+
+
+echo "03. GET /entities/urn:R1, no Link header - 504"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R1
+echo
+echo
+
+
+echo "04. GET /types, no Link header - 504"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "05. DELETE /entities/urn:R1 - no @context used: 404, not 504"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:R1 -X DELETE | head -1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. POST /entities, no Link header - 504
+========================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/duc.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+02. GET /entities?type=Room, no Link header - 504
+=================================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/duc.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+03. GET /entities/urn:R1, no Link header - 504
+==============================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/duc.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+04. GET /types, no Link header - 504
+====================================
+HTTP/1.1 504 Gateway Timeout
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 207
+
+{
+  "detail": "unable to retrieve @context from 'http://127.0.0.1:1/duc.jsonld'",
+  "status": 504,
+  "title": "Context Not Available",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable"
+}
+
+
+
+05. DELETE /entities/urn:R1 - no @context used: 404, not 504
+=============================================================
+HTTP/1.1 404 Not Found
+
+

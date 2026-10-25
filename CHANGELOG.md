@@ -74,6 +74,9 @@ bump may still change behaviour; the entry says so where it does.
   (`[]`), and a forwarded batch took none of its per-entity answers - a batch create reported `201` for an
   entity the source refused. The same over `http://` was right, and so was a forwarded retrieve. The
   temporal query and retrieve and the other batch operations took the same path and are fixed with it.
+- A default user `@context` (`--defaultUserContext`) that cannot be retrieved answers a query 504
+  LdContextNotAvailable, as a create: `GET /entities?type=Room` answered 200 `[]` - `Room` expanded with the core
+  context alone, in silence.
 - A required option missing from the command line is named, the usage printed, exit 1: `coraine-import` without
   `--file` crashed (SIGSEGV; with `mongoc` after connecting). `-u` / `-U` print the option list whatever else the
   command line holds - `coraine -u -p 0` exited 1 with the range error of `--port`. The action options (`--usage`,
