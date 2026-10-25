@@ -171,8 +171,9 @@ needs a configuration, and the broker reads `$SEAMWARE_ETC_DIR/bridges.json` whe
 not given. A `--bridgeConfig` of your own replaces it.
 
 `coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
-`description`, `group` (its group in `CMakeLists.txt`), and `requires`: the switches it is turned off
-without, and a build setting as `NAME=value` (`HTTP_SERVER=mhd`). `--http-server builtin` builds the
+`description`, `group` (its group in `CMakeLists.txt`), `requires`: the switches it is turned off
+without - each one of them - and a build setting as `NAME=value` (`HTTP_SERVER=mhd`), and `requiresAny`: the
+switches it is turned off without all of - one is enough (`CHANNEL_WRITE_BACK`: `DATA_CHANNELS` or `ASSET_CHANNELS`). `--http-server builtin` builds the
 broker with corHttp, the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
 the switches that need libmicrohttpd off (`POLICY_API`); not with `--pgo` or `--tune` yet. While it builds, coraine-build
 prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a

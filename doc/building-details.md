@@ -48,7 +48,8 @@ coraine/
 | Stores and tools | `MONGOC`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
 All default ON except `ICU_COLLATION` and the observation/operation-space dispatch. Nine are turned off
-by what they need - `coraine-build --list-features --json` gives them as `requires`:
+by what they need - `coraine-build --list-features --json` gives them as `requires` (each one is needed) and,
+`CHANNEL_WRITE_BACK`'s, as `requiresAny` (one of them is enough):
 
 | switch | off when | why |
 |---|---|---|
