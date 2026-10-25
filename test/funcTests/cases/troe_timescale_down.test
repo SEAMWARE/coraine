@@ -40,8 +40,13 @@ HP=$((CB_PORT + 2000))
 PSQL="psql -h $COR_TROE_HOST -p $COR_TROE_PORT -U postgres -d $COR_TROE_DB -tA -F|"
 PSQLA="psql -h $COR_TROE_HOST -p $COR_TROE_PORT -U postgres -d postgres -tA -q"
 
+#
+# client_min_messages: a connection that ends between pg_stat_activity and pg_terminate_backend gets
+# "WARNING: PID N is not a PostgreSQL backend process" on stderr - and a step's stderr fails the test.
+# An error still shows.
+#
 dbBlock() {
-  $PSQLA -c "ALTER DATABASE \"$COR_TROE_DB\" ALLOW_CONNECTIONS false" -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$COR_TROE_DB'" > /dev/null
+  $PSQLA -c "SET client_min_messages = error" -c "ALTER DATABASE \"$COR_TROE_DB\" ALLOW_CONNECTIONS false" -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$COR_TROE_DB'" > /dev/null
 }
 dbUnblock() {
   $PSQLA -c "ALTER DATABASE \"$COR_TROE_DB\" ALLOW_CONNECTIONS true" > /dev/null
