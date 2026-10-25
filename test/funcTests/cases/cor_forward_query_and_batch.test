@@ -1,0 +1,204 @@
+#
+# FILE            cor_forward_query_and_batch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# cor:// - a Context Source behind a cor:// registration answers a forwarded query and a forwarded batch
+# exactly as the same source behind an http:// registration does.
+#
+# A cor:// answer arrives as a tree, with no text (doc/cor-protocol-details.md § 5): the forward's result
+# carries responseTree and no responseBody. The query merge and the batch result split take the tree.
+#
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
+--NAME--
+cor:// - a forwarded query and a forwarded batch create take what the cor:// source answered
+
+--TAGS--
+cor distop batch
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist --noSplitEntities
+coraineStart -role CP1 -dist --noSplitEntities -corPort $((CP1_PORT + 1000))
+
+--RUN--
+echo "01. CP1 holds urn:V1"
+echo "===================="
+payload='{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "speed": { "type": "Property", "value": 0 }
+}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. CB registers CP1 over cor:// - inclusive, every Vehicle"
+echo "==========================================================="
+payload='{
+  "id": "urn:Reg:Q",
+  "type": "ContextSourceRegistration",
+  "endpoint": "cor://localhost:'$((CP1_PORT + 1000))'",
+  "information": [ { "entities": [ { "type": "Vehicle" } ] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. GET /entities?type=Vehicle on CB - urn:V1, from CP1 over cor://"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle'
+echo
+echo
+
+
+echo "04. CB replaces the registration: exclusive for 'speed' of urn:V1 and urn:V2, createBatch"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:Reg:Q -X DELETE
+payload='{
+  "id": "urn:Reg:B",
+  "type": "ContextSourceRegistration",
+  "endpoint": "cor://localhost:'$((CP1_PORT + 1000))'",
+  "mode": "exclusive",
+  "operations": [ "createBatch" ],
+  "information": [ { "entities": [ { "id": "urn:V1", "type": "Vehicle" }, { "id": "urn:V2", "type": "Vehicle" } ], "propertyNames": [ "speed" ] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "05. Batch create urn:V1 and urn:V2 on CB - CP1 already holds urn:V1: 207, urn:V1 an error from CP1"
+echo "=================================================================================================="
+payload='[
+  { "id": "urn:V1", "type": "Vehicle", "speed": { "type": "Property", "value": 1 } },
+  { "id": "urn:V2", "type": "Vehicle", "speed": { "type": "Property", "value": 2 } }
+]'
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload"
+echo
+echo
+
+
+echo "06. GET /entities?type=Vehicle on CP1 - urn:V1 untouched, urn:V2 created"
+echo "========================================================================"
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities?type=Vehicle&format=keyValues'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+
+--EXPECT--
+01. CP1 holds urn:V1
+====================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+02. CB registers CP1 over cor:// - inclusive, every Vehicle
+===========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:Reg:Q
+Content-Length: 0
+
+
+
+
+03. GET /entities?type=Vehicle on CB - urn:V1, from CP1 over cor://
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 0
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. CB replaces the registration: exclusive for 'speed' of urn:V1 and urn:V2, createBatch
+=========================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:Reg:B
+Content-Length: 0
+
+
+
+
+05. Batch create urn:V1 and urn:V2 on CB - CP1 already holds urn:V1: 207, urn:V1 an error from CP1
+==================================================================================================
+HTTP/1.1 207 Multi-Status
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 326
+
+{
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "entity already exists",
+        "status": 409,
+        "title": "Already Exists",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
+      },
+      "registrationId": "urn:Reg:B"
+    }
+  ],
+  "success": [
+    "urn:V2"
+  ]
+}
+
+
+
+06. GET /entities?type=Vehicle on CP1 - urn:V1 untouched, urn:V2 created
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 137
+
+[
+  {
+    "id": "urn:V1",
+    "speed": 0,
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": 2,
+    "type": "Vehicle"
+  }
+]
+
+
+
