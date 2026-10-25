@@ -244,6 +244,10 @@ list, and `-U` prints it with descriptions; the list changes with the plugins yo
 select, because a plugin contributes its own options (for example `--dbHost`,
 `--dbPort`, `--dbUser` come from the `mongoc` plugin).
 
+**Every option - the broker's, each plugin's in a section of its own, coraine-import's and coraine-build's - is in
+[Command-line options](options.md)**, with its variable, default, values and an example. The tables below are
+the ones most deployments set.
+
 ### Core options
 
 | Option | Default | Meaning |
