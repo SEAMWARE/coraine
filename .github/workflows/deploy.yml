@@ -20,16 +20,17 @@ on:
       - main
   workflow_dispatch:
 
-concurrency:
-  group: deploy-${{ github.ref }}
-  #
-  # NOT cancel-in-progress. Everywhere else in this repo a superseded run is moot
-  # and gets cancelled; a publish is the one thing that is not, because it has a
-  # side effect outside the runner. Killing one mid-push can leave a tag half
-  # written, and the next run would then be comparing against a lie.
-  #
-  cancel-in-progress: false
-
+#
+# No concurrency for the workflow as a whole: the suite and the publish are treated differently, per job.
+#
+# The suite (verify) is cancelled by a newer merge - the newer main contains the older one, and only the
+# newest tree is worth testing, and a suite is 11 jobs against the org's 20 concurrent ones. A run whose
+# verify is cancelled publishes nothing: tag, publish and manifest need it.
+#
+# The publish is never cancelled: it has a side effect outside the runner, and killing one mid-push can
+# leave a tag half written. Two runs' publishes may overlap - each pushes its own immutable tag
+# (<version>-<date>-<sha>) and its manifest; what they share is the build cache, which either may refresh.
+#
 jobs:
   #
   # The whole functional suite, against the merged tree, by CALLING ci.yml rather
@@ -38,6 +39,9 @@ jobs:
   #
   verify:
     uses: ./.github/workflows/ci.yml
+    concurrency:
+      group: deploy-verify-${{ github.ref }}
+      cancel-in-progress: true
 
   #
   # The tag, once, for both architectures: it carries the date, and two jobs computing it on their own
