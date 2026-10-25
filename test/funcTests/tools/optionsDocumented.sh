@@ -50,15 +50,15 @@ documented() {
 
 #
 # buildDependent <name> - the entry's first paragraph (the lines under its heading, up to the first empty one)
-# says "build:"
+# says "build:". The verdict is set in END: an `exit` in a rule runs END, whose own exit code is the one that counts.
 #
 buildDependent() {
   awk -v h="### \`$1\`" '
     $0 == h                 { on = 1; next }
     on == 1 && NF           { on = 2 }
-    on == 2 && !NF          { exit 1 }
-    on == 2 && /build:/     { exit 0 }
-    END                     { exit 1 }
+    on == 2 && !NF          { exit }
+    on == 2 && /build:/     { found = 1; exit }
+    END                     { exit (found ? 0 : 1) }
   ' "$doc"
 }
 
