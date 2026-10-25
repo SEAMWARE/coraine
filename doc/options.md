@@ -1131,9 +1131,20 @@ The MongoDB server's TCP port, MongoDB's own default. Not used when `--dbURI` is
 
 The user the broker authenticates as. It is used only together with `--dbPwd`: both given, the URI is
 `mongodb://<dbUser>:<dbPwd>@<dbHost>:<dbPort>`; a user without a password is ignored. MongoDB
-authenticates it against the `admin` database (the driver's default); another authentication database,
-or a user name or password with characters a URI reserves (`@`, `:`, `/`, `%`), needs `--dbURI` with the
-parts percent-encoded. Not used when `--dbURI` is given.
+authenticates it against the `admin` database (the driver's default); another authentication database
+needs `--dbURI`. Not used when `--dbURI` is given.
+
+The value goes into the URI as it is given, and the driver percent-decodes it: a user name or password with
+any character outside `A-Z a-z 0-9 - . _ ~` is given percent-encoded (RFC 3986) - `@` as `%40`, `:` as
+`%3A`, `/` as `%2F`, a space as `%20`, `%` itself as `%25`. The broker does not encode it: a value that
+is already encoded would be encoded twice. A `:` or `/` left as it is stops the start (for a password: `mongoc: invalid
+URI ...: Password must not have unescaped chars`); an `@` or a `%` left as it is gives the driver another
+user, host or password than the one meant - a refused authentication, or a refused URI.
+
+    # the password p@ss:/%
+    coraine --dbHost mongo --dbUser coraine --dbPwd 'p%40ss%3A%2F%25'
+    # encoding a password in the shell
+    python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' 'p@ss:/%'
 
 ### `--dbPwd`
 
@@ -2084,7 +2095,7 @@ The database for the state of no tenant (the hosted JSON-LD contexts), as the br
 `-dbUser` · `CORAINE_DBUSER` · String · default: no default - no authentication
 · values: a MongoDB user · plugin: mongoc
 
-The MongoDB user, as the broker's `--dbUser` - used only when `--dbPwd` is given too, and not with `--dbURI`.
+The MongoDB user, as the broker's `--dbUser` - used only when `--dbPwd` is given too, and not with `--dbURI`; percent-encoded, as there.
 
     coraine-import --database mongoc --dbHost mongo --dbUser coraine --dbPwd "$PW" --file stream.ndjson
 
@@ -2093,7 +2104,7 @@ The MongoDB user, as the broker's `--dbUser` - used only when `--dbPwd` is given
 `-dbPwd` · `CORAINE_DBPWD` · String · default: no default - no password
 · values: a password · plugin: mongoc
 
-The MongoDB user's password, as the broker's `--dbPwd` - used only with `--dbUser`, and not with `--dbURI`. `CORAINE_DBPWD` keeps it off the command line.
+The MongoDB user's password, as the broker's `--dbPwd` - used only with `--dbUser`, and not with `--dbURI`; percent-encoded, as there. `CORAINE_DBPWD` keeps it off the command line.
 
     CORAINE_DBPWD=... coraine-import --database mongoc --dbHost mongo --dbUser coraine --file stream.ndjson
 
