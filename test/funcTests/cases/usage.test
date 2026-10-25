@@ -307,7 +307,7 @@ Usage: coraine  [--usage/-u (usage)]
   --subStatsFlushInterval (-ssfi)               CORAINE_SUBSTATSFLUSHINTERVAL Optional   Int      60
   --distOpTimeout         (-dtmo)               CORAINE_DISTOPTIMEOUT         Optional   Int      5000
   --cooldownMillis        (-cms)                CORAINE_COOLDOWNMILLIS        Optional   Int      30000
-  --version               (-V)                  CORAINE_VERSION               Optional   Bool     false
+  --version               (-V)                                                Optional   Bool     false
   --foreground            (-fg)                 CORAINE_FOREGROUND            Optional   Bool     false
   --insecureNotif         (-insecureNotif)      CORAINE_INSECURENOTIF         Optional   Bool     false
   --noInline              (-noInline)           CORAINE_NOINLINE              Optional   Bool     false
