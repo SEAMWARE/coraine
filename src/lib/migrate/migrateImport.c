@@ -186,6 +186,16 @@ int migrateImport(const char* path)
 {
   MigrateState ms;
 
+  //
+  // No stream named: refused, not read - fopen(NULL) / strcmp(NULL) crashed. coraine-import's --file is
+  // a required option and corArgs enforces it; this is for any other caller.
+  //
+  if (path == NULL)
+  {
+    fprintf(stderr, "coraine-import: no migration stream given (--file)\n");
+    return -1;
+  }
+
   memset(&ms, 0, sizeof(ms));
   ms.path = path;
 

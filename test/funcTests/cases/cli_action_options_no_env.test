@@ -1,0 +1,85 @@
+#
+# FILE            cli_action_options_no_env.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The action options - --usage/-u, --Usage/-U and --version/-V, which do something and exit - have no
+# environment variable: -U lists none for them, and none is read. --version is answered from the command
+# line before corArgs is initialised, and -U used to list CORAINE_VERSION for it all the same: a variable
+# that did nothing - set, the broker just started. A variable that WOULD do something is no better: left
+# in the environment, every start of the program would print and exit instead of running.
+#
+# Each of the three left in the environment, a command line that only asks for the usage: the usage,
+# exit 0 - neither the version printed nor the extended usage.
+#
+--NAME--
+The action options (--usage, --Usage, --version): no environment variable - not listed by -U, not read
+
+--TAGS--
+cli
+
+--INIT--
+
+--RUN--
+
+echo "01. coraine -U: the rows of --version, --usage and --Usage - no variable in them"
+echo "================================================================================"
+$COR_BROKER -U | grep -E -- '^ *--(version|usage|Usage) ' | awk '{ print "row:", $1, $2, $3 }'
+echo
+echo
+
+
+echo "02. coraine -U: no CORAINE_VERSION, CORAINE_USAGE, CORAINE_USAGE_EXT anywhere"
+echo "============================================================================="
+$COR_BROKER -U | grep -c -E 'CORAINE_(VERSION|USAGE)'
+echo
+echo
+
+
+echo "03. coraine-import -U likewise"
+echo "=============================="
+$COR_IMPORT -U | grep -c -E 'CORAINE_(VERSION|USAGE)'
+echo
+echo
+
+
+echo "04. CORAINE_VERSION, CORAINE_USAGE, CORAINE_USAGE_EXT set - coraine -u prints the usage, nothing else"
+echo "===================================================================================================="
+CORAINE_VERSION=true CORAINE_USAGE=true CORAINE_USAGE_EXT=true $COR_BROKER -u > /tmp/corTest_actionEnv.out 2>&1
+echo "exit code: $?"
+head -1 /tmp/corTest_actionEnv.out | cut -d" " -f1,2
+grep -c "^ *--usage *(-u)" /tmp/corTest_actionEnv.out
+echo
+echo
+
+
+--TEARDOWN--
+rm -f /tmp/corTest_actionEnv.out
+
+--EXPECT--
+01. coraine -U: the rows of --version, --usage and --Usage - no variable in them
+================================================================================
+row: --usage (-u) Optional
+row: --Usage (-U) Optional
+row: --version (-V) Optional
+
+
+02. coraine -U: no CORAINE_VERSION, CORAINE_USAGE, CORAINE_USAGE_EXT anywhere
+=============================================================================
+0
+
+
+03. coraine-import -U likewise
+==============================
+0
+
+
+04. CORAINE_VERSION, CORAINE_USAGE, CORAINE_USAGE_EXT set - coraine -u prints the usage, nothing else
+====================================================================================================
+exit code: 0
+Usage: coraine
+0
+
+
