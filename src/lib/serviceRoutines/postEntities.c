@@ -13,6 +13,7 @@
 #include <stdint.h>                                  // uint64_t
 #include <time.h>                                    // clock_gettime
 
+#include "corBase/corUriPasswordMask.h"                // corUriPasswordMask
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
@@ -611,7 +612,8 @@ bool postEntities(void)
 
             char* body = renderFragmentWithContext(wireP);
 
-            COR_T(CtDistOpRequest, "forward: POST %s", url);
+            char shown[1024];
+            COR_T(CtDistOpRequest, "forward: POST %s", corUriPasswordMask(url, shown, sizeof(shown)));
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;

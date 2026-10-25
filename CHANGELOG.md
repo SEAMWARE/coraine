@@ -74,6 +74,12 @@ bump may still change behaviour; the entry says so where it does.
   (`[]`), and a forwarded batch took none of its per-entity answers - a batch create reported `201` for an
   entity the source refused. The same over `http://` was right, and so was a forwarded retrieve. The
   temporal query and retrieve and the other batch operations took the same path and are fixed with it.
+- Passwords and tokens no longer show in the log. They appear as `***` in mongoc's
+  connection URI (`-v`, from `--dbUser`/`--dbPwd` or from `--dbURI`), in the notification and
+  forwarding traces (the endpoint's `user:password` and the value of a credential header such as
+  receiverInfo's `Authorization`), in the warnings that name an endpoint, in the auth plugins'
+  discovery, keys and policies URLs, in the client proxy's error messages, and in a crash
+  report's command line (the value after `--dbPwd`, `--dbURI` or `--troePwd`).
 
 ---
 

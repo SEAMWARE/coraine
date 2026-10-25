@@ -16,6 +16,7 @@
 #include <errno.h>                                    // ETIMEDOUT
 #include <time.h>                                     // clock_gettime
 
+#include "corBase/corUriPasswordMask.h"               // corUriPasswordMask
 #include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount, BRIDGE_*
 #include "bridge/Channel.h"                           // Channel
@@ -306,12 +307,14 @@ static void goalSubscribe(Goal* goalP)
 
   if (itemP == NULL)
   {
-    COR_W("goal %" PRIu64 ": its subscription for '%s' could not be made - its events go unnotified", goalP->token, goalP->notifyEndpoint);
+    char shown[1024];
+    COR_W("goal %" PRIu64 ": its subscription for '%s' could not be made - its events go unnotified", goalP->token, corUriPasswordMask(goalP->notifyEndpoint, shown, sizeof(shown)));
     return;
   }
 
   goalP->subId = strdup(subId);
-  COR_T(CtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, goalP->notifyEndpoint);
+  char shown[1024];
+  COR_T(CtBridge, "goal %" PRIu64 " (%s): events notified to %s", goalP->token, goalP->goalAlias, corUriPasswordMask(goalP->notifyEndpoint, shown, sizeof(shown)));
 }
 
 

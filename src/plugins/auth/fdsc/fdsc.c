@@ -33,6 +33,7 @@
 #include "corJson/CorJson.h"                         // CorJson
 #include "corJson/corJsonCreate.h"                   // corJsonCreate
 #include "corJson/corJsonParse.h"                    // corJsonParse
+#include "corBase/corUriPasswordMask.h"              // corUriPasswordMask
 #include "corLog/corLog.h"                           // COR_I, COR_W, COR_E
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeLookup.h"
@@ -152,7 +153,10 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
       ok = true;
     }
     else
-      snprintf(errorBuf, errorBufSize, "%s: no jwks_uri", discovery);
+    {
+      char shown[512];
+      snprintf(errorBuf, errorBufSize, "%s: no jwks_uri", corUriPasswordMask(discovery, shown, sizeof(shown)));
+    }
   }
 
   corAllocBufferReset(&ka, false);
@@ -182,9 +186,10 @@ static void keysFetch(void)
   corAllocBufferInit(&ka, buf, sizeof(buf), 16384, NULL, "fdsc keys");
 
   char* text = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
+  char  shown[512];                                  // the URL as the log shows it: its password "***"
 
   if ((text == NULL) || (authKeysLoad(text, authTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
-    COR_W("fdsc: the verifier's keys (%s): %s", where, errorBuf);
+    COR_W("fdsc: the verifier's keys (%s): %s", corUriPasswordMask(where, shown, sizeof(shown)), errorBuf);
   else
     __atomic_store_n(&keysFetchedAt, time(NULL), __ATOMIC_RELAXED);
 
@@ -229,7 +234,8 @@ static void policiesFetch(void)
 
     if (n < 0)
     {
-      COR_W("fdsc: the policies (%s): %s", where, errorBuf);
+      char shown[512];
+      COR_W("fdsc: the policies (%s): %s", corUriPasswordMask(where, shown, sizeof(shown)), errorBuf);
       return;                                        // the set begun is dropped by the next Begin
     }
 
@@ -373,7 +379,9 @@ static bool fdscInit(char* errorBuf, int errorBufSize)
     driverSelf->identityRestore = NULL;
   }
   refreshRunning = true;
-  COR_I("fdsc: keys from %s, policies from %s - every %d s", (jwks != NULL) ? jwks : discovery, (policies != NULL) ? policies : pap, refresh);
+  char keysShown[512];
+  char policiesShown[512];
+  COR_I("fdsc: keys from %s, policies from %s - every %d s", corUriPasswordMask((jwks != NULL) ? jwks : discovery, keysShown, sizeof(keysShown)), corUriPasswordMask((policies != NULL) ? policies : pap, policiesShown, sizeof(policiesShown)), refresh);
   return true;
 }
 
