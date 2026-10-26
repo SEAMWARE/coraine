@@ -22,7 +22,7 @@
 #include "temporal/timescale/timescalePool.h"             // timescalePoolEnsureReach, timescalePoolCloseAll
 #include "temporal/timescale/timescaleMigrate.h"          // timescaleSqlIndexesParse
 #if COR_FEATURE_DB_INDEXES
-#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesInit, timescaleValueIndexesLoad
+#include "temporal/timescale/timescaleValueIndexes.h"          // timescaleValueIndexesInit, timescaleValueIndexesLoad, timescaleValueIndexesClose
 #endif
 #include "temporal/timescale/timescaleInit.h"             // Own interface
 
@@ -104,4 +104,7 @@ void timescaleClose(void)
   timescalePingClose();
 #endif
   timescalePoolCloseAll();
+#if COR_FEATURE_DB_INDEXES
+  timescaleValueIndexesClose();
+#endif
 }

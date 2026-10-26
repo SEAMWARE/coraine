@@ -39,6 +39,14 @@ extern int timescaleValueIndexesLoad(void);
 
 // -----------------------------------------------------------------------------
 //
+// timescaleValueIndexesClose - the declarations freed (timescaleClose, after the pools)
+//
+extern void timescaleValueIndexesClose(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleValueIndexesApply - a tenant's declared indexes: the ones of the declarations that cover it
 // created, every other cor_n_* / cor_t_* index of troe_attrs dropped - on the connection of its pool's
 // build

@@ -53,8 +53,9 @@ echo
 
 echo "03. troe_attrs: the values as sent, both types on every row"
 echo "==========================================================="
-# --troeSync does not wait for the commit - the 3 rows may land after the PATCH's response
-for i in $(seq 1 100); do
+# --troeSync does not wait for the commit - the 3 rows may land after the PATCH's response: waited for, 60 s at
+# most (10 s was not enough under valgrind)
+for i in $(seq 1 600); do
   [ "$($PSQL -c "SELECT count(*) FROM troe_attrs WHERE entity_id = 'urn:W1'")" -ge 3 ] && break
   sleep 0.1
 done

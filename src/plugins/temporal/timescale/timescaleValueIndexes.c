@@ -530,6 +530,23 @@ int timescaleValueIndexesLoad(void)
 
 // -----------------------------------------------------------------------------
 //
+// timescaleValueIndexesClose - the declarations' strings freed, at timescaleClose. The plugin is unloaded
+// after it, and its declV with it: a string still in it is then a leak (valgrind: definitely lost)
+//
+void timescaleValueIndexesClose(void)
+{
+  pthread_mutex_lock(&declMutex);
+
+  while (declN > 0)
+    declFree(&declV[--declN]);
+
+  pthread_mutex_unlock(&declMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleValueIndexesApply -
 //
 void timescaleValueIndexesApply(PGconn* conn, Tenant* tenantP)
