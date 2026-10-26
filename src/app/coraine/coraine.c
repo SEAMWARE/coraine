@@ -265,18 +265,18 @@ int            cooldownMillis        = 30000; // --cooldownMillis; default endpo
 
 static CorArg kargV[] =
 {
-  { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels" },
+  { "--traceLevels",        "-t",           CorArgString, _vp &traceLevels,  CorArgOpt, _vp NULL,  NULL,  NULL,      "trace levels to turn on: levels and ranges, comma-separated (220-226,403) - a release build has none" },
   { "--port",               "-p",           CorArgUShort, _vp &port,     CorArgOpt, _vp 1026, _vp 1, _vp 65535, "TCP port to listen on" },
 #if COR_FEATURE_COR_PROTOCOL
   { "--corPort",            "-corPort",     CorArgUShort, _vp &corPort,  CorArgOpt, _vp 0,    _vp 0, _vp 65535, "TCP port for cor:// - the binary API (0: off)" },
 #endif
   { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
-  { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin (short name or full path; 'none' disables)" },
+  { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin: none (the default), timescale, ramDB (a ring of the latest events, for tests), corDB (the corDB store's own history - needs --database corDB), or the path of a .so" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
-  { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated)" },
+  { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated, at most 8)" },
 #if COR_FEATURE_AUTH
-  { "--auth",               "-auth",        CorArgString, _vp &authName,     CorArgOpt, _vp NULL,  NULL,  NULL,      "auth plugin - who sent a request and whether it may: fdsc (the FIWARE Data Space Connector's tokens and policies); none: every request is let in" },
+  { "--auth",               "-auth",        CorArgString, _vp &authName,     CorArgOpt, _vp NULL,  NULL,  NULL,      "auth plugin - who sent a request and whether it may: oidc (an OpenID provider's tokens), fdsc (the FIWARE Data Space Connector's tokens and policies); left out, every request is let in" },
 #endif
 #if COR_FEATURE_SSE
   { "--sseStreams",         "-sseStreams",  CorArgInt,    _vp &sseStreams,   CorArgOpt, _vp 1000, _vp 0, _vp 1000000, "event streams open at a time, at most - a subscription made on its stream (Server-Sent Events) over it is 503" },
@@ -284,13 +284,13 @@ static CorArg kargV[] =
 #if COR_FEATURE_TRANSPORTS
   { "--transports",         "-transports",  CorArgString, _vp &transportNames, CorArgOpt, _vp NULL, NULL, NULL,      "transport plugins - the API over another protocol: ws (WebSocket, on GET /ngsi-ld/v1/ws)" },
 #endif
-  { "--bridgeConfig",       "-brc",         CorArgString, _vp &bridgeConfig, CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings)" },
-  { "--ddsSync",            "-ddsSync",     CorArgBool,   _vp &bridgeSyncDefault,   CorArgOpt, _vp false, _vp false, _vp true, "a PATCH that writes a service attribute waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait" },
-  { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a waiting PATCH (ddsSync) gives a service to answer before answering 202 - the reply then lands when it comes (0: the bridge configuration's syncTimeoutMs, else 200)" },
+  { "--bridgeConfig",       "-brc",         CorArgString, _vp &bridgeConfig, CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings); default $SEAMWARE_ETC_DIR/bridges.json if it exists; not read without --bridges" },
+  { "--ddsSync",            "-ddsSync",     CorArgBool,   _vp &bridgeSyncDefault,   CorArgOpt, _vp false, _vp false, _vp true, "a one-attribute PATCH of a service attribute (any bridge's) waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait (?ddsSync=true opts in)" },
+  { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a bridge request waits for the other side: a waiting PATCH (ddsSync) for the service's reply, then 202 - the reply lands when it comes; a write to an action attribute for the goal's accept or reject, then 504 (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "MHD thread pool size (0: the cores, for a store that never waits; 32 otherwise)" },
-  { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "HTTP event loops sharing the port, 1-64 (0: one per core, at most 4 - built-in server only)" },
+  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)" },
+  { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
   { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
@@ -298,11 +298,11 @@ static CorArg kargV[] =
   { "--defaultUserContext", "-duc",         CorArgString, _vp &defaultUserContext, CorArgOpt, _vp NULL, NULL,  NULL,      "default user @context: a URL, or a file (hosted, as /ngsi-ld/v1/jsonldContexts/defaultUserContext)" },
   { "--csourceAlias",       "-csourceAlias",CorArgString, _vp &csourceAlias, CorArgOpt, _vp NULL,  NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
   { "--httpEndpoint",       "-he",          CorArgString, _vp &httpEndpoint, CorArgOpt, _vp NULL,  NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
-  { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "path to a JSON file rendered verbatim on /info/sourceIdentity (§ 5.2.40)" },
+  { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered" },
   { "--distributed",        "-dist",        CorArgBool,   _vp &distributed, CorArgOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
   { "--noSplitEntities",    "-noSplitEntities",CorArgBool, _vp &noSplitEntities,CorArgOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
   { "--high-precision",     "-hp",          CorArgBool,   _vp &highPrecision, CorArgOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
-  { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run snapshotQueries in a background thread (POST returns 201 immediately, status=preparing)" },
+  { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run a Snapshot's queries on a thread of their own: the POST's 201 comes at once and the Snapshot reads snapshotStatus 'preparing' until they are done; default: the 201 comes once they are" },
   { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
 #if COR_FEATURE_RESPONSE_BUDGET
   { "--maxResponseSize",    "-maxResponseSize", CorArgInt, _vp &maxResponseSize, CorArgOpt, _vp -1, _vp -1,   _vp 4096,  "byte budget of an entity query in MiB - a page ends before the entity that would pass it, a query that needs more at once (orderBy) gets 403 TooManyResults (0 = no budget; -1 = 1/16 of the memory budget, none without one)" },
@@ -311,15 +311,15 @@ static CorArg kargV[] =
   { "--autoEntityMaps",     "-autoEntityMaps", CorArgString, _vp &autoEntityMapsArg, CorArgOpt, _vp "distributed", NULL, NULL, "which queries of more than one page get an EntityMap the client did not ask for: none, distributed (the queries forwarded to Context Sources - the default) or all (local ones too)" },
 #endif
   { "--entityMapMemory",    "-entityMapMemory", CorArgInt, _vp &entityMapMemory, CorArgOpt, _vp 64, _vp 0,    _vp 65536, "memory all EntityMaps may hold together, in MiB - an automatic map that does not fit is not made (the least recently used ones give way first), a requested one gets 403 TooManyResults (0 = no cap, and no automatic EntityMaps)" },
-  { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "sub-stats periodic flush interval (s; 0 = off)" },
-  { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
-  { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
+  { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "seconds between two writes of the subscriptions' delivery counters (timesSent, timesFailed, ...) to the database (0: only on POST /admin/subStats/flush; a shutdown does not write them)" },
+  { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "timeout (ms) of a request forwarded to a Context Source whose registration has none of its own, and of any other outgoing request that sets none - not notifications (10 s) nor @context downloads (10 s)" },
+  { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default cooldown (ms) of a subscription's endpoint after a failed notification - its notifications in that window are dropped (0: none, unless the subscription has one); forwards cool down only by the registration's own" },
   { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
   { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgHid, _vp false,    _vp false, _vp true, "deprecated, no effect: the broker runs in the foreground by default - accepted with a warning line, refused from 0.8.0" },
   { "--daemon",             "-bg",          CorArgBool,   _vp &daemonMode,   CorArgOpt, _vp false,    _vp false, _vp true, "run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg" },
   { "--logDir",             "-logDir",      CorArgString, _vp &logDir,       CorArgOpt, _vp "/var/log/coraine", NULL, NULL, "the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old" },
   { "--logTo",              "-logTo",       CorArgString, _vp &logTo,        CorArgOpt, _vp "stdout", NULL, NULL,     "where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)" },
-  { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
+  { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept any TLS certificate (a self-signed one) on every outgoing HTTPS request - notifications, forwards, @context downloads, and mqtts:// with the MQTT bridge (endpoints inside a trusted network)" },
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
   { "--memoryLimit",        "-memoryLimit", CorArgInt,   _vp &memoryLimit, CorArgOpt, _vp 0,     _vp 0,     _vp 1048576, "memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)" },
 #if COR_FEATURE_POLICY_API
@@ -330,7 +330,7 @@ static CorArg kargV[] =
   { "--healthPort",         "-healthPort",  CorArgUShort, _vp &healthPort,   CorArgOpt, _vp 0,     _vp 0,     _vp 65535, "TCP port for the health probes - GET /live, GET /ready and a JSON report, served outside the HTTP server (0: off)" },
   { "--healthStallTimeout", "-healthStallTimeout", CorArgInt, _vp &healthStallTimeout, CorArgOpt, _vp 30, _vp 1, _vp 3600, "seconds a request may be in flight, with no request finishing, before GET /live on the health port answers 503" },
 #endif
-  { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances ('mongo' = change streams, needs a replica set; <ip:port> = the haaux server)" },
+  { "--high-availability",  "-ha",          CorArgString, _vp &haChannel,    CorArgOpt, _vp NULL,  NULL,  NULL,      "keep the caches in sync with the other broker instances: 'mongo' (MongoDB change streams - needs mongoc on a replica set); an <ip:port> (the haaux server) is refused - not implemented yet" },
   CORARGS_END
 };
 

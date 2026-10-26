@@ -89,8 +89,8 @@ bool haInit(void)
     // its caches are in sync.
     //
     if (db.haWatchStart == NULL)
-      COR_X(1, "--ha mongo needs a database plugin that can report what another broker instance wrote; the '%s' plugin cannot. "
-              "Point the broker at a shared database, or use '--ha <ip:port>' once the haaux server exists",
+      COR_X(1, "-ha mongo needs a database plugin that can report what another broker instance wrote; the '%s' plugin cannot. "
+              "Point the broker at a shared database, or use '-ha <ip:port>' once the haaux server exists",
             (db.alias != NULL)? db.alias : "current");
 
     //
@@ -102,7 +102,7 @@ bool haInit(void)
     const char* troeAlias = (troe.alias != NULL)? troe.alias : "none";
 
     if ((strcmp(troeAlias, "timescale") != 0) && (strcmp(troeAlias, "none") != 0))
-      COR_X(1, "--ha mongo needs a temporal store shared by every broker instance; '--troe %s' keeps the history inside "
+      COR_X(1, "-ha mongo needs a temporal store shared by every broker instance; '--troe %s' keeps the history inside "
               "each broker, so every instance would hold only the history of the writes it served. Use '--troe timescale'",
             troeAlias);
 
@@ -117,7 +117,7 @@ bool haInit(void)
   // change feed - or no shared database at all - and it is not written yet, so
   // say so rather than start up pretending HA is on.
   //
-  COR_X(1, "--ha %s: an address means the haaux server, which is not implemented yet. Use '--ha mongo'", haChannel);
+  COR_X(1, "-ha %s: an address means the haaux server, which is not implemented yet. Use '-ha mongo'", haChannel);
 
   return false;
 }
