@@ -1,0 +1,93 @@
+#
+# FILE            no_debug_option.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# There is no --debug / -d: the trace levels (--traceLevels) are what shows more. -d, --debug and a group of
+# one-letter switches holding a d (-vd) are unknown options - the broker and coraine-import stop, exit 1. -d
+# is not a short form of -db (--database): a group of switches takes Bool options with a one-letter short
+# name only (corArgs).
+#
+--NAME--
+No --debug / -d - unknown options, for the broker and coraine-import
+
+--TAGS--
+options usage
+
+--INIT--
+
+--RUN--
+
+#
+# 01. coraine -d - unrecognized, exit 1
+# 02. coraine --debug - unrecognized, exit 1
+# 03. coraine -vd - unrecognized, exit 1 (-v is a switch, d is none)
+# 04. coraine-import -d - unrecognized, exit 1
+#
+
+echo "01. coraine -d - unrecognized, exit 1"
+echo "====================================="
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB -d > /tmp/noDebug.$$ 2>&1
+echo "exit: $?"
+grep -m1 "^coraine:" /tmp/noDebug.$$
+echo
+echo
+
+
+echo "02. coraine --debug - unrecognized, exit 1"
+echo "=========================================="
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB --debug > /tmp/noDebug.$$ 2>&1
+echo "exit: $?"
+grep -m1 "^coraine:" /tmp/noDebug.$$
+echo
+echo
+
+
+echo "03. coraine -vd - unrecognized, exit 1 (-v is a switch, d is none)"
+echo "=================================================================="
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB -vd > /tmp/noDebug.$$ 2>&1
+echo "exit: $?"
+grep -m1 "^coraine:" /tmp/noDebug.$$
+echo
+echo
+
+
+echo "04. coraine-import -d - unrecognized, exit 1"
+echo "============================================"
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_IMPORT --database corDB --file /dev/null -d > /tmp/noDebug.$$ 2>&1
+echo "exit: $?"
+grep -m1 "^coraine-import:" /tmp/noDebug.$$
+rm -f /tmp/noDebug.$$
+echo
+echo
+
+
+--EXPECT--
+01. coraine -d - unrecognized, exit 1
+=====================================
+exit: 1
+coraine: unrecognized option: -d
+
+
+02. coraine --debug - unrecognized, exit 1
+==========================================
+exit: 1
+coraine: unrecognized option: --debug
+
+
+03. coraine -vd - unrecognized, exit 1 (-v is a switch, d is none)
+==================================================================
+exit: 1
+coraine: unrecognized option: -vd
+
+
+04. coraine-import -d - unrecognized, exit 1
+============================================
+exit: 1
+coraine-import: unrecognized option: -d
+
+
+--TEARDOWN--
+rm -f /tmp/noDebug.*

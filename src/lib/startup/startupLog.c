@@ -11,10 +11,10 @@
 #include <stdbool.h>                                      // bool
 
 #include "corLog/corLog.h"                                // corLogInit, COR_X, COR_W
-#include "corLog/corLogGlobals.h"                         // corLogInfo, corLogVerbose, corLogDebug, corLogTraceLevels
+#include "corLog/corLogGlobals.h"                         // corLogInfo, corLogVerbose, corLogTraceLevels
 #include "corLog/corLogOut.h"                             // corLogOut
 #include "corBase/corBaseInit.h"                          // corBaseInit, corBaseTraceLevelsSet
-#include "corArgs/corArgs.h"                              // corArgsBuiltinVerbose, corArgsBuiltinDebug
+#include "corArgs/corArgs.h"                              // corArgsBuiltinVerbose
 
 #include "startup/startupLog.h"                           // Own interface
 
@@ -31,7 +31,7 @@ void startupLog(const char* progName, const char* traceLevels, const char* logDi
   // renamed <progName>.log.old first - and, with logToStdout, every line goes to stdout as well.
   // A file that cannot be opened: corLogInit has said so on stderr, and there is no log to say more in.
   //
-  if (corLogInit(progName, logDir, logToStdout, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false) != 0)
+  if (corLogInit(progName, logDir, logToStdout, NULL, traceLevels, corArgsBuiltinVerbose, false) != 0)
     exit(1);
 
 #ifndef COR_T_ON
@@ -58,12 +58,12 @@ void startupLog(const char* progName, const char* traceLevels, const char* logDi
   corBaseTraceLevelsSet(corLogTraceLevels, sizeof(corLogTraceLevels) / sizeof(corLogTraceLevels[0]));
 
   //
-  // Each switch steers its OWN class of output: -v drives COR_V, -d drives COR_D,
+  // Each switch steers its OWN class of output: -v drives COR_V (and COR_I),
   // and a trace level drives COR_T for that level. Nothing else.
   //
-  // corLogInit does not do that. It derives corLogInfo/corLogVerbose/corLogDebug from a single
-  // CUMULATIVE level (CERO 0, ERR 1, WARN 2, INFO 3, VERBOSE 4, TRACE 5,
-  // DEBUG 6), and it sets that level to 5 as soon as ANY trace level is asked
+  // corLogInit does not do that. It derives corLogInfo/corLogVerbose from a single
+  // CUMULATIVE level (CERO 0, ERR 1, WARN 2, INFO 3, VERBOSE 4, TRACE 5),
+  // and it sets that level to 5 as soon as ANY trace level is asked
   // for - so `-t 235`, which asks for one line about one decision, silently
   // turns on every COR_I and COR_V in the broker as well. That is how the admin
   // test came to report three fields changed when one option was passed.
@@ -75,14 +75,12 @@ void startupLog(const char* progName, const char* traceLevels, const char* logDi
   //
   // Fixing it in corLog is the right place and NOT today's errand: the library
   // is shared with consumers that pass a real logLevel and have a large user
-  // base, and there the same line silently DOWNGRADES an explicit
-  // `--logLevel DEBUG` to 5 and takes COR_D away. One thing at a time.
+  // base. One thing at a time.
   //
-  // ⚠️ corLogInfo follows -v because there is no -i: kargs has corArgsBuiltinVerbose and
-  // corArgsBuiltinDebug and no info switch, and INFO sits below VERBOSE on that same
+  // ⚠️ corLogInfo follows -v because there is no -i: corArgs has corArgsBuiltinVerbose and
+  // no info switch, and INFO sits below VERBOSE on that same
   // ladder. Give it its own option and this becomes that option.
   //
   corLogInfo    = corArgsBuiltinVerbose;
   corLogVerbose = corArgsBuiltinVerbose;
-  corLogDebug   = corArgsBuiltinDebug;
 }

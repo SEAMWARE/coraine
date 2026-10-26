@@ -23,7 +23,7 @@ options, and its options are also documented with the plugin.
 
 ## The broker
 
-- [The program](#the-program) - 12
+- [The program](#the-program) - 11
 - [Listening](#listening) - 12
 - [Limits and memory](#limits-and-memory) - 7
 - [Built-in HTTP server (corHttp)](#built-in-http-server-corhttp) - 1
@@ -53,7 +53,7 @@ repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/
 
 ## The programs beside the broker
 
-- [coraine-import](#coraine-import) - 18
+- [coraine-import](#coraine-import) - 17
 - [coraine-build](#coraine-build) - 13
 
 ---
@@ -133,15 +133,6 @@ nothing. With the `admin` API plugin it can be switched at run time (`/admin/log
     # I: 000000.000: coraine.c[1857]: main: Advertised HTTP endpoint: http://192.168.1.138:1026 (auto-detected LAN IP)
     # ...
     # I: 000000.020: coraine.c[2280]: main: coraine running on port 1026
-
-### `--debug`
-
-`-d` · `CORAINE_DEBUG` · Bool · default: `false` (off)
-· values: a switch · plugin: core (the option library, corArgs)
-
-Turns on the `D` (debug) lines of the log. Neither the broker, its plugins nor its libraries write
-any `D` line today, so it adds nothing to the log. With the `admin` API plugin it can be switched at
-run time (`/admin/log`).
 
 ### `--traceLevels`
 
@@ -480,7 +471,7 @@ port and a NetworkPolicy that lets in only that writer. A name that does not res
 
 API plugins add HTTP paths of their own next to the NGSI-LD API, on `--port`. `admin` serves
 `/admin/version`, `/admin/health`, `/admin/config` (every option with its value, its default and where
-it came from, a secret masked), `/admin/log` (`--verbose`, `--debug`, `--traceLevels` at run time),
+it came from, a secret masked), `/admin/log` (`--verbose`, `--traceLevels` at run time),
 `/admin/metrics`, `/admin/tenants`, `/admin/plugins`, `/admin/subStats/flush`, `/admin/indexes`,
 `/admin/troeIndexes`, `/admin/troe/dump` and `/admin/bridges/{bridge}/inventory`
 ([Plugin architecture](plugin-architecture.md)). A plugin that cannot be loaded stops the broker, with
@@ -2066,15 +2057,6 @@ The info and verbose lines of the log (`I:` and `V:`, stdout): the store plugins
 created, the stores closed. The report on stderr is printed with or without it.
 
     coraine-import -v --database corDB --dbDir /var/lib/coraine --file stream.ndjson
-
-### `--debug`
-
-`-d` · `CORAINE_DEBUG` · Bool · default: `false`
-· values: a flag · plugin: coraine-import
-
-The debug lines of the log (`D:`, stdout). Independent of `--verbose`.
-
-    coraine-import -d --database corDB --dbDir /var/lib/coraine --file stream.ndjson
 
 ### `--traceLevels`
 

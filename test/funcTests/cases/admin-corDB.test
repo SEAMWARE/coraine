@@ -43,8 +43,8 @@ coraineStart --apiPlugins admin
 # 13. Create entity in tenant t1 - to populate tenant list
 # 14. Create entity in tenant t2 - to populate tenant list
 # 15. GET /admin/tenants - now shows t1 and t2
-# 16. PUT /admin/log?debug=on - turn on debug
-# 17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
+# 16. PUT /admin/log?debug=on - no such parameter (no debug lines; the trace levels show more)
+# 17. DELETE /admin/log?traceLevels=99 - remove trace level 99
 # 18. GET /admin/log - all clean
 #
 
@@ -163,16 +163,16 @@ echo
 echo
 
 
-echo "16. PUT /admin/log?debug=on - turn on debug"
-echo "==========================================="
+echo "16. PUT /admin/log?debug=on - no such parameter (no debug lines; the trace levels show more)"
+echo "============================================================================================"
 corCurl -X PUT --url '/admin/log?debug=on'
 echo
 echo
 
 
-echo "17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99"
-echo "======================================================================================"
-corCurl -X DELETE --url '/admin/log?debug=off&traceLevels=99'
+echo "17. DELETE /admin/log?traceLevels=99 - remove trace level 99"
+echo "============================================================"
+corCurl -X DELETE --url '/admin/log?traceLevels=99'
 echo
 echo
 
@@ -231,10 +231,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((97|98))
+Content-Length: REGEX((79|80))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
@@ -278,10 +277,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((96|97))
+Content-Length: REGEX((78|79))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
@@ -296,10 +294,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((96|97))
+Content-Length: REGEX((78|79))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
@@ -314,10 +311,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((103|104))
+Content-Length: REGEX((85|86))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "1-2,5-8",
   "traces": REGEX((true|false)),
@@ -332,10 +328,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((109|110))
+Content-Length: REGEX((91|92))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "1-2,5-8,10-11",
   "traces": REGEX((true|false)),
@@ -350,10 +345,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((105|106))
+Content-Length: REGEX((87|88))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "1-2,10-11",
   "traces": REGEX((true|false)),
@@ -368,10 +362,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((97|98))
+Content-Length: REGEX((79|80))
 
 {
-  "debug": false,
   "info": true,
   "traceLevels": "99",
   "traces": REGEX((true|false)),
@@ -386,10 +379,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((99|100))
+Content-Length: REGEX((81|82))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "99",
   "traces": REGEX((true|false)),
@@ -435,34 +427,31 @@ Content-Length: 19
 
 
 
-16. PUT /admin/log?debug=on - turn on debug
-===========================================
-HTTP/1.1 200 OK
+16. PUT /admin/log?debug=on - no such parameter (no debug lines; the trace levels show more)
+============================================================================================
+HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((98|99))
+Content-Length: 170
 
 {
-  "debug": true,
-  "info": false,
-  "traceLevels": "99",
-  "traces": REGEX((true|false)),
-  "verbose": false
+  "detail": "Unknown/unsupported URL parameter: debug",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
 
 
-17. DELETE /admin/log?debug=off&traceLevels=99 - turn off debug, remove trace level 99
-======================================================================================
+17. DELETE /admin/log?traceLevels=99 - remove trace level 99
+============================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((97|98))
+Content-Length: REGEX((79|80))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
@@ -477,10 +466,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((97|98))
+Content-Length: REGEX((79|80))
 
 {
-  "debug": false,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),

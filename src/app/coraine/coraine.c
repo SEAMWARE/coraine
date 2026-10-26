@@ -25,7 +25,7 @@
 
 #include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit, corAllocThreadSafe
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
-#include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
+#include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose
 #include "corBase/corCpuCount.h"                   // corCpuCount
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corBase/corDaemonize.h"                  // corDaemonize
@@ -713,7 +713,7 @@ static void bridgeLogFunction(int severity, const char* fileName, int lineNo, co
   case BRIDGE_LOG_ERROR:    sev = 'E';  break;
   case BRIDGE_LOG_WARNING:  sev = 'W';  break;
   case BRIDGE_LOG_INFO:     sev = 'I';  break;
-  case BRIDGE_LOG_DEBUG:    sev = 'D';  break;
+  case BRIDGE_LOG_DEBUG:    sev = 'V';  break;   // corLog has no debug lines - a verbose one
   default:                  sev = 'T';  break;
   }
 
