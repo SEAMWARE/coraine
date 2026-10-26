@@ -101,10 +101,6 @@ bump may still change behaviour; the entry says so where it does.
   ([The database down](doc/installation.md#the-database-down))
 - `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
   printed with CMake's backslashes, in the text list and in the `--json` one.
-- `corDB`: `--dbSync`, `--dbSyncInterval`, `--dbSnapshotEvery` and `--dbCompress` without `--dbDir` were not
-  looked at - `--dbSync sometimes` started, and `--dbSync request` promised a durability there was none of.
-  Given without `--dbDir` they now refuse the start, each one named, as `ramDB` refuses `--dbDir`.
-  ([corDB on disk](doc/installation.md#cordb-on-disk))
 
 ---
 
