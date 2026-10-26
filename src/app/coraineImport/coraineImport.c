@@ -121,7 +121,7 @@ int main(int argC, char* argV[])
   //
   // The log is stdout (traces, the plugins' lines); the import's report is stderr
   //
-  startupLog(progName, traceLevels);
+  startupLog(progName, traceLevels, NULL, true);
 
   //
   // An import stores, it never forwards nor notifies: no registration is asked, whatever is registered

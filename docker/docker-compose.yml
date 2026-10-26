@@ -33,7 +33,7 @@ services:
         condition: service_healthy
     ports:
       - "1026:1026"
-    # ENTRYPOINT already supplies "coraine -fg"; this replaces the default CMD.
+    # ENTRYPOINT already supplies "coraine"; this replaces the default CMD.
     # --dbHost defaults to localhost, which inside a container is the container
     # itself — it has to point at the mongo service by name.
     command:

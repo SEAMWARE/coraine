@@ -104,7 +104,7 @@ static int buildIdFind(struct dl_phdr_info* infoP, size_t size, void* data)
 // trace line: a line of the report is not interleaved with the trace lines other threads are
 // writing meanwhile.
 //
-// Where: the log, and stderr. But a broker logging to stdout (--foreground) writes the report to
+// Where: the log, and stderr. But a broker logging to stdout (--logTo stdout) writes the report to
 // stdout ONLY - a container runtime, journald and the test harness all merge stdout and stderr,
 // and two copies, woven together line by line, are what that capture then held.
 //

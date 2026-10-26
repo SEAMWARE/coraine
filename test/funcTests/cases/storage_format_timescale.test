@@ -37,7 +37,7 @@ schema() {
 
 # run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
 run() {
-  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) > /tmp/storageFormat.$$ 2>&1
+  timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --troe timescale) > /tmp/storageFormat.$$ 2>&1
   echo "exit: $?"
   grep -o "timescale: database '[^']*' is in schema version [0-9]* - this build of coraine knows versions up to [0-9]*" /tmp/storageFormat.$$ | sed "s/'$COR_TROE_DB'/'<db>'/"
   rm -f /tmp/storageFormat.$$

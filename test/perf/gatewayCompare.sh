@@ -145,7 +145,7 @@ apisix() {
 # Each gateway that decides lets the token through and refuses no token, before anything is measured: a broker
 # started for the check, a request through APISIX with the token (the broker's 404) and one without (401)
 #
-coraine --port $BROKER_PORT --database corDB --troe none -fg > "$GW_WORK/check-broker.log" 2>&1 &
+coraine --port $BROKER_PORT --database corDB --troe none > "$GW_WORK/check-broker.log" 2>&1 &
 checkPid=$!
 letThrough() { [ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" http://localhost:9080/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:x)" = 404 ]; }
 noToken() { curl -s -o /dev/null -w '%{http_code}' http://localhost:9080/ngsi-ld/v1/entities/urn:ngsi-ld:Vehicle:x; }
@@ -176,7 +176,7 @@ cost() {
   local loadCpus; loadCpus=$(IFS=,; echo "${physCpus[*]:3}")
   local authH=(); [ -n "$token" ] && authH=(-H "Authorization: Bearer $token")
   # shellcheck disable=SC2086  # args is an option list
-  taskset -c "${physCpus[0]}" coraine --port $BROKER_PORT --database corDB --troe none -fg $args > "$OUT/$label-cost-broker.log" 2>&1 &
+  taskset -c "${physCpus[0]}" coraine --port $BROKER_PORT --database corDB --troe none $args > "$OUT/$label-cost-broker.log" 2>&1 &
   local bpid=$!
   await 30 curl -sf "${authH[@]}" "http://localhost:$load/ngsi-ld/v1/types" || { kill $bpid; echo "gatewayCompare.sh: $label: no broker for the cost" >&2; return 1; }
   python3 -c 'import json; print(json.dumps([{"id": "urn:ngsi-ld:Vehicle:%d" % i, "type": "Vehicle", "speed": {"type": "Property", "value": i}} for i in range(1, 101)]))' \

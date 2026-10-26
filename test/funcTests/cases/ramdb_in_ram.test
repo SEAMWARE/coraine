@@ -64,14 +64,14 @@ echo
 
 echo "05. ramDB with --dbDir - an unknown option"
 echo "=========================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database ramDB --dbDir /tmp/corTest-ramdb 2>&1 | head -1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database ramDB --dbDir /tmp/corTest-ramdb 2>&1 | head -1
 echo
 echo
 
 
 echo "06. ramDB with --troe corDB - refused"
 echo "====================================="
-env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database ramDB --troe corDB 2>&1 | head -1
+env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database ramDB --troe corDB 2>&1 | head -1
 echo
 echo
 

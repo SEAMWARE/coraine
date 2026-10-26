@@ -200,10 +200,10 @@ echo
 echo "08. --troeValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "==========================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "timescale: --troeValueIndexes: each declaration is .*" /tmp/troeValueIndexes.$$ | head -1
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes speed > /tmp/troeValueIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes speed > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "timescale: --troeValueIndexes: .* is not an IRI.*" /tmp/troeValueIndexes.$$ | head -1
 rm -f /tmp/troeValueIndexes.$$

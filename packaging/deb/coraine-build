@@ -49,7 +49,7 @@
 #   [etc/bridges.json  etc/dds-types/ - with dds: its default configuration]  env
 #
 # `. <dir>/install/env` puts bin/ on PATH and points the broker at plugins/ and etc/ (SEAMWARE_PLUGIN_DIR,
-# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built (by its
+# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine --database corDB` runs the broker just built (by its
 # --name, when given; it reads the same CORAINE_* environment variables whatever it is called).
 #
 # What the switches mean: doc/building-details.md (features), doc/performance.md (pgo),
@@ -466,5 +466,5 @@ echo "coraine-build: done - $INST"
 echo
 echo "Run it:"
 echo "  . $INST/env"
-echo "  $NAME -fg --database corDB"
+echo "  $NAME --database corDB"
 [ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - TUNE_DBLOCKPREFER, TUNE_ALLOCATOR: --dbLockPrefer and the allocator to preload (LD_PRELOAD), see doc/extreme-performance.md)"

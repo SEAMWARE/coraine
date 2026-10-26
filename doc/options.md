@@ -57,7 +57,8 @@ options, and its options are also documented with the plugin.
 What the binary says about itself, what it writes to its log, and the few switches that change how every
 response is rendered. The log goes to standard output, one line per message, each line starting with its
 class: `X` (fatal, the broker exits), `E` (error), `W` (warning), `I` (info), `V` (verbose), `D` (debug),
-`T` (trace). `E`, `W` and `X` lines are always written; the others only when switched on.
+`T` (trace). `E`, `W` and `X` lines are always written; the others only when switched on. Standard
+output is the default; `--logTo` and `--logDir` put the log in a file instead, or as well.
 
 ### `--usage`
 
@@ -163,12 +164,72 @@ With the `admin` API plugin the levels can be changed at run time (`/admin/log`)
 ### `--foreground`
 
 `-fg` · `CORAINE_FOREGROUND` · Bool · default: `false` (off)
-· values: a switch · plugin: core
+· values: a switch; the environment variable is on for `true` (any case) · deprecated: accepted through 0.7.x, refused from 0.8.0, not listed by `-u` · plugin: core
 
-Accepted, and has no effect: the broker always runs in the foreground, with and without it - it
-never detaches from the terminal or forks. It stops on SIGTERM or SIGINT.
+Does nothing: the broker runs in the foreground by default. A broker started with it, or with
+`CORAINE_FOREGROUND=true`, writes one warning line at start and runs as it would without it:
 
-    coraine -fg -db corDB     # the same as: coraine -db corDB
+    W: 000000.000: coraine.c[<line>]: main: -fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
+
+With `--daemon` it is refused at start, exit code 1: `coraine: --daemon and -fg contradict each other`.
+Drop it from scripts and units: from 0.8.0 the broker does not start with it.
+
+    coraine -fg -db corDB     # the same as: coraine -db corDB, plus the warning line
+
+### `--daemon`
+
+`-bg` · `CORAINE_DAEMON` · Bool · default: `false` (the foreground)
+· values: a switch; the environment variable is on for `true` (any case), off for any other value (`1` included) · needs: `--logTo file` · excludes: `--logTo stdout` (the default), `--logTo both`, `--foreground` · plugin: core
+
+Runs the broker in the background: it detaches from the terminal - `fork` (the command returns 0 at
+once; the child is the broker), `setsid` (a session of its own, no controlling terminal), `chdir /`,
+stdin, stdout and stderr on `/dev/null`. It happens after the options are checked and the log file is
+opened, so a refused combination or a log file that cannot be opened is still said on the terminal;
+a start-up error after it - a port in use, a store that cannot be opened - is in the log file only,
+and the exit code 0 of the command meant detached, not serving. A relative path is relative to `/`
+afterwards (`--dbDir db` is `/db`); `--logDir` is opened before.
+
+There is no pid file. The log names the pid, on a line written with or without `--verbose`:
+`I: 000000.000: coraine.c[<line>]: main: --daemon: detached, pid 236587`. SIGTERM or SIGINT stop it in
+order, as in the foreground; SIGHUP is not handled and ends it without that.
+
+With `--logTo stdout` or `both` it does not start, exit code 1:
+`coraine: --daemon with --logTo stdout: a daemon's stdout is /dev/null - use --logTo file`.
+Not for a container (the process that detaches is the container's main process) nor for a systemd
+unit of `Type=simple` (the package's) - a unit of `Type=forking` runs it.
+[Installation](installation.md#running-the-broker-foreground-or-daemon-and-where-the-log-goes) has the whole picture.
+
+    coraine --daemon --logTo file --logDir ~/coraine-log --database corDB --dbDir ~/coraine-db
+    grep -- '--daemon: detached' ~/coraine-log/coraine.log      # the pid
+
+### `--logTo`
+
+`-logTo` · `CORAINE_LOGTO` · String · default: `stdout`
+· values: `stdout`, `file`, `both` · plugin: core
+
+Where the log goes: `stdout` - standard output, what a terminal, `docker logs` and the journal show;
+`file` - the file `<logDir>/coraine.log` only (`--logDir`); `both` - each line in the file and on
+stdout. Any other value is refused at start, exit code 1:
+`coraine: --logTo 'syslog' is none of stdout, file, both`. With `--daemon` only `file` is accepted.
+
+The file is not reopened while the broker runs (no SIGHUP handler); it is written in append mode, so
+logrotate's `copytruncate` rotates it.
+
+    coraine -db corDB --logTo both --logDir .      # the log on the terminal and in ./coraine.log
+
+### `--logDir`
+
+`-logDir` · `CORAINE_LOGDIR` · String · default: `/var/log/coraine`
+· values: a directory · needs: `--logTo file` or `both` (read only then) · plugin: core
+
+The directory of the log file, `<logDir>/coraine.log`. It is not created: it must exist and be
+writable by the broker's user, else the broker does not start - exit code 1, and on stderr
+`Unable to open '/var/log/coraine/coraine.log' for writing: No such file or directory`. A
+`coraine.log` already there is renamed `coraine.log.old` (an earlier `.old` is replaced), and the new
+file starts empty. The file is created `0664` minus the umask (`-rw-r--r--` under umask 022).
+
+    sudo install -d -o coraine -g coraine -m 0755 /var/log/coraine
+    coraine -db corDB --logTo file      # the log in /var/log/coraine/coraine.log
 
 ### `--pretty-print`
 
@@ -1080,7 +1141,7 @@ with exit code 1 - `--auth` asks for security, and a broker started without it w
 
     $ coraine --auth none
     auth plugin 'none' (/opt/seamware/plugins/auth/none.so): not found
-    $ coraine -fg --database corDB --auth oidc
+    $ coraine --database corDB --auth oidc
     E: ... authInit: auth plugin 'oidc': no provider: --oidcIssuer (a token's iss is always checked)
     the auth plugin did not start - see the log
 
@@ -2303,7 +2364,7 @@ node) named after it. It reads the same `CORAINE_*` environment variables whatev
 `coraine-build: --name coraine-import is the migration tool's`, and a name of other characters.
 
     coraine-build --name edge1 --bridges none --source ~/git /tmp/cb
-    . /tmp/cb/install/env && edge1 -fg --database corDB
+    . /tmp/cb/install/env && edge1 --database corDB
 
 ### `--source`
 

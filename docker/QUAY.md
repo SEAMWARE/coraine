@@ -72,8 +72,9 @@ docker run --rm quay.io/seamware/coraine:0.5.0 \
 - `--maxRequestSize` / `-mrs` — max body in MiB (0 = no cap)
 - `--dbHost`, `--dbPort`, `--dbName`, `--dbUser`, `--dbPwd`, `--dbURI` — MongoDB connection
 
-`-fg` (foreground) is already in the entrypoint; without it the broker would daemonize and
-the container would exit immediately.
+The broker runs in the foreground and logs to stdout by default - what the container runtime
+collects (`docker logs`). Do not pass `--daemon`: the process that detaches is PID 1, and the
+container exits with it.
 
 ## Distributed operations
 

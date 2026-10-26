@@ -29,7 +29,7 @@ auth fdsc cli
 # 05. --auth fdsc --fdscJwks without --fdscIssuer - exit 1: a token's issuer is always checked
 #
 run() {
-  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database corDB "$@" > /tmp/authRefused.$$ 2>&1
+  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB "$@" > /tmp/authRefused.$$ 2>&1
   echo "exit: $?"
   grep -m1 -E "^auth plugin|^E: .*auth plugin|^coraine:" /tmp/authRefused.$$ | sed -e 's/^E: [0-9.]*: auth.c\[[0-9]*\]: authInit: /E: /' -e 's/ (\/[^)]*nope.so)/ (<plugins>\/auth\/nope.so)/'
   rm -f /tmp/authRefused.$$

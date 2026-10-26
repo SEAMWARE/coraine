@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stddef.h>                                       // NULL
+#include <stdlib.h>                                       // exit
+#include <stdbool.h>                                      // bool
 
 #include "corLog/corLog.h"                                // corLogInit, COR_X, COR_W
 #include "corLog/corLogGlobals.h"                         // corLogInfo, corLogVerbose, corLogDebug, corLogTraceLevels
@@ -22,10 +24,15 @@
 //
 // startupLog -
 //
-void startupLog(const char* progName, const char* traceLevels)
+void startupLog(const char* progName, const char* traceLevels, const char* logDir, bool logToStdout)
 {
-  if (corLogInit(progName, NULL, true, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false) != 0)
-    COR_X(1, "corLogInit failed");
+  //
+  // logDir NULL: the log is stdout. Else the file <logDir>/<progName>.log - a file of an earlier run is
+  // renamed <progName>.log.old first - and, with logToStdout, every line goes to stdout as well.
+  // A file that cannot be opened: corLogInit has said so on stderr, and there is no log to say more in.
+  //
+  if (corLogInit(progName, logDir, logToStdout, NULL, traceLevels, corArgsBuiltinVerbose, corArgsBuiltinDebug, false) != 0)
+    exit(1);
 
 #ifndef COR_T_ON
   //

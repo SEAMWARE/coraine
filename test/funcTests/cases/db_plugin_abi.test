@@ -45,7 +45,7 @@ mkdir -p $D
 run() {
   local broker="$1"
   shift
-  timeout 3 "$broker" -fg --port $((CB_PORT + 3200)) "$@" > $D/out 2>&1
+  timeout 3 "$broker" --port $((CB_PORT + 3200)) "$@" > $D/out 2>&1
   echo "exit: $?"
   grep -E "does not match this broker|refuses the broker|interface stamp|rebuild the plugin" $D/out | sed "s#$COR_PLUGIN_DIR#<plugins>#g"
 }

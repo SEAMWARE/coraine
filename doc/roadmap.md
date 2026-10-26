@@ -1182,11 +1182,8 @@ only by a read.
 
 - Subordinate subscriptions are not re-evaluated when a **registration changes**
   (§ 10.5.2.4) — creation and deletion are handled, `PATCH` is not.
-- Decide the foreground/daemon story. The broker **never daemonizes**, and
-  `--foreground` / `-fg` is a dead flag: parsed into `fg` at
-  `src/app/coraine/coraine.c:206`, read nowhere, and its help text claims a
-  daemonizing default that does not exist. Either implement `--daemonize` and
-  keep foreground the default, or drop the flag.
+- `-fg` / `--foreground`: deprecated (the foreground is the default, `--daemon` detaches) - refuse it
+  from 0.8.0.
 - PostGIS as a geo backend.
 - **`--wip` — a gate for what is implemented ahead of the spec.** Not built yet, and
   deliberately: the option has nothing to gate today, and its shape is easier to get
