@@ -10,7 +10,7 @@
 # the health probes on port N".
 #
 # The port is held by a listener of the test's own (python3, all addresses, as the broker's IPv4
-# fallback binds), the API port + 3240 and the health port + 3241.
+# fallback binds), the API port + 3260 and the health port + 3261.
 #
 # REQUIRE_FEATURE: HEALTH
 #
@@ -23,7 +23,7 @@ health cli
 --INIT--
 
 --RUN--
-HP=$((CB_PORT + 3241))
+HP=$((CB_PORT + 3261))
 
 python3 -c "import socket, time; s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(('0.0.0.0', $HP)); s.listen(); time.sleep(20)" &
 echo $! > /tmp/corTest_healthBusy.pid
@@ -33,7 +33,7 @@ corAwaitPort $HP 5
 echo "01. coraine --healthPort <a port in use> - exit 1, the reason in the message"
 echo "============================================================================"
 corRoleLookup CB   # the role's database name, for corStoreArgs
-$COR_BROKER -fg --port $((CB_PORT + 3240)) $(corStoreArgs CB) --healthPort $HP > /tmp/corTest_healthBusy.out 2>&1
+timeout 10 $COR_BROKER --port $((CB_PORT + 3260)) $(corStoreArgs CB) --healthPort $HP > /tmp/corTest_healthBusy.out 2>&1
 echo "exit code: $?"
 grep -o "cannot listen for the health probes on port .*" /tmp/corTest_healthBusy.out | sed "s/port $HP/port HP/"
 echo
