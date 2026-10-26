@@ -826,6 +826,14 @@ static int sampleIn(const char* bridgeName,
   }
 
   //
+  // ⭐ Counted BEFORE the write, and taken back if it fails: a reader that sees the value sees it counted.
+  // Counted after the dispatches below, a GET /channels could find the attribute written and samplesIn
+  // not yet moved (bridge_mqtt, on a CI runner).
+  //
+  if (channelP != NULL)
+    __atomic_add_fetch(&channelP->samplesIn, 1, __ATOMIC_RELAXED);
+
+  //
   // ⚠ The report is NOT optional. The mongoc driver builds its entire $set by
   // walking reportP->changes, so a NULL report writes nothing and returns
   // DB_OK. It is also what subscription matching reads.
@@ -843,6 +851,10 @@ static int sampleIn(const char* bridgeName,
     //
     COR_W("bridge '%s': could not store the sample from '%s' into %s (%d)",
           bridgeName, endpoint, entityId, r);
+
+    if (channelP != NULL)
+      __atomic_sub_fetch(&channelP->samplesIn, 1, __ATOMIC_RELAXED);
+
     return BRIDGE_ERR;
   }
 
@@ -920,9 +932,6 @@ static int sampleIn(const char* bridgeName,
   // every valgrind run with a bridge.
   //
   corNgsildFallbackRelease();
-
-  if (channelP != NULL)
-    __atomic_add_fetch(&channelP->samplesIn, 1, __ATOMIC_RELAXED);
 
   if (subAttrName == NULL)
     COR_T(CtBridge, "sample on '%s' -> %s/%s", endpoint, entityId, attrName);
