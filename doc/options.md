@@ -44,6 +44,13 @@ options, and its options are also documented with the plugin.
 - [Plugin: oidc - loaded by `--auth oidc`](#plugin-oidc-loaded-by-auth-oidc) - 13
 - [Plugin: fdsc - loaded by `--auth fdsc`](#plugin-fdsc-loaded-by-auth-fdsc) - 13
 
+Each plugin's entries are also in the plugin's own doc, copied from here by `tools/pluginOptions.sh` - an
+entry is changed here, and CI fails while a copy differs: mongoc's
+[README](https://github.com/SEAMWARE/coraine/blob/main/src/plugins/currentState/mongoc/README.md), corDB's
+[README](https://github.com/SEAMWARE/corDB/blob/main/README.md#options) (written, not checked - another
+repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/src/plugins/temporal/timescale/README.md), oidc's and fdsc's in
+[Authorization](authorization.md) (§ 8.1, § 3.1).
+
 ## The programs beside the broker
 
 - [coraine-import](#coraine-import) - 18
@@ -1882,7 +1889,8 @@ The broker's own policy API (`--policyApiPort`) is such a PAP: `--fdscPap http:/
 · values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: fdsc
 
 The ODRL policies themselves, instead of a PAP: a JSON array - of ODRL policies, or the PAP's own listing
-(`[{"id", "odrl:uid", "odrl": "<the policy as a string>"}]`) - or a single policy object. Read again every
+(`[{"id", "odrl:uid", "odrl": "<the policy as a string>"}]`) - a single policy object, or an object whose `@graph`
+holds the policies. Read again every
 `--fdscRefresh` seconds. A file that is not JSON leaves the policies in use (none at first: every request
 is a 503, `the policies are not loaded yet`).
 
