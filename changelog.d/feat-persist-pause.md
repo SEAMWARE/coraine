@@ -1,4 +1,4 @@
-### Added
+### New
 
 - corDB with `--dbDir`: a log that cannot be written - a full disk, a file-size limit, a failed `fdatasync` -
   pauses the store. Every request that writes is refused before anything is applied: 503
