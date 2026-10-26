@@ -77,6 +77,13 @@ bump may still change behaviour; the entry says so where it does.
 - A default user `@context` (`--defaultUserContext`) that cannot be retrieved answers a query 504
   LdContextNotAvailable, as a create: `GET /entities?type=Room` answered 200 `[]` - `Room` expanded with the core
   context alone, in silence.
+- TimescaleDB: `--troePwd`, `--troeUser` and `--troeName` go to PostgreSQL as written - each is quoted in the
+  connection string. A password with a space, a `'` or a `\` was cut at its space and the rest taken as
+  syntax: the start waited `--troeConnectTimeout` seconds for a database that was there, and failed.
+- TimescaleDB: a password the server refuses (or none, where it asks for one) fails the start at once, with the
+  server's message - it was taken for a database that cannot be reached, tried once a second for
+  `--troeConnectTimeout` seconds (30). As the documentation said, and as MongoDB's (`--dbUser` / `--dbPwd`).
+  ([The database down](doc/installation.md#the-database-down))
 - `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
   printed with CMake's backslashes, in the text list and in the `--json` one.
 

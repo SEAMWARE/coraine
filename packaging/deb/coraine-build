@@ -27,9 +27,11 @@
 #                      --json a JSON array of {name, default, description, available, why}
 #   --list-features    print every feature switch, its default and what it is, and exit
 #   --json             with --list-features: the same as a JSON array of {name, default, description,
-#                      group, requires} - "group" the CMakeLists.txt group it is in ("# Group: <name> -
-#                      ..."); "requires" names the switches it is turned off without, and a build
-#                      setting as NAME=value (HTTP_SERVER=mhd: libmicrohttpd, not the built-in server)
+#                      group, requires, requiresAny} - "group" the CMakeLists.txt group it is in ("# Group:
+#                      <name> - ..."); "requires" names what it is turned off without - each one of them:
+#                      switches, and a build setting as NAME=value (HTTP_SERVER=mhd: libmicrohttpd, not the
+#                      built-in server); "requiresAny" the switches it is turned off without all of - one
+#                      of them is enough (CHANNEL_WRITE_BACK: DATA_CHANNELS or ASSET_CHANNELS)
 #   --name <exe>       the broker's executable: <dir>/install/bin/<exe> (default coraine) - a broker built
 #                      for one role (a cor-agent, an edge node) named after it. 1-64 of A-Z a-z 0-9 . _ -,
 #                      starting with a letter or a digit; not coraine-import
@@ -146,19 +148,34 @@ cmakeUnescape() { sed 's/\\\(["\\]\)/\1/g'; }
 
 if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   # requires: CMakeLists.txt turns a switch off when another is off - every set() up to the endif()
-  #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)
+  #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)                 - off when A or B is: requires A and B
   #     set(COR_FEATURE_C OFF)
   #     set(COR_FEATURE_D OFF)
+  #   if ((NOT COR_FEATURE_A) AND (NOT COR_FEATURE_B))            - off when both are: requiresAny A, B
+  #     set(COR_FEATURE_C OFF)
   #   if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
-  #     set(COR_FEATURE_C OFF)                                  - requires HTTP_SERVER=mhd
+  #     set(COR_FEATURE_C OFF)                                    - requires HTTP_SERVER=mhd
+  # One line per switch turned off: NAME all|any REQ... A condition read otherwise (a switch that is ON in
+  # it, AND and OR together), or a set(COR_FEATURE_X OFF) under no condition read, stops the listing: a
+  # "requires" that leaves one out says a switch can be had that cannot.
   awk '
-    /^if *\( *NOT COR_FEATURE_/ { n = split($0, w, /COR_FEATURE_/); req = "";
-                                   for (i = 2; i <= n; i++) { split(w[i], x, /[^A-Z_]/); req = req (req ? " " : "") x[1] }
-                                   next }
-    /^if *\(.*NOT COR_HTTP_SERVER STREQUAL "[a-z]*"/ { match($0, /STREQUAL "[a-z]*"/); req = "HTTP_SERVER=" substr($0, RSTART + 10, RLENGTH - 11); next }
-    req != "" && /set\(COR_FEATURE_[A-Z_]* OFF\)/ { match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), req; next }
+    function bad(why) { printf "CMakeLists.txt line %d: %s - %s\n", NR, why, $0 > "/dev/stderr"; failed = 1; exit 1 }
+    /^if *\(.*NOT COR_HTTP_SERVER STREQUAL "[a-z]*"/ { match($0, /STREQUAL "[a-z]*"/); kind = "all"; req = "HTTP_SERVER=" substr($0, RSTART + 10, RLENGTH - 11); next }
+    /^if *\(.*NOT COR_FEATURE_/ {
+      c = $0; sub(/^if */, "", c)
+      n = split(c, w, /COR_FEATURE_/); req = ""
+      for (i = 2; i <= n; i++) { split(w[i], x, /[^A-Z_]/); req = req (req ? " " : "") x[1] }
+      t = c; gsub(/NOT COR_FEATURE_[A-Z_]+/, "", t)
+      if (t ~ /COR_FEATURE_/) bad("a switch that is ON in the condition")
+      hasAnd = (t ~ / AND /); hasOr = (t ~ / OR /)
+      if (hasAnd && hasOr) bad("AND and OR in one condition")
+      kind = hasAnd ? "any" : "all"
+      next }
+    /^ +set\(COR_FEATURE_[A-Z_]* OFF\)/ { if (req == "") bad("a switch turned off under no condition read")
+                                         match($0, /COR_FEATURE_[A-Z_]*/); print substr($0, RSTART + 12, RLENGTH - 12), kind, req; next }
     /^endif/ { req = "" }
-  ' "$DIR/coraine/CMakeLists.txt" > "$DIR/.requires"
+    END { if (failed) exit 1 }
+  ' "$DIR/coraine/CMakeLists.txt" > "$DIR/.requires" || die "no feature list: a condition in CMakeLists.txt that turns a switch off is not read (above)"
   esc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<< "$1"; }
   first=1
   echo "["
@@ -174,11 +191,12 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   ' "$DIR/coraine/CMakeLists.txt" \
     | cmakeUnescape \
     | while IFS=$'\t' read -r name def group desc; do
-        req=$(awk -v n="$name" '$1 == n { for (i = 2; i <= NF; i++) printf "%s\"%s\"", (i > 2 ? ", " : ""), $i }' "$DIR/.requires")
+        # the names after "NAME all|any" - comma-separated, quoted
+        reqOf() { awk -v n="$name" -v k="$1" '$1 == n && $2 == k { for (i = 3; i <= NF; i++) printf "%s\"%s\"", (i > 3 ? ", " : ""), $i }' "$DIR/.requires"; }
         [ "$first" = 1 ] || echo ","
         first=0
-        printf '  {"name": "%s", "default": %s, "description": "%s", "group": "%s", "requires": [%s]}' \
-          "$name" "$([ "$def" = ON ] && echo true || echo false)" "$(esc "$desc")" "$(esc "$group")" "$req"
+        printf '  {"name": "%s", "default": %s, "description": "%s", "group": "%s", "requires": [%s], "requiresAny": [%s]}' \
+          "$name" "$([ "$def" = ON ] && echo true || echo false)" "$(esc "$desc")" "$(esc "$group")" "$(reqOf all)" "$(reqOf any)"
       done
   printf '\n]\n'
   rm -f "$DIR/.requires"
