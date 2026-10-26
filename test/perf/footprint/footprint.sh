@@ -150,7 +150,7 @@ mkdir -p "$FP_WORK/db"
 say "coraine: --auth fdsc, --policyApiPort, corDB --dbDir"
 t0=$(date +%s.%N)
 systemd-run --user --scope --unit "$SCOPE" -q \
-  coraine -fg --port $CORAINE_PORT --database corDB --dbDir "$FP_WORK/db" \
+  coraine --port $CORAINE_PORT --database corDB --dbDir "$FP_WORK/db" \
           --auth fdsc --fdscJwks "$FP_WORK/jwks.json" --fdscPolicies "$FP_WORK/policies.json" \
           --fdscIssuer http://localhost:7740 --fdscOrganization did:web:provider \
           --policyApiPort $CORAINE_POLICY_PORT > "$OUT/coraine.log" 2>&1 &

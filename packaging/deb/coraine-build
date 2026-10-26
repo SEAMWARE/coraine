@@ -49,7 +49,7 @@
 #   [etc/bridges.json  etc/dds-types/ - with dds: its default configuration]  env
 #
 # `. <dir>/install/env` puts bin/ on PATH and points the broker at plugins/ and etc/ (SEAMWARE_PLUGIN_DIR,
-# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine -fg --database corDB` runs the broker just built (by its
+# CORAINE_CONTEXTSOURCEEXTRAS); then `coraine --database corDB` runs the broker just built (by its
 # --name, when given; it reads the same CORAINE_* environment variables whatever it is called).
 #
 # What the switches mean: doc/building-details.md (features), doc/performance.md (pgo),
@@ -140,6 +140,12 @@ else
 fi
 . "$DIR/SOURCE"      # version, gitSha, commitDate
 
+#
+# cmakeUnescape - an option()'s description as it reads, not as CMake quotes it: \" is ", \\ is \ - in
+# both lists (DATA_CHANNELS' "dataChannels" showed its backslashes)
+#
+cmakeUnescape() { sed 's/\\\(["\\]\)/\1/g'; }
+
 if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   # requires: CMakeLists.txt turns a switch off when another is off - every set() up to the endif()
   #   if (NOT COR_FEATURE_A OR NOT COR_FEATURE_B)                 - off when A or B is: requires A and B
@@ -183,6 +189,7 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
       printf "%s\t%s\t%s\t%s\n", name, def, g, desc
     }
   ' "$DIR/coraine/CMakeLists.txt" \
+    | cmakeUnescape \
     | while IFS=$'\t' read -r name def group desc; do
         # the names after "NAME all|any" - comma-separated, quoted
         reqOf() { awk -v n="$name" -v k="$1" '$1 == n && $2 == k { for (i = 3; i <= NF; i++) printf "%s\"%s\"", (i > 3 ? ", " : ""), $i }' "$DIR/.requires"; }
@@ -199,6 +206,7 @@ fi
 if [ "$LIST" = 1 ]; then
   echo "coraine $version - feature switches (--features NAME=ON|OFF):"
   sed -n 's/^option(COR_FEATURE_\([A-Z_]*\) *"\(.*\)" *\(ON\|OFF\))/\1 \3 \2/p' "$DIR/coraine/CMakeLists.txt" \
+    | cmakeUnescape \
     | while read -r name def desc; do printf '  %-24s %-4s %s\n' "$name" "$def" "$desc"; done
   exit 0
 fi
@@ -466,5 +474,5 @@ echo "coraine-build: done - $INST"
 echo
 echo "Run it:"
 echo "  . $INST/env"
-echo "  $NAME -fg --database corDB"
+echo "  $NAME --database corDB"
 [ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - TUNE_DBLOCKPREFER, TUNE_ALLOCATOR: --dbLockPrefer and the allocator to preload (LD_PRELOAD), see doc/extreme-performance.md)"

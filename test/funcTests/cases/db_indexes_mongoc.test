@@ -147,10 +147,10 @@ echo
 echo "09. --dbValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "======================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes '[{"type": "T"}]' > /tmp/dbIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "mongoc: --dbValueIndexes: each declaration is .*" /tmp/dbIndexes.$$ | head -1
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes speed > /tmp/dbIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB) --dbValueIndexes speed > /tmp/dbIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "mongoc: --dbValueIndexes: .* is not an IRI.*" /tmp/dbIndexes.$$ | head -1
 rm -f /tmp/dbIndexes.$$

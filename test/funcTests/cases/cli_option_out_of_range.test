@@ -27,7 +27,7 @@ cli config
 #
 
 run() {
-  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg "$@" > /tmp/cliRange.$$ 2>&1
+  timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER "$@" > /tmp/cliRange.$$ 2>&1
   echo "exit: $?"
   grep -m1 "^coraine:" /tmp/cliRange.$$
   rm -f /tmp/cliRange.$$

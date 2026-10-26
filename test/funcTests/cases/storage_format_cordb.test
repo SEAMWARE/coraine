@@ -37,7 +37,7 @@ D=/tmp/corTest-storage_format_cordb
 
 # run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
 run() {
-  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --dbDir $D) > /tmp/storageFormat.$$ 2>&1
+  timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --dbDir $D) > /tmp/storageFormat.$$ 2>&1
   echo "exit: $?"
   grep -o "corDB: --dbDir '[^']*' is in storage format [0-9]* - this build of corDB knows formats up to [0-9]*" /tmp/storageFormat.$$
   rm -f /tmp/storageFormat.$$
