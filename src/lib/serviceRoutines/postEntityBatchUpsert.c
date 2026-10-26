@@ -43,6 +43,7 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
+#include "corBase/corUriPasswordMask.h"                // corUriPasswordMask
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPost
 
@@ -1141,7 +1142,8 @@ bool postEntityBatchUpsert(void)
 
       char* body = renderBatchBody(csr, batchArr);
 
-      COR_T(CtDistOpRequest, "forward: POST %s", url);
+      char shown[1024];
+      COR_T(CtDistOpRequest, "forward: POST %s", corUriPasswordMask(url, shown, sizeof(shown)));
       bItems[bCount].csr     = csr;
       bItems[bCount].url     = url;
       bItems[bCount].body    = body;

@@ -1215,7 +1215,7 @@ user, host or password than the one meant - a refused authentication, or a refus
 The password of `--dbUser`. A secret: `GET /admin/config` shows its value as `"***"` and marks the option
 `"secret": true` (not set, the value is `null`). Given as the environment variable `CORAINE_DBPWD`, it is
 not on the command line, which any user of the machine can read (`ps`); a process's environment is
-readable by its owner only. The broker's info log (`-v`) prints the connection URI, password included.
+readable by its owner only. The broker's info log (`-v`) prints the connection URI with the password as `***`.
 
     CORAINE_DBUSER=coraine CORAINE_DBPWD="$(cat /run/secrets/mongo)" coraine --dbHost mongo
 
@@ -1229,7 +1229,8 @@ authentication database, the driver's options. Given, `--dbHost`, `--dbPort`, `-
 not used. The database names still come from `--dbName` and `--globalDb`, not from the URI's path.
 `--high-availability mongo` needs a replica set, so a `--dbURI` with `replicaSet=`
 ([High Availability](high-availability.md)). A secret, as a URI may carry a password: `GET /admin/config`
-shows `"***"`. An invalid URI stops the start: `mongoc: invalid URI '<uri>': <the driver's reason>`.
+shows `"***"`, and the info log (`-v`) prints the URI with its password as `***`. An invalid URI stops the
+start: `mongoc: invalid URI '<uri>': <the driver's reason>`.
 
     coraine --dbURI "mongodb://coraine:pw@m1,m2,m3/?replicaSet=rs0&authSource=admin" --high-availability mongo
 

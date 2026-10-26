@@ -10,6 +10,7 @@
 #include <string.h>                                  // strncmp, memcpy
 
 #include "corAlloc/corAlloc.h"                       // corAlloc
+#include "corBase/corUriPasswordMask.h"              // corUriPasswordMask
 #include "corRest/CorRestVerb.h"                     // CorVerbGet
 #include "corRest/corRestClient.h"                   // CorRestClientRequest, corRestClientSend
 
@@ -73,13 +74,16 @@ char* authFetch(const char* where, CorAlloc* kaP, char* errorBuf, int errorBufSi
 
   int   rc   = corRestClientSend(&req, &resp);
   char* text = NULL;
+  char  shown[512];                                  // the URL as an error shows it: its password "***"
+
+  corUriPasswordMask(where, shown, sizeof(shown));
 
   if (rc != 0)
-    snprintf(errorBuf, errorBufSize, "GET %s: %s", where, (resp.errorDetail[0] != 0) ? resp.errorDetail : "no response");
+    snprintf(errorBuf, errorBufSize, "GET %s: %s", shown, (resp.errorDetail[0] != 0) ? resp.errorDetail : "no response");
   else if ((resp.statusCode < 200) || (resp.statusCode > 299))
-    snprintf(errorBuf, errorBufSize, "GET %s: %d", where, resp.statusCode);
+    snprintf(errorBuf, errorBufSize, "GET %s: %d", shown, resp.statusCode);
   else if (resp.body == NULL)
-    snprintf(errorBuf, errorBufSize, "GET %s: no body", where);
+    snprintf(errorBuf, errorBufSize, "GET %s: no body", shown);
   else
   {
     text = (char*) corAlloc(kaP, resp.bodyLen + 1);

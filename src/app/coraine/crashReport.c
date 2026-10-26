@@ -25,6 +25,8 @@
 #include <string.h>                                  // strlen, memset
 #include <sys/uio.h>                                 // writev, struct iovec
 
+#include "corArgs/corArgsInit.h"                    // corArgInfoV
+#include "corBase/corHeaderIsCredential.h"           // corHeaderIsCredential
 #include "corLog/corLogGlobals.h"                    // corLogFd
 #include "corRest/CorRestState.h"                    // corRestP, CorRestState
 
@@ -189,27 +191,38 @@ static void outInt(long n)
 
 // -----------------------------------------------------------------------------
 //
-// credential - a header whose value stays out of a report that may be shared (case-insensitive)
+// nameEq - two strings equal, compared by hand (no library call in a signal handler)
 //
-static bool credential(const char* name)
+static bool nameEq(const char* a, const char* b)
 {
-  static const char* credentialV[] = { "authorization", "proxy-authorization", "cookie", "x-auth-token", "fiware-token", NULL };
+  while ((*a != 0) && (*a == *b))
+  {
+    ++a;
+    ++b;
+  }
 
-  if (name == NULL)
+  return (*a == 0) && (*b == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// secretOption - an option whose value is never shown (corArgsSecret: --dbPwd, --dbURI, --troePwd, ...), by
+// its long or its short name - the value after it on the command line is "***" in the report
+//
+static bool secretOption(const char* arg)
+{
+  if ((corArgInfoV == NULL) || (arg == NULL) || (arg[0] != '-'))
     return false;
 
-  for (int i = 0; credentialV[i] != NULL; i++)
+  for (int ix = 0; corArgInfoV[ix].type != CorArgEnd; ix++)
   {
-    const char* a = name;
-    const char* b = credentialV[i];
+    if (corArgInfoV[ix].secret == false)
+      continue;
 
-    while ((*a != 0) && (*b != 0) && ((*a | 0x20) == *b))
-    {
-      ++a;
-      ++b;
-    }
-
-    if ((*a == 0) && (*b == 0))
+    if (((corArgInfoV[ix].longName  != NULL) && nameEq(arg, corArgInfoV[ix].longName)) ||
+        ((corArgInfoV[ix].shortName != NULL) && nameEq(arg, corArgInfoV[ix].shortName)))
       return true;
   }
 
@@ -393,7 +406,7 @@ static void requestReport(void)
     out("  header:     ");
     out(key);
     out(": ");
-    out(credential(key) ? "(left out)" : rP->in.httpHeaderV[i].value);
+    out(corHeaderIsCredential(key) ? "(left out)" : rP->in.httpHeaderV[i].value);
     out("\n");
     flush();
   }
@@ -450,7 +463,7 @@ static void onCrash(int sigNo)
   for (int i = 0; i < crashArgC; i++)
   {
     out(" ");
-    out(crashArgV[i]);
+    out(((i > 0) && secretOption(crashArgV[i - 1])) ? "***" : crashArgV[i]);    // a password: as GET /admin/config shows it
   }
   out("\n");
   flush();

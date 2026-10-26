@@ -14,6 +14,7 @@
 
 #include "corLog/corLog.h"                               // COR_I, COR_E
 #include "corArgs/corArgsSecret.h"                // corArgsSecret
+#include "corBase/corUriPasswordMask.h"                   // corUriPasswordMask
 
 #include "db/Tenant.h"                               // tenantInit, tenantGetOrCreate, tenant0
 #include "shared/geoMatch.h"                                      // geoMatchInit
@@ -81,6 +82,12 @@ int mongocInit(void)
   snprintf(mongocUriString, sizeof(mongocUriString), "%s", uriStr);
 
   //
+  // The URI as the log shows it: its password "***", as GET /admin/config shows --dbPwd and --dbURI
+  //
+  char uriShown[512];
+  corUriPasswordMask(uriStr, uriShown, sizeof(uriShown));
+
+  //
   // Parse URI
   //
   bson_error_t  error;
@@ -88,7 +95,7 @@ int mongocInit(void)
 
   if (uriP == NULL)
   {
-    COR_E("mongoc: invalid URI '%s': %s", uriStr, error.message);
+    COR_E("mongoc: invalid URI '%s': %s", uriShown, error.message);
     mongoc_cleanup();
     return -1;
   }
@@ -114,7 +121,7 @@ int mongocInit(void)
   //
   // Verify connection with a ping
   //
-  COR_I("mongoc: attempting to connect to %s, will timeout after %d seconds", uriStr, mongocDbTimeout);
+  COR_I("mongoc: attempting to connect to %s, will timeout after %d seconds", uriShown, mongocDbTimeout);
 
   mongoc_client_t* clientP = mongoc_client_pool_pop(poolP);
   bson_t           ping;
@@ -138,7 +145,7 @@ int mongocInit(void)
     return -1;
   }
 
-  COR_I("mongoc: connected to %s, database '%s'", uriStr, mongocDbName);
+  COR_I("mongoc: connected to %s, database '%s'", uriShown, mongocDbName);
   mongocServerVersionGet();
 
   //

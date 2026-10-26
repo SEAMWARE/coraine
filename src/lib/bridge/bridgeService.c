@@ -12,6 +12,7 @@
 #include <pthread.h>                                  // pthread_mutex_t, pthread_cond_t
 #include <time.h>                                     // clock_gettime
 
+#include "corBase/corUriPasswordMask.h"               // corUriPasswordMask
 #include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_OK, ...
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver, bridges, bridgeCount
@@ -250,7 +251,8 @@ int bridgeServiceExecute(const char* url, const char* executionId, const char* t
 
   int r = driverP->serviceExecute(url, executionId, inputJson);
 
-  COR_T(CtService, "bridge '%s': serviceExecute(%s, %s) - %d", driverP->alias, url, executionId, r);
+  char shown[1024];
+  COR_T(CtService, "bridge '%s': serviceExecute(%s, %s) - %d", driverP->alias, corUriPasswordMask(url, shown, sizeof(shown)), executionId, r);
 
   pthread_mutex_lock(&mutex);
   Deferred* deferredP = rP->deferredP;
@@ -337,7 +339,8 @@ int bridgeServiceCancel(const char* url, const char* executionId)
 
   int r = driverP->serviceCancel(url, executionId);
 
-  COR_T(CtService, "bridge '%s': serviceCancel(%s, %s) - %d", driverP->alias, url, executionId, r);
+  char shown[1024];
+  COR_T(CtService, "bridge '%s': serviceCancel(%s, %s) - %d", driverP->alias, corUriPasswordMask(url, shown, sizeof(shown)), executionId, r);
 
   if (r == BRIDGE_OK)
   {

@@ -27,6 +27,7 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
+#include "corBase/corUriPasswordMask.h"                // corUriPasswordMask
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbDelete
 #include "corRest/corRestUrlValueEncode.h"             // corRestUrlValueEncode
@@ -353,7 +354,8 @@ bool purgeEntities(void)
         items[itemCount].url     = forwardUrl(csr->endpoint);
         items[itemCount].body    = NULL;
         items[itemCount].bodyLen = 0;
-        COR_T(CtDistOpRequest, "forward: DELETE %s", items[itemCount].url);
+        char shown[1024];
+        COR_T(CtDistOpRequest, "forward: DELETE %s", corUriPasswordMask(items[itemCount].url, shown, sizeof(shown)));
 
         itemCount++;
       }

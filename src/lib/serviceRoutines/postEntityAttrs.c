@@ -15,6 +15,7 @@
 #include <stdio.h>                                    // snprintf
 #include <regex.h>                                    // regexec
 
+#include "corBase/corUriPasswordMask.h"                 // corUriPasswordMask
 #include "corRest/CorRestState.h"                       // corRest
 #include "corRest/CorRestVerb.h"                        // CorVerbPost
 #include "corAlloc/corAlloc.h"                        // corAlloc
@@ -399,7 +400,8 @@ bool postEntityAttrs(void)
           items[itemCount].url     = attrsUrl(csr->endpoint, entityId, noOverwrite);
           items[itemCount].body    = body;
           items[itemCount].bodyLen = strlen(body);
-          COR_T(CtDistOpRequest, "forward: POST %s", items[itemCount].url);
+          char shown[1024];
+          COR_T(CtDistOpRequest, "forward: POST %s", corUriPasswordMask(items[itemCount].url, shown, sizeof(shown)));
           itemFrag[itemCount]      = fragP;
           itemCount++;
         }

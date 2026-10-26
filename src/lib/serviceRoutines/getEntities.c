@@ -12,6 +12,7 @@
 #include <stdlib.h>                                  // free, strtoll
 #include <string.h>                                  // strcmp, strlen, strcpy, memset
 
+#include "corBase/corUriPasswordMask.h"              // corUriPasswordMask
 #include "corLog/corLog.h"                           // COR_T
 #include "corAlloc/corAlloc.h"                       // corAlloc
 #include "corTree/CorNode.h"                         // CorNode
@@ -646,7 +647,8 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
     extraN = 1;
   }
 
-  COR_T(CtDistOpRequest, "forward: GET %s", url);
+  char shown[1024];
+  COR_T(CtDistOpRequest, "forward: GET %s", corUriPasswordMask(url, shown, sizeof(shown)));
 
   int status = ldDistOpSendReceiveEx(csr, CorVerbGet, url, NULL, 0, ownAlias,
                                       (extraN > 0) ? &extraH : NULL, extraN,
@@ -1659,7 +1661,8 @@ static MapSource* mapSourcesFetch(LdEntityMapEntry** sliceV, int sliceN, const c
       ownerV[itemN]    = ix;
       itemN++;
 
-      COR_T(CtDistOpRequest, "entity map page: GET %s (%d entities)", url, ids);
+      char shown[1024];
+      COR_T(CtDistOpRequest, "entity map page: GET %s (%d entities)", corUriPasswordMask(url, shown, sizeof(shown)), ids);
     }
   }
 
@@ -3295,7 +3298,8 @@ static bool queryEntities(PagePosition* posP)
 
             const char* body = buildQueryBodyFromQs(fullQs, &corRest.kalloc);
 
-            COR_T(CtDistOpRequest, "forward: POST %s body=%s", url, body);
+            char shown[1024];
+            COR_T(CtDistOpRequest, "forward: POST %s body=%s", corUriPasswordMask(url, shown, sizeof(shown)), body);
             items[itemCount].csr     = csr;
             items[itemCount].url     = url;
             items[itemCount].body    = body;
@@ -3316,7 +3320,8 @@ static bool queryEntities(PagePosition* posP)
           strcpy(url + baseLen, path);
           strcpy(url + baseLen + pathLen, fullQs);
 
-          COR_T(CtDistOpRequest, "forward: GET %s", url);
+          char shown[1024];
+          COR_T(CtDistOpRequest, "forward: GET %s", corUriPasswordMask(url, shown, sizeof(shown)));
           items[itemCount].csr     = csr;
           items[itemCount].url     = url;
           items[itemCount].body    = NULL;

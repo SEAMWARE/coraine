@@ -12,6 +12,7 @@
 #include <string.h>                                   // strcmp, strlen, strncmp
 #include <time.h>                                     // clock_gettime
 
+#include "corBase/corUriPasswordMask.h"               // corUriPasswordMask
 #include "corLog/corLog.h"                            // COR_T, COR_W
 #include "corAlloc/corAlloc.h"                        // corAlloc, corAllocStrdup
 #include "corTree/CorNode.h"                          // CorNode
@@ -245,7 +246,10 @@ static void notify(CorNode* execP)
   if (ldNotifyIsHttp(uri) == false)
   {
     if (ldNotifyTransportSend(uri, body, "application/json", (link[0] != 0) ? link : NULL, NULL, NULL) == false)
-      COR_W("Service Execution '%s': notification to %s FAILED", str(execP, "id"), uri);
+    {
+      char shown[1024];
+      COR_W("Service Execution '%s': notification to %s FAILED", str(execP, "id"), corUriPasswordMask(uri, shown, sizeof(shown)));
+    }
     return;
   }
 
@@ -262,7 +266,10 @@ static void notify(CorNode* execP)
   corRestClientSend(&req, &resp);
 
   if ((resp.statusCode < 200) || (resp.statusCode > 299))
-    COR_W("Service Execution '%s': notification to %s FAILED (%d)", str(execP, "id"), uri, resp.statusCode);
+  {
+    char shown[1024];
+    COR_W("Service Execution '%s': notification to %s FAILED (%d)", str(execP, "id"), corUriPasswordMask(uri, shown, sizeof(shown)), resp.statusCode);
+  }
 
   corRestClientResponseCleanup(&resp);
 }
@@ -825,7 +832,8 @@ static void forward(CorNode* execP, bool cancel, SeForward* resultP)
   corRestClientRequestTimeout(&req, 5000, (int) (timeoutNs / 1000000));
   corRestClientSend(&req, &resp);
 
-  COR_T(CtService, "Service Execution '%s': %s %s - %d (error %d)", execId, (cancel == true) ? "DELETE" : "POST", url, resp.statusCode, resp.error);
+  char shown[1024];
+  COR_T(CtService, "Service Execution '%s': %s %s - %d (error %d)", execId, (cancel == true) ? "DELETE" : "POST", corUriPasswordMask(url, shown, sizeof(shown)), resp.statusCode, resp.error);
 
   if ((resp.error == 0) && (resp.statusCode >= 200) && (resp.statusCode <= 299))
   {

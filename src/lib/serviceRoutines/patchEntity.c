@@ -12,6 +12,7 @@
 #include <stdlib.h>                                  // free
 #include <stdio.h>                                   // snprintf
 
+#include "corBase/corUriPasswordMask.h"                // corUriPasswordMask
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/CorRestVerb.h"                       // CorVerbPatch
 
@@ -348,7 +349,8 @@ bool patchEntity(void)
       items[kept].url     = mergeUrl(items[i].csr->endpoint, entityId);
       items[kept].body    = body;
       items[kept].bodyLen = strlen(body);
-      COR_T(CtDistOpRequest, "forward: PATCH %s", items[kept].url);
+      char shown[1024];
+      COR_T(CtDistOpRequest, "forward: PATCH %s", corUriPasswordMask(items[kept].url, shown, sizeof(shown)));
       kept++;
     }
 

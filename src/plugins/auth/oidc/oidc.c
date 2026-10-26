@@ -37,6 +37,7 @@
 #include "corJson/CorJson.h"                         // CorJson
 #include "corJson/corJsonCreate.h"                   // corJsonCreate
 #include "corJson/corJsonParse.h"                    // corJsonParse
+#include "corBase/corUriPasswordMask.h"               // corUriPasswordMask
 #include "corLog/corLog.h"                           // COR_I, COR_W
 #include "corNgsild/LdOp.h"                          // LdOpBatchQuery, LdOpQueryTemporal, LdOpQueryEntityTimepoint
 #include "corTree/CorNode.h"                         // CorNode
@@ -159,6 +160,7 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
 
   char* text = authFetch(discoveryUrl, &ka, errorBuf, errorBufSize);
   bool  ok   = false;
+  char  shown[512];                                   // the URL as an error shows it: its password "***"
 
   if (text != NULL)
   {
@@ -170,9 +172,9 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
     CorNode* issP  = (rootP != NULL) ? corTreeLookup(rootP, "issuer")   : NULL;
 
     if ((uriP == NULL) || (uriP->type != CorString))
-      snprintf(errorBuf, errorBufSize, "%s: no jwks_uri", discoveryUrl);
+      snprintf(errorBuf, errorBufSize, "%s: no jwks_uri", corUriPasswordMask(discoveryUrl, shown, sizeof(shown)));
     else if ((issP == NULL) || (issP->type != CorString) || (strcmp(issP->value.s, issuer) != 0))
-      snprintf(errorBuf, errorBufSize, "%s: its issuer is '%s', not --oidcIssuer's '%s'", discoveryUrl, ((issP != NULL) && (issP->type == CorString)) ? issP->value.s : "", issuer);
+      snprintf(errorBuf, errorBufSize, "%s: its issuer is '%s', not --oidcIssuer's '%s'", corUriPasswordMask(discoveryUrl, shown, sizeof(shown)), ((issP != NULL) && (issP->type == CorString)) ? issP->value.s : "", issuer);
     else
     {
       free(jwksUrl);
@@ -208,9 +210,10 @@ static void keysFetch(void)
   corAllocBufferInit(&ka, buf, sizeof(buf), 16384, NULL, "oidc keys");
 
   char* text = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
+  char  shown[512];
 
   if ((text == NULL) || (authKeysLoad(text, authTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
-    COR_W("oidc: the provider's keys (%s): %s", where, errorBuf);
+    COR_W("oidc: the provider's keys (%s): %s", corUriPasswordMask(where, shown, sizeof(shown)), errorBuf);
   else
     __atomic_store_n(&keysFetchedAt, time(NULL), __ATOMIC_RELAXED);
 
@@ -332,7 +335,9 @@ static bool oidcInit(char* errorBuf, int errorBufSize)
   if (audience == NULL)
     COR_W("oidc: --oidcAudience not set - a token issued for any client of the provider is taken");
 
-  COR_I("oidc: tokens of %s, keys from %s - roles in '%s': '%s' reads, '%s' reads and writes; tenants in '%s'%s%s", issuer, (jwks != NULL) ? jwks : discoveryUrl, rolesClaim, readRole, writeRole, tenantsClaim, (anyTenant == true) ? " - not checked" : "", (anonymousRead == true) ? "; reads without a token" : "");
+  char issuerShown[512];
+  char keysShown[512];
+  COR_I("oidc: tokens of %s, keys from %s - roles in '%s': '%s' reads, '%s' reads and writes; tenants in '%s'%s%s", corUriPasswordMask(issuer, issuerShown, sizeof(issuerShown)), corUriPasswordMask((jwks != NULL) ? jwks : discoveryUrl, keysShown, sizeof(keysShown)), rolesClaim, readRole, writeRole, tenantsClaim, (anyTenant == true) ? " - not checked" : "", (anonymousRead == true) ? "; reads without a token" : "");
   return true;
 }
 
