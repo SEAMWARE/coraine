@@ -27,7 +27,7 @@ auth oidc
 # 04. --oidcIssuer without --auth oidc - an unknown option
 #
 run() {
-  timeout 10 $COR_BROKER -fg --port 9 --database corDB "$@" > /tmp/oidcRefused.$$ 2>&1
+  timeout 10 $COR_BROKER --port 9 --database corDB "$@" > /tmp/oidcRefused.$$ 2>&1
   echo "exit: $?"
   grep -m1 -E "^E: .*auth plugin|^coraine:" /tmp/oidcRefused.$$ | sed -e 's/^E: [0-9.]*: auth.c\[[0-9]*\]: authInit: /E: /'
   rm -f /tmp/oidcRefused.$$

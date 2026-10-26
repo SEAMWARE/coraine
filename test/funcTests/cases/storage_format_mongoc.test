@@ -55,7 +55,7 @@ fmtSet() {
 
 # run - the broker started in the foreground for at most 10 s: its exit code (124: it started) and its refusal
 run() {
-  timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB) > /tmp/storageFormat.$$ 2>&1
+  timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB) > /tmp/storageFormat.$$ 2>&1
   echo "exit: $?"
   grep -o "mongoc: database '[^']*' is in storage format [0-9]* - this build of coraine knows formats up to [0-9]*" /tmp/storageFormat.$$ | sed "s/'$COR_ROLE_DB_PREFIX/'<db>/"
   rm -f /tmp/storageFormat.$$

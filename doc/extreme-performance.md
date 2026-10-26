@@ -70,7 +70,7 @@ tune: best --dbLockPrefer writes LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmallo
 Then run the broker with what it says:
 
 ```sh
-LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4 coraine -fg --database corDB --dbDir /var/lib/coraine --dbLockPrefer writes ...
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4 coraine --database corDB --dbDir /var/lib/coraine --dbLockPrefer writes ...
 ```
 
 ⚠️ **Measure on a quiet machine.** The comparison runs the workload on this machine; a browser, a
@@ -219,7 +219,7 @@ docker build -f docker/Dockerfile --build-arg WORKLOAD=tune/my-workload.json -t 
 - What won is kept in `/opt/seamware/etc/tune.env` (`TUNE_DBLOCKPREFER`, `TUNE_ALLOCATOR`), and only
   the allocator that won is installed in the image.
 - The entry point (`coraine-start`) applies it - `CORAINE_DBLOCKPREFER`, `LD_PRELOAD` - and runs
-  `coraine -fg`. Whatever `docker run -e` sets wins: `-e CORAINE_DBLOCKPREFER=reads` overrides the
+  `coraine`. Whatever `docker run -e` sets wins: `-e CORAINE_DBLOCKPREFER=reads` overrides the
   tuned lock preference, `-e LD_PRELOAD=` (empty) the tuned allocator - glibc's then.
 
 ⚠️ The measurement then runs on the **build** machine, inside the build. Build where the broker will

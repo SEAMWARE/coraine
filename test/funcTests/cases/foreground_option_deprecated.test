@@ -1,0 +1,108 @@
+#
+# FILE            foreground_option_deprecated.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# -fg / --foreground: the broker runs in the foreground by default, and the option is deprecated - still
+# accepted through 0.7.x, with one warning line at start, and refused from 0.8.0. The usage no longer
+# lists it.
+#
+--NAME--
+Deprecated -fg / --foreground: accepted with one warning line, not in the usage
+
+--TAGS--
+cli log
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_fgDeprecated
+rm -rf $D
+mkdir -p $D
+XP=$((CB_PORT + 3250))
+
+#
+# run <args> - the broker started, stopped (SIGTERM) once it serves; the warnings about the option
+#
+run() {
+  $COR_BROKER --port $XP --database corDB --troe none "$@" > $D/out 2>&1 &
+  local pid=$!
+  for i in $(seq 1 100); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$XP/ngsi-ld/v1/entities?type=T")" = 200 ] && break
+    sleep 0.1
+  done
+  curl -s -w '\nstatus: %{http_code}\n' "localhost:$XP/ngsi-ld/v1/entities?type=T"
+  kill -TERM $pid
+  wait $pid
+  echo "exit code: $?"
+  echo "warnings about -fg: $(grep -c ': -fg: ' $D/out)"
+  grep ': -fg: ' $D/out | sed 's/^.*: main: //'
+}
+
+
+echo "01. -fg - the broker serves, after one warning line"
+echo "==================================================="
+run -fg
+echo
+echo
+
+
+echo "02. --foreground - the same"
+echo "==========================="
+run --foreground
+echo
+echo
+
+
+echo "03. Without it - no warning"
+echo "==========================="
+run
+echo
+echo
+
+
+echo "04. The usage does not list it"
+echo "=============================="
+$COR_BROKER -u -db corDB 2>&1 | grep -c -- '--foreground/-fg'
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_fgDeprecated
+
+--EXPECT--
+01. -fg - the broker serves, after one warning line
+===================================================
+[]
+status: 200
+exit code: 0
+warnings about -fg: 1
+-fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
+
+
+02. --foreground - the same
+===========================
+[]
+status: 200
+exit code: 0
+warnings about -fg: 1
+-fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
+
+
+03. Without it - no warning
+===========================
+[]
+status: 200
+exit code: 0
+warnings about -fg: 0
+
+
+04. The usage does not list it
+==============================
+0
+
+

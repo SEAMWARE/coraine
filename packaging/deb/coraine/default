@@ -5,7 +5,9 @@
 #
 #   systemctl restart coraine
 #
-# The service runs `/usr/bin/coraine -fg` as the user coraine - the foreground is not an option here.
+# The service runs `/usr/bin/coraine` as the user coraine, in the foreground (Type=simple), logging to
+# stdout, which journald keeps - CORAINE_DAEMON is not for this unit: a broker that detaches is a main
+# process that exited, and systemd stops the service.
 
 # The store: corDB, on disk, in the service's state directory - no external service needed.
 # A clean stop (systemctl stop) and a crash both lose nothing (doc/installation.md, "corDB on disk").

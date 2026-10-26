@@ -35,7 +35,7 @@ echo
 
 echo "02. --corPort is not an option - exit 1"
 echo "======================================="
-timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -fg --port 9 --database corDB --corPort 9 > /tmp/corOff.$$ 2>&1
+timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB --corPort 9 > /tmp/corOff.$$ 2>&1
 echo "exit: $?"
 grep -m1 "^coraine:" /tmp/corOff.$$
 rm -f /tmp/corOff.$$

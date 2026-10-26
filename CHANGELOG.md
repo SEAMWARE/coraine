@@ -39,6 +39,15 @@ bump may still change behaviour; the entry says so where it does.
   1 % of them x16; the history's writes -1.6 to -4.3 %. In `/admin/metrics`: `ngsild_troe_index_built`, `_bytes`,
   `_accesses_total`. Trace level 404 traces the selector's SQL.
   ([TimescaleDB (the history)](doc/installation.md#timescaledb-the-history))
+- `--daemon` (`-bg`): the broker detaches from its terminal (fork, setsid, chdir /, stdin/stdout/stderr on
+  /dev/null) and runs in the background; the command returns 0 at once. No pid file: the log names the pid,
+  with or without `-v`. It needs `--logTo file` - with `--logTo stdout` or `both` the broker refuses to start.
+  The foreground stays the default. ([Running the broker](doc/installation.md#running-the-broker-foreground-or-daemon-and-where-the-log-goes))
+- `--logTo stdout|file|both` and `--logDir` (default `/var/log/coraine`): the log on stdout (the default, as
+  before), in `<logDir>/coraine.log`, or both. The directory must exist; a log file that cannot be opened
+  stops the broker at start. A `coraine.log` of an earlier start is renamed `coraine.log.old`. The file is
+  written in append mode: logrotate's `copytruncate` rotates it; the broker does not reopen it (no SIGHUP).
+  `CORAINE_DAEMON`, `CORAINE_LOGTO`, `CORAINE_LOGDIR`.
 
 ### Faster
 
@@ -68,6 +77,12 @@ bump may still change behaviour; the entry says so where it does.
   database before starting 0.6.0 on it: a rolling upgrade from 0.5.x is not supported.
   ([Storage format](doc/installation.md#storage-format))
 
+- `-fg` / `--foreground` is **deprecated**: the broker runs in the foreground by default, so it does
+  nothing. Accepted through 0.7.x, with one warning line at start - `-fg: the broker runs in the foreground
+  by default now - the option is refused from 0.8.0` - and **refused from 0.8.0**. It is no longer in
+  `coraine -u`. The package's systemd unit, the Docker entry point and the scripts here no longer pass it;
+  drop it from your own. `-fg` with `--daemon` is refused.
+
 ### Fixed
 
 - A Context Source registered with a `cor://` endpoint: a forwarded query returned none of its entities
@@ -84,6 +99,8 @@ bump may still change behaviour; the entry says so where it does.
   server's message - it was taken for a database that cannot be reached, tried once a second for
   `--troeConnectTimeout` seconds (30). As the documentation said, and as MongoDB's (`--dbUser` / `--dbPwd`).
   ([The database down](doc/installation.md#the-database-down))
+- `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
+  printed with CMake's backslashes, in the text list and in the `--json` one.
 - Passwords and tokens no longer show in the log. They appear as `***` in mongoc's
   connection URI (`-v`, from `--dbUser`/`--dbPwd` or from `--dbURI`), in the notification and
   forwarding traces (the endpoint's `user:password` and the value of a credential header such as
