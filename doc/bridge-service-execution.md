@@ -10,8 +10,8 @@ things, and each has one mechanism:
 
 | The client… | Mechanism | Examples | Answer |
 |---|---|---|---|
-| **changes state** - writes an attribute | a channel, **outbound**: transport first, the entity mirrors the device | a lamp's `on`, a setpoint, a Modbus register, a KNX group address, an OPC UA variable | the write's own: 204, or the refusal (400, 503) and nothing stored |
-| **asks for something to be done** | a **Service Execution**; the Bridge is its executor | an IoT Agent command, an OPC UA Method, an AAS Operation, a DDS service or action, a Hue scene | an execution: status, progress, output, error, cancel |
+| **changes state** - writes an attribute | a channel, **outbound**: transport first, the entity mirrors the device | a lamp's `on`, a setpoint, a Modbus register or coil, an OPC UA variable | the write's own: 204, or the refusal (400, 503) and nothing stored |
+| **asks for something to be done** | a **Service Execution**; the Bridge is its executor | an IoT Agent command, an OPC UA Method, an AAS Operation, a DDS service or action | an execution: status, progress, output, error, cancel |
 | **reads a value that lives at the device** | a **registration** whose endpoint names a bridge scheme; the broker forwards the read | a lazy attribute: a battery level that polling would drain | the forwarded query's |
 
 A state change has no status, no output and nothing to cancel; an execution changes no attribute by
@@ -59,7 +59,7 @@ service per writable attribute.
   - **DataChannel**: the endpoint is the DataChannel's; the json a record fragment - the columns the
     entity's id template names, read back out of the id, and the written attribute's column:
     `urn:ngsi-ld:Lamp:{deviceId}` written `on: true` -> `{ "deviceId": "lamp1", "state": true }`. The
-    plugin addresses the device from it (zigbee2mqtt: `zigbee2mqtt/lamp1/set`).
+    plugin addresses the device from it (MQTT: `devices/lamp1/set`).
 - **An id read back** needs an id template that can be inverted: `idEncoding: percent`. `merge` is lossy
   (`South Boston` and `South_Boston` name one entity), so a DataChannel with `channelDirection: both`
   and `idEncoding: merge` is refused at start.
@@ -137,7 +137,7 @@ gets no status member.
 ## 7. Across bridges
 
 Nothing more is needed: a grouped execution (`switchOff`, `entityType: Lamp`, `q: floor==3`) runs on each
-selected entity's own registration, so lamps behind a Hue bridge and behind zigbee2mqtt are switched by
+selected entity's own registration, so lamps behind an OPC UA server and behind MQTT are switched by
 one request; a combined execution sequences services of different bridges.
 
 ## 8. Open decisions
@@ -153,7 +153,7 @@ one request; a combined execution sequences services of different bridges.
 
 ## 9. Not in this note
 
-- Persisting what pairing produces (a Hue application key, Matter fabric credentials): a Bridge has no
+- Persisting what pairing produces (a gateway's application key, a device network's credentials): a Bridge has no
   store of its own today.
 - Stateless events (a button press): two equal presses in a row are equal values; the bridge gives each
   sample its time, so each is a change.
