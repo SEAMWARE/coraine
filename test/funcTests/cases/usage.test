@@ -83,7 +83,6 @@ echo
 Usage: coraine  [--usage/-u (usage)]
                 [--Usage/-U (extended usage)]
                 [--verbose/-v (verbose mode)]
-                [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels to turn on: levels and ranges, comma-separated (220-226,403) - a release build has none>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
@@ -149,7 +148,6 @@ Usage: coraine  [--usage/-u (usage)]
 Usage: coraine  [--usage/-u (usage)]
                 [--Usage/-U (extended usage)]
                 [--verbose/-v (verbose mode)]
-                [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels to turn on: levels and ranges, comma-separated (220-226,403) - a release build has none>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
@@ -218,7 +216,6 @@ DB plugin 'dummy2' (/opt/seamware/plugins/db/currentState/dummy2.so): not found
 Usage: coraine  [--usage/-u (usage)]
                 [--Usage/-U (extended usage)]
                 [--verbose/-v (verbose mode)]
-                [--debug/-d (debug mode)]
                 [--traceLevels/-t <trace levels to turn on: levels and ranges, comma-separated (220-226,403) - a release build has none>]
                 [--port/-p <TCP port to listen on>]
                 [--corPort/-corPort <TCP port for cor:// - the binary API (0: off)>]
@@ -275,7 +272,6 @@ Usage: coraine  [--usage/-u (usage)]
   --usage                 (-u)                                                Optional   Bool     false
   --Usage                 (-U)                                                Optional   Bool     false
   --verbose               (-v)                  CORAINE_VERBOSE               Optional   Bool     false
-  --debug                 (-d)                  CORAINE_DEBUG                 Optional   Bool     false
   --traceLevels           (-t)                  CORAINE_TRACELEVELS           Optional   String   -
   --port                  (-p)                  CORAINE_PORT                  Optional   UShort   1026
   --corPort               (-corPort)            CORAINE_CORPORT               Optional   UShort   0

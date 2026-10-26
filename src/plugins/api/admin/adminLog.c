@@ -13,7 +13,7 @@
 #include "corTree/corTreeBuilder.h"               // corTreeObject, corTreeString, corTreeBoolean, corTreeChildAdd
 #include "corRest/CorRestState.h"                   // corRest
 #include "corNgsild/corNgsild.h"                    // corNgsild
-#include "corLog/corLogGlobals.h"                 // corLogVerbose, corLogDebug, corLogInfo
+#include "corLog/corLogGlobals.h"                 // corLogVerbose, corLogInfo
 #include "corLog/corLogTraceLevelGet.h"           // corLogTraceLevelGet
 #include "corLog/corLogTraceLevelSet.h"           // corLogTraceLevelSet
 #include "corLog/corLogTraceLevelReset.h"         // corLogTraceLevelReset
@@ -63,7 +63,6 @@ bool adminGetLog(void)
   const char* levels = corLogTraceLevelGet();
 
   corTreeChildAdd(root, corTreeBoolean(allocP, "verbose", corLogVerbose));
-  corTreeChildAdd(root, corTreeBoolean(allocP, "debug", corLogDebug));
   corTreeChildAdd(root, corTreeBoolean(allocP, "info", corLogInfo));
   corTreeChildAdd(root, corTreeString(allocP, "traceLevels", levels ? levels : ""));
 
@@ -86,7 +85,7 @@ bool adminGetLog(void)
 
 // -----------------------------------------------------------------------------
 //
-// adminLogApplyFlags - apply verbose/debug/info params if present
+// adminLogApplyFlags - apply verbose/info params if present
 //
 static void adminLogApplyFlags(void)
 {
@@ -98,14 +97,6 @@ static void adminLogApplyFlags(void)
     int b = boolFromOnOff(v);
     if (b >= 0)
       corLogVerbose = (b == 1);
-  }
-
-  v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "debug");
-  if (v != NULL)
-  {
-    int b = boolFromOnOff(v);
-    if (b >= 0)
-      corLogDebug = (b == 1);
   }
 
   v = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "info");

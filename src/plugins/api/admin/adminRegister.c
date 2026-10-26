@@ -97,7 +97,6 @@
 static CorRestParam adminParams[] =
 {
   { "verbose",     ADMIN_LOG_PARAMS },
-  { "debug",       ADMIN_LOG_PARAMS },
   { "info",        ADMIN_LOG_PARAMS },
   { "traceLevels", ADMIN_LOG_PARAMS },
   { "from",        ADMIN_INVENTORY_PARAMS },
