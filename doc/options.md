@@ -23,7 +23,7 @@ options, and its options are also documented with the plugin.
 
 ## The broker
 
-- [The program](#the-program) - 9
+- [The program](#the-program) - 12
 - [Listening](#listening) - 12
 - [Limits and memory](#limits-and-memory) - 7
 - [Built-in HTTP server (corHttp)](#built-in-http-server-corhttp) - 1
