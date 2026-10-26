@@ -1098,6 +1098,11 @@ a request was refused with 414 by the HTTP server: its URL exceeds the connectio
   libmicrohttpd's 32 kB is worth 2-3 % of a core on small requests
   ([The HTTP server's connection memory](performance.md#the-http-servers-connection-memory)).
 
+A body's **nesting** is limited too: arrays and objects at most 100 levels deep, the outermost one counted as
+level 1 - an entity, its Property, and 98 levels of value. A deeper body is refused with 400
+`InvalidRequest`, detail `request body nested deeper than 100 levels`, while it is parsed: the parser stops
+at level 101 and goes no deeper, whatever the body's size. The limit is fixed; no option changes it.
+
 ## Response size
 
 **`--maxResponseSize <MiB>`** (0 = no budget, at most 4096) is the byte budget of an entity query: `GET /ngsi-ld/v1/entities` and `POST /ngsi-ld/v1/entityOperations/query`, on the live

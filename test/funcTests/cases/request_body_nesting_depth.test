@@ -1,0 +1,161 @@
+#
+# FILE            request_body_nesting_depth.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The JSON parser (corJson) refuses a request body nested deeper than 100 levels - arrays and objects alike,
+# the top-level container counted as level 1. The request is answered 400 InvalidRequest, "request body nested
+# deeper than 100 levels" - not "not valid JSON": the 200-level body below is valid JSON - and the broker serves
+# the next one. Needs corJson's CorJson::status and corRest's use of it.
+#
+# A body of 300,000 '[' (300 KB) is refused at level 101, without descending any further. 100 levels are
+# accepted and stored: an entity whose Property value is 98 nested objects (entity, Property, 98 levels of
+# value = 100). 200 levels are refused.
+#
+# The bodies are built in a file and sent with curl --data-binary: 300 KB is more than one command-line
+# argument can hold.
+#
+--NAME--
+A request body nested deeper than 100 levels is refused with 400; the broker keeps serving
+
+--TAGS--
+entity create retrieve error validation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. POST /entities with a body of 300,000 '[' -> 400
+# 02. POST /entities with urn:N100, nested exactly 100 levels -> 201
+# 03. GET urn:N100 - the 98 levels of its value come back (counted, and the innermost value shown)
+# 04. POST /entities with urn:N200, nested 200 levels -> 400
+# 05. GET urn:N200 -> 404, it was not created
+#
+
+dir=$(mktemp -d)
+python3 -c "print('[' * 300000, end='')" > $dir/brackets.json
+python3 - "$dir" <<'EOF'
+import json, sys
+for (eid, depth) in (("urn:N100", 98), ("urn:N200", 198)):
+    v = "innermost"
+    for i in range(depth):
+        v = { "a": v }
+    with open(sys.argv[1] + "/" + eid[4:] + ".json", "w") as f:
+        f.write(json.dumps({ "id": eid, "type": "T", "p": { "type": "Property", "value": v } }))
+EOF
+
+post() { curl -s -i -H 'Content-Type: application/json' --data-binary @$1 "http://localhost:$COR_PORT/ngsi-ld/v1/entities" | grep -v '^Date: '; echo; }
+
+
+echo "01. POST /entities with a body of 300,000 '[' -> 400"
+echo "===================================================="
+post $dir/brackets.json
+echo
+echo
+
+
+echo "02. POST /entities with urn:N100, nested exactly 100 levels -> 201"
+echo "=================================================================="
+post $dir/N100.json
+echo
+echo
+
+
+echo "03. GET urn:N100 - the 98 levels of its value come back"
+echo "======================================================="
+curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:N100" | python3 -c '
+import json, sys
+v = json.load(sys.stdin)["p"]["value"]
+n = 0
+while isinstance(v, dict):
+    v = v["a"]
+    n += 1
+print("levels of value:", n, "- innermost:", v)'
+echo
+echo
+
+
+echo "04. POST /entities with urn:N200, nested 200 levels -> 400"
+echo "=========================================================="
+post $dir/N200.json
+echo
+echo
+
+
+echo "05. GET urn:N200 -> 404, it was not created"
+echo "==========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:N200
+echo
+echo
+
+rm -rf $dir
+
+
+--EXPECT--
+01. POST /entities with a body of 300,000 '[' -> 400
+====================================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body nested deeper than 100 levels"
+}
+
+
+
+02. POST /entities with urn:N100, nested exactly 100 levels -> 201
+==================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/entities/urn:N100
+Content-Length: 0
+
+
+
+
+03. GET urn:N100 - the 98 levels of its value come back
+=======================================================
+levels of value: 98 - innermost: innermost
+
+
+04. POST /entities with urn:N200, nested 200 levels -> 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 172
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body nested deeper than 100 levels"
+}
+
+
+
+05. GET urn:N200 -> 404, it was not created
+===========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "entity 'urn:N200' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+coraineStop
