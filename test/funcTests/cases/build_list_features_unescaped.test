@@ -1,0 +1,66 @@
+#
+# FILE            build_list_features_unescaped.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# packaging/deb/coraine-build --list-features: a switch's description as it reads, not as CMakeLists.txt
+# quotes it - DATA_CHANNELS' ("dataChannels" in --bridgeConfig) and CHANNEL_WRITE_BACK's (channelDirection
+# "both") were printed \"dataChannels\" and \"both\", the backslashes visible, in the text list and in the
+# --json one (where the JSON string held the backslash too).
+#
+# The source is this checkout: a directory with a link named coraine to it, what --source reads.
+#
+--NAME--
+coraine-build --list-features: the descriptions without CMake's backslashes, text and --json
+
+--TAGS--
+cli build
+
+--INIT--
+rm -rf /tmp/corTest_listFeatures
+mkdir -p /tmp/corTest_listFeatures/src
+ln -s "$COR_REPO_DIR" /tmp/corTest_listFeatures/src/coraine
+
+--RUN--
+CB=$COR_REPO_DIR/packaging/deb/coraine-build
+SRC=/tmp/corTest_listFeatures/src
+
+echo "01. --list-features: the quoted words of DATA_CHANNELS and CHANNEL_WRITE_BACK"
+echo "=============================================================================="
+$CB --list-features --source $SRC > /tmp/corTest_listFeatures/text
+grep -o '("dataChannels" in --bridgeConfig' /tmp/corTest_listFeatures/text
+grep -o 'channelDirection "both"' /tmp/corTest_listFeatures/text
+echo "lines with a backslash: $(grep -c '\\' /tmp/corTest_listFeatures/text)"
+echo
+echo
+
+
+echo "02. --list-features --json: the same, in the decoded strings"
+echo "============================================================"
+$CB --list-features --json --source $SRC > /tmp/corTest_listFeatures/json
+jq -r '.[] | select(.name == "DATA_CHANNELS" or .name == "CHANNEL_WRITE_BACK") | .description' /tmp/corTest_listFeatures/json | grep -o '("dataChannels" in --bridgeConfig\|channelDirection "both"'
+echo "descriptions with a backslash: $(jq '[.[] | select(.description | contains("\\"))] | length' /tmp/corTest_listFeatures/json)"
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_listFeatures
+
+--EXPECT--
+01. --list-features: the quoted words of DATA_CHANNELS and CHANNEL_WRITE_BACK
+==============================================================================
+("dataChannels" in --bridgeConfig
+channelDirection "both"
+lines with a backslash: 0
+
+
+02. --list-features --json: the same, in the decoded strings
+============================================================
+("dataChannels" in --bridgeConfig
+channelDirection "both"
+descriptions with a backslash: 0
+
+
