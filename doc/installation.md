@@ -251,7 +251,8 @@ take the log from, and what lets them see the broker's exit: the process they st
 | `--logTo` / `-logTo` | `CORAINE_LOGTO` | `stdout` | `stdout`, `file` (`<logDir>/coraine.log`), `both` (the file and stdout) |
 | `--logDir` / `-logDir` | `CORAINE_LOGDIR` | `/var/log/coraine` | the directory of the log file - read with `--logTo file` or `both` only |
 
-A boolean environment variable is on when its value is `true` (any case): `CORAINE_DAEMON=true`.
+A boolean environment variable is `true` or `on` (`True`, `TRUE`, `On`, `ON`), `false` or `off` (`False`, `FALSE`,
+`Off`, `OFF`) - any other value stops the start: `CORAINE_DAEMON=true`.
 Any other value - `1` included - is off.
 
 ### The combinations
