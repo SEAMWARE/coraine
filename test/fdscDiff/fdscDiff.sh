@@ -108,7 +108,7 @@ broker() {   # broker <name> <options...> - on the host, or from the image
     docker rm -f "fdscdiff-$name" > /dev/null 2>&1
     docker run -d --name "fdscdiff-$name" --network host "$IMAGE" "$@" > /dev/null || die "cannot start the $name broker"
   else
-    coraine -fg "$@" > "$FDSC_DIFF_WORK/$name.log" 2>&1 &
+    coraine "$@" > "$FDSC_DIFF_WORK/$name.log" 2>&1 &
     PIDS+=($!)
   fi
 }

@@ -4,8 +4,8 @@
 # The options are in /etc/default/coraine (CORAINE_* environment variables - every command-line option
 # has one). To change something here, `systemctl edit coraine` (a drop-in), not this file.
 #
-# -fg: the broker stays in the foreground and logs to stdout - systemd supervises it and journald keeps
-# the log (journalctl -u coraine). SIGTERM is a clean stop: requests in flight finish, corDB's log is
+# Type=simple: the broker stays in the foreground (its default - no --daemon) and logs to stdout (the
+# default --logTo) - systemd supervises it and journald keeps the log (journalctl -u coraine). SIGTERM is a clean stop: requests in flight finish, corDB's log is
 # synced and a snapshot written per tenant (corDB doc/persistence.md § 5a) - a stop that outlasts
 # TimeoutStopSec is still a stop that lost nothing (the log is synced before the snapshots).
 #
@@ -20,7 +20,7 @@ Type=simple
 User=coraine
 Group=coraine
 EnvironmentFile=-/etc/default/coraine
-ExecStart=/usr/bin/coraine -fg
+ExecStart=/usr/bin/coraine
 KillSignal=SIGTERM
 TimeoutStopSec=120
 Restart=on-failure

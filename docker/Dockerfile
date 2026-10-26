@@ -302,7 +302,7 @@ EXPOSE 1026
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD coraine-health || exit 1
 
-# coraine -fg (mandatory in a container: without it the broker daemonizes and PID 1 exits), with what
+# coraine in the foreground, logging to stdout (its defaults - what a container runtime collects), with what
 # `make tune` chose if the image was built with a WORKLOAD (docker/coraine-start)
 ENTRYPOINT ["coraine-start"]
 

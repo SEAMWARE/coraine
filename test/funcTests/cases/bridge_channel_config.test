@@ -113,7 +113,7 @@ cat > /tmp/coraine_bridges_dup.json <<EOF
   "P1": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "aperture" }
 } } } }
 EOF
-$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_dup.json --foreground 2>&1 | grep -oE "endpoint 'P1' appears twice.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_dup.json 2>&1 | grep -oE "endpoint 'P1' appears twice.*"
 echo
 echo
 
@@ -126,14 +126,14 @@ cat > /tmp/coraine_bridges_race.json <<EOF
   "P2": { "entityId": "urn:ngsi-ld:camera:cam1", "entityType": "Camera", "attribute": "shutterSpeed" }
 } } } }
 EOF
-$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_race.json --foreground 2>&1 | grep -oE "both write.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_bridges_race.json 2>&1 | grep -oE "both write.*"
 echo
 echo
 
 
 echo "06. A file that is named and not there is fatal; one merely absent is not"
 echo "========================================================================="
-$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_no_such_file.json --foreground 2>&1 | grep -oE "cannot read.*"
+$COR_BROKER --port 9987 --database corDB --bridges loopback --bridgeConfig /tmp/coraine_no_such_file.json 2>&1 | grep -oE "cannot read.*"
 echo
 echo
 

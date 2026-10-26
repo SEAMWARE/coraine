@@ -31,7 +31,7 @@ mkdir -p $D
 stopAfter() {
   local sig=$1
   shift
-  $COR_BROKER -fg --port $((CB_PORT + 3220)) "$@" > $D/out 2>&1 &
+  $COR_BROKER --port $((CB_PORT + 3220)) "$@" > $D/out 2>&1 &
   local pid=$!
   sleep 1
   kill -$sig $pid

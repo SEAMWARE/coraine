@@ -9,7 +9,7 @@
 #   1. apt installs the .deb - every dependency resolves from the distribution
 #   2. every ELF file in it resolves every library it needs (ldd), mongoc.so the bundled driver's
 #   3. the systemd unit passes systemd-analyze verify; the user and the state directory exist
-#   4. the broker started as the unit starts it (user coraine, /etc/default/coraine, -fg) answers
+#   4. the broker started as the unit starts it (user coraine, /etc/default/coraine) answers
 #      GET /version, creates and retrieves an entity; stopped with SIGTERM it exits 0, and started again
 #      it still has the entity (corDB on disk, /var/lib/coraine/db)
 #   5. every plugin loads: the DB plugins, the temporal ones, the API plugin, the bridges, the transport
@@ -57,7 +57,7 @@ systemctl is-enabled coraine.service 2>/dev/null | grep -q '^enabled' && fail "t
 cat /etc/default/coraine | grep -v '^#' | grep .
 
 #
-# As the unit runs it: the environment file, the user, the working directory, -fg (ExecStart)
+# As the unit runs it: the environment file, the user, the working directory (ExecStart)
 #
 EXEC=$(sed -n 's/^ExecStart=//p' /usr/lib/systemd/system/coraine.service)
 start()

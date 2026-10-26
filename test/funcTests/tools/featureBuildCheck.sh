@@ -113,7 +113,7 @@ for cfg in "${CONFIGS[@]}"; do
   cp -p "$d/src/plugins/temporal/none/none.so"       "$P/troe/temporal/"   2>/dev/null
 
   SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" \
-      --port "$PORT" -fg --database corDB --troe none > "$d.run.log" 2>&1 &
+      --port "$PORT" --database corDB --troe none > "$d.run.log" 2>&1 &
   pid=$!
   echo "$pid" >> "$WORK/pids"
 

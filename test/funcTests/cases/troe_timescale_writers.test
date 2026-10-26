@@ -53,6 +53,11 @@ echo
 
 echo "03. troe_attrs: the values as sent, both types on every row"
 echo "==========================================================="
+# --troeSync does not wait for the commit - the 3 rows may land after the PATCH's response
+for i in $(seq 1 100); do
+  [ "$($PSQL -c "SELECT count(*) FROM troe_attrs WHERE entity_id = 'urn:W1'")" -ge 3 ] && break
+  sleep 0.1
+done
 $PSQL -c "SELECT regexp_replace(attr_name, '.*/', ''), op, coalesce(v_text, v_compound::text), array_to_string(ARRAY(SELECT regexp_replace(t, '.*/', '') FROM unnest(entity_type) AS t), ',') FROM troe_attrs ORDER BY modified_at, attr_name"
 echo
 echo

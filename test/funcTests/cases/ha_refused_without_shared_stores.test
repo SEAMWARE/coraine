@@ -40,7 +40,7 @@ corDbDrop
 # running when the timeout ended it - it started) and the reason it gave, if it gave one
 #
 run() {
-  timeout 5 $COR_BROKER -fg --port $((CB_PORT + 3100)) "$@" > /tmp/haRefused.$$ 2>&1
+  timeout 5 $COR_BROKER --port $((CB_PORT + 3100)) "$@" > /tmp/haRefused.$$ 2>&1
   local rc=$?
   echo "exit: $rc"
   #

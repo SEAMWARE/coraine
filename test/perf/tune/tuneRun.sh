@@ -48,7 +48,7 @@ read -r -a storeArgs < "$GEN/broker.args"
 for i in "${!storeArgs[@]}"; do [ "${storeArgs[$i]}" = "__DBDIR__" ] && storeArgs[$i]=$TMP/db; done
 
 SEAMWARE_PLUGIN_DIR=$PLUGINS LD_PRELOAD=${TUNE_PRELOAD:-} "${pinB[@]}" \
-  "$B" --foreground --port "$PORT" "${storeArgs[@]}" "$@" > "$TMP/broker.out" 2>&1 &
+  "$B" --port "$PORT" "${storeArgs[@]}" "$@" > "$TMP/broker.out" 2>&1 &
 BP=$!
 for _ in $(seq 1 100); do curl -s -o /dev/null "http://localhost:$PORT/version" && break; sleep 0.1; done
 kill -0 "$BP" 2>/dev/null || fail "the broker did not start: $(head -3 "$TMP/broker.out")"

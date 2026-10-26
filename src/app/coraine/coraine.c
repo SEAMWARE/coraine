@@ -21,12 +21,14 @@
 #include <sys/socket.h>                           // AF_INET
 #include <netinet/in.h>                           // struct sockaddr_in
 #include <arpa/inet.h>                            // inet_ntop, ntohl, INET_ADDRSTRLEN
+#include <errno.h>                                // errno
 
 #include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit, corAllocThreadSafe
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose, corLogDebug
 #include "corBase/corCpuCount.h"                   // corCpuCount
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
+#include "corBase/corDaemonize.h"                  // corDaemonize
 #include "corBase/corSizeText.h"                   // corSizeText
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate, corPluginRefused
@@ -220,7 +222,10 @@ char*          authName     = NULL;
 char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
-bool           fg           = false;
+bool           fg           = false;   // -fg: deprecated, the foreground is the default - accepted, with a warning, through 0.7.x
+bool           daemonMode   = false;   // --daemon/-bg: detach from the terminal (corDaemonize)
+char*          logDir       = "/var/log/coraine";
+char*          logTo        = "stdout";
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 0;
 int            httpLoops    = 0;   // 0: auto - see the corCpuCount call in main()
@@ -310,7 +315,10 @@ static CorArg kargV[] =
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "default HTTP client request timeout (ms) — distop forwards, sub-notifs, @context downloads" },
   { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default endpoint cooldown after a notification/forward failure (ms; 0 = only when the subscription/registration specifies one)" },
   { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
-  { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgOpt, _vp false,    _vp false, _vp true, "run in foreground (don't daemonize)" },
+  { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgHid, _vp false,    _vp false, _vp true, "deprecated, no effect: the broker runs in the foreground by default - accepted with a warning line, refused from 0.8.0" },
+  { "--daemon",             "-bg",          CorArgBool,   _vp &daemonMode,   CorArgOpt, _vp false,    _vp false, _vp true, "run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg" },
+  { "--logDir",             "-logDir",      CorArgString, _vp &logDir,       CorArgOpt, _vp "/var/log/coraine", NULL, NULL, "the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old" },
+  { "--logTo",              "-logTo",       CorArgString, _vp &logTo,        CorArgOpt, _vp "stdout", NULL, NULL,     "where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)" },
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept self-signed certificates on TLS notifications/forwards (endpoint inside a trusted network)" },
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
   { "--memoryLimit",        "-memoryLimit", CorArgInt,   _vp &memoryLimit, CorArgOpt, _vp 0,     _vp 0,     _vp 1048576, "memory budget in MiB - over 90% of it writes are refused (503), over all of it everything but deletes and monitoring (0: 85% of the container's memory limit, none outside a container)" },
@@ -355,6 +363,9 @@ static void onSignal(int sigNo)
   {
     static const char msg[] = "coraine: stopped during start-up (SIGTERM / SIGINT)\n";
     ssize_t           n     = write(2, msg, sizeof(msg) - 1);
+
+    if (corLogFd > 2)                                          // a log file (--logTo file/both): there too - a daemon's stderr is /dev/null
+      n = write(corLogFd, msg, sizeof(msg) - 1);
 
     (void) n;
     (void) sigNo;
@@ -1853,7 +1864,62 @@ int main(int argC, char* argV[])
   }
 
 
-  startupLog("coraine", traceLevels);   // the log, and the libraries' log through it - as coraine-import's
+  //
+  // The log: stdout (the default - a container, systemd and a terminal all take it from there), a file
+  // (<logDir>/coraine.log), or both. Checked before the log exists, so said on stderr.
+  //
+  bool logFile;
+  bool logStdout;
+
+  if      (strcmp(logTo, "stdout") == 0) { logFile = false; logStdout = true;  }
+  else if (strcmp(logTo, "file")   == 0) { logFile = true;  logStdout = false; }
+  else if (strcmp(logTo, "both")   == 0) { logFile = true;  logStdout = true;  }
+  else
+  {
+    fprintf(stderr, "%s: --logTo '%s' is none of stdout, file, both\n", progName, logTo);
+    exit(1);
+  }
+
+  //
+  // A daemon's stdout is /dev/null: a log there is no log at all
+  //
+  if ((daemonMode == true) && (logStdout == true))
+  {
+    fprintf(stderr, "%s: --daemon with --logTo %s: a daemon's stdout is /dev/null - use --logTo file\n", progName, logTo);
+    exit(1);
+  }
+
+  if ((daemonMode == true) && (fg == true))
+  {
+    fprintf(stderr, "%s: --daemon and -fg contradict each other\n", progName);
+    exit(1);
+  }
+
+  startupLog("coraine", traceLevels, (logFile == true) ? logDir : NULL, logStdout);   // the log, and the libraries' log through it - as coraine-import's
+
+  if (fg == true)
+    COR_W("-fg: the broker runs in the foreground by default now - the option is refused from 0.8.0");
+
+  //
+  // --daemon: detached here - after the log file is open (a --logDir that cannot be written is said on
+  // the terminal), and before the first thread and the first store lock (a fork copies one thread, and
+  // a POSIX record lock is not inherited)
+  //
+  if (daemonMode == true)
+  {
+    if (corDaemonize() != 0)
+      COR_X(1, "--daemon: cannot detach from the terminal: %s", strerror(errno));
+
+    //
+    // There is no pid file: this line is where the daemon's pid is found, so it is written always, not
+    // only with -v (one thread so far - the switch is nobody else's to see)
+    //
+    bool info = corLogInfo;
+
+    corLogInfo = true;
+    COR_I("--daemon: detached, pid %d", (int) getpid());
+    corLogInfo = info;
+  }
 
   COR_V("coraine  %s", CORAINE_VERSION);
   COR_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);
