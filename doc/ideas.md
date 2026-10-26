@@ -88,15 +88,14 @@ mongoc stream (`mongoc_client_set_stream_initiator`) so `mongoc` requests can be
 
 ### More bridges
 
-Kafka, WebSockets, OPC UA on the Bridge/Channel seam that carries DDS, MQTT and Modbus. The protocol
-names the endpoint and the endpoint decides the transport; HTTP stays inline rather than a plugin,
-because it is also the NGSI-LD API.
+Kafka, on the Bridge/Channel seam that carries DDS, MQTT, Modbus, OPC UA and CKAN: one standard
+binding across the brokers that support it. The protocol names the endpoint and the endpoint decides
+the transport; HTTP stays inline rather than a plugin, because it is also the NGSI-LD API.
 
-- **Kafka** - one standard binding across the brokers that support it.
-- **WebSockets** - notifications to consumers that cannot be HTTP servers: behind NAT, a firewall, a
-  browser.
-- **OPC UA** - variables as attributes, monitored items as subscriptions, methods as Service
-  Execution.
+OPC UA is a bridge of its own ([corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)); the
+notifications to consumers that cannot be HTTP servers - behind NAT, a firewall, a browser - go over
+the WebSocket transport ([WebSocket](websocket.md)) and Server-Sent Events ([Server-Sent Events](sse.md)),
+not a bridge.
 
 ### Bridges and Channels over the API
 

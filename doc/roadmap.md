@@ -136,24 +136,15 @@ settles on.
 The following features are planned to be addressed in the short term and
 incorporated in the next release of the product, in roughly this order:
 
--   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
-    discovery parameters.
+-   **c³ - Configure: the DDS mapping tool** - DDS topics, services and actions to entities and
+    attributes, in the Control Center: the mapping file the DDS bridge reads, made from the bridge's
+    inventory (`/admin/bridges/{bridge}/inventory`). ([more](ideas.md#c-the-coraine-control-center))
 -   **WebSocket subscriptions of a crashed instance, under High Availability** - each instance's run id
     and a heartbeat in the shared store, so that any instance deletes the WebSocket subscriptions of a run
     whose heartbeat stopped - also when a killed pod never comes back. Without `--high-availability` a
     broker deletes them when it starts. ([more](websocket.md#subscriptions))
--   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
-    routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
-    (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
-    and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
-    arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
 -   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
     in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
--   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
-    `char`, passed the whole suite).
--   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
-    what it is told to (entities, attributes - subscription-shaped). ([more](ideas.md#cordb-history-retention-and-a-selector))
--   **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam. ([more](ideas.md#more-bridges))
 -   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
 
 ## Medium term
@@ -161,7 +152,18 @@ incorporated in the next release of the product, in roughly this order:
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **c³ - Configure** - the mapping tools in the Control Center: DDS topics, services and actions to entities and attributes, and the same for OPC UA. ([more](ideas.md#c-the-coraine-control-center))
+-   **c³ - Configure: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to
+    entities and attributes, as for DDS. ([more](ideas.md#c-the-coraine-control-center))
+-   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
+    routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
+    (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
+    and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
+    arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
+-   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
+    what it is told to (entities, attributes - subscription-shaped); after ETSI has decided on it.
+    ([more](ideas.md#cordb-history-retention-and-a-selector))
+-   **More bridges** - Kafka, one standard binding across the brokers that have one, on the
+    Bridge/Channel seam that carries DDS, MQTT, Modbus, OPC UA and CKAN. ([more](ideas.md#more-bridges))
 -   **The IoT Agents as cor-agent plugins, released** - the six prototypes (JSON, UltraLight, LWM2M, LoRaWAN, Sigfox, ISOXML; OPC UA is the OPC UA bridge) brought to parity with the FIWARE IoT Agents and released; one binary or two tiers. ([more](ideas.md#the-iot-agents-as-cor-agent-plugins))
 -   **The design notes as guides** - Service Execution, the Cor Data Space Connector, the IoT Agents as Service Executors and their measures as DataChannel records: today design notes here, guides of the documentation once their designs settle.
 -   **A CSV bridge, and CKAN beyond `once`** - CSV files as DataChannels, as CKAN resources are; CKAN's `poll` (the dataset's activity stream) and `push` (a webhook) modes. ([more](ideas.md#a-ckan-bridge-and-a-csv-bridge))
@@ -196,7 +198,16 @@ product is heading and may wish to get involved.
     files (on disk or object storage), compressed and columnar, queried through embedded DuckDB:
     cheap storage for years of history and fast wide aggregations. Recent history, and its ingest, stay
     in the hot store. Not for current state.
+
+## Continuous
+
+Work that is never finished: kept up as the specifications, the platforms and the code move.
+
+-   **Service Execution, following GR CIM-055 as it settles** - the status names, the query and
+    discovery parameters.
 -   **Continuous ETSI conformance** - 100 % kept as the specification evolves. ([more](ideas.md#continuous-etsi-conformance))
+-   **Build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
+    `char`, passed the whole suite).
 -   **Broader performance regression coverage** - more scenarios, nightly. ([more](ideas.md#broader-performance-regression-coverage))
 
 Everything else - open questions, smaller improvements, proposals to ETSI - is in [Ideas](ideas.md).
@@ -237,7 +248,7 @@ Smaller, alongside:
   mongoc's ~0.15 s on close (the topology monitor's join).
 - **A Grafana data source for NGSI-LD** - current state and temporal, queries; scoped after a
   conversation with its prospective user.
-- **More bridges** - Kafka (one proposal across the brokers that have one), WebSockets.
+- **More bridges** - Kafka (one proposal across the brokers that have one).
 
 ### Short term (KZ, 2026-10-03)
 
