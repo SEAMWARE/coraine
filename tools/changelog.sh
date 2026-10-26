@@ -170,7 +170,7 @@ case "${1:-}" in
 
   --check)
     check || exit 1
-    echo "changelog.d: $(entries | grep -c .) entries, all well-formed"
+    echo "changelog.d: $(entries | grep -c .) entry file(s), all well-formed"
     ;;
 
   --release)
