@@ -27,6 +27,14 @@ extern int mongocIndexesInit(void);
 
 // -----------------------------------------------------------------------------
 //
+// mongocIndexesClose - the declarations freed, at dbClose
+//
+extern void mongocIndexesClose(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocIndexesApply - a tenant's declared indexes: created, the ones no longer declared dropped
 //
 extern void mongocIndexesApply(Tenant* tenantP, mongoc_collection_t* collP);

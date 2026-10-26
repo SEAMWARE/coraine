@@ -504,6 +504,24 @@ int mongocIndexesInit(void)
 
 // -----------------------------------------------------------------------------
 //
+// mongocIndexesClose - the declarations' strings freed, at dbClose. The plugin is unloaded after it, and its
+// declV with it: a string still in it is then a leak (valgrind: definitely lost - one per --dbValueIndexes
+// declaration, three per one the admin API added)
+//
+void mongocIndexesClose(void)
+{
+  pthread_mutex_lock(&declMutex);
+
+  while (declN > 0)
+    declFree(&declV[--declN]);
+
+  pthread_mutex_unlock(&declMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // mongocIndexesApply - the declared indexes of a tenant: the ones of the declarations that cover it
 // created, every other cor_v_* / cor_d_* index of its entities collection dropped
 //

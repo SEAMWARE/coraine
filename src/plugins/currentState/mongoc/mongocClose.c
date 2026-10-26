@@ -17,6 +17,9 @@
 #if COR_FEATURE_HEALTH
 #include "currentState/mongoc/mongocPing.h"                       // mongocPingClose
 #endif
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
+#include "currentState/mongoc/mongocIndexes.h"                    // mongocIndexesClose
+#endif
 #include "currentState/mongoc/mongocClose.h"                      // Own interface
 
 
@@ -46,6 +49,10 @@ void mongocClose(void)
 #endif
 
   geoMatchClose();   // shared GEOS ctx (geoMatchInit at startup) — sub-notify / CSR geo-match
+
+#if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
+  mongocIndexesClose();
+#endif
 
   mongoc_cleanup();
 
