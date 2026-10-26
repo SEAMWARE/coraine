@@ -36,6 +36,7 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Installation & Administration: installation.md
+  - Command-line options: options.md
   - Migrating a database to coraine: migration.md
   - Kubernetes: kubernetes.md
   - High Availability: high-availability.md

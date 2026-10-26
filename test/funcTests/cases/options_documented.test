@@ -1,0 +1,36 @@
+#
+# FILE            options_documented.test
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every command-line option the broker (with each plugin that adds options), coraine-import and coraine-build
+# take has its entry in doc/options.md, and the document has no entry for an option that is gone -
+# tools/optionsDocumented.sh, which names each problem. A new option without its entry fails here.
+#
+# REQUIRE_FEATURE: AUTH AUTH_OIDC
+#
+--NAME--
+doc/options.md documents every command-line option, and none that is gone
+
+--TAGS--
+usage docs
+
+--INIT--
+
+--RUN--
+echo "01. Every option documented"
+echo "==========================="
+$REPO_ROOT/test/funcTests/tools/optionsDocumented.sh $REPO_ROOT/doc/options.md $COR_BROKER $COR_IMPORT $REPO_ROOT/packaging/deb/coraine-build | sed -E 's/^all [0-9]+ options documented$/all options documented/'
+echo "exit code: ${PIPESTATUS[0]}"
+echo
+echo
+
+--EXPECT--
+01. Every option documented
+===========================
+all options documented
+exit code: 0
+
+
+--TEARDOWN--
