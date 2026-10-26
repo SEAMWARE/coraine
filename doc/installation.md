@@ -270,7 +270,7 @@ select, because a plugin contributes its own options (for example `--dbHost`,
 | `--noSplitEntities` | off | each entity lives wholly at one source |
 | `--httpEndpoint` / `-he` | auto | externally reachable base URL |
 | `--csourceAlias` | endpoint authority | alias used in `Via` loop detection |
-| `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file (a path, or `file://`) - read at start and hosted as `/ngsi-ld/v1/jsonldContexts/defaultUserContext`, its URL then the default (the DDS mapping tool's `dds-context.jsonld`, as Orion-LD's `-duc` takes it) |
+| `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file (a path, or `file://`) - read at start and hosted as `/ngsi-ld/v1/jsonldContexts/defaultUserContext`, its URL then the default (the DDS mapping tool's `dds-context.jsonld`, as Orion-LD's `-duc` takes it). A URL that cannot be retrieved fails a request read with it - a create, a query, a retrieval, with no `@context` of its own - 504 LdContextNotAvailable, as a `Link` header's |
 | `--corsOrigin` / `--corsMaxAge` | — / 86400 | CORS origin and preflight cache |
 | `--distOpTimeout` / `-dtmo` | 5000 | HTTP client timeout (ms) for forwards, notifications, `@context` downloads |
 | `--cooldownMillis` / `-cms` | 30000 | endpoint cooldown after a delivery failure |

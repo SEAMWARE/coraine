@@ -74,6 +74,9 @@ bump may still change behaviour; the entry says so where it does.
   (`[]`), and a forwarded batch took none of its per-entity answers - a batch create reported `201` for an
   entity the source refused. The same over `http://` was right, and so was a forwarded retrieve. The
   temporal query and retrieve and the other batch operations took the same path and are fixed with it.
+- A default user `@context` (`--defaultUserContext`) that cannot be retrieved answers a query 504
+  LdContextNotAvailable, as a create: `GET /entities?type=Room` answered 200 `[]` - `Room` expanded with the core
+  context alone, in silence.
 - TimescaleDB: `--troePwd`, `--troeUser` and `--troeName` go to PostgreSQL as written - each is quoted in the
   connection string. A password with a space, a `'` or a `\` was cut at its space and the rest taken as
   syntax: the start waited `--troeConnectTimeout` seconds for a database that was there, and failed.
