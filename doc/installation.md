@@ -456,7 +456,18 @@ above). A broker **started** during an outage waits for the database - a try a s
 the history's tables, so it does not serve meanwhile. Past that it does not start: exit code 1.
 Only a database it cannot reach is waited for - no connection, a server still starting up, a
 connection lost during the migration; one that answers and refuses (a schema version newer than
-this build knows, a permission) fails the start at once.
+this build knows, a permission, the password of `--troeUser` / `--troePwd`) fails the start at once,
+with the server's message:
+
+```
+timescale: connection to db 'postgres' refused (--troeUser, --troePwd): connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+timescale: failed to initialise the default-tenant database
+```
+
+A refused password is told from a server that is not there by the server's message, in English: a
+PostgreSQL whose `lc_messages` is another language is waited for (`--troeConnectTimeout`). MongoDB
+alike: a wrong `--dbUser` / `--dbPwd` fails the start at once (`mongoc: ping failed: Authentication
+failed.`).
 
 ```
 timescale: the history database cannot be reached - trying again once a second, for 30 s (--troeConnectTimeout)

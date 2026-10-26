@@ -72,6 +72,15 @@ extern PGconn*        timescaleConnect(const char* dbName);
 
 // -----------------------------------------------------------------------------
 //
+// timescaleConnectRefused - timescaleConnect, and on a failure whether the server refused the credentials
+// (*refusedP) - there and answering, not to be waited for
+//
+extern PGconn*        timescaleConnectRefused(const char* dbName, bool* refusedP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // timescaleDbNameFor - see timescalePool.c
 //
 extern void           timescaleDbNameFor(Tenant* tenantP, char* buf, int bufSize);
