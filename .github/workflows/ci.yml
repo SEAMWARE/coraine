@@ -101,6 +101,13 @@ jobs:
             echo "  ok  $f"
           done
 
+      #
+      # A CHANGELOG entry is a file of its own in changelog.d/ (changelog.d/README.md); a malformed one would
+      # surface only at the release, when tools/changelog.sh --release folds them into CHANGELOG.md
+      #
+      - name: The changelog entries must be well-formed
+        run: tools/changelog.sh --check
+
       - id: check
         run: |
           #
