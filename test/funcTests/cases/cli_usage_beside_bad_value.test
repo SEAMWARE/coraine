@@ -1,0 +1,96 @@
+#
+# FILE            cli_usage_beside_bad_value.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --usage/-u and --Usage/-U print the option list whatever else the command line holds: `coraine -u -p 0`
+# exited 1 with the range error of --port, the usage never printed. corArgs now looks for -u/-U before it
+# sets any option - before, or after, the bad one. Without -u, the bad value is the error it was.
+#
+--NAME--
+-u / -U print the usage even beside a bad value of another option
+
+--TAGS--
+cli
+
+--INIT--
+
+--RUN--
+
+#
+# run <args> - the broker with them: the start of its first line, whether the range error was printed,
+# its exit code
+#
+run() {
+  local out rc
+  out=$($COR_BROKER "$@" 2>&1)
+  rc=$?
+  echo "first line: $(echo "$out" | awk 'NR == 1 { print $1, $2 }')"
+  echo "range error lines: $(echo "$out" | grep -c 'lower limit\|out of min limit')"
+  echo "exit code: $rc"
+}
+
+
+echo "01. coraine -u -p 0"
+echo "==================="
+run -u -p 0
+echo
+echo
+
+
+echo "02. coraine -p 0 -u - the bad value first"
+echo "========================================="
+run -p 0 -u
+echo
+echo
+
+
+echo "03. coraine -U -p 0"
+echo "==================="
+run -U -p 0
+echo
+echo
+
+
+echo "04. coraine -p 0, no -u - the range error, exit 1"
+echo "================================================="
+$COR_BROKER -p 0 > /tmp/corTest_usageBadValue.out 2>&1
+echo "exit code: $?"
+grep -c 'lower limit' /tmp/corTest_usageBadValue.out
+echo
+echo
+
+
+--TEARDOWN--
+rm -f /tmp/corTest_usageBadValue.out
+
+--EXPECT--
+01. coraine -u -p 0
+===================
+first line: Usage: coraine
+range error lines: 0
+exit code: 0
+
+
+02. coraine -p 0 -u - the bad value first
+=========================================
+first line: Usage: coraine
+range error lines: 0
+exit code: 0
+
+
+03. coraine -U -p 0
+===================
+first line: --usage (-u)
+range error lines: 0
+exit code: 0
+
+
+04. coraine -p 0, no -u - the range error, exit 1
+=================================================
+exit code: 1
+1
+
+

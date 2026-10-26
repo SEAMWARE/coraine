@@ -1,0 +1,94 @@
+#
+# FILE            cli_required_option.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A required option (CorArgReq) missing from the command line: the program names it, prints its usage
+# and exits 1 - corArgs enforces the sort, which it used to only show. coraine-import's --file is one:
+# started without it, the importer ran on with no stream and crashed (SIGSEGV, exit 139) with corDB -
+# migrateImport(NULL) - and connected to MongoDB first with mongoc. --version needs no --file: it is
+# answered before anything else is read.
+#
+--NAME--
+A required option missing: named, the usage, exit 1 - coraine-import without --file
+
+--TAGS--
+cli migrate
+
+--INIT--
+
+--RUN--
+
+#
+# run <args> - the importer with them: its first line and its exit code
+#
+run() {
+  local out rc
+  out=$($COR_IMPORT "$@" 2>&1)
+  rc=$?
+  echo "$out" | head -1
+  echo "usage lines: $(echo "$out" | grep -c '^Usage: coraine-import')"
+  echo "exit code: $rc"
+}
+
+
+echo "01. coraine-import --database corDB, no --file"
+echo "=============================================="
+run --database corDB
+echo
+echo
+
+
+echo "02. coraine-import --database mongoc, no --file"
+echo "==============================================="
+run --database mongoc
+echo
+echo
+
+
+echo "03. coraine-import, no option at all"
+echo "===================================="
+run
+echo
+echo
+
+
+echo "04. coraine-import --version - no --file needed"
+echo "==============================================="
+$COR_IMPORT --version > /dev/null 2>&1
+echo "exit code: $?"
+echo
+echo
+
+
+--TEARDOWN--
+
+--EXPECT--
+01. coraine-import --database corDB, no --file
+==============================================
+coraine-import: missing required option: --file
+usage lines: 1
+exit code: 1
+
+
+02. coraine-import --database mongoc, no --file
+===============================================
+coraine-import: missing required option: --file
+usage lines: 1
+exit code: 1
+
+
+03. coraine-import, no option at all
+====================================
+coraine-import: missing required option: --file
+usage lines: 1
+exit code: 1
+
+
+04. coraine-import --version - no --file needed
+===============================================
+exit code: 0
+
+
