@@ -173,21 +173,200 @@ offers none, the route is a 404. `COR_FEATURE_AUTH_METADATA` (on; off with `COR_
 
 ### 3.1 Options
 
-| option | |
-|---|---|
-| `--fdscDiscovery <url>` | the verifier's OpenID discovery document - the URL APISIX's `openid-connect` has as `discovery` (`http://verifier:3000/services/<service>/.well-known/openid-configuration`). Its `jwks_uri` gives the keys, its `issuer` the `iss` a token must have |
-| `--fdscJwks <url\|file>` | the JWK Set itself, instead of `--fdscDiscovery` |
-| `--fdscIssuer <iss>` | the issuer a token must have - default: the discovery document's |
-| `--fdscAudience <aud>` | an audience a token must have - default: not checked, as APISIX does not check it. VCVerifier sets `aud` to the service id |
-| `--fdscLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 120, what APISIX allows |
-| `--fdscPap <url>` | the ODRL-PAP's base URL (`http://odrl-pap:8080`) - the policies are read from its `GET /policy` |
-| `--fdscPolicies <url\|file>` | the policies themselves (the PAP's listing, an array of ODRL policies, one policy, or an `@graph`), instead of `--fdscPap` |
-| `--fdscOrganization <did>` | the provider's DID - the PAP's `GENERAL_ORGANIZATION_DID`; `vc:role` reads a credential's roles for it |
-| `--fdscRefresh <s>` | seconds between two fetches of keys and policies - default 30 |
-| `--fdscStrippedPath` | `http:path` reads the `x-stripped-path` header, as the connector's Rego does - only behind a gateway that sets it and drops a client's; default: the request's path |
-| `--fdscAnonymous` | a request without a token is let in as no one, instead of a 401 - only a `vc:any` policy can allow it anything |
-| `--fdscNgsild` | decide on the entity, as NGSI-LD has it (§ 6) - **decisions differ from the connector's** |
-| `--fdscOwnerMaxAge <s>` | `--fdscNgsild`: seconds a subscription's owner (its maker's credential, kept for its notifications) holds - after that, its notifications go without entities until the owner updates the subscription. 0 (default): until the credential's own `validUntil` (VC 1.1: `expirationDate`) |
+The options, as [Command-line options](options.md#plugin-fdsc-loaded-by-auth-fdsc) has them:
+
+<!-- options of the fdsc plugin: copied from doc/options.md by tools/pluginOptions.sh - edit them there -->
+
+#### `--fdscDiscovery`
+
+`-fdscDiscovery` · `CORAINE_FDSCDISCOVERY` · String · default: no default - `--fdscJwks` is needed instead
+· values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: fdsc
+
+The verifier's OpenID discovery document - the URL APISIX's `openid-connect` has as `discovery`
+(`http://verifier:3000/services/<service>/.well-known/openid-configuration`). Its `jwks_uri` gives the keys,
+its `issuer` the `iss` a token must have unless `--fdscIssuer` is given. A document without an `issuer`, and
+no `--fdscIssuer`: every request with a token is a 503
+(`the verifier's issuer is not known (its discovery document has none, and --fdscIssuer is not set)`).
+Without it and without `--fdscJwks` the broker stops at start:
+`auth plugin 'fdsc': no keys to check a token with: --fdscDiscovery or --fdscJwks`. With both,
+`--fdscJwks` is used and the discovery document is not read.
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscPap http://odrl-pap:8080
+
+#### `--fdscJwks`
+
+`-fdscJwks` · `CORAINE_FDSCJWKS` · String · default: no default - the keys come from `--fdscDiscovery`
+· values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: fdsc
+
+The verifier's JWK Set itself, instead of the discovery document. It needs `--fdscIssuer`: the broker stops
+at start with `auth plugin 'fdsc': --fdscJwks needs --fdscIssuer: a token's iss is always checked`. A JWK
+Set that cannot be read is in the log, and requests with a token are a 503 until it can
+(`the verifier's keys are not loaded yet`).
+
+    coraine --database corDB --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org \
+            --fdscPolicies /etc/coraine/policies.json
+
+#### `--fdscIssuer`
+
+`-fdscIssuer` · `CORAINE_FDSCISSUER` · String · default: no default - the discovery document's `issuer`
+· values: the verifier's issuer (a URL or a DID) · plugin: fdsc
+
+The `iss` every token must have. Without it, the one the discovery document gives (re-read at every
+refresh). Required with `--fdscJwks`. A token of another issuer is a 401 with
+`error_description="wrong issuer"`. It is what `GET /.well-known/oauth-protected-resource` gives as
+`authorization_servers`.
+
+    coraine --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org --fdscPap http://odrl-pap:8080
+
+#### `--fdscAudience`
+
+`-fdscAudience` · `CORAINE_FDSCAUDIENCE` · String · default: no default - `aud` is not checked
+· values: an audience - the verifier's service id · plugin: fdsc
+
+An audience the token's `aud` must hold. VCVerifier sets `aud` to the service id. Without it a token the
+verifier issued for another service is accepted - as APISIX accepts it; with it, such a token is a 401 with
+`error_description="wrong audience"`. When given, `GET /.well-known/oauth-protected-resource` has it as
+`fdsc_audience`.
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscAudience data-service --fdscPap http://odrl-pap:8080
+
+#### `--fdscLeeway`
+
+`-fdscLeeway` · `CORAINE_FDSCLEEWAY` · Int · default: `120`
+· values: 0-600 (seconds) · plugin: fdsc
+
+The clock skew allowed on a token's `exp` and `nbf`, in seconds: a token is taken until `exp` plus the
+leeway, and from `nbf` minus it. 120 is what APISIX's `openid-connect` (lua-resty-openidc) allows. A token
+outside it is a 401 with `error_description="expired, or not yet valid"`; a token from the token cache is
+checked again on every request.
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscPap http://odrl-pap:8080 --fdscLeeway 30
+
+#### `--fdscPap`
+
+`-fdscPap` · `CORAINE_FDSCPAP` · String · default: no default - `--fdscPolicies` is needed instead
+· values: the ODRL-PAP's base URL · plugin: fdsc
+
+The ODRL-PAP whose policies decide (`http://odrl-pap:8080`). They are read from its `GET /policy`, page by
+page (`?page=<n>&pageSize=100`) until a page is empty, and installed only when every page has been read: a
+fetch that fails half-way keeps the policies in use. A policy that cannot be read is skipped and said in the
+log. Without it and without `--fdscPolicies` the broker stops at start:
+`auth plugin 'fdsc': no policies to decide with: --fdscPap or --fdscPolicies`. With both, `--fdscPolicies`
+is used.
+
+The broker's own policy API (`--policyApiPort`) is such a PAP: `--fdscPap http://127.0.0.1:<port>`.
+
+    coraine --database corDB --policyApiPort 8081 --auth fdsc --fdscPap http://127.0.0.1:8081 \
+            --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org
+
+#### `--fdscPolicies`
+
+`-fdscPolicies` · `CORAINE_FDSCPOLICIES` · String · default: no default - `--fdscPap` is needed instead
+· values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: fdsc
+
+The ODRL policies themselves, instead of a PAP: a JSON array - of ODRL policies, or the PAP's own listing
+(`[{"id", "odrl:uid", "odrl": "<the policy as a string>"}]`) - a single policy object, or an object whose `@graph`
+holds the policies. Read again every
+`--fdscRefresh` seconds. A file that is not JSON leaves the policies in use (none at first: every request
+is a 503, `the policies are not loaded yet`).
+
+    coraine --database corDB --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org \
+            --fdscPolicies /etc/coraine/policies.json
+
+#### `--fdscOrganization`
+
+`-fdscOrganization` · `CORAINE_FDSCORGANIZATION` · String · default: no default - the PAP's default DID, `urn:ngsi-ld:organization:0b03975e-7ded-4fbd-9c3b-a5d6550df7e2`
+· values: a DID · plugin: fdsc
+
+The provider's DID - the PAP's `GENERAL_ORGANIZATION_DID`. A policy's `vc:role` reads the roles the
+credential's subject has for this organisation: the `names` of the entry of `credentialSubject.roles` whose
+`target` is this DID. A credential whose roles are for another target holds no role here. Two entries for
+the organisation with different names are OPA's `eval_conflict_error`: a 503. Set it to what the PAP has.
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscPap http://odrl-pap:8080 --fdscOrganization did:web:provider.example.org
+
+#### `--fdscRefresh`
+
+`-fdscRefresh` · `CORAINE_FDSCREFRESH` · Int · default: `30`
+· values: 1-86400 (seconds) · plugin: fdsc
+
+Seconds between two fetches of the keys and the policies. While either is missing, both are fetched every
+second, whatever the option says - the verifier and the PAP may start after the broker. A token signed with
+a key the set does not have (VCVerifier makes a new key at every start) is a 401 and has the keys fetched at
+once, at most once a second. A policy written to the PAP is in use within this many seconds. A new key set
+empties the token cache.
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscPap http://odrl-pap:8080 --fdscRefresh 5
+
+#### `--fdscAnonymous`
+
+`-fdscAnonymous` · `CORAINE_FDSCANONYMOUS` · Bool · default: `false`
+· values: a flag · plugin: fdsc
+
+A request without a token is not a 401: it is let in as no one, and the policies decide it - only a policy
+whose assignee is `vc:any` can allow it anything; for the rest it is a 403. A request with a token that does
+not hold is still a 401.
+
+    coraine --database corDB --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org \
+            --fdscPolicies /etc/coraine/policies.json --fdscAnonymous
+
+#### `--fdscNgsild`
+
+`-fdscNgsild` · `CORAINE_FDSCNGSILD` · Bool · default: `false`
+· values: a flag · plugin: fdsc
+
+Decide on the entity, as NGSI-LD has it, instead of as the Data Space Connector does - so decisions differ
+from the connector's. `ngsi-ld:entityType` is then the entity's own types, expanded: the body's for a
+create, the stored entity's for everything else; each entity of a batch on its own (a denied one is its 403
+in the 207), each entity of a query on its own (the denied ones left out); the action is the NGSI-LD
+operation, not the HTTP method. Without it, `ngsi-ld:entityType` is what the connector reads: the type part
+of the id in the path, else `?type=` as one string, else the body's `type`.
+
+Only with it: the words `ngsi-ld:tenant` and `ngsi-ld:attribute` (a policy that uses one is skipped without
+it, and the log says why:
+`policy '<uid>' skipped: 'ngsi-ld:tenant' is coraine's own word - only with --fdscNgsild`); and the
+notifications - decided for the subscription's owner, entity by entity, the owner's credential kept with the
+subscription (`--fdscOwnerMaxAge`). Without it a subscription notifies what matches, and no credential is
+kept. Not available in the APISIX plugin: it needs the stored entity
+([Authorization](authorization.md#6---fdscngsild---decided-on-the-entity)).
+
+    coraine --database corDB --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org \
+            --fdscPolicies /etc/coraine/policies.json --fdscNgsild
+
+#### `--fdscOwnerMaxAge`
+
+`-fdscOwnerMaxAge` · `CORAINE_FDSCOWNERMAXAGE` · Int · default: `0` (until the credential's own end)
+· values: 0-31536000 (seconds) · plugin: fdsc
+
+With `--fdscNgsild` only (without it no owner is kept, and the option changes nothing). A subscription's
+owner - the credential of the token that made or last updated it, kept for its notifications - holds for
+this many seconds from that request; after that its notifications go without entities, until the owner
+updates the subscription. 0: until the credential's own `validUntil` (VC 1.1: `expirationDate`); a
+credential past it no longer holds whatever this option says. A kept credential is never checked again for
+revocation: this is what bounds how long a revoked one still receives notifications.
+
+    coraine --database corDB --auth fdsc --fdscJwks /etc/coraine/jwks.json --fdscIssuer did:web:verifier.example.org \
+            --fdscPolicies /etc/coraine/policies.json --fdscNgsild --fdscOwnerMaxAge 86400
+
+#### `--fdscStrippedPath`
+
+`-fdscStrippedPath` · `CORAINE_FDSCSTRIPPEDPATH` · Bool · default: `false`
+· values: a flag · plugin: fdsc
+
+`http:path` reads the `x-stripped-path` header when the request has one, as the connector's Rego does;
+without the option it reads the request's own path, and the header is ignored. Only behind a gateway that
+sets the header and drops a client's: a client that can send it chooses the path an `http:isInPath` rule
+sees ([Authorization](authorization.md#44-where-coraine-decides-otherwise-on-purpose)).
+
+    coraine --auth fdsc --fdscDiscovery http://verifier:3000/services/data-service/.well-known/openid-configuration \
+            --fdscPap http://odrl-pap:8080 --fdscStrippedPath
+
+<!-- end of the options of the fdsc plugin -->
 
 A source of keys and a source of policies are required; without either the broker does not start.
 
@@ -505,21 +684,185 @@ token may not use makes no tenant. `--oidcAnyTenant` turns the check off.
 
 ### 8.1 Options
 
-| option | |
-|---|---|
-| `--oidcIssuer <url>` | the provider's issuer, the `iss` a token must have - required (`https://keycloak.example.org/realms/city`) |
-| `--oidcDiscovery <url>` | the discovery document's URL, when the broker reaches the provider by another name than its issuer's (`http://keycloak:8080/realms/city/.well-known/openid-configuration`) |
-| `--oidcJwks <url\|file>` | the JWK Set itself, instead of the discovery document - not with `--oidcDiscovery` |
-| `--oidcAudience <aud>` | an audience a token must have - default: not checked, and the broker says so at startup (a token the provider issued for any of its clients is taken) |
-| `--oidcRolesClaim <path>` | the claim holding the roles - default `realm_access.roles`, Keycloak's realm roles; `resource_access.<client>.roles` for a Keycloak client's, `scope`, `roles`, `groups` for other providers |
-| `--oidcReadRole <role>` | the role that reads - default `ngsild-read` |
-| `--oidcWriteRole <role>` | the role that reads and writes - default `ngsild-write` |
-| `--oidcLeeway <s>` | clock skew allowed on `exp` and `nbf` - default 60 |
-| `--oidcRefresh <s>` | seconds between two fetches of the keys - default 300 |
-| `--oidcTenantsClaim <path>` | the claim holding the tenants a token may use - default `tenants` |
-| `--oidcAnyTenant` | no tenant check: a token may use every tenant |
-| `--oidcOwnerMaxAge <s>` | seconds a subscription's owner holds - default 86400 |
-| `--oidcAnonymousRead` | a read without a token is let in, in every tenant; a write without one is still a 401 |
+The options, as [Command-line options](options.md#plugin-oidc-loaded-by-auth-oidc) has them:
+
+<!-- options of the oidc plugin: copied from doc/options.md by tools/pluginOptions.sh - edit them there -->
+
+#### `--oidcIssuer`
+
+`-oidcIssuer` · `CORAINE_OIDCISSUER` · String · default: no default - the broker does not start
+· values: the provider's issuer URL · plugin: oidc
+
+The provider's issuer: the `iss` every token must have, compared as a string. Without `--oidcDiscovery` or
+`--oidcJwks` the keys are found through `<issuer>/.well-known/openid-configuration` (a trailing `/` of the
+issuer is dropped first). Required - without it the broker stops at start:
+`auth plugin 'oidc': no provider: --oidcIssuer (a token's iss is always checked)`.
+
+A token of another issuer is a 401 with `error_description="wrong issuer"`. The issuer is what
+`GET /.well-known/oauth-protected-resource` gives as `authorization_servers`.
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city
+
+#### `--oidcDiscovery`
+
+`-oidcDiscovery` · `CORAINE_OIDCDISCOVERY` · String · default: no default - `<--oidcIssuer>/.well-known/openid-configuration`
+· values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: oidc
+
+The provider's OpenID discovery document, for a broker that reaches the provider by another name than the
+issuer's (inside a cluster: `http://keycloak:8080/...` while the tokens carry the public name). Its
+`jwks_uri` gives the keys, and its `issuer` must be `--oidcIssuer` (OpenID Connect Discovery 1.0 § 4.3): a
+document of another issuer is not used, the log says so
+(`its issuer is '...', not --oidcIssuer's '...'`), and with no keys every request is a 503. The `jwks_uri`
+in it must be one the broker can reach.
+
+Not with `--oidcJwks`: the broker stops at start with
+`auth plugin 'oidc': --oidcDiscovery and --oidcJwks: one or the other`.
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city \
+            --oidcDiscovery http://keycloak:8080/realms/city/.well-known/openid-configuration
+
+#### `--oidcJwks`
+
+`-oidcJwks` · `CORAINE_OIDCJWKS` · String · default: no default - the keys come from the discovery document
+· values: a URL (`http://`, `https://`), or a file (a path, or `file://`) · plugin: oidc
+
+The provider's JWK Set itself, instead of the discovery document: no discovery document is read.
+`--oidcIssuer` is still required (the `iss` of a token is always checked). Not with `--oidcDiscovery`. A
+JWK Set that cannot be read is in the log
+(`oidc: the provider's keys (<where>): cannot open '<file>'`), and until it can every request is a 503
+(`the provider's keys are not loaded yet`). A file is read again every `--oidcRefresh` seconds, as a URL is
+fetched.
+
+    coraine --database corDB --auth oidc --oidcIssuer https://idp.example.org/realms/city --oidcJwks /etc/coraine/jwks.json
+
+#### `--oidcAudience`
+
+`-oidcAudience` · `CORAINE_OIDCAUDIENCE` · String · default: no default - `aud` is not checked
+· values: an audience (a client id) · plugin: oidc
+
+An audience the token's `aud` must hold (a string, or an array that has it). A token without it is a 401
+with `error_description="wrong audience"`. Without the option every token the provider issued for any of
+its clients is taken, and the broker says so at start
+(`oidc: --oidcAudience not set - a token issued for any client of the provider is taken`). Keycloak puts a
+client into `aud` only with an audience mapper on the client the applications log in with
+([Authorization](authorization.md#82-with-keycloak)).
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcAudience coraine
+
+#### `--oidcLeeway`
+
+`-oidcLeeway` · `CORAINE_OIDCLEEWAY` · Int · default: `60`
+· values: 0-600 (seconds) · plugin: oidc
+
+The clock skew allowed between the broker and the provider, in seconds: a token is taken until `exp` plus
+the leeway, and from `nbf` minus it. A token outside it is a 401 with
+`error_description="expired, or not yet valid"`. A token found in the token cache has its `exp` and `nbf`
+checked again with the same leeway on every request. Out of range: the broker does not start
+(`value 601 for option '--oidcLeeway' exceeds its upper limit. Allowed range: 0-600`).
+
+    coraine --auth oidc --oidcIssuer https://idp.example.org/realms/city --oidcLeeway 0
+
+#### `--oidcRefresh`
+
+`-oidcRefresh` · `CORAINE_OIDCREFRESH` · Int · default: `300`
+· values: 1-86400 (seconds) · plugin: oidc
+
+Seconds between two fetches of the provider's keys (the discovery document, then its `jwks_uri`; or
+`--oidcJwks`). While there are no keys the fetch is repeated every second, whatever the option says - the
+provider may start after the broker. A token signed with a key the set does not have (the provider rotated
+its keys) is a 401 and has the keys fetched at once, at most once a second. A new key set empties the token
+cache.
+
+    coraine --auth oidc --oidcIssuer https://idp.example.org/realms/city --oidcRefresh 60
+
+#### `--oidcRolesClaim`
+
+`-oidcRolesClaim` · `CORAINE_OIDCROLESCLAIM` · String · default: `realm_access.roles`
+· values: a claim's path, dot-separated · plugin: oidc
+
+Where in the token the roles are: a path of claim names separated by dots, each one an object member. The
+claim is an array of strings, or a string of space-separated values (`scope`). The default is Keycloak's
+realm roles; `resource_access.<client>.roles` is a Keycloak client's roles, `scope`, `roles` or `groups`
+other providers'. A token whose claim does not hold `--oidcReadRole` or `--oidcWriteRole` may do nothing:
+403 (`the token has neither role '...' nor '...' (claim '...')`). An empty value stops the broker at start
+(`--oidcRolesClaim, --oidcReadRole, --oidcWriteRole, --oidcTenantsClaim: none may be empty`).
+
+    coraine --auth oidc --oidcIssuer https://idp.example.org --oidcRolesClaim scope
+
+#### `--oidcReadRole`
+
+`-oidcReadRole` · `CORAINE_OIDCREADROLE` · String · default: `ngsild-read`
+· values: a role name · plugin: oidc
+
+The role that reads: `GET`, `HEAD`, `OPTIONS`, and the queries that are POSTs -
+`POST /ngsi-ld/v1/entityOperations/query`, `POST /ngsi-ld/v1/temporal/entityOperations/query` and
+`POST /ngsi-ld/v1/temporal/timepoint/entityOperations/query`. A token with only this role that writes gets a
+403 (`a write needs the role 'ngsild-write' (claim 'realm_access.roles')`). Not empty (see
+`--oidcRolesClaim`).
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcReadRole city-viewer
+
+#### `--oidcWriteRole`
+
+`-oidcWriteRole` · `CORAINE_OIDCWRITEROLE` · String · default: `ngsild-write`
+· values: a role name · plugin: oidc
+
+The role that reads and writes: every request. Creating or updating a subscription is a write. Not empty
+(see `--oidcRolesClaim`).
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcWriteRole city-editor
+
+#### `--oidcTenantsClaim`
+
+`-oidcTenantsClaim` · `CORAINE_OIDCTENANTSCLAIM` · String · default: `tenants`
+· values: a claim's path, dot-separated · plugin: oidc
+
+Where in the token the tenants it may use are: a dot-separated path, as `--oidcRolesClaim`; an array of
+strings, or a string of space-separated values. `default` is the default tenant (a request without
+`NGSILD-Tenant`), `*` every tenant. A token without the claim may use the default tenant only; a token whose
+claim names tenants may use those and no other - the default tenant only when `default` is among them. A
+request in another tenant is a 403 (`the token may not use the tenant 't1' (claim 'tenants')`), decided
+before the tenant is resolved, so a create in a tenant the token may not use makes no tenant. Not empty (see
+`--oidcRolesClaim`). Not read with `--oidcAnyTenant`.
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcTenantsClaim org.tenants
+
+#### `--oidcAnyTenant`
+
+`-oidcAnyTenant` · `CORAINE_OIDCANYTENANT` · Bool · default: `false`
+· values: a flag · plugin: oidc
+
+No tenant check: every token may use every tenant, and `--oidcTenantsClaim` is not read. The roles are
+checked as without it. `GET /.well-known/oauth-protected-resource` then gives `"coraine_tenants": null`.
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcAnyTenant
+
+#### `--oidcAnonymousRead`
+
+`-oidcAnonymousRead` · `CORAINE_OIDCANONYMOUSREAD` · Bool · default: `false`
+· values: a flag · plugin: oidc
+
+A read without a token (the reads of `--oidcReadRole`) is let in, in every tenant. A write without a token
+is still a 401 (`no access token (Authorization: Bearer)`). A request that does send a token is decided on
+the token, as without the option: a token that does not hold is a 401 even for a read.
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcAnonymousRead
+
+#### `--oidcOwnerMaxAge`
+
+`-oidcOwnerMaxAge` · `CORAINE_OIDCOWNERMAXAGE` · Int · default: `86400` (a day)
+· values: 1-31536000 (seconds) · plugin: oidc
+
+A subscription's owner - the roles and tenants of the token that created it or last updated it - is kept
+with the subscription and holds for this many seconds from that request. Each notification is sent only
+while the owner holds, has a role that reads, and may use the subscription's tenant; after that none are
+sent, until a request with a valid token updates the subscription and makes its sender the owner. This is
+what bounds how long roles or tenants taken away at the provider still receive notifications: the token's
+own `exp` is not used (a token lives minutes, a subscription months).
+
+    coraine --auth oidc --oidcIssuer https://keycloak.example.org/realms/city --oidcOwnerMaxAge 3600
+
+<!-- end of the options of the oidc plugin -->
 
 ### 8.2 With Keycloak
 

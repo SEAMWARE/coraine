@@ -102,6 +102,18 @@ if [ -n "$build" ]; then
   total=$((total + $(echo "$l" | grep -c .)))
 fi
 
+#
+# The index at the top - '- [<section>](#anchor) - N' - says how many entries each section has
+#
+while IFS=$'\t' read -r section said counted; do
+  [ "$said" = "$counted" ] || problem "doc/options.md: the index says '$section' has $said options, it has $counted"
+done < <(awk '
+  /^- \[.*\]\(#[^)]*\) - [0-9]+$/   { t = $0; sub(/^- \[/, "", t); sub(/\]\(#.*$/, "", t); n = $0; sub(/^.* - /, "", n); said[t] = n; order[++k] = t; next }
+  /^## /                              { s = substr($0, 4) }
+  /^### `--/                          { count[s]++ }
+  END                                 { for (i = 1; i <= k; i++) printf "%s\t%s\t%d\n", order[i], said[order[i]], count[order[i]] }
+' "$doc")
+
 if [ "$problems" -ne 0 ]; then
   echo "$problems problem(s) - doc/options.md documents every option"
   exit 1

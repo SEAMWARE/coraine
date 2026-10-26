@@ -108,6 +108,13 @@ jobs:
       - name: The changelog entries must be well-formed
         run: tools/changelog.sh --check
 
+      #
+      # A plugin's options are documented twice - doc/options.md and the plugin's own doc, copied by
+      # tools/pluginOptions.sh. A copy that differs is an entry changed in one place only
+      #
+      - name: The plugins' docs must have their options as doc/options.md has them
+        run: tools/pluginOptions.sh --check
+
       - id: check
         run: |
           #
