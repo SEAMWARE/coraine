@@ -12,7 +12,8 @@
 #include <unistd.h>                               // pause, write, _exit
 #include <signal.h>                               // signal, SIGINT, SIGTERM, sig_atomic_t
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
-#include <string.h>                               // strcmp, memcpy, strpbrk
+#include <string.h>                               // strcmp, memcpy, strpbrk, strerror
+#include <errno.h>                                // errno
 #include <time.h>                                 // time
 #include <stdint.h>                               // uint32_t
 #include <ifaddrs.h>                              // getifaddrs, freeifaddrs, struct ifaddrs
@@ -28,6 +29,7 @@
 #include "corBase/corCpuCount.h"                   // corCpuCount
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corBase/corDaemonize.h"                  // corDaemonize
+#include "corBase/corSizeText.h"                   // corSizeText
 #include "corArgs/corArgs.h"                      // corArgsInit, corArgsParse, corArgsPeek, CorArg, CorArgsStatus, corArgsStatus, CORARGS_END, corArgsUsage
 #include "corPlugin/corPlugin.h"                    // corPluginSetBaseDir, corPluginBaseDir, corPluginArgUpdate, corPluginRefused
 #include "corRest/corRest.h"                        // corRestPrepare, corRestStart, corRestSetPrettySpaces, corRestSetPreServiceHook, corRestParamAdd
@@ -2099,8 +2101,12 @@ int main(int argC, char* argV[])
   }
 
   if (responseBudgetBytes > 0)
-    COR_V("response size budget: %lld MiB (%s)", (long long) (responseBudgetBytes >> 20),
+  {
+    char sizeText[32];   // KiB below 1 MiB: a 1 MiB --memoryLimit leaves 64 KiB, and ">> 20" said 0 MiB
+
+    COR_V("response size budget: %s (%s)", corSizeText((uint64_t) responseBudgetBytes, sizeText, sizeof(sizeText)),
           (maxResponseSize >= 0)? "--maxResponseSize" : "1/16 of the memory budget");
+  }
   else
     COR_V("response size budget: none");
 #endif
@@ -2111,7 +2117,7 @@ int main(int argC, char* argV[])
   // /ready only once the broker serves (healthServing, below)
   //
   if ((healthPort != 0) && (healthStart(healthPort, healthStallTimeout) == false))
-    COR_X(1, "cannot listen for the health probes on port %u", healthPort);
+    COR_X(1, "cannot listen for the health probes on port %u: %s", healthPort, strerror(errno));
 #endif
 
   if (dbStart() != 0)

@@ -537,7 +537,13 @@ static int listenOpen(unsigned short port)
   if ((bind(fd, (struct sockaddr*) &sa, sizeof(sa)) == 0) && (listen(fd, 16) == 0))
     return fd;
 
+  //
+  // errno - why - kept through the close: the caller names it (EADDRINUSE: "Address already in use")
+  //
+  int err = errno;
+
   close(fd);
+  errno = err;
   return -1;
 }
 
@@ -564,8 +570,13 @@ bool healthStart(unsigned short port, int stallSecs)
   enabled = true;
 
   pthread_t tid;
-  if (pthread_create(&tid, NULL, serverLoop, NULL) != 0)
+  int       rc = pthread_create(&tid, NULL, serverLoop, NULL);
+
+  if (rc != 0)
+  {
+    errno = rc;   // pthread_create returns its error, the caller reads errno
     return false;
+  }
   pthread_detach(tid);
 
   COR_I("health port %u: /live, /ready and the report", port);

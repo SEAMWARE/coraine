@@ -7,7 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stdbool.h>                                 // bool
-#include <stdint.h>                                  // int64_t
+#include <stdint.h>                                  // int64_t, uint64_t
+
+#include "corBase/corSizeText.h"                     // corSizeText
 
 #include "corTree/CorNode.h"                         // CorNode
 #include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
@@ -42,16 +44,18 @@ bool responseBudgetRefused(DbQueryFilter* filterP, CorNode* arrayP, bool wholeSe
   if ((wholeSet == false) && (empty == false))
     return false;
 
-  long long mib = (long long) (filterP->maxBytes / (1024 * 1024));
+  char sizeText[32];   // KiB below 1 MiB: 1/16 of a 1 MiB memory budget is 64 KiB, not "0 MiB"
+
+  corSizeText((uint64_t) filterP->maxBytes, sizeText, sizeof(sizeText));
 
   if (wholeSet)
     ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
-            "this query needs every match at once (orderBy, or split entities without an EntityMap) and they exceed the response size budget of %lld MiB (--maxResponseSize) - narrow the query",
-            mib);
+            "this query needs every match at once (orderBy, or split entities without an EntityMap) and they exceed the response size budget of %s (--maxResponseSize) - narrow the query",
+            sizeText);
   else
     ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
-            "the next entity alone exceeds the response size budget of %lld MiB (--maxResponseSize) - narrow the query to leave it out",
-            mib);
+            "the next entity alone exceeds the response size budget of %s (--maxResponseSize) - narrow the query to leave it out",
+            sizeText);
 
   return true;
 }
@@ -101,11 +105,11 @@ int responseBudgetFetched(CorNode* arrayP)
 //
 void responseBudgetTooMany(const char* what)
 {
-  long long mib = (long long) (responseBudgetBytes / (1024 * 1024));
+  char sizeText[32];
 
   ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
-          "%s exceeds the response size budget of %lld MiB (--maxResponseSize) - narrow the query",
-          what, mib);
+          "%s exceeds the response size budget of %s (--maxResponseSize) - narrow the query",
+          what, corSizeText((uint64_t) responseBudgetBytes, sizeText, sizeof(sizeText)));
 }
 
 

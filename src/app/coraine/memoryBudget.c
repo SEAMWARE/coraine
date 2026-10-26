@@ -18,6 +18,7 @@
 
 #include "corBase/corFileReadInto.h"                   // corFileReadInto
 #include "corBase/corMemoryLimit.h"                    // corMemoryLimit
+#include "corBase/corSizeText.h"                       // corSizeText
 #include "corLog/corLog.h"                             // COR_V, COR_W
 #include "corRest/CorRestState.h"                      // corRest
 #include "corRest/corRestOutHeader.h"                  // corRestOutHeaderAdd
@@ -178,7 +179,10 @@ void memoryBudgetInit(int limitMiB)
   if (pthread_create(&tid, NULL, sampler, NULL) == 0)
     pthread_detach(tid);
 
-  COR_V("memory budget: %llu MiB (writes refused above %llu MiB)", (unsigned long long) (budget >> 20), (unsigned long long) (soft >> 20));
+  char budgetText[32];
+  char softText[32];
+
+  COR_V("memory budget: %s (writes refused above %s)", corSizeText(budget, budgetText, sizeof(budgetText)), corSizeText(soft, softText, sizeof(softText)));
 }
 
 
@@ -235,10 +239,13 @@ bool memoryBudgetAdmit(void)
   if ((rss < budget) ? (growsMemory(path) == false) : (freesOrReports(path) == true))
     return true;
 
+  char rssText[32];
+  char budgetText[32];
+
   atomic_fetch_add_explicit(&refused, 1, memory_order_relaxed);
   ldError(503, "https://coraine.readthedocs.io/errors/MemoryBudgetExceeded", "Memory Budget Exceeded",
-          "the broker uses %llu MiB of its %llu MiB memory budget - %s are refused until it is back below 90%% of it",
-          (unsigned long long) (rss >> 20), (unsigned long long) (budget >> 20),
+          "the broker uses %s of its %s memory budget - %s are refused until it is back below 90%% of it",
+          corSizeText(rss, rssText, sizeof(rssText)), corSizeText(budget, budgetText, sizeof(budgetText)),
           (rss < budget) ? "writes" : "requests");
   corRestOutHeaderAdd("Retry-After", "5");
 

@@ -1,0 +1,57 @@
+#
+# FILE            memory_limit_small_budget_log.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A budget below 1 MiB is said in KiB: --memoryLimit 1 makes the response size budget 1/16 of 1 MiB,
+# 64 KiB, and the start-up line said "response size budget: 0 MiB" - a budget that is not none, read as
+# none. Likewise the soft limit of the memory budget, 90 % of 1 MiB: "writes refused above 0 MiB". From
+# 1 MiB on the text is MiB, as it was (corBase's corSizeText).
+#
+# Read from the start-up log (-v), the one place the budgets are said: a broker over its memory budget
+# refuses the writes that would make a response large enough to show the 403's text.
+#
+# REQUIRE_FEATURE: RESPONSE_BUDGET
+#
+--NAME--
+A 1 MiB memory budget (--memoryLimit 1): the start-up log says the budgets below 1 MiB in KiB, not "0 MiB"
+
+--TAGS--
+memory cli
+
+--INIT--
+corDbDrop
+coraineStart --memoryLimit 1 -v
+
+--RUN--
+
+echo "01. The response size budget - 1/16 of 1 MiB"
+echo "============================================"
+grep -o "response size budget: .*" /tmp/coraine.CB.log
+echo
+echo
+
+
+echo "02. The memory budget and its soft limit (90 %)"
+echo "==============================================="
+grep -o "memory budget: [0-9].*" /tmp/coraine.CB.log
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+
+--EXPECT--
+01. The response size budget - 1/16 of 1 MiB
+============================================
+response size budget: 64 KiB (1/16 of the memory budget)
+
+
+02. The memory budget and its soft limit (90 %)
+===============================================
+memory budget: 1 MiB (writes refused above 921 KiB)
+
+
