@@ -110,20 +110,26 @@ Recently built, and documented where it lives:
     its build has traces (`/admin/log`), a bridge's inventory for a mapping tool
     (`/admin/bridges/{bridge}/inventory`).
 -   **c³ - Operate and Connect** - brokers started and stopped, natively or in a container, with their
-    services; their logs, log and trace levels, configuration and metrics as charts; the entity editor,
-    and signing in to a broker's security (an OpenID provider, or the Data Space Connector's verifier).
+    services; their logs, log and trace levels, configuration and metrics as charts; signing in to a
+    broker's security (an OpenID provider, or the Data Space Connector's verifier). Connect: a running
+    broker's entities as a graph, the GeoProperty ones on a map (online, or offline from downloaded
+    areas), their values live over the WebSocket transport or HTTP notifications, and the entity editor.
     ([more](ideas.md#c-the-coraine-control-center))
 -   **The documentation in c³, and as a website** - the guides of c³'s Documentation page, written from
     these pages for the reader, searchable, offline in c³; the same pages at
     [seamware.github.io/docs](https://seamware.github.io/docs/).
+-   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
+    (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
+    accepted, with a warning, until 0.8.0
+    ([Running the broker](installation.md#running-the-broker-foreground-or-daemon-and-where-the-log-goes)).
 -   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
     ([EntityMaps](installation.md#entitymaps)).
 
-Bridges and Channels are coraine's own mechanism, not a standard: the concept goes to the ETSI TC DATA
-face-to-face in Athens, 20–22 October 2026, and anything normative will realistically follow in 2027.
-coraine implements its own objects now and adapts to whatever TC DATA settles on.
+Bridges and Channels are coraine's own mechanism, not a standard: anything normative from ETSI TC DATA
+will realistically follow in 2027. coraine implements its own objects now and adapts to whatever TC DATA
+settles on.
 
 ## Short term
 
@@ -141,15 +147,8 @@ incorporated in the next release of the product, in roughly this order:
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
     and next stop; c³ subscribes over its WebSocket and moves each bus on the map as the notifications
     arrive. First feed: Boston's MBTA, beside the Boston CKAN datasets. ([more](ideas.md#live-public-transport-gtfs-realtime))
--   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
-    (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
-    accepted until 0.8.0.
 -   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
     in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
--   **Philips Hue - the first FIWARE@Home plugin** - a Hue Bridge's lights, rooms, scenes and sensors as
-    NGSI-LD entities, live from the bridge's event stream, and switched from the broker; the first of the
-    plugins beyond the FIWARE IoT Agents. A prototype is built; next, its release.
-    ([more](ideas.md#philips-hue---the-first-fiwarehome-plugin))
 -   **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl (`-funsigned-char`, ARM's
     `char`, passed the whole suite).
 -   **corDB history: retention and a selector** - history kept for a time or a size, and recording only
@@ -190,7 +189,8 @@ product is heading and may wish to get involved.
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
--   **c³ - Connect** - the Control Center connected live to a running broker over its WebSocket transport (queries, then a subscription's notifications): its entities, their relationships as a graph (boxes and arrows, zoom, pan, entities dragged into place), the GeoProperty entities on a map, their values as they change; also as an API plugin of the broker itself. ([more](ideas.md#c-the-coraine-control-center))
+-   **c³ Connect inside the broker** - Connect, the Control Center's live view of a broker's entities, as
+    an API plugin of the broker itself: no c³ to install. ([more](ideas.md#c-the-coraine-control-center))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Cold storage for history in Parquet** - older history moved out of the TRoE store into Parquet
     files (on disk or object storage), compressed and columnar, queried through embedded DuckDB:
@@ -1120,7 +1120,7 @@ reading beside Orion-LD's batch path, which is public.
 
 An agent next to the devices, not a central broker: stripped down considerably - no TRoE, no
 registrations, no subscriptions (`COR_FEATURE_SUBSCRIPTIONS=0`, `COR_FEATURE_REGISTRATIONS=0`),
-current state in RAM (ramDB). What it does need is its southbound protocol plugins: Zigbee,
+current state in RAM (ramDB). What it does need is its southbound protocol plugins:
 UltraLight, MQTT and others (§6, the bridge family). After the ARM image.
 
 **Two targets, two efforts:**
