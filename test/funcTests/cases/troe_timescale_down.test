@@ -71,6 +71,17 @@ recordingWait() {
 }
 
 #
+# statusWait <status> - until the report's status is it, at most 30 s: the history database's pinger says it is
+# back at its next ping, after the first row has gone through
+#
+statusWait() {
+  for _ in $(seq 1 300); do
+    [ "$(history .status)" == "$1" ] && return 0
+    sleep 0.1
+  done
+}
+
+#
 # historyWritten - until the report says recording and nothing held: every row held is recorded (or
 # counted lost) - "recording" alone is the first try that went through, not the last; at most 30 s
 #
@@ -115,6 +126,7 @@ echo "03. The database back - the five recorded, nothing lost"
 echo "======================================================="
 dbUnblock
 historyWritten
+statusWait ok
 history '.troe.history | "recording: \(.recording), held: \(.heldBytes), lost: \(.lostRows)"'
 history '"status: \(.status)"'
 $PSQL -c "SELECT (SELECT count(*) FROM troe_entities WHERE entity_id LIKE 'urn:D%'), (SELECT count(*) FROM troe_attrs WHERE entity_id LIKE 'urn:D%')"
