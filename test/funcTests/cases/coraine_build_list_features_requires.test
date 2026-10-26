@@ -1,0 +1,130 @@
+#
+# FILE            coraine_build_list_features_requires.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraine-build --list-features --json: what each switch needs, read out of CMakeLists.txt's conditions
+# that turn one off. "requires" - each one of them (if (NOT A OR NOT B)), a build setting as NAME=value;
+# "requiresAny" - one of them is enough (if ((NOT A) AND (NOT B))): CHANNEL_WRITE_BACK, a DataChannel's and
+# an AssetChannel's. c³ reads both to show a switch it cannot have. A condition the listing cannot read
+# stops it, rather than listing a switch as one that can be had.
+#
+# No broker, no compile: the list mode reads the clones (--source <dir>), here a directory holding only a
+# link to this checkout as coraine/.
+#
+--NAME--
+coraine-build --list-features --json - requires and requiresAny, read from CMakeLists.txt
+
+--TAGS--
+cli build
+
+--INIT--
+
+--RUN--
+
+#
+# 01. Every switch has "requires" and "requiresAny" - the switches with either, sorted
+# 02. A condition with a switch that is ON in it - refused, the line named
+# 03. AND and OR in one condition - refused
+# 04. A switch turned off under no condition read - refused
+#
+D=/tmp/corTest-listFeatures
+rm -rf $D
+mkdir -p $D/src $D/fake/coraine/packaging/deb
+ln -s "$REPO_ROOT" $D/src/coraine
+
+listed() {
+  "$REPO_ROOT"/packaging/deb/coraine-build --list-features --json --source "$1" > $D/out.json 2> $D/err.txt
+  echo "exit: $?"
+}
+
+#
+# A source whose CMakeLists.txt is the given text - only version.sh and the CMakeLists.txt the list reads
+#
+fake() {
+  printf '#!/bin/sh\necho 0.0.0-test\n' > $D/fake/coraine/packaging/deb/version.sh
+  chmod +x $D/fake/coraine/packaging/deb/version.sh
+  printf '%s\n' 'option(COR_FEATURE_A "a" ON)' 'option(COR_FEATURE_B "b" ON)' 'option(COR_FEATURE_C "c" ON)' "$1" '  set(COR_FEATURE_C OFF)' 'endif()' > $D/fake/coraine/CMakeLists.txt
+  listed $D/fake
+  sed 's/^coraine-build: //' $D/err.txt
+}
+
+echo "01. Every switch has \"requires\" and \"requiresAny\" - the switches with either, sorted"
+echo "===================================================================================="
+listed $D/src
+python3 -I -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+print("every switch has both:", all(("requires" in x) and ("requiresAny" in x) for x in d))
+for x in sorted(d, key=lambda x: x["name"]):
+  if x["requires"] or x["requiresAny"]:
+    print("%-24s requires %-32s requiresAny %s" % (x["name"], json.dumps(x["requires"]), json.dumps(x["requiresAny"])))
+' $D/out.json
+echo
+echo
+
+
+echo "02. A condition with a switch that is ON in it - refused, the line named"
+echo "========================================================================"
+fake 'if (NOT COR_FEATURE_A AND COR_FEATURE_B)'
+echo
+echo
+
+
+echo "03. AND and OR in one condition - refused"
+echo "========================================="
+fake 'if (NOT COR_FEATURE_A AND NOT COR_FEATURE_B OR NOT COR_FEATURE_C)'
+echo
+echo
+
+
+echo "04. A switch turned off under no condition read - refused"
+echo "========================================================="
+fake 'if (SOMETHING_ELSE)'
+echo
+echo
+
+rm -rf $D
+
+
+--EXPECT--
+01. Every switch has "requires" and "requiresAny" - the switches with either, sorted
+====================================================================================
+exit: 0
+every switch has both: True
+ADMIN_CONFIG             requires ["ADMIN_API"]                    requiresAny []
+AUTH_METADATA            requires ["AUTH"]                         requiresAny []
+AUTH_OIDC                requires ["AUTH"]                         requiresAny []
+BRIDGE_INVENTORY         requires ["ADMIN_API"]                    requiresAny []
+CHANNEL_WRITE_BACK       requires []                               requiresAny ["DATA_CHANNELS", "ASSET_CHANNELS"]
+METRICS                  requires ["ADMIN_API"]                    requiresAny []
+POLICY_API               requires ["HTTP_SERVER=mhd"]              requiresAny []
+SNAPSHOT_SUBSCRIPTIONS   requires ["SUBSCRIPTIONS", "SNAPSHOT_WRITE"] requiresAny []
+SSE                      requires ["SUBSCRIPTIONS"]                requiresAny []
+
+
+02. A condition with a switch that is ON in it - refused, the line named
+========================================================================
+exit: 1
+CMakeLists.txt line 4: a switch that is ON in the condition - if (NOT COR_FEATURE_A AND COR_FEATURE_B)
+no feature list: a condition in CMakeLists.txt that turns a switch off is not read (above)
+
+
+03. AND and OR in one condition - refused
+=========================================
+exit: 1
+CMakeLists.txt line 4: AND and OR in one condition - if (NOT COR_FEATURE_A AND NOT COR_FEATURE_B OR NOT COR_FEATURE_C)
+no feature list: a condition in CMakeLists.txt that turns a switch off is not read (above)
+
+
+04. A switch turned off under no condition read - refused
+=========================================================
+exit: 1
+CMakeLists.txt line 5: a switch turned off under no condition read -   set(COR_FEATURE_C OFF)
+no feature list: a condition in CMakeLists.txt that turns a switch off is not read (above)
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest-listFeatures

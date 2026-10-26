@@ -113,23 +113,97 @@ void timescaleDbNameFor(Tenant* tenantP, char* buf, int bufSize)
 
 // -----------------------------------------------------------------------------
 //
+// connValueAdd - " key='value'" at *posP in buf, the value quoted as libpq's conninfo wants it: in single
+// quotes, each backslash and each ' inside it preceded by a backslash
+//
+// Unquoted, a value ends at its first space, and a ' or a \ in it is taken as syntax: a password "a b"
+// was the password "a" and a stray "b" - the connection string refused, never the password as written.
+// A value that does not fit is cut: false.
+//
+static bool connValueAdd(char* buf, int bufSize, int* posP, const char* key, const char* value)
+{
+  int pos = *posP;
+  int n   = snprintf(&buf[pos], bufSize - pos, "%s%s='", (pos == 0) ? "" : " ", key);
+
+  if ((n < 0) || (pos + n >= bufSize))
+    return false;
+  pos += n;
+
+  for (const char* s = value; *s != 0; s++)
+  {
+    if ((*s == '\\') || (*s == '\''))
+    {
+      if (pos + 1 >= bufSize)
+        return false;
+      buf[pos++] = '\\';
+    }
+
+    if (pos + 1 >= bufSize)
+      return false;
+    buf[pos++] = *s;
+  }
+
+  if (pos + 1 >= bufSize)
+    return false;
+  buf[pos++] = '\'';
+  buf[pos]   = 0;
+
+  *posP = pos;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // connStr - assemble a libpq connection string for one database.
+//
+// Every value quoted (connValueAdd): a user, a password or a database name may hold a space, a ' or a \.
+// Without --troePwd there is no password in it - libpq then takes PGPASSWORD or ~/.pgpass.
 //
 static void connStr(const char* dbName, char* buf, int bufSize)
 {
-  if (timescaleDbPwd != NULL)
-    snprintf(buf, bufSize,
-             "host=%s port=%d dbname=%s user=%s password=%s",
-             timescaleDbHost ? timescaleDbHost : "localhost",
-             timescaleDbPort, dbName,
-             timescaleDbUser ? timescaleDbUser : "postgres",
-             timescaleDbPwd);
-  else
-    snprintf(buf, bufSize,
-             "host=%s port=%d dbname=%s user=%s",
-             timescaleDbHost ? timescaleDbHost : "localhost",
-             timescaleDbPort, dbName,
-             timescaleDbUser ? timescaleDbUser : "postgres");
+  char port[16];
+  int  pos = 0;
+
+  snprintf(port, sizeof(port), "%d", timescaleDbPort);
+  buf[0] = 0;
+
+  bool ok = connValueAdd(buf, bufSize, &pos, "host",   (timescaleDbHost != NULL) ? timescaleDbHost : "localhost") &&
+            connValueAdd(buf, bufSize, &pos, "port",   port)                                                     &&
+            connValueAdd(buf, bufSize, &pos, "dbname", dbName)                                                   &&
+            connValueAdd(buf, bufSize, &pos, "user",   (timescaleDbUser != NULL) ? timescaleDbUser : "postgres");
+
+  if ((ok == true) && (timescaleDbPwd != NULL))
+    ok = connValueAdd(buf, bufSize, &pos, "password", timescaleDbPwd);
+
+  if (ok == false)
+    COR_E("timescale: the connection string for db '%s' does not fit in %d bytes - --troeHost, --troeUser, --troePwd too long", dbName, bufSize);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// credentialsRefused - a connection that failed was refused for its credentials: the server is there, it
+// asked for a password, and it did not take the one given - or none was given
+//
+// A start does not wait for that (timescaleInit): a try a second later is refused the same. Told apart from
+// a server that is not there - or is starting up, or does not accept connections to the database for now -
+// by what libpq says of the attempt: the server asked for a password (PQconnectionUsedPassword) and none
+// was given (PQconnectionNeedsPassword), or the server's answer is the authentication's failure. libpq
+// has the SQLSTATE of a refused connection (28P01) in no call, hence its message, which PostgreSQL writes
+// in the language of its lc_messages: a server in another language than English is waited for, as before.
+//
+static bool credentialsRefused(PGconn* conn)
+{
+  if (PQconnectionNeedsPassword(conn) != 0)
+    return true;
+
+  if (PQconnectionUsedPassword(conn) == 0)
+    return false;
+
+  return (strstr(PQerrorMessage(conn), "password authentication failed") != NULL);
 }
 
 
@@ -160,15 +234,29 @@ static void noticeToLog(void* arg, const char* message)
 //
 // timescaleConnect - open a fresh connection to one database, or NULL on failure.
 //
+PGconn* timescaleConnect(const char* dbName)
+{
+  bool refused;
+
+  return timescaleConnectRefused(dbName, &refused);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timescaleConnectRefused - timescaleConnect, and on a failure whether the server refused the credentials
+//
 // standard_conforming_strings is set, not trusted to be the server's default: the TRoE rows go as
 // literals (timescaleUnit.c) that double their quotes and nothing else - a backslash must be a
 // backslash.
 //
-PGconn* timescaleConnect(const char* dbName)
+PGconn* timescaleConnectRefused(const char* dbName, bool* refusedP)
 {
   char cs[1024];
   char csFull[1200];
 
+  *refusedP = false;
   connStr(dbName, cs, sizeof(cs));
 
   //
@@ -181,7 +269,8 @@ PGconn* timescaleConnect(const char* dbName)
   PGconn* conn = PQconnectdb(csFull);
   if (PQstatus(conn) != CONNECTION_OK)
   {
-    COR_E("timescale: connection to db '%s' failed: %s", dbName, PQerrorMessage(conn));
+    *refusedP = credentialsRefused(conn);
+    COR_E("timescale: connection to db '%s' %s: %s", dbName, (*refusedP == true) ? "refused (--troeUser, --troePwd)" : "failed", PQerrorMessage(conn));
     PQfinish(conn);
     return NULL;
   }
@@ -211,10 +300,12 @@ PGconn* timescaleConnect(const char* dbName)
 //
 static int ensureDatabase(const char* dbName, bool* unreachableP)
 {
-  PGconn* admin = timescaleConnect("postgres");
+  bool    refused;
+  PGconn* admin = timescaleConnectRefused("postgres", &refused);
+
   if (admin == NULL)
   {
-    *unreachableP = true;
+    *unreachableP = (refused == false);   // refused its credentials: there, and answering
     return TROE_ERR;
   }
 
@@ -292,10 +383,12 @@ int timescalePoolEnsureReach(Tenant* tenantP, bool* unreachableP)
   }
 
   // 2. Connect once and run pending migrations on that connection.
-  PGconn* migConn = timescaleConnect(dbName);
+  bool    refused;
+  PGconn* migConn = timescaleConnectRefused(dbName, &refused);
+
   if (migConn == NULL)
   {
-    *unreachableP = true;
+    *unreachableP = (refused == false);
     pthread_mutex_unlock(&poolCreateMutex);
     return TROE_ERR;
   }
