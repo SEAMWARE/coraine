@@ -26,7 +26,7 @@ cli config cordb persist
 # run <args> - the broker's exit code, and its error lines with the file/line prefix cut
 #
 run() {
-  timeout 10 $COR_BROKER -fg --port $((CB_PORT + 3240)) --database $COR_PLUGIN_DIR/db/currentState/corDB.so "$@" > /tmp/cordbDiskOpts.$$ 2>&1
+  timeout 10 $COR_BROKER --port $((CB_PORT + 3270)) --database $COR_PLUGIN_DIR/db/currentState/corDB.so "$@" > /tmp/cordbDiskOpts.$$ 2>&1
   echo "exit: $?"
   grep "corDB: " /tmp/cordbDiskOpts.$$ | sed 's/^.*corDB: /corDB: /'
   rm -f /tmp/cordbDiskOpts.$$
