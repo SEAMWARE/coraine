@@ -15,7 +15,8 @@
 # coraine-import's in that section, coraine-build's in "## coraine-build".
 #
 # The other way: an entry no program lists fails too, unless its first paragraph says "build:" - an
-# option that only some builds have (a feature switch, the HTTP server), which this build may lack.
+# option that only some builds have (a feature switch, the HTTP server), which this build may lack - or
+# "deprecated:" - an option still accepted and no longer listed (-fg).
 #
 # Prints one line per problem and exits 1; prints "all N options documented" and exits 0.
 #
@@ -50,15 +51,16 @@ documented() {
 
 #
 # buildDependent <name> - the entry's first paragraph (the lines under its heading, up to the first empty one)
-# says "build:". The verdict is set in END: an `exit` in a rule runs END, whose own exit code is the one that counts.
+# says "build:" or "deprecated:". The verdict is set in END: an `exit` in a rule runs END, whose own exit
+# code is the one that counts.
 #
 buildDependent() {
   awk -v h="### \`$1\`" '
-    $0 == h                 { on = 1; next }
-    on == 1 && NF           { on = 2 }
-    on == 2 && !NF          { exit }
-    on == 2 && /build:/     { found = 1; exit }
-    END                     { exit (found ? 0 : 1) }
+    $0 == h                                  { on = 1; next }
+    on == 1 && NF                            { on = 2 }
+    on == 2 && !NF                           { exit }
+    on == 2 && /build:|deprecated:/          { found = 1; exit }
+    END                                      { exit (found ? 0 : 1) }
   ' "$doc"
 }
 
@@ -80,7 +82,7 @@ for o in $brokerListed; do
 done
 for o in $brokerDoc; do
   echo "$brokerListed" | grep -q -x -- "$o" && continue
-  buildDependent "$o" || problem "coraine: $o is documented, and no listing has it (gone? or say 'build:')"
+  buildDependent "$o" || problem "coraine: $o is documented, and no listing has it (gone? or say 'build:' / 'deprecated:')"
 done
 total=$(echo "$brokerListed" | grep -c .)
 

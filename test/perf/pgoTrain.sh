@@ -53,7 +53,7 @@ PERF_DURATION=2s PERF_REPEATS=1 PERF_DB_DIR=$TMP/dbDir PERF_TROE=corDB \
 echo "pgoTrain: writes that notify"
 RECEIVER=$TOOLS/corTestClient
 "$RECEIVER" --port 7799 --traceLevels "" > /dev/null 2>&1 & R=$!
-"$B" --port 1029 --database corDB --troe none --foreground > /dev/null 2>&1 & P=$!
+"$B" --port 1029 --database corDB --troe none > /dev/null 2>&1 & P=$!
 for i in $(seq 1 50); do curl -s -o /dev/null localhost:1029/version && break; sleep 0.1; done
 J='Content-Type: application/json'
 curl -s -o /dev/null -X POST localhost:1029/ngsi-ld/v1/subscriptions -H "$J" -d '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://localhost:7799/notify"}}}'
@@ -72,7 +72,7 @@ J='Content-Type: application/json'
 #
 HOPS="http cor"
 "$B" --version | grep -q "COR_PROTOCOL=0" && HOPS=http
-start() { "$B" --port $1 $([ "$HOPS" = http ] || echo --corPort $2) --database corDB --troe none -dist --foreground > /dev/null 2>&1 & echo $!; }
+start() { "$B" --port $1 $([ "$HOPS" = http ] || echo --corPort $2) --database corDB --troe none -dist > /dev/null 2>&1 & echo $!; }
 for hops in $HOPS; do
   echo "pgoTrain: the three-broker chain, forwarding over $hops"
   PA=$(start 9201 9301); PB=$(start 9202 9302); PC=$(start 9203 9303)

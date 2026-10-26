@@ -147,7 +147,12 @@ echo
 echo "04. A tenant whose history is opened now: the indexes of both declarations"
 echo "=========================================================================="
 code -H 'NGSILD-Tenant: t1' -d '{"id":"urn:R1","type":"Room","temp":{"type":"Property","value":21}}' $B/ngsi-ld/v1/entities
-sleep 0.5
+# The history is written after the response - the tenant's database and its indexes with it: waited for (10 s
+# at most; the database may not exist yet) - a fixed half second was not always enough on a CI runner
+for i in $(seq 1 100); do
+  [ "$(idx ${COR_TROE_DB}_t1 2> /dev/null | grep -c '^CREATE INDEX')" -ge 4 ] && [ "$(decls | grep -c '\[t1\] built=true')" -ge 2 ] && break
+  sleep 0.1
+done
 idx ${COR_TROE_DB}_t1
 decls
 echo
@@ -195,10 +200,10 @@ echo
 echo "08. --troeValueIndexes not an array of declarations, or a short name: the broker does not start"
 echo "==========================================================================="
 coraineStop
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes '[{"type": "T"}]' > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "timescale: --troeValueIndexes: each declaration is .*" /tmp/troeValueIndexes.$$ | head -1
-timeout 10 $COR_BROKER -fg --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes speed > /tmp/troeValueIndexes.$$ 2>&1
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --troe timescale) --troeValueIndexes speed > /tmp/troeValueIndexes.$$ 2>&1
 echo "exit: $?"
 grep -o "timescale: --troeValueIndexes: .* is not an IRI.*" /tmp/troeValueIndexes.$$ | head -1
 rm -f /tmp/troeValueIndexes.$$

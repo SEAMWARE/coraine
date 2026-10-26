@@ -217,7 +217,7 @@ coraineStart() {
   # callbacks and forwarded Link headers are host-independent (the broker now
   # auto-detects a LAN IP by default, which would make expected outputs vary per
   # test machine). Tests that need a different endpoint append their own -he.
-  local cmd="$COR_BROKER --port $COR_ROLE_PORT --pretty-print 2 --foreground --httpEndpoint http://localhost:$COR_ROLE_PORT"
+  local cmd="$COR_BROKER --port $COR_ROLE_PORT --pretty-print 2 --httpEndpoint http://localhost:$COR_ROLE_PORT"
 
   #
   # Traces go to the role's log file (never to the test's stdout, which is what
