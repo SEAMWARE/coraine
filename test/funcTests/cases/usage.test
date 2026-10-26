@@ -200,12 +200,12 @@ Usage: coraine  [--usage/-u (usage)]
 
                 Database (mongoc) plugin options:
                 [--dbHost/-dbHost <database server host>]
-                [--dbName/-dbName <database name>]
+                [--dbName/-dbName <database of the default tenant, and the prefix of the others' (<dbName>-<tenant>)>]
                 [--globalDb/-globalDb <reserved DB for global (non-tenant) state, e.g. JSON-LD contexts>]
                 [--dbPort/-dbPort <database server port>]
-                [--dbUser/-dbUser <database user>]
-                [--dbPwd/-dbPwd <database password>]
-                [--dbURI/-dbURI <full database URI>]
+                [--dbUser/-dbUser <database user - percent-encoded; used only with --dbPwd>]
+                [--dbPwd/-dbPwd <database password - percent-encoded; used only with --dbUser>]
+                [--dbURI/-dbURI <full database URI - replaces --dbHost, --dbPort, --dbUser, --dbPwd; the database names still come from --dbName and --globalDb>]
                 [--dbTimeout/-dbTimeout <database connection timeout (s)>]
                 [--dbValueIndexes/-dbValueIndexes <declared indexes - the attributes whose q an index serves, expanded (IRIs): comma-separated, or a JSON array of {attribute, type, tenant}>]
 
