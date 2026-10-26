@@ -625,11 +625,18 @@ typedef struct Out
 
 static void outAdd(Out* oP, const char* fmt, ...)
 {
+  //
+  // Measured only: written into none, a byte that is thrown away - never vsnprintf(NULL, 0). That is valid C,
+  // but gcc's fortify check (-Werror=format-truncation) refuses a NULL destination it can see, and an aarch64
+  // PGO build (the arm64 image) sees it
+  //
+  char    none[1];
+  char*   to   = (oP->buf != NULL)? &oP->buf[oP->len]    : none;
+  int     room = (oP->buf != NULL)? oP->size - oP->len : (int) sizeof(none);
   va_list ap;
-  int     room = (oP->buf != NULL)? oP->size - oP->len : 0;
 
   va_start(ap, fmt);
-  int n = vsnprintf((oP->buf != NULL)? &oP->buf[oP->len] : NULL, (room > 0)? room : 0, fmt, ap);
+  int n = vsnprintf(to, (room > 0)? room : 0, fmt, ap);
   va_end(ap);
 
   if (n > 0)

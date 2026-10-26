@@ -73,10 +73,11 @@ bool tsBufText(TsBuf* bP, const char* fmt, ...)
   while (true)
   {
     int     avail = bP->size - bP->len;
+    char    none[1];                          // full: measured into a byte thrown away - not NULL (see metrics.c's outAdd)
     va_list ap;
 
     va_start(ap, fmt);
-    int n = (avail > 0) ? vsnprintf(&bP->s[bP->len], avail, fmt, ap) : vsnprintf(NULL, 0, fmt, ap);
+    int n = (avail > 0) ? vsnprintf(&bP->s[bP->len], avail, fmt, ap) : vsnprintf(none, sizeof(none), fmt, ap);
     va_end(ap);
 
     if (n < 0)
