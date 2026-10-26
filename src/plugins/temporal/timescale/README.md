@@ -50,8 +50,8 @@ The password of `--troeUser`. A secret: `GET /admin/config` shows its value as `
 `"secret": true` (not set, the value is `null`). Given as the environment variable `CORAINE_TROEPWD`, it is
 not on the command line, which any user of the machine can read (`ps`); a process's environment is
 readable by its owner only. Leaving it out and giving libpq its own `PGPASSWORD` keeps it out of the
-broker's options altogether. It goes into the connection string unquoted: a password with a space or a `'`
-in it is not passed as it is.
+broker's options altogether. It is quoted in the connection string, as the user and `--troeName` are: a
+space, a `'` or a `\` in it is passed as it is.
 
     $ CORAINE_TROEPWD="$(cat /run/secrets/pg)" coraine --database corDB --troe timescale --apiPlugins admin
     $ curl -s localhost:1026/admin/config     # the --troePwd entry:
@@ -101,7 +101,9 @@ with its PostgreSQL does not fail for starting first. Past it the broker does no
     E: ... timescale: connection to db 'postgres' failed: connection to server at "localhost" (127.0.0.1), port 19659 failed: Connection refused
     E: ... timescale: failed to initialise the default-tenant database (0 s, --troeConnectTimeout)
 
-A wrong password is retried the same way, until the timeout.
+A password the server refuses - or none, when the server asks for one - is not retried: the start fails at
+once, with the server's message. A server whose messages are not in English (`lc_messages`) is retried
+until the timeout, as a server that is not up.
 
 ### `--troeDownExit`
 

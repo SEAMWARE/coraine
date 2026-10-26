@@ -23,7 +23,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// haChannel - the --ha option (see haInit.h)
+// haChannel - the --high-availability (-ha) option (see haInit.h)
 //
 char* haChannel = NULL;
 
@@ -75,7 +75,7 @@ bool haInit(void)
 {
   if ((haChannel == NULL) || (haChannel[0] == 0))
   {
-    COR_T(CtHa, "HA is off (no --ha)");
+    COR_T(CtHa, "HA is off (no -ha)");
     return true;
   }
 

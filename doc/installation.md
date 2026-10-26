@@ -252,8 +252,7 @@ take the log from, and what lets them see the broker's exit: the process they st
 | `--logDir` / `-logDir` | `CORAINE_LOGDIR` | `/var/log/coraine` | the directory of the log file - read with `--logTo file` or `both` only |
 
 A boolean environment variable is `true` or `on` (`True`, `TRUE`, `On`, `ON`), `false` or `off` (`False`, `FALSE`,
-`Off`, `OFF`) - any other value stops the start: `CORAINE_DAEMON=true`.
-Any other value - `1` included - is off.
+`Off`, `OFF`) - any other value, `1` included, stops the start: `CORAINE_DAEMON=true`.
 
 ### The combinations
 
@@ -394,8 +393,8 @@ A `Type=simple` unit can keep the log in a file as well, without `--daemon`: `--
 ## Configuration
 
 Every setting is a command-line option. **`coraine --usage`** (`-u`) prints the full
-list with a description of each option, and `-U` prints each option's environment variable and
-type; the defaults of a running broker are on `GET /admin/config`. The list changes with the plugins you
+list with a description of each option, and `-U` prints each option's environment variable,
+type and default; the defaults of a running broker are on `GET /admin/config`. The list changes with the plugins you
 select, because a plugin contributes its own options (for example `--dbHost`,
 `--dbPort`, `--dbUser` come from the `mongoc` plugin).
 

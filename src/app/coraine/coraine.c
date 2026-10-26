@@ -2179,7 +2179,7 @@ int main(int argC, char* argV[])
     corRest.requestStartTime = (uint64_t) ts.tv_sec * 1000000000ULL + (uint64_t) ts.tv_nsec;
   }
   //
-  // --ha: from here on, what another broker instance writes reaches our caches
+  // -ha: from here on, what another broker instance writes reaches our caches
   // too. BEFORE the reload below, not after - see haInit.h: listening only after
   // reading the database leaves a window whose changes are missed for good.
   // Nothing is applied until haApplyEnable() below.

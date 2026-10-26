@@ -15,7 +15,7 @@
 
 // -----------------------------------------------------------------------------
 //
-// haChannel - the --ha option: how the broker instances tell each other
+// haChannel - the --high-availability (-ha) option: how the broker instances tell each other
 //
 // NULL or empty: HA is off, and this broker's caches are its own business.
 // "mongo":       the database's change feed, produced by the DB plugin.
@@ -27,7 +27,7 @@ extern char* haChannel;
 
 // -----------------------------------------------------------------------------
 //
-// haInit - start the HA channel named by --ha
+// haInit - start the HA channel named by -ha
 //
 // Called after the DB plugin is up (which channels are possible depends on it)
 // and BEFORE the caches are loaded from the database. That order is what closes
