@@ -63,9 +63,9 @@ repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/
 
 What the binary says about itself, what it writes to its log, and the few switches that change how every
 response is rendered. The log goes to standard output, one line per message, each line starting with its
-class: `X` (fatal, the broker exits), `E` (error), `W` (warning), `I` (info), `V` (verbose), `D` (debug),
-`T` (trace). `E`, `W` and `X` lines are always written; the others only when switched on. Standard
-output is the default; `--logTo` and `--logDir` put the log in a file instead, or as well.
+class: `X` (fatal, the broker exits), `E` (error), `W` (warning), `I` (info), `V` (verbose), `T` (trace).
+`E`, `W` and `X` lines are always written; the others only when switched on. Standard output is the
+default; `--logTo` and `--logDir` put the log in a file instead, or as well.
 
 ### `--usage`
 
