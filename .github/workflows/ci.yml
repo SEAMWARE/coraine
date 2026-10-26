@@ -131,6 +131,11 @@ jobs:
     needs: relevant
     if: needs.relevant.outputs.run == 'true'
     runs-on: ubuntu-latest
+    #
+    # The slowest shard takes ~10 min (mongoc 617-end); corTest has no time limit per test, so a test that hangs
+    # held its runner - one of the org's 20 - to GitHub's 6 h default (run 40238194223)
+    #
+    timeout-minutes: 40
 
     #
     # Named for what they run - `functest mongoc 1-183` and so on, the
