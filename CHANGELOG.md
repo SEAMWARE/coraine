@@ -99,6 +99,8 @@ bump may still change behaviour; the entry says so where it does.
   server's message - it was taken for a database that cannot be reached, tried once a second for
   `--troeConnectTimeout` seconds (30). As the documentation said, and as MongoDB's (`--dbUser` / `--dbPwd`).
   ([The database down](doc/installation.md#the-database-down))
+- `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
+  printed with CMake's backslashes, in the text list and in the `--json` one.
 
 ---
 
