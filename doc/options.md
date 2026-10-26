@@ -1339,8 +1339,25 @@ cache - before its response; this option decides when that is `fdatasync`ed.
 - `interval` - a flusher thread syncs every tenant's log every `--dbSyncInterval` ms. The response does not
   wait. A broker that dies loses nothing it acknowledged; a machine that dies, at most the last interval.
 - `request` - the response waits for its record's sync. The writers that arrive during one sync share the
-  next (group commit). A write that cannot be logged (a full disk) is answered 503.
+  next (group commit).
 - `none` - the log is written, never synced: for tests, benchmarks, a RAM disk.
+
+With any value, a log that cannot be written **pauses** the store: a segment that cannot be allocated
+ahead (a full disk, a file-size limit), a record that cannot be put in the log, a failed `fdatasync`.
+The flusher keeps 8 MiB of the log allocated ahead of its records, so a full disk is found before a write
+needs the room - unless more than 8 MiB is written between two of its runs. While paused, every write is
+refused before it touches the store: 503 `PersistenceUnavailable`, detail `writes are refused until the
+broker can write its log again (corDB --dbDir): <why>`; reads are served. A write already applied when the
+log failed is answered 503 as well: `the write is in the broker's memory but not in its log ...` or `a sync
+of the log to the disk failed, for this write's record or one before it ...` - with `request`, also the
+writes whose records that sync was for; with `interval` those were answered before the sync, and the
+broker's log says what they lose. The broker's log names the file and the error in each case.
+
+The pause ends by itself: the snapshotter writes a snapshot of each tenant whose log failed, from memory,
+once a second backing off to once every 16 s; a snapshot rolls the log and drops the files before it.
+Once one succeeds for every such tenant the writes are served again - the writes answered 503 after
+they were applied are in that snapshot. A failure of the history log (`--troe corDB`) is not repaired:
+the store stays paused until a restart.
 
 Given without `--dbDir` it stops the start: `corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on`.
 

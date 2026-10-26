@@ -28,6 +28,7 @@
 #include "troe/TroeDriver.h"                           // troe
 
 #include "memoryBudget.h"                              // memoryBudgetValues, memoryBudgetLevel
+#include "storePause.h"                                // storePauseValues
 #include "health.h"                                    // Own interface
 
 
@@ -357,17 +358,46 @@ static int reportRender(char* buf, int size, bool* liveP, bool* readyP)
   // would take them all out of service at once. It makes the status "degraded", and the report says
   // what the history held and lost.
   //
-  *readyP = isUp && storeOk && (level < 2) && (stalled == false) && (isStopping == false);
+  //
+  // The store paused - it cannot keep a write and refuses every one (storePause.h): not ready, so a
+  // load balancer sends the writes elsewhere, but live - a restart would lose what is only in memory
+  //
+  char     pauseReason[160];
+  uint64_t pausedSinceNs = 0;
+  uint64_t pauseRefused  = 0;
+  bool     storePaused   = storePauseValues(&pausedSinceNs, pauseReason, sizeof(pauseReason), &pauseRefused);
+
+  *readyP = isUp && storeOk && (level < 2) && (stalled == false) && (isStopping == false) && (storePaused == false);
 
   if (isStopping)                      status = "stopping";
   else if (isUp == false)              status = "starting";
   else if (stalled || !storeOk)        status = "down";
+  else if (storePaused)                status = "paused";
   else if (!troeOk || !historyOk || (level > 0)) status = "degraded";
   else                                 status = "ok";
 
   int n = snprintf(buf, size, "{\"status\":\"%s\",\"uptime\":%lld,\"store\":", status, (long long) ((nowMs - startMs) / 1000));
 
   if (n < size) n += storeRender(&buf[n], size - n, db.alias, &storePinger, sLoaded, nowMs);
+
+  if ((n < size) && storePaused)
+  {
+    for (char* cP = pauseReason; *cP != 0; cP++)       // in a JSON string: no quote, no backslash
+    {
+      if ((*cP == '"') || (*cP == '\\'))
+        *cP = '\'';
+    }
+
+    struct timespec now;
+
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    uint64_t nowNs = (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
+
+    n += snprintf(&buf[n], size - n, ",\"paused\":{\"forS\":%llu,\"reason\":\"%s\",\"refused\":%llu}",
+                  (unsigned long long) ((nowNs > pausedSinceNs) ? (nowNs - pausedSinceNs) / 1000000000ULL : 0),
+                  pauseReason, (unsigned long long) pauseRefused);
+  }
   if (n < size) n += snprintf(&buf[n], size - n, ",\"troe\":");
   if (n < size) n += storeRender(&buf[n], size - n, troe.alias, &troePinger, tLoaded, nowMs);
 

@@ -156,6 +156,7 @@
 #include "crashReport.h"                          // crashReportInstall
 #include "inlineDispatch.h"                                  // inlineDispatchInit
 #include "memoryBudget.h"                                    // memoryBudgetInit, memoryBudgetAdmit
+#include "storePause.h"                                      // storePauseAdmit, storePauseValues
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
@@ -1335,6 +1336,22 @@ static void brokerTenantCaches(LdTenantCachesVisitFn visit, void* arg)
 
 
 
+#if COR_FEATURE_METRICS
+// -----------------------------------------------------------------------------
+//
+// storePauseMetricValues - storePauseValues as the metrics read them (metricsStorePauseValuesSet)
+//
+static void storePauseMetricValues(bool* pausedP, uint64_t* refusedP)
+{
+  char     reason[8];
+  uint64_t sinceNs;
+
+  *pausedP = storePauseValues(&sinceNs, reason, sizeof(reason), refusedP);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // brokerPreServiceHook - chain the tenant + metrics pre-service work
@@ -1347,6 +1364,10 @@ static bool brokerPreServiceHook(void)
 {
   // Over the memory budget: refused before anything is resolved or downloaded for it (memoryBudget.h)
   if (memoryBudgetAdmit() == false)
+    return false;
+
+  // The store paused - it cannot keep a write: every request that writes is refused (storePause.h)
+  if (storePauseAdmit() == false)
     return false;
 
   // § 6.2.2 Accept-header precondition FIRST — a Not Acceptable media type is a
@@ -2058,6 +2079,7 @@ int main(int argC, char* argV[])
   memoryBudgetInit(memoryLimit);
 #if COR_FEATURE_METRICS
   metricsMemoryValuesSet(memoryBudgetValues);
+  metricsStorePauseValuesSet(storePauseMetricValues);
 #if COR_FEATURE_SSE
   metricsSseValuesSet(sseMetricValues);
 #endif

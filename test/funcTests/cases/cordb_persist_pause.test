@@ -1,0 +1,220 @@
+#
+# FILE            cordb_persist_pause.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a log that cannot be written pauses the broker (corDB doc/persistence.md § 5).
+# Here the log cannot grow because the broker runs under a file-size limit (soft, ulimit -S -f 20480,
+# SIGXFSZ ignored): the flusher keeps 8 MiB allocated ahead of the log, and once that would pass the
+# limit the broker pauses - before any write has changed the store without its log.
+#
+# While paused: every request that writes is answered 503 PersistenceUnavailable, before anything is
+# applied - DELETE and subscriptions included; GET and POST entityOperations/query are served; /ready
+# answers 503, /live 200; ngsild_store_paused is 1. With the limit lifted (prlimit on the running
+# broker - a disk with room again) the broker repairs and resumes by itself. A kill -9 and a start then
+# find every write answered 201, and none of those answered 503.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - a log that cannot be written pauses writes (503), reads go on, the broker resumes by itself
+
+--TAGS--
+corDB persistence error health
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_pause
+trap '' XFSZ
+ulimit -S -f 20480
+coraineStart --dbDir /tmp/corTest-cordb_persist_pause --healthPort $((CB_PORT + 2000)) --apiPlugins admin
+
+--RUN--
+
+#
+# 01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201
+# 02. Paused - the writes: create, PATCH, DELETE, a subscription, a batch delete - 503, nothing applied
+# 03. Paused - the reads: GET an entity, POST entityOperations/query - served
+# 04. Paused - /live 200, /ready 503 "paused"; ngsild_store_paused 1
+# 05. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again
+# 06. Resumed - /ready 200; ngsild_store_paused 0, the refused requests counted
+# 07. kill -9 the broker, start it on the same --dbDir
+# 08. Every entity answered 201 is back; none answered 503 is
+#
+
+DIR=/tmp/corTest-cordb_persist_pause
+HP=$((CB_PORT + 2000))
+big=$(head -c 10000 /dev/zero | tr '\0' 'a')
+out=$(mktemp)
+code() { curl -s -o $out -w '%{http_code}' "$@"; }
+create() { code -H 'Content-Type: application/json' -d "{\"id\":\"$1\",\"type\":\"T\",\"p\":{\"type\":\"Property\",\"value\":\"$big\"}}" "http://localhost:$COR_PORT/ngsi-ld/v1/entities"; }
+
+echo "01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201"
+echo "======================================================================"
+n=0
+for i in $(seq 1 3000); do
+  c=$(create urn:E$i)
+  [ "$c" != 201 ] && break
+  n=$i
+done
+refused=$((n + 1))
+echo "answered 201 before the first other answer: $( [ $n -gt 100 ] && echo 'more than 100' || echo "only $n" )"
+echo "the first other answer: $c"
+sed 's/paused for [0-9]* s/paused for N s/' $out
+echo
+echo
+echo
+
+
+echo "02. Paused - the writes: create, PATCH, DELETE, a subscription, a batch delete - 503, nothing applied"
+echo "====================================================================================================="
+echo "create urn:X1:      $(create urn:X1)"
+echo "PATCH urn:E1:       $(code -X PATCH -H 'Content-Type: application/json' -d '{"q":{"type":"Property","value":1}}' http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E1/attrs)"
+echo "DELETE urn:E1:      $(code -X DELETE http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E1)"
+echo "POST subscriptions: $(code -H 'Content-Type: application/json' -d '{"id":"urn:S1","type":"Subscription","entities":[{"type":"T"}],"notification":{"endpoint":{"uri":"http://localhost:1/x"}}}' http://localhost:$COR_PORT/ngsi-ld/v1/subscriptions)"
+echo "batch delete:       $(code -H 'Content-Type: application/json' -d '["urn:E2"]' http://localhost:$COR_PORT/ngsi-ld/v1/entityOperations/delete)"
+echo "GET urn:E$refused (the first 503): $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$refused)" | sed "s/urn:E$refused/urn:E<first 503>/"
+echo "GET urn:X1:         $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:X1)"
+echo "GET urn:E1 (no q):  $(curl -s http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E1?options=keyValues\&attrs=q)"
+echo
+echo
+
+
+echo "03. Paused - the reads: GET an entity, POST entityOperations/query - served"
+echo "==========================================================================="
+echo "GET urn:E2:   $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E2)"
+echo "POST query:   $(code -H 'Content-Type: application/json' -d '{"type":"Query","entities":[{"id":"urn:E2","type":"T"}]}' http://localhost:$COR_PORT/ngsi-ld/v1/entityOperations/query)"
+echo
+echo
+
+
+echo "04. Paused - /live 200, /ready 503 \"paused\"; ngsild_store_paused 1"
+echo "=================================================================="
+echo "live:  $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$HP/live)"
+echo "ready: $(curl -s -o $out -w '%{http_code}' http://localhost:$HP/ready) $(sed -n 's/^{"status":"\([a-z]*\)".*/\1/p' $out)"
+corCurl --url /metrics --out raw | grep -E '^ngsild_store_paused '
+echo
+echo
+
+
+echo "05. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again"
+echo "===================================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+prlimit --pid $pid --fsize=unlimited:
+resumed=no
+for i in $(seq 1 300); do
+  [ "$(create urn:R1)" = 201 ] && resumed=yes && break
+  sleep 0.1
+done
+echo "resumed: $resumed"
+echo
+echo
+
+
+echo "06. Resumed - /ready 200; ngsild_store_paused 0, the refused requests counted"
+echo "============================================================================="
+echo "ready: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$HP/ready)"
+corCurl --url /metrics --out raw | grep -E '^ngsild_store_paused '
+r=$(corCurl --url /metrics --out raw | sed -n 's/^ngsild_requests_refused_store_paused_total //p')
+echo "refused while paused, counted: $( [ "${r:-0}" -ge 6 ] && echo 'yes' || echo "no ($r)" )"
+echo
+echo
+
+
+echo "07. kill -9 the broker, start it on the same --dbDir"
+echo "===================================================="
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR
+echo "restarted"
+echo
+echo
+
+
+echo "08. Every entity answered 201 is back; none answered 503 is"
+echo "==========================================================="
+count=$(curl -s -D - -o /dev/null "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=T&count=true&limit=0" | tr -d '\r' | sed -n 's/^NGSILD-Results-Count: //p')
+echo "entities back: $( [ "$count" = "$((n + 1))" ] && echo 'all the 201s' || echo "$count, $((n + 1)) answered 201" )"
+echo "urn:E1 (201):         $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E1)"
+echo "urn:R1 (201, resumed): $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:R1)"
+echo "urn:X1 (503):         $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:X1)"
+echo "first 503:            $(code http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$refused)"
+echo
+
+rm -f $out
+
+
+--EXPECT--
+01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201
+======================================================================
+answered 201 before the first other answer: more than 100
+the first other answer: 503
+{
+  "type": "https://coraine.readthedocs.io/errors/PersistenceUnavailable",
+  "title": "Persistence Unavailable",
+  "status": 503,
+  "detail": "writes are refused until the broker can write its log again (paused for N s): the log of the default tenant cannot be allocated ahead"
+}
+
+
+
+02. Paused - the writes: create, PATCH, DELETE, a subscription, a batch delete - 503, nothing applied
+=====================================================================================================
+create urn:X1:      503
+PATCH urn:E1:       503
+DELETE urn:E1:      503
+POST subscriptions: 503
+batch delete:       503
+GET urn:E<first 503> (the first 503): 404
+GET urn:X1:         404
+GET urn:E1 (no q):  {
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "entity 'urn:E1' has none of the requested attributes"
+}
+
+
+03. Paused - the reads: GET an entity, POST entityOperations/query - served
+===========================================================================
+GET urn:E2:   200
+POST query:   200
+
+
+04. Paused - /live 200, /ready 503 "paused"; ngsild_store_paused 1
+==================================================================
+live:  200
+ready: 503 paused
+ngsild_store_paused 1
+
+
+05. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again
+====================================================================================
+resumed: yes
+
+
+06. Resumed - /ready 200; ngsild_store_paused 0, the refused requests counted
+=============================================================================
+ready: 200
+ngsild_store_paused 0
+refused while paused, counted: yes
+
+
+07. kill -9 the broker, start it on the same --dbDir
+====================================================
+restarted
+
+
+08. Every entity answered 201 is back; none answered 503 is
+===========================================================
+entities back: all the 201s
+urn:E1 (201):         200
+urn:R1 (201, resumed): 200
+urn:X1 (503):         404
+first 503:            404
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_pause

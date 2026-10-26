@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-SET(CORAINE_SOURCES coraine.c ngsildServices.c coraineFeatures.c crashReport.c inlineDispatch.c memoryBudget.c)
+SET(CORAINE_SOURCES coraine.c ngsildServices.c coraineFeatures.c crashReport.c inlineDispatch.c memoryBudget.c storePause.c)
 IF (COR_FEATURE_HEALTH)
   LIST(APPEND CORAINE_SOURCES health.c)
 ENDIF()

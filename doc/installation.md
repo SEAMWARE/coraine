@@ -1066,6 +1066,48 @@ Metrics: `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes` (what is compa
 `ngsild_memory_resident_bytes` (the whole resident set, file-backed pages included),
 `ngsild_requests_refused_memory_total`.
 
+## A store that cannot write its log
+
+A persistent `corDB` (`--dbDir`) keeps every write in its log on the disk. When the log cannot be
+written - the disk full, a file-size limit, an I/O error - the store **pauses**: from then on every
+request that writes is refused, before anything is applied, so that nothing is answered 201 or 204
+that a restart would lose. The broker goes on serving reads:
+
+| Served while paused | Refused while paused |
+|---|---|
+| `GET`, `HEAD`, `OPTIONS` - entities, subscriptions, registrations, temporal, `/version`, `/metrics`, `/admin/*` | `POST`, `PUT`, `PATCH`, `DELETE` - entities, attributes, subscriptions, registrations, batch operations, `@context`s |
+| `POST /ngsi-ld/v1/entityOperations/query`, `/temporal/entityOperations/query`, `/temporal/timepoint/entityOperations/query` | |
+| `/admin/log` (the log and trace levels) | |
+
+A refused request gets **503**, a `Retry-After: 5` header and the error type
+`https://coraine.readthedocs.io/errors/PersistenceUnavailable`, with what failed in the detail:
+
+```json
+{
+  "type": "https://coraine.readthedocs.io/errors/PersistenceUnavailable",
+  "title": "Persistence Unavailable",
+  "status": 503,
+  "detail": "writes are refused until the broker can write its log again (paused for 12 s): the log of the default tenant cannot be allocated ahead"
+}
+```
+
+The log is allocated 8 MiB ahead of what it holds, off the write path, so a full disk is found before
+a write needs the room - unless more than 8 MiB is written between two runs of the flusher
+(`--dbSyncInterval`): the store pauses with every write it answered in the log. A write
+that was applied when the log failed - its record found no room, or its sync to the disk failed - is
+answered 503 too; it is in memory, and the repair below keeps it.
+
+While paused, the broker tries once a second, backing off to once every 16 s, to write a snapshot of
+each tenant it could not log, from what it holds in memory; a snapshot rolls the log and drops the
+files before it. Once that succeeds - the disk has room again - the pause ends by itself and writes are
+served again; nothing needs a restart. A failure in the history log (`--troe corDB`) is not repaired:
+the store stays paused until the broker is restarted.
+
+`/ready` answers 503 and `status` is `paused` for as long as it lasts ([Health port](#health-port)),
+`/live` stays 200: a restart loses nothing that was answered 201, but it does not make room on the
+disk. Metrics: `ngsild_store_paused` (1 while paused), `ngsild_requests_refused_store_paused_total`.
+Only `corDB` pauses.
+
 ## Request size
 
 A request's **body** is limited by `--maxRequestSize` (2 MiB; 413 above it). Its **line and headers** - the
@@ -1333,7 +1375,7 @@ Without the option nothing listens. It opens before the store is loaded.
 | Request | 200 | 503 |
 |---|---|---|
 | `GET /live` | the broker makes progress | a request has been in flight for longer than `--healthStallTimeout` seconds (default 30) and no request has finished in that time. Never for memory or a database |
-| `GET /ready` | the broker serves | the store is still loading; the current-state store does not answer its ping; over the [memory budget](#memory-budget); stuck (as `/live`); stopping (from SIGTERM on) |
+| `GET /ready` | the broker serves | the store is still loading; the current-state store does not answer its ping; over the [memory budget](#memory-budget); the store [paused](#a-store-that-cannot-write-its-log); stuck (as `/live`); stopping (from SIGTERM on) |
 | `GET <anything else>` | always | — |
 
 A connection that sends nothing (a TCP probe) is closed unanswered. Every answer has the same body,
@@ -1352,11 +1394,12 @@ the report:
 
 | Member | |
 |---|---|
-| `status` | `starting` (the store loading), `ok`, `degraded` (the temporal store unreachable or not recording, or over 90% of the memory budget), `down` (the store unreachable, or stuck), `stopping` |
+| `status` | `starting` (the store loading), `ok`, `degraded` (the temporal store unreachable or not recording, or over 90% of the memory budget), `down` (the store unreachable, or stuck), `paused` (the store [paused](#a-store-that-cannot-write-its-log)), `stopping` |
 | `uptime` | seconds since the health port opened |
 | `store`, `troe` | the current-state and the temporal plugin. `mongoc` and `timescale` are pinged once a second, on a connection of their own, with a 1 s timeout: `reachable` is an answer within the last 5 s, `lastPingAgoMs` and `pingLatencyUs` are the last ping's. `corDB` and `none` are in the broker's process: reachable once loaded |
 | `troe.history` | `--troe timescale` only: `recording` (false: the database is down - [The database down](#the-database-down)), `notRecordingForMs`, `heldBytes` (history taken and not written yet) and `lostRows` (since the start) |
 | `memory` | the [memory budget](#memory-budget) in bytes (0: none), what counts against it, the whole resident set, `level` (`ok`, `soft` - writes refused, `hard` - everything but deletes and monitoring refused) and the requests refused for it |
+| `paused` | only while the store is [paused](#a-store-that-cannot-write-its-log): `forS` (seconds since the pause began), `reason` and `refused` (the requests refused for pauses since the start) |
 | `requests` | the requests in flight, how many have finished, and how long ago the last one did (`null`: none yet) |
 
 Nothing is measured when a probe arrives: the figures are kept current in the background, and an

@@ -347,6 +347,17 @@ typedef int  (*DbHaWatchStartFunc)(HaApplyFunc applyF);
 typedef int  (*DbPingFunc)(int timeoutMs);
 
 //
+// DbPausedFunc - is the store paused: it cannot keep a write (its log cannot be written to its disk)?
+//
+// While it is, the store refuses every write and the broker answers every request that writes 503
+// PersistenceUnavailable before it reaches the store (src/app/coraine/storePause.h), GET /ready
+// answers 503. The store ends the pause itself, once it can keep writes again. reason (reasonLen bytes)
+// and *sinceNsP (ns since the epoch) are filled when given; with both NULL it must cost no more than an
+// atomic load - it is asked on every request. NULL: a store that never pauses.
+//
+typedef bool (*DbPausedFunc)(char* reason, int reasonLen, uint64_t* sinceNsP);
+
+//
 // DbEntityTypesFunc - an entity's "type" member alone (a string, or an array of them), as entityRetrieve's
 // tree has it, allocated in corRest.kalloc; DB_NOT_FOUND. For what needs the types and not the entity (the
 // auth plugin's decision before a write): no copy of the attributes. NULL: the broker retrieves the entity.
@@ -471,6 +482,9 @@ typedef struct DbDriver
   DbIndexListFunc         indexList;
   DbIndexAddFunc          indexAdd;
   DbIndexDeleteFunc       indexDelete;
+
+  // Appended: NULL-allowed (see the typedef)
+  DbPausedFunc            paused;
 } DbDriver;
 
 
