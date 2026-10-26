@@ -147,6 +147,14 @@ jobs:
             exit 1
           fi
 
+          # The entries in changelog.d/ belong in the section: tools/changelog.sh --release <version> folds
+          # them in and removes them - left there, they would be missing from this release's notes
+          left=$(ls changelog.d/*.md 2>/dev/null | grep -v '^changelog.d/README.md$' || true)
+          if [ -n "$left" ]; then
+            echo "::error::changelog.d/ still has entries - run tools/changelog.sh --release $VERSION before tagging: $left"
+            exit 1
+          fi
+
           awk -v v="$VERSION" -v f=/tmp/section.md '
             { gsub(/\{\{VERSION\}\}/, v) }
             /^\{\{CHANGELOG\}\}$/ { while ((getline line < f) > 0) print line; next }

@@ -37,6 +37,10 @@ raised the same idea.
 Pull requests go against `main`. Keep a pull request to one subject; a commit
 message says *why*, not only *what*.
 
+A change a user would notice gets a [CHANGELOG](CHANGELOG.md) entry in the same pull
+request - as a file of its own in [`changelog.d/`](changelog.d/README.md), not an edit of
+`CHANGELOG.md`, so that pull requests do not conflict with each other over it.
+
 ## Code style
 
 C style for the whole stack — the Cor-Libs and the broker — is one

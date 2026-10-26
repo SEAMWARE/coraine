@@ -7,6 +7,9 @@ written for someone deciding whether to upgrade — not a copy of the git log.
 Versions follow [semantic versioning](https://semver.org/). Below 1.0.0 a minor
 bump may still change behaviour; the entry says so where it does.
 
+Until a release is cut, its newer entries are files in [`changelog.d/`](changelog.d/README.md),
+one per pull request; `tools/changelog.sh` prints the coming release's section with them.
+
 ---
 
 ## 0.6.0 (not released yet)
