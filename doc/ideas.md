@@ -12,9 +12,9 @@ Each idea: one line, then what there is to say about it, and where more lives.
 
 corDB persists with `--dbDir` (a log and snapshots - [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md));
 what it costs is in [Performance](performance.md), "corDB on disk": nothing on reads, 6-24 % on
-writes that change the store, more while the store grows fast. Two ways to bring it down: a PATCH or
-merge that logs only the attributes it touched (`ATTRS_PUT`, already in the record format) instead
-of the whole entity, and a cheaper encode of a record (the per-request cost is the encode).
+writes that change the store, more while the store grows fast. A PATCH or merge already logs only the
+attributes it touched (`ATTRS_PUT`); what is left is a cheaper encode of a record - the per-request cost
+is the encode.
 
 ### corDB history: retention and a selector
 
@@ -123,30 +123,9 @@ not a write to an attribute.
 Parity with the FIWARE IoT Agents - UltraLight, JSON, LWM2M, LoRaWAN, Sigfox, OPC UA, ISOXML - as
 plugins on the bridge contract instead of separate processes. The same source compiles to a reduced
 **cor-agent** configuration, so agent-then-broker becomes a deployment choice: a small edge build
-beside a central broker, or one binary doing both (FIWARE@Home on a Raspberry Pi). More of them as
+beside a central broker, or one binary doing both (on a Raspberry Pi, for one). More of them as
 deployments ask, not to complete a matrix. [Speaking to devices directly](device-protocols.md),
 [FIWARE IoT Agents](iot-agents.md).
-
-<a id="philips-hue---the-first-fiwarehome-plugin"></a>
-
-### Philips Hue - the first FIWARE@Home plugin
-
-FIWARE@Home - coraine on a Raspberry Pi as the home's context broker - starts with the devices people
-already have. Parity with the FIWARE IoT Agents is the floor; the home needs more plugins than those,
-and Philips Hue comes first.
-
-A plugin on the bridge contract, speaking the Hue Bridge's local API (version 2, HTTPS on the home
-network, no cloud):
-
-- **Pairing** - the bridge is found on the network (mDNS), and the plugin gets its application key
-  when someone presses the bridge's link button.
-- **Entities** - lights, rooms and zones, scenes, and the sensors (motion, temperature, light level,
-  buttons). A light's `on`, brightness and colour are Properties; the room it is in is a
-  Relationship - so in c³ Connect the home is a graph: rooms, their lights, their sensors.
-- **Live** - the bridge's event stream pushes every change; the plugin writes it to the broker as it
-  happens. No polling.
-- **Switching** - a write to a light's entity (on, brightness, colour, a scene) becomes the bridge
-  call that does it.
 
 ### A CKAN bridge and a CSV bridge
 
@@ -240,16 +219,6 @@ One JSON-LD normalisation applied once at the input boundary rather than at each
 
 The media types parsed, negotiated and rendered in one place instead of several.
 
-## Security
-
-### Authorisation inside the broker
-
-NGSI-LD defines no authentication or authorisation. An optional layer inside coraine decides on the
-request it has already parsed: per entity in a batch, for entity types after `@context` expansion,
-by tenant - "may only read type X" becomes a condition on the query, not a filter on the response.
-ODRL policies, as in the FIWARE Data Space Connector; the identity is the verifier's token for a
-verifiable credential. [Authorization in the broker](authorization.md).
-
 ## Operations and availability
 
 ### Migrating from Orion-LD
@@ -301,11 +270,6 @@ which an entity update reaching another broker misses a notification - closes it
 comes causally after the subscription, and shrinks it from ~50 ms to a LAN round trip between
 independent clients, whose order is undefined anyway. [Roadmap](roadmap.md), § 5.1.
 
-### A memory budget and admission control
-
-A broker that knows its memory budget (a container's limit) and refuses writes before the OOM killer
-ends it - `--memoryLimit` is the start of it.
-
 ## Build, distribution and footprint
 
 <a id="c-the-coraine-control-center"></a>
@@ -349,12 +313,6 @@ authorisation, not after it: how a browser presents a token on the socket (in a 
 or a cookie), and an `Origin` check for a page not served by the broker itself (as `--corsOrigin`
 does for HTTP).
 
-### Packages
-
-A Debian repository and `apt-get install coraine`, with a `coraine-dev` that pulls the whole
-dependency stack in one command. Today building from source is the only way to a machine that does
-not run the container image.
-
 ### Finish conditional compilation
 
 Per-feature `#ifdef`s so a deployment compiles only the NGSI-LD it uses. `REGISTRATIONS` and
@@ -372,10 +330,11 @@ The broker adds 4.8 MiB to a machine (1.35 MiB with every switch off), holds 17 
 hardware is a build-configuration question, not a redesign - conditional compilation is what makes
 that true.
 
-### An ARM image, and a more diverse nightly
+### A more diverse nightly
 
-An ARM64 image; nightly builds with `unsigned char`, the sanitizers (ASan, UBSan), clang and musl -
-each finds bugs the others hide.
+Nightly builds with the sanitizers (ASan, UBSan), clang and musl - each finds bugs the others hide.
+`unsigned char` (ARM's `char`) passes the whole suite already, and the arm64 images are built and
+tested on ARM runners every night.
 
 ## Quality
 

@@ -427,7 +427,6 @@ planned or not, in [Ideas](doc/ideas.md):
 - **Service Execution, following GR CIM-055 as it settles** - the status names, the query and discovery
   parameters.
 - **Live public transport** - a GTFS-realtime bridge, and buses moving on c³'s map.
-- **Philips Hue** - the first FIWARE@Home plugin: lights, rooms, scenes and sensors as entities.
 - **Finish conditional compilation** - the switches that are declared and remove nothing yet.
 - **More build diversity, every night** - ASan + UBSan, clang, Alpine / musl.
 - **corDB history: retention and a selector** - history kept for a time or a size, and only what it is

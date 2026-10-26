@@ -33,7 +33,7 @@ build and configuration choice rather than an architecture:
 | Shape | What runs | When it fits |
 |---|---|---|
 | **Agent + broker** | A small broker build with the south bridge at the edge; a full broker centrally, no device protocols compiled in | The classic topology. Many sites, a lot of devices, agents near them. |
-| **One broker, both jobs** | A single broker with the south bridge and the full NGSI-LD API | A small installation. FIWARE@Home on a Raspberry Pi: one process, the devices in the flat, no tier to operate. |
+| **One broker, both jobs** | A single broker with the south bridge and the full NGSI-LD API | A small installation, on a Raspberry Pi for one: one process, the devices on site, no tier to operate. |
 | **Broker only** | No south bridge compiled in | A cloud broker fed by agents, or by other brokers. |
 
 The middle row is the point. A single apartment does not need a device-protocol
