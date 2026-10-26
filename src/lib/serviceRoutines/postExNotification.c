@@ -15,7 +15,10 @@
 //   * rewrites the body's "subscriptionId" field back to parentSubId
 //     (the remote knew the derived id, our subscriber expects the
 //     parent's), and
-//   * POSTs the body to the original sub's notification endpoint.
+//   * POSTs the body to the original sub's notification endpoint, as a
+//     notification of the sub itself: its tenant, its receiverInfo
+//     (Authorization and the like - the Context Source never had it),
+//     its timeout, and its transport when the endpoint is not HTTP.
 //
 // Always replies 204 to the remote when the local sub exists — the
 // fact that our subscriber accepted or refused the re-dispatch is
@@ -40,6 +43,9 @@
 #include "corNgsild/LdSubCache.h"                     // LdSubCache, LdSubCacheItem
 #include "corNgsild/ldSubCache.h"                     // ldSubCacheItemLookup, ldSubCacheRdLock, ldSubCacheItemPin
 #include "corNgsild/ldNotifyStatsHook.h"              // ldNotifyStatsHookInvoke
+#include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp, ldNotifyTransportSend
+#include "corNgsild/ldReceiverInfoHeaders.h"          // ldReceiverInfoHeadersAdd
+#include "corNgsild/ldTenantHeader.h"                 // ldTenantHeaderAdd
 
 #include "db/Tenant.h"                               // Tenant
 
@@ -104,12 +110,9 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
   char* body    = (char*) corAlloc(&corRest.kalloc, bodyLen);
   corJsonFastRender(bodyTree, body);
 
-  CorRestClientRequest  req;
-  CorRestClientResponse resp;
-  char                  linkBuf[512];   // the Link header - req keeps a pointer to it until the send
+  char linkBuf[512];   // the Link header - req keeps a pointer to it until the send
 
-  corRestClientRequestInit(&req, CorVerbPost, itemP->endpointUri, NULL);
-  corRestClientRequestHeader(&req, "Content-Type", "application/json");
+  linkBuf[0] = 0;
 
   const char* ctxUrl = (itemP->contextUrl != NULL) ? itemP->contextUrl : NULL;
   if (ctxUrl == NULL)
@@ -119,18 +122,53 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
       ctxUrl = coreP->url;
   }
   if (ctxUrl != NULL)
-  {
     snprintf(linkBuf, sizeof(linkBuf),
              "<%s>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
              ctxUrl);
-    corRestClientRequestHeader(&req, "Link", linkBuf);
+
+  bool ok;
+
+  if (ldNotifyIsHttp(itemP->endpointUri) == false)
+  {
+    //
+    // Anything but HTTP (§ 7 - mqtt[s]://...) - the transport the application installed for the scheme,
+    // as for a notification of the sub itself (ldSubscriptionNotify)
+    //
+    ok = ldNotifyTransportSend(itemP->endpointUri, body, "application/json",
+                               (linkBuf[0] != 0) ? linkBuf : NULL,
+                               itemP->receiverInfo, itemP->notifierInfo);
   }
+  else
+  {
+    CorRestClientRequest  req;
+    CorRestClientResponse resp;
 
-  corRestClientRequestBody(&req, body, strlen(body));
-  corRestClientRequestTimeout(&req, 5000, 10000);
+    corRestClientRequestInit(&req, CorVerbPost, itemP->endpointUri, NULL);
+    corRestClientRequestHeader(&req, "Content-Type", "application/json");
+    ldTenantHeaderAdd(&req, corNgsild.tenantName);   // § 6.4.8 - the parent's tenant: the one it was found in
 
-  corRestClientSend(&req, &resp);
-  corRestClientResponseCleanup(&resp);   // free the grown response header vector
+    if (linkBuf[0] != 0)
+      corRestClientRequestHeader(&req, "Link", linkBuf);
+
+    //
+    // § 5.2.15 endpoint.receiverInfo - the parent's, which the subordinate on the Context Source does not
+    // carry (ldDistSub). The request on this thread is the Context Source's notification, not the one
+    // that triggered it: a "urn:ngsi-ld:request" entry has nothing to take and is left out.
+    //
+    ldReceiverInfoHeadersAdd(&req, itemP->receiverInfo, false);
+
+    corRestClientRequestBody(&req, body, strlen(body));
+
+    // § 5.2.15 endpoint.timeout - the parent's; default 10 s
+    int reqTmoMs = (itemP->timeoutMs > 0) ? itemP->timeoutMs : 10000;
+    corRestClientRequestTimeout(&req, 5000, reqTmoMs);
+
+    corRestClientSend(&req, &resp);
+    corRestClientResponseCleanup(&resp);   // free the grown response header vector
+    corRestClientRequestCleanup(&req);     // the header vector, malloc'd when receiverInfo made it outgrow the inline one
+
+    ok = (resp.statusCode >= 200 && resp.statusCode < 300);
+  }
 
   //
   // Update the parent sub's notification counters — same accounting as
@@ -139,7 +177,6 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
   itemP->timesSent       += 1;
   itemP->lastNotification = corRest.requestStartTime;
 
-  bool ok = (resp.statusCode >= 200 && resp.statusCode < 300);
   if (ok)
     itemP->lastSuccess = corRest.requestStartTime;
   else
