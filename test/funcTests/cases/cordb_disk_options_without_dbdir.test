@@ -1,0 +1,92 @@
+#
+# FILE            cordb_disk_options_without_dbdir.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB's options of the disk - --dbSync, --dbSyncInterval, --dbSnapshotEvery, --dbCompress - given without
+# --dbDir: the store is in RAM only, they mean nothing, and the broker does not start - each one named. As
+# ramDB refuses --dbDir, an option it does not have. Before, they were not looked at: --dbSync sometimes
+# started, and so did --dbSync request, a durability there was none of.
+#
+# Each run is under `timeout 10` - a broker that started anyway would be killed by it and show exit 124.
+#
+--NAME--
+corDB: --dbSync, --dbSyncInterval, --dbSnapshotEvery, --dbCompress without --dbDir - the start refused
+
+--TAGS--
+cli config cordb persist
+
+--INIT--
+
+--RUN--
+
+#
+# run <args> - the broker's exit code, and its error lines with the file/line prefix cut
+#
+run() {
+  timeout 10 $COR_BROKER --port $((CB_PORT + 3270)) --database $COR_PLUGIN_DIR/db/currentState/corDB.so "$@" > /tmp/cordbDiskOpts.$$ 2>&1
+  echo "exit: $?"
+  grep "corDB: " /tmp/cordbDiskOpts.$$ | sed 's/^.*corDB: /corDB: /'
+  rm -f /tmp/cordbDiskOpts.$$
+}
+
+echo "01. --dbSync sometimes, no --dbDir - refused"
+echo "============================================="
+run --dbSync sometimes
+echo
+echo
+
+
+echo "02. --dbSync request, no --dbDir - refused: no disk to sync to"
+echo "=============================================================="
+run --dbSync request
+echo
+echo
+
+
+echo "03. --dbSyncInterval, --dbSnapshotEvery and --dbCompress, no --dbDir - each one named"
+echo "======================================================================================"
+run --dbSyncInterval 50 --dbSnapshotEvery 8 --dbCompress
+echo
+echo
+
+
+echo "04. --dbSync sometimes WITH --dbDir - refused for its value, as before"
+echo "======================================================================"
+run --dbDir /tmp/corTest_cordbDiskOpts --dbSync sometimes
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_cordbDiskOpts
+
+--EXPECT--
+01. --dbSync sometimes, no --dbDir - refused
+=============================================
+exit: 1
+corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on
+
+
+02. --dbSync request, no --dbDir - refused: no disk to sync to
+==============================================================
+exit: 1
+corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on
+
+
+03. --dbSyncInterval, --dbSnapshotEvery and --dbCompress, no --dbDir - each one named
+======================================================================================
+exit: 1
+corDB: --dbSyncInterval without --dbDir - the store is in RAM only, there is no disk for it to act on
+corDB: --dbSnapshotEvery without --dbDir - the store is in RAM only, there is no disk for it to act on
+corDB: --dbCompress without --dbDir - the store is in RAM only, there is no disk for it to act on
+
+
+04. --dbSync sometimes WITH --dbDir - refused for its value, as before
+======================================================================
+exit: 1
+corDB: --dbSync 'sometimes': interval, request or none
+
+
