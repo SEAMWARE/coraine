@@ -1,0 +1,131 @@
+#
+# FILE            cordb_persist_log_full.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir: a write whose record cannot be put in the log is answered 503, not 201
+# (corDB doc/persistence.md § 5). The log cannot grow here because the broker runs under a file-size
+# limit (ulimit -f 6144, SIGXFSZ ignored): a log segment is allocated 4 MiB at a time, and its second
+# allocation fails as on a full disk. Every write answered 201 is back after a kill -9 and a start; the
+# first write answered 503 is in the store's memory until then, and gone after it.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - a write that cannot be logged is answered 503; every 201 survives a kill -9
+
+--TAGS--
+corDB persistence error
+
+--INIT--
+rm -rf /tmp/corTest-cordb_persist_log_full
+trap '' XFSZ
+ulimit -f 6144
+coraineStart --dbDir /tmp/corTest-cordb_persist_log_full --dbSync request
+
+--RUN--
+
+#
+# 01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201
+# 02. GET the last entity answered 201 and the one answered 503 - both are in the store's memory
+# 03. kill -9 the broker, start it on the same --dbDir (no file-size limit)
+# 04. Every entity answered 201 is back; the one answered 503 is not
+#
+
+DIR=/tmp/corTest-cordb_persist_log_full
+big=$(head -c 10000 /dev/zero | tr '\0' 'a')
+out=$(mktemp)
+
+echo "01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201"
+echo "======================================================================"
+n=0
+for i in $(seq 1 1000); do
+  code=$(curl -s -o $out -D $out.headers -w '%{http_code}' -H 'Content-Type: application/json' \
+         -d "{\"id\":\"urn:E$i\",\"type\":\"T\",\"p\":{\"type\":\"Property\",\"value\":\"$big\"}}" \
+         "http://localhost:$COR_PORT/ngsi-ld/v1/entities")
+  [ "$code" != 201 ] && break
+  n=$i
+done
+refused=$((n + 1))
+echo "answered 201 before the first other answer: $( [ $n -gt 100 ] && echo 'more than 100' || echo "only $n" )"
+echo "the first other answer:"
+command grep -v '^Date: ' $out.headers | tr -d '\r'
+cat $out
+echo
+echo
+echo
+
+
+echo "02. GET the last entity answered 201 and the one answered 503 - both are in the store's memory"
+echo "=============================================================================================="
+echo "last 201: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$n)"
+echo "the 503:  $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$refused)"
+echo
+echo
+
+
+echo "03. kill -9 the broker, start it on the same --dbDir (no file-size limit)"
+echo "========================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --dbDir $DIR --dbSync request
+echo "restarted"
+echo
+echo
+
+
+echo "04. Every entity answered 201 is back; the one answered 503 is not"
+echo "=================================================================="
+count=$(curl -s -D - -o /dev/null "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=T&count=true&limit=0" | tr -d '\r' | sed -n 's/^NGSILD-Results-Count: //p')
+echo "entities back: $( [ "$count" = "$n" ] && echo 'all the 201s' || echo "$count of $n" )"
+echo "last 201: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$n)"
+echo "the 503:  $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:E$refused)"
+echo
+echo
+
+rm -f $out $out.headers
+
+
+--EXPECT--
+01. Create urn:E1, urn:E2, ... (10 kB each) until an answer is not 201
+======================================================================
+answered 201 before the first other answer: more than 100
+the first other answer:
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+Content-Length: 251
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError",
+  "title": "Service Unavailable",
+  "status": 503,
+  "detail": "the write is in the broker's memory but not in its log (corDB --dbDir) - a restart loses it; the broker's log says why"
+}
+
+
+
+02. GET the last entity answered 201 and the one answered 503 - both are in the store's memory
+==============================================================================================
+last 201: 200
+the 503:  200
+
+
+03. kill -9 the broker, start it on the same --dbDir (no file-size limit)
+=========================================================================
+restarted
+
+
+04. Every entity answered 201 is back; the one answered 503 is not
+==================================================================
+entities back: all the 201s
+last 201: 200
+the 503:  404
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_persist_log_full

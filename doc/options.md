@@ -1339,8 +1339,16 @@ cache - before its response; this option decides when that is `fdatasync`ed.
 - `interval` - a flusher thread syncs every tenant's log every `--dbSyncInterval` ms. The response does not
   wait. A broker that dies loses nothing it acknowledged; a machine that dies, at most the last interval.
 - `request` - the response waits for its record's sync. The writers that arrive during one sync share the
-  next (group commit). A write that cannot be logged (a full disk) is answered 503.
+  next (group commit). A write whose sync fails is answered 503.
 - `none` - the log is written, never synced: for tests, benchmarks, a RAM disk.
+
+With any value, a write whose record cannot be put in the log - its segment cannot grow, as on a full disk -
+is answered 503 `InternalError`, detail `the write is in the broker's memory but not in its log (corDB
+--dbDir) - a restart loses it; the broker's log says why`. The store holds the write until the broker
+restarts; the log does not. With `request`, a failed `fdatasync` is answered 503 too, detail `the write's log
+record could not be synced to the disk (corDB --dbSync request) - a restart may lose it; ...`: for the write
+whose record that sync was for, and for every later write of the tenant until a restart - a load stops at
+the first record it cannot read. The broker's log names the file and the error in each case.
 
 Given without `--dbDir` it stops the start: `corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on`.
 
