@@ -1,0 +1,287 @@
+#
+# FILE            distsub_notification_receiver_info.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# § 5.8.1.4 / § 5.2.15 - a distributed subscription's notification re-dispatched by CB carries the
+# parent subscription's notification.endpoint.receiverInfo as headers (Authorization and the like),
+# as a notification of the subscription itself does. The subordinate on the Context Source (CP1)
+# gets no receiverInfo - it calls back to CB, and the subscriber's credentials are not for it - neither
+# at creation nor after a PATCH of the parent's endpoint, which leaves the callback where it is.
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+DistSub - a re-dispatched notification carries the parent's receiverInfo; the Context Source never sees it
+
+--TAGS--
+distops subscription distsub notification receiverInfo
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+ftClientStart
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+SUB=$(mktemp)
+
+#
+# 01. Register CSR on CB → CP1 (Vehicle, with createSubscription and updateSubscription)
+# 02. Create sub urn:S1 on CB → ftClient/s1, receiverInfo Authorization + X-Tag
+# 03. GET the derived sub on CP1 - its endpoint is CB's callback, no receiverInfo
+# 04. POST Vehicle urn:V1 on CP1 - fires the derived sub → CB re-dispatches
+# 05. ftClientDump - Authorization and X-Tag in the headers
+# 06. PATCH urn:S1's endpoint: a new Authorization
+# 07. GET the derived sub on CP1 - still CB's callback, still no receiverInfo
+# 08. PATCH urn:V1 on CP1 - another notification
+# 09. ftClientDump - the new Authorization
+#
+
+echo "01. Register CSR on CB → CP1 (Vehicle, with createSubscription and updateSubscription)"
+echo "======================================================================================"
+payload='{
+  "id": "urn:CSR:Vehicle",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "operations": ["createEntity", "updateEntity", "appendAttrs", "createSubscription", "updateSubscription", "retrieveSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create sub urn:S1 on CB → ftClient/s1, receiverInfo Authorization + X-Tag"
+echo "============================================================================="
+payload='{
+  "id": "urn:S1",
+  "type": "Subscription",
+  "entities": [{"type": "Vehicle"}],
+  "watchedAttributes": ["speed"],
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/s1",
+      "receiverInfo": [
+        { "key": "Authorization", "value": "Bearer token-1" },
+        { "key": "X-Tag",         "value": "t1" }
+      ]
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$payload"
+echo
+echo
+
+
+echo "03. GET the derived sub on CP1 - its endpoint is CB's callback, no receiverInfo"
+echo "==============================================================================="
+curl -s http://localhost:$CP1_PORT/ngsi-ld/v1/subscriptions/urn:S1:1 > $SUB
+python3 -c 'import json,sys; print("endpoint:", json.dumps(json.load(open(sys.argv[1]))["notification"]["endpoint"], sort_keys=True))' $SUB
+echo "a token anywhere in it: $(grep -c token- $SUB)"
+
+echo
+echo
+
+
+echo "04. POST Vehicle urn:V1 on CP1 - fires the derived sub → CB re-dispatches"
+echo "========================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+echo
+echo
+
+
+echo "05. ftClientDump - Authorization and X-Tag in the headers"
+echo "========================================================="
+ftClientWait 1 > /dev/null
+ftClientDump
+echo
+echo
+
+
+echo "06. PATCH urn:S1's endpoint: a new Authorization"
+echo "================================================"
+payload='{
+  "notification": {
+    "endpoint": {
+      "uri": "http://localhost:'$FT_CLIENT_PORT'/s1",
+      "receiverInfo": [ { "key": "Authorization", "value": "Bearer token-2" } ]
+    }
+  }
+}'
+corCurl --url /ngsi-ld/v1/subscriptions/urn:S1 -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "07. GET the derived sub on CP1 - still CB's callback, still no receiverInfo"
+echo "==========================================================================="
+curl -s http://localhost:$CP1_PORT/ngsi-ld/v1/subscriptions/urn:S1:1 > $SUB
+python3 -c 'import json,sys; print("endpoint:", json.dumps(json.load(open(sys.argv[1]))["notification"]["endpoint"], sort_keys=True))' $SUB
+echo "a token anywhere in it: $(grep -c token- $SUB)"
+
+echo
+echo
+
+
+echo "08. PATCH urn:V1 on CP1 - another notification"
+echo "=============================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"speed":{"type":"Property","value":43}}'
+echo
+echo
+
+
+echo "09. ftClientDump - the new Authorization"
+echo "========================================"
+ftClientWait 1 > /dev/null
+ftClientDump
+echo
+echo
+
+
+ftClientSettle
+ftClientDump
+echo
+rm -f $SUB
+
+--EXPECT--
+01. Register CSR on CB → CP1 (Vehicle, with createSubscription and updateSubscription)
+======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:Vehicle
+Content-Length: 0
+
+
+
+
+02. Create sub urn:S1 on CB → ftClient/s1, receiverInfo Authorization + X-Tag
+=============================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Content-Length: 0
+
+
+
+
+03. GET the derived sub on CP1 - its endpoint is CB's callback, no receiverInfo
+===============================================================================
+endpoint: {"uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"}
+a token anywhere in it: 0
+
+
+04. POST Vehicle urn:V1 on CP1 - fires the derived sub → CB re-dispatches
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+05. ftClientDump - Authorization and X-Tag in the headers
+=========================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 42
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Authorization": "Bearer token-1",
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)",
+      "X-Tag": "t1"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+06. PATCH urn:S1's endpoint: a new Authorization
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. GET the derived sub on CP1 - still CB's callback, still no receiverInfo
+===========================================================================
+endpoint: {"uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"}
+a token anywhere in it: 0
+
+
+08. PATCH urn:V1 on CP1 - another notification
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. ftClientDump - the new Authorization
+========================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:V1",
+          "speed": {
+            "type": "Property",
+            "value": 43
+          },
+          "type": "Vehicle"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Authorization": "Bearer token-2",
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/s1",
+    "verb": "POST"
+  }
+]
+
+
+[]
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+ftClientStop
+corDbDrop
+corDbDrop -role CP1
