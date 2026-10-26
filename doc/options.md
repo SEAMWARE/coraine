@@ -1279,6 +1279,8 @@ cache - before its response; this option decides when that is `fdatasync`ed.
   next (group commit). A write that cannot be logged (a full disk) is answered 503.
 - `none` - the log is written, never synced: for tests, benchmarks, a RAM disk.
 
+Given without `--dbDir` it stops the start: `corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on`.
+
 An unknown value stops the start - with `--dbDir` only, as without it the option is not read:
 `corDB: --dbSync 'sometimes': interval, request or none`.
 
@@ -1293,7 +1295,7 @@ The time between two rounds of the flusher, which writes and syncs every tenant'
 `--dbSync interval` it bounds what a machine that dies can lose; with `--dbSync request` a waiting write
 starts a round at once, and the interval is the longest the log goes unsynced without one. A value out of
 range stops the start: `coraine: value 0 for option '--dbSyncInterval' is inferior to its lower limit.
-Allowed range: 1-60000`.
+Allowed range: 1-60000`. Given without `--dbDir` it stops the start: `corDB: --dbSyncInterval without --dbDir - the store is in RAM only, there is no disk for it to act on`.
 
 ### `--dbSnapshotEvery`
 
@@ -1304,8 +1306,8 @@ How much log a tenant writes before it is snapshotted: once it has written this 
 least as much log as its last snapshot was big, so that the snapshots of a growing store cost in proportion
 to what is written. A snapshot is written on a thread of its own, in slices under the read lock; the log
 before it is then deleted, and a start replays only the log after it. Every tenant is also snapshotted at a
-clean stop (SIGTERM, SIGINT). Smaller: faster starts, more snapshot work while running. Acts only with
-`--dbDir`.
+clean stop (SIGTERM, SIGINT). Smaller: faster starts, more snapshot work while running.
+Given without `--dbDir` it stops the start: `corDB: --dbSnapshotEvery without --dbDir - the store is in RAM only, there is no disk for it to act on`.
 
 ### `--dbCompress`
 
@@ -1317,7 +1319,7 @@ thread; the open segment, which writes append to, never. With it a segment rolls
 1 GiB, so a history - which no snapshot drops - is mostly compressed segments. A start reads a compressed
 store with the option or without it, and a start with it compresses the finished segments a run without it
 left. libzstd (`libzstd.so.1`) is loaded only then; missing, the start is refused: `corDB: --dbCompress needs
-libzstd.so.1 (zstd) - not found`. Acts only with `--dbDir`. On disk, 100 000 Entities: 74 MB plain, 1.4 MB
+libzstd.so.1 (zstd) - not found`. Given without `--dbDir` it stops the start: `corDB: --dbCompress without --dbDir - the store is in RAM only, there is no disk for it to act on`. On disk, 100 000 Entities: 74 MB plain, 1.4 MB
 compressed ([persistence § 6a](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md#6a---dbcompress)).
 
     coraine --database corDB --dbDir /var/lib/coraine --dbCompress
