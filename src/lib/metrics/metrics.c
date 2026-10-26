@@ -102,6 +102,13 @@ static CorPromMetric*  memResident;
 static CorPromMetric*  memRefused;
 static MetricsMemoryValuesFunc memoryValuesFunc = NULL;
 
+//
+// The store's pause (src/app/coraine/storePause.h): paused or not, and the requests refused for it
+//
+static CorPromMetric*  storePaused;
+static CorPromMetric*  storePauseRefused;
+static MetricsStorePauseValuesFunc storePauseValuesFunc = NULL;
+
 #if COR_FEATURE_SSE
 //
 // Server-Sent Events (src/lib/sse, doc/sse.md): the streams there, the events written on them, the
@@ -266,6 +273,10 @@ bool metricsInit(void)
                                          "The broker's resident set, file-backed pages included");
   memRefused          = corPromCounterCreate("ngsild_requests_refused_memory_total",
                                            "Requests refused (503) for being over the memory budget");
+  storePaused         = corPromGaugeCreate("ngsild_store_paused",
+                                         "1 while the store cannot keep a write (its log cannot be written to its disk) and writes are refused");
+  storePauseRefused   = corPromCounterCreate("ngsild_requests_refused_store_paused_total",
+                                           "Requests refused (503) while the store was paused");
 
 #if COR_FEATURE_SSE
   sseStreams          = corPromGaugeCreate("ngsild_sse_streams",
@@ -488,6 +499,42 @@ static void dispatchCounts(void)
 void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn)
 {
   memoryValuesFunc = fn;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// metricsStorePauseValuesSet - where the store-pause figures come from
+//
+void metricsStorePauseValuesSet(MetricsStorePauseValuesFunc fn)
+{
+  storePauseValuesFunc = fn;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// storePauseCounts - the pause gauge, and the refused counter brought up to date (as memoryCounts)
+//
+static void storePauseCounts(void)
+{
+  static pthread_mutex_t mtx         = PTHREAD_MUTEX_INITIALIZER;
+  static uint64_t        refusedSeen = 0;
+  bool                   paused;
+  uint64_t               refused;
+
+  if (storePauseValuesFunc == NULL)
+    return;
+
+  storePauseValuesFunc(&paused, &refused);
+  corPromGaugeSet(storePaused, paused ? 1.0 : 0.0);
+
+  pthread_mutex_lock(&mtx);
+  corPromCounterAdd(storePauseRefused, (int64_t) (refused - refusedSeen));
+  refusedSeen = refused;
+  pthread_mutex_unlock(&mtx);
 }
 
 
@@ -789,6 +836,7 @@ bool metricsRender(void)
   tenantCounts();
   dispatchCounts();
   memoryCounts();
+  storePauseCounts();
 #if COR_FEATURE_SSE
   sseCounts();
 #endif

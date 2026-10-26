@@ -119,6 +119,9 @@ metadata:
 or, with the Prometheus Operator, a `ServiceMonitor` on the Service's `api` port and path `/metrics`.
 The memory budget is there as `ngsild_memory_budget_bytes`, `ngsild_memory_used_bytes`,
 `ngsild_memory_resident_bytes` and `ngsild_requests_refused_memory_total`.
+A persistent `corDB` that cannot write its log (a full volume) pauses writes: `ngsild_store_paused` is 1
+and `ngsild_requests_refused_store_paused_total` counts the 503s; `/ready` answers 503 meanwhile
+([A store that cannot write its log](installation.md#a-store-that-cannot-write-its-log)).
 
 ## mongoc - a Deployment
 

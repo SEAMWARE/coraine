@@ -110,6 +110,18 @@ extern void metricsMemoryValuesSet(MetricsMemoryValuesFunc fn);
 
 
 
+// -----------------------------------------------------------------------------
+//
+// metricsStorePauseValuesSet - the function the store-pause metrics are read from at every scrape
+//
+// whether the store is paused (it cannot keep a write) and the requests refused for it since the start
+// (src/app/coraine/storePause.h) - the app's, so the app hands this in.
+//
+typedef void (*MetricsStorePauseValuesFunc)(bool* pausedP, uint64_t* refusedP);
+extern void metricsStorePauseValuesSet(MetricsStorePauseValuesFunc fn);
+
+
+
 
 
 // -----------------------------------------------------------------------------
