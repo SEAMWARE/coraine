@@ -78,7 +78,7 @@ running unsynchronised - when:
 * the change stream cannot be opened, typically because of the [privileges](#mongodb-privileges):
 
 ```
-E: ... mongocHaWatchStart: --ha mongo: unable to open the change stream (not authorized on admin to execute command { aggregate: 1, pipeline: [ { $changeStream: { allChangesForCluster: true } } ] ... }). The stream watches the whole deployment ...
+E: ... mongocHaWatchStart: -ha mongo: unable to open the change stream (not authorized on admin to execute command { aggregate: 1, pipeline: [ { $changeStream: { allChangesForCluster: true } } ] ... }). The stream watches the whole deployment ...
 X: ... main: unable to start the HA channel 'mongo'
 ```
 

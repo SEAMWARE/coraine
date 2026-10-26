@@ -62,7 +62,7 @@ int              timescaleInstanceCap = 1000000;  // § 6.3.10 default temporal-
 CorArg timescaleArgV[] =
 {
   { "--troeHost", "-troeHost", CorArgString, _vp &timescaleDbHost, CorArgOpt, _vp "localhost", NULL, NULL, "TRoE postgres host" },
-  { "--troeName", "-troeName", CorArgString, _vp &timescaleDbName, CorArgOpt, _vp "corh",   NULL, NULL, "TRoE postgres database name" },
+  { "--troeName", "-troeName", CorArgString, _vp &timescaleDbName, CorArgOpt, _vp "corh",   NULL, NULL, "TRoE postgres database of the default tenant, and the prefix of the others' (<troeName>_<tenant>)" },
   { "--troeUser", "-troeUser", CorArgString, _vp &timescaleDbUser, CorArgOpt, _vp "postgres",  NULL, NULL, "TRoE postgres user" },
   { "--troePwd",  "-troePwd",  CorArgString, _vp &timescaleDbPwd,  CorArgOpt, _vp NULL,    NULL, NULL, "TRoE postgres password" },
   { "--troePort", "-troePort", CorArgInt,    _vp &timescaleDbPort, CorArgOpt, _vp 5432,    _vp 1, _vp 65535, "TRoE postgres port" },

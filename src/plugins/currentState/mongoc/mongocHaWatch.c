@@ -398,7 +398,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (replicaSetCheck() == false)
   {
-    COR_E("--ha mongo needs a mongo REPLICA SET - this mongod is a standalone, and a standalone has no oplog for a change stream to read. "
+    COR_E("-ha mongo needs a mongo REPLICA SET - this mongod is a standalone, and a standalone has no oplog for a change stream to read. "
           "Either point the broker at a replica set (a single node is enough: mongod --replSet <name>, then rs.initiate()) or run without --ha");
     return DB_ERR;
   }
@@ -427,7 +427,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
 
   if (haStreamP == NULL)
   {
-    COR_E("--ha mongo: unable to open the change stream (%s). "
+    COR_E("-ha mongo: unable to open the change stream (%s). "
           "The stream watches the whole deployment (a tenant is a database of its own), so, if mongo runs with authentication, "
           "the mongo user needs the actions 'find' and 'changeStream' on ALL databases - see doc/high-availability.md",
           error.message);

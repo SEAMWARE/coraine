@@ -903,12 +903,12 @@ Refused at start:
 
 - a database plugin that cannot report another instance's writes (`corDB`, `ramDB`):
 
-      X: ... haInit: --ha mongo needs a database plugin that can report what another broker instance wrote; the 'corDB' plugin cannot. Point the broker at a shared database, or use '--ha <ip:port>' once the haaux server exists
+      X: ... haInit: -ha mongo needs a database plugin that can report what another broker instance wrote; the 'corDB' plugin cannot. Point the broker at a shared database, or use '-ha <ip:port>' once the haaux server exists
 
 - a temporal store inside the process (`--troe corDB`, `--troe ramDB`); `--troe timescale` and
   `--troe none` are accepted:
 
-      X: ... haInit: --ha mongo needs a temporal store shared by every broker instance; '--troe corDB' keeps the history inside each broker, ...
+      X: ... haInit: -ha mongo needs a temporal store shared by every broker instance; '--troe corDB' keeps the history inside each broker, ...
 
 - a MongoDB that is not a replica set, or a change stream that cannot be opened (the privileges -
   [High Availability - Requirements](high-availability.md#requirements)), then
@@ -916,7 +916,7 @@ Refused at start:
 
 Any other value is taken as the address of a haaux server, which does not exist yet, and is refused:
 
-    X: ... haInit: --ha 10.0.0.1:7000: an address means the haaux server, which is not implemented yet. Use '--ha mongo'
+    X: ... haInit: -ha 10.0.0.1:7000: an address means the haaux server, which is not implemented yet. Use '-ha mongo'
 
     coraine --dbURI "mongodb://db1,db2,db3/?replicaSet=rs0" --high-availability mongo
 

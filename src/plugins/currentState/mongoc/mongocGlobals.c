@@ -55,12 +55,12 @@ char            mongocUriString[512] = { 0 };
 CorArg mongocArgV[] =
 {
   { "--dbHost", "-dbHost", CorArgString, _vp &mongocDbHost, CorArgOpt, _vp "localhost", NULL,  NULL,      "database server host"  },
-  { "--dbName", "-dbName", CorArgString, _vp &mongocDbName, CorArgOpt, _vp "cor",  NULL,  NULL,      "database name"         },
+  { "--dbName", "-dbName", CorArgString, _vp &mongocDbName, CorArgOpt, _vp "cor",  NULL,  NULL,      "database of the default tenant, and the prefix of the others' (<dbName>-<tenant>)"         },
   { "--globalDb", "-globalDb", CorArgString, _vp &mongocGlobalDb, CorArgOpt, _vp "coraine", NULL, NULL, "reserved DB for global (non-tenant) state, e.g. JSON-LD contexts" },
   { "--dbPort", "-dbPort", CorArgUShort, _vp &mongocDbPort, CorArgOpt, _vp 27017,   _vp 1, _vp 65535, "database server port"  },
-  { "--dbUser", "-dbUser", CorArgString, _vp &mongocDbUser, CorArgOpt, NULL,    NULL,  NULL,      "database user"         },
-  { "--dbPwd",  "-dbPwd",  CorArgString, _vp &mongocDbPwd,  CorArgOpt, NULL,        NULL,  NULL,      "database password"     },
-  { "--dbURI",     "-dbURI",     CorArgString, _vp &mongocDbURI, CorArgOpt, NULL,  NULL,  NULL,      "full database URI"              },
+  { "--dbUser", "-dbUser", CorArgString, _vp &mongocDbUser, CorArgOpt, NULL,    NULL,  NULL,      "database user - percent-encoded; used only with --dbPwd"         },
+  { "--dbPwd",  "-dbPwd",  CorArgString, _vp &mongocDbPwd,  CorArgOpt, NULL,        NULL,  NULL,      "database password - percent-encoded; used only with --dbUser"     },
+  { "--dbURI",     "-dbURI",     CorArgString, _vp &mongocDbURI, CorArgOpt, NULL,  NULL,  NULL,      "full database URI - replaces --dbHost, --dbPort, --dbUser, --dbPwd; the database names still come from --dbName and --globalDb"              },
   { "--dbTimeout", "-dbTimeout", CorArgUShort, _vp &mongocDbTimeout, CorArgOpt, _vp 30,    _vp 1, _vp 3600,  "database connection timeout (s)" },
 #if COR_FEATURE_DB_INDEXES && COR_FEATURE_Q_PREFILTER
   { "--dbValueIndexes", "-dbValueIndexes", CorArgString, _vp &mongocDbIndexes, CorArgOpt, NULL,  NULL,  NULL,      "declared indexes - the attributes whose q an index serves, expanded (IRIs): comma-separated, or a JSON array of {attribute, type, tenant}" },
