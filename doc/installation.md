@@ -171,8 +171,9 @@ needs a configuration, and the broker reads `$SEAMWARE_ETC_DIR/bridges.json` whe
 not given. A `--bridgeConfig` of your own replaces it.
 
 `coraine-build --list-features --json` prints the same list as a JSON array - `name`, `default`,
-`description`, `group` (its group in `CMakeLists.txt`), and `requires`: the switches it is turned off
-without, and a build setting as `NAME=value` (`HTTP_SERVER=mhd`). `--http-server builtin` builds the
+`description`, `group` (its group in `CMakeLists.txt`), `requires`: the switches it is turned off
+without - each one of them - and a build setting as `NAME=value` (`HTTP_SERVER=mhd`), and `requiresAny`: the
+switches it is turned off without all of - one is enough (`CHANNEL_WRITE_BACK`: `DATA_CHANNELS` or `ASSET_CHANNELS`). `--http-server builtin` builds the
 broker with corHttp, the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
 the switches that need libmicrohttpd off (`POLICY_API`); not with `--pgo` or `--tune` yet. While it builds, coraine-build
 prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
@@ -244,6 +245,10 @@ list with a description of each option, and `-U` prints each option's environmen
 type; the defaults of a running broker are on `GET /admin/config`. The list changes with the plugins you
 select, because a plugin contributes its own options (for example `--dbHost`,
 `--dbPort`, `--dbUser` come from the `mongoc` plugin).
+
+**Every option - the broker's, each plugin's in a section of its own, coraine-import's and coraine-build's - is in
+[Command-line options](options.md)**, with its variable, default, values and an example. The tables below are
+the ones most deployments set.
 
 ### Core options
 
@@ -456,7 +461,18 @@ above). A broker **started** during an outage waits for the database - a try a s
 the history's tables, so it does not serve meanwhile. Past that it does not start: exit code 1.
 Only a database it cannot reach is waited for - no connection, a server still starting up, a
 connection lost during the migration; one that answers and refuses (a schema version newer than
-this build knows, a permission) fails the start at once.
+this build knows, a permission, the password of `--troeUser` / `--troePwd`) fails the start at once,
+with the server's message:
+
+```
+timescale: connection to db 'postgres' refused (--troeUser, --troePwd): connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+timescale: failed to initialise the default-tenant database
+```
+
+A refused password is told from a server that is not there by the server's message, in English: a
+PostgreSQL whose `lc_messages` is another language is waited for (`--troeConnectTimeout`). MongoDB
+alike: a wrong `--dbUser` / `--dbPwd` fails the start at once (`mongoc: ping failed: Authentication
+failed.`).
 
 ```
 timescale: the history database cannot be reached - trying again once a second, for 30 s (--troeConnectTimeout)

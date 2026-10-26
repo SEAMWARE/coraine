@@ -31,7 +31,7 @@ dpkg -s coraine-dev | sed -n '/^Version/p;/^Depends/p'
 useradd -m builder
 runuser -u builder -- coraine-build --list-features > /tmp/features.txt; head -5 /tmp/features.txt
 runuser -u builder -- coraine-build --list-features --json > /tmp/features.json
-python3 -c 'import json, sys; d = json.load(open("/tmp/features.json")); assert d and all({"name", "default", "description", "requires"} <= set(x) for x in d); print(len(d), "features as JSON")' \
+python3 -c 'import json, sys; d = json.load(open("/tmp/features.json")); assert d and all({"name", "default", "description", "requires", "requiresAny"} <= set(x) for x in d); w = [x for x in d if x["name"] == "CHANNEL_WRITE_BACK"]; assert w and w[0]["requiresAny"] == ["DATA_CHANNELS", "ASSET_CHANNELS"], w; print(len(d), "features as JSON")' \
   || fail "coraine-build --list-features --json is not the expected JSON"
 time runuser -u builder -- coraine-build --features "$FEATURES" /home/builder/b > /tmp/build.log 2>&1 \
   || { tail -60 /tmp/build.log; fail "coraine-build"; }
