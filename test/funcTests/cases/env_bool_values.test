@@ -1,0 +1,148 @@
+#
+# FILE            env_bool_values.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Bool option's environment variable is on for true, True, TRUE, on, On, ON and off for false, False, FALSE,
+# off, Off, OFF; any other value stops the start, the variable named - it was off, silently (yes and 1
+# included). A value of the environment that is refused - that one, or a number out of range - does not keep
+# -u/-U from printing the list: it is said after the -u/-U check (corArgs).
+#
+--NAME--
+A Bool environment variable: true/on and false/off only; a refused environment value does not stop -u/-U
+
+--TAGS--
+options usage env
+
+--INIT--
+corDbDrop
+export CORAINE_VERBOSE=ON
+coraineStart --apiPlugins admin
+
+--RUN--
+
+#
+# 01. CORAINE_VERBOSE=yes - not a Bool: the start stops, exit 1, the variable named
+# 02. CORAINE_VERBOSE=1 - not a Bool either
+# 03. CORAINE_VERBOSE=yes with -u - the usage, exit 0, no error
+# 04. CORAINE_PORT=0 with -u - the usage, exit 0, no error
+# 05. CORAINE_PORT=0 with -U - the list, exit 0
+# 06. CORAINE_PORT=0 - refused: exit 1, the variable named
+# 07. The broker started with CORAINE_VERBOSE=ON - GET /admin/log: verbose on
+#
+
+echo "01. CORAINE_VERBOSE=yes - not a Bool: the start stops, exit 1, the variable named"
+echo "================================================================================="
+CORAINE_VERBOSE=yes timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+grep "^coraine:" /tmp/envBool.$$
+echo
+echo
+
+
+echo "02. CORAINE_VERBOSE=1 - not a Bool either"
+echo "========================================="
+CORAINE_VERBOSE=1 timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --port 9 --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+grep "^coraine:" /tmp/envBool.$$
+echo
+echo
+
+
+echo "03. CORAINE_VERBOSE=yes with -u - the usage, exit 0, no error"
+echo "============================================================="
+CORAINE_VERBOSE=yes timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+head -1 /tmp/envBool.$$
+grep -c "not a Bool" /tmp/envBool.$$
+echo
+echo
+
+
+echo "04. CORAINE_PORT=0 with -u - the usage, exit 0, no error"
+echo "========================================================"
+CORAINE_PORT=0 timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -u --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+head -1 /tmp/envBool.$$
+grep -c "lower limit" /tmp/envBool.$$
+echo
+echo
+
+
+echo "05. CORAINE_PORT=0 with -U - the list, exit 0"
+echo "============================================="
+CORAINE_PORT=0 timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER -U --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+grep -c "^  --port " /tmp/envBool.$$
+echo
+echo
+
+
+echo "06. CORAINE_PORT=0 - refused: exit 1, the variable named"
+echo "========================================================"
+CORAINE_PORT=0 timeout 10 env -u SEAMWARE_PLUGIN_DIR $COR_BROKER --database corDB > /tmp/envBool.$$ 2>&1
+echo "exit: $?"
+grep "^coraine:" /tmp/envBool.$$
+rm -f /tmp/envBool.$$
+echo
+echo
+
+
+echo "07. The broker started with CORAINE_VERBOSE=ON - GET /admin/log: verbose on"
+echo "==========================================================================="
+corCurl --url /admin/log | grep '"verbose"'
+echo
+echo
+
+
+--EXPECT--
+01. CORAINE_VERBOSE=yes - not a Bool: the start stops, exit 1, the variable named
+=================================================================================
+exit: 1
+coraine: CORAINE_VERBOSE=yes: not a Bool - on: true, True, TRUE, on, On, ON; off: false, False, FALSE, off, Off, OFF
+
+
+02. CORAINE_VERBOSE=1 - not a Bool either
+=========================================
+exit: 1
+coraine: CORAINE_VERBOSE=1: not a Bool - on: true, True, TRUE, on, On, ON; off: false, False, FALSE, off, Off, OFF
+
+
+03. CORAINE_VERBOSE=yes with -u - the usage, exit 0, no error
+=============================================================
+exit: 0
+Usage: coraine  [--usage/-u (usage)]
+0
+
+
+04. CORAINE_PORT=0 with -u - the usage, exit 0, no error
+========================================================
+exit: 0
+Usage: coraine  [--usage/-u (usage)]
+0
+
+
+05. CORAINE_PORT=0 with -U - the list, exit 0
+=============================================
+exit: 0
+1
+
+
+06. CORAINE_PORT=0 - refused: exit 1, the variable named
+========================================================
+exit: 1
+coraine: value 0 for option '--port' is inferior to its lower limit. Allowed range: 1-65535
+coraine: (from the environment variable CORAINE_PORT)
+
+
+07. The broker started with CORAINE_VERBOSE=ON - GET /admin/log: verbose on
+===========================================================================
+  "verbose": true
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -f /tmp/envBool.*

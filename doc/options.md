@@ -10,8 +10,11 @@ a plugin. Then what it does, what it needs and excludes, and an example.
 
 **Three ways to set an option**, the first found wins: the command line (`--port 1026` or `-p 1026`), the
 environment variable (`CORAINE_PORT=1026` - every option has one, `CORAINE_` and the long name in capitals),
-the default. A Bool environment variable is on for `true` (any case) only. A password-like option (`--dbPwd`,
-`--troePwd`) is best given as its variable: it then appears in no process list.
+the default. A Bool environment variable is on for `true`, `True`, `TRUE`, `on`, `On` or `ON`, off for `false`,
+`False`, `FALSE`, `off`, `Off` or `OFF`; any other value (`yes`, `1`, `tRuE`, an empty one) stops the start,
+the variable named. A value of the environment that is refused does not keep `-u`/`-U` from printing the
+list: `CORAINE_PORT=0 coraine -u` prints the usage. A password-like option (`--dbPwd`, `--troePwd`) is best
+given as its variable: it then appears in no process list.
 
 **What a broker runs with.** `coraine -u` lists the options with their descriptions, `coraine -U` with their
 variable, type and default; a plugin's options are listed when the plugin is named on the same command line
@@ -120,7 +123,7 @@ nothing - the broker starts.
 ### `--verbose`
 
 `-v` · `CORAINE_VERBOSE` · Bool · default: `false` (off)
-· values: a switch; the environment variable is on for `true` (any case), off for any other value · plugin: core (the option library, corArgs)
+· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · plugin: core (the option library, corArgs)
 
 Turns on the `V` (verbose) and the `I` (info) lines of the log: the version at start, the advertised
 HTTP endpoint and where it came from, the memory budget, the response-size budget, the EntityMap
@@ -162,7 +165,7 @@ With the `admin` API plugin the levels can be changed at run time (`/admin/log`)
 ### `--foreground`
 
 `-fg` · `CORAINE_FOREGROUND` · Bool · default: `false` (off)
-· values: a switch; the environment variable is on for `true` (any case) · deprecated: accepted through 0.7.x, refused from 0.8.0, not listed by `-u` · plugin: core
+· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · deprecated: accepted through 0.7.x, refused from 0.8.0, not listed by `-u` · plugin: core
 
 Does nothing: the broker runs in the foreground by default. A broker started with it, or with
 `CORAINE_FOREGROUND=true`, writes one warning line at start and runs as it would without it:
@@ -177,7 +180,7 @@ Drop it from scripts and units: from 0.8.0 the broker does not start with it.
 ### `--daemon`
 
 `-bg` · `CORAINE_DAEMON` · Bool · default: `false` (the foreground)
-· values: a switch; the environment variable is on for `true` (any case), off for any other value (`1` included) · needs: `--logTo file` · excludes: `--logTo stdout` (the default), `--logTo both`, `--foreground` · plugin: core
+· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · needs: `--logTo file` · excludes: `--logTo stdout` (the default), `--logTo both`, `--foreground` · plugin: core
 
 Runs the broker in the background: it detaches from the terminal - `fork` (the command returns 0 at
 once; the child is the broker), `setsid` (a session of its own, no controlling terminal), `chdir /`,
