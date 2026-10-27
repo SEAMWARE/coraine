@@ -1302,21 +1302,46 @@ static bool bindEntityMapFilters(LdEntityMap* mapP)
 
 // -----------------------------------------------------------------------------
 //
+// offsetPastEnd - an offset at or past the end of a result set of 'n' (> 0) entities: the page is the last
+// entity (TS 104-176 § 6.4.7.2), and an NGSILD-Warning says so - an answer that looks like a page at
+// 'offset' is not one. 199 (Miscellaneous Warning): the spec has no code of its own for this, and its
+// warnings (§ 6.3.17) are the distributed operations'. The warn-agent is the broker's pseudonym, coraine.
+// corNgsild.offset becomes the last entity's, so the Link header's prev is the page before that one.
+//
+static void offsetPastEnd(int64_t n)
+{
+  char* warn = (char*) corAlloc(&corRest.kalloc, 160);
+
+  if (warn != NULL)
+  {
+    snprintf(warn, 160, "199 coraine \"offset %d is past the result set (%lld entities) - the last entity is returned\"",
+             corNgsild.offset, (long long) n);
+    corRestOutHeaderAdd("NGSILD-Warning", warn);
+  }
+
+  corNgsild.offset = (int) (n - 1);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // orderBySkip - drop the first 'offset' entities of an orderBy result
 //
 // The offset half of what the DB was not allowed to do (see brokerPaginates).
 // ldPaginationTrim does the limit half; this is its partner and runs first.
 //
-// § 6.4.7.2: "If offset is set to a value larger than the result set, the
-// offset should be assumed to be equal to the size of the result set, i.e. only
-// the last element of the result set is to be returned if there are any
-// results." The DB-side path reaches that by re-querying at offset N-1; here
-// the whole set is already in hand, so it is the last child and no query.
+// TS 104-176 § 6.4.7.2 (1.9.1: Table 6.3.10-2): "If offset is set to a value larger than the result set,
+// the offset should be assumed to be equal to the size of the result set, i.e. only the last element of
+// the result set is to be returned if there are any results." The DB-side path reaches that by re-querying
+// at offset N-1; here the whole set is already in hand, so it is the last child and no query.
 //
-static void orderBySkip(CorNode* arrayP, int offset)
+// Returns the size of the set when the offset was past its end (offsetPastEnd says so), else 0.
+//
+static int orderBySkip(CorNode* arrayP, int offset)
 {
   if ((arrayP == NULL) || (offset <= 0) || (arrayP->value.head == NULL))
-    return;
+    return 0;
 
   int count = 0;
 
@@ -1327,7 +1352,7 @@ static void orderBySkip(CorNode* arrayP, int offset)
   {
     // The overshoot of § 6.4.7.2 - the last element, not an empty page.
     arrayP->value.head = arrayP->value.tail;
-    return;
+    return count;
   }
 
   CorNode* eP = arrayP->value.head;
@@ -1336,6 +1361,7 @@ static void orderBySkip(CorNode* arrayP, int offset)
     eP = eP->next;
 
   arrayP->value.head = eP;
+  return 0;
 }
 
 
@@ -1762,10 +1788,17 @@ static bool entityMapServe(LdEntityMap* mapP)
 
   // Build result array from map entries at [offset..offset+limit]
   CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
-  int offset = corNgsild.offset;
   int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
   int ix     = 0;
   int added  = 0;
+
+  //
+  // An offset at or past the end of the frozen set: its last entry (TS 104-176 § 6.4.7.2), as a query's
+  //
+  if ((corNgsild.offset > 0) && (corNgsild.offset >= mapP->entryCount) && (mapP->entryCount > 0))
+    offsetPastEnd(mapP->entryCount);
+
+  int offset = corNgsild.offset;
 
 #if COR_FEATURE_RESPONSE_BUDGET
   int64_t budgetBytes = 0;
@@ -3832,13 +3865,12 @@ static bool queryEntities(PagePosition* posP)
   }
 
   //
-  // § 6.4.7.2: "If offset is set to a value larger than the result set, the
-  // offset should be assumed to be equal to the size of the result set, i.e.
-  // only the last element of the result set is to be returned if there are any
-  // results." So an offset past the end returns the LAST entity, not an empty
-  // page. Only the local (non-distributed, non-EntityMap) path has a single
-  // well-defined result-set size N to clamp against; the distributed merge has
-  // no single N (the EntityMap-follow path clamps separately, by entryCount).
+  // TS 104-176 § 6.4.7.2 (1.9.1: Table 6.3.10-2): "If offset is set to a value larger than the result
+  // set, the offset should be assumed to be equal to the size of the result set, i.e. only the last
+  // element of the result set is to be returned if there are any results." So an offset past the end
+  // returns the LAST entity, not an empty page, with an NGSILD-Warning (offsetPastEnd). Only the local
+  // (non-distributed, non-EntityMap) path has a single well-defined result-set size N to clamp against;
+  // the distributed merge has no single N (the EntityMap-follow path clamps separately, by entryCount).
   // Cost is paid only in this rare overshoot case: one count query (skipped if
   // ?count already computed N), then a one-element fetch at offset N-1.
   //
@@ -3871,6 +3903,8 @@ static bool queryEntities(PagePosition* posP)
       if (responseBudgetRefused(&lastFilter, arrayP, false))
         return true;
 #endif
+      if ((arrayP != NULL) && (arrayP->value.head != NULL))
+        offsetPastEnd(n);
     }
   }
 
@@ -3920,7 +3954,12 @@ static bool queryEntities(PagePosition* posP)
   // assembled here, and the page is cut from them.
   //
   if (brokerPaginates || splitQuery)
-    orderBySkip(arrayP, corNgsild.offset);
+  {
+    int n = orderBySkip(arrayP, corNgsild.offset);
+
+    if (n > 0)
+      offsetPastEnd(n);
+  }
 
   //
   // limit=0 is count-only (TS 104-176 § 6.4.6, § 6.4.7): the count above, no entities - whatever a source answered

@@ -1,0 +1,156 @@
+#
+# FILE            query_offset_past_end_warning.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An offset at or past the end of a result set: the page is the set's last entity (TS 104-176 § 6.4.7.2,
+# 1.9.1 Table 6.3.10-2), with an NGSILD-Warning saying so - 199 coraine "offset N is past the result set
+# (M entities) - the last entity is returned" - and the Link header's prev is the page before the last
+# entity, not one before the offset asked for (that one is past the end too).
+#
+# The three paths that clamp: the DB's (a count, then the entity at N-1), orderBy's (the whole sorted set
+# in hand) and an EntityMap's (its frozen set). No warning for an offset inside the set, nor for an empty set.
+#
+# Each step prints the status, the warning, the prev link (an EntityMap's id as MAPID) and the ids ([]: none).
+#
+--NAME--
+Query Entities: an offset past the end - the last entity, an NGSILD-Warning 199, prev before the last entity
+
+--TAGS--
+query pagination entitymap
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+page() {
+  tr -d '\r' | grep -E '^HTTP/|^NGSILD-Warning:|rel="prev"|"id"|^\[\]$' | sed -E 's/EntityMap:[0-9a-f]+/EntityMap:MAPID/g; s/^ +//'
+}
+
+for n in 1 2 3 4 5; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ope:E'$n'","type":"OPE"}' > /dev/null
+done
+
+echo "01. offset=4, the last of 5 - no warning"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OPE&limit=2&offset=4&options=keyValues' | page
+echo
+echo
+
+
+echo "02. offset=5, the size of the set - the last entity, warned, prev at offset 2"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OPE&limit=2&offset=5&options=keyValues' | page
+echo
+echo
+
+
+echo "03. offset=50, limit=10 - the last entity, warned, prev at offset 0"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=OPE&limit=10&offset=50&options=keyValues' | page
+echo
+echo
+
+
+echo "04. offset=50 on an empty set - [], no warning"
+echo "=============================================="
+corCurl --url '/ngsi-ld/v1/entities?type=NoSuchType&offset=50&options=keyValues' | page
+echo
+echo
+
+
+echo "05. orderBy=id, offset=50 - the last in id order, warned"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=OPE&orderBy=id&limit=2&offset=50&options=keyValues' | page
+echo
+echo
+
+
+echo "06. POST /entityOperations/query?offset=50 - the last entity, warned"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query?limit=2&offset=50&options=keyValues' --payload '{"type":"Query","entities":[{"type":"OPE"}]}' | page
+echo
+echo
+
+
+echo "07. An EntityMap of the 5, offset=50 - its last entry, warned, prev at offset 3"
+echo "==============================================================================="
+MAP=$(corCurl --url '/ngsi-ld/v1/entities?type=OPE&limit=1&entityMap=true' | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed 's|.*/||')
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP&type=OPE&limit=1&offset=50&options=keyValues" | page
+echo
+echo
+
+
+echo "08. The same EntityMap, offset=4 - its last entry, no warning"
+echo "============================================================="
+corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP&type=OPE&limit=1&offset=4&options=keyValues" | page
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. offset=4, the last of 5 - no warning
+=========================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?type=OPE&options=keyValues&limit=2&offset=2>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+02. offset=5, the size of the set - the last entity, warned, prev at offset 2
+=============================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 199 coraine "offset 5 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entities?type=OPE&options=keyValues&limit=2&offset=2>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+03. offset=50, limit=10 - the last entity, warned, prev at offset 0
+===================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entities?type=OPE&options=keyValues&limit=10&offset=0>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+04. offset=50 on an empty set - [], no warning
+==============================================
+HTTP/1.1 200 OK
+[]
+
+
+05. orderBy=id, offset=50 - the last in id order, warned
+========================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entities?type=OPE&orderBy=id&options=keyValues&limit=2&offset=2>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+06. POST /entityOperations/query?offset=50 - the last entity, warned
+====================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entityOperations/query?options=keyValues&limit=2&offset=2>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+07. An EntityMap of the 5, offset=50 - its last entry, warned, prev at offset 3
+===============================================================================
+HTTP/1.1 200 OK
+NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=OPE&options=keyValues&limit=1&offset=0>;rel="first";type="application/json", </ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=OPE&options=keyValues&limit=1&offset=3>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
+
+08. The same EntityMap, offset=4 - its last entry, no warning
+=============================================================
+HTTP/1.1 200 OK
+Link: </ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=OPE&options=keyValues&limit=1&offset=0>;rel="first";type="application/json", </ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=OPE&options=keyValues&limit=1&offset=3>;rel="prev";type="application/json"
+"id": "urn:ope:E5",
+
