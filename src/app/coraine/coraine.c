@@ -1564,8 +1564,8 @@ static void brokerLinkedEntitiesHook(CorNode* dataArrayP, const char* mode, int 
 //
 // Parses with the startup pool (corRest.kalloc) so the raw text and the
 // transient parse tree are freed by the pool reset that the caller does
-// right after; corTreeClone(NULL, parsed) deep-copies into malloc-backed
-// storage that persists for the broker's lifetime.
+// right after; corTreeClone(NULL, parsed) deep-copies into the tree heap,
+// which persists for the broker's lifetime.
 //
 // CLI override: parse / open / read errors are fatal — misconfiguration
 // must surface now, not later via a 500 on /info/sourceIdentity.

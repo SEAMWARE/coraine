@@ -185,7 +185,7 @@ stripped file grows and shrinks in 4 KiB pages: a switch whose code is under a p
 
 #### Build mode: Release
 
-`-O2`, traces compiled out (`--traceLevels` is not there), no training. `coraine-build`'s default
+`-O2`, traces compiled out (`--traceLevels` is accepted and turns on nothing; the broker says so at start), no training. `coraine-build`'s default
 (`--release`).
 
 #### Build mode: Profile-guided

@@ -47,7 +47,7 @@ Channels came from, whether named or found by default, and NULL when there is no
 
 `--bridgeConfig` is one JSON file: per plugin, the transport's own settings and
 an `ngsild` section mapping endpoints to `(entityId, entityType, attribute)`.
-For DDS it is the Orion-LD configuration file, unchanged - `dds.ddsmodule`
+For DDS the file has the format of Orion-LD's DDS configuration, so such a file works as it is - `dds.ddsmodule`
 (eProsima's, passed verbatim) becomes the Bridge, `dds.ngsild.topics` /
 `.services` / `.actions` become Channels. An MQTT example:
 
@@ -58,7 +58,7 @@ For DDS it is the Orion-LD configuration file, unchanged - `dds.ddsmodule`
                                      "attribute": "level" } } } } }
 ```
 
-Anything the file does not say defaults to Orion-LD's behaviour: direction
+Anything the file does not say has a default: direction
 `both`, retention `mirror` (stored locally *and* put on the wire). Every
 configured attribute exists from startup, with the value `"uninitialized"`
 until the first sample.

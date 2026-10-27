@@ -37,7 +37,7 @@
 // itemP->tree, and updates itemP->status (and the snapshotStatus
 // field on the cached tree) to the aggregate outcome.
 //
-// Thread-safe: writes to itemP->tree use NULL allocator (malloc-backed
+// Thread-safe: writes to itemP->tree use NULL allocator (the tree heap,
 // persistent memory), so the function is safe to call from the request
 // thread OR a background worker. db calls use the per-thread corRest
 // arena for transient buffers.
