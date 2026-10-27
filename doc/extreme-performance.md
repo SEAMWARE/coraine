@@ -50,8 +50,9 @@ create, -21 % to -48 % at full load; a write of another attribute +0.13 µs, a c
 Everything starts from a source build - [Building from source](building.md): the Cor-Libs as siblings
 (`corLibs/bootstrap.sh` clones and builds them), then the broker. On top of that, `make tune` needs:
 
-- `wrk` (the load) and `python3` (the workload generator), as `make pgo` does;
-- `corTestClient`, from `corLibs/bin` - it receives the notifications and counts them;
+- what `make pgo` needs: `curl` and `wrk` (the load), `corRequest` and `corTestClient` from `corLibs/bin` -
+  `corTestClient` receives the notifications and counts them;
+- `python3` - the workload generator;
 - jemalloc and tcmalloc, to measure them: `apt-get install libjemalloc2 libtcmalloc-minimal4`
   (a missing one is left out of the comparison).
 

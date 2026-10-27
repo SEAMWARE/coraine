@@ -39,8 +39,10 @@ Sources of a distributed query answer - stop at `--maxResponseSize` (by default 
 budget, see [Response size](installation.md#response-size)), so one query no longer grows without
 limit between two samples.
 
-Sizing with `corDB`: about 3.5 KiB resident per entity of five attributes - 100 000 entities are about
-355 MiB, a million about 3.5 GiB ([Performance](performance.md)).
+Sizing with `corDB`: 2 047 bytes of RSS per entity of five attributes - 100 000 entities, 231 MiB
+(0.6.0, `corDB` in RAM, a release build, 2026-10-23 - [Performance](performance.md#the-stored-trees)).
+Entities that are larger, a persistent `--dbDir` (the log is page cache) and the requests in flight add
+to it.
 
 With a CPU limit, the broker's HTTP event loops and its worker pool follow the CPUs the container may
 use (its CPU affinity and its cgroup quota), not the node's core count.

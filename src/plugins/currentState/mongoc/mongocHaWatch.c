@@ -380,7 +380,7 @@ static void* haWatchThread(void* vP)
 // mongocHaWatchStart - open the change stream, then start the thread that reads it
 //
 // ⚠️ A stream that cannot be opened is FATAL (the caller exits on DB_ERR). The
-// broker was started with --ha mongo; running on without the stream means running
+// broker was started with -ha mongo; running on without the stream means running
 // UNSYNCHRONISED while looking healthy - every instance keeps only what was
 // created on it, requests are served from caches that silently disagree, and the
 // only trace is a log line. The typical cause: a mongo user without the privileges
@@ -399,7 +399,7 @@ int mongocHaWatchStart(HaApplyFunc applyF)
   if (replicaSetCheck() == false)
   {
     COR_E("-ha mongo needs a mongo REPLICA SET - this mongod is a standalone, and a standalone has no oplog for a change stream to read. "
-          "Either point the broker at a replica set (a single node is enough: mongod --replSet <name>, then rs.initiate()) or run without --ha");
+          "Either point the broker at a replica set (a single node is enough: mongod --replSet <name>, then rs.initiate()) or run without -ha");
     return DB_ERR;
   }
 

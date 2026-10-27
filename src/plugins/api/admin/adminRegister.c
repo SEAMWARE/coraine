@@ -82,7 +82,7 @@
 // until corNgsild grew into them - containedBy is 48, firstN 50, offsetN 51 -
 // and a route that took containedBy then took ?verbose too, as the same bit.
 //
-// The four parameters of /admin/log share ONE bit: they are allowed on the same routes, always together,
+// The three parameters of /admin/log share ONE bit: they are allowed on the same routes, always together,
 // and read by name - a bit each was three bits of the 64 for nothing (59-61 now GET /entities' page
 // position, getEntities.h).
 //

@@ -329,9 +329,9 @@ typedef void (*DbVersionInfoFunc)(CorAlloc* allocP, CorNode* root);
 // and not in the broker: mongo has change streams, another store would have
 // something else, and a store that is not shared with the other instances (a
 // process-local one) has nothing to report at all. NULL means exactly that, and
-// '--ha mongo' then refuses to start.
+// '-ha mongo' then refuses to start.
 //
-// Called once, after init(), only when --ha names this channel. Returns once the
+// Called once, after init(), only when -ha names this channel. Returns once the
 // watch is running - it does its work in a thread of its own.
 //
 typedef int  (*DbHaWatchStartFunc)(HaApplyFunc applyF);

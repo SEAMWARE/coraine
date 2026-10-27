@@ -400,7 +400,7 @@ asks again. 0 leaves the header out (the browser's own default applies). It has 
 A TCP port for the health probes, served by a thread of its own, outside the HTTP server - a probe
 never waits behind the requests. `GET /live`: 200 while the broker makes progress, 503 when it is
 stuck (`--healthStallTimeout`). `GET /ready`: 200 once the broker serves, 503 while the store loads,
-when the store does not answer, over the memory budget, stuck, or stopping. Every answer carries
+when the store does not answer, over the memory budget, while the store is paused, stuck, or stopping. Every answer carries
 a JSON report (store, TRoE, memory, requests). It listens on every address and opens before the
 store is loaded, so `/live` answers during a long load. A port that cannot be opened stops the
 broker: `cannot listen for the health probes on port 8080`. The probes and the report:
@@ -1346,8 +1346,9 @@ With any value, a log that cannot be written **pauses** the store: a segment tha
 ahead (a full disk, a file-size limit), a record that cannot be put in the log, a failed `fdatasync`.
 The flusher keeps 8 MiB of the log allocated ahead of its records, so a full disk is found before a write
 needs the room - unless more than 8 MiB is written between two of its runs. While paused, every write is
-refused before it touches the store: 503 `PersistenceUnavailable`, detail `writes are refused until the
-broker can write its log again (corDB --dbDir): <why>`; reads are served. A write already applied when the
+refused before it is parsed: 503 `PersistenceUnavailable`, `Retry-After: 5`, detail `writes are refused
+until the broker can write its log again (paused for <N> s): <why>`; reads are served
+([A store that cannot write its log](installation.md#a-store-that-cannot-write-its-log)). A write already applied when the
 log failed is answered 503 as well: `the write is in the broker's memory but not in its log ...` or `a sync
 of the log to the disk failed, for this write's record or one before it ...` - with `request`, also the
 writes whose records that sync was for; with `interval` those were answered before the sync, and the
@@ -1499,8 +1500,8 @@ The password of `--troeUser`. A secret: `GET /admin/config` shows its value as `
 `"secret": true` (not set, the value is `null`). Given as the environment variable `CORAINE_TROEPWD`, it is
 not on the command line, which any user of the machine can read (`ps`); a process's environment is
 readable by its owner only. Leaving it out and giving libpq its own `PGPASSWORD` keeps it out of the
-broker's options altogether. It goes into the connection string unquoted: a password with a space or a `'`
-in it is not passed as it is.
+broker's options altogether. It is quoted in the connection string, as the user and `--troeName` are: a
+space, a `'` or a `\` in it is passed as it is.
 
     $ CORAINE_TROEPWD="$(cat /run/secrets/pg)" coraine --database corDB --troe timescale --apiPlugins admin
     $ curl -s localhost:1026/admin/config     # the --troePwd entry:
@@ -1550,7 +1551,9 @@ with its PostgreSQL does not fail for starting first. Past it the broker does no
     E: ... timescale: connection to db 'postgres' failed: connection to server at "localhost" (127.0.0.1), port 19659 failed: Connection refused
     E: ... timescale: failed to initialise the default-tenant database (0 s, --troeConnectTimeout)
 
-A wrong password is retried the same way, until the timeout.
+A password the server refuses - or none, when the server asks for one - is not retried: the start fails at
+once, with the server's message. A server whose messages are not in English (`lc_messages`) is retried
+until the timeout, as a server that is not up.
 
 ### `--troeDownExit`
 
