@@ -45,6 +45,10 @@
 #include "corNgsild/LdPernotCache.h"                 // LdPernotCache, LdPernotItem
 #include "corNgsild/ldPernotCache.h"                 // ldPernotCacheRdLock, ldPernotCacheUnlock
 #include "db/Tenant.h"                               // Tenant, tenant0, tenantList, tenantApiName
+#if COR_FEATURE_HA_RUNS
+#include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeInteger, corTreeChildAdd
+#include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#endif
 #include "plugin/TransportDriver.h"                  // TransportDriver, TransportHost
 #include "transport/transport.h"                     // Own interface
 
@@ -1079,25 +1083,57 @@ static Leftover* leftoverAdd(Leftover* list, const char* base, const char* subId
   return lP;
 }
 
-static bool leftoverUri(const char* uri)
+//
+// runOf - the run (bootId) a connection id names; false for a URI that is not one of a well-formed id
+//
+static bool runOf(const char* uri, char* run)
 {
-  return (transportUri(uri) == true) && (connIdOf(uri) < 0);
+  if ((uri == NULL) || (strncmp(uri, CONN_PREFIX, CONN_PREFIX_LEN) != 0))
+    return false;
+
+  const char* p = &uri[CONN_PREFIX_LEN];
+
+  for (int i = 0; i < 16; i++)
+  {
+    if ((p[i] == 0) || (strchr("0123456789abcdef", p[i]) == NULL))
+      return false;
+  }
+
+  if (p[16] != '-')
+    return false;
+
+  memcpy(run, p, 16);
+  run[16] = 0;
+  return true;
+}
+
+
+
+//
+// RunDeadFunc - the run of a transport connection's id is gone: its subscriptions are deleted.
+// 'run' is NULL for an id that is malformed - it names no connection anywhere
+//
+typedef bool (*RunDeadFunc)(const char* run, void* ctx);
+
+static bool leftoverUri(const char* uri, RunDeadFunc deadF, void* ctx)
+{
+  if (transportUri(uri) == false)
+    return false;
+
+  char run[17];
+
+  return deadF((runOf(uri, run) == true) ? run : NULL, ctx);
 }
 
 
 
 // -----------------------------------------------------------------------------
 //
-// transportLeftoversDelete - the subscriptions of a run that is gone, deleted
+// leftoversDelete - every subscription and context source subscription whose endpoint is a connection of
+// a run that is gone (deadF), deleted in every tenant - through the service routines. The caches are walked,
+// not the store: they hold every subscription (loaded at start, kept in step by HA's change stream).
 //
-// A broker killed, or crashed, deletes nothing: with a persistent store its connections' subscriptions
-// are there at the next start, matched on every write, notifying no one. Every subscription and context
-// source subscription whose endpoint is the connection of another run is deleted, in every tenant. The
-// caches are walked, not the store: they hold every subscription, loaded at start.
-//
-// Not with --high-availability: another instance's run is not this one's either, and it may be alive.
-//
-void transportLeftoversDelete(void)
+static void leftoversDelete(RunDeadFunc deadF, void* ctx)
 {
   Leftover* list = NULL;
 
@@ -1113,7 +1149,7 @@ void transportLeftoversDelete(void)
       ldSubCacheRdLock(subsP);
       for (LdSubCacheItem* iP = subsP->itemList; iP != NULL; iP = iP->next)
       {
-        if (leftoverUri(iP->endpointUri) == true)
+        if (leftoverUri(iP->endpointUri, deadF, ctx) == true)
           list = leftoverAdd(list, SUBS_PATH, iP->subId, tenant);
       }
       ldSubCacheUnlock(subsP);
@@ -1124,7 +1160,7 @@ void transportLeftoversDelete(void)
       ldPernotCacheRdLock(pernotP);
       for (LdPernotItem* iP = pernotP->head; iP != NULL; iP = iP->next)
       {
-        if (leftoverUri(iP->endpointUri) == true)
+        if (leftoverUri(iP->endpointUri, deadF, ctx) == true)
           list = leftoverAdd(list, SUBS_PATH, iP->subId, tenant);
       }
       ldPernotCacheUnlock(pernotP);
@@ -1135,7 +1171,7 @@ void transportLeftoversDelete(void)
       ldSubCacheRdLock(csubsP);
       for (LdSubCacheItem* iP = csubsP->itemList; iP != NULL; iP = iP->next)
       {
-        if (leftoverUri(iP->endpointUri) == true)
+        if (leftoverUri(iP->endpointUri, deadF, ctx) == true)
           list = leftoverAdd(list, CSUBS_PATH, iP->subId, tenant);
       }
       ldSubCacheUnlock(csubsP);
@@ -1154,7 +1190,7 @@ void transportLeftoversDelete(void)
 #if COR_FEATURE_AUTH
     authTrustClear();
 #endif
-    COR_I("transport: '%s' (tenant %s) deleted - it notified a connection of another run", lP->path, (lP->tenant != NULL) ? lP->tenant : "default");
+    COR_I("transport: '%s' (tenant %s) deleted - it notified a connection of a run that is gone", lP->path, (lP->tenant != NULL) ? lP->tenant : "default");
 
     list = lP->next;
     free(lP->path);
@@ -1162,6 +1198,284 @@ void transportLeftoversDelete(void)
     free(lP);
   }
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportLeftoversDelete - the subscriptions of a run that is gone, deleted
+//
+// A broker killed, or crashed, deletes nothing: with a persistent store its connections' subscriptions
+// are there at the next start, matched on every write, notifying no one. Every subscription and context
+// source subscription whose endpoint is the connection of another run is deleted, in every tenant.
+//
+// Not with --high-availability: another instance's run is not this one's either, and it may be alive -
+// there, the runs' heartbeats decide (transportRunsStart).
+//
+static bool otherRun(const char* run, void* ctx)
+{
+  (void) ctx;
+  return (run == NULL) || (strcmp(run, bootId) != 0);
+}
+
+void transportLeftoversDelete(void)
+{
+  leftoversDelete(otherRun, NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportDropAll - every connection of every transport closed, with this close status
+//
+// Not waited for: each connection's thread closes it and tells the broker (hostClosed - its subscriptions
+// deleted). A plugin of ABI 1 has no drop: its connections stay.
+//
+void transportDropAll(int status)
+{
+  for (int i = 0; i < transportCount; i++)
+  {
+    if ((transports[i].abiVersion >= 2) && (transports[i].drop != NULL))
+      transports[i].drop(status);
+  }
+}
+
+
+
+#if COR_FEATURE_HA_RUNS
+// -----------------------------------------------------------------------------
+//
+// The runs of the instances on one store, under --high-availability (doc/websocket.md § Subscriptions)
+//
+// Each instance keeps a document of its own run in the default tenant's "runs" collection - its bootId,
+// and "beat": when it last wrote it (ms since the epoch, its own clock) - rewritten every RUNS_BEAT_MS. A
+// run whose beat is older than RUNS_DEAD_MS is gone - killed, crashed, or cut off from the store - and so
+// is the run of a connection id no document names. On every beat, each instance deletes the
+// subscriptions that notify a connection of a run that is gone, and the documents of those runs.
+//
+// An instance that has not written its beat for RUNS_DEAD_MS has had its subscriptions deleted by the
+// others: it closes every connection (1012, "service restart"), so its clients connect again - through
+// the load balancer, to an instance that reaches the store - and subscribe again.
+//
+#define RUNS_COLLECTION  "runs"
+#define RUNS_BEAT_MS     10000
+#define RUNS_DEAD_MS     60000
+
+static pthread_t        runsThread;
+static bool             runsThreadUp = false;
+static bool             runsStopping = false;
+static pthread_mutex_t  runsMutex    = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t   runsCond     = PTHREAD_COND_INITIALIZER;
+static long long        runsBeatOk   = 0;            // ms - this instance's last beat written
+static bool             runsFenced   = false;        // its connections closed for want of a beat
+
+
+
+static long long nowMs(void)
+{
+  struct timespec ts;
+
+  clock_gettime(CLOCK_REALTIME, &ts);
+  return (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+
+//
+// runsStateBind - this thread's request state, for the DB driver (it allocates through corRest.kalloc);
+// reset per beat (true: reuse - false is the teardown)
+//
+static void runsStateBind(void)
+{
+  static __thread bool inited = false;
+
+  if (inited == false)
+  {
+    corAllocBufferInit(&corRest.kalloc, corRest.kallocBuffer, sizeof(corRest.kallocBuffer), 64 * 1024, NULL, "runs");
+    corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
+    corRest.kallocP  = &corRest.kalloc;
+    inited = true;
+  }
+  else
+    corAllocBufferReset(&corRest.kalloc, true);
+}
+
+
+
+//
+// runsLive - the runs whose beat is recent: an array of documents, from the store
+//
+typedef struct RunsLive
+{
+  CorNode*   docs;                                   // the "runs" documents
+  long long  since;                                  // a beat at or after this is live
+} RunsLive;
+
+static bool runLive(const RunsLive* lP, const char* run)
+{
+  if (strcmp(run, bootId) == 0)
+    return true;
+
+  for (CorNode* dP = (lP->docs != NULL) ? lP->docs->value.head : NULL; dP != NULL; dP = dP->next)
+  {
+    CorNode* idP   = corTreeLookup(dP, "id");
+    CorNode* beatP = corTreeLookup(dP, "beat");
+
+    if ((idP != NULL) && (idP->type == CorString) && (strcmp(idP->value.s, run) == 0))
+      return (beatP != NULL) && (beatP->type == CorInt) && (beatP->value.i >= lP->since);
+  }
+
+  return false;                                      // no document: a run of an instance gone before it was cleaned
+}
+
+static bool runGone(const char* run, void* ctx)
+{
+  return (run == NULL) || (runLive((const RunsLive*) ctx, run) == false);
+}
+
+
+
+//
+// runsBeat - this run's document written; the runs gone, swept
+//
+static void runsBeat(void)
+{
+  runsStateBind();
+
+  long long now  = nowMs();
+  CorNode*  docP = corTreeObject(corRest.kallocP, NULL);
+
+  corTreeChildAdd(docP, corTreeString(corRest.kallocP, "id", bootId));
+  corTreeChildAdd(docP, corTreeInteger(corRest.kallocP, "beat", now));
+
+  int r = db.docReplace(&tenant0, RUNS_COLLECTION, bootId, docP);
+
+  if (r == DB_NOT_FOUND)                             // the first beat - or the others took it for gone
+    r = db.docCreate(&tenant0, RUNS_COLLECTION, bootId, docP);
+
+  if (r != DB_OK)
+  {
+    if ((runsFenced == false) && (now - runsBeatOk >= RUNS_DEAD_MS))
+    {
+      COR_W("HA: no beat of this run (%s) written for %d s - the other instances take it for gone; every WebSocket connection closed (1012)", bootId, RUNS_DEAD_MS / 1000);
+      transportDropAll(1012);
+      runsFenced = true;
+    }
+    else
+      COR_W("HA: the beat of this run (%s) not written (%d)", bootId, r);
+    return;
+  }
+
+  if (runsFenced == true)
+    COR_I("HA: the beat of this run (%s) written again", bootId);
+
+  runsBeatOk = now;
+  runsFenced = false;
+
+  RunsLive live = { NULL, now - RUNS_DEAD_MS };
+
+  if ((db.docQuery(&tenant0, RUNS_COLLECTION, &live.docs) != DB_OK) || (live.docs == NULL))
+    return;
+
+  leftoversDelete(runGone, &live);
+
+  for (CorNode* dP = live.docs->value.head; dP != NULL; dP = dP->next)
+  {
+    CorNode* idP = corTreeLookup(dP, "id");
+
+    if ((idP != NULL) && (idP->type == CorString) && (runLive(&live, idP->value.s) == false))
+    {
+      db.docDelete(&tenant0, RUNS_COLLECTION, idP->value.s);
+      COR_I("HA: run %s gone - no beat for %d s; its WebSocket subscriptions deleted", idP->value.s, RUNS_DEAD_MS / 1000);
+    }
+  }
+}
+
+
+
+static void* runsLoop(void* arg)
+{
+  (void) arg;
+
+  pthread_mutex_lock(&runsMutex);
+
+  while (runsStopping == false)
+  {
+    struct timespec until;
+
+    clock_gettime(CLOCK_REALTIME, &until);
+    until.tv_sec += RUNS_BEAT_MS / 1000;
+
+    pthread_cond_timedwait(&runsCond, &runsMutex, &until);
+
+    if (runsStopping == true)
+      break;
+
+    pthread_mutex_unlock(&runsMutex);
+    runsBeat();
+    pthread_mutex_lock(&runsMutex);
+  }
+
+  pthread_mutex_unlock(&runsMutex);
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportRunsStart - under --high-availability: this run's first beat, written before the broker accepts a
+// connection, and the sweep of the runs gone; then a beat every RUNS_BEAT_MS, on a thread of its own
+//
+bool transportRunsStart(void)
+{
+  if (transportCount == 0)
+    return true;
+
+  if ((db.docCreate == NULL) || (db.docReplace == NULL) || (db.docQuery == NULL) || (db.docDelete == NULL))
+  {
+    COR_W("HA: the database plugin keeps no documents - the WebSocket subscriptions of an instance gone are not deleted");
+    return true;
+  }
+
+  runsBeatOk = nowMs();
+  runsBeat();
+
+  if (pthread_create(&runsThread, NULL, runsLoop, NULL) != 0)
+  {
+    COR_E("HA: cannot start the runs' heartbeat thread");
+    return false;
+  }
+
+  runsThreadUp = true;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportRunsStop - the heartbeat stopped, and this run's document deleted: a broker stopped is no run
+// the others need to wait RUNS_DEAD_MS for (its connections closed - transportStop - deleted its subscriptions)
+//
+void transportRunsStop(void)
+{
+  if (runsThreadUp == false)
+    return;
+
+  pthread_mutex_lock(&runsMutex);
+  runsStopping = true;
+  pthread_cond_signal(&runsCond);
+  pthread_mutex_unlock(&runsMutex);
+
+  pthread_join(runsThread, NULL);
+  runsThreadUp = false;
+
+  runsStateBind();
+  db.docDelete(&tenant0, RUNS_COLLECTION, bootId);
+}
+#endif
 
 
 

@@ -66,6 +66,7 @@ option(COR_FEATURE_BRIDGE_HTTP_LISTEN "Enable BridgeBroker.httpListen (bridge AB
 #
 option(COR_FEATURE_COR_PROTOCOL    "Enable cor:// - the binary NGSI-LD protocol: served on --corPort, and forwarding to a registration whose endpoint is cor://" ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
+option(COR_FEATURE_HA_RUNS         "Enable the runs' heartbeat under --high-availability - each instance's run in the store's \"runs\" documents, and the WebSocket subscriptions of an instance gone deleted by the others (doc/high-availability.md)" ON)
 option(COR_FEATURE_SSE             "Enable Server-Sent Events - a subscription made on its own event stream (doc/sse.md)" ON)
 
 # Group: Operations - running the broker: its admin API, metrics and health probes
@@ -89,13 +90,20 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
 #
 if (NOT COR_FEATURE_SUBSCRIPTIONS OR NOT COR_FEATURE_SNAPSHOT_WRITE)
   set(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS OFF)
+endif()
+
+#
+# The runs' heartbeat is about the WebSocket connections' subscriptions: without TRANSPORTS, no runs.
+#
+if (NOT COR_FEATURE_TRANSPORTS)
+  set(COR_FEATURE_HA_RUNS OFF)
 endif()
 
 #

@@ -43,17 +43,18 @@ coraine/
 | Geo | `GEOQ` |
 | Security | `AUTH`, `AUTH_OIDC`, `AUTH_METADATA`, `POLICY_API` |
 | Beyond NGSI-LD | `SERVICE_EXECUTION`, `DATA_CHANNELS`, `ASSET_CHANNELS`, `CHANNEL_STATUS_IN`, `CHANNEL_CHECKS`, `ADMIN_CONFIG`, `BRIDGE_INVENTORY`, `CHANNEL_WRITE_BACK`, `BRIDGE_HTTP_LISTEN` |
-| Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `SSE` |
+| Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `HA_RUNS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
 | Stores and tools | `MONGOC`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION`. Nine are turned off
+All default ON except `ICU_COLLATION`. Ten are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires` (each one is needed) and,
 `CHANNEL_WRITE_BACK`'s, as `requiresAny` (one of them is enough):
 
 | switch | off when | why |
 |---|---|---|
 | `SNAPSHOT_SUBSCRIPTIONS` | `SUBSCRIPTIONS` or `SNAPSHOT_WRITE` is off | a subscription, notified by a Snapshot's writes |
+| `HA_RUNS` | `TRANSPORTS` is off | the runs' beats are there for the subscriptions of the WebSocket connections |
 | `SSE` | `SUBSCRIPTIONS` is off | a subscription made on its own event stream |
 | `METRICS` | `ADMIN_API` is off | the admin API plugin serves them (`/admin/metrics`, `/metrics`), nothing else does |
 | `ADMIN_CONFIG` | `ADMIN_API` is off | `GET /admin/config` is the admin API plugin's |
@@ -432,6 +433,14 @@ alone. Size: -24 KiB.
 Transport plugins - the API over another protocol (`--transports`; `ws.so`, WebSocket). Off: no
 `--transports`, `ws.so` not built. Size: -38 KiB.
 
+#### `HA_RUNS`
+
+Under `--high-availability mongo`, the beat of each instance's run in the shared database every 10 s, and
+the WebSocket subscriptions of a run with no beat for 60 s deleted by the instances alive
+([High Availability](high-availability.md#websocket-subscriptions-of-an-instance-gone)). Off: no beats; the
+WebSocket subscriptions of an instance killed stay. Off by itself when `TRANSPORTS` is. Size: -3,545 bytes
+(release build).
+
 #### `SSE`
 
 Server-Sent Events - a subscription on the endpoint `urn:ngsi-ld:self` made on its own event stream, the
@@ -485,13 +494,14 @@ That is not the same as most of them working. Below is what each one actually
 does today, measured by building the broker fourteen times with one feature off
 at a time and comparing the result against a full build.
 
-**These twelve remove code from the broker and are covered by the test suite:**
+**These remove code from the broker and are covered by the test suite:**
 
 | flag | `.text` removed | endpoints affected |
 |---|---|---|
 | `COR_FEATURE_REGISTRATIONS=OFF` | 23,936 bytes | 15 routes answer 501 |
 | `COR_FEATURE_SUBSCRIPTIONS=OFF` | 18,880 bytes | 7 routes answer 501 |
 | `COR_FEATURE_TRANSPORTS=OFF` | 11,348 bytes, and `ws.so` is not built | no `--transports`; `GET /ngsi-ld/v1/ws` is no upgrade |
+| `COR_FEATURE_HA_RUNS=OFF` | 3,545 bytes (release build) | no beats under `--high-availability mongo`: the WebSocket subscriptions of an instance killed stay |
 | `COR_FEATURE_AUTH=OFF` | 6,313 bytes (release build), and `fdsc.so` is not built | no `--auth` - every request is let in ([Authorization](authorization.md)) |
 | `COR_FEATURE_POLICY_API=OFF` | 6,528 bytes (release build) | no `--policyApiPort` - the broker serves no `/policy` API ([Authorization § 7](authorization.md#7-the-policy-api---the-broker-as-its-own-pap)) |
 | `COR_FEATURE_SERVICE_EXECUTION=OFF` | 77,410 bytes | 17 routes answer 501 |

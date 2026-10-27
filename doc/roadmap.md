@@ -126,6 +126,17 @@ Recently built, and documented where it lives:
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
     ([EntityMaps](installation.md#entitymaps)).
+-   **c³ - Configure: the DDS mapping tool** - DDS topics, services and actions to entities and
+    attributes, in the Control Center (Operate, and Compile's Bridges): made from the bridge's inventory
+    (`/admin/bridges/{bridge}/inventory`), with the DDS domain, the transport (UDP or shared memory) and
+    the network interfaces to reach it; it writes the mapping file and the default user @context, and
+    starts a broker with them ([DDS and ROS 2](dds.md)).
+-   **Subordinate subscriptions follow a registration's PATCH** (§ 10.5.2.4) - created, PATCHed, moved to
+    the new endpoint or deleted as the registration changes ([`--distributed`](options.md#--distributed)).
+-   **WebSocket subscriptions of an instance gone, under High Availability** - every instance writes the
+    beat of its run in the shared database every 10 s; the WebSocket subscriptions of a run with no beat for
+    60 s are deleted by the instances alive, also when a killed pod never comes back
+    ([High Availability](high-availability.md#websocket-subscriptions-of-an-instance-gone)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: anything normative from ETSI TC DATA
 will realistically follow in 2027. coraine implements its own objects now and adapts to whatever TC DATA
@@ -133,24 +144,19 @@ settles on.
 
 ## Short term
 
-The following features are planned to be addressed in the short term and
-incorporated in the next release of the product, in roughly this order:
-
--   **c³ - Configure: the DDS mapping tool** - DDS topics, services and actions to entities and
-    attributes, in the Control Center: the mapping file the DDS bridge reads, made from the bridge's
-    inventory (`/admin/bridges/{bridge}/inventory`). ([more](ideas.md#c-the-coraine-control-center))
--   **WebSocket subscriptions of a crashed instance, under High Availability** - each instance's run id
-    and a heartbeat in the shared store, so that any instance deletes the WebSocket subscriptions of a run
-    whose heartbeat stopped - also when a killed pod never comes back. Without `--high-availability` a
-    broker deletes them when it starts. ([more](websocket.md#subscriptions))
--   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
-    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+Nothing at the moment - the next release ships what is under [Available now](#available-now).
 
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
+    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+-   **A small build: less RAM, slower** - one build switch that picks memory over speed everywhere it
+    trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
+    allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
+    where its RAM goes is measured first, and the resident set at a few store sizes is documented.
 -   **c³ - Configure: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to
     entities and attributes, as for DDS. ([more](ideas.md#c-the-coraine-control-center))
 -   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's

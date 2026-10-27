@@ -102,8 +102,9 @@ A broker that is killed (not stopped), or crashes, deletes nothing. At its next 
 periodic subscription and context source subscription that notifies a connection of another run is
 deleted, in every tenant - with a persistent store, they would otherwise stay, matched on every write and
 notifying no one. Not with `--high-availability`: there, the connections of another run may be another
-instance's, alive, and a killed instance's subscriptions stay
-([roadmap](roadmap.md#short-term)).
+instance's, alive. Each instance writes the beat of its run every 10 s in the shared database, and the
+subscriptions of a run with no beat for 60 s are deleted by any instance alive
+([High Availability](high-availability.md#websocket-subscriptions-of-an-instance-gone)).
 
 ## The connection
 
