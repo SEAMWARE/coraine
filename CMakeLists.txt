@@ -66,7 +66,7 @@ option(COR_FEATURE_BRIDGE_HTTP_LISTEN "Enable BridgeBroker.httpListen (bridge AB
 #
 option(COR_FEATURE_COR_PROTOCOL    "Enable cor:// - the binary NGSI-LD protocol: served on --corPort, and forwarding to a registration whose endpoint is cor://" ON)
 option(COR_FEATURE_TRANSPORTS      "Enable transport plugins - the API over another protocol (--transports; ws.so)" ON)
-option(COR_FEATURE_HA_RUNS         "Enable the runs' heartbeat under --high-availability - each instance's run in the store's \"runs\" documents, and the WebSocket subscriptions of an instance gone deleted by the others (doc/websocket.md)" ON)
+option(COR_FEATURE_HA_RUNS         "Enable the runs' heartbeat under --high-availability - each instance's run in the store's \"runs\" documents, and the WebSocket subscriptions of an instance gone deleted by the others (doc/high-availability.md)" ON)
 option(COR_FEATURE_SSE             "Enable Server-Sent Events - a subscription made on its own event stream (doc/sse.md)" ON)
 
 # Group: Operations - running the broker: its admin API, metrics and health probes

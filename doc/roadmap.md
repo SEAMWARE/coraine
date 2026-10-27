@@ -139,10 +139,6 @@ incorporated in the next release of the product, in roughly this order:
 -   **c³ - Configure: the DDS mapping tool** - DDS topics, services and actions to entities and
     attributes, in the Control Center: the mapping file the DDS bridge reads, made from the bridge's
     inventory (`/admin/bridges/{bridge}/inventory`). ([more](ideas.md#c-the-coraine-control-center))
--   **WebSocket subscriptions of a crashed instance, under High Availability** - each instance's run id
-    and a heartbeat in the shared store, so that any instance deletes the WebSocket subscriptions of a run
-    whose heartbeat stopped - also when a killed pod never comes back. Without `--high-availability` a
-    broker deletes them when it starts. ([more](websocket.md#subscriptions))
 -   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
     in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
 

@@ -99,6 +99,7 @@ AUTH_METADATA            requires ["AUTH"]                         requiresAny [
 AUTH_OIDC                requires ["AUTH"]                         requiresAny []
 BRIDGE_INVENTORY         requires ["ADMIN_API"]                    requiresAny []
 CHANNEL_WRITE_BACK       requires []                               requiresAny ["DATA_CHANNELS", "ASSET_CHANNELS"]
+HA_RUNS                  requires ["TRANSPORTS"]                   requiresAny []
 METRICS                  requires ["ADMIN_API"]                    requiresAny []
 POLICY_API               requires ["HTTP_SERVER=mhd"]              requiresAny []
 SNAPSHOT_SUBSCRIPTIONS   requires ["SUBSCRIPTIONS", "SNAPSHOT_WRITE"] requiresAny []

@@ -166,6 +166,45 @@ then see different answers depending on which instance replies, and create dupli
    see what is really stored, look in MongoDB (the `subscriptions` collection of the tenant's
    database), or ask each instance once it has been restarted, and `DELETE` the extras.
 
+## WebSocket subscriptions of an instance gone
+
+A subscription that notifies a WebSocket connection (`--transports ws`, see [WebSocket](websocket.md#subscriptions))
+names the connection's run: `urn:ngsi-ld:WebSocket:<run>-<n>`, the run being the instance's boot id. A
+connection lives in one instance. When that instance is killed or crashes, its connections are gone, but
+its subscriptions are in the shared database, and every instance would go on matching them.
+
+* Every instance writes the **beat** of its run every **10 seconds**: a document `{ id: <run>, beat: <ms> }`
+  in the collection `runs` of the default tenant's database.
+* On each of its beats, an instance reads the beats of all runs. A run with **no beat for 60 seconds**
+  is gone. Every subscription, periodic subscription and context source subscription, in every tenant,
+  that notifies a connection of a run with no beat document, or a run that is gone, is deleted. Then the
+  beat document of each run that is gone is deleted.
+
+  ```
+  I: ... HA: run 1a2b3c4d5e6f7a8b gone - no beat for 60 s; its WebSocket subscriptions deleted
+  ```
+
+  An instance killed is thus cleaned up 60 to 70 seconds later by any instance alive, also when it never
+  comes back.
+* An instance whose own beat has not been written for 60 seconds (the database not reachable from it)
+  is gone for the others: they delete its subscriptions. It closes all its WebSocket connections, with
+  status 1012 (*Service Restart*), and a client reconnects, maybe to another instance:
+
+  ```
+  W: ... HA: no beat of this run (1a2b3c4d5e6f7a8b) written for 60 s - the other instances take it for gone; every WebSocket connection closed (1012)
+  ```
+* An instance stopped (SIGTERM) closes its connections, which deletes their subscriptions, and deletes its
+  beat document.
+
+The time of a beat is the clock of the instance that wrote it, so the clocks of the instances must agree
+to within a few tens of seconds. A version of Coraine without beats (before the build feature `HA_RUNS`)
+writes none: next to an instance that writes beats, its WebSocket subscriptions are deleted within 10
+seconds. A rolling upgrade from such a version loses the WebSocket subscriptions of the instances not
+yet upgraded, and their clients get notifications again only after they subscribe again.
+
+A subscription on an event stream ([Server-Sent Events](sse.md), the endpoint `urn:ngsi-ld:self`)
+names no run: under `--high-availability`, one of an instance killed stays.
+
 ## What synchronisation does **not** cover
 
 **Snapshots** (NGSI-LD § 5.16). Each instance loads them at startup, but changes to them are not
