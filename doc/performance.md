@@ -253,6 +253,38 @@ turns a node into another kind in place does so on them.
 a block's bounds only in `malloc`'s (`corTest -vt` sets it). A build with AddressSanitizer does
 the same by itself.
 
+### Threads building trees at once
+
+A tree's nodes come in a few sizes, and every thread writing the store builds and frees them: a batch
+update of 20 entities clones and frees thousands. Each thread keeps a cache of free blocks per size
+class, taken and freed with no lock; the class's mutex is taken once for a batch of blocks (4 KiB worth,
+32 at most) - from the class's free list or, else, a range of its page, whose memory is first touched
+outside the mutex - and once to give a batch back when a thread holds two. A thread that ends gives its
+cache back. The cost is up to 8 KiB a class a thread; with 300 000 entities stored the broker's RSS did
+not move (641 MB both).
+
+`test/perf/perfRun.sh corDB`, the durable configuration (`--dbDir` on ext4, NVMe, `--dbSync interval`,
+`--troe none`), plain release, AMD Ryzen 9 8940HX, coraine `2fa6186e` + corDB `173c7c7` with corTree's
+heap before and after (corTree `3777629`), two runs of each in the order A B B A, 2026-10-27 -
+requests/s:
+
+| scenario | one mutex a class | thread caches | change |
+|---|---:|---:|---:|
+| batch update (20), c50 | 16 269 | 29 076 | **+78.7 %** |
+| batch create (20), c50 | 10 474 | 29 981 | **+186 %** |
+| batch delete (20), c50 | 18 590 | 60 452 | **+225 %** |
+| merge, c50 | 65 497 | 70 702 | +7.9 % |
+| `PATCH`, c50 | 100 513 | 104 067 | +3.5 % |
+| create, c50 | 90 415 | 93 566 | +3.5 % |
+| create into 300 000 entities, c50 | 87 680 | 88 423 | +0.8 % |
+| `DELETE`, c50 | 150 654 | 147 052 | −2.4 % |
+| `PATCH`, c1 | 46 510 | 47 226 | +1.5 % |
+| create, c1 | 33 841 | 33 909 | +0.2 % |
+
+Reads and subscriptions: within ±3.3 %. The batch p50s halve or better (batch update 2.92 → 1.53 ms,
+batch delete 2.53 → 0.73 ms). With one connection a batch did the same work either way; what the cache
+removes is threads waiting for each other on the same few sizes.
+
 ## What else has to be running
 
 | `--database` / `--troe` | Also required | What that costs |
@@ -1119,6 +1151,9 @@ interval`, the default), with snapshots as the log grows
   cores every scenario within the noise of the same build without it (-2.3 % to +2.9 %), but batch
   create with history, the scenario that snapshots the most: -7.4 %, p99 92 ms against 79. What it
   saves is in "What the data takes on disk".
+- **A store that pauses** when its log cannot be written ([the pause](installation.md#a-store-that-cannot-write-its-log))
+  costs a write one atomic load: every single-entity scenario within ±2.5 % of the same broker without
+  it (2026-10-27, the conditions of "Threads building trees at once").
 - **Recovery is not a pause worth planning for**: 100 000 entities (38 MB of log or of snapshot) are
   back in **0.19 s** after `kill -9` (the log replayed) or a clean stop (the snapshot loaded) -
   measured 2026-10-04, the format unchanged since.

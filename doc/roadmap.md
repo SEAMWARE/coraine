@@ -237,9 +237,10 @@ nodes), Server-Sent Events, declared indexes, Timepoint. Open, in order:
    PR, odrl-pap#64 -, the actions).
 3. **One compound geo index** - prototype both variants, measure.
 4. **Hot and cold entity segments** - a design note.
-5. **The batch-delete regression** - low priority (attribute updates matter far more); the delete cost
-   also grows with the number of policies (-18.6 % at 20 per entity, [Performance](performance.md)), not
-   looked into.
+5. **Deletes and policies** - low priority (attribute updates matter far more); the delete cost grows
+   with the number of policies (-18.6 % at 20 per entity, [Performance](performance.md)), not looked into.
+   The batch-delete regression was the tree heap's mutexes: 18 590 → 60 452 batches/s on disk with the
+   thread caches ([Threads building trees at once](performance.md#threads-building-trees-at-once)).
 
 Smaller, alongside:
 
