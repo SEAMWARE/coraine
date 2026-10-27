@@ -440,6 +440,7 @@ Content-Length: 167
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-Warning: 199 coraine "offset 10 is past the result set (5 entities) - the last entity is returned"
 Link: </ngsi-ld/v1/entities?type=T&limit=20&offset=0>;rel="prev";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 109
@@ -515,6 +516,7 @@ Content-Length: 533
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+NGSILD-Warning: 199 coraine "offset 10 is past the result set (5 entities) - the last entity is returned"
 NGSILD-Results-Count: 5
 Link: </ngsi-ld/v1/entities?count=true&type=T&limit=20&offset=0>;rel="prev";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"

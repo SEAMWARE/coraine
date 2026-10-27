@@ -1261,6 +1261,27 @@ The names are coraine's: TS 104-175 § 7.4.2.3 leaves the links opaque ("only re
 following and previous pages, which can be implemented in a completely opaque way"); `limit` and
 `offset` are the "transparent" option, and a client using them gets them.
 
+### An offset past the end
+
+An `offset` at or past the end of the result set gives its **last** entity, not an empty page
+(TS 104-176 § 6.4.7.2; NGSI-LD 1.9.1 Table 6.3.10-2: "only the last element of the result set is to be
+returned"), and the answer says so:
+
+```
+NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is returned"
+Link: </ngsi-ld/v1/entities?type=T&limit=10&offset=0>;rel="prev";type="application/json"
+```
+
+- 199 is Miscellaneous Warning: the spec has no code of its own for this (its warning codes,
+  NGSI-LD 1.9.1 § 6.3.17, are the distributed operations'); `coraine` is the warn-agent.
+- `prev` is the page before the last entity (its offset minus `limit`, 0 at the least), not the page
+  before the offset asked for, which is past the end too.
+- The same for `orderBy`, `POST /entityOperations/query`, a distributed query with split entities (the
+  offset is applied to the entities assembled here) and an EntityMap (past the end of its frozen set).
+- An empty result set: `[]`, no warning. A distributed query with `splitEntities=false`: the local
+  store and each source apply the offset to their own matches, and this broker adds no warning - a
+  source that is a coraine answers its own last entity, and its warning is not passed on.
+
 ### A distributed query: count, offset, limit=0
 
 A query that Context Sources answer too (registrations match it, `--distributed`):
