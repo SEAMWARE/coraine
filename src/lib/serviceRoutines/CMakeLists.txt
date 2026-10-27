@@ -86,6 +86,7 @@ ENDIF()
 IF (COR_FEATURE_REGISTRATIONS)
   LIST(APPEND SOURCES
     regConflictCheck.c
+    distSubPersist.c
     postCsourceRegistration.c
     getCsourceRegistration.c
     getCsourceRegistrations.c

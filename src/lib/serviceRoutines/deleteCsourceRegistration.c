@@ -24,25 +24,8 @@
 
 #include "corTree/CorNode.h"                           // CorNode
 
+#include "serviceRoutines/distSubPersist.h"          // distSubPersist
 #include "serviceRoutines/deleteCsourceRegistration.h" // Own interface
-
-
-
-//
-// distSubPersist - persist subordinate mapping after on-reg-delete cleanup
-//
-static void distSubPersist(LdSubCacheItem* itemP, void* userData)
-{
-  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
-    return;
-
-  Tenant* tP    = (Tenant*) userData;
-  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
-  if (fragP == NULL)
-    return;
-
-  db.subscriptionUpdate(tP, itemP->subId, fragP);
-}
 
 
 

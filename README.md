@@ -432,7 +432,6 @@ planned or not, in [Ideas](doc/ideas.md):
 - **corDB history: retention and a selector** - history kept for a time or a size, and only what it is
   told to record.
 - **More bridges** - Kafka, WebSockets, OPC UA on the Bridge/Channel seam.
-- **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too.
 
 ---
 

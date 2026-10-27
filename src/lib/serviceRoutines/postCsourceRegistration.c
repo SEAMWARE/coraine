@@ -37,25 +37,8 @@
 
 #include "serviceRoutines/regConflictCheck.h"        // regConflictCheck, regModeOf
 #include "corNgsild/ldIdGenerate.h"                  // ldIdGenerate
+#include "serviceRoutines/distSubPersist.h"          // distSubPersist
 #include "serviceRoutines/postCsourceRegistration.h" // Own interface
-
-
-
-//
-// distSubPersist - persist subordinate mapping after on-reg-create fanout
-//
-static void distSubPersist(LdSubCacheItem* itemP, void* userData)
-{
-  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
-    return;
-
-  Tenant* tP    = (Tenant*) userData;
-  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
-  if (fragP == NULL)
-    return;
-
-  db.subscriptionUpdate(tP, itemP->subId, fragP);
-}
 
 
 

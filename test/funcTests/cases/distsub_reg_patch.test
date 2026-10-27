@@ -1,0 +1,441 @@
+#
+# FILE            distsub_reg_patch.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.5.2.4 — a registration PATCHed: the subordinate subscriptions
+# of the entity-subs follow it (newlyMatching / updated / noLongerMatching).
+#
+# Sister of distsub_reg_reactions.test (registration create and delete). One
+# entity-sub, urn:S1 on Vehicle, on CB; one registration, urn:CSR:R1, PATCHed
+# step by step:
+#
+#   updated          - its entities narrowed to one id: the subordinate is
+#                      PATCHed, its entities[] the new narrowing
+#   noLongerMatching - its type changed to Car: the subordinate is DELETEd
+#   newlyMatching    - its type back to Vehicle: a new subordinate is POSTed
+#   moved            - its endpoint changed to CP2: DELETEd on CP1, POSTed on CP2
+#   noLongerMatching - createSubscription taken out of its operations: DELETEd
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+DistSub - a registration PATCHed: its subordinate subscriptions updated, deleted, created, moved
+
+--TAGS--
+patch distops registration subscription distsub
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart -dist
+coraineStart -role CP1 -dist
+coraineStart -role CP2 -dist
+
+--RUN--
+
+#
+# 01. Create sub urn:S1 (Vehicle) on CB
+# 02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1 → subordinate urn:S1:1 on CP1
+# 03. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle}]
+# 04. PATCH R1: its entities narrowed to urn:V1
+# 05. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle, id urn:V1}]
+# 06. PATCH R1: its type Car
+# 07. GET the subscriptions on CP1 - none
+# 08. PATCH R1: its type back to Vehicle
+# 09. GET the subscriptions on CP1 - urn:S1:2
+# 10. PATCH R1: its endpoint CP2
+# 11. GET the subscriptions on CP1 - none
+# 12. GET the subscriptions on CP2 - urn:S1:3
+# 13. PATCH R1: createSubscription out of its operations
+# 14. GET the subscriptions on CP2 - none
+# 15. GET the subscriptions on CB - urn:S1 as it was
+#
+
+echo "01. Create sub urn:S1 (Vehicle) on CB"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1"
+echo "============================================================"
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "operations": ["createEntity", "createSubscription", "updateSubscription", "retrieveSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle}]"
+echo "======================================================================"
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. PATCH R1: its entities narrowed to urn:V1"
+echo "============================================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}]}]}'
+echo
+echo
+
+
+echo "05. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle, id urn:V1}]"
+echo "=================================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "06. PATCH R1: its type Car"
+echo "=========================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"information":[{"entities":[{"type":"Car"}]}]}'
+echo
+echo
+
+
+echo "07. GET the subscriptions on CP1 - none"
+echo "======================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "08. PATCH R1: its type back to Vehicle"
+echo "======================================"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "09. GET the subscriptions on CP1 - urn:S1:2"
+echo "==========================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "10. PATCH R1: its endpoint CP2"
+echo "=============================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"endpoint":"http://localhost:'$CP2_PORT'"}'
+echo
+echo
+
+
+echo "11. GET the subscriptions on CP1 - none"
+echo "======================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "12. GET the subscriptions on CP2 - urn:S1:3"
+echo "==========================================="
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "13. PATCH R1: createSubscription out of its operations"
+echo "======================================================"
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"operations":["createEntity","retrieveSubscription","deleteSubscription"]}'
+echo
+echo
+
+
+echo "14. GET the subscriptions on CP2 - none"
+echo "======================================="
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "15. GET the subscriptions on CB - urn:S1 as it was"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Create sub urn:S1 (Vehicle) on CB
+=====================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Content-Length: 0
+
+
+
+
+02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Content-Length: 0
+
+
+
+
+03. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle}]
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 459
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+04. PATCH R1: its entities narrowed to urn:V1
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET the subscriptions on CP1 - urn:S1:1, entities [{type Vehicle, id urn:V1}]
+==================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 483
+
+[
+  {
+    "entities": [
+      {
+        "id": "urn:V1",
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+06. PATCH R1: its type Car
+==========================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+07. GET the subscriptions on CP1 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+08. PATCH R1: its type back to Vehicle
+======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+09. GET the subscriptions on CP1 - urn:S1:2
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 459
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:2",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+10. PATCH R1: its endpoint CP2
+==============================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+11. GET the subscriptions on CP1 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+12. GET the subscriptions on CP2 - urn:S1:3
+===========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 459
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1:3",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://localhost:1026/ngsi-ld/ex/v1/notifications/urn:S1"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+13. PATCH R1: createSubscription out of its operations
+======================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+14. GET the subscriptions on CP2 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+15. GET the subscriptions on CB - urn:S1 as it was
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 429
+
+[
+  {
+    "entities": [
+      {
+        "type": "Vehicle"
+      }
+    ],
+    "id": "urn:S1",
+    "jsonldContext": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "notification": {
+      "endpoint": {
+        "uri": "http://example.com/notify/s1"
+      }
+    },
+    "notificationTrigger": [
+      "attributeCreated",
+      "attributeUpdated"
+    ],
+    "status": "active",
+    "type": "Subscription"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
