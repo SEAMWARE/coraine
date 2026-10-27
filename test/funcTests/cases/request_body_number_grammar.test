@@ -1,0 +1,267 @@
+#
+# FILE            request_body_number_grammar.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Numbers in a request body, as the JSON parser (corJson) reads them - RFC 8259 § 6:
+#   - '+5', '1.', a bare '-' and '1.e5' are not JSON numbers: 400, nothing created
+#   - 1e400 is past the range of a double, it has no JSON rendering: 400, nothing created
+#   - an integer of 20 digits does not fit a long long: a float, not a wrapped negative integer;
+#     the largest and smallest long long stay integers
+#   - a float is the double nearest to its text, whatever the number of decimals - 0.3 is the double that
+#     q=p==0.3 compares with, and 0.1234567890123456 keeps its 13th decimal (q=p>0.1234567890123 finds it)
+#
+--NAME--
+Request body numbers: RFC 8259 grammar, 1e400 refused, big integers, floats nearest to their text
+
+--TAGS--
+entity create retrieve query error validation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01. POST /entities with "value": +5 -> 400
+# 02. POST /entities with "value": 1. -> 400
+# 03. POST /entities with "value": - -> 400
+# 04. POST /entities with "value": 1.e5 -> 400
+# 05. POST /entities with "value": 1e400 -> 400
+# 06. GET /entities?type=T - none of them was created
+# 07. POST urn:Big with 12345678901234567890, 9223372036854775807 and -9223372036854775808 -> 201
+# 08. GET urn:Big - the float, and the two integers as they were
+# 09. POST urn:Dec with 0.3 and 0.1234567890123456 -> 201
+# 10. GET /entities?q=a==0.3 -> urn:Dec
+# 11. GET /entities?q=b>0.1234567890123 -> urn:Dec
+#
+
+dir=$(mktemp -d)
+
+post() {
+  printf '%s' "$1" > $dir/body.json
+  curl -s -i -H 'Content-Type: application/json' --data-binary @$dir/body.json "http://localhost:$COR_PORT/ngsi-ld/v1/entities" | grep -v '^Date: '
+  echo
+}
+
+n=1
+for v in '+5' '1.' '-' '1.e5' '1e400'; do
+  echo "0$n. POST /entities with \"value\": $v -> 400"
+  echo "======================================="
+  post '{"id":"urn:G'$n'","type":"T","p":{"type":"Property","value":'$v'}}'
+  echo
+  echo
+  n=$((n + 1))
+done
+
+
+echo "06. GET /entities?type=T - none of them was created"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T'
+echo
+echo
+
+
+echo "07. POST urn:Big with 12345678901234567890, 9223372036854775807 and -9223372036854775808 -> 201"
+echo "==============================================================================================="
+post '{"id":"urn:Big","type":"N","f":{"type":"Property","value":12345678901234567890},"max":{"type":"Property","value":9223372036854775807},"min":{"type":"Property","value":-9223372036854775808}}'
+echo
+echo
+
+
+echo "08. GET urn:Big - the float, and the two integers as they were"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:Big?options=keyValues'
+echo
+echo
+
+
+echo "09. POST urn:Dec with 0.3 and 0.1234567890123456 -> 201"
+echo "======================================================="
+post '{"id":"urn:Dec","type":"D","a":{"type":"Property","value":0.3},"b":{"type":"Property","value":0.1234567890123456}}'
+echo
+echo
+
+
+echo "10. GET /entities?q=a==0.3 -> urn:Dec"
+echo "====================================="
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=a==0.3&options=keyValues&attrs=a'
+echo
+echo
+
+
+echo "11. GET /entities?q=b>0.1234567890123 -> urn:Dec"
+echo "================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=b>0.1234567890123&options=keyValues&attrs=a'
+echo
+echo
+
+rm -rf $dir
+
+
+--EXPECT--
+01. POST /entities with "value": +5 -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body is not valid JSON"
+}
+
+
+
+02. POST /entities with "value": 1. -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body is not valid JSON"
+}
+
+
+
+03. POST /entities with "value": - -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body is not valid JSON"
+}
+
+
+
+04. POST /entities with "value": 1.e5 -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body is not valid JSON"
+}
+
+
+
+05. POST /entities with "value": 1e400 -> 400
+=======================================
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Content-Length: 160
+
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
+  "title": "Invalid Request",
+  "status": 400,
+  "detail": "request body is not valid JSON"
+}
+
+
+
+06. GET /entities?type=T - none of them was created
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+07. POST urn:Big with 12345678901234567890, 9223372036854775807 and -9223372036854775808 -> 201
+===============================================================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/entities/urn:Big
+Content-Length: 0
+
+
+
+
+08. GET urn:Big - the float, and the two integers as they were
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 127
+
+{
+  "f": 12345678901234567168,
+  "id": "urn:Big",
+  "max": 9223372036854775807,
+  "min": -9223372036854775808,
+  "type": "N"
+}
+
+
+
+09. POST urn:Dec with 0.3 and 0.1234567890123456 -> 201
+=======================================================
+HTTP/1.1 201 Created
+Location: /ngsi-ld/v1/entities/urn:Dec
+Content-Length: 0
+
+
+
+
+10. GET /entities?q=a==0.3 -> urn:Dec
+=====================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 63
+
+[
+  {
+    "a": 0.3,
+    "id": "urn:Dec",
+    "type": "D"
+  }
+]
+
+
+
+11. GET /entities?q=b>0.1234567890123 -> urn:Dec
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 63
+
+[
+  {
+    "a": 0.3,
+    "id": "urn:Dec",
+    "type": "D"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
