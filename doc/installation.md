@@ -1099,8 +1099,10 @@ answered 503 too; it is in memory, and the repair below keeps it.
 While paused, the broker tries once a second, backing off to once every 16 s, to write a snapshot of
 each tenant it could not log, from what it holds in memory; a snapshot rolls the log and drops the
 files before it. Once that succeeds - the disk has room again - the pause ends by itself and writes are
-served again; nothing needs a restart. A failure in the history log (`--troe corDB`) is not repaired:
-the store stays paused until the broker is restarted.
+served again; nothing needs a restart. A failure in the history log (`--troe corDB`) is repaired the
+same way: the history of each tenant whose history log failed is written anew from memory, as new
+segments that replace the old ones, and the pause ends when that is done. While it is written, temporal
+reads wait for it.
 
 `/ready` answers 503 and `status` is `paused` for as long as it lasts ([Health port](#health-port)),
 `/live` stays 200: a restart loses nothing that was answered 201, but it does not make room on the

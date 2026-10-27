@@ -1357,8 +1357,9 @@ broker's log says what they lose. The broker's log names the file and the error 
 The pause ends by itself: the snapshotter writes a snapshot of each tenant whose log failed, from memory,
 once a second backing off to once every 16 s; a snapshot rolls the log and drops the files before it.
 Once one succeeds for every such tenant the writes are served again - the writes answered 503 after
-they were applied are in that snapshot. A failure of the history log (`--troe corDB`) is not repaired:
-the store stays paused until a restart.
+they were applied are in that snapshot. A failure of the history log (`--troe corDB`) is repaired too:
+the history of each tenant whose history log failed is written anew from memory, as new segments that
+replace the old ones.
 
 Given without `--dbDir` it stops the start: `corDB: --dbSync without --dbDir - the store is in RAM only, there is no disk for it to act on`.
 

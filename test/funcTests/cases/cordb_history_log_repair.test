@@ -1,0 +1,240 @@
+#
+# FILE            cordb_history_log_repair.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# corDB with --dbDir and --troe corDB: a history log that loses records pauses the broker, and the
+# repair writes the history anew from memory - the broker resumes by itself, as it does for the
+# current-state log (corDB doc/persistence.md § 5).
+#
+# The broker runs under a file-size limit (ulimit -S -f 12288 - 12 MiB, SIGXFSZ ignored). One batch
+# create of 15 entities of 1 MiB each is more than the logs can take: records of it are lost - the
+# history log's too. With the limit lifted (prlimit on the running broker) the repair writes the store
+# and its history anew from memory and the broker resumes. A kill -9 and a start find every instance of
+# every attribute, once.
+#
+# The segments the rewrite replaced are then put back beside it - what a death between the rewrite
+# and their deletion leaves - and a start reads the same history: the rewrite's first record (number
+# 1) starts the history again, the older segments are deleted.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+corDB persistence - a history log that lost records is written anew from memory, the broker resumes by itself
+
+--TAGS--
+corDB persistence troe error
+
+--INIT--
+rm -rf /tmp/corTest-cordb_history_log_repair /tmp/corTest-cordb_history_log_repair.old
+trap '' XFSZ
+ulimit -S -f 12288
+coraineStart --troe corDB --dbDir /tmp/corTest-cordb_history_log_repair --maxRequestSize 64
+
+--RUN--
+
+#
+# 01. urn:H1 created, p PATCHed to 2 and 3; urn:H2 created, q PATCHed to 2, deleted
+# 02. A batch create of 15 entities, 1 MiB each - more than the logs can take: the broker pauses
+# 03. The history segments as they are now kept aside (for step 08)
+# 04. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again
+# 05. Resumed - p of urn:H1 PATCHed to 4
+# 06. kill -9 the broker, start it on the same --dbDir
+# 07. The history: urn:H1 p 1-4, urn:H2 q 1-2 and its deletedAt, every batch entity in current state has its instance
+# 08. The old segments put back beside the rewritten ones (a death before their deletion), a start
+# 09. The same history - once, not twice; the old segments deleted
+#
+
+DIR=/tmp/corTest-cordb_history_log_repair
+OLD=/tmp/corTest-cordb_history_log_repair.old
+out=$(mktemp)
+code() { curl -s -o $out -w '%{http_code}' "$@"; }
+deletedAt() { curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/temporal/entities/urn:H2?attrs=q" | sed -n 's/^  "deletedAt": "\(.*\)"$/\1/p'; }
+pValues() { curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/temporal/entities/$1?attrs=p&options=temporalValues" | tr -d ' \n' | sed -E 's/.*"values":\[(.*)\]\}.*/\1/; s/,"[0-9T:.Z-]+"\]/]/g'; }
+hist() {
+  echo "urn:H1 p (value, observedAt dropped): $(pValues urn:H1)"
+  echo "urn:H2 q (value, observedAt dropped): $(curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/temporal/entities/urn:H2?attrs=q&options=temporalValues" | tr -d ' \n' | sed -E 's/.*"values":\[(.*)\]\},"deletedAt".*/\1/; s/,"[0-9T:.Z-]+"\]/]/g')"
+  echo "urn:H2 deletedAt as before: $( [ "$(deletedAt)" = "$del1" ] && echo yes || echo "no ($(deletedAt), was $del1)" )"
+  cur=$(curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=Big&count=true&limit=0" -D - -o /dev/null | tr -d '\r' | sed -n 's/^NGSILD-Results-Count: //p')
+  withHist=0
+  for i in $(seq 1 15); do
+    if [ "$(code "http://localhost:$COR_PORT/ngsi-ld/v1/entities/urn:B$i")" = 200 ]; then
+      n=$(curl -s "http://localhost:$COR_PORT/ngsi-ld/v1/temporal/entities/urn:B$i?attrs=p&lastN=10" | grep -c '"instanceId"')
+      [ "$n" = 1 ] && withHist=$((withHist + 1))
+    fi
+  done
+  echo "batch entities in current state with exactly one instance of p: $( [ "$withHist" = "$cur" ] && [ "$cur" -gt 0 ] && echo 'all of them' || echo "$withHist of $cur" )"
+}
+
+echo "01. urn:H1 created, p PATCHed to 2 and 3; urn:H2 created, q PATCHed to 2, deleted"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:H1","type":"T","p":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:H1/attrs -X PATCH --payload '{"p":{"type":"Property","value":2}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:H1/attrs -X PATCH --payload '{"p":{"type":"Property","value":3}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:H2","type":"T","q":{"type":"Property","value":1}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:H2/attrs -X PATCH --payload '{"q":{"type":"Property","value":2}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:H2 -X DELETE | head -1
+del1=$(deletedAt)
+echo "urn:H2 deletedAt: $(echo "$del1" | grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$') timestamp"
+echo
+echo
+
+
+echo "02. A batch create of 15 entities, 1 MiB each - more than the logs can take: the broker pauses"
+echo "==============================================================================================="
+big=$(head -c 1048576 /dev/zero | tr '\0' 'a')
+batch=$out.batch
+{
+  echo -n '['
+  for i in $(seq 1 15); do
+    [ $i -gt 1 ] && echo -n ','
+    echo -n "{\"id\":\"urn:B$i\",\"type\":\"Big\",\"p\":{\"type\":\"Property\",\"value\":\"$big\"}}"
+  done
+  echo -n ']'
+} > $batch
+code -H 'Content-Type: application/json' --data-binary @$batch "http://localhost:$COR_PORT/ngsi-ld/v1/entityOperations/create" > /dev/null
+rm -f $batch
+echo "a create after it: $(code -H 'Content-Type: application/json' -d '{"id":"urn:X1","type":"T"}' http://localhost:$COR_PORT/ngsi-ld/v1/entities)"
+echo
+echo
+
+
+echo "03. The history segments as they are now kept aside (for step 08)"
+echo "================================================================="
+mkdir -p $OLD
+cp $DIR/_/hist-*.cor $OLD/
+echo "kept: $(ls $OLD | wc -l) segment(s)"
+echo
+echo
+
+
+echo "04. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again"
+echo "===================================================================================="
+corRoleLookup CB
+pid=$(cat $COR_ROLE_PID_FILE)
+prlimit --pid $pid --fsize=unlimited:
+resumed=no
+for i in $(seq 1 300); do
+  [ "$(code -H 'Content-Type: application/json' -d '{"id":"urn:R1","type":"T","p":{"type":"Property","value":1}}' http://localhost:$COR_PORT/ngsi-ld/v1/entities)" = 201 ] && resumed=yes && break
+  sleep 0.1
+done
+echo "resumed: $resumed"
+echo
+echo
+
+
+echo "05. Resumed - p of urn:H1 PATCHed to 4"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/entities/urn:H1/attrs -X PATCH --payload '{"p":{"type":"Property","value":4}}' | head -1
+echo
+echo
+
+
+echo "06. kill -9 the broker, start it on the same --dbDir"
+echo "===================================================="
+kill -9 $pid
+while corPidAlive $pid; do sleep 0.01; done
+coraineStart --troe corDB --dbDir $DIR
+echo "restarted"
+echo
+echo
+
+
+echo "07. The history: urn:H1 p 1-4, urn:H2 q 1-2 and its deletedAt, every batch entity in current state has its instance"
+echo "==================================================================================================================="
+hist
+echo "urn:R1 (201, resumed) p: $(pValues urn:R1)"
+segNo() { ls $1 | sed -n 's/^hist-0*\([0-9][0-9]*\)\.cor$/\1/p' | sort -n; }
+echo "every segment now numbered above the kept ones: $( [ "$(segNo $DIR/_ | head -1)" -gt "$(segNo $OLD | tail -1)" ] && echo yes || echo no )"
+echo
+echo
+
+
+echo "08. The old segments put back beside the rewritten ones (a death before their deletion), a start"
+echo "================================================================================================"
+coraineStop
+cp $OLD/hist-*.cor $DIR/_/
+echo "history segments now: old and rewritten"
+coraineStart --troe corDB --dbDir $DIR
+echo "restarted"
+echo
+echo
+
+
+echo "09. The same history - once, not twice; the old segments deleted"
+echo "================================================================"
+hist
+left=0
+for f in $OLD/hist-*.cor; do [ -e $DIR/_/$(basename $f) ] && left=$((left + 1)); done
+echo "old segments left: $left"
+echo
+
+rm -f $out
+
+
+--EXPECT--
+01. urn:H1 created, p PATCHed to 2 and 3; urn:H2 created, q PATCHed to 2, deleted
+====================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+urn:H2 deletedAt: 1 timestamp
+
+
+02. A batch create of 15 entities, 1 MiB each - more than the logs can take: the broker pauses
+===============================================================================================
+a create after it: 503
+
+
+03. The history segments as they are now kept aside (for step 08)
+=================================================================
+kept: 1 segment(s)
+
+
+04. The file-size limit lifted (prlimit): within 30 s a create is answered 201 again
+====================================================================================
+resumed: yes
+
+
+05. Resumed - p of urn:H1 PATCHed to 4
+======================================
+HTTP/1.1 204 No Content
+
+
+06. kill -9 the broker, start it on the same --dbDir
+====================================================
+restarted
+
+
+07. The history: urn:H1 p 1-4, urn:H2 q 1-2 and its deletedAt, every batch entity in current state has its instance
+===================================================================================================================
+urn:H1 p (value, observedAt dropped): [1,null],[2,null],[3,null],[4,null]
+urn:H2 q (value, observedAt dropped): [1,null],[2,null]
+urn:H2 deletedAt as before: yes
+batch entities in current state with exactly one instance of p: all of them
+urn:R1 (201, resumed) p: [1,null]
+every segment now numbered above the kept ones: yes
+
+
+08. The old segments put back beside the rewritten ones (a death before their deletion), a start
+================================================================================================
+history segments now: old and rewritten
+restarted
+
+
+09. The same history - once, not twice; the old segments deleted
+================================================================
+urn:H1 p (value, observedAt dropped): [1,null],[2,null],[3,null],[4,null]
+urn:H2 q (value, observedAt dropped): [1,null],[2,null]
+urn:H2 deletedAt as before: yes
+batch entities in current state with exactly one instance of p: all of them
+old segments left: 0
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-cordb_history_log_repair /tmp/corTest-cordb_history_log_repair.old
