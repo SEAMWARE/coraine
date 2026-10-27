@@ -360,7 +360,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
           // updated[]/notUpdated[] bookkeeping below, and CSRs may compact
           // with different contexts (csi.jsonldContext).
           CorNode* wireP = corTreeClone(corRest.kallocP, fragP);
-          corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr));
+          corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr), &corRest.kalloc);
 
           char* body = renderFragmentWithContext(wireP);
           items[itemCount].csr     = csr;

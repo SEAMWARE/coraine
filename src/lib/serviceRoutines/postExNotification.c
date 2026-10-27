@@ -101,7 +101,7 @@ static bool exNotificationForward(LdSubCacheItem* itemP, const char* parentSubId
   // sub notification would carry. Core context handles default-vocab
   // stripping (Vehicle, speed, …) without needing the parent's user ctx.
   //
-  corLdCompactTree(bodyTree);
+  corLdCompactTree(bodyTree, &corRest.kalloc);
 
   //
   // Render the (modified) body and POST to the original subscriber.

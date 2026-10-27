@@ -124,7 +124,8 @@ Content-Length: REGEX(\d+)
 
 [
   "http://localhost:7080/jsonldContexts/childB",
-  "http://localhost:7080/jsonldContexts/childA"
+  "http://localhost:7080/jsonldContexts/childA",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 ]
 
 

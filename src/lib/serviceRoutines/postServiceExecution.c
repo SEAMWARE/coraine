@@ -69,7 +69,7 @@ bool postServiceExecution(void)
     }
     else
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'%s' is not a member of a Service Execution", corLdCompact(corNgsild.contextP, mP->name));
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'%s' is not a member of a Service Execution", corLdCompact(corNgsild.contextP, mP->name, &corRest.kalloc));
       return true;
     }
   }

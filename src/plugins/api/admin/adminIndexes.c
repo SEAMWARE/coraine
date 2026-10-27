@@ -98,7 +98,7 @@ static void declCompact(CorNode* declP)
   CorNode* attrP = corTreeLookup(declP, "attribute");
 
   if ((attrP != NULL) && (attrP->type == CorString))
-    attrP->value.s = (char*) corLdCompact((corNgsild.contextP != NULL)? corNgsild.contextP : corLdCoreContext(), attrP->value.s);
+    attrP->value.s = (char*) corLdCompact((corNgsild.contextP != NULL)? corNgsild.contextP : corLdCoreContext(), attrP->value.s, &corRest.kalloc);
 }
 
 

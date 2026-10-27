@@ -720,7 +720,7 @@ static CorNode* wireValue(CorNode* valueP)
 
   ldNodeRename(cloneP, (char*) "value");
   corTreeChildAdd(wrapperP, cloneP);
-  corLdCompactTreeWith(wrapperP, (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext());
+  corLdCompactTreeWith(wrapperP, (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext(), &corRest.kalloc);
 
   cloneP       = wrapperP->value.head;
   ldNodeRename(cloneP, NULL);
