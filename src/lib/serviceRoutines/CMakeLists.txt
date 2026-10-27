@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 SET(SOURCES
   attrsNotWritten.c
+  distSubPersist.c
   corNotInThisBuild.c
   subscriptionQExpand.c
   getBuild.c
@@ -86,7 +87,6 @@ ENDIF()
 IF (COR_FEATURE_REGISTRATIONS)
   LIST(APPEND SOURCES
     regConflictCheck.c
-    distSubPersist.c
     postCsourceRegistration.c
     getCsourceRegistration.c
     getCsourceRegistrations.c
