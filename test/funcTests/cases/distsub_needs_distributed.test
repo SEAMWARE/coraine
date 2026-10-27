@@ -1,0 +1,176 @@
+#
+# FILE            distsub_needs_distributed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Subordinate subscriptions are a distributed operation: a broker started
+# without --distributed forwards none - not when a subscription is created after
+# a matching registration, nor when a registration is created or PATCHed after
+# a matching subscription.
+#
+# REQUIRE_FEATURE: REGISTRATIONS SUBSCRIPTIONS
+#
+--NAME--
+DistSub - without --distributed no subordinate subscription, on a registration created or PATCHed
+
+--TAGS--
+create patch distops registration subscription distsub
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart
+coraineStart -role CP1
+
+--RUN--
+
+#
+# 01. Create sub urn:S1 (Vehicle) on CB - a broker without --distributed
+# 02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1
+# 03. GET the subscriptions on CP1 - none
+# 04. PATCH R1: its entities narrowed to urn:V1
+# 05. GET the subscriptions on CP1 - none
+# 06. Create sub urn:S2 (Vehicle) on CB, after the registration
+# 07. GET the subscriptions on CP1 - none
+#
+
+echo "01. Create sub urn:S1 (Vehicle) on CB - a broker without --distributed"
+echo "======================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S1","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s1"}}}'
+echo
+echo
+
+
+echo "02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1"
+echo "============================================================"
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "operations": ["createEntity", "createSubscription", "updateSubscription", "retrieveSubscription", "deleteSubscription"],
+  "information": [
+    { "entities": [ { "type": "Vehicle" } ] }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "03. GET the subscriptions on CP1 - none"
+echo "======================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "04. PATCH R1: its entities narrowed to urn:V1"
+echo "============================================="
+corCurl -X PATCH --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 --payload '{"information":[{"entities":[{"type":"Vehicle","id":"urn:V1"}]}]}'
+echo
+echo
+
+
+echo "05. GET the subscriptions on CP1 - none"
+echo "======================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+echo "06. Create sub urn:S2 (Vehicle) on CB, after the registration"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:S2","type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"endpoint":{"uri":"http://example.com/notify/s2"}}}'
+echo
+echo
+
+
+echo "07. GET the subscriptions on CP1 - none"
+echo "======================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/subscriptions
+echo
+echo
+
+
+--EXPECT--
+01. Create sub urn:S1 (Vehicle) on CB - a broker without --distributed
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S1
+Content-Length: 0
+
+
+
+
+02. Register urn:CSR:R1 (Vehicle, createSubscription) on CP1
+============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Content-Length: 0
+
+
+
+
+03. GET the subscriptions on CP1 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+04. PATCH R1: its entities narrowed to urn:V1
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET the subscriptions on CP1 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+06. Create sub urn:S2 (Vehicle) on CB, after the registration
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/subscriptions/urn:S2
+Content-Length: 0
+
+
+
+
+07. GET the subscriptions on CP1 - none
+=======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+[]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

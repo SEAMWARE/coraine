@@ -41,28 +41,11 @@
 #if COR_FEATURE_SSE
 #include "sse/sse.h"                                 // sseEndpointIs
 #endif
+#include "serviceRoutines/distSubPersist.h"          // distSubPersist
 #include "serviceRoutines/patchSubscription.h"       // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
 #endif
-
-
-
-//
-// distSubPersist - JSON-merge-patch _subordinates onto the sub doc
-//
-static void distSubPersist(LdSubCacheItem* itemP, void* userData)
-{
-  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
-    return;
-
-  Tenant* tP    = (Tenant*) userData;
-  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
-  if (fragP == NULL)
-    return;
-
-  db.subscriptionUpdate(tP, itemP->subId, fragP);
-}
 
 
 

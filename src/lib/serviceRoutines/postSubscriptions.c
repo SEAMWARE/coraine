@@ -58,33 +58,11 @@ extern CorLdContextCache* corLdCacheGet(void);
 #if COR_FEATURE_SSE
 #include "sse/sse.h"                                 // sseCreateCheck, sseCreateRegister, sseCreateRespond
 #endif
+#include "serviceRoutines/distSubPersist.h"          // distSubPersist
 #include "serviceRoutines/postSubscriptions.h"       // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
 #endif
-
-
-
-// -----------------------------------------------------------------------------
-//
-// distSubPersist - persist subordinate mapping after a fanout mutation
-//
-// LdDistSubPersistFunc callback invoked from ldDistSub.c whenever an
-// itemP->subordinateP list changes. JSON-merge-patch onto the sub doc
-// so the mapping survives a broker restart.
-//
-static void distSubPersist(LdSubCacheItem* itemP, void* userData)
-{
-  if (itemP == NULL || itemP->subId == NULL || db.subscriptionUpdate == NULL)
-    return;
-
-  Tenant* tP    = (Tenant*) userData;
-  CorNode* fragP = ldDistSubSubordinatesFragment(itemP, corRest.kallocP);
-  if (fragP == NULL)
-    return;
-
-  db.subscriptionUpdate(tP, itemP->subId, fragP);
-}
 
 
 

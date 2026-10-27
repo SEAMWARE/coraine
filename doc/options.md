@@ -793,7 +793,12 @@ parts of an entity held by several sources are put together, and how such querie
 Turns forwarding on. With it, every entity operation is matched against the registrations and
 forwarded to the Context Sources that match; `GET /types` and `/attributes` are forwarded too; a
 subscription whose entities a registration covers is also created on that source (§ 5.8.1.4), with
-this broker's advertised endpoint as the callback.
+this broker's advertised endpoint as the callback. These subordinate subscriptions follow the
+registrations (§ 10.5.2.4): one is created when a matching registration is created, or PATCHed so
+that it matches; PATCHed at the source when a registration's change narrows its entities differently;
+deleted when the registration is deleted, or PATCHed so that it no longer matches - another type, or no
+`createSubscription` in its operations; and deleted at the old endpoint and created at the new one when
+a registration's endpoint or tenant changes. Without `--distributed` none is made.
 
 Off by default: the matching costs a registration lookup on every entity operation, and most
 deployments hold their data locally. Without it the Registry API (create, update, delete, query and

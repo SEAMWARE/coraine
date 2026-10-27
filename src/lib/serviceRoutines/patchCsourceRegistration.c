@@ -18,6 +18,8 @@
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheItemLookup, ldRegCacheItemRemove, ldRegCacheItemAdd
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldCsrSubNotify.h"                 // ldCsrSubMatchingSubIds, ldCsrSubOnRegUpdate
+#include "corNgsild/ldDistSub.h"                      // ldDistSubOnRegUpdate
+#include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldRegSubMerge.h"                  // ldRegSubMerge
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 
@@ -25,6 +27,7 @@
 #include "db/Tenant.h"                               // Tenant
 
 #include "serviceRoutines/regConflictCheck.h"        // regConflictCheck, regModeOf
+#include "serviceRoutines/distSubPersist.h"          // distSubPersist
 #include "serviceRoutines/patchCsourceRegistration.h" // Own interface
 
 
@@ -142,12 +145,30 @@ bool patchCsourceRegistration(void)
 
   // Refresh the cache from the merged document we just stored — no second
   // retrieve. Safe under the wrlock: no reader can be walking the list and no
-  // other writer can be mid-mutation, so the transient remove→add is exclusive.
+  // other writer can be mid-mutation, so the transient add→remove is exclusive.
+  //
+  // § 10.5.2.4 — the new item is added BEFORE the old one is removed: the
+  // entity-subs' subordinates on this CSR compare the two (one no longer
+  // matching, or whose CSR moved, is DELETEd where the old item points; one
+  // newly matching is POSTed where the new one does). ldRegCacheItemAdd
+  // appends and ldRegCacheItemRemove takes the FIRST item with the id - the
+  // old one.
+  //
   LdRegCacheItem* newItemP = NULL;
   if (regCacheP != NULL)
   {
-    ldRegCacheItemRemove(regCacheP, regId);
+    LdRegCacheItem* oldItemP = ldRegCacheItemLookup(regCacheP, regId);
+
     newItemP = ldRegCacheItemAdd(regCacheP, mergedRegP, &corRest.kalloc);
+
+    if (oldItemP != NULL && newItemP != NULL && tenantP->subCacheP != NULL)
+    {
+      const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
+      ldDistSubOnRegUpdate((LdSubCache*) tenantP->subCacheP, oldItemP, newItemP, ownAlias, distSubPersist, tenantP);
+    }
+
+    if (oldItemP != NULL)
+      ldRegCacheItemRemove(regCacheP, regId);
   }
 
   //

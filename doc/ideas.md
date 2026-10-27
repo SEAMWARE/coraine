@@ -187,10 +187,6 @@ drain): a registration whose endpoint is a bridge scheme, served by the bridge.
 
 ## The API and the specification
 
-### Subordinate subscriptions on registration change
-
-§ 10.5.2.4 handles creation and deletion of a registration, not `PATCH`.
-
 ### Advertising the user @context and the core version
 
 The `;v1.9` parameter on the core context's Link header, and § 13.4's `?core=`.

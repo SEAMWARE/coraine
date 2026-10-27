@@ -145,7 +145,6 @@ incorporated in the next release of the product, in roughly this order:
     broker deletes them when it starts. ([more](websocket.md#subscriptions))
 -   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
     in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
--   **Subordinate subscriptions on registration change** - § 10.5.2.4 for `PATCH` too. ([more](ideas.md#subordinate-subscriptions-on-registration-change))
 
 ## Medium term
 
@@ -1191,8 +1190,6 @@ only by a read.
 
 **Broker**
 
-- Subordinate subscriptions are not re-evaluated when a **registration changes**
-  (§ 10.5.2.4) — creation and deletion are handled, `PATCH` is not.
 - `-fg` / `--foreground`: deprecated (the foreground is the default, `--daemon` detaches) - refuse it
   from 0.8.0.
 - PostGIS as a geo backend.
