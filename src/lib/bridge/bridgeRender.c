@@ -43,7 +43,7 @@
 //
 static const char* shortOrSelf(CorLdContext* contextP, const char* iri)
 {
-  const char* compact = (iri != NULL) ? corLdCompact(contextP, iri) : NULL;
+  const char* compact = (iri != NULL) ? corLdCompact(contextP, iri, &corRest.kalloc) : NULL;
   return (compact != NULL) ? compact : iri;
 }
 

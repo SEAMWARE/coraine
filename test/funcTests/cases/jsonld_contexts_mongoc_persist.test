@@ -117,8 +117,8 @@ HTTP/1.1 201 Created
 03. LIST before restart
 =======================
     "kind": "Cached",
+    "kind": "Cached",
     "kind": "Hosted",
-    "kind": "ImplicitlyCreated",
     "localId": "http://localhost:7080/jsonldContexts/ctxP"
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
     "localId": REGEX("urn:ngsi-ld:Context:.*")
@@ -132,8 +132,8 @@ restarted
 05. LIST after restart (both still there)
 =========================================
     "kind": "Cached",
+    "kind": "Cached",
     "kind": "Hosted",
-    "kind": "ImplicitlyCreated",
     "localId": "http://localhost:7080/jsonldContexts/ctxP"
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
     "localId": REGEX("urn:ngsi-ld:Context:.*")
@@ -152,7 +152,7 @@ restarted
 08. LIST after restart (Hosted gone, Cached survives)
 =====================================================
     "kind": "Cached",
-    "kind": "ImplicitlyCreated",
+    "kind": "Cached",
     "localId": "http://localhost:7080/jsonldContexts/ctxP"
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 

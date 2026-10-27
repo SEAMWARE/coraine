@@ -608,7 +608,7 @@ bool postEntities(void)
             // error bookkeeping (fragmentShortAttrList) below, and CSRs may
             // compact with different contexts (csi.jsonldContext).
             CorNode* wireP = corTreeClone(corRest.kallocP, fragP);
-            corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr));
+            corLdCompactTreeWith(wireP, ldDistOpForwardContext(csr), &corRest.kalloc);
 
             char* body = renderFragmentWithContext(wireP);
 

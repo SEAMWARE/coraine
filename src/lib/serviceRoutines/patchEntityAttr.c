@@ -266,7 +266,7 @@ bool patchEntityAttr(void)
       CorNode*     fwdBody = corTreeClone(corRest.kallocP, fwdSrcP);
       CorLdContext* fwdCtx  = ldDistOpForwardContext(items[i].csr);
 
-      corLdCompactTreeWith(fwdBody, fwdCtx);
+      corLdCompactTreeWith(fwdBody, fwdCtx, &corRest.kalloc);
 
       char* bodyStr = renderBodyWithContext(fwdBody);
 

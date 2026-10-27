@@ -45,7 +45,7 @@
 //
 static const char* shortName(const char* name)
 {
-  return corLdCompact(corNgsild.contextP, name);
+  return corLdCompact(corNgsild.contextP, name, &corRest.kalloc);
 }
 
 

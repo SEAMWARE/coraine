@@ -31,7 +31,7 @@ contextServerPush /jsonldContexts/ctxT '{
 # 02. POST an entity with Link header → broker downloads & caches the ref'd context
 # 03. GET /jsonldContexts — lists both core and the just-downloaded context
 # 04. GET /jsonldContexts?details=true — each entry carries id/kind/url/createdAt/lastUsage
-# 05. GET /jsonldContexts?kind=ImplicitlyCreated — same set (both are implicit)
+# 05. GET /jsonldContexts?kind=ImplicitlyCreated — empty (the core is Cached, § 5.13.1; ctxT is Cached)
 # 06. GET /jsonldContexts?kind=Hosted — empty array (no hosted contexts yet)
 # 07. GET /jsonldContexts/{ctxT-url} — returns the raw body, Content-Type application/ld+json
 # 08. GET /jsonldContexts/http://nope — 404
@@ -158,7 +158,7 @@ Content-Length: REGEX(\d+)
   {
     "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
     "createdAt": "REGEX(20[23]\d-.*Z)",
-    "kind": "ImplicitlyCreated",
+    "kind": "Cached",
     "lastUsage": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
     "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
   }
@@ -172,11 +172,9 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 73
+Content-Length: 3
 
-[
-  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
-]
+[]
 
 
 
