@@ -957,8 +957,11 @@ and nothing.
 > same line drawn around the plugin contract.
 
 Orion-LD's DDS configuration file is not ours to change. `dds.ddsmodule`
-is eProsima's and is passed verbatim to the enabler; `dds.ngsild` is
-ours but is published and in use, so it is frozen in practice.
+is eProsima's and every member of it is handed to the enabler - as the
+YAML node the enabler's configuration is read from, built by corDdsBridge:
+the enabler's own reading of the JSON file refuses a list of plain values,
+`"whitelist-interfaces": ["192.168.1.10"]`. `dds.ngsild` is ours but is
+published and in use, so it is frozen in practice.
 
 It maps onto the two objects one-to-one, which is a good sign the split
 is right:
