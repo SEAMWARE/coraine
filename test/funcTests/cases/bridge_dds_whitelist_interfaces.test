@@ -1,0 +1,98 @@
+#
+# FILE            bridge_dds_whitelist_interfaces.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The DDS participant restricted to one interface of this host - dds.ddsmodule.dds
+# "transport": "udp" and "whitelist-interfaces": [<docker0's address>] - and a real
+# ROS 2 talker's samples still arriving, through that interface and no other way.
+#
+# ros2NodeStart runs the talker on docker's bridge network with --ipc=host: shared
+# memory reaches it, and so does UDP over docker0. "udp" leaves shared memory out
+# and the whitelist leaves out every other interface, so a sample that arrives has
+# crossed docker0.
+#
+# "whitelist-interfaces" is a list of plain strings, and the bridge configuration
+# is JSON: the DDS Enabler's own reading of the file turns each of them into a map
+# and refuses it, and the broker does not start. corDdsBridge reads dds.ddsmodule
+# itself and hands the Enabler a YAML node.
+#
+# REQUIRE_DDS: yes
+#
+--NAME--
+DDS bridge: UDP on one whitelisted interface (docker0) - a real ROS 2 talker's samples arrive
+
+--TAGS--
+bridge dds plugins docker
+
+--INIT--
+corDbDrop
+ros2NodeStop
+
+DOCKER_GATEWAY=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+
+BRIDGE_CONFIG=$(bridgeConfig -b dds \
+  --raw "\"ddsmodule\": { \"dds\": { \"domain\": $COR_DDS_DOMAIN, \"transport\": \"udp\", \"whitelist-interfaces\": [ \"$DOCKER_GATEWAY\" ] }, \"specs\": { \"logging\": { \"verbosity\": \"warning\" } } }" \
+  --topic "rt/chatter,Talker,urn:ngsi-ld:Talker:1,message")
+
+coraineStart --bridges dds --bridgeConfig $BRIDGE_CONFIG
+
+--RUN--
+
+echo "01. The broker started with the whitelist - the entity is there, created from the configuration"
+echo "================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1
+echo
+echo
+
+
+echo "02. A real ROS 2 talker starts on docker's network, and its samples become the attribute's value"
+echo "================================================================================================"
+ros2NodeStart talker
+corAwaitBody 30 /ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1 "Hello World"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Talker:1?pick=message&format=simplified'
+echo
+echo
+
+
+--EXPECT--
+01. The broker started with the whitelist - the entity is there, created from the configuration
+================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 128
+
+{
+  "id": "urn:ngsi-ld:Talker:1",
+  "message": {
+    "type": "Property",
+    "value": "uninitialized"
+  },
+  "type": "Talker"
+}
+
+
+
+02. A real ROS 2 talker starts on docker's network, and its samples become the attribute's value
+================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "message": {
+    "data": "REGEX(Hello World: \d+)"
+  }
+}
+
+
+
+--TEARDOWN--
+ros2NodeStop
+coraineStop
