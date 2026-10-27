@@ -348,7 +348,7 @@ static const char* compactForUrl(CorLdContext* ctx, const char* iri, CorAlloc* k
 {
   if (iri == NULL || iri[0] == 0)
     return "";
-  const char* shorter = corLdCompact(ctx, iri);
+  const char* shorter = corLdCompact(ctx, iri, &corRest.kalloc);
   if (shorter == NULL || shorter == iri)
     return corRestUrlValueEncode(iri, kaP);
   // Compaction returned a new pointer — assume it's a short alias from

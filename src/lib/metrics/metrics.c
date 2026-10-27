@@ -768,9 +768,9 @@ static void indexSeriesWrite(Out* oP, CorNode* arrayP, const IndexSeries* series
 
         outAdd(oP, "%s{", sP->name);
         labelAdd(oP, "",  "id",        id);
-        labelAdd(oP, ",", "attribute", (attr != NULL)? corLdCompact(coreP, attr) : "");
+        labelAdd(oP, ",", "attribute", (attr != NULL)? corLdCompact(coreP, attr, &corRest.kalloc) : "");
         if (type != NULL)
-          labelAdd(oP, ",", "type", corLdCompact(coreP, type));
+          labelAdd(oP, ",", "type", corLdCompact(coreP, type, &corRest.kalloc));
         labelAdd(oP, ",", "tenant", (tenant != NULL)? tenant : "");
         if (snapshot != NULL)
           labelAdd(oP, ",", "snapshot", snapshot);

@@ -220,7 +220,7 @@ static void notify(CorNode* execP)
   const char*   contextUrl = str(execP, "_context");
   CorLdContext* contextP   = (contextUrl != NULL) ? corLdContextFromUrl(contextUrl, &corRest.kalloc) : NULL;
 
-  corLdCompactTreeWith(renderedP, contextP);
+  corLdCompactTreeWith(renderedP, contextP, &corRest.kalloc);
 
   char     at[64];
   CorNode* bodyP = corTreeObject(corRest.kallocP, NULL);
@@ -472,7 +472,7 @@ static CorNode* serviceFind(Tenant* tenantP, const char* entityId, CorNode* enti
 
     *statusP = 409;
     snprintf(why, whySize, "the service '%s' of entity '%s' is offered by %d Service Registrations: %s - a service name is unique within an entity",
-             corLdCompact(corNgsild.contextP, serviceName), entityId, found, ids);
+             corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc), entityId, found, ids);
     return NULL;
   }
 
@@ -665,7 +665,7 @@ static char* invocationBody(CorNode* execP, char* why, int whySize)
     return NULL;
 
   corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "id", str(execP, "entityId")));
-  corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", (type != NULL) ? corLdCompact(corNgsild.contextP, type) : ""));
+  corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "type", (type != NULL) ? corLdCompact(corNgsild.contextP, type, &corRest.kalloc) : ""));
 
   for (CorNode* mP = ((inP != NULL) && (inP->type == CorObject)) ? inP->value.head : NULL; mP != NULL; mP = mP->next)
   {
@@ -924,7 +924,7 @@ CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode
   if (regP == NULL)
   {
     *statusP = 404;
-    snprintf(why, whySize, "entity '%s' has no service '%s'", entityId, corLdCompact(corNgsild.contextP, serviceName));
+    snprintf(why, whySize, "entity '%s' has no service '%s'", entityId, corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc));
     return NULL;
   }
 
@@ -1172,7 +1172,7 @@ bool seExecutionUpdate(CorNode* execP, CorNode* updateP)
     else if ((strcmp(mP->name, "executionProgress") != 0) && (strcmp(mP->name, "executionOutput") != 0) && (strcmp(mP->name, "executionError") != 0))
     {
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'%s' - an executor reports executionStatus, executionProgress, executionOutput and executionError",
-              corLdCompact(corNgsild.contextP, mP->name));
+              corLdCompact(corNgsild.contextP, mP->name, &corRest.kalloc));
       return true;
     }
   }

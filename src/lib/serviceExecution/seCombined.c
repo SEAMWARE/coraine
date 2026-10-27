@@ -201,7 +201,7 @@ static CorNode* buildSimple(Built* bP, const char* entityId, const char* service
 
   if ((entityType != NULL) && (strcmp(str(execP, "entityType"), entityType) != 0))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "entity '%s' is not of the template's type '%s'", entityId, corLdCompact(corNgsild.contextP, entityType));
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "entity '%s' is not of the template's type '%s'", entityId, corLdCompact(corNgsild.contextP, entityType, &corRest.kalloc));
     return NULL;
   }
 
@@ -292,7 +292,7 @@ static bool membersCheck(CorNode* objectP, const char** memberV, const char* wha
     if (known == true)
       continue;
 
-    const char* name = corLdCompact(corNgsild.contextP, mP->name);
+    const char* name = corLdCompact(corNgsild.contextP, mP->name, &corRest.kalloc);
 
     if (strcmp(name, "input") == 0)
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "'input' is not a member of %s - the service's input is 'executionInput'", what);
@@ -457,13 +457,13 @@ static CorNode* buildFromTemplate(Built* bP, CorNode* templateP, CorNode* overri
       if ((str(overP, "serviceName") != NULL) && (strcmp(str(overP, "serviceName"), serviceName) != 0))
       {
         ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's service at that place is '%s', not '%s'",
-                corLdCompact(corNgsild.contextP, serviceName), corLdCompact(corNgsild.contextP, str(overP, "serviceName")));
+                corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc), corLdCompact(corNgsild.contextP, str(overP, "serviceName"), &corRest.kalloc));
         return NULL;
       }
 
       if (entityId == NULL)
       {
-        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's service '%s' needs an 'entityId' in the request", corLdCompact(corNgsild.contextP, serviceName));
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "the template's service '%s' needs an 'entityId' in the request", corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc));
         return NULL;
       }
 
@@ -648,7 +648,7 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 
   if (corTreeLookup(execP, "_children")->value.head == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no entity of the selection offers the service '%s'", corLdCompact(corNgsild.contextP, serviceName));
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no entity of the selection offers the service '%s'", corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc));
     return NULL;
   }
 

@@ -342,7 +342,7 @@ bool patchEntity(void)
 
       // fragP is private (detached or cloned) — compact in place with the
       // per-CSR forward context before rendering the wire body.
-      corLdCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr));
+      corLdCompactTreeWith(fragP, ldDistOpForwardContext(items[i].csr), &corRest.kalloc);
 
       char* body = renderFragmentWithContext(fragP);
       items[kept] = items[i];
