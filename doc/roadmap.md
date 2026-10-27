@@ -26,7 +26,7 @@ Recently built, and documented where it lives:
 -   **An NGSI-LD plugin for APISIX** - `ngsild-pep`
     ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s own decision in the
     gateway the FIWARE Data Space Connector already uses, in front of any NGSI-LD broker; on the 64 cases
-    of `test/fdscDiff` it decides as `--auth fdsc` does. `--fdscNgsild` stays in the broker: it needs the
+    of `test/fdscDiff` at the coraine commit its CI pins (`7239cf37`) it decides as `--auth fdsc` does. `--fdscNgsild` stays in the broker: it needs the
     stored entity ([Authorization](authorization.md), § 5).
 -   **DDS** - topics both ways, services, actions, through the DDS bridge ([DDS and ROS 2](dds.md)).
 -   **MQTT** - device topics as Channels, and notifications to `mqtt://` ([The MQTT bridge](mqtt-bridge.md)).
@@ -76,7 +76,7 @@ Recently built, and documented where it lives:
     response - entity, temporal and distributed queries ([Kubernetes](kubernetes.md)).
 -   **Authorization in the broker** - `--auth`: auth plugins, and `fdsc.so`, the FIWARE Data Space
     Connector's access tokens and ODRL policies decided inside the broker as the connector decides them -
-    64 cases against a deployed connector, 0 differences; per entity, per attribute and per tenant with
+    67 cases against a deployed connector, 0 differences; per entity, per attribute and per tenant with
     `--fdscNgsild`, notifications decided for the subscription's owner; the ODRL-PAP's `/policy` API served
     by the broker (`--policyApiPort`) ([Authorization](authorization.md)).
 -   **The CKAN bridge and DataChannels** - a CKAN portal's DataStore resources read into entities

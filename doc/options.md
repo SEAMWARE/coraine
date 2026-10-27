@@ -149,7 +149,8 @@ belongs to the code that writes it:
 |---|---|---|
 | 50-66 | the JSON parser and tree (corJson, corTree) | `corJsonTraceLevels.h`, `corTreeTraceLevels.h` |
 | 100-199 | the REST layer (corRest) and the JSON-LD library (corJsonld, 150 on) | `corRestTraceLevels.h`, `corLdTraceLevels.h` |
-| 200-399 | the NGSI-LD library (corNgsild): validation, forwarding (220-226), notifications (230-239), ... | `ldTraceLevels.h` |
+| 200-240 | the NGSI-LD library (corNgsild): validation (200-210), forwarding (220-226), registration matching (227), notifications (230-235), transient entities (240) | `ldTraceLevels.h` |
+| 300-303 | the allocator (corAlloc) | `CorAllocTraceLevel.h` |
 | 400-404 | the broker: 400 forwarded requests, 401 cache sync between instances (`--high-availability`), 402 bridges, 403 Service Execution, 404 the SQL of a TRoE entity selector | `src/app/coraine/coraineTraceLevels.h` |
 
 Traces exist in a debug build only. A release build has them compiled out: the option is accepted,

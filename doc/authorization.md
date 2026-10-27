@@ -489,7 +489,7 @@ in docker, beside coraine with `--auth fdsc`, both given the same verifier (a st
 discovery document and the JWK Set as VCVerifier does) and the same PAP. Each case of
 `test/fdscDiff/cases.json` - tokens, the vocabulary, the combination rules, the cases where the Rego is not
 what ODRL says - goes to both, and the answers are compared by class (401, 403, 503, let through).
-**64 cases, 0 differences** (2026-10-13), apart from the one decided below (`known.json`).
+**67 cases, 0 differences** (the nightly, 2026-10-27), apart from the one decided below (`known.json`).
 
 The functests (`auth_fdsc_*`, `auth_startup_refused`) hold the same behaviour without docker, against a
 stand-in PAP (`test/funcTests/tools/ftVerifier.py`).

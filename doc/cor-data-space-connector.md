@@ -38,9 +38,9 @@ them.
 | role | a Cor DSC | state |
 |---|---|---|
 | the data service, outside the connector | coraine, or any NGSI-LD broker | built |
-| who sent a request, may it | `--auth fdsc` in the broker ([Authorization](authorization.md)) - VCVerifier's tokens, the ODRL policies as odrl-pap holds them, decided as the connector decides them | built; 64 cases of `test/fdscDiff`, 0 differences against the connector's own chain |
+| who sent a request, may it | `--auth fdsc` in the broker ([Authorization](authorization.md)) - VCVerifier's tokens, the ODRL policies as odrl-pap holds them, decided as the connector decides them | built; 67 cases of `test/fdscDiff`, 0 differences against the connector's own chain |
 | the policies | coraine's `/policy` API (`--policyApiPort`): odrl-pap's API, the policies in coraine's store | built |
-| the same decision in APISIX, for any NGSI-LD broker | `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s code in an APISIX plugin | built; the same 64 cases, 0 differences |
+| the same decision in APISIX, for any NGSI-LD broker | `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s code in an APISIX plugin | built; the 64 cases of the coraine commit its CI pins (`7239cf37`), 0 differences |
 | the token | a verifier: OID4VP, the credential formats and DIDs the connector accepts, the JWT | not started |
 | which issuers are trusted | a TIL, with the EBSI TIR API the verifier reads | not started |
 | which credentials a service takes | the verifier's configuration API | not started |

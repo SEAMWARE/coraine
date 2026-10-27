@@ -197,7 +197,7 @@ bool patchSnapshot(void)
   // tree, and add it to the persisted fragment (so the DB sees the new
   // deadline even though clients can't set expiresAt directly).
   // The cache tree must hold long-lived strings (corTreeString with NULL
-  // allocator → malloc-backed copy); the per-request fragment can use
+  // allocator → a copy in the tree heap); the per-request fragment can use
   // corRest.kallocP since the DB plugin renders & sends before request end.
   if (lifeNs > 0)
   {
