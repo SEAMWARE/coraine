@@ -9,7 +9,7 @@
 #include <stddef.h>                                       // NULL
 
 #include "corAlloc/CorAlloc.h"                            // CorAlloc
-#include "corJsonld/corJsonld.h"                          // corLdInit
+#include "corJsonld/corJsonld.h"                          // corLdInit, corLdSetOwnContext
 
 #include "corNgsild/corNgsild.h"                          // ldInit
 #include "corNgsild/ldCoreTermIds.h"                      // ldCoreTermIdsInit
@@ -20,7 +20,7 @@
 #endif
 
 #include "bridge/bridgeCoreTerms.h"                       // bridgeCoreTermsAdd
-#include "startup/startupContext.h"                       // startupContextDownload, startupContextError
+#include "startup/startupContext.h"                       // startupContextDownload, startupContextError, startupContextOwn
 #include "startup/startupCoreContext.h"                   // Own interface
 
 
@@ -33,6 +33,8 @@ const char* startupCoreContext(CorAlloc* contextAllocP)
 {
   if (corLdInit(contextAllocP, NULL, startupContextDownload, startupContextError) != 0)
     return "corLdInit failed";
+
+  corLdSetOwnContext(startupContextOwn);                  // the broker's own /jsonldContexts/{id} URLs: never a download
 
   //
   // The ContextBridge / Channel / Goal terms are core terms - with or without

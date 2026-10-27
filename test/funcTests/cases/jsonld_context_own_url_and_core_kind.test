@@ -1,0 +1,211 @@
+#
+# FILE            jsonld_context_own_url_and_core_kind.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A @context the broker hosts, named by the URL the broker gives it (its advertised endpoint +
+# /ngsi-ld/v1/jsonldContexts/{id}) in a Link header or as an @context URL in a body, is that Hosted
+# context - not downloaded from the broker itself and cached a second time, as a "Cached" entry under the
+# URL. And the compiled-in core context is of kind "Cached" (§ 5.13.1 - a local copy of the @context at an
+# external URL), not "ImplicitlyCreated": listed under kind=Cached, its metadata served, its body not
+# (§ 5.13.4.4, 422 OperationNotSupported).
+#
+# Each step prints the status and the body; the hosted context's generated id is CTXID, its timestamps TS.
+#
+--NAME--
+JSON-LD contexts: a Link to the broker's own hosted @context is that context (no Cached copy); the core context is Cached
+
+--TAGS--
+context
+
+--INIT--
+corDbDrop
+corDbDrop -db coraine
+coraineStart
+
+--RUN--
+B="http://localhost:$CB_PORT/ngsi-ld/v1"
+
+show() {
+  tr -d '\r' | sed -n '1p;/^[[{]/,$p' | sed -E 's/urn:ngsi-ld:Context:[0-9]+-[0-9]+/CTXID/g; s/"(createdAt|lastUsage)": *"[0-9T:.Z-]+"/"\1": "TS"/g'
+}
+
+echo "01. POST a Hosted @context"
+echo "=========================="
+LOC=$(curl -s -i "$B/jsonldContexts" -H 'Content-Type: application/json' -d '{"@context":{"Vehicle":"https://example.org/vocab/Vehicle","speed":"https://example.org/vocab/speed"}}' | tr -d '\r' | sed -n 's/^Location: //p')
+echo "$LOC" | sed -E 's/urn:ngsi-ld:Context:[0-9]+-[0-9]+/CTXID/'
+OWN="http://localhost:$CB_PORT$LOC"
+LINK="Link: <$OWN>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""
+echo
+echo
+
+
+echo "02. POST an entity, Link: the broker's own URL of that @context"
+echo "==============================================================="
+curl -s -i "$B/entities" -H 'Content-Type: application/json' -H "$LINK" -d '{"id":"urn:ngsi-ld:Vehicle:1","type":"Vehicle","speed":{"type":"Property","value":42}}' | show
+echo
+echo
+
+
+echo "03. GET it with that Link - short names, the @context was used"
+echo "=============================================================="
+curl -s -i "$B/entities/urn:ngsi-ld:Vehicle:1?options=keyValues" -H "$LINK" | show
+echo
+echo
+
+
+echo "04. POST an entity, application/ld+json, @context: the broker's own URL"
+echo "======================================================================="
+curl -s -i "$B/entities" -H 'Content-Type: application/ld+json' -d '{"id":"urn:ngsi-ld:Vehicle:2","type":"Vehicle","@context":"'"$OWN"'"}' | show
+echo
+echo
+
+
+echo "05. GET /jsonldContexts?details=true - the Hosted one once, the core as Cached"
+echo "============================================================================="
+curl -s -i "$B/jsonldContexts?details=true" | show
+echo
+echo
+
+
+echo "06. GET /jsonldContexts?kind=Cached - the core only"
+echo "==================================================="
+curl -s -i "$B/jsonldContexts?kind=Cached" | show
+echo
+echo
+
+
+echo "07. GET /jsonldContexts?kind=ImplicitlyCreated - none"
+echo "====================================================="
+curl -s -i "$B/jsonldContexts?kind=ImplicitlyCreated" | show
+echo
+echo
+
+
+echo "08. GET the core context's body - 422, it is Cached"
+echo "==================================================="
+curl -s -i "$B/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.9.jsonld" | show
+echo
+echo
+
+
+echo "09. GET the core context's metadata - kind Cached"
+echo "================================================="
+curl -s -i "$B/jsonldContexts/https%3A%2F%2Furi.etsi.org%2Fngsi-ld%2Fv1%2Fngsi-ld-core-context-v1.9.jsonld?details=true" | show
+echo
+echo
+
+
+echo "10. A Link to an own URL with no such @context - 504, and nothing cached"
+echo "========================================================================"
+curl -s -i "$B/entities?type=Vehicle" -H "Link: <http://localhost:$CB_PORT/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:none>; rel=\"http://www.w3.org/ns/json-ld#context\"" | show
+curl -s -i "$B/jsonldContexts" | show
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop -db coraine
+corDbDrop
+
+--EXPECT--
+01. POST a Hosted @context
+==========================
+/ngsi-ld/v1/jsonldContexts/CTXID
+
+
+02. POST an entity, Link: the broker's own URL of that @context
+===============================================================
+HTTP/1.1 201 Created
+
+
+03. GET it with that Link - short names, the @context was used
+==============================================================
+HTTP/1.1 200 OK
+{
+  "id": "urn:ngsi-ld:Vehicle:1",
+  "type": "Vehicle",
+  "speed": 42
+}
+
+
+04. POST an entity, application/ld+json, @context: the broker's own URL
+=======================================================================
+HTTP/1.1 201 Created
+
+
+05. GET /jsonldContexts?details=true - the Hosted one once, the core as Cached
+=============================================================================
+HTTP/1.1 200 OK
+[
+  {
+    "URL": "http://localhost:1026/ngsi-ld/v1/jsonldContexts/CTXID",
+    "localId": "CTXID",
+    "kind": "Hosted",
+    "createdAt": "TS",
+    "lastUsage": "TS"
+  },
+  {
+    "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+    "kind": "Cached",
+    "createdAt": "TS",
+    "lastUsage": "TS"
+  }
+]
+
+
+06. GET /jsonldContexts?kind=Cached - the core only
+===================================================
+HTTP/1.1 200 OK
+[
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+
+
+07. GET /jsonldContexts?kind=ImplicitlyCreated - none
+=====================================================
+HTTP/1.1 200 OK
+[]
+
+
+08. GET the core context's body - 422, it is Cached
+===================================================
+HTTP/1.1 422 Unprocessable Content
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
+  "title": "Operation Not Supported",
+  "status": 422,
+  "detail": "@context 'https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld' is of kind 'Cached'; only metadata (?details=true) is available"
+}
+
+
+09. GET the core context's metadata - kind Cached
+=================================================
+HTTP/1.1 200 OK
+{
+  "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
+  "kind": "Cached",
+  "createdAt": "TS",
+  "lastUsage": "TS"
+}
+
+
+10. A Link to an own URL with no such @context - 504, and nothing cached
+========================================================================
+HTTP/1.1 504 Gateway Timeout
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/LdContextNotAvailable",
+  "title": "Context Not Available",
+  "status": 504,
+  "detail": "unable to retrieve @context from 'http://localhost:1026/ngsi-ld/v1/jsonldContexts/urn:ngsi-ld:Context:none'"
+}
+HTTP/1.1 200 OK
+[
+  "http://localhost:1026/ngsi-ld/v1/jsonldContexts/CTXID",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
+

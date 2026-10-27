@@ -32,7 +32,7 @@ contextServerPush /jsonldContexts/ctxT '{
 # 04. POST Cached ({"url":…}) — 201 + Location: /jsonldContexts/<url>
 # 05. LIST Cached — the one just added (kind=Cached)
 # 06. DELETE Cached — 204
-# 07. LIST Cached — empty
+# 07. LIST Cached — the core only (a Cached copy, § 5.13.1)
 # 08. POST Cached again; DELETE with reload=true — 204; entry stays
 # 09. LIST Cached — still has one
 # 10. DELETE with reload=true on Hosted — 400 (reload valid only for Cached)
@@ -86,8 +86,8 @@ echo
 echo
 
 
-echo "07. LIST Cached (empty)"
-echo "======================="
+echo "07. LIST Cached (the core only)"
+echo "==============================="
 corCurl --url "/ngsi-ld/v1/jsonldContexts?kind=Cached"
 echo
 echo
@@ -234,7 +234,8 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 [
-  "http://localhost:7080/jsonldContexts/ctxT"
+  "http://localhost:7080/jsonldContexts/ctxT",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 ]
 
 
@@ -247,15 +248,17 @@ Date: REGEX(.*)
 
 
 
-07. LIST Cached (empty)
-=======================
+07. LIST Cached (the core only)
+===============================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
-[]
+[
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+]
 
 
 
@@ -276,7 +279,8 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 Content-Length: REGEX(\d+)
 
 [
-  "http://localhost:7080/jsonldContexts/ctxT"
+  "http://localhost:7080/jsonldContexts/ctxT",
+  "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 ]
 
 
@@ -436,7 +440,7 @@ Content-Length: REGEX(\d+)
 {
   "URL": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
   "createdAt": REGEX("[0-9T:.Z-]+"),
-  "kind": "ImplicitlyCreated",
+  "kind": "Cached",
   "lastUsage": REGEX("[0-9T:.Z-]+"),
   "localId": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
 }

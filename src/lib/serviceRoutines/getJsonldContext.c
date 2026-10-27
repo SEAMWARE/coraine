@@ -45,6 +45,7 @@
 
 #include "db/DbDriver.h"                               // db, DB_OK, DB_CONTEXT_KIND_*
 
+#include "startup/startupContext.h"                       // startupContextFromDb
 #include "serviceRoutines/getJsonldContext.h"          // Own interface
 
 
@@ -97,75 +98,6 @@ extern CorLdContextCache* corLdCacheGet(void);
 
 // -----------------------------------------------------------------------------
 //
-// loadFromDb - rehydrate one persisted context into the cache and return it.
-//
-// Returns NULL if the row isn't in the DB or if reconstruction fails.
-//
-static CorLdContext* loadFromDb(const char* contextId)
-{
-  if (db.contextGet == NULL)
-    return NULL;
-
-  CorAlloc* storeP = corLdCacheGet()->kaP;
-
-  DbContextRow row;
-  if (db.contextGet(contextId, storeP, &row) != DB_OK)
-    return NULL;
-
-  if (row.body == NULL)
-    return NULL;
-
-  //
-  // corJsonParse is destructive — keep a pristine copy for contextP->body
-  // before handing the original to the parser.
-  //
-  char*  bodyCopy = corAllocStrdup(storeP, row.body);
-
-  CorJson corJson;
-  CorJson* corJsonP = corJsonCreate(&corJson, storeP);
-
-  CorNode* treeP = corJsonParse(corJsonP, row.body);
-  if (treeP == NULL)
-    return NULL;
-
-  CorNode* atContextP = corTreeLookup(treeP, "@context");
-  if (atContextP == NULL)
-    return NULL;
-
-  // Object → single map; Array → wrapper context; String → indirect URL
-  // (the persisted body says "this @context lives at <url>"). Same code
-  // path as postJsonldContexts; covers Hosted, Cached, and the
-  // ImplicitlyCreated entries auto-generated for Subscription bodies.
-  CorLdContext* contextP = NULL;
-  if (atContextP->type == CorObject)
-    contextP = corLdContextFromObject(atContextP, storeP, row.url);
-  else if (atContextP->type == CorArray)
-    // row.url is the base any RELATIVE reference inside resolves against - it is
-    // set for a Cached @context, and NULL for a Hosted one, which has no URL
-    contextP = corLdContextFromTree(atContextP, storeP, row.url);
-  else if (atContextP->type == CorString)
-    contextP = corLdContextFromUrl(corLdUrlResolve(row.url, atContextP->value.s, storeP), storeP);
-  if (contextP == NULL)
-    return NULL;
-
-  contextP->id   = (row.id != NULL) ? row.id : corAllocStrdup(storeP, contextId);
-  contextP->body = bodyCopy;
-  contextP->kind = (row.kind == DB_CONTEXT_KIND_HOSTED)   ? CorLdKindHosted
-                  : (row.kind == DB_CONTEXT_KIND_IMPLICIT) ? CorLdKindImplicit
-                  :                                         CorLdKindCached;
-
-  corLdCacheInsert(contextP);
-
-  // Look it up again so we get the cache-resident pointer, in case insert
-  // dropped it as a duplicate (shouldn't, but cheap to be sure).
-  CorLdContext* live = corLdCacheLookup(contextId);
-  return (live != NULL) ? live : contextP;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // getJsonldContext -
 //
 bool getJsonldContext(void)
@@ -197,7 +129,7 @@ bool getJsonldContext(void)
   {
     // Lazy-reload from persistent storage (Hosted/Cached only — Implicit
     // is never persisted).
-    contextP = loadFromDb(contextId);
+    contextP = startupContextFromDb(contextId);
   }
 
   if (contextP == NULL)

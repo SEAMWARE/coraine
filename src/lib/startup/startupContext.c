@@ -6,19 +6,30 @@
 // Copyright 2026 Seamware
 // SPDX-License-Identifier: Apache-2.0
 //
+#include <stdbool.h>                                      // bool
+#include <stdio.h>                                        // snprintf
 #include <stdlib.h>                                       // malloc, strtol
 #include <string.h>                                       // memcpy, strncmp, strchr, strlen
 
 #include "corRest/corRestClient.h"                        // corRestClient*, CorRestClientRequest/Response
 
-#include "corNgsild/CorNgsild.h"                          // corNgsild
+#include "corNgsild/CorNgsild.h"                          // corNgsild, ldBrokerHttpEndpoint
 #include "corNgsild/ldError.h"                            // ldError
 #include "corNgsild/LdProblem.h"                          // LD_ERROR_BAD_REQUEST_DATA, LD_ERROR_LD_CONTEXT_NOT_AVAILABLE
 #include "corNgsild/ldDistOp.h"                           // ldDistOpEndpointIsSelf
 
 #include "corJsonld/CorLdContext.h"                       // CorLdContext
 #include "corJsonld/CorLdContextCache.h"                  // CorLdContextCache
-#include "corJsonld/corLdCache.h"                         // corLdCacheLookup
+#include "corJsonld/corLdCache.h"                         // corLdCacheLookup, corLdCacheInsert
+#include "corJsonld/corLdContextParse.h"                  // corLdContextFromObject, corLdContextFromTree
+#include "corJsonld/corLdUrlResolve.h"                    // corLdUrlResolve
+#include "corJsonld/corLdDownload.h"                      // corLdContextFromUrl
+#include "corJson/CorJson.h"                              // CorJson
+#include "corJson/corJsonCreate.h"                        // corJsonCreate
+#include "corJson/corJsonParse.h"                         // corJsonParse
+#include "corTree/corTreeLookup.h"                        // corTreeLookup
+#include "corAlloc/corAlloc.h"                            // corAlloc
+#include "corAlloc/corAllocStrdup.h"                      // corAllocStrdup
 
 #include "db/DbDriver.h"                                  // db, DbContextRow, DB_OK
 
@@ -91,6 +102,118 @@ static char* ownContextBody(const char* id)
     memcpy(copy, body, len + 1);
 
   return copy;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// startupContextFromDb - rehydrate one persisted context into the cache and return it.
+//
+// Returns NULL if the row isn't in the DB or if reconstruction fails.
+//
+CorLdContext* startupContextFromDb(const char* contextId)
+{
+  if (db.contextGet == NULL)
+    return NULL;
+
+  CorAlloc* storeP = corLdCacheGet()->kaP;
+
+  DbContextRow row;
+  if (db.contextGet(contextId, storeP, &row) != DB_OK)
+    return NULL;
+
+  if (row.body == NULL)
+    return NULL;
+
+  //
+  // corJsonParse is destructive — keep a pristine copy for contextP->body
+  // before handing the original to the parser.
+  //
+  char*  bodyCopy = corAllocStrdup(storeP, row.body);
+
+  CorJson corJson;
+  CorJson* corJsonP = corJsonCreate(&corJson, storeP);
+
+  CorNode* treeP = corJsonParse(corJsonP, row.body);
+  if (treeP == NULL)
+    return NULL;
+
+  CorNode* atContextP = corTreeLookup(treeP, "@context");
+  if (atContextP == NULL)
+    return NULL;
+
+  // Object → single map; Array → wrapper context; String → indirect URL
+  // (the persisted body says "this @context lives at <url>"). Same code
+  // path as postJsonldContexts; covers Hosted, Cached, and the
+  // ImplicitlyCreated entries auto-generated for Subscription bodies.
+  CorLdContext* contextP = NULL;
+  if (atContextP->type == CorObject)
+    contextP = corLdContextFromObject(atContextP, storeP, row.url);
+  else if (atContextP->type == CorArray)
+    // row.url is the base any RELATIVE reference inside resolves against - it is
+    // set for a Cached @context, and NULL for a Hosted one, which has no URL
+    contextP = corLdContextFromTree(atContextP, storeP, row.url);
+  else if (atContextP->type == CorString)
+    contextP = corLdContextFromUrl(corLdUrlResolve(row.url, atContextP->value.s, storeP), storeP);
+  if (contextP == NULL)
+    return NULL;
+
+  contextP->id   = (row.id != NULL) ? row.id : corAllocStrdup(storeP, contextId);
+  contextP->body = bodyCopy;
+  contextP->kind = (row.kind == DB_CONTEXT_KIND_HOSTED)   ? CorLdKindHosted
+                  : (row.kind == DB_CONTEXT_KIND_IMPLICIT) ? CorLdKindImplicit
+                  :                                         CorLdKindCached;
+
+  corLdCacheInsert(contextP);
+
+  // Look it up again so we get the cache-resident pointer, in case insert
+  // dropped it as a duplicate (shouldn't, but cheap to be sure).
+  CorLdContext* live = corLdCacheLookup(contextId);
+  return (live != NULL) ? live : contextP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// startupContextOwn - CorLdOwnContextFunction: a @context this broker hosts, by the URL it gives it
+//
+// A Link (or an @context URL in a body) that names one of the broker's own /jsonldContexts/{id} is that
+// context - Hosted, ImplicitlyCreated - from the cache, else the store; not a download of it, which the
+// library would have cached a second time, as a Cached copy under the URL.
+//
+CorLdContext* startupContextOwn(const char* url, bool* ownP)
+{
+  char        idBuf[512];
+  const char* id = ownContextId(url, idBuf, sizeof(idBuf));
+
+  *ownP = (id != NULL);
+  if (id == NULL)
+    return NULL;
+
+  CorLdContext* contextP = corLdCacheLookup(id);
+
+  if (contextP == NULL)
+    contextP = startupContextFromDb(id);
+
+  //
+  // Its URL is the one the broker serves it at - what a response compacted with it names in its Link header
+  // (a Hosted context is kept by its id, with no URL of its own)
+  //
+  if ((contextP != NULL) && (contextP->url == NULL))
+  {
+    int   size  = strlen(ldBrokerHttpEndpoint) + 27 + strlen(id) + 1;
+    char* urlP  = (char*) corAlloc(corLdCacheGet()->kaP, size);
+
+    if (urlP != NULL)
+    {
+      snprintf(urlP, size, "%s/ngsi-ld/v1/jsonldContexts/%s", ldBrokerHttpEndpoint, id);
+      contextP->url = urlP;
+    }
+  }
+
+  return contextP;
 }
 
 

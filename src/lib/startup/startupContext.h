@@ -12,6 +12,9 @@
 // The callbacks corLdInit takes, for every program built on the broker's libraries (the broker,
 // coraine-import)
 //
+#include <stdbool.h>                                       // bool
+
+#include "corJsonld/CorLdContext.h"                        // CorLdContext
 
 
 
@@ -20,6 +23,24 @@
 // startupContextDownload - CorLdDownloadFunction: a remote @context fetched (the body malloc'd - corJsonld frees it)
 //
 extern char* startupContextDownload(const char* url, int* statusCodeP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// startupContextOwn - CorLdOwnContextFunction (corLdSetOwnContext): one of this broker's own
+// /jsonldContexts/{id} URLs answered with that context, never downloaded from itself
+//
+extern CorLdContext* startupContextOwn(const char* url, bool* ownP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// startupContextFromDb - a persisted @context (Hosted, Cached, ImplicitlyCreated) by its id, put back in
+// the cache; NULL: the store has none
+//
+extern CorLdContext* startupContextFromDb(const char* contextId);
 
 
 
