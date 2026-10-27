@@ -20,6 +20,16 @@ places it deliberately does it differently. This page says what, in short.
 - **Discovery.** Topics, services and actions that nobody configured are shown
   on one catch-all entity (`urn:ngsi-ld:dds:default`, as in Orion-LD), so the
   first question - *what is on this bus?* - answers itself.
+- **An inventory for a mapping tool.** `GET /admin/bridges/dds/inventory`
+  (`--apiPlugins admin`) answers with everything the domain announced: its
+  topics, services and actions with their types, and for each type its IDL and
+  a sample with every member at its zero value. DDS has no "discovery is done",
+  so the call waits until nothing new has been announced for 3 s, 10 s at
+  most; `settled` says which of the two ended it. A broker that has been up a
+  while answers at once. The list is flat: `?from` is answered `404`, and
+  `?depth` is not used. c³'s **Discover** starts a broker for a few seconds and
+  makes this one call; the answer's shape is in
+  [the bridge's README](https://github.com/SEAMWARE/corDdsBridge#inventory).
 - **Pre-population.** Every configured attribute exists from startup - its
   entity is created if it is not there yet - with the value `"uninitialized"`
   until the first sample.
