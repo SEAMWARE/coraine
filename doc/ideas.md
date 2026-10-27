@@ -158,7 +158,7 @@ rewritten table. Poll treats that as a re-read, not a tail.
 
 The **Channel** does the NGSI-LD side, as for every bridge: which column is the entity id, a column
 holding a place becomes the `location` GeoProperty, a column naming another row becomes a
-Relationship - made in c³ Configure, beside DDS and OPC UA. The other direction comes with the seam:
+Relationship - made in c³'s mapping tool, as for DDS and OPC UA. The other direction comes with the seam:
 a Channel the other way stores a broker's entities in CKAN - what the Cygnus and Draco sinks do today,
 without a separate process.
 
@@ -271,23 +271,24 @@ independent clients, whose order is undefined anyway. [Roadmap](roadmap.md), § 
 
 ### c³ - the coraine Control Center
 
-One application for everything around a broker, in three parts:
+One application for everything around a broker, its parts named by what is done in them:
 
 - **Compile** - build a broker for a deployment: which features are compiled in, the profile
   training (PGO) and `make tune` on a workload, the target hardware; the result as a binary, a
   container image or a Debian package. It drives `coraine-build` from the `coraine-dev` package, so
   it needs no toolchain of its own.
-- **Configure** - the mapping tools: DDS topics, services and actions to NGSI-LD entities and
-  attributes (the mapping file the DDS bridge reads), and the same for OPC UA variables, monitored
-  items and methods.
-- **Connect** - a live connection to a running broker: its entities as boxes and their
+- **Operate** - brokers started and stopped, natively or in a container, their logs, configuration
+  and metrics; and the mapping tools, beside the broker they map for (and from Compile's Bridges):
+  DDS topics, services and actions to NGSI-LD entities and attributes (the mapping file the DDS
+  bridge reads), and the same for OPC UA variables, monitored items and methods.
+- **Explore** - a live connection to a running broker: its entities as boxes and their
   Relationships as arrows between them - zoom, move the view, drag entities into place - the
   entities with a GeoProperty on a map, and their values as they change.
 
 **A web application**, not a native one: the build often runs on a server without a screen, reached
 from a laptop, a Mac or a tablet; the best graph libraries are web libraries; and the broker already
 speaks HTTP and WebSocket. A small backend in C on the build machine serves the pages and runs what
-Compile and Configure need (`coraine-build`, the mapping files). Connect can also come with the
+Compile and Operate need (`coraine-build`, the mapping files). Explore can also come with the
 broker itself, as an API plugin serving the page: connecting to a broker is then opening its URL.
 
 **Starting it** - one command, `c3`: it starts the backend on a local port and opens the
