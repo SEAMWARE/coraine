@@ -4,6 +4,51 @@ What was tried for speed and dropped, regressions and how they were found, and t
 of the changes behind today's numbers. The numbers as they are now are in
 [Performance and footprint](../performance.md). Newest first.
 
+## 2026-10-27 - the persistence pause measured; batches waiting on the tree heap
+
+**The pause (#485, corDB#44) cost nothing a request, and batches looked 26-48 % slower.**
+`perfRun.sh corDB`, the durable configuration (`--dbDir` on ext4, NVMe, `--dbSync interval`, `--troe
+none`), plain release, A = coraine `f5334c12` + corDB `e5245d4`, B = coraine `2fa6186e` + corDB `173c7c7`,
+the same libraries, A B B A: every single-entity scenario within ±2.5 % (create c50 +0.1 %, PATCH c50
+−2.4 %, merge −1.3 %, reads and subscriptions within ±2 %), but batch update (20) −26.5 %, batch create
+(20) −27.6 %, batch delete (20) −47.5 %, both runs of a side within 1 %.
+
+**Not the pause.** Measured one at a time, with wrk at 50 connections against a fresh store of 100
+entities:
+
+- *The log allocated ahead.* corDB's flusher allocates 8 MiB ahead of the records every round
+  (`posix_fallocate`, under the log's mutex). Allocating only when less than 8 MiB is left, then 16 MiB
+  at once: 16 200-16 400 batch updates/s against B's 14 700-16 500 - no change.
+- *corDB at all.* A's corDB built against B's coraine: as slow as B (16 600-16 800 against A's 23 300 -
+  23 500). The admission check (`storePauseAdmit`) is one atomic load, and there `db.paused` was NULL.
+- *The data layout.* B's globals are A's moved by 0x2000 - whole pages, no new false sharing.
+
+**Contention.** The CPU and the context switches of the broker a request (`/proc`): a batch update
+~1 000 µs of CPU and 20 voluntary switches on A, ~1 650 µs and 36 on B - against 27 µs and 2 for a
+PATCH on both. With one connection the two did the same work (~100 µs a batch update, B 3 % faster);
+from 8 to 50 connections even A lost throughput (27 800 → 23 000) while its CPU a request grew
+tenfold. Thread stacks sampled with gdb under the load (30 stops, 2 100 stacks a side) named it: the
+tree heap's mutex per size class, in `corTreeHeapAlloc` and `corTreeHeapFree`, taken for every node
+the batch's merge cloned and freed - with the store's write lock, most of what the threads waited on.
+B's small changes moved more of the waiting onto the heap's mutexes; they added no work.
+
+**The fix: a cache per thread and class (corTree).** First with 32 blocks a batch whatever their size:
+batch update 23 500 → 35 000, batch create 13 400 → 32 300, but a 16-thread stress test spread over
+every class held 35 MiB of heap against 2.5 MiB without caches - a 1 KiB block's batch is 32 KiB. A
+batch of 4 KiB worth (32 blocks of up to 128 bytes, 4 of 1 024) brought it to 8.7 MiB, the batch
+numbers unchanged. The full perfRun then showed single deletes −8.7 % and creates into the large store
+−9.3 %: the cache was filled by linking 32 fresh blocks of the page under the class's mutex - the
+first touch of a new page, its fault, under the lock. Filling it with a range of the page instead
+(pointers only; the memory touched when used, with no lock) put single deletes back at B's rate. The
+full perfRun of the final code against B (B F F B): batch update +78.7 %, batch create +186 %, batch
+delete +225 %, single delete −2.4 %, create into the large store +0.8 %, RSS of 300 000 entities
+unchanged - in [Threads building trees at once](../performance.md#threads-building-trees-at-once). The
+stress test (16 threads, 9.3 million frees, 300 000 of them by another thread, threads ending with
+full caches) found no block handed out twice nor overwritten, under ThreadSanitizer and UBSan too.
+
+The batch delete "still open" since 2026-10-05 (11-20 % below the tables before the worker pool) was
+this: more workers, more of them waiting on the same classes. With the caches it is above those tables.
+
 ## 2026-10-21 - size on disk measured again; the smallest broker
 
 The size tables were from 2026-10-01. Measured again on main `f4f4a92a`, the same way (stripped, against a
