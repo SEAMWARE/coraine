@@ -60,9 +60,30 @@ extern bool transportEndpointOwn(const char* uri);
 //
 // transportLeftoversDelete - every subscription and context source subscription that notifies a connection
 // of another run (a broker killed or crashed), deleted in every tenant; after corRestInit, and not with
-// --high-availability (another instance's connections are of another run too)
+// --high-availability (another instance's connections are of another run too - transportRunsStart)
 //
 extern void transportLeftoversDelete(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// transportDropAll - every connection of every transport closed with this close status (not waited for)
+//
+extern void transportDropAll(int status);
+
+
+
+#if COR_FEATURE_HA_RUNS
+// -----------------------------------------------------------------------------
+//
+// transportRunsStart / transportRunsStop - under --high-availability: this run's heartbeat in the store's
+// "runs" documents, and the WebSocket subscriptions of every run gone deleted (transport.c); start after
+// corRestInit and before the broker accepts a connection; stop after transportStop
+//
+extern bool transportRunsStart(void);
+extern void transportRunsStop(void);
+#endif
 
 
 

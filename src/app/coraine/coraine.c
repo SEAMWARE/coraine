@@ -425,6 +425,9 @@ static void shutdownInOrder(void)
   //
 #if COR_FEATURE_TRANSPORTS
   transportStop();                                  // its connections closed: their subscriptions deleted
+#if COR_FEATURE_HA_RUNS
+  transportRunsStop();                              // this run's document deleted
+#endif
 #endif
   bridgesClose();
 
@@ -2350,11 +2353,15 @@ int main(int argC, char* argV[])
   //
 #if COR_FEATURE_TRANSPORTS
   //
-  // The WebSocket subscriptions. With --high-availability they may be another instance's, alive
-  // (doc/roadmap.md).
+  // The WebSocket subscriptions. With --high-availability they may be another instance's, alive: there,
+  // the runs' heartbeats say which instances are gone (doc/websocket.md)
   //
   if (haChannel == NULL)
     transportLeftoversDelete();
+#if COR_FEATURE_HA_RUNS
+  else if (transportRunsStart() == false)
+    COR_X(1, "HA: the runs' heartbeat could not be started");
+#endif
 #endif
 
 #if COR_FEATURE_SSE

@@ -517,6 +517,25 @@ static bool init(TransportHost* _hostP, char* errorBuf, int errorBufSize)
   return true;
 }
 
+//
+// drop - every connection's read ends, after a close frame with this status (§ 7.4) - its thread closes
+// it and tells the broker; not waited for
+//
+static void drop(int status)
+{
+  pthread_mutex_lock(&connMutex);
+
+  for (WsConn* cP = connList; cP != NULL; cP = cP->next)
+  {
+    char payload[2] = { (char) (status >> 8), (char) (status & 0xFF) };
+
+    frameWrite(cP, 0x8, payload, 2);
+    shutdown(cP->fd, SHUT_RD);
+  }
+
+  pthread_mutex_unlock(&connMutex);
+}
+
 static void stop(void)
 {
   //
@@ -565,4 +584,5 @@ void transportRegister(TransportDriver* driverP)
   driverP->take       = take;
   driverP->send       = wsSend;
   driverP->stop       = stop;
+  driverP->drop       = drop;
 }

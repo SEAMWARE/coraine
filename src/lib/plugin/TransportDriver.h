@@ -27,7 +27,7 @@
 
 
 
-#define TRANSPORT_ABI_VERSION  1
+#define TRANSPORT_ABI_VERSION  2
 
 
 
@@ -82,6 +82,14 @@ typedef struct TransportDriver
 
   bool  (*send)(int connId, const char* text, int len);   // a text message to a connection; any thread
   void  (*stop)(void);
+
+  //
+  // ABI 2
+  //
+  // drop - every connection closed with this close status (WebSocket: 1012, service restart), not waited
+  // for: each one's thread closes it and calls closed. Any thread; the plugin keeps running.
+  //
+  void  (*drop)(int status);
 } TransportDriver;
 
 typedef void (*TransportRegisterFunc)(TransportDriver* driverP);

@@ -1,0 +1,146 @@
+#
+# FILE            ha_ws_run_gone.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_HA: yes
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS TRANSPORTS HA_RUNS
+#
+# MongoDB-only: two brokers sharing ONE MongoDB database, synchronised by its change streams - corDB has no shared database
+# REQUIRE_DB: mongoc
+#
+--NAME--
+HA - the WebSocket subscriptions of an instance killed are deleted by the instances alive (beat every 10 s, gone after 60 s)
+
+--TAGS--
+ha mongoc websocket subscription
+
+--INIT--
+corDbDrop
+corDbDrop -role CB2
+coraineStart --high-availability mongo --transports ws
+coraineStart -role CB2 --dbName corTest --high-availability mongo --transports ws --apiPlugins admin
+
+--RUN--
+
+#
+# Two brokers, ONE database, both with --high-availability mongo --transports ws. Each writes the
+# beat of its run every 10 s; a run with no beat for 60 s is gone, and the subscriptions notifying
+# one of its WebSocket connections are deleted by the instances alive.
+#
+# 01. A WebSocket connection to CB: subscription urn:S1 notifying it
+# 02. A WebSocket connection to CB2: subscription urn:S2 notifying it; CB2's info lines on (PUT /admin/log?info=on)
+# 03. CB2 has both subscriptions
+# 04. kill -9 CB
+# 05. Within 80 s CB2 no longer has urn:S1 - urn:S2, of a run alive, stays
+# 06. CB2's log: the run gone, urn:S1 deleted - once
+#
+
+#
+# wsSub <port> <subId> - a WebSocket connection to the broker on <port>, a subscription <subId> notifying it
+# subIds <port>       - the ids of the subscriptions of the broker on <port>, sorted
+#
+wsSub() {
+  ftWsStart $1
+  ftWsSend '{"metadata":{"method":"GET","path":"/version","requestId":"v"}}'
+  ftWsAwait 1 > /dev/null
+  local conn=$(ftWsMessages | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["metadata"]["connection"])')
+  ftWsSend '{"metadata":{"method":"POST","path":"/ngsi-ld/v1/subscriptions","requestId":"s"},"body":{"id":"'$2'","type":"Subscription","entities":[{"type":"Room"}],"notification":{"endpoint":{"uri":"'"$conn"'"}}}}'
+  ftWsAwait 3 > /dev/null
+  ftWsMessages | python3 -c 'import json,sys; print([(m["metadata"]["requestId"], m["metadata"]["status"]) for m in json.load(sys.stdin) if m.get("metadata",{}).get("requestId") == "s"])'
+}
+subIds() {
+  curl -s localhost:$1/ngsi-ld/v1/subscriptions | python3 -c 'import json,sys; print(sorted(s["id"] for s in json.load(sys.stdin)))'
+}
+
+echo "01. A WebSocket connection to CB: subscription urn:S1 notifying it"
+echo "=================================================================="
+wsSub $CB_PORT urn:S1
+echo
+echo
+
+
+echo "02. A WebSocket connection to CB2: subscription urn:S2 notifying it"
+echo "==================================================================="
+FT_WS_PORT=7731
+wsSub 1032 urn:S2
+curl -s -o /dev/null -w '%{http_code}\n' -X PUT 'localhost:1032/admin/log?info=on'
+echo
+echo
+
+
+echo "03. CB2 has both subscriptions"
+echo "=============================="
+for i in $(seq 1 50); do [ "$(subIds 1032)" = "['urn:S1', 'urn:S2']" ] && break; sleep 0.1; done
+subIds 1032
+echo
+echo
+
+
+echo "04. kill -9 CB"
+echo "=============="
+kill -9 $(cat /tmp/coraine_CB.pid)
+rm -f /tmp/coraine_CB.pid
+echo killed
+echo
+echo
+
+
+echo "05. Within 80 s CB2 no longer has urn:S1 - urn:S2, of a run alive, stays"
+echo "========================================================================"
+for i in $(seq 1 160); do [ "$(subIds 1032)" = "['urn:S2']" ] && break; sleep 0.5; done
+subIds 1032
+echo
+echo
+
+
+echo "06. CB2's log: the run gone, urn:S1 deleted - once"
+echo "=================================================="
+command grep -c 'HA: run [0-9a-f]* gone - no beat for 60 s' /tmp/coraine.CB2.log
+command grep -c "'/ngsi-ld/v1/subscriptions/urn:S1' (tenant default) deleted - it notified a connection of a run that is gone" /tmp/coraine.CB2.log
+echo
+echo
+
+
+--EXPECT--
+01. A WebSocket connection to CB: subscription urn:S1 notifying it
+==================================================================
+[('s', 201)]
+
+
+02. A WebSocket connection to CB2: subscription urn:S2 notifying it
+===================================================================
+[('s', 201)]
+200
+
+
+03. CB2 has both subscriptions
+==============================
+['urn:S1', 'urn:S2']
+
+
+04. kill -9 CB
+==============
+killed
+
+
+05. Within 80 s CB2 no longer has urn:S1 - urn:S2, of a run alive, stays
+========================================================================
+['urn:S2']
+
+
+06. CB2's log: the run gone, urn:S1 deleted - once
+==================================================
+1
+1
+
+
+--TEARDOWN--
+ftWsStop
+FT_WS_PORT=7731 ftWsStop
+coraineStop -role CB2
+coraineStop
+corDbDrop
