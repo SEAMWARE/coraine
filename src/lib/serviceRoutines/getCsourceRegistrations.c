@@ -284,6 +284,10 @@ bool getCsourceRegistrations(void)
     // Post-filters compact matchV in-place. Order: q (CSR user-Properties)
     // then scopeQ (CSR's scope field). § 5.10.2.4 lists them as separate
     // conjunctive conditions on the regs.
+    //
+    // Every match comes PINNED (ldRegCacheMatchForDiscovery): a registration a filter drops is
+    // unpinned on the spot, and the release at the end takes the passN that are left - so each
+    // pin is taken back exactly once.
     int passN = matchN;
 
     for (int f = 0; f < 2; f++)
@@ -295,6 +299,8 @@ bool getCsourceRegistrations(void)
       {
         if (matchV[i]->regTree != NULL && ldEntityMatchQ(matchV[i]->regTree, regFilterV[f]))
           matchV[n++] = matchV[i];
+        else
+          ldRegCacheItemUnpin(matchV[i]);
       }
       passN = n;
     }
@@ -307,6 +313,8 @@ bool getCsourceRegistrations(void)
         CorNode* scopeP = (matchV[i]->regTree != NULL) ? corTreeLookup(matchV[i]->regTree, "scope") : NULL;
         if (ldEntityMatchScope(scopeP, corNgsild.scopeExpr))
           matchV[n++] = matchV[i];
+        else
+          ldRegCacheItemUnpin(matchV[i]);
       }
       passN = n;
     }
@@ -322,7 +330,10 @@ bool getCsourceRegistrations(void)
       {
         CorNode* tree = matchV[i]->regTree;
         if (tree == NULL)
+        {
+          ldRegCacheItemUnpin(matchV[i]);
           continue;
+        }
 
         bool hasObs  = (corTreeLookup(tree, "observationInterval") != NULL ||
                         corTreeLookup(tree, "https://uri.etsi.org/ngsi-ld/observationInterval") != NULL);
@@ -334,6 +345,8 @@ bool getCsourceRegistrations(void)
           // No temporal query → keep only "latest-info" CSRs (no intervals).
           if (!hasObs && !hasMgmt)
             matchV[n++] = matchV[i];
+          else
+            ldRegCacheItemUnpin(matchV[i]);
         }
         else
         {
@@ -341,6 +354,8 @@ bool getCsourceRegistrations(void)
           // interval AND that match the predicate.
           if (csrTemporalMatch(tree))
             matchV[n++] = matchV[i];
+          else
+            ldRegCacheItemUnpin(matchV[i]);
         }
       }
       passN = n;
@@ -375,6 +390,8 @@ bool getCsourceRegistrations(void)
                           : matchV[i]->locationP;
         if (db.csrGeoMatchExactFunc(csrGeoP, corNgsild.geoRel, corNgsild.geometry, corNgsild.coordinates))
           matchV[n++] = matchV[i];
+        else
+          ldRegCacheItemUnpin(matchV[i]);
       }
       passN = n;
     }
@@ -451,7 +468,7 @@ bool getCsourceRegistrations(void)
     }
 
     if (haveIdRegex) regfree(&idRegex);
-    ldRegCacheMatchRelease(matchV, matchN);
+    ldRegCacheMatchRelease(matchV, passN);
 
     // § 6.3.10 Link header for pagination — rel=next when more rows
     // remain past skip+limit, rel=prev/first when offset > 0.

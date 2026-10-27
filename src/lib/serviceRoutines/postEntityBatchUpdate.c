@@ -223,7 +223,7 @@ static char* renderBatchBody(LdRegCacheItem* csr, CorNode* batchArr)
 
   for (CorNode* fragP = batchArr->value.head; fragP != NULL; fragP = fragP->next)
   {
-    corLdCompactTreeWith(fragP, fwdCtx);
+    corLdCompactTreeWith(fragP, fwdCtx, &corRest.kalloc);
 
     CorNode* atCtx = corTreeLookup(fragP, "@context");
     if (atCtx != NULL)

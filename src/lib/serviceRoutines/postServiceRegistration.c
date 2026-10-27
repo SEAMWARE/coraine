@@ -68,7 +68,7 @@ bool postServiceRegistration(void)
   if (otherId != NULL)
   {
     ldError(409, LD_ERROR_ALREADY_EXISTS, "Already Exists", "Service Registration '%s' already offers the service '%s' on entities this registration could select - a service name is unique within an entity",
-            otherId, corLdCompact(corNgsild.contextP, corTreeLookup(corTreeLookup(regP, "serviceInformation"), "serviceName")->value.s));
+            otherId, corLdCompact(corNgsild.contextP, corTreeLookup(corTreeLookup(regP, "serviceInformation"), "serviceName")->value.s, &corRest.kalloc));
     return true;
   }
 
