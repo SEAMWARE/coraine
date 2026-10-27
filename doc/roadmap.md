@@ -109,9 +109,9 @@ Recently built, and documented where it lives:
 -   **What a running broker is** - `GET /admin/config` (every option it runs with, a secret masked), whether
     its build has traces (`/admin/log`), a bridge's inventory for a mapping tool
     (`/admin/bridges/{bridge}/inventory`).
--   **c³ - Operate and Connect** - brokers started and stopped, natively or in a container, with their
+-   **c³ - Operate and Explore** - brokers started and stopped, natively or in a container, with their
     services; their logs, log and trace levels, configuration and metrics as charts; signing in to a
-    broker's security (an OpenID provider, or the Data Space Connector's verifier). Connect: a running
+    broker's security (an OpenID provider, or the Data Space Connector's verifier). Explore: a running
     broker's entities as a graph, the GeoProperty ones on a map (online, or offline from downloaded
     areas), their values live over the WebSocket transport or HTTP notifications, and the entity editor.
     ([more](ideas.md#c-the-coraine-control-center))
@@ -126,8 +126,8 @@ Recently built, and documented where it lives:
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
     ([EntityMaps](installation.md#entitymaps)).
--   **c³ - Configure: the DDS mapping tool** - DDS topics, services and actions to entities and
-    attributes, in the Control Center (Operate, and Compile's Bridges): made from the bridge's inventory
+-   **c³: the DDS mapping tool** - DDS topics, services and actions to entities and attributes, in
+    Operate, beside the broker it maps for, and from Compile's Bridges: made from the bridge's inventory
     (`/admin/bridges/{bridge}/inventory`), with the DDS domain, the transport (UDP or shared memory) and
     the network interfaces to reach it; it writes the mapping file and the default user @context, and
     starts a broker with them ([DDS and ROS 2](dds.md)).
@@ -157,8 +157,9 @@ typically within the subsequent release(s) generated in the next **9 months**:
     trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
     allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
     where its RAM goes is measured first, and the resident set at a few store sizes is documented.
--   **c³ - Configure: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to
-    entities and attributes, as for DDS. ([more](ideas.md#c-the-coraine-control-center))
+-   **c³: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to entities and
+    attributes, the same tool as for DDS: in Operate, and from Compile's Bridges, made from the OPC UA
+    bridge's inventory. ([more](ideas.md#c-the-coraine-control-center))
 -   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
     routes (a `LineString` each), stops and trips from its static GTFS; its vehicles' live positions
     (GTFS-realtime, Protocol Buffers over HTTP, polled) as `Bus` entities related to their trip, route
@@ -196,7 +197,7 @@ product is heading and may wish to get involved.
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
--   **c³ Connect inside the broker** - Connect, the Control Center's live view of a broker's entities, as
+-   **c³ Explore inside the broker** - Explore, the Control Center's live view of a broker's entities, as
     an API plugin of the broker itself: no c³ to install. ([more](ideas.md#c-the-coraine-control-center))
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Cold storage for history in Parquet** - older history moved out of the TRoE store into Parquet

@@ -143,7 +143,7 @@ file and installing a `.deb` without the repository are in
 
 ## c³ - the coraine Control Center
 
-![c³ Connect: Boston's bike stations and districts, live from a coraine broker, on the map](doc/images/c3-connect-map.jpg)
+![c³ Explore: Boston's bike stations and districts, live from a coraine broker, on the map](doc/images/c3-connect-map.jpg)
 
 **c³** is one application for everything around a coraine broker - it runs on your machine and opens
 in a browser window of its own:
