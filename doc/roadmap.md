@@ -144,17 +144,19 @@ settles on.
 
 ## Short term
 
-The following features are planned to be addressed in the short term and
-incorporated in the next release of the product, in roughly this order:
-
--   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
-    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+Nothing at the moment - the next release ships what is under [Available now](#available-now).
 
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
+    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+-   **A small build: less RAM, slower** - one build switch that picks memory over speed everywhere it
+    trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
+    allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
+    where its RAM goes is measured first, and the resident set at a few store sizes is documented.
 -   **c³ - Configure: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to
     entities and attributes, as for DDS. ([more](ideas.md#c-the-coraine-control-center))
 -   **Live public transport: a GTFS-realtime bridge, and buses moving in c³** - a transit agency's
