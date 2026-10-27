@@ -1144,6 +1144,14 @@ level 1 - an entity, its Property, and 98 levels of value. A deeper body is refu
 `InvalidRequest`, detail `request body nested deeper than 100 levels`, while it is parsed: the parser stops
 at level 101 and goes no deeper, whatever the body's size. The limit is fixed; no option changes it.
 
+A body's **numbers** follow JSON's grammar (RFC 8259 § 6): `+5`, `1.`, `.5`, a bare `-`, `01` and `0x1`
+are refused with 400 `InvalidRequest`, detail `request body is not valid JSON`, and so is a number past the
+range of a double (`1e400`). An integer that does not fit 64 bits (`12345678901234567890`) is stored as a
+float; from -9223372036854775808 to 9223372036854775807 an integer stays an integer. A float is stored as
+the double nearest to its text, whatever its number of decimals, so `q=a==0.3` finds the `0.3` a client
+sent. A response gives a float with at most 9 decimals, or with an exponent when it is 1e21 or more, or too
+small for 9 decimals to show.
+
 ## Response size
 
 **`--maxResponseSize <MiB>`** (0 = no budget, at most 4096) is the byte budget of an entity query: `GET /ngsi-ld/v1/entities` and `POST /ngsi-ld/v1/entityOperations/query`, on the live
