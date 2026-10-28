@@ -89,7 +89,9 @@ sudo apt install ./coraine_0.6.1+ubuntu24.04_amd64.deb      # apt resolves the d
 ```
 
 Versions: `0.6.1+<dist>` for a release, `0.6.1+git<YYYYMMDD>.<sha8>+<dist>` for a build of any later
-commit of `main` (it sorts after `0.6.1` and before the next release). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
+commit of `main` (it sorts after `0.6.1` and before the next release), `0.6.1+<dist>.<N>` for a
+package revision - the release 0.6.1 built again with a fix of c³'s, the broker the same (`apt upgrade`
+installs it; `MANIFEST.txt` names c³'s commit). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
 
 ### The coraine package
 

@@ -65,7 +65,7 @@ mkdir -p "$WORK"
 tar -xJf "$SRC" -C "$WORK" --wildcards coraine-*/SOURCE coraine-*/MANIFEST.txt
 . "$WORK"/coraine-*/SOURCE          # version, gitSha, commitDate
 UPSTREAM=$version
-DEBVER=$UPSTREAM+$DIST
+DEBVER=$UPSTREAM+$DIST${DEB_REVISION:+.$DEB_REVISION}     # a package revision (packages.yml): the same release, c³ later
 echo "build.sh: coraine $DEBVER ($ARCH, $BUILD_KIND) from ${gitSha:0:8}"
 
 #
@@ -214,6 +214,7 @@ for p in coraine coraine-dev; do
     echo "$p ($DEBVER) $CODENAME; urgency=medium"
     echo
     echo "  * coraine $UPSTREAM, built from commit ${gitSha:0:12}."
+    [ -z "${DEB_REVISION:-}" ] || echo "    Package revision $DEB_REVISION: the same release, c³ at a later commit (MANIFEST.txt)."
     echo "    Every Cor-Lib's commit: /usr/share/doc/$p/MANIFEST.txt."
     echo "    The changes: CHANGELOG.md in the source."
     echo
