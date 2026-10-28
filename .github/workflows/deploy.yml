@@ -84,6 +84,8 @@ jobs:
           version=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' \
                     src/app/coraine/coraineVersion.h)
           [ -n "$version" ] || { echo "::error::no CORAINE_VERSION in coraineVersion.h"; exit 1; }
+          # "0.6.0+dev" (main, after 0.6.0) -> 0.6.0-post-...: an image tag cannot hold '+'
+          [[ "$version" != *+* ]] || version="${version%%+*}-post"
           echo "value=${version}-$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 

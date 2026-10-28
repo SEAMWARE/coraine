@@ -9,7 +9,7 @@
 #   - a release: release.yml calls this once it has tagged every Cor-Lib, with libs_ref = the tag, so the
 #     packages hold exactly the libraries the release image holds (version 0.4.0+<dist>)
 #   - by hand: Actions -> Packages -> Run workflow (or `gh workflow run packages.yml --ref <branch>`) - a
-#     build of that commit with each lib's main (version 0.4.0~git<date>.<sha>+<dist>)
+#     build of that commit with each lib's main (version 0.6.0+git<date>.<sha>+<dist>)
 # Not on every merge: six native builds of the whole stack, profile-guided, then twelve install tests -
 # the price of one per merge is not worth paying until there is a repository to publish them to.
 #

@@ -246,8 +246,8 @@ corDB runs with `--dbDir` (the durable configuration); both run with `--troe non
 Everything a release is checked with, in one run of `.github/workflows/prerelease.yml`:
 
 ```sh
-gh workflow run prerelease.yml -f ref=release/0.5.0              # soakMinutes=120, only=all
-gh workflow run prerelease.yml -f ref=release/0.5.0 -f only=soak -f soakMinutes=30
+gh workflow run prerelease.yml -f ref=main                       # soakMinutes=120, only=all
+gh workflow run prerelease.yml -f ref=main -f only=soak -f soakMinutes=30
 ```
 
 or Actions → Pre-release → Run workflow.
