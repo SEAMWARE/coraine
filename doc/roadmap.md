@@ -116,7 +116,10 @@ Recently built, and documented where it lives:
     areas), their values live over the WebSocket transport or HTTP notifications, and the entity editor.
     ([more](ideas.md#c-the-coraine-control-center))
 -   **The documentation in c³, and as a website** - the guides of c³'s Documentation page, written from
-    these pages for the reader, searchable, offline in c³; the same pages at
+    these pages for the reader: installation, administration, the API, building, deploying, performance,
+    the transports, the bridges, authorization, the internals, and a guide and an API reference (from its
+    headers) per cor-lib; each guide links the repositories it is written from. Searchable, offline in c³
+    (installed with the `coraine` package); the same pages at
     [seamware.github.io/docs](https://seamware.github.io/docs/).
 -   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
     (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
@@ -151,8 +154,8 @@ Nothing at the moment - the next release ships what is under [Available now](#av
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
-    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+-   **A skeleton repository per kind of plugin** - a current-state store, a temporal store, an API, a
+    transport, a bridge: a makefile, a template `.c`/`.h`, a functest and CI each, made with `c3 new plugin`.
 -   **A small build: less RAM, slower** - one build switch that picks memory over speed everywhere it
     trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
     allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
