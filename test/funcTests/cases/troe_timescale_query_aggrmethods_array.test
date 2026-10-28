@@ -1,0 +1,112 @@
+#
+# FILE            troe_timescale_query_aggrmethods_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# aggrMethods in a temporal Query body's temporalQ (TemporalParams § 5.2.6.7.4) is a String or a
+# String[]: a String is a comma separated list of aggregation methods, in a String[] each item is ONE
+# method - never a comma separated list. Both forms give the same aggregation; the method names are
+# checked as for the URL parameter (§ 3.2.7).
+#
+--NAME--
+POST temporal Query - temporalQ.aggrMethods a String or a String[]
+
+--TAGS--
+temporal aggregation query
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
+
+--RUN--
+
+echo "01. Seed urn:V1 with two speed instances"
+echo "========================================"
+payload='{
+  "id":   "urn:V1",
+  "type": "Vehicle",
+  "speed":[
+    {"type":"Property","value":10,"observedAt":"2026-04-28T10:00:00Z"},
+    {"type":"Property","value":20,"observedAt":"2026-04-28T12:00:00Z"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload "$payload" | head -1
+echo
+echo
+
+
+query() {
+  corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?format=aggregatedValues' -X POST --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"temporalQ":{"timerel":"between","timeAt":"2026-04-28T09:00:00Z","endTimeAt":"2026-04-28T13:00:00Z","aggrPeriodDuration":"PT4H","aggrMethods":'"$1"'}}'
+}
+
+echo "02. aggrMethods [\"avg\",\"max\"] and \"avg,max\" - the same aggregation"
+echo "=================================================================="
+a=$(query '["avg","max"]' | sed -n '/^\[/,$p')
+s=$(query '"avg,max"' | sed -n '/^\[/,$p')
+echo "$a"
+[ "$a" == "$s" ] && echo "the String gives the same" || { echo "the String gives:"; echo "$s"; }
+echo
+echo
+
+
+echo "03. A String[] with a comma separated item, an unknown method, a number: 400"
+echo "============================================================================"
+for list in '["avg,max"]' '["avg","bogus"]' '["avg",1]'; do
+  query "$list" | grep -E '^HTTP|"detail"'
+done
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corTroeDrop
+corDbDrop
+
+--EXPECT--
+01. Seed urn:V1 with two speed instances
+========================================
+HTTP/1.1 201 Created
+
+
+02. aggrMethods ["avg","max"] and "avg,max" - the same aggregation
+==================================================================
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "avg": [
+        [
+          15,
+          "2026-04-28T09:00:00Z",
+          "2026-04-28T13:00:00Z"
+        ]
+      ],
+      "max": [
+        [
+          20,
+          "2026-04-28T09:00:00Z",
+          "2026-04-28T13:00:00Z"
+        ]
+      ],
+      "type": "Property"
+    },
+    "type": "Vehicle"
+  }
+]
+the String gives the same
+
+
+03. A String[] with a comma separated item, an unknown method, a number: 400
+============================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'temporalQ.aggrMethods': each item of the array is one name, not a comma separated list: 'avg,max'",
+HTTP/1.1 400 Bad Request
+  "detail": "'bogus' is not a valid aggregation method (§ 3.2.7)",
+HTTP/1.1 400 Bad Request
+  "detail": "'temporalQ.aggrMethods': each item of the array must be a string",
+
+

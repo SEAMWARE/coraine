@@ -18,6 +18,7 @@
 #include "corNgsild/ldQRender.h"                     // ldQRenderStored
 
 #include "corNgsild/ldQExpandValues.h"                   // ldQExpandValues, ldQRawValuePaths, ldAttrListExpand
+#include "corNgsild/ldNameList.h"                    // ldNameListCsv
 #include "serviceRoutines/subscriptionQExpand.h"     // Own interface
 
 
@@ -56,9 +57,10 @@ void subscriptionQExpand(CorNode* subP)
   CorNode* evP = corTreeLookup(subP, "expandValues");
   CorNode* jkP = corTreeLookup(subP, "jsonKeys");
   CorNode* lpP = corTreeLookup(subP, "langProperties");
-  char**   evV = ((evP != NULL) && (evP->type == CorString)) ? ldAttrListExpand(evP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
-  char**   jkV = ((jkP != NULL) && (jkP->type == CorString)) ? ldAttrListExpand(jkP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
-  char**   lpV = ((lpP != NULL) && (lpP->type == CorString)) ? ldAttrListExpand(lpP->value.s, corNgsild.contextP, &corRest.kalloc) : NULL;
+  // Each a String (comma separated) or a String[] (one name per item) - ldNameListCsv reads both
+  char**   evV = ldAttrListExpand(ldNameListCsv(evP, &corRest.kalloc), corNgsild.contextP, &corRest.kalloc);
+  char**   jkV = ldAttrListExpand(ldNameListCsv(jkP, &corRest.kalloc), corNgsild.contextP, &corRest.kalloc);
+  char**   lpV = ldAttrListExpand(ldNameListCsv(lpP, &corRest.kalloc), corNgsild.contextP, &corRest.kalloc);
 
   ldQExpandValues(qExprP, evV, corNgsild.contextP, &corRest.kalloc);
 
