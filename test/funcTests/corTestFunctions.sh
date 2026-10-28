@@ -598,6 +598,31 @@ corTroeDrop() {
   psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U "$COR_TROE_USER" -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1
 }
 
+
+
+# -----------------------------------------------------------------------------
+#
+# corTroeSettle [tenant] - wait until the broker's queued TRoE writes are committed
+#
+# --troeSync hands a request's history to the writers before the response, but no
+# response waits for the commit. A temporal read through the broker does: it waits
+# for every write queued before it (timescaleWriterBarrier). psql reading the
+# tables directly does not - after a fixed sleep it raced the writers, and lost
+# under valgrind. This is that temporal read, its response thrown away.
+#
+# Prints nothing: it is a barrier, not a step, and must not disturb the expect.
+#
+corTroeSettle() {
+  local tenant="$1"
+
+  if [ -n "$tenant" ]; then
+    corCurl --url /ngsi-ld/v1/temporal/entities/urn:corTroeSettle -H "NGSILD-Tenant: $tenant" > /dev/null 2>&1
+  else
+    corCurl --url /ngsi-ld/v1/temporal/entities/urn:corTroeSettle > /dev/null 2>&1
+  fi
+  return 0
+}
+
 # Default-role (CB) TRoE DB name, for tests that inspect the TRoE tables
 # directly with `psql -d "$COR_TROE_DB"`.
 export COR_TROE_DB="$(corTroeDbName CB)"

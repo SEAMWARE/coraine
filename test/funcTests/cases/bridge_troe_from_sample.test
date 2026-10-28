@@ -60,6 +60,7 @@ echo
 echo "02. troe_attrs - the sample's own row, and ONLY that: the placeholder is not history"
 echo "===================================================================================="
 sleep 0.5
+corTroeSettle
 psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), op, v_number FROM troe_attrs ORDER BY modified_at"
 echo

@@ -38,7 +38,7 @@ corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"running":{
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"owner":{"type":"Relationship","object":"urn:Person:1"}}' >/dev/null
 # GeoProperty → v_compound (GeoJSON object)
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs -X PATCH --payload '{"location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1.2,3.4]}}}' >/dev/null
-sleep 0.2
+corTroeSettle
 echo "done"
 echo
 echo
