@@ -88,8 +88,8 @@ repository:
 sudo apt install ./coraine_0.6.0+ubuntu24.04_amd64.deb      # apt resolves the dependencies
 ```
 
-Versions: `0.6.0+<dist>` for a release, `0.6.0~git<YYYYMMDD>.<sha8>+<dist>` for a build of any other
-commit (it sorts before `0.6.0`). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
+Versions: `0.6.0+<dist>` for a release, `0.6.0+git<YYYYMMDD>.<sha8>+<dist>` for a build of any later
+commit of `main` (it sorts after `0.6.0` and before the next release). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
 
 ### The coraine package
 

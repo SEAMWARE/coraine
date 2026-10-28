@@ -13,7 +13,7 @@
 #
 # Run it: Actions -> Pre-release -> Run workflow, or
 #
-#   gh workflow run prerelease.yml -f ref=release/0.5.0 [-f soakMinutes=120] [-f only=all]
+#   gh workflow run prerelease.yml -f ref=main [-f soakMinutes=120] [-f only=all]
 #
 # Every part tests ONE commit - the sha `ref` names when the run starts, resolved once below - so a
 # branch that moves during the hours this takes does not split the campaign over two commits. The
@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'The coraine ref to check: a branch, tag or sha (release/0.5.0)'
+        description: 'The coraine ref to check: a branch, tag or sha (main)'
         required: true
         default: main
       soakMinutes:
@@ -87,14 +87,19 @@ jobs:
         run: |
           sha=$(git rev-parse HEAD)
           #
-          # The release before this one: the newest v* tag whose version is below the ref's own (its
-          # coraineVersion.h, "-dev" dropped) - by version, not by ancestry: a release is tagged on its
-          # release branch, and v0.5.0 is not an ancestor of main (git describe found v0.4.0). A ref that is
-          # itself tagged (v0.5.0) is checked against the release before it, not against itself.
+          # The release before this one, by version, not by ancestry (v0.5.0 is on a release branch, not
+          # an ancestor of main). A release candidate ("0.7.0" in its coraineVersion.h, tagged or not) is
+          # checked against the newest v* tag below it; main between releases ("0.6.0+dev") against the
+          # release it follows, v0.6.0.
           #
-          own=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\([0-9.]*\).*/\1/p' src/app/coraine/coraineVersion.h)
-          previous=$( { git tag -l 'v[0-9]*' | sed 's/^v//'; echo "$own"; } | sort -uV \
-                      | awk -v own="$own" '$0 == own { print prev; exit } { prev = $0 }')
+          full=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' src/app/coraine/coraineVersion.h)
+          own=${full%%+*}
+          if [[ "$full" == *+* ]]; then
+            previous=$(git tag -l "v$own" | sed 's/^v//')
+          else
+            previous=$( { git tag -l 'v[0-9]*' | sed 's/^v//'; echo "$own"; } | sort -uV \
+                        | awk -v own="$own" '$0 == own { print prev; exit } { prev = $0 }')
+          fi
           if [ -z "$own" ] || [ -z "$previous" ]; then
             echo "::error::no release before '$own' among the v* tags"; exit 1
           fi
