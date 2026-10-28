@@ -11,8 +11,9 @@
 # sorts after the release of the same <X>, before the next release - and after every git build of
 # an earlier day. Two merges on the same day sort by sha, i.e. arbitrarily.
 #
-# The distribution suffix (+ubuntu26.04 ...) is not added here: build.sh adds it, inside the container
-# that knows which distribution it is.
+# The distribution (ubuntu26.04 ...) is not added here: build.sh adds it, inside the container that
+# knows which distribution it is - right after <X>, a git build's date and sha after it
+# (0.6.0+ubuntu24.04.20261029.git04785a2c), so that it sorts as above on Ubuntu too.
 #
 # DEB_UPSTREAM_VERSION in the environment wins.
 #

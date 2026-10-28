@@ -9,7 +9,7 @@
 #   - a release: release.yml calls this once it has tagged every Cor-Lib, with libs_ref = the tag, so the
 #     packages hold exactly the libraries the release image holds (version 0.4.0+<dist>)
 #   - by hand: Actions -> Packages -> Run workflow (or `gh workflow run packages.yml --ref <branch>`) - a
-#     build of that commit with each lib's main (version 0.6.0+git<date>.<sha>+<dist>)
+#     build of that commit with each lib's main (version 0.6.1+<dist>.<date>.git<sha>)
 #   - a package revision: a release's packages built again, coraine and the libs at the release's tag, c³
 #     at a later commit (c3_ref) - a fix of c³'s, no new release. Version <X>+<dist>.<revision>, above the
 #     release's <X>+<dist> and below <X+1>'s: apt upgrades to it. The build scripts are the workflow's own

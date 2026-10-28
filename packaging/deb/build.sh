@@ -65,7 +65,23 @@ mkdir -p "$WORK"
 tar -xJf "$SRC" -C "$WORK" --wildcards coraine-*/SOURCE coraine-*/MANIFEST.txt
 . "$WORK"/coraine-*/SOURCE          # version, gitSha, commitDate
 UPSTREAM=$version
-DEBVER=$UPSTREAM+$DIST${DEB_REVISION:+.$DEB_REVISION}     # a package revision (packages.yml): the same release, c³ later
+#
+# The Debian version: the distribution right after <X>, then what tells two builds of one <X> apart -
+#   a release                 <X>+<dist>                       0.6.1+ubuntu24.04
+#   a package revision        <X>+<dist>.<N>                   0.6.1+ubuntu24.04.1     (packages.yml: the same release, c³ later)
+#   a build of a commit       <X>+<dist>.<YYYYMMDD>.git<sha8>  0.6.1+ubuntu24.04.20261028.gitd1264910
+# A commit's build sorts after the release and its revisions (a date is a larger number than a revision),
+# before <X+1>, by date - on every distribution. With the distribution last (<X>+git...+<dist>), Ubuntu's
+# sorted before the release: "git" < "ubuntu".
+#
+case "$UPSTREAM" in
+  *+git*)
+    [ -z "${DEB_REVISION:-}" ] || die "a package revision is a release's - $UPSTREAM is a build of a commit"
+    snap=${UPSTREAM#*+git}                               # <YYYYMMDD>.<sha8>
+    DEBVER=${UPSTREAM%%+git*}+$DIST.${snap%%.*}.git${snap#*.} ;;
+  *)
+    DEBVER=$UPSTREAM+$DIST${DEB_REVISION:+.$DEB_REVISION} ;;
+esac
 echo "build.sh: coraine $DEBVER ($ARCH, $BUILD_KIND) from ${gitSha:0:8}"
 
 #
