@@ -12,6 +12,36 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
+## 0.6.1 — 2026-10-28
+
+The same day as 0.6.0: 0.6.0 was built with an NGSI-LD library that accepts a Subscription's
+`expandValues`, `jsonKeys` and `langProperties` as an array, which its broker did not read. 0.6.1 is
+the broker that does, the lists as an array throughout, and `main`'s version between releases.
+
+### New
+
+- `expandValues`, `jsonKeys` and `langProperties` in a POST Query body and a Subscription, and `aggrMethods`
+  in a temporal Query's `temporalQ`: a string, comma separated, or an array of strings with one name per
+  item - an item holding a comma, an empty item or a non-string is a 400. A name is short or already
+  expanded. A Subscription keeps the form it was sent in. The URL parameters stay comma separated lists.
+  ([API walkthrough](doc/api-walkthrough.md#3-query))
+
+### Changed behaviour
+
+- Between releases, `main` reports the last release with `+dev` (`0.6.0+dev`), not the next one with
+  `-dev`: the next release's number is decided when it is cut. Its Debian packages are
+  `0.6.0+git<date>.<sha>` (after 0.6.0) and its images `0.6.0-post-<date>-<commit>`
+  ([Installation](doc/installation.md), [Kubernetes](doc/kubernetes.md)).
+
+### Fixed
+
+- 0.6.0: a Subscription's `expandValues`, `jsonKeys` or `langProperties` sent as an array of strings was
+  accepted and then ignored - 0.6.0's NGSI-LD library took the array, the broker read only a string. 0.6.1
+  reads both forms.
+  ([API walkthrough](doc/api-walkthrough.md#3-query))
+
+---
+
 ## 0.6.0 — 2026-10-28
 
 Two and a half weeks since 0.5.0: authorization inside the broker - the FIWARE Data Space Connector's

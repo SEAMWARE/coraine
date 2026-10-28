@@ -21,7 +21,7 @@
 #   changelog.sh --check                      every entry file well-formed - exit 1 and the reason if not (CI)
 #   changelog.sh --release <version> [<date>] CHANGELOG.md gets the section as '## <version> — <date>'
 #                                             (default: today), in place of the unreleased one if there is
-#                                             one, and the entry files are removed (git rm)
+#                                             one, and the entry files are removed (git rm; one not committed yet too)
 #
 # Run from anywhere in the coraine checkout.
 #
@@ -224,7 +224,7 @@ case "${1:-}" in
     cp "$T/CHANGELOG.md" CHANGELOG.md
 
     files=$(entries)
-    [ -n "$files" ] && git rm -q $files
+    [ -n "$files" ] && git rm -q --cached --ignore-unmatch $files && rm -f $files   # an entry not committed yet is folded in too
     echo "CHANGELOG.md: '## $version — $date' written, $(echo "$files" | grep -c .) entries folded in and removed"
     echo "check it (git diff CHANGELOG.md), then commit both"
     ;;
