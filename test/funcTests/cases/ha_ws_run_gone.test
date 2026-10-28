@@ -7,6 +7,11 @@
 #
 # REQUIRE_HA: yes
 #
+# Not under valgrind (-vt): step 04 kills CB with SIGKILL on purpose - valgrind is stopped with it and leaves an
+# incomplete report, which is no verdict on the broker's memory.
+#
+# SKIP_VALGRIND: on
+#
 # REQUIRE_FEATURE: SUBSCRIPTIONS TRANSPORTS HA_RUNS
 #
 # MongoDB-only: two brokers sharing ONE MongoDB database, synchronised by its change streams - corDB has no shared database

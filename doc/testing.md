@@ -257,7 +257,7 @@ or Actions → Pre-release → Run workflow.
 | `nightly` | `nightly.yml`, called: valgrind on both HTTP servers, ETSI (mhd/builtin × mongoc, mhd corDB), coverage, performance, the DDS bridge image, the suite on arm64 | 17 |
 | `packages` | `packages.yml`, called: the Debian packages built (pgo), then installed in clean containers | 20 |
 | `sanitizers` | the whole suite under ASan + UBSan (above), {mhd, builtin} × {mongoc, corDB} - a sanitizer report or a failed test fails the job | 4 |
-| `upgrade` | `test/upgrade/upgradeCheck.sh` from the image of the newest `v*` tag before `ref` to this build, mongoc + corDB; a failed check fails it, a downgrade difference is listed | 1 |
+| `upgrade` | `test/upgrade/upgradeCheck.sh` from the image of the release before `ref` (the newest `v*` tag below its version - by version, not ancestry: a release is tagged on its release branch) to this build, mongoc + corDB; a failed check fails it, a downgrade difference is listed | 1 |
 | `soak` | `test/soak/soak.py`, `soakMinutes` per database, mongoc and corDB | 2 |
 | `summary` | every job of the run, green or red, in the run summary; red if any part is | 1 |
 
