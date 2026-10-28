@@ -40,7 +40,7 @@ center that builds, runs and shows a broker - and the stored trees in 14.5 % les
   the bridge's inventory, SignAndEncrypt with certificates (`--bridges opcua`,
   [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)).
 - **The CKAN bridge and DataChannels** - a CKAN portal's DataStore resources read into entities (`ckan.so`,
-  corCkanBridge); a DataChannel makes each record into the entities its mapping names. A bridge reports a
+  [corCkanBridge](https://github.com/SEAMWARE/corCkanBridge)); a DataChannel makes each record into the entities its mapping names. A bridge reports a
   Channel's status, and why, at any time.
   ([DataChannels](doc/bridge-channels.md#datachannels))
 - **The FIWARE IoT Agents as bridge plugins - prototypes** - JSON, UltraLight 2.0, LwM2M, LoRaWAN, Sigfox and

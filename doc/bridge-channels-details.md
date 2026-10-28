@@ -958,7 +958,7 @@ and nothing.
 
 Orion-LD's DDS configuration file is not ours to change. `dds.ddsmodule`
 is eProsima's and every member of it is handed to the enabler - as the
-YAML node the enabler's configuration is read from, built by corDdsBridge:
+YAML node the enabler's configuration is read from, built by [corDdsBridge](https://github.com/SEAMWARE/corDdsBridge):
 the enabler's own reading of the JSON file refuses a list of plain values,
 `"whitelist-interfaces": ["192.168.1.10"]`. `dds.ngsild` is ours but is
 published and in use, so it is frozen in practice.
@@ -1605,7 +1605,7 @@ Implementation notes:
   be published straight back out of the transport it came from; the flag
   is what makes that decidable at the dispatcher.
 - Threads created by plugins MUST call a `bridgeThreadInit(pluginP)`
-  before any other broker API. Initialises corAlloc, http allocator,
+  before any other broker API. Initialises [corAlloc](https://github.com/SEAMWARE/corAlloc), http allocator,
   tenant lookup. This is the broker-wide rule for any new pthread, not
   something the bridge family invents. The
   init function is wired through the broker API header.
@@ -2099,7 +2099,7 @@ parallel vtable section for invocation, mirroring the spec API. OPC-UA's
 - **Notifications over the bridges** - settled: a notification to a scheme other than HTTP
   (`mqtt://`, `mqtts://`) is delivered by the bridge plugin that claims the scheme (`BridgeDriver`
   ABI 10, `notifySchemes` / `notify`; `mqtt.so` - [The MQTT bridge](mqtt-bridge.md)). HTTP
-  notifications stay in corRest's client. A Subscription naming a scheme no loaded bridge claims is
+  notifications stay in [corRest](https://github.com/SEAMWARE/corRest)'s client. A Subscription naming a scheme no loaded bridge claims is
   refused at creation.
 
 ---

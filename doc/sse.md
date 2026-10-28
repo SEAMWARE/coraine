@@ -77,7 +77,7 @@ over HTTP with Server-Sent Events, over the connection with a WebSocket.
 - **Binary** later (`ngsi-ld.cor`); Server-Sent Events is text only.
 
 **The same in both:** a client that reconnects creates its subscriptions again and is sent nothing it
-missed; a subscription ends with its connection; a killed broker's are deleted at its next start. c³
+missed; a subscription ends with its connection; a killed broker's are deleted at its next start. [c³](https://github.com/SEAMWARE/c3)
 uses the WebSocket.
 
 It is **not a transport** - a transport carries the API ([WebSocket](websocket.md#how-it-is-built)); this
@@ -147,7 +147,7 @@ JSON, so an `Accept` that names only `text/event-stream` is a 406, as any `Accep
   served it. Not with `--high-availability`: there, a stream may be another instance's, open.
 
 Both HTTP servers serve it: libmicrohttpd (a response from a content reader, its connection suspended
-while there is nothing to send) and the built-in one (corHttp's response stream).
+while there is nothing to send) and the built-in one ([corHttp](https://github.com/SEAMWARE/corHttp)'s response stream).
 
 A browser page reads it with `fetch()` - `EventSource` sends a `GET`:
 
@@ -211,10 +211,10 @@ stopping).
 
 ## 6. How it is built
 
-- **corRest** (`corRestStream.h`, `COR_WITH_STREAM`): a response whose body is written over time, from
+- **[corRest](https://github.com/SEAMWARE/corRest)** (`corRestStream.h`, `COR_WITH_STREAM`): a response whose body is written over time, from
   any thread - `corRestStreamResponse`, `corRestStreamWrite`, `corRestStreamEnd`. A write of 0 bytes
   writes nothing and says whether the client is still there.
-- **corNgsild** (`ldNotifyStream.h`, `COR_WITH_EVENT_STREAM`): the endpoint `urn:ngsi-ld:self`, and the
+- **[corNgsild](https://github.com/SEAMWARE/corNgsild)** (`ldNotifyStream.h`, `COR_WITH_EVENT_STREAM`): the endpoint `urn:ngsi-ld:self`, and the
   hook a notification on it is handed to, rendered - by each of its senders: entity subscriptions,
   context source subscriptions (both change-driven and periodic) and periodic entity subscriptions
   (`ldPernotLoop`); the counters move when the application says an event was written

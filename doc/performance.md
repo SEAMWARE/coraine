@@ -228,7 +228,7 @@ counts anonymous memory, the arenas included.
 ### The stored trees
 
 What `corDB` keeps of an entity is a tree of `CorNode`s, and the subscription, registration and
-snapshot caches are trees too. They are allocated in the tree heap (corTree's `corTreeHeap.c`): a
+snapshot caches are trees too. They are allocated in the tree heap ([corTree](https://github.com/SEAMWARE/corTree)'s `corTreeHeap.c`): a
 node, its name and a string value are one block, 8-byte aligned, carved from 16 KiB pages of one
 size each - no allocator header per block and no rounding to 16 bytes, which with `malloc` were 8
 to 23 bytes of every block. A node that is not an object or an array is 32 bytes there, not 40: an
@@ -309,7 +309,7 @@ From `exec` to a served HTTP response:
 | libmicrohttpd + `mongoc` | 26 ms |
 | `corHttp` + `mongoc` | 31 ms |
 
-corHttp's extra 3 ms is the connection pool it allocates up front; mongoc's
+[corHttp](https://github.com/SEAMWARE/corHttp)'s extra 3 ms is the connection pool it allocates up front; mongoc's
 extra 17 ms is the handshake with the database server. All four are fast enough
 that the broker is not something you keep warm — it is something you start.
 Scale-to-zero, per-test instances, one broker per tenant on a gateway: all of
@@ -420,7 +420,7 @@ image), deep idle states, two rounds (2026-10-02):
 
 **The p99 at 16 callers over HTTP** is the loops' load, not their cost. In this closed-loop
 measurement each loop runs at ~90 % of its core, where a burst queues. At a fixed rate (release build
-without PGO, corTools
+without PGO, [corTools](https://github.com/SEAMWARE/corTools)
 `corRequest --rate`, latency counted from when a request was due) and 16 connections, HTTP all the
 way: small entity at 20 000 req/s p50 174-176 µs, p99 0.23-1.85 ms; at 25 000, p99 0.27-0.81 ms;
 20 attributes at 15 000, p50 310-377 µs, p99 0.55-0.65 ms. Past ~30 000 (small) and ~20 000 (20
@@ -485,7 +485,7 @@ without the profile:
 
 | | |
 |---|---|
-| Source | coraine `e289dc6c` (`main`); corBase `d6fcc0a`, corLog `339e2f3`, corAlloc `c328237`, corArgs `48e963b`, corHash `d25d65b`, corTree `9d63d52`, corJson `bd0c7b4`, corProm `f20d9ab`, corHttp `cfc49f2`, corBridge `1a57ea7`, corPlugin `86d0726`, corRest `27944dc`, corJsonld `c7bfcde`, corNgsild `5cfed34`, corDB `9ae7c0d` - every one at its `main` |
+| Source | coraine `e289dc6c` (`main`); [corBase](https://github.com/SEAMWARE/corBase) `d6fcc0a`, [corLog](https://github.com/SEAMWARE/corLog) `339e2f3`, [corAlloc](https://github.com/SEAMWARE/corAlloc) `c328237`, [corArgs](https://github.com/SEAMWARE/corArgs) `48e963b`, [corHash](https://github.com/SEAMWARE/corHash) `d25d65b`, corTree `9d63d52`, [corJson](https://github.com/SEAMWARE/corJson) `bd0c7b4`, [corProm](https://github.com/SEAMWARE/corProm) `f20d9ab`, corHttp `cfc49f2`, [corBridge](https://github.com/SEAMWARE/corBridge) `1a57ea7`, [corPlugin](https://github.com/SEAMWARE/corPlugin) `86d0726`, [corRest](https://github.com/SEAMWARE/corRest) `27944dc`, [corJsonld](https://github.com/SEAMWARE/corJsonld) `c7bfcde`, [corNgsild](https://github.com/SEAMWARE/corNgsild) `5cfed34`, corDB `9ae7c0d` - every one at its `main` |
 | Builds | **without**: `make release`; **PGO**: `make pgo PGO_RESTORE_DEBUG=0` (as the Docker image), trained by `pgoTrain.sh` with every step completing. Each with `COR_HTTP_SERVER=builtin` and with libmicrohttpd (the default, as the Docker image and the packages); every library release, the libraries rebuilt from clean for each `make release`. The broker's 21 targets compiled with `-fprofile-use`, 154 profile files (`.gcda`) for the broker's own sources, `.text.hot` sections in 25 of its objects (none in the build without) |
 | Machine | AMD Ryzen 9 8940HX (16 cores / 32 threads), 60 GiB, Linux 7.0, glibc 2.43, gcc 15.2.0; governor `powersave` (amd-pstate-epp, `balance_performance`), boost on, idle states **deep** - as the machine ships (not changed: it needs root) |
 | Load | `test/perf/perfRun.sh corDB`, `PERF_BROKER_CORES=1` (the broker on CPU 0, wrk on CPUs 1-15), 5 s x 3 per scenario (perfRun's defaults), a run's figure the median of its three; `--httpLoops 1` on the built-in server; the delete scenarios' wrk ceiling cut from 60 s to 3 s as in "The request arena's sizes" (the rate is `Consumed/sec`, the same either way); perfRun's rare-type and larger-store scenarios with `PERF_RARE_ENTITIES=100 PERF_BIG_ENTITIES=1000` and not reported |
@@ -2261,7 +2261,7 @@ the `PATCH` of `speed`: a difference of this size is within what the runs vary.
 ### libmicrohttpd 1.0.10 against 1.0.2
 
 The same release build of coraine (`ef19b7e1`), libmicrohttpd swapped under it (`LD_LIBRARY_PATH`; both built by
-corLibs' `tools/mhd/mhdBuild.sh`, the broker mapping `libmicrohttpd.so.12.62.2` / `.12.62.8`), corDB in RAM,
+[corLibs](https://github.com/SEAMWARE/corLibs)' `tools/mhd/mhdBuild.sh`, the broker mapping `libmicrohttpd.so.12.62.2` / `.12.62.8`), corDB in RAM,
 `perfRun.sh` with the broker on one physical core (`PERF_BROKER_CORES=1`), AMD Ryzen 9 8940HX; 2026-10-13
 01:50-02:20, 1.0.2 first.
 
@@ -2868,7 +2868,7 @@ places, and the throughput a client gets:
 | none | nowhere: the broker alone, no token |
 | `--auth fdsc` | in the broker (`fdsc.so`) |
 | APISIX | nowhere: APISIX 3.17.0 in front, no plugin - the cost of the hop alone |
-| APISIX + OPA | the connector's chain today: `openid-connect` (the token), odrl-authorization 2.4.3's `opa` plugin, OPA 1.11.0 with the Rego odrl-pap 1.7.1 makes of the policies |
+| APISIX + OPA | the connector's chain today: `openid-connect` (the token), odrl-authorization 2.4.3's `opa` plugin, OPA 1.11.0 with the Rego [odrl-pap](https://github.com/SEAMWARE/odrl-pap) 1.7.1 makes of the policies |
 | APISIX + ngsild-pep | in APISIX, by `fdsc.so`'s own code: the plugin `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)) - a Lua plugin calling, through LuaJIT's FFI, a library built from `fdsc.so`'s sources. On the 64 cases of `test/fdscDiff` at the coraine commit its CI pins (`7239cf37`) it decides as `--auth fdsc` does, case for case |
 
 Behind every gateway the broker runs without `--auth`. The same token (RS256, a `UserCredential`) and the same

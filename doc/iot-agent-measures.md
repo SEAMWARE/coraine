@@ -189,7 +189,7 @@ The broker upserts:
 
 1. **coraine**: the DataChannel additions a-d and f, and the per-bridge `otherColumns`, each with its
    functests on the loopback bridge.
-2. **corIotaJsonBridge**: MQTT measures (`[/json]/+/+/attrs[/+]`) and HTTP measures on the southbound
+2. **[corIotaJsonBridge](https://github.com/SEAMWARE/corIotaJsonBridge)**: MQTT measures (`[/json]/+/+/attrs[/+]`) and HTTP measures on the southbound
    port; the plugin takes DataChannels (it refuses Channels today); the record, its time, arrays.
    Its tests against the broker of 1.
 

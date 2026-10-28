@@ -263,7 +263,7 @@ full list and the honest state of each.
 | **Current-state DB** | `--database` / `-db` | one | `mongoc` (default), `corDB` (in RAM, or on disk with `--dbDir`), `ramDB` (corDB in RAM only - the fastest; a restart starts empty) |
 | **History DB (TRoE)** | `--troe` | one | `none` (default), `corDB`, `timescale` |
 | **API services** | `--apiPlugins` / `-api` | any number | `admin` |
-| **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |
+| **Bridge** (a foreign transport) | `--bridges` | any number | `dds`, `mqtt`, `modbus`, `opcua`, `ckan` (their own repos); HTTP/HTTPS and `cor://` are built in, not bridges |
 | **Transport** (the API over another protocol) | `--transports` | any number | `ws` - WebSocket: the API and its notifications over one connection ([doc](doc/websocket.md)) |
 | **Auth** (who sent a request, and may it) | `--auth` | one, or none (every request let in) | `fdsc` - the FIWARE Data Space Connector's access tokens and ODRL policies, decided inside the broker ([doc](doc/authorization.md)) |
 
@@ -395,6 +395,8 @@ repository, which is where to read them offline or alongside a checkout:
 | ↳ [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
 | ↳ [MQTT](doc/mqtt-bridge.md) | MQTT topics as Channels, and notifications to MQTT |
 | ↳ [Modbus](doc/modbus-bridge.md) | Modbus TCP registers as Channels |
+| ↳ [OPC UA](https://github.com/SEAMWARE/corOpcuaBridge) | OPC UA Variables as attributes, Methods as Service Executions, the server's node tree as the bridge's inventory (`--bridges opcua`) |
+| ↳ [CKAN](https://github.com/SEAMWARE/corCkanBridge) | a CKAN portal's DataStore resources read into entities, as DataChannels (`--bridges ckan`) |
 | ↳ [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | ↳ [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | **Running it** | |

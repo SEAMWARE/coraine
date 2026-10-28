@@ -50,7 +50,7 @@ an `ngsild` section mapping endpoints to `(entityId, entityType, attribute)`.
 For DDS the file has the format of Orion-LD's DDS configuration, so such a file works as it is - `dds.ddsmodule`
 (eProsima's, every member of it handed to the DDS Enabler) becomes the Bridge, `dds.ngsild.topics` /
 `.services` / `.actions` become Channels. Which members of `dds.ddsmodule.dds` decide what the
-Enabler reaches - domain, transport, interfaces - is in corDdsBridge's README, *Reaching the DDS
+Enabler reaches - domain, transport, interfaces - is in [corDdsBridge](https://github.com/SEAMWARE/corDdsBridge)'s README, *Reaching the DDS
 system*. An MQTT example:
 
 ```json

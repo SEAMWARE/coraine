@@ -12,7 +12,7 @@ The full specification - the encoding, the framing, multiplexing, the numbers - 
 
 - **Between brokers.** A registration whose endpoint is `cor://host:port` makes forwarding to that
   context source go over cor:// instead of HTTP: no JSON rendered or parsed on either side of the hop.
-- **A client that speaks it.** corTools' `corRequest` sends requests over cor://, one at a time or in
+- **A client that speaks it.** [corTools](https://github.com/SEAMWARE/corTools)' `corRequest` sends requests over cor://, one at a time or in
   its load mode.
 - **Not** for what only HTTP carries: a body that is not JSON, a text answer, HEAD.
 
@@ -29,17 +29,17 @@ cor:// is a communication protocol, not a bridge: it reaches the broker's API, b
 | the benchmark | `test/perf/corChain.sh <http\|cor\|cor-all>` - three brokers chained |
 
 **Compiled out**: `make COR_WITH_COR_PROTOCOL=0` (or `coraine-build --features COR_PROTOCOL=OFF`) builds a
-broker without cor:// - corRest without its cor:// server and client (`corRestCor.c`), the broker without
+broker without cor:// - [corRest](https://github.com/SEAMWARE/corRest) without its cor:// server and client (`corRestCor.c`), the broker without
 `--corPort` and without the cor:// forwarder: 24 640 bytes less (stripped, 2026-10-13). `--version` and
 `GET /build` say `COR_PROTOCOL` 0 / false. A registration whose endpoint is cor:// is accepted and not
 forwarded to: the answer carries `NGSILD-Warning: 299 <host:port> "The registration endpoint's scheme is not
-supported by this broker"` (`cor_not_in_this_build.test`). The cor format stays: corDB's log and history are
+supported by this broker"` (`cor_not_in_this_build.test`). The cor format stays: [corDB](https://github.com/SEAMWARE/corDB)'s log and history are
 written in it.
 
 ## What it is
 
 - **One format, three uses**: cor://, and the bodies of the corDB log and snapshot records.
-- **The codec knows nothing about NGSI-LD.** It lives in corTree and serialises any tree; corNgsild
+- **The codec knows nothing about NGSI-LD.** It lives in [corTree](https://github.com/SEAMWARE/corTree) and serialises any tree; [corNgsild](https://github.com/SEAMWARE/corNgsild)
   supplies, through callbacks, which names are core terms and which objects are attributes.
 - **Zero-copy on read** - strings keep their NUL and point into the read buffer; **skippable** -
   objects and arrays carry their byte length; **little-endian**, no byte swapping.

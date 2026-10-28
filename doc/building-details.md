@@ -177,7 +177,7 @@ easy to miss because the build succeeds — check `coraine --version` (or
 
 ### Every choice `coraine-build` offers
 
-One heading per choice, as c³'s Compile page shows them; the bridges are `coraine-build --bridges` (`--list-bridges`). **Size** is what the choice changes in what a
+One heading per choice, as [c³](https://github.com/SEAMWARE/c3)'s Compile page shows them; the bridges are `coraine-build --bridges` (`--list-bridges`). **Size** is what the choice changes in what a
 build installs: the stripped programs and plugins (`coraine`, `coraine-import`, `plugins/`), and the
 libraries they load that a bare `ubuntu:26.04` does not have
 ([Size on disk](performance.md#size-on-disk--what-installing-coraine-adds)). Measured 2026-10-13 on main
@@ -230,7 +230,7 @@ Everything builds.
 #### HTTP server: corHttp (built in)
 
 `--http-server builtin`. The broker's own epoll server, no external library. Size: **-7.3 MiB** - nine
-libraries less than libmicrohttpd, for 12 KiB of corHttp. One listener: `POLICY_API` (a port of its own) is not built. Not with
+libraries less than libmicrohttpd, for 12 KiB of [corHttp](https://github.com/SEAMWARE/corHttp). One listener: `POLICY_API` (a port of its own) is not built. Not with
 Profile-guided or Tuned yet. [Choosing the HTTP server](#choosing-the-http-server).
 
 #### Store: corDB only
@@ -423,7 +423,7 @@ log. Size: -43,616 bytes (release build, libmicrohttpd - corHttp with it).
 
 cor://, the binary NGSI-LD protocol: a listener next to HTTP (`--corPort`), and forwarding to a
 registration whose endpoint is `cor://` ([cor-protocol.md](cor-protocol.md)). Off: no `--corPort`; a cor://
-registration is not forwarded to (`NGSILD-Warning: 299`, the scheme not supported); corRest is built
+registration is not forwarded to (`NGSILD-Warning: 299`, the scheme not supported); [corRest](https://github.com/SEAMWARE/corRest) is built
 without its cor:// server and client. The cor format stays - corDB's log is written in it. Set with
 `COR_WITH_COR_PROTOCOL=0` (`make`) or `--features COR_PROTOCOL=OFF` (`coraine-build`), not as a cmake `-D`
 alone. Size: -24 KiB.
@@ -445,7 +445,7 @@ WebSocket subscriptions of an instance killed stay. Off by itself when `TRANSPOR
 
 Server-Sent Events - a subscription on the endpoint `urn:ngsi-ld:self` made on its own event stream, the
 `201` to its `POST` ([Server-Sent Events](sse.md)). Off: no `--sseStreams`; a subscription on `urn:ngsi-ld:self`
-is a 400 ("this broker serves no event streams"). Size: -9,505 bytes (release build); corRest's response stream and corNgsild's
+is a 400 ("this broker serves no event streams"). Size: -9,505 bytes (release build); corRest's response stream and [corNgsild](https://github.com/SEAMWARE/corNgsild)'s
 endpoint stay - their own `COR_WITH_STREAM` and `COR_WITH_EVENT_STREAM`, about 1.7 KiB each.
 
 #### `ADMIN_API`
@@ -577,7 +577,7 @@ check that it took. A running broker reports it as `build.httpServer` on
 `GET /build`.
 
 `builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on
-edge-triggered epoll loops, depending on nothing but corAlloc and libc. A request
+edge-triggered epoll loops, depending on nothing but [corAlloc](https://github.com/SEAMWARE/corAlloc) and libc. A request
 runs on the loop that read it - inline, or as a coroutine when it can wait
 ([Coroutines](coroutines.md)) - and the wire format it emits is byte-for-byte the
 one libmicrohttpd produced, because several hundred functional tests compare
@@ -619,7 +619,7 @@ it is the last third-party runtime dependency besides libc and OpenSSL once the
 optional features are compiled out. It is also a tarball fetched from
 ftp.gnu.org and built from source.
 
-**Which libmicrohttpd.** The images and CI build **1.0.10** with corLibs'
+**Which libmicrohttpd.** The images and CI build **1.0.10** with [corLibs](https://github.com/SEAMWARE/corLibs)'
 `tools/mhd/mhdBuild.sh` - the CI image, the published image (`docker/vendor-libs.sh`
 stages the directory) and the bare runners (`.github/scripts/ci-env.sh`). It
 accepts a release tarball only with the SHA-256 pinned in the script (each pin

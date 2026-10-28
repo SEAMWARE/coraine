@@ -66,7 +66,7 @@ Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 
 
 | Package | What it holds |
 |---------|---------------|
-| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine`, and c³, the control center (`/usr/bin/c3`, its pages in `/usr/share/c3/www`): Explore, Operate and Configure; Compile with `coraine-dev` |
+| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine`, and [c³](https://github.com/SEAMWARE/c3), the control center (`/usr/bin/c3`, its pages in `/usr/share/c3/www`): Operate, Explore and Documentation; Compile with `coraine-dev` |
 | `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
 From the signed apt repository, **https://seamware.github.io/apt**:
@@ -175,7 +175,7 @@ not given. A `--bridgeConfig` of your own replaces it.
 `description`, `group` (its group in `CMakeLists.txt`), `requires`: the switches it is turned off
 without - each one of them - and a build setting as `NAME=value` (`HTTP_SERVER=mhd`), and `requiresAny`: the
 switches it is turned off without all of - one is enough (`CHANNEL_WRITE_BACK`: `DATA_CHANNELS` or `ASSET_CHANNELS`). `--http-server builtin` builds the
-broker with corHttp, the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
+broker with [corHttp](https://github.com/SEAMWARE/corHttp), the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
 the switches that need libmicrohttpd off (`POLICY_API`); not with `--pgo` or `--tune` yet. While it builds, coraine-build
 prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
 front-end to follow.
@@ -211,7 +211,7 @@ way - `coraine-build` runs `make -C <dir>/corMqttBridge` with `COR_LIBS ?= ..`, 
 include path - and are the templates for a bridge built outside coraine; `coraine/src/plugins/bridge/loopback`
 is the reference for every entry point. A plugin built from the tarball of version X matches the
 `coraine` package of version X, which was built from that same tarball. A plugin that calls Cor-Lib
-functions (`COR_E`, corJson, corTree, ...) depends on that match; one that uses only the slots of its
+functions (`COR_E`, [corJson](https://github.com/SEAMWARE/corJson), [corTree](https://github.com/SEAMWARE/corTree), ...) depends on that match; one that uses only the slots of its
 contract struct depends on the contract's ABI version alone.
 
 The packages are made by the scripts in `packaging/deb/` (`source.sh`, `build.sh`, `test-install.sh`,

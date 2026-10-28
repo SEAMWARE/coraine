@@ -36,7 +36,7 @@ There are **six** kinds of plugin:
 
 - **Communication protocols** — the transport over which the broker speaks to
   clients and to other brokers. **REST/HTTP** and **`cor://`**, the binary protocol
-  (`--corPort`; [The cor format and cor://](cor-protocol.md)), are built into corRest.
+  (`--corPort`; [The cor format and cor://](cor-protocol.md)), are built into [corRest](https://github.com/SEAMWARE/corRest).
   **Transport plugins** carry the API over another protocol: loaded via `--transports`;
   resolves to `<base>/transport/<name>.so`; register symbol `transportRegister`; fills a
   `TransportDriver` (`src/lib/plugin/TransportDriver.h`). Up to `TRANSPORTS_MAX = 4`.
@@ -48,7 +48,7 @@ There are **six** kinds of plugin:
   Loaded via `--bridges` / `-br`; resolves to `<base>/bridge/<name>.so`;
   register symbol `bridgeRegister`; fills a `BridgeDriver`. **Any number** active
   (comma-separated, up to `BRIDGES_MAX = 8`). Bundled: `loopback`. External, each
-  in its own repo and built by the corLibs umbrella:
+  in its own repo and built by the [corLibs](https://github.com/SEAMWARE/corLibs) umbrella:
   [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge),
   [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge) and
   [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge). Beside them, built only when
@@ -94,7 +94,7 @@ outbound through `BridgeDriver::publish`.
   declaring mangled symbols reaches from C. It is C++, compiled separately, and
   the broker — still `PROJECT(coraine C)` — `dlopen`s it and never sees a C++
   token.
-- calls arrive on **threads the broker did not create**. Handing a corAlloc buffer
+- calls arrive on **threads the broker did not create**. Handing a [corAlloc](https://github.com/SEAMWARE/corAlloc) buffer
   across that line would be a bug the day it was written.
 
 ⭐ There is also no loop, and not because of a guard: an arriving sample is
@@ -169,7 +169,7 @@ and `corPluginOpen` uses `RTLD_NOW`, so a plugin `.so` resolves `corLog`, `corAl
 That holds for bridge plugins too. A bridge calls the broker's NGSI-LD side only
 through the `BridgeBroker` slots, and may use the Cor-Libs directly: the loopback,
 MQTT, Modbus and DDS bridges log with the `COR_*` macros and parse their
-configuration with corJson and corTree, in a corAlloc buffer of their own.
+configuration with [corJson](https://github.com/SEAMWARE/corJson) and [corTree](https://github.com/SEAMWARE/corTree), in a corAlloc buffer of their own.
 `BridgeBroker::logFunction` is for forwarding a transport library's own log sink.
 
 A plugin's contract version (`BRIDGE_ABI_VERSION`, `TRANSPORT_ABI_VERSION`) covers

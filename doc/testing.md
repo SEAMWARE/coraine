@@ -26,10 +26,10 @@ takes **14.5 minutes** with `mongoc` (868 s, 2026-10-02, on the machine of
 | dropping the database | ~0.008 s (`corMongoDrop`) |
 
 - **Stopping.** On SIGTERM the broker wakes its periodic-work thread and joins it
-  (corNgsild #56); the helper watches the pid it started, 10 ms at a time,
+  ([corNgsild](https://github.com/SEAMWARE/corNgsild) #56); the helper watches the pid it started, 10 ms at a time,
   without forking (#208).
-- **The port** is polled every 20 ms (corTest#10).
-- **The drop** is corTools' `corMongoDrop`: one libmongoc connection and a
+- **The port** is polled every 20 ms ([corTest](https://github.com/SEAMWARE/corTest)#10).
+- **The drop** is [corTools](https://github.com/SEAMWARE/corTools)' `corMongoDrop`: one libmongoc connection and a
   command or two. `mongosh` is the fallback where `corMongoDrop` is not built (no
   libmongoc on that machine) - a JavaScript runtime, ~0.3 s a drop, and the suite
   drops 1 466 times.

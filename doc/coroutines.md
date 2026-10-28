@@ -19,7 +19,7 @@ How it came about - the design, the steps, what each one measured: [history](his
 
 The last row are waits inside a library that knows nothing of the loop - libmongoc, libpq, the
 bridge's condition variable: a coroutine there would stop the loop for the length of the wait. The
-application decides which requests may be coroutines (corRest `CorRestCoroutineHook`; no hook, no
+application decides which requests may be coroutines ([corRest](https://github.com/SEAMWARE/corRest) `CorRestCoroutineHook`; no hook, no
 coroutines). coraine says yes with `corDB` and TRoE `none` or `corDB`, except for `?ddsSync`.
 
 **The post-response phase** - a write's notifications above all - runs the same way: inline when
@@ -48,7 +48,7 @@ waits goes through it:
 - **connect**: non-blocking, a wait for `POLLOUT`
 - **name resolution** (`corRestResolve`): a name that is not numeric and not `localhost` is resolved
   on a thread of its own while the coroutine waits on an eventfd
-- **a call that blocks in another library** (corBase `corCoBlocking`): run on a thread of its own,
+- **a call that blocks in another library** ([corBase](https://github.com/SEAMWARE/corBase) `corCoBlocking`): run on a thread of its own,
   the coroutine waiting on an eventfd - notifications to `mqtt://` and other non-HTTP schemes, sent
   by a bridge plugin's client, go this way
 - **an `@context` another request is downloading**: the waiting request yields until it is cached;
@@ -80,7 +80,7 @@ Both are tested in `corBaseTest`, on x86-64 and on aarch64 (`make arm64-test`, u
 
 ## 4. The servers
 
-**Built-in HTTP server (corHttp).** `--httpLoops` loops (0, the default: one per core, at most 4; up to 64 when given), on one port: loop 0 accepts
+**Built-in HTTP server ([corHttp](https://github.com/SEAMWARE/corHttp)).** `--httpLoops` loops (0, the default: one per core, at most 4; up to 64 when given), on one port: loop 0 accepts
 every connection and deals them out in turn (`corHttpAcceptShare`), so connections are spread evenly
 - the kernel's own `SO_REUSEPORT` hash splits a handful unevenly. A coroutine's response goes out on
 the loop's thread (`corHttpResumeHere`); one that finished without ever waiting is answered when the

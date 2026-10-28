@@ -154,7 +154,7 @@ own (`coraine_auth`: which plugin) - and `resource` (`--httpEndpoint`) and `bear
 WWW-Authenticate: Bearer error="invalid_token", error_description="wrong issuer", resource_metadata="http://broker:1026/.well-known/oauth-protected-resource"
 ```
 
-A client - c³ - reads it on the first 401 and knows where to log in. Without `--auth`, or with a plugin that
+A client - [c³](https://github.com/SEAMWARE/c3) - reads it on the first 401 and knows where to log in. Without `--auth`, or with a plugin that
 offers none, the route is a 404. `COR_FEATURE_AUTH_METADATA` (on; off with `COR_FEATURE_AUTH` off), about
 1 KB of the broker.
 
