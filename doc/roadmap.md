@@ -147,7 +147,11 @@ settles on.
 
 ## Short term
 
-Nothing at the moment - the next release ships what is under [Available now](#available-now).
+-   **The release builds the libraries the pre-release campaign tested** - the campaign records the commit of
+    every library it built; `release.yml` builds and tags from that record, and stops when a library's
+    `main` has moved since. 0.6.0 was built with the libraries' `main` at tag time, one commit newer than
+    the campaign's in the NGSI-LD library, and 0.6.1 followed the same day.
+    ([Testing](testing.md#the-pre-release-campaign))
 
 ## Medium term
 
