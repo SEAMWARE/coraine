@@ -227,10 +227,21 @@ jobs:
       # on, and belongs to nobody's account. GITHUB_TOKEN cannot be used here at
       # all - it is scoped to this repository and these tags go on five others.
       #
-      # ⚠ The app must have `contents: write` on the Cor-Lib repositories, or
+      # ⚠ The app must be installed, with `contents: write`, on every repository in stack/, or
       # this step 404s. That is an installation setting, not something the
       # workflow can grant itself.
       #
+      # The token's repositories are the ones the tag step below tags: every repository bootstrap.sh
+      # cloned into stack/ but coraine. A hand-kept list here left corCkanBridge and corOpcuaBridge out
+      # in 0.6.1 - 403 on both, after #505 had made the tag step take them all.
+      #
+      - name: The repositories to tag
+        id: repos
+        run: |
+          list=$(cd "$GITHUB_WORKSPACE/stack" && ls -d */ | tr -d / | grep -vx coraine | paste -sd, -)
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "$list"
+
       - name: Mint a cross-repository token
         id: apptoken
         uses: actions/create-github-app-token@v1
@@ -238,7 +249,7 @@ jobs:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
           owner: SEAMWARE
-          repositories: corBase,corLog,corAlloc,corArgs,corHash,corTree,corJson,corProm,corRest,corHttp,corNgsild,corJsonld,corPlugin,corBridge,corDdsBridge,corModbusBridge,corMqttBridge,corDB,corTools,corTest,corLibs
+          repositories: ${{ steps.repos.outputs.list }}
 
       #
       # Tag each Cor-Lib at the commit this release was actually built from.
