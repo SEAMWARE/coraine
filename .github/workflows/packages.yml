@@ -10,6 +10,12 @@
 #     packages hold exactly the libraries the release image holds (version 0.4.0+<dist>)
 #   - by hand: Actions -> Packages -> Run workflow (or `gh workflow run packages.yml --ref <branch>`) - a
 #     build of that commit with each lib's main (version 0.6.0+git<date>.<sha>+<dist>)
+#   - a package revision: a release's packages built again, coraine and the libs at the release's tag, c³
+#     at a later commit (c3_ref) - a fix of c³'s, no new release. Version <X>+<dist>.<revision>, above the
+#     release's <X>+<dist> and below <X+1>'s: apt upgrades to it. The build scripts are the workflow's own
+#     commit's (main's), not the tag's - the tag's know no revision:
+#       gh workflow run packages.yml --ref main -f ref=v0.6.1 -f libs_ref=v0.6.1 -f c3_ref=<sha> \
+#                                    -f revision=1 -f publish=true
 # Not on every merge: six native builds of the whole stack, profile-guided, then twelve install tests -
 # the price of one per merge is not worth paying until there is a repository to publish them to.
 #
@@ -18,6 +24,9 @@ name: Packages
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "The coraine to package: a tag (v0.6.1) - empty: this commit"
+        default: ''
       libs_ref:
         description: "The Cor-Libs at: main, or a tag every lib has (v0.4.0)"
         default: main
@@ -26,6 +35,12 @@ on:
         type: choice
         options: [pgo, release]
         default: pgo
+      c3_ref:
+        description: "c³ at: empty - as the libs (libs_ref); a commit or branch of c3's (a package revision)"
+        default: ''
+      revision:
+        description: "Package revision: empty, or 1, 2 ... - version <X>+<dist>.<revision>"
+        default: ''
       publish:
         description: "Publish to the apt repository (needs APT_PAGES_REPO + APT_GPG_PRIVATE_KEY)"
         type: boolean
@@ -42,6 +57,12 @@ on:
       libs_ref:
         type: string
         default: main
+      c3_ref:
+        type: string
+        default: ''
+      revision:
+        type: string
+        default: ''
       build_kind:
         type: string
         default: pgo
@@ -103,6 +124,30 @@ jobs:
             echo "$lib: $(git -C "$d" rev-parse HEAD)"
           done
 
+      - name: c³ at ${{ inputs.c3_ref }}
+        if: ${{ inputs.c3_ref != '' }}
+        env:
+          C3_REF: ${{ inputs.c3_ref }}
+        run: |
+          git -C stack/c3 checkout -q "$C3_REF" || { echo "::error::c3 has no $C3_REF"; exit 1; }
+          echo "c3: $(git -C stack/c3 rev-parse HEAD)"
+
+      #
+      # A package revision: the build scripts of this commit - the packaged tag's know no revision
+      #
+      - uses: actions/checkout@v4
+        if: ${{ inputs.revision != '' }}
+        with:
+          path: self
+          sparse-checkout: packaging/deb
+
+      - name: The revision
+        if: ${{ inputs.revision != '' }}
+        env:
+          REVISION: ${{ inputs.revision }}
+        run: |
+          [[ "$REVISION" =~ ^[1-9][0-9]*$ ]] || { echo "::error::revision: a number, 1 or more - not '$REVISION'"; exit 1; }
+
       - name: The source tarball
         id: src
         env:
@@ -110,7 +155,7 @@ jobs:
           REF: HEAD
         run: |
           stack/coraine/packaging/deb/source.sh dist
-          cp -r stack/coraine/packaging/deb dist/deb          # the scripts, for the jobs below
+          cp -r "${{ inputs.revision != '' && 'self' || 'stack/coraine' }}/packaging/deb" dist/deb   # the scripts, for the jobs below
           echo "version=$(cat dist/version)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
@@ -150,6 +195,7 @@ jobs:
       - name: Build coraine + coraine-dev (packaging/deb/build.sh)
         env:
           BUILD_KIND: ${{ inputs.build_kind || 'pgo' }}
+          DEB_REVISION: ${{ inputs.revision }}
         run: |
           chmod +x dist/deb/*.sh dist/deb/coraine-build
           dist/deb/build.sh dist/coraine-src.tar.xz out
