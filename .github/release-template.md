@@ -4,8 +4,8 @@ suite with a **100% success rate**.\*
 
 What makes it worth a look:
 
-- **Small.** **4.3 MiB** of files a machine did not already have — the broker,
-  its in-memory store and three shared libraries. One process, no runtime, no
+- **Small.** **4.8 MiB** of files a machine did not already have — the broker
+  with its in-memory store, and two libraries, both GEOS. One process, no runtime, no
   JVM, and no database server to install beside it.
 - **Fast.** **12 577 requests/s per core** at `limit=20` — **251 540 entities/s per
   core** — and answering 9 ms after `exec`. Writes, the store on disk: 54 707 creates/s
@@ -75,5 +75,7 @@ through the rest.
 are test-side fixes — the suite has bugs of its own and parts of it do not run as
 published — never relaxations of what the broker must do. The fixes are filed
 upstream with ETSI.
+
+Built by @kzangeli, with @claude.
 
 Licensed under the [Apache License 2.0](https://github.com/SEAMWARE/coraine/blob/main/LICENSE).

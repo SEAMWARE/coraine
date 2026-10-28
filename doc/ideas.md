@@ -144,7 +144,7 @@ about entities; it speaks `(endpoint, json, time)`:
 CKAN pushes nothing - no event stream, no change feed for rows - so how a Channel follows its
 resource is a **mode**, set per Channel:
 
-- **once** - read the resource at start-up, then stop. Most open data, and the c³ demo.
+- **once** - read the resource at start-up, then stop. Most open data, and the [c³](https://github.com/SEAMWARE/c3) demo.
 - **poll** - watch the dataset's activity stream (`package_activity_list`, "resource updated"); on a
   change, read only the new rows (`_id` above the last one seen - DataStore rows get increasing
   integer ids) when the table only grows, or the whole resource again when it was replaced. A row
@@ -200,7 +200,7 @@ TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
 § 7.6.2.1 makes ICU "root" collation the default order for `orderBy` on strings, and libicu costs
 three shared libraries and 39.2 MiB - `libicudata` alone is 31.6 MiB, nine times the broker, for a
-table. An MVP of root collation in corNgsild: UTF-8 to code points, a primary/secondary/tertiary
+table. An MVP of root collation in [corNgsild](https://github.com/SEAMWARE/corNgsild): UTF-8 to code points, a primary/secondary/tertiary
 weight table for the Latin ranges real deployments use, the category order (punctuation < digits <
 letters) the current ASCII approximation gets wrong; locale tailorings added on demand, one at a
 time. ICU stays behind `COR_FEATURE_ICU_COLLATION=ON`. `orderby_collation_locale.test` is the
@@ -317,7 +317,7 @@ not reach the code they name - [Building from source, in detail](building-detail
 
 ### Release libraries, all of them
 
-`make release` builds corRest, corJsonld and corNgsild as release; the libraries under them come in
+`make release` builds [corRest](https://github.com/SEAMWARE/corRest), [corJsonld](https://github.com/SEAMWARE/corJsonld) and corNgsild as release; the libraries under them come in
 as the last build, usually debug. Each needs an archive per flavour first (`doc/performance.md`).
 
 ### Embedded deployment

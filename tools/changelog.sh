@@ -91,7 +91,29 @@ check() {
     done < <(echo "$out" | sed -n 's/^S //p')
     echo "$out" | grep -q '^B$' || { echo "$f: no '- ' entry"; bad=1; }
   done
+  mentions changelog.d/*.md CHANGELOG.md || bad=1
   return $bad
+}
+
+#
+# mentions <file>... - an '@word' outside a code span is a GitHub @mention in the release notes: its user is
+# listed as the release's contributor (v0.5.0 named the user "context", from a bare @context). Written
+# `@context`, it is not.
+#
+mentions() {
+  local out
+  out=$(awk '
+    FILENAME ~ /README\.md$/ { next }
+    {
+      line = $0
+      gsub(/`[^`]*`/, "", line)
+      if (match(line, /(^|[^A-Za-z0-9_.\/-])@[A-Za-z][A-Za-z0-9-]*/))
+        print FILENAME ":" FNR ": " substr(line, RSTART, RLENGTH) " outside `` - write it `@...`, or GitHub takes it for a user"
+    }
+  ' "$@" 2>/dev/null)
+  [ -z "$out" ] && return 0
+  echo "$out"
+  return 1
 }
 
 #
@@ -176,7 +198,11 @@ case "${1:-}" in
   --release)
     version="${2:?usage: changelog.sh --release <version> [<date>]}"
     date="${3:-$(date +%F)}"
-    grep -q "^## $version\( \|$\)" CHANGELOG.md && { echo "changelog.sh: CHANGELOG.md has a '## $version' section already" >&2; exit 1; }
+    #
+    # A released section of this version refuses - '## <version> (not released yet)' is the one to replace
+    #
+    grep "^## ${version//./\\.}\( \|$\)" CHANGELOG.md | grep -qv '(not released yet)' \
+      && { echo "changelog.sh: CHANGELOG.md has a '## $version' section already" >&2; exit 1; }
     check || exit 1
     compose > "$T/section" || { echo "changelog.sh: nothing to release - no entry in changelog.d/ and no unreleased section" >&2; exit 1; }
 

@@ -256,7 +256,24 @@ snapshot()
 #
 declare -A KNOWN
 KNOWN["0.4.0:temporal.V1.sys"]="the entity's modifiedAt in a temporal representation: 0.4.0 rendered its creation time, 0.5.0 its last modification"
+#
+# KNOWN_RAW - the stored documents (mongoc's raw.*) changed ON PURPOSE when --to opens what <from version>
+# wrote: "<from version>" -> why. They are compared with that change taken out (rawKnown), so every other
+# difference still counts.
+#
+declare -A KNOWN_RAW
+KNOWN_RAW["0.4.0"]="mongoc storage format 2 (0.6.0): an attribute with an instance of a datasetId is marked '@datasetIds': true in its document"
+KNOWN_RAW["0.5.0"]="${KNOWN_RAW["0.4.0"]}"
 FROM_VERSION=${FROM##*:}
+
+#
+# rawKnown <file> - a raw.* snapshot without the '@datasetIds': true marker; the commas that end a line
+# dropped too, so the member before the marker compares equal
+#
+rawKnown()
+{
+  sed -E "/^[[:space:]]*'@datasetIds': true,?$/d; s/,$//" "$1"
+}
 
 #
 # compare <a> <b> <label> <failKind> - every file of snapshot a against b
@@ -267,6 +284,16 @@ compare()
   local f diffs=0
   for f in $(ls "$a"); do
     if ! diff -q "$a/$f" "$b/$f" > /dev/null 2>&1; then
+      if [ "$kind" == fail ] && [[ $f == raw.* ]] && [ -n "${KNOWN_RAW[$FROM_VERSION]}" ]; then
+        if diff -q <(rawKnown "$a/$f") <(rawKnown "$b/$f") > /dev/null 2>&1; then
+          echo "   known $label: $f - ${KNOWN_RAW[$FROM_VERSION]}"
+          continue
+        fi
+        diffs=$((diffs + 1))
+        bad "$label: $f differs (beside the known: ${KNOWN_RAW[$FROM_VERSION]})"
+        diff -u <(rawKnown "$a/$f") <(rawKnown "$b/$f") | head -40 | sed 's/^/          /'
+        continue
+      fi
       if [ "$kind" == fail ] && [ -n "${KNOWN[$FROM_VERSION:$f]}" ]; then
         echo "   known $label: $f - ${KNOWN[$FROM_VERSION:$f]}"
         continue

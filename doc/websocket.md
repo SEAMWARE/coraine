@@ -124,11 +124,11 @@ Transports are a plugin type of their own (`src/lib/plugin/TransportDriver.h`), 
 - **The plugin** knows the protocol: the handshake (`Sec-WebSocket-Accept`, SHA-1 from libcrypto), the
   frames, its connections - one thread each.
 - **The broker** knows the messages: it parses a request's envelope, runs it to its end on the
-  connection's thread (corRest's `corRestRunJson` - the service routines of an HTTP request, JSON in and
+  connection's thread ([corRest](https://github.com/SEAMWARE/corRest)'s `corRestRunJson` - the service routines of an HTTP request, JSON in and
   out), answers in an envelope, keeps the subscriptions each connection created, and delivers the
-  notifications to a connection through corNgsild's transport hook - the one `mqtt://` goes through.
+  notifications to a connection through [corNgsild](https://github.com/SEAMWARE/corNgsild)'s transport hook - the one `mqtt://` goes through.
 - **The upgrade**: corRest asks the application for an `Upgrade` request (`corRestSetUpgradeHook`),
-  writes the `101`, and hands the socket over - with libmicrohttpd's upgrade API, or corHttp's
+  writes the `101`, and hands the socket over - with libmicrohttpd's upgrade API, or [corHttp](https://github.com/SEAMWARE/corHttp)'s
   `corHttpUpgrade` on the built-in server, the same contract.
 
 ## Not yet

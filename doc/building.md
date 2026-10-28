@@ -37,8 +37,8 @@ system libraries. The repos must sit as **siblings** under one parent (default
 
 ## Dependency stack
 
-- **Cor-Libs** (github.com/SEAMWARE): `corBase corLog corAlloc corArgs corHash corTree corJson corProm corRest corNgsild corJsonld corPlugin`
-- **umbrella / test runner**: `corLibs`, `corTest`
+- **Cor-Libs**: [corBase](https://github.com/SEAMWARE/corBase), [corLog](https://github.com/SEAMWARE/corLog), [corAlloc](https://github.com/SEAMWARE/corAlloc), [corArgs](https://github.com/SEAMWARE/corArgs), [corHash](https://github.com/SEAMWARE/corHash), [corTree](https://github.com/SEAMWARE/corTree), [corJson](https://github.com/SEAMWARE/corJson), [corProm](https://github.com/SEAMWARE/corProm), [corRest](https://github.com/SEAMWARE/corRest), [corNgsild](https://github.com/SEAMWARE/corNgsild), [corJsonld](https://github.com/SEAMWARE/corJsonld), [corPlugin](https://github.com/SEAMWARE/corPlugin)
+- **umbrella / test runner**: [corLibs](https://github.com/SEAMWARE/corLibs), [corTest](https://github.com/SEAMWARE/corTest)
 
 `make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
 the other libs must already be built (the umbrella or bootstrap handles
@@ -65,7 +65,7 @@ that).
 |--------|--------|
 | `make` / `make release` | Release build (`BUILD_RELEASE/`) |
 | `make debug` | Debug build (`BUILD_DEBUG/`) |
-| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `curl` and `wrk` (and corLibs' `corRequest`, `corTestClient`); +1-10 % per core ([performance](performance.md)) |
+| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `curl` and `wrk` (and [corLibs](https://github.com/SEAMWARE/corLibs)' `corRequest`, `corTestClient`); +1-10 % per core ([performance](performance.md)) |
 | `make install_pgo` | install the `make pgo` / `make tune` build (`BUILD_PGO/`) as `make install` does, with the profile-guided `corDB.so` |
 | `make tune WORKLOAD=<file.json>` | `make pgo` trained on your workload, then the allocator and `--dbLockPrefer` measured on it; the result in `tune-result.json` - needs what `make pgo` needs and `python3` ([Extreme performance](extreme-performance.md)) |
 | `make i` / `make di` | release/debug **+ install** |
@@ -90,7 +90,7 @@ changes that broker's code under it - it dies of SIGSEGV within seconds.)
 | | |
 |---|---|
 | `cmake -DCOR_FEATURE_<X>=OFF` | compile a feature out - not every flag does what it says; [the details](building-details.md#compiling-out-what-you-dont-need) list the state of each |
-| `cmake -DCOR_HTTP_SERVER=mhd\|builtin` | the HTTP server: libmicrohttpd (the default) or corHttp, with no external HTTP dependency ([details](building-details.md#choosing-the-http-server)) |
+| `cmake -DCOR_HTTP_SERVER=mhd\|builtin` | the HTTP server: libmicrohttpd (the default) or [corHttp](https://github.com/SEAMWARE/corHttp), with no external HTTP dependency ([details](building-details.md#choosing-the-http-server)) |
 | `make di CMAKE_FEATURES=... BUILD_DEBUG=<dir>` | a reduced tree in a directory of its own, beside the ordinary one |
 
 `coraine --version` and `GET /build` say what a binary carries; check them after any

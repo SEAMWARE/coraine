@@ -195,7 +195,7 @@ attribute stays a state change that an outbound Channel carries
 
 ## Order
 
-After the binary IPC protocol and corDB, and after the per-feature conditional
+After the binary IPC protocol and [corDB](https://github.com/SEAMWARE/corDB), and after the per-feature conditional
 compilation that makes a small build possible at all. The bridge family lands
 first with DDS; the device protocols are more plugins on the same contract, which
 is the point of doing DDS first.

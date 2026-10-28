@@ -87,12 +87,19 @@ jobs:
         run: |
           sha=$(git rev-parse HEAD)
           #
-          # The newest v* tag BEFORE the ref - HEAD^, so a ref that is itself tagged (v0.5.0) is
-          # checked against the release before it, not against itself
+          # The release before this one: the newest v* tag whose version is below the ref's own (its
+          # coraineVersion.h, "-dev" dropped) - by version, not by ancestry: a release is tagged on its
+          # release branch, and v0.5.0 is not an ancestor of main (git describe found v0.4.0). A ref that is
+          # itself tagged (v0.5.0) is checked against the release before it, not against itself.
           #
-          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^)
+          own=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\([0-9.]*\).*/\1/p' src/app/coraine/coraineVersion.h)
+          previous=$( { git tag -l 'v[0-9]*' | sed 's/^v//'; echo "$own"; } | sort -uV \
+                      | awk -v own="$own" '$0 == own { print prev; exit } { prev = $0 }')
+          if [ -z "$own" ] || [ -z "$previous" ]; then
+            echo "::error::no release before '$own' among the v* tags"; exit 1
+          fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "previous=${previous#v}" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
           {
             echo "### Pre-release campaign: \`${{ inputs.ref }}\` at \`${sha:0:10}\`"
             git log -1 --format="%s" | head -c 200; echo

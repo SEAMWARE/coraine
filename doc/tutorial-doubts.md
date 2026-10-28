@@ -427,7 +427,7 @@ does exactly that:
 
 Two members with the same name in one object - invalid JSON - and a silent
 `201` to a request that was wrong. C5's expanded IRI was one INSTANCE of this;
-fixing recognition (corNgsild #25) removes that instance and leaves the class.
+fixing recognition ([corNgsild](https://github.com/SEAMWARE/corNgsild) #25) removes that instance and leaves the class.
 
 **Cause.** `normalizeAttr`'s Case 1 asks "is there a `type` naming a known
 attribute type?". On `false`, Case 2 fires because the object *has* a `value`

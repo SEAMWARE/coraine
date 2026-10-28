@@ -73,7 +73,7 @@ default; `--logTo` and `--logDir` put the log in a file instead, or as well.
 ### `--usage`
 
 `-u` · no environment variable · Bool · default: `false` (off)
-· values: a switch · plugin: core (the option library, corArgs)
+· values: a switch · plugin: core (the option library, [corArgs](https://github.com/SEAMWARE/corArgs))
 
 Prints every option, one per line as `[--long/-short <description>]`, and exits with 0. A Bool option
 shows its description in `( )`, an option with a value in `< >`. The list includes the options of the
@@ -94,11 +94,12 @@ with the list.
 · values: a switch · plugin: core (the option library, corArgs)
 
 Prints every option as a table and exits with 0. The columns: the long name, the short name, the
-environment variable, `Optional`, the type (`Bool`, `String`, `Int`, `UInt`, `UShort`), and where the
-value in force came from (`Default Value`, `Short Option`, ...). The default value itself is not in
-the table. As with `--usage`, the plugins named on the same command line add their options.
+environment variable, `Optional`, the type (`Bool`, `String`, `Int`, `UInt`, `UShort`), and the
+default value (`-` for none) - the default, not the value given on the same command line. As with
+`--usage`, the plugins named on the same command line add their options.
 
-    coraine -U -db corDB      # ... --dbDir (-dbDir) CORAINE_DBDIR Optional String Default Value
+    coraine -U -db corDB      # ... --dbDir (-dbDir) CORAINE_DBDIR Optional String -
+    coraine -U                # ... --port  (-p)     CORAINE_PORT  Optional UShort 1026
 
 ### `--version`
 
@@ -107,7 +108,7 @@ the table. As with `--usage`, the plugins named on the same command line add the
 
 Prints three lines and exits with 0: the program and its version, `features:` with every
 compile-time feature of this binary as `NAME=1` (in the build) or `NAME=0` (left out), and
-`httpServer:` with the HTTP server it was built with (`mhd` - libmicrohttpd, or `builtin` - corHttp).
+`httpServer:` with the HTTP server it was built with (`mhd` - libmicrohttpd, or `builtin` - [corHttp](https://github.com/SEAMWARE/corHttp)).
 It is answered before any plugin is loaded and before any other option is read, so it works on an
 installation with a broken or missing plugin directory, and nothing else on the command line is
 checked.
@@ -116,7 +117,7 @@ It is read from the command line only: `CORAINE_VERSION` is listed by `-U`, and 
 nothing - the broker starts.
 
     coraine -V
-    # coraine 0.6.0-dev
+    # coraine 0.6.0
     # features: SUBSCRIPTIONS=1 REGISTRATIONS=1 GEOQ=1 ... ICU_COLLATION=0 ...
     # httpServer: mhd
 
@@ -132,7 +133,7 @@ memory, the plugins loaded, `coraine running on port <port>`, and one line per r
 nothing. With the `admin` API plugin it can be switched at run time (`/admin/log`).
 
     coraine -v -db corDB
-    # V: 000000.000: coraine.c[1856]: main: coraine  0.6.0-dev
+    # V: 000000.000: coraine.c[1856]: main: coraine  0.6.0
     # I: 000000.000: coraine.c[1857]: main: Advertised HTTP endpoint: http://192.168.1.138:1026 (auto-detected LAN IP)
     # ...
     # I: 000000.020: coraine.c[2280]: main: coraine running on port 1026
@@ -147,10 +148,10 @@ belongs to the code that writes it:
 
 | Levels | Code | Defined in |
 |---|---|---|
-| 50-66 | the JSON parser and tree (corJson, corTree) | `corJsonTraceLevels.h`, `corTreeTraceLevels.h` |
-| 100-199 | the REST layer (corRest) and the JSON-LD library (corJsonld, 150 on) | `corRestTraceLevels.h`, `corLdTraceLevels.h` |
-| 200-240 | the NGSI-LD library (corNgsild): validation (200-210), forwarding (220-226), registration matching (227), notifications (230-235), transient entities (240) | `ldTraceLevels.h` |
-| 300-303 | the allocator (corAlloc) | `CorAllocTraceLevel.h` |
+| 50-66 | the JSON parser and tree ([corJson](https://github.com/SEAMWARE/corJson), [corTree](https://github.com/SEAMWARE/corTree)) | `corJsonTraceLevels.h`, `corTreeTraceLevels.h` |
+| 100-199 | the REST layer ([corRest](https://github.com/SEAMWARE/corRest)) and the JSON-LD library ([corJsonld](https://github.com/SEAMWARE/corJsonld), 150 on) | `corRestTraceLevels.h`, `corLdTraceLevels.h` |
+| 200-240 | the NGSI-LD library ([corNgsild](https://github.com/SEAMWARE/corNgsild)): validation (200-210), forwarding (220-226), registration matching (227), notifications (230-235), transient entities (240) | `ldTraceLevels.h` |
+| 300-303 | the allocator ([corAlloc](https://github.com/SEAMWARE/corAlloc)) | `CorAllocTraceLevel.h` |
 | 400-404 | the broker: 400 forwarded requests, 401 cache sync between instances (`--high-availability`), 402 bridges, 403 Service Execution, 404 the SQL of a TRoE entity selector | `src/app/coraine/coraineTraceLevels.h` |
 
 Traces exist in a debug build only. A release build has them compiled out: the option is accepted,
@@ -2108,7 +2109,7 @@ A build with traces: `coraine-build --debug`.
 Prints `coraine-import <version>` and exits 0, before anything else is read or loaded.
 
     $ coraine-import -V
-    coraine-import 0.6.0-dev
+    coraine-import 0.6.0
 
 ### `--usage`
 
@@ -2126,7 +2127,7 @@ An unknown option prints the same after `coraine-import: unrecognized option: <o
 · values: a flag · plugin: coraine-import
 
 Prints the options as a table - long and short name, environment variable, required or optional, type, and
-where the value came from - and exits 0.
+the default value - and exits 0.
 
     coraine-import -U
 

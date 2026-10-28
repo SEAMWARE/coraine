@@ -80,10 +80,10 @@ Recently built, and documented where it lives:
     `--fdscNgsild`, notifications decided for the subscription's owner; the ODRL-PAP's `/policy` API served
     by the broker (`--policyApiPort`) ([Authorization](authorization.md)).
 -   **The CKAN bridge and DataChannels** - a CKAN portal's DataStore resources read into entities
-    (`ckan.so`, corCkanBridge); a DataChannel makes each record (a row) into the entities its mapping
+    (`ckan.so`, [corCkanBridge](https://github.com/SEAMWARE/corCkanBridge)); a DataChannel makes each record (a row) into the entities its mapping
     names ([DataChannels](bridge-channels.md#datachannels)). A bridge reports a Channel's status, and why,
     at any time (`channelStatusIn`).
--   **c³, the coraine Control Center - Compile** - a broker built for a deployment from a web page: the
+-   **[c³](https://github.com/SEAMWARE/c3), the coraine Control Center - Compile** - a broker built for a deployment from a web page: the
     features in or out, each with its size, the bridges, the build mode (release, PGO, `make tune`,
     debug), on `coraine-dev`'s `coraine-build`. ([more](ideas.md#c-the-coraine-control-center))
 -   **corDB persistence, cheaper writes** - a write that updates attributes logs those attributes, not the
@@ -116,7 +116,10 @@ Recently built, and documented where it lives:
     areas), their values live over the WebSocket transport or HTTP notifications, and the entity editor.
     ([more](ideas.md#c-the-coraine-control-center))
 -   **The documentation in c³, and as a website** - the guides of c³'s Documentation page, written from
-    these pages for the reader, searchable, offline in c³; the same pages at
+    these pages for the reader: installation, administration, the API, building, deploying, performance,
+    the transports, the bridges, authorization, the internals, and a guide and an API reference (from its
+    headers) per cor-lib; each guide links the repositories it is written from. Searchable, offline in c³
+    (installed with the `coraine` package); the same pages at
     [seamware.github.io/docs](https://seamware.github.io/docs/).
 -   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
     (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
@@ -151,8 +154,8 @@ Nothing at the moment - the next release ships what is under [Available now](#av
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
--   **c³ Documentation, the rest** - a guide per cor-lib with an API reference from its headers, the pages
-    in `coraine-dev` for offline use, and a skeleton repository per kind of plugin (`c3 new plugin`).
+-   **A skeleton repository per kind of plugin** - a current-state store, a temporal store, an API, a
+    transport, a bridge: a makefile, a template `.c`/`.h`, a functest and CI each, made with `c3 new plugin`.
 -   **A small build: less RAM, slower** - one build switch that picks memory over speed everywhere it
     trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
     allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
@@ -191,7 +194,7 @@ Take into account that there is no commitment to deliver them in a specific
 timeframe; they are provided so that potential contributors can see where the
 product is heading and may wish to get involved.
 
--   **corDB standalone** - corDB as a server of its own beside the brokers, for high availability (the
+-   **[corDB](https://github.com/SEAMWARE/corDB) standalone** - corDB as a server of its own beside the brokers, for high availability (the
     haaux role), with backups of current state and history. ([more](ideas.md#cordb-standalone---and-as-haaux))
 -   **Our own string collation, replacing ICU** - root collation without 39 MiB of libicu. ([more](ideas.md#our-own-string-collation-replacing-icu))
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
@@ -241,7 +244,7 @@ nodes), Server-Sent Events, declared indexes, Timepoint. Open, in order:
    ARM's `char`, passed the whole suite on 2026-10-08.)
 2. **Security, what is left** - `join=inline` in a notification decided for its owner; the connector's
    own rules as its team settles them (SEAMWARE/odrl-pap#59-#61: attribute paths, batch operations - a
-   PR, odrl-pap#64 -, the actions).
+   PR, [odrl-pap](https://github.com/SEAMWARE/odrl-pap)#64 -, the actions).
 3. **One compound geo index** - prototype both variants, measure.
 4. **Hot and cold entity segments** - a design note.
 5. **Deletes and policies** - low priority (attribute updates matter far more); the delete cost grows
@@ -299,7 +302,7 @@ own, freed with the rest at the end of the request. Both sizes were chosen, not 
   req/s, p99, instructions and cycles a request (`perf stat`), mallocs a request, RSS. Every result
   documented, the losers too; a default changes only if a size clearly wins. 256 KiB is above glibc's
   starting mmap threshold (128 KiB) - part of what to look at.
-- **The zeroing**: corAlloc hands out zeroed memory (a memset per allocation; `calloc` for an
+- **The zeroing**: [corAlloc](https://github.com/SEAMWARE/corAlloc) hands out zeroed memory (a memset per allocation; `calloc` for an
   oversized block) - insurance against a field nobody set, like the `next` pointer that once pointed
   nowhere. Its cost is at most ~2 % (all of memset under a create load, 2026-10-03). Before deciding,
   find what relies on it: a build that fills every hand-out with `0xFEEDC0DE` instead of zero (a
@@ -732,7 +735,7 @@ TooManyResults over the budget. Temporal queries too (`TroeQueryFilter.maxBytes`
 corDB): a short page, or one entity's instances cut to the K per attribute that fit with the temporal
 pagination Link at `offsetN` + K, 403 when not even one instance per attribute fits. And the
 forwarded part of a distributed query: each source's answer read up to the budget and no further
-(`ldDistOpSendMultiMax`, corRest `corRestClientMultiMaxResponse`), the local and the forwarded pages
+(`ldDistOpSendMultiMax`, [corRest](https://github.com/SEAMWARE/corRest) `corRestClientMultiMaxResponse`), the local and the forwarded pages
 cut at one depth so that one `next` (`offsetN`) continues them all, 403 for the whole-set cases
 (split entities, `orderBy`, an EntityMap) and for a source whose answer passes the budget.
 ~~**Open:** a split-entity distributed query forwards no `offset` / `limit` and applies no `offset`
@@ -1096,7 +1099,7 @@ axis.
 Both are measured facts without explanations, which is the worst kind of
 performance result to leave lying around.
 
-**corHttp is now SLOWER than libmicrohttpd on one core, and
+**[corHttp](https://github.com/SEAMWARE/corHttp) is now SLOWER than libmicrohttpd on one core, and
 `--connectionPoolSize` is why - but the fix is not a new default.** 5 901 req/s
 against 6 588; it used to be the other way round.
 

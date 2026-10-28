@@ -27,7 +27,7 @@ places it deliberately does it differently. This page says what, in short.
   so the call waits until nothing new has been announced for 3 s, 10 s at
   most; `settled` says which of the two ended it. A broker that has been up a
   while answers at once. The list is flat: `?from` is answered `404`, and
-  `?depth` is not used. c³'s **Discover** starts a broker for a few seconds and
+  `?depth` is not used. [c³](https://github.com/SEAMWARE/c3)'s **Discover** starts a broker for a few seconds and
   makes this one call; the answer's shape is in
   [the bridge's README](https://github.com/SEAMWARE/corDdsBridge#inventory).
 - **Pre-population.** Every configured attribute exists from startup - its

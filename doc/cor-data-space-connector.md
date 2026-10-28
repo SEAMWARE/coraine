@@ -21,7 +21,7 @@ them.
 | which credentials a service takes | VCVerifier's configuration API (until 10.11.0, the Credentials Config Service; now disabled by default) |
 | which issuers are trusted | the local Trusted Issuers List (TIL), with the Trust Anchor's registry |
 | who sent a request | APISIX, the Policy Enforcement Point: it validates VCVerifier's JWT (`openid-connect`); all external access to a protected service goes through it |
-| may it | OPA, the Policy Decision Point, running the Rego odrl-pap writes from the ODRL policies, asked by APISIX's `opa` plugin |
+| may it | OPA, the Policy Decision Point, running the Rego [odrl-pap](https://github.com/SEAMWARE/odrl-pap) writes from the ODRL policies, asked by APISIX's `opa` plugin |
 | the policies | odrl-pap, the Policy Administration Point |
 
 **Optional:**
@@ -31,7 +31,7 @@ them.
 | a Scorpio broker | enabled by default, as the backend of the TM Forum APIs; the chart's examples also expose it as the provider's NGSI-LD data service, which the guide advises against in production: there, a separate broker |
 | contracts | the TM Forum APIs (enabled by default) and Contract Management (enabled by default): on a product order, it registers the buyer's DID in the local TIL and, with odrl-pap deployed, writes the contract's ODRL policies |
 | the marketplace | the Business API Ecosystem (disabled by default; needs MongoDB), or a central marketplace run by another participant |
-| the Dataspace Protocol | fdsc-edc (disabled by default, usually together with the Decentralized Claims Protocol): an Eclipse Dataspace Components (EDC) control plane with FIWARE's extensions, listed among the DSP-compliant connectors in IDSA's Data Space Connector Report No. 2 (June 2026) |
+| the Dataspace Protocol | [fdsc-edc](https://github.com/SEAMWARE/fdsc-edc) (disabled by default, usually together with the Decentralized Claims Protocol): an Eclipse Dataspace Components (EDC) control plane with FIWARE's extensions, listed among the DSP-compliant connectors in IDSA's Data Space Connector Report No. 2 (June 2026) |
 
 ## What a Cor Data Space Connector would be
 

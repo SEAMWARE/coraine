@@ -228,7 +228,7 @@ when the model is read ([asset-channels.md § 4](asset-channels.md#4-operations-
 
 ## 9. The mapping tool in c³
 
-c³, coraine's control center, gets a mapping page: it browses what a bridge's source offers - an OPC UA
+[c³](https://github.com/SEAMWARE/c3), coraine's control center, gets a mapping page: it browses what a bridge's source offers - an OPC UA
 server's address space first, an AAS server's shells and submodels next - lets you pick what to carry,
 and writes the configuration of section 3. The broker's part is an
 endpoint that asks a bridge for its source's inventory (`GET /admin/bridges/{bridge}/inventory`); the AAS

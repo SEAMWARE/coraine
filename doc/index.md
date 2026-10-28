@@ -39,6 +39,8 @@ cases, on MongoDB + TimescaleDB and on `corDB` (2026-10-07).
 | see how an IoT Agent's measures become DataChannel records (design) | [IoT Agent measures as DataChannel records](iot-agent-measures.md) |
 | read Modbus devices and PLCs, and write to them | [The Modbus bridge](modbus-bridge.md) |
 | send notifications over MQTT, or map MQTT topics to attributes | [The MQTT bridge](mqtt-bridge.md) |
+| read and write OPC UA servers - Variables as attributes, Methods as Service Executions | [The OPC UA bridge](https://github.com/SEAMWARE/corOpcuaBridge) |
+| read a CKAN portal's DataStore resources into entities | [The CKAN bridge](https://github.com/SEAMWARE/corCkanBridge) |
 | secure it - the Data Space Connector's tokens and policies, or your own security layer, inside the broker | [Authorization in the broker](authorization.md) |
 | see what an alternative provider side for the Data Space Connector, built on coraine, would be - a proposal | [A Cor Data Space Connector](cor-data-space-connector.md) |
 | see the binary format for snapshots, the log and cor:// (design draft) | [The cor format and cor://](cor-protocol.md) |

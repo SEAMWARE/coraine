@@ -12,10 +12,48 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
-## 0.6.0 (not released yet)
+## 0.6.0 — 2026-10-28
+
+Two and a half weeks since 0.5.0: authorization inside the broker - the FIWARE Data Space Connector's
+tokens and policies decided as the connector decides them -, Server-Sent Events, Timepoint, declared
+indexes, bridges to OPC UA and CKAN and the FIWARE IoT Agents as bridge plugins, c³ - the control
+center that builds, runs and shows a broker - and the stored trees in 14.5 % less RAM.
 
 ### New
 
+- **Authorization in the broker** - `--auth`: auth plugins, and `fdsc.so`, the FIWARE Data Space Connector's
+  access tokens and ODRL policies decided inside the broker as the connector decides them - 67 cases against
+  a deployed connector, 0 differences; per entity, per attribute and per tenant with `--fdscNgsild`,
+  notifications decided for the subscription's owner; OpenID Connect tokens (`oidc.so`); the ODRL-PAP's
+  `/policy` API served by the broker (`--policyApiPort`).
+  ([Authorization](doc/authorization.md))
+- **An NGSI-LD plugin for APISIX** - `ngsild-pep` ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)):
+  `fdsc.so`'s decision in the gateway the Data Space Connector already uses, in front of any NGSI-LD broker.
+- **Server-Sent Events** - a subscription on `urn:ngsi-ld:self` made on its own event stream: the `201` to its
+  `POST` is `text/event-stream`, its notifications the events, and it lives as long as the stream. Over a
+  WebSocket, `urn:ngsi-ld:self` is the connection.
+  ([Server-Sent Events](doc/sse.md))
+- **Timepoint (NGSI-LD v2.1)** - an entity, or a query's entities, as they were at a point in time, from the
+  history inside corDB.
+  ([Timepoint](doc/timepoint.md))
+- **The OPC UA bridge** - Variables as attributes, Methods as Service Executions, the server's node tree as
+  the bridge's inventory, SignAndEncrypt with certificates (`--bridges opcua`,
+  [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)).
+- **The CKAN bridge and DataChannels** - a CKAN portal's DataStore resources read into entities (`ckan.so`,
+  [corCkanBridge](https://github.com/SEAMWARE/corCkanBridge)); a DataChannel makes each record into the entities its mapping names. A bridge reports a
+  Channel's status, and why, at any time.
+  ([DataChannels](doc/bridge-channels.md#datachannels))
+- **The FIWARE IoT Agents as bridge plugins - prototypes** - JSON, UltraLight 2.0, LwM2M, LoRaWAN, Sigfox and
+  ISOXML, each a public repository of its own (corIota*Bridge).
+  ([FIWARE IoT Agents](doc/iot-agents.md))
+- **What a running broker is** - `GET /admin/config` (every option it runs with, a secret masked), whether its
+  build has traces (`/admin/log`), a bridge's inventory for a mapping tool
+  (`/admin/bridges/{bridge}/inventory`).
+- **c³, the coraine Control Center** - Compile: a broker built for a deployment from a web page (features,
+  bridges, release/PGO/`make tune`/debug, on `coraine-dev`'s `coraine-build`); Operate: brokers started and
+  stopped, natively or in a container, their logs, configuration and metrics, and the DDS mapping tool;
+  Explore: a running broker's entities as a graph and on a map, live; the documentation, offline, and the
+  same guides at [seamware.github.io/docs](https://seamware.github.io/docs/).
 - c³, the control center, is in the `coraine` package (`/usr/bin/c3`); its Compile page builds brokers
   with `coraine-dev` installed. `coraine-build --source <dir>` builds from a directory of git clones
   instead of the `coraine-dev` tarball, and c³ built from clones builds from them.
@@ -51,12 +89,49 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
   stops the broker at start. A `coraine.log` of an earlier start is renamed `coraine.log.old`. The file is
   written in append mode: logrotate's `copytruncate` rotates it; the broker does not reopen it (no SIGHUP).
   `CORAINE_DAEMON`, `CORAINE_LOGTO`, `CORAINE_LOGDIR`.
+- corDB with `--dbDir`: a log that cannot be written - a full disk, a file-size limit, a failed `fdatasync` -
+  pauses the store. Every request that writes is refused before anything is applied: 503
+  `PersistenceUnavailable`, `Retry-After: 5`; GET and POST `entityOperations/query` are served. `/ready`
+  answers 503 and the health report's `status` is `paused`, with a `paused` member; metrics
+  `ngsild_store_paused` and `ngsild_requests_refused_store_paused_total`. The log is allocated 8 MiB ahead of
+  its records, so a full disk pauses the store before a write needs the room. The broker repairs by itself -
+  a snapshot of each tenant from memory, retried with a backoff up to 16 s - and the pause ends once the disk
+  has room again. A failure of the history log (`--troe corDB`) is repaired too: the tenant's history is
+  written anew from memory, as new segments that replace the old ones.
+  ([A store that cannot write its log](doc/installation.md#a-store-that-cannot-write-its-log))
+- A query with an `offset` at or past the end of its result set answers its last entity, as before, and now
+  says so: `NGSILD-Warning: 199 coraine "offset 50 is past the result set (5 entities) - the last entity is
+  returned"`.
+  ([Pagination](doc/installation.md#an-offset-past-the-end))
+- A registration PATCHed: the subordinate subscriptions of the matching subscriptions follow it (§ 10.5.2.4) -
+  PATCHed at the Context Source when the registration's change narrows their entities differently, deleted when
+  it no longer matches (another type, no `createSubscription`), deleted at the old endpoint and created at the new
+  one when its endpoint or tenant changes, and created when it matches now. Creation and deletion of a
+  registration were handled already.
+  ([`--distributed`](doc/options.md#--distributed))
+- Under `--high-availability mongo`, the WebSocket subscriptions of an instance that was killed or that
+  crashed are deleted by the instances alive, also when it never comes back. Each instance writes the
+  beat of its run in the shared database every 10 s; the subscriptions notifying a connection of a run
+  with no beat for 60 s are deleted. An instance whose beat cannot be written for 60 s closes its
+  WebSocket connections (status 1012). Build switch `COR_FEATURE_HA_RUNS`.
+  ([High Availability](doc/high-availability.md#websocket-subscriptions-of-an-instance-gone))
 
 ### Faster
 
+- corDB on disk: a write that updates attributes logs those attributes, not the entity - PATCH +11-13 %.
+  ([Performance](doc/performance.md))
+- The TimescaleDB history: TRoE writers and unnested rows, 5-11x the history write rate; the history
+  database down without the current state going down (held, retried, then counted as lost); `--troeSync`
+  for read-your-writes.
+  ([Performance](doc/performance.md))
 - `mongoc`: a `q` value term can be served by an index. It still finds a value on any instance of an
   attribute, as before; an index on `<attr>.@none.value` and one on `<attr>.@datasetIds` now serve it.
   ([q and the mongoc indexes](doc/installation.md#q-and-the-mongoc-indexes))
+- Batch writes with many clients: the tree heap (corTree) keeps a cache of free blocks per thread and size,
+  so threads writing the store no longer wait for each other on one mutex a size. With 50 clients on corDB
+  (durable): batch update (20) +79 %, batch create (20) +186 %, batch delete (20) +225 %, merge +8 %;
+  single-entity writes and reads unchanged, RSS unchanged.
+  ([Threads building trees at once](doc/performance.md#threads-building-trees-at-once))
 
 ### Less memory
 
@@ -85,9 +160,27 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
   by default now - the option is refused from 0.8.0` - and **refused from 0.8.0**. It is no longer in
   `coraine -u`. The package's systemd unit, the Docker entry point and the scripts here no longer pass it;
   drop it from your own. `-fg` with `--daemon` is refused.
+- No `--debug` / `-d` (`CORAINE_DEBUG`), for the broker and `coraine-import`: it turned on the `D` lines of
+  the log, and nothing wrote one. A start with `-d` is refused as an unknown option. What shows more is the
+  trace levels (`--traceLevels`). `/admin/log` has no `debug` either: `GET` no longer reports it, and
+  `?debug=` is refused (400).
+  ([Command-line options](doc/options.md#--tracelevels))
+- A Bool option's environment variable is on for `true`, `True`, `TRUE`, `on`, `On` or `ON`, off for `false`,
+  `False`, `FALSE`, `off`, `Off` or `OFF`. Any other value stops the start, the variable named
+  (`coraine: CORAINE_VERBOSE=yes: not a Bool - ...`) - it was off without a word, `yes` and `1` included, and
+  `on` was off too.
+  ([Command-line options](doc/options.md#command-line-options))
+- The core context is listed by `GET /ngsi-ld/v1/jsonldContexts` as kind `Cached`, not
+  `ImplicitlyCreated` (§ 5.13.1 - a local copy of the `@context` at its external URL, compiled in instead
+  of downloaded). As every `Cached` `@context`, its metadata is served (`?details=true`) and its body is not:
+  `GET /ngsi-ld/v1/jsonldContexts/<core URL>` answers 422 `OperationNotSupported`.
+- The transport plugin ABI is 2: a driver has a `drop` operation (every connection closed, with a status).
+  A transport plugin built for ABI 1 is still loaded, without it.
 
 ### Fixed
 
+- The image and the packages are built with libmicrohttpd 1.0.10 (was 1.0.2) - the fixes of its 1.0.3 to
+  1.0.10 releases, request smuggling among them.
 - A Context Source registered with a `cor://` endpoint: a forwarded query returned none of its entities
   (`[]`), and a forwarded batch took none of its per-entity answers - a batch create reported `201` for an
   entity the source refused. The same over `http://` was right, and so was a forwarded retrieve. The
@@ -104,6 +197,95 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
   ([The database down](doc/installation.md#the-database-down))
 - `coraine-build --list-features` prints the switches' descriptions as they read - `"dataChannels"`, `"both"` were
   printed with CMake's backslashes, in the text list and in the `--json` one.
+- A required option missing from the command line is named, the usage printed, exit 1: `coraine-import` without
+  `--file` crashed (SIGSEGV; with `mongoc` after connecting). `-u` / `-U` print the option list whatever else the
+  command line holds - `coraine -u -p 0` exited 1 with the range error of `--port`. The action options (`--usage`,
+  `--Usage`, `--version`) have no environment variable: `-U` listed `CORAINE_VERSION`, which was never read.
+- The start-up log says a size below 1 MiB in KiB: `--memoryLimit 1` logged "response size budget: 0 MiB" (it is
+  64 KiB) and "writes refused above 0 MiB" (921 KiB); likewise the 403 of a response over its budget and the 503
+  over the memory budget. `--healthPort` on a port that cannot be listened on says why ("Address already in use"),
+  as `--corPort` does.
+- `corDB`: `--dbSync`, `--dbSyncInterval`, `--dbSnapshotEvery` and `--dbCompress` without `--dbDir` were not
+  looked at - `--dbSync sometimes` started, and `--dbSync request` promised a durability there was none of.
+  Given without `--dbDir` they now refuse the start, each one named, as `ramDB` refuses `--dbDir`.
+  ([corDB on disk](doc/installation.md#cordb-on-disk))
+- Passwords and tokens no longer show in the log. They appear as `***` in mongoc's
+  connection URI (`-v`, from `--dbUser`/`--dbPwd` or from `--dbURI`), in the notification and
+  forwarding traces (the endpoint's `user:password` and the value of a credential header such as
+  receiverInfo's `Authorization`), in the warnings that name an endpoint, in the auth plugins'
+  discovery, keys and policies URLs, in the client proxy's error messages, and in a crash
+  report's command line (the value after `--dbPwd`, `--dbURI` or `--troePwd`).
+- `coraine -u` describes its options as [Command-line options](doc/options.md) does. Wrong before:
+  `--auth` named a `none` value there is none of, `--distOpTimeout` claimed notifications and `@context`
+  downloads (10 s each, not it), `--insecureNotif` only notifications and forwards (it is every outgoing
+  HTTPS request, `mqtts://` too), `--httpLoops` "built-in server only" (the cor:// listener too),
+  `--connectionPoolSize` "MHD thread pool" (the workers, on both servers), `--ddsSyncTimeout` left out the
+  action goals' wait (504), `--asyncSnapshot` promised a status in the 201 (no body either way),
+  `--fdscOrganization` showed no default (it has the PAP's); `--bridgeConfig`, `--contextSourceExtras`,
+  `--subStatsFlushInterval`, `--cooldownMillis`, `--high-availability`, `--dbName`, `--dbUser`, `--dbPwd`,
+  `--dbURI`, `--troeName`, `--fdscPolicies`, `--fdscOwnerMaxAge` and `--traceLevels` say their defaults
+  and limits. The high-availability errors name the option as `-ha` (they said `--ha`, which is no option).
+- A group of one-letter switches holding a letter that is not a switch's is an unknown option, the start
+  stopped (exit 1): `coraine -vt` crashed - `-t` (`--traceLevels`) takes a value, and the group set it as
+  a switch.
+  ([Command-line options](doc/options.md#--tracelevels))
+- `CORAINE_PORT=0 coraine -u` printed the port's range error, not the usage: a value of the environment that
+  is refused is now said after the `-u`/`-U` check, as a bad value on the command line is.
+  ([Command-line options](doc/options.md#command-line-options))
+- The profile-guided build stops no more on gcc's fortify check (`null destination pointer`) in the metrics'
+  text, which measured its length into a NULL buffer: the arm64 image is published again (none since
+  2026-10-22), and the nightly's image builds (performance, the DDS bridge, the fdsc plugin vs the Data
+  Space Connector) build again. It measures into a byte thrown away now; the TimescaleDB plugin's statement
+  text the same.
+- A Channel's `samplesIn` (`GET /ngsi-ld/v1/channels`) counts a sample before its value is written, not after
+  its notifications and history: a client that saw the new value could read the count still without it.
+- A request body nested deeper than 100 levels (arrays and objects) is refused with 400 `InvalidRequest`,
+  detail `request body nested deeper than 100 levels`, and the broker serves the next request - a body of
+  enough nested brackets, well under `--maxRequestSize`, stopped the broker.
+  ([Request size](doc/installation.md#request-size))
+- corDB with `--dbDir`: a write whose record cannot be put in the log - a full disk - is answered 503, with
+  any `--dbSync`; it was answered as a success, and lost at the next start. After a failed `fdatasync`,
+  every later write is answered 503 until the broker can write its log again (the pause, below), with any `--dbSync` - a load stops at the
+  first record it cannot read; with `--dbSync request`, the writes that sync was for are answered 503 too.
+  They were all answered as successes, and a `--dbSync request` write after an earlier failure no longer
+  waited for its sync.
+  ([`--dbSync`](doc/options.md#--dbsync))
+- A distributed subscription's notification, re-dispatched from a Context Source to the subscriber, now
+  carries the subscription's `notification.endpoint.receiverInfo` as headers (an `Authorization` among
+  them) - it carried none, and an endpoint that requires authentication answered 401. It also carries
+  the tenant (`NGSILD-Tenant`), keeps the subscription's `timeout`, and goes over the subscription's
+  transport when the endpoint is not HTTP.
+- The subordinate subscription created on a Context Source no longer gets the subscriber's
+  `receiverInfo` and `notifierInfo` - the subscriber's credentials went to the Context Source. A PATCH of
+  the subscription's `notification.endpoint` no longer moves the subordinate's endpoint from this
+  broker's callback to the subscriber's.
+- The `prev` link of a page past the end pointed before the offset asked for - past the end too (`offset=10`,
+  5 entities, `limit=5`: `prev` at `offset=5`); it is the page before the last entity.
+- An EntityMap page with an `offset` past the end of the map was empty (`[]`); it is the map's last entity, as
+  for a query.
+- `GET /ngsi-ld/v1/csourceRegistrations` with a filter that drops a matching registration - `q`, `scopeQ`,
+  `geoQ`, a temporal query, or none (a registration with an `observationInterval` or `managementInterval`
+  is then left out) - released the matches wrongly: a dropped registration stayed held, so after its
+  `DELETE` its memory was never freed, and a kept one was released twice, so a request forwarding to it
+  while it was deleted could read freed memory. Each match is now released once.
+- A request body's numbers follow JSON's grammar: `+5`, `1.`, a bare `-` and `1.e5` are refused with 400 -
+  they were taken as 5, 1, 0 and 100000. `1e400` is refused - it was stored as infinity and rendered `inf`,
+  which made every response holding it invalid JSON.
+- An integer past 64 bits (`12345678901234567890`) is stored as a float - it wrapped to a negative integer.
+- A float is stored as the double nearest to its text: `q=a==0.3` did not find a stored `0.3` on mongoc
+  (stored as 0.30000000000000004), and decimals past the 12th were dropped.
+  ([Request body](doc/installation.md#request-size))
+- A `Link` header (or an `@context` URL in a body) naming a `@context` the broker hosts, by the URL the
+  broker gives it (`<--httpEndpoint>/ngsi-ld/v1/jsonldContexts/{id}`), is that context - read from the
+  cache or the database. It was downloaded from the broker itself and cached a second time, as a `Cached`
+  entry under the URL: `GET /jsonldContexts?kind=Cached` listed the Hosted context too.
+- A broker without `--distributed` created subordinate subscriptions at a Context Source when a registration was
+  created after a matching subscription; it creates none.
+- The DDS bridge starts with a list of plain values in `dds.ddsmodule.dds`, such as
+  `"whitelist-interfaces": ["192.168.1.10"]` - the DDS Enabler refused the file and the broker did not start
+  (corDdsBridge). A change of the file while the broker runs reloads `allowlist`, `blocklist` and `topics`
+  with such a list in it too.
+  ([Bridges and Channels](doc/bridge-channels.md))
 
 ---
 
@@ -131,7 +313,7 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - **Snapshots** — § 5.16 complete, writes and subscriptions on a Snapshot, on both stores.
 - **The WebSocket transport** — subscriptions and notifications over a WebSocket.
 - **Array reduction of entity data** — one-element arrays reduced at the input, as the
-  @context says (`@set` / `@list`).
+  `@context` says (`@set` / `@list`).
 - **linux/arm64** — every image for amd64 and arm64 under one tag (arm64 without the DDS
   bridge); the whole functional suite runs on ARM every night.
 - **Migrating from Orion-LD** — `coraine-import`, a program of its own: entities,
@@ -256,7 +438,7 @@ in production: arm64, Kubernetes, a migration path from Orion-LD and Debian pack
 - The MQTT and Modbus bridges read at most 64 KiB of their configuration and ignored the rest.
 - A forwarded request's response (body, status text, headers) pointed into its connection's buffer,
   which could be reused by another request or freed before it was read - distributed operations,
-  forwarding, Service Execution executors, snapshots and the @context download.
+  forwarding, Service Execution executors, snapshots and the `@context` download.
 - A forwarded request whose path and query were longer than about 450 characters failed (502).
 - An HTTPS request through the multi client could wait for its full timeout with its answer already
   read (data left inside OpenSSL).

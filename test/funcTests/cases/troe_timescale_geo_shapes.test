@@ -58,7 +58,7 @@ echo
 
 echo "03. troe_attrs.v_compound — geometry stored verbatim as JSONB"
 echo "============================================================="
-sleep 0.2
+corTroeSettle
 psql -h "$COR_TROE_HOST" -p "$COR_TROE_PORT" -U postgres -d "$COR_TROE_DB" -tA -F'|' \
   -c "SELECT regexp_replace(attr_name, '.*/', ''), v_compound FROM troe_attrs WHERE v_compound IS NOT NULL ORDER BY attr_name"
 echo
