@@ -10,7 +10,7 @@
 #   dists   resolute (Ubuntu 26.04), noble (Ubuntu 24.04), trixie (Debian 13) - from the version suffix
 #           of each .deb (+ubuntu26.04, +ubuntu24.04, +debian13), a package revision's .<N> after it
 #   comps   main     releases (0.4.0+...) and their package revisions (0.6.1+debian13.1)
-#           testing  builds of a commit (0.6.1+git<date>.<sha>+...; before 0.6.1: 0.4.0~git...)
+#           testing  builds of a commit (0.6.1+<dist>.<date>.git<sha>; earlier: 0.4.0~git...+<dist>)
 #   archs   amd64 arm64
 #
 # Environment:
@@ -72,7 +72,7 @@ for deb in "$@"; do
     *+debian13|*+debian13.[0-9]*)       dist=trixie ;;
     *) echo "publish.sh: $deb - no distribution suffix in version $v" >&2; exit 1 ;;
   esac
-  case "$v" in *+git*|*~git*) comp=testing ;; *) comp=main ;; esac
+  case "$v" in *.git*|*+git*|*~git*) comp=testing ;; *) comp=main ;; esac
   echo "publish.sh: $(basename "$deb") -> $dist/$comp"
   reprepro -b "$REPO" -C "$comp" includedeb "$dist" "$deb"
 done

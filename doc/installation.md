@@ -88,10 +88,16 @@ repository:
 sudo apt install ./coraine_0.6.1+ubuntu24.04_amd64.deb      # apt resolves the dependencies
 ```
 
-Versions: `0.6.1+<dist>` for a release, `0.6.1+git<YYYYMMDD>.<sha8>+<dist>` for a build of any later
-commit of `main` (it sorts after `0.6.1` and before the next release), `0.6.1+<dist>.<N>` for a
-package revision - the release 0.6.1 built again with a fix of c³'s, the broker the same (`apt upgrade`
-installs it; `MANIFEST.txt` names c³'s commit). `<dist>` is `ubuntu26.04`, `ubuntu24.04` or `debian13`.
+Versions, `<dist>` being `ubuntu26.04`, `ubuntu24.04` or `debian13`:
+
+| Version | What |
+|---------|------|
+| `0.6.1+<dist>` | the release 0.6.1 |
+| `0.6.1+<dist>.<N>` | a package revision: the release 0.6.1 built again with a fix of c³'s, the broker the same (`MANIFEST.txt` names c³'s commit) |
+| `0.6.1+<dist>.<YYYYMMDD>.git<sha8>` | a build of a later commit of `main` (component `testing`) |
+
+Each sorts after the one above it and before the next release (`0.6.2+<dist>`); builds of commits sort
+by date. `apt upgrade` installs a package revision over its release, and a build of a commit over both.
 
 ### The coraine package
 
