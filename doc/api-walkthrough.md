@@ -57,6 +57,27 @@ curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&attrs=speed&count=t
 pagination is `limit` and `offset`, with `Link` headers for the next and previous
 pages.
 
+What goes with `q` says how its names and values are read: `expandValues` (the
+values of these attributes are expanded with the `@context`), `jsonKeys` (the
+`[..]` under these attributes are JSON members, as sent) and `langProperties`
+(these attributes are LanguageProperties: the `[..]` under them is a language tag,
+compared as is with the `languageMap` keys - not NGSI-LD yet). In a URL each is a
+comma separated list; in a POST Query body and a Subscription each is a string,
+comma separated, or an array of strings with one name per item. A name is short
+or already expanded.
+
+```sh
+# [fr] a language tag - urn:ngsi-ld:Street:1, whose name is {"fr": "Grand Place", "nl": "Grote Markt"}
+curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Street&q=name%5Bfr%5D==%22Grand%20Place%22&langProperties=name'
+
+# the same in a POST Query body, the list an array
+curl http://localhost:1026/ngsi-ld/v1/entityOperations/query -H 'Content-Type: application/json' \
+  -d '{"type": "Query", "entities": [{"type": "Street"}], "q": "name[nl]==\"Grote Markt\"", "langProperties": ["name"]}'
+```
+
+Without `langProperties`, `[fr]` is a term - a member of a compound value - and the
+query above finds nothing.
+
 ## 4. Update
 
 ```sh

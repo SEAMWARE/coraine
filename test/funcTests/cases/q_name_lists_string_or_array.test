@@ -1,0 +1,239 @@
+#
+# FILE            q_name_lists_string_or_array.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# What goes WITH q - expandValues, jsonKeys, langProperties - in a payload body is a String or a
+# String[] (Query § 5.2.6.5.1, Subscription § 5.2.6.5.2): a String is a comma separated list of
+# attribute names, in a String[] each item is ONE name - never a comma separated list. A name is
+# short (expanded with the @context) or already expanded (a URI). The URL parameters stay comma
+# separated lists. A Subscription keeps the form it was sent in, across a restart too.
+#
+--NAME--
+expandValues, jsonKeys, langProperties - a String or a String[] in a Query body and a Subscription
+
+--TAGS--
+q query expandValues langProp jsonKeys subscription notification
+
+--INIT--
+corDbDrop
+coraineStart
+ftClientStart
+
+--RUN--
+
+echo "01. E1: LanguageProperty street, VocabProperty category, JsonProperty ticket; E2: Property street, a compound value with a member 'fr'"
+echo "======================================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:NL:E1","type":"T","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place","es":"Gran Plaza"}},"category":{"type":"VocabProperty","vocab":"monument"},"ticket":{"type":"JsonProperty","json":{"other":"Overstay"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:NL:E2","type":"T","street":{"type":"Property","value":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"museum"}}' | head -1
+echo
+echo
+
+
+echo "02. POST Query, each list a String[] of one name - expandValues: E1, langProperties: E1, jsonKeys: E1"
+echo "====================================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==\"monument\"","expandValues":["category"]}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\"","langProperties":["street"]}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"ticket[other]==\"Overstay\"","jsonKeys":["ticket"]}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "03. POST Query, String[] of two names, and the same as a String - both: E1"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\";category==\"monument\"","langProperties":["street","x"],"expandValues":["x","category"]}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\";category==\"monument\"","langProperties":"street,x","expandValues":"x,category"}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "04. An already expanded name - in a String[], a String and the URL parameter: E1, E1, E1"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\"","langProperties":["https://uri.etsi.org/ngsi-ld/default-context/street"]}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\"","langProperties":"https://uri.etsi.org/ngsi-ld/default-context/street"}' | grep -E '^HTTP|"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=street%5Bfr%5D==%22Grand%20Place%22&langProperties=https://uri.etsi.org/ngsi-ld/default-context/street' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "05. Without the lists - [fr] a term: E2; category==\"monument\" not expanded: none; ticket[other] a term: none"
+echo "============================================================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\""}' | grep -E '^HTTP|"id"'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"category==\"monument\""}' | grep -E '^HTTP|"id"|^\[\]'
+corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"ticket[other]==\"Overstay\""}' | grep -E '^HTTP|"id"|^\[\]'
+echo
+echo
+
+
+echo "06. POST Query, a String[] that is not one name per item - a comma separated item, a number, an empty item, an empty array: 400"
+echo "==============================================================================================================================="
+for list in '["street,category"]' '["street",12]' '["street",""]' '[]' '{"a":"street"}'; do
+  corCurl --url /ngsi-ld/v1/entityOperations/query -X POST --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street[fr]==\"Grand Place\"","langProperties":'"$list"'}' | grep -E '^HTTP|"detail"'
+done
+echo
+echo
+
+
+echo "07. Subscription with a String[] whose item is a comma separated list: 400"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:NL:Sbad","type":"Subscription","entities":[{"type":"W"}],"q":"category==\"monument\"","expandValues":["category,street"],"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/bad"}}}' | grep -E '^HTTP|"detail"'
+echo
+echo
+
+
+echo "08. Subscriptions on type W, each list a String[]: Sev (expandValues), Slp (langProperties), Sjk (jsonKeys)"
+echo "==========================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:NL:Sev","type":"Subscription","entities":[{"type":"W"}],"q":"category==\"monument\"","expandValues":["category"],"notification":{"attributes":["category"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/ev"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:NL:Slp","type":"Subscription","entities":[{"type":"W"}],"q":"street[fr]==\"Grand Place\"","langProperties":["street"],"notification":{"attributes":["street"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/lp"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:NL:Sjk","type":"Subscription","entities":[{"type":"W"}],"q":"ticket[other]==\"Overstay\"","jsonKeys":["ticket"],"notification":{"attributes":["ticket"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/jk"}}}' | head -1
+echo
+echo
+
+
+echo "09. GET the three - the lists as they were sent, arrays"
+echo "======================================================="
+for s in Sev Slp Sjk; do
+  corCurl --url /ngsi-ld/v1/subscriptions/urn:NL:$s | python3 -c 'import sys, json
+body = sys.stdin.read().split("\n\n", 1)[1]
+s = json.loads(body)
+print(s["id"], s["q"], {k: s[k] for k in ("expandValues", "langProperties", "jsonKeys") if k in s})'
+done
+echo
+echo
+
+
+echo "10. W1 matches all three - three notifications"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:NL:W1","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"monument"},"ticket":{"type":"JsonProperty","json":{"other":"Overstay"}}}' | head -1
+ftClientWait 3
+ftClientDump | python3 -c 'import sys, json
+for n in sorted(json.load(sys.stdin), key=lambda n: n["url"]):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+echo "11. Restart - the subscriptions come back from the database, their lists arrays still; W2 matches all three again"
+echo "================================================================================================================="
+coraineStop
+coraineStart
+for s in Sev Slp Sjk; do
+  corCurl --url /ngsi-ld/v1/subscriptions/urn:NL:$s | python3 -c 'import sys, json
+body = sys.stdin.read().split("\n\n", 1)[1]
+s = json.loads(body)
+print(s["id"], {k: s[k] for k in ("expandValues", "langProperties", "jsonKeys") if k in s})'
+done
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:NL:W2","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"}},"category":{"type":"VocabProperty","vocab":"monument"},"ticket":{"type":"JsonProperty","json":{"other":"Overstay"}}}' | head -1
+ftClientWait 3
+ftClientDump | python3 -c 'import sys, json
+for n in sorted(json.load(sys.stdin), key=lambda n: n["url"]):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. E1: LanguageProperty street, VocabProperty category, JsonProperty ticket; E2: Property street, a compound value with a member 'fr'
+======================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. POST Query, each list a String[] of one name - expandValues: E1, langProperties: E1, jsonKeys: E1
+=====================================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+
+
+03. POST Query, String[] of two names, and the same as a String - both: E1
+==========================================================================
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+
+
+04. An already expanded name - in a String[], a String and the URL parameter: E1, E1, E1
+========================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+HTTP/1.1 200 OK
+    "id": "urn:NL:E1",
+
+
+05. Without the lists - [fr] a term: E2; category=="monument" not expanded: none; ticket[other] a term: none
+============================================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:NL:E2",
+HTTP/1.1 200 OK
+[]
+HTTP/1.1 200 OK
+[]
+
+
+06. POST Query, a String[] that is not one name per item - a comma separated item, a number, an empty item, an empty array: 400
+===============================================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'langProperties': each item of the array is one name, not a comma separated list: 'street,category'",
+HTTP/1.1 400 Bad Request
+  "detail": "'langProperties': each item of the array must be a string",
+HTTP/1.1 400 Bad Request
+  "detail": "'langProperties': an item of the array is empty",
+HTTP/1.1 400 Bad Request
+  "detail": "an empty array is not valid NGSI-LD input",
+HTTP/1.1 400 Bad Request
+  "detail": "langProperties",
+
+
+07. Subscription with a String[] whose item is a comma separated list: 400
+==========================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "'expandValues': each item of the array is one name, not a comma separated list: 'category,street'",
+
+
+08. Subscriptions on type W, each list a String[]: Sev (expandValues), Slp (langProperties), Sjk (jsonKeys)
+===========================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+09. GET the three - the lists as they were sent, arrays
+=======================================================
+urn:NL:Sev category=="monument" {'expandValues': ['category']}
+urn:NL:Slp street[fr]=="Grand Place" {'langProperties': ['street']}
+urn:NL:Sjk ticket[other]=="Overstay" {'jsonKeys': ['ticket']}
+
+
+10. W1 matches all three - three notifications
+==============================================
+HTTP/1.1 201 Created
+/ev urn:NL:Sev ['urn:NL:W1']
+/jk urn:NL:Sjk ['urn:NL:W1']
+/lp urn:NL:Slp ['urn:NL:W1']
+
+
+11. Restart - the subscriptions come back from the database, their lists arrays still; W2 matches all three again
+=================================================================================================================
+urn:NL:Sev {'expandValues': ['category']}
+urn:NL:Slp {'langProperties': ['street']}
+urn:NL:Sjk {'jsonKeys': ['ticket']}
+HTTP/1.1 201 Created
+/ev urn:NL:Sev ['urn:NL:W2']
+/jk urn:NL:Sjk ['urn:NL:W2']
+/lp urn:NL:Slp ['urn:NL:W2']
+
+
