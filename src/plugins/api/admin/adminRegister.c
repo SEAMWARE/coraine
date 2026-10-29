@@ -15,6 +15,9 @@
 
 #include "api/admin/adminBridgeInventory.h"        // adminGetBridgeInventory, ADMIN_INVENTORY_PARAMS
 #include "api/admin/adminConfig.h"                 // adminGetConfig
+#if COR_FEATURE_PROBES
+#include "api/admin/adminProbes.h"                 // adminGetProbes, adminGetProbe, adminDeleteProbes
+#endif
 #include "api/admin/adminIndexes.h"                // adminGetIndexes, adminPostIndexes, adminDeleteIndex, adminGetTroeIndexes, ...
 #include "api/admin/adminVersion.h"               // adminGetVersion
 #include "api/admin/adminHealth.h"                // adminGetHealth
@@ -62,6 +65,12 @@
 #  define CONFIG(handler)  handler
 #else
 #  define CONFIG(handler)  corNotInThisBuild
+#endif
+
+#if COR_FEATURE_PROBES
+#  define PROBES(handler)  handler
+#else
+#  define PROBES(handler)  corNotInThisBuild
 #endif
 
 #if COR_FEATURE_DB_INDEXES
@@ -125,6 +134,8 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/admin/config",  CONFIG(adminGetConfig), 0,         0 },
   { CorVerbGet,    "/admin/indexes", INDEXES(adminGetIndexes), 0,       0 },
   { CorVerbGet,    "/admin/troeIndexes", INDEXES(adminGetTroeIndexes), 0, 0 },
+  { CorVerbGet,    "/admin/probes",  PROBES(adminGetProbes), 0,         0 },
+  { CorVerbGet,    "/admin/probes/*", PROBES(adminGetProbe), 0,         0 },
   // PUT
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
@@ -136,6 +147,7 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
   { CorVerbDelete, "/admin/indexes/*", INDEXES(adminDeleteIndex), 0,    0 },
   { CorVerbDelete, "/admin/troeIndexes/*", INDEXES(adminDeleteTroeIndex), 0, 0 },
+  { CorVerbDelete, "/admin/probes",  PROBES(adminDeleteProbes), 0,      0 },
   // PATCH
   { CorVerbPatch,  "/admin/log",     adminPatchLog,   ADMIN_LOG_PARAMS, 0 }
 };

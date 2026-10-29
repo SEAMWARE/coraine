@@ -81,6 +81,19 @@ What a test waits on instead — the helpers are in `test/funcTests/corTestFunct
 | a member a bridge writes (`status`, `feedback`, `reply`, …) | the entity | `attrMemberAwait` |
 | how a goal went, once its instance is gone | the attribute's temporal history (`--troe timescale --troeSync`) | `bridgeGoalHistory`, `bridgeGoalHistoryAwait` |
 
+| how the broker did something - which plan a query took, which path a request went down | a probe: `GET /admin/probes` | - |
+
+A **probe** is what the code decided, kept for the tests to read: a name and the last value the code set it to,
+`PROBE_SET("timescale.entitySelector", "candidates")` (`src/lib/probe/probe.h`). Setting one is a single atomic
+store, so a probe stays in a release build, where the traces are not. `GET /admin/probes` answers every probe set
+since the start or the last `DELETE /admin/probes`, `GET /admin/probes/{name}` one of them (404 when it is not set);
+a test unsets them before the request it is about (`troe_timescale_db_indexes.test`, `admin_probes.test`). A test
+that reads a probe has `# REQUIRE_FEATURE: PROBES`. What a test would grep the log for is a probe.
+
+| Probe | Set by | Value |
+|---|---|---|
+| `timescale.entitySelector` | a temporal query with `q`, `--troe timescale` | `candidates`: its entities taken from the rows of the indexes that serve a term of the `q` (`--troeValueIndexes`, `/admin/troeIndexes`); `every entity`: no index serves one |
+
 A **warning** (`COR_W`) is different: no trace level and no build switches it off, and
 a test may still check one was given.
 

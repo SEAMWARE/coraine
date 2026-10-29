@@ -62,6 +62,7 @@ const CoraineFeature coraineFeatures[] =
   { "AUTH_METADATA",     COR_FEATURE_AUTH_METADATA     },
   { "Q_PREFILTER",       COR_FEATURE_Q_PREFILTER       },
   { "DB_INDEXES",        COR_FEATURE_DB_INDEXES        },
+  { "PROBES",            COR_FEATURE_PROBES            },
   { NULL,                false                         }
 };
 

@@ -72,6 +72,7 @@ option(COR_FEATURE_SSE             "Enable Server-Sent Events - a subscription m
 # Group: Operations - running the broker: its admin API, metrics and health probes
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
+option(COR_FEATURE_PROBES          "Enable probes - what the code decided, for the functional tests: GET /admin/probes (the admin API plugin), src/lib/probe/probe.h" ON)
 option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
 
 # Group: Stores and tools - the plugins and programs built beside the broker
@@ -90,7 +91,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -114,14 +115,15 @@ if (NOT COR_FEATURE_SUBSCRIPTIONS)
 endif()
 
 #
-# The metrics (GET /admin/metrics, GET /metrics), the configuration (GET /admin/config) and a bridge's
-# inventory (GET /admin/bridges/{bridge}/inventory) are served by the admin API plugin and by nothing
-# else: without it, their code is not built - and they are reported off.
+# The metrics (GET /admin/metrics, GET /metrics), the configuration (GET /admin/config), a bridge's
+# inventory (GET /admin/bridges/{bridge}/inventory) and the probes (GET /admin/probes) are served by the admin
+# API plugin and by nothing else: without it, their code is not built - and they are reported off.
 #
 if (NOT COR_FEATURE_ADMIN_API)
   set(COR_FEATURE_METRICS OFF)
   set(COR_FEATURE_ADMIN_CONFIG OFF)
   set(COR_FEATURE_BRIDGE_INVENTORY OFF)
+  set(COR_FEATURE_PROBES OFF)
 endif()
 
 #
@@ -363,6 +365,9 @@ if (COR_FEATURE_POLICY_API)
 endif()
 if (COR_FEATURE_METRICS)
   ADD_SUBDIRECTORY(src/lib/metrics)
+endif()
+if (COR_FEATURE_PROBES)
+  ADD_SUBDIRECTORY(src/lib/probe)
 endif()
 if (COR_FEATURE_SERVICE_EXECUTION)
   ADD_SUBDIRECTORY(src/lib/serviceExecution)
