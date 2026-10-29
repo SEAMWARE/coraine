@@ -1,0 +1,178 @@
+#
+# FILE            subscription_notify_geojson_geometry_property.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# notification.geometryProperty (TS 104-175 issue #67): the GeoProperty whose value is the geometry of a
+# GeoJSON notification's Features, as geometryProperty is a query's - location without it. Only with
+# notification.endpoint.accept application/geo+json: without, BadRequestData. A string naming a GeoProperty,
+# expanded with the subscription's @context; read back as it was sent; PATCHed like any notification member;
+# kept over a restart.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription notification - notification.geometryProperty picks the GeoJSON geometry
+
+--TAGS--
+subscription notification geojson
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+
+#
+# geometry - each Feature of the notifications received so far: its id, its geometry, its properties' names
+#
+geometry() {
+  ftClientDump | python3 -c '
+import json, sys
+for n in json.load(sys.stdin):
+    for f in n["body"]["data"]["features"]:
+        print(f["id"], json.dumps(f["geometry"]), sorted(f["properties"].keys()))'
+}
+
+sub='{
+  "id":"urn:ngsi-ld:Subscription:G1",
+  "type":"Subscription",
+  "entities":[{"type":"Drone"}],
+  "notification":{
+    "geometryProperty":"position",
+    "endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify","accept":"application/geo+json"}
+  }
+}'
+
+
+echo "01. A subscription with geometryProperty position, accept application/geo+json"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload "$sub" | head -1
+echo
+echo
+
+
+echo "02. A Drone with a location and a position: the geometry is the position"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id":"urn:D1",
+  "type":"Drone",
+  "location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,1]}},
+  "position":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}
+}' | head -1
+ftClientWait 1
+geometry
+echo
+echo
+
+
+echo "03. Read back: geometryProperty as it was sent"
+echo "=============================================="
+curl -s localhost:$COR_PORT/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:G1 | python3 -c 'import json, sys; print(json.load(sys.stdin)["notification"]["geometryProperty"])'
+echo
+echo
+
+
+echo "04. Restarted: the geometry is still the position"
+echo "================================================="
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs/position -X PATCH --payload '{"type":"GeoProperty","value":{"type":"Point","coordinates":[11,21]}}' | head -1
+ftClientWait 1
+geometry
+echo
+echo
+
+
+echo "05. PATCH the subscription: geometryProperty location - the geometry is the location"
+echo "===================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:G1 -X PATCH --payload '{"notification":{"geometryProperty":"location","endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify","accept":"application/geo+json"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:D1/attrs/position -X PATCH --payload '{"type":"GeoProperty","value":{"type":"Point","coordinates":[12,22]}}' | head -1
+ftClientWait 1
+geometry
+echo
+echo
+
+
+echo "06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away"
+echo "=============================================================================================="
+for n in \
+  '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x"}}' \
+  '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x","accept":"application/json"}}' \
+  '{"geometryProperty":["position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"","endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","pick":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","attributes":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","omit":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}'
+do
+  curl -s localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Drone"}],"notification":'"$n"'}' | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["status"], d["detail"])'
+done
+echo
+echo
+
+
+echo "07. Accepted: a pick that keeps it"
+echo "=================================="
+curl -s -o /dev/null -w '%{http_code}\n' localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Ship"}],"notification":{"geometryProperty":"position","pick":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}}'
+echo
+echo
+
+
+ftClientSettle
+ftClientDump
+echo
+
+--EXPECT--
+01. A subscription with geometryProperty position, accept application/geo+json
+==============================================================================
+HTTP/1.1 201 Created
+
+
+02. A Drone with a location and a position: the geometry is the position
+========================================================================
+HTTP/1.1 201 Created
+urn:D1 {"coordinates": [10, 20], "type": "Point"} ['location', 'position', 'type']
+
+
+03. Read back: geometryProperty as it was sent
+==============================================
+position
+
+
+04. Restarted: the geometry is still the position
+=================================================
+HTTP/1.1 204 No Content
+urn:D1 {"coordinates": [11, 21], "type": "Point"} ['location', 'position', 'type']
+
+
+05. PATCH the subscription: geometryProperty location - the geometry is the location
+====================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+urn:D1 {"coordinates": [1, 1], "type": "Point"} ['location', 'position', 'type']
+
+
+06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away
+==============================================================================================
+400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
+400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
+400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
+400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
+400 'notification.pick' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+400 'notification.attributes' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+400 'notification.omit' names 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+
+
+07. Accepted: a pick that keeps it
+==================================
+201
+
+
+[]
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
