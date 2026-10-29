@@ -55,6 +55,7 @@
 #include "corNgsild/ldTermId.h"                            // ldTermId, CorTerm*
 
 #include "troe/TroeDriver.h"                              // TroeQueryFilter, TROE_*
+#include "probe/probe.h"                                 // PROBE_SET
 
 #include "temporal/timescale/timescaleGlobals.h"          // timescaleConn
 #include "temporal/timescale/timescalePool.h"             // timescaleConnGet, timescaleConnRelease
@@ -1803,6 +1804,7 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     where, limit + 1, offset);
 
   COR_T(CtTroeSql, "entity selector: %s", pageSql);
+  PROBE_SET("timescale.entitySelector", (candidates[0] != 0)? "candidates" : "every entity");
 
   PGresult* eRes = PQexecParams(timescaleConn, pageSql, nParams, NULL,
                                 (nParams > 0) ? paramV : NULL, NULL, NULL, 0);

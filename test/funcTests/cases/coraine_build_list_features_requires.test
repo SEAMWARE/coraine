@@ -102,6 +102,7 @@ CHANNEL_WRITE_BACK       requires []                               requiresAny [
 HA_RUNS                  requires ["TRANSPORTS"]                   requiresAny []
 METRICS                  requires ["ADMIN_API"]                    requiresAny []
 POLICY_API               requires ["HTTP_SERVER=mhd"]              requiresAny []
+PROBES                   requires ["ADMIN_API"]                    requiresAny []
 SNAPSHOT_SUBSCRIPTIONS   requires ["SUBSCRIPTIONS", "SNAPSHOT_WRITE"] requiresAny []
 SSE                      requires ["SUBSCRIPTIONS"]                requiresAny []
 

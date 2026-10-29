@@ -1,0 +1,188 @@
+#
+# FILE            admin_probes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /admin/probes - what the code decided, for the functional tests: each probe set since the start or the last
+# DELETE, its last value. A release build has no traces; a probe is in it. The probe here: timescale.entitySelector,
+# how a temporal query with q selected its entities - "candidates" when the q has a term an index serves
+# (--troeValueIndexes speed), "every entity" when not.
+#
+#   - none set: {}
+#   - a temporal query with q on name (no index): every entity - in GET /admin/probes and GET /admin/probes/{name}
+#   - a temporal query with q on speed (indexed): candidates - the last value is the one shown
+#   - a probe that is not set: 404
+#   - DELETE /admin/probes: 204, every probe unset - {} and 404
+#
+# REQUIRE_FEATURE: PROBES DB_INDEXES
+# REQUIRE_TROEDB: timescale
+#
+--NAME--
+Admin: GET /admin/probes - the last value of each probe set; DELETE unsets them
+
+--TAGS--
+admin troe
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --apiPlugins admin --troe timescale --troeValueIndexes https://uri.etsi.org/ngsi-ld/default-context/speed
+
+--RUN--
+PSQL="psql -h $COR_TROE_HOST -p $COR_TROE_PORT -U $COR_TROE_USER -X -q -tA"
+
+#
+# tq <q> - a temporal query with q, over the whole history: its status code
+#
+tq() {
+  curl -s -o /dev/null -w "%{http_code}\n" -G "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities" --data-urlencode 'type=V' --data-urlencode "q=$1" --data-urlencode 'timerel=after' --data-urlencode 'timeAt=2000-01-01T00:00:00Z'
+}
+
+
+echo "01. GET /admin/probes - none set"
+echo "================================"
+corCurl --url /admin/probes
+echo
+echo
+
+
+echo "02. An entity V1 with speed and name, its history waited for (written after the response)"
+echo "=========================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"V","speed":{"type":"Property","value":7},"name":{"type":"Property","value":"n7"}}' | head -1
+for i in $(seq 1 600); do
+  [ "$($PSQL -d $COR_TROE_DB -c "SELECT count(*) FROM troe_attrs WHERE entity_id = 'urn:V1'")" -ge 2 ] && break
+  sleep 0.1
+done
+echo
+echo
+
+
+echo "03. A temporal query with q on name - no index serves it: every entity"
+echo "======================================================================"
+tq 'name=="n7"'
+corCurl --url /admin/probes
+echo
+echo
+
+
+echo "04. A temporal query with q on speed - its index serves it: candidates, the last value"
+echo "======================================================================================"
+tq 'speed==7'
+corCurl --url /admin/probes/timescale.entitySelector
+echo
+echo
+
+
+echo "05. GET /admin/probes/{name} of a probe that is not set: 404"
+echo "============================================================"
+corCurl --url /admin/probes/no.such.probe
+echo
+echo
+
+
+echo "06. DELETE /admin/probes: 204, then none set - {} and 404"
+echo "========================================================="
+corCurl --url /admin/probes -X DELETE
+corCurl --url /admin/probes
+corCurl --url /admin/probes/timescale.entitySelector
+echo
+echo
+
+
+--EXPECT--
+01. GET /admin/probes - none set
+================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+{}
+
+
+
+02. An entity V1 with speed and name, its history waited for (written after the response)
+==========================================================================================
+HTTP/1.1 201 Created
+
+
+03. A temporal query with q on name - no index serves it: every entity
+======================================================================
+200
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 49
+
+{
+  "timescale.entitySelector": "every entity"
+}
+
+
+
+04. A temporal query with q on speed - its index serves it: candidates, the last value
+======================================================================================
+200
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 47
+
+{
+  "timescale.entitySelector": "candidates"
+}
+
+
+
+05. GET /admin/probes/{name} of a probe that is not set: 404
+============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 143
+
+{
+  "detail": "no.such.probe",
+  "status": 404,
+  "title": "Probe Not Set",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. DELETE /admin/probes: 204, then none set - {} and 404
+=========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 3
+
+{}
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "timescale.entitySelector",
+  "status": 404,
+  "title": "Probe Not Set",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

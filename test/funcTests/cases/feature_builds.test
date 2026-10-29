@@ -79,6 +79,7 @@ TIMEPOINT=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 SSE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 Q_PREFILTER=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 DB_INDEXES=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+PROBES=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 
 
 --TEARDOWN--

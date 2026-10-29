@@ -5,7 +5,7 @@
 #
 # Copyright 2026 Seamware
 #
-# REQUIRE_FEATURE: DB_INDEXES
+# REQUIRE_FEATURE: DB_INDEXES PROBES
 #
 # Declared indexes of the history, timescale (COR_FEATURE_DB_INDEXES): an attribute whose q value terms an
 # index of troe_attrs serves - declared at start (--troeValueIndexes) or through the admin API
@@ -14,8 +14,8 @@
 # if one is declared). The indexes made in the database that serve a q value term are found too.
 #
 #   - --troeValueIndexes speed: its two indexes; GET /admin/troeIndexes lists it, by "troeValueIndexes"
-#   - a temporal query with a q on speed takes its entities from the index - "candidates" in the SQL the
-#     broker traces (level 404), and the index's scans counted - the same entities as q: an AND with a term
+#   - a temporal query with a q on speed takes its entities from the index - "candidates", the probe
+#     timescale.entitySelector (GET /admin/probes), and the index's scans counted - the same entities as q: an AND with a term
 #     on another attribute, an OR of two served terms; an OR with a term no index serves: every entity
 #   - POST a declaration narrowed to a type: 201, Location; the same again 409; a bad body 400 - its
 #     indexes narrowed to the type
@@ -83,11 +83,12 @@ used() {
 }
 
 #
-# sel - how the temporal query just made selected its entities, from the broker's trace of its SQL (level 404):
-# "candidates" when the entity selector takes the entities of the indexes' rows only, "every entity" if not
+# sel - how the temporal query just made selected its entities, the probe timescale.entitySelector: "candidates" when
+# the entity selector takes the entities of the indexes' rows only, "every entity" if not - "-" when the query did
+# not set it (tq unsets it first)
 #
 sel() {
-  grep -a 'entity selector: ' /tmp/coraine.CB.log | tail -n 1 | grep -qE 'FROM troe_entities WHERE \(*entity_id IN' && echo "candidates" || echo "every entity"
+  curl -s "$B/admin/probes" | jq -r '."timescale.entitySelector" // "-"'
 }
 
 #
@@ -95,6 +96,7 @@ sel() {
 #
 tq() {
   local ids
+  curl -s -o /dev/null -X DELETE "$B/admin/probes"
   ids=$(curl -s -G "$B/ngsi-ld/v1/temporal/entities" --data-urlencode "type=${2:-V}" --data-urlencode "q=$1" --data-urlencode 'timerel=after' --data-urlencode 'timeAt=2000-01-01T00:00:00Z' --data-urlencode 'timeproperty=modifiedAt' --data-urlencode 'limit=100' --data-urlencode 'lastN=1' | jq -r '.[].id' | sort -V | paste -sd ' ')
   echo "q=$1 ($(sel)): $ids"
 }
@@ -123,7 +125,6 @@ for i in $(seq 1 600); do
   [ "$($PSQL -d $COR_TROE_DB -c "SELECT count(*) FROM troe_attrs WHERE attr_name = 'https://uri.etsi.org/ngsi-ld/default-context/speed'")" -ge 2000 ] && break
   sleep 0.1
 done
-curl -s -o /dev/null -X POST "$B/admin/log?traceLevels=404"   # the SQL of each temporal query traced: sel
 before=$(accesses speed)
 tq 'speed==1234'
 tq 'speed>1997'
