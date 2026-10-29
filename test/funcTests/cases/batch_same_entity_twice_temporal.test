@@ -1,0 +1,227 @@
+#
+# FILE            batch_same_entity_twice_temporal.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# One Entity three times in one batch, each fragment with its own value and observedAt:
+# three instances in the temporal history, each with its OWN value - § 10.3.3.3, § 10.3.4.3 and
+# § 10.3.5.3: "In the case of multiple instances of the same entity, these ... operations are
+# processed in chronological order." Upsert (?options=update, for an Entity that is new and one
+# that exists), Batch Update and Batch Merge - and Batch Merge's notification, an entry per fragment.
+#
+# The fragments of one Entity are merged into one tree in place, and the temporal events and the
+# notifications go out after the batch: each instance recorded the LAST fragment's value and
+# observedAt (#514 - a batch of 24 monthly readings per animal stored 24 copies of the last one).
+# A replace-mode upsert clones a fresh tree per fragment and was right; it is here as the control.
+#
+--NAME--
+Batch upsert, update and merge naming one Entity three times - three instances, each its own value and observedAt
+
+--TAGS--
+batch upsert entityOperations troe temporal timescale subscriptions
+
+--INIT--
+corDbDrop
+corTroeInit
+ftClientStart
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# The same three fragments of $1: weight 100, 110, 120, observedAt January, February, March
+#
+three() {
+  echo '[
+    { "id": "'$1'", "type": "Animal", "weight": { "type": "Property", "value": 100, "observedAt": "2026-01-01T00:00:00Z" } },
+    { "id": "'$1'", "type": "Animal", "weight": { "type": "Property", "value": 110, "observedAt": "2026-02-01T00:00:00Z" } },
+    { "id": "'$1'", "type": "Animal", "weight": { "type": "Property", "value": 120, "observedAt": "2026-03-01T00:00:00Z" } }
+  ]'
+}
+
+#
+# The temporal values of weight, oldest first (an instance with no observedAt - the create's - sorts last)
+#
+weights() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/$1?options=temporalValues" | \
+    python3 -c 'import json,sys; print(sorted(json.load(sys.stdin)["weight"]["values"], key=lambda v: v[1] or "~"))'
+}
+
+existing() {
+  corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "'$1'", "type": "Animal", "weight": { "type": "Property", "value": 1 } }' > /dev/null
+}
+
+
+echo "01. Upsert ?options=update, a NEW Entity three times"
+echo "===================================================="
+corCurl --url "/ngsi-ld/v1/entityOperations/upsert?options=update" --payload "$(three urn:A:1)"
+corTroeSettle
+weights urn:A:1
+echo
+echo
+
+
+echo "02. Upsert ?options=update, an EXISTING Entity three times"
+echo "=========================================================="
+existing urn:A:2
+corCurl --url "/ngsi-ld/v1/entityOperations/upsert?options=update" --payload "$(three urn:A:2)"
+corTroeSettle
+weights urn:A:2
+echo
+echo
+
+
+echo "03. Upsert, replace mode, a NEW Entity three times - the control"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload "$(three urn:A:3)"
+corTroeSettle
+weights urn:A:3
+echo
+echo
+
+
+echo "04. Batch Update, an EXISTING Entity three times"
+echo "================================================"
+existing urn:A:4
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload "$(three urn:A:4)"
+corTroeSettle
+weights urn:A:4
+echo
+echo
+
+
+echo "05. Batch Merge, an EXISTING Entity three times - with a subscription to it"
+echo "==========================================================================="
+existing urn:A:5
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:S1", "type": "Subscription", "entities": [ { "id": "urn:A:5", "type": "Animal" } ],
+  "watchedAttributes": [ "weight" ], "notification": { "attributes": [ "weight" ], "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } } }' > /dev/null
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload "$(three urn:A:5)"
+corTroeSettle
+weights urn:A:5
+echo
+echo
+
+
+echo "06. Batch Merge's notification - an entry per fragment, each with its own weight"
+echo "================================================================================"
+ftClientWait 1
+ftClientDump
+echo
+echo
+
+
+--EXPECT--
+01. Upsert ?options=update, a NEW Entity three times
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 16
+
+[
+  "urn:A:1"
+]
+
+[[100, '2026-01-01T00:00:00Z'], [110, '2026-02-01T00:00:00Z'], [120, '2026-03-01T00:00:00Z']]
+
+
+02. Upsert ?options=update, an EXISTING Entity three times
+==========================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[[100, '2026-01-01T00:00:00Z'], [110, '2026-02-01T00:00:00Z'], [120, '2026-03-01T00:00:00Z'], [1, None]]
+
+
+03. Upsert, replace mode, a NEW Entity three times - the control
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 16
+
+[
+  "urn:A:3"
+]
+
+[[100, '2026-01-01T00:00:00Z'], [110, '2026-02-01T00:00:00Z'], [120, '2026-03-01T00:00:00Z']]
+
+
+04. Batch Update, an EXISTING Entity three times
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[[100, '2026-01-01T00:00:00Z'], [110, '2026-02-01T00:00:00Z'], [120, '2026-03-01T00:00:00Z'], [1, None]]
+
+
+05. Batch Merge, an EXISTING Entity three times - with a subscription to it
+===========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+[[100, '2026-01-01T00:00:00Z'], [110, '2026-02-01T00:00:00Z'], [120, '2026-03-01T00:00:00Z'], [1, None]]
+
+
+06. Batch Merge's notification - an entry per fragment, each with its own weight
+================================================================================
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:A:5",
+          "type": "Animal",
+          "weight": {
+            "observedAt": "2026-01-01T00:00:00Z",
+            "type": "Property",
+            "value": 100
+          }
+        },
+        {
+          "id": "urn:A:5",
+          "type": "Animal",
+          "weight": {
+            "observedAt": "2026-02-01T00:00:00Z",
+            "type": "Property",
+            "value": 110
+          }
+        },
+        {
+          "id": "urn:A:5",
+          "type": "Animal",
+          "weight": {
+            "observedAt": "2026-03-01T00:00:00Z",
+            "type": "Property",
+            "value": 120
+          }
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:[0-9a-f]{8}:\d{4})",
+      "notifiedAt": "REGEX(20[23][0-9]-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](\.[0-9]{1,9})?Z)",
+      "subscriptionId": "urn:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "REGEX(\d+)",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/\d+\.\d+\.\d+\S*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+corTroeDrop

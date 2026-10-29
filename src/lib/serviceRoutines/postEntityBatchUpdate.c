@@ -1168,10 +1168,18 @@ bool postEntityBatchUpdate(void)
       // TRoE: per-fragment attr events. Optimistic — fires regardless
       // of the later bulk_update outcome (matches the notification
       // dispatch's pre-existing optimism).
+      //
+      // The events are written after the batch, and a later fragment of the
+      // same Entity merges into existingDb in place - so a fragment with another
+      // one after it hands over a copy of its state, or every instance it made
+      // records the last fragment's values (§ 10.3.4.3: the fragments are
+      // processed in chronological order, each one its own).
+      //
       {
-        CorNode* tn = corTreeLookup(existingDb, "type");
-        const char* etype = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
-        troeDeferAttrEventsFromMerge(tenantP, g->id, etype, existingDb, &report,
+        CorNode*    stateP = (fi < g->count - 1) ? corTreeClone(corRest.kallocP, existingDb) : existingDb;
+        CorNode*    tn     = corTreeLookup(stateP, "type");
+        const char* etype  = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
+        troeDeferAttrEventsFromMerge(tenantP, g->id, etype, stateP, &report,
                                      corRest.requestStartTime);
       }
     }

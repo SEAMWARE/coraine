@@ -892,8 +892,28 @@ bool postEntityBatchMerge(void)
         resultsV[fi] = DB_BAD_INPUT;   // != DB_OK → bulk write skips; switch skips (already reported)
         continue;
       }
+      //
+      // The notifications and the TRoE events of the fragments go out after the
+      // bulk write, and the fragments of one Entity share its target - a later
+      // one merges into it in place. A fragment with another one of its Entity
+      // after it keeps a copy of its state, or each of them reports the last
+      // fragment's values (§ 10.3.5.3: in chronological order, each one its
+      // own). Only a batch that names an Entity twice looks.
+      //
       snapshotsV[fi] = targetsV[fi];
       resultsV[fi]   = DB_OK;
+
+      if (uniqueIdN < fragN)
+      {
+        for (int later = fi + 1; later < localN; later++)
+        {
+          if (targetsV[later] == targetsV[fi])
+          {
+            snapshotsV[fi] = corTreeClone(corRest.kallocP, targetsV[fi]);
+            break;
+          }
+        }
+      }
     }
 
 

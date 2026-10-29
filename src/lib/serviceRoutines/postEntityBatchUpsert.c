@@ -1026,9 +1026,17 @@ bool postEntityBatchUpsert(void)
       // emit one entityCreated; the per-attr breakdown comes from the
       // corDB plugin walking entitySnapshot at dispatch time. For
       // update mode, emit per-attr events from the merge report.
+      //
+      // The events are written after the batch, and in update mode a later
+      // fragment of the same Entity merges into finalP in place - so a fragment
+      // with another one after it hands over a copy of its state, or every
+      // instance it made records the last fragment's values (§ 10.3.3.3: the
+      // fragments are processed in chronological order, each one its own).
+      //
       {
-        CorNode* tn = corTreeLookup(finalP, "type");
-        const char* etype = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
+        CorNode*    stateP = (fi < g->count - 1) ? corTreeClone(corRest.kallocP, finalP) : finalP;
+        CorNode*    tn     = corTreeLookup(stateP, "type");
+        const char* etype  = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
 
         if (notifyOp == LdNotifyEntityCreate)
         {
@@ -1039,12 +1047,12 @@ bool postEntityBatchUpsert(void)
           tevP->entityId       = g->id;
           tevP->entityType     = etype;
           tevP->modifiedAtNs   = corRest.requestStartTime;
-          tevP->entitySnapshot = finalP;
+          tevP->entitySnapshot = stateP;
           troeDeferEntityEvent(tevP);
         }
         else
         {
-          troeDeferAttrEventsFromMerge(tenantP, g->id, etype, finalP, &report,
+          troeDeferAttrEventsFromMerge(tenantP, g->id, etype, stateP, &report,
                                        corRest.requestStartTime);
         }
       }
