@@ -17,7 +17,9 @@
 #
 # Every part tests ONE commit - the sha `ref` names when the run starts, resolved once below - so a
 # branch that moves during the hours this takes does not split the campaign over two commits. The
-# Cor-Libs are at main (bootstrap.sh), as in the nightly. The campaign's own tools (test/sanitizer,
+# Cor-Libs too: every lib's main (and corLibs', and c³'s) is resolved once, by the resolve job, and every
+# part builds from that record - which is kept, as the artifact `campaign`, for release.yml to build the
+# release from exactly what was tested. The campaign's own tools (test/sanitizer,
 # test/soak, test/upgrade) come from the commit this workflow runs from, so a branch cut before a tool
 # existed is checked with it. Nothing is published: no coverage site, no
 # perf-history line, no apt repository. doc/testing.md, "The pre-release campaign".
@@ -78,11 +80,15 @@ jobs:
     outputs:
       sha:      ${{ steps.r.outputs.sha }}
       previous: ${{ steps.r.outputs.previous }}
+      libs:     ${{ steps.libs.outputs.libs }}
+      c3:       ${{ steps.libs.outputs.c3 }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+      - uses: actions/checkout@v4
+        with: { repository: SEAMWARE/corLibs, path: libs }
       - id: r
         run: |
           sha=$(git rev-parse HEAD)
@@ -111,6 +117,34 @@ jobs:
             echo
             echo "Upgrade from: ${previous}. Soak: ${{ inputs.soakMinutes }} minutes per database."
           } >> "$GITHUB_STEP_SUMMARY"
+      #
+      # The commit of every Cor-Lib (and corLibs, and c³) the campaign tests, resolved once, here: every
+      # part builds from this record (COR_LIBS_PIN, bootstrap.sh), not from main when it starts - an hour
+      # apart, some of them - and release.yml builds the release from it. The record is an artifact of
+      # this run (campaign), with the commit and the tree of coraine and the part that ran: release.yml
+      # takes the newest green campaign of all parts whose tree is the tag's.
+      #
+      - id: libs
+        run: |
+          RESOLVE=1 libs/bootstrap.sh > libs.txt
+          c3=$(git ls-remote https://github.com/SEAMWARE/c3.git refs/heads/main | cut -f1)
+          [ -n "$c3" ] || { echo "::error::c3 has no main"; exit 1; }
+          echo "c3 $c3" >> libs.txt
+          {
+            echo "coraine $(git rev-parse HEAD)"
+            echo "tree $(git rev-parse 'HEAD^{tree}')"
+            echo "only ${{ inputs.only }}"
+            cat libs.txt
+          } > campaign.txt
+          cat campaign.txt
+          { echo 'libs<<EOF'; cat libs.txt; echo EOF; } >> "$GITHUB_OUTPUT"
+          echo "c3=$c3" >> "$GITHUB_OUTPUT"
+          { echo; echo "The Cor-Libs, corLibs and c³ at:"; echo '```'; cat libs.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: campaign
+          path: campaign.txt
+          retention-days: 90
 
   nightly:
     needs: resolve
@@ -118,6 +152,7 @@ jobs:
     uses: ./.github/workflows/nightly.yml
     with:
       ref: ${{ needs.resolve.outputs.sha }}
+      libs: ${{ needs.resolve.outputs.libs }}
       force: true
       only: all
       publish: false
@@ -138,6 +173,8 @@ jobs:
     with:
       ref: ${{ needs.resolve.outputs.sha }}
       libs_ref: main
+      libs: ${{ needs.resolve.outputs.libs }}
+      c3_ref: ${{ needs.resolve.outputs.c3 }}
       build_kind: pgo
       publish: false
     secrets: inherit
@@ -192,6 +229,7 @@ jobs:
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
       SAN_REPORT_DIR: /tmp/san-reports
+      COR_LIBS_PIN: ${{ needs.resolve.outputs.libs }}   # bootstrap.sh: the libs the resolve job recorded
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
@@ -311,6 +349,7 @@ jobs:
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
       FROM_IMAGE: quay.io/seamware/coraine:${{ needs.resolve.outputs.previous }}
+      COR_LIBS_PIN: ${{ needs.resolve.outputs.libs }}   # bootstrap.sh: the libs the resolve job recorded
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
@@ -414,6 +453,7 @@ jobs:
       COR_MONGO_HOST: mongo
       SEAMWARE_PLUGIN_DIR: /opt/seamware/plugins
       CORJSON: ${{ github.workspace }}/stack/corJson/bin/corJson
+      COR_LIBS_PIN: ${{ needs.resolve.outputs.libs }}   # bootstrap.sh: the libs the resolve job recorded
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }

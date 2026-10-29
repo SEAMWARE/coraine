@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write          # gh release create, on THIS repository
+      actions: read            # the pre-release campaign's runs and their record
     outputs:                   # for the arm64 job below
       version:  ${{ steps.v.outputs.version }}
       date:     ${{ steps.v.outputs.date }}
@@ -90,8 +91,59 @@ jobs:
           echo "date=$(date -u +%Y-%m-%d)"                >> "$GITHUB_OUTPUT"
 
       #
+      # The libraries the pre-release campaign tested, not the libraries' main now. Every campaign run
+      # keeps its record (prerelease.yml, artifact campaign): coraine's commit and tree, the part that
+      # ran, and the commit of every Cor-Lib, of corLibs and of c³. Taken here: the newest GREEN run of
+      # ALL parts whose tree is the tag's - the tree, not the commit: the campaign runs on the release
+      # branch, the tag goes on the merge of it, the same files. None: no release - run the campaign.
+      # A part re-run with 'Re-run failed jobs' keeps its run, and its record; one run with `only`
+      # is a record of one part and not taken.
+      #
+      # 0.6.0 was built from the libraries' main at tag time: one commit newer in the NGSI-LD library
+      # than the campaign had tested.
+      #
+      - name: The pre-release campaign of this tree - its record of the libraries
+        id: campaign
+        working-directory: stack/coraine
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          found=""
+          for id in $(gh run list -R "$GITHUB_REPOSITORY" -w prerelease.yml -s success -L 100 --json databaseId --jq '.[].databaseId'); do
+            rm -rf /tmp/rec && mkdir /tmp/rec
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n campaign -D /tmp/rec 2>/dev/null || continue   # older than the record
+            if grep -qx "tree $tree" /tmp/rec/campaign.txt && grep -qx "only all" /tmp/rec/campaign.txt; then
+              found=$id
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "::error::no green pre-release campaign of this tree ($tree) - run it: gh workflow run prerelease.yml -f ref=$GITHUB_REF_NAME"
+            exit 1
+          fi
+          echo "campaign run $found:"
+          cat /tmp/rec/campaign.txt
+          grep -vE '^(coraine|tree|only) ' /tmp/rec/campaign.txt > /tmp/libs.txt
+          { echo 'COR_LIBS_PIN<<EOF'; cat /tmp/libs.txt; echo EOF; } >> "$GITHUB_ENV"
+          echo "run=$found" >> "$GITHUB_OUTPUT"
+          #
+          # c³ is tagged by hand (it is not in stack/, the app token does not reach it), and the packages
+          # job builds it at that tag: the tag must be the commit the campaign tested - checked now,
+          # before anything is published
+          #
+          c3=$(awk '$1 == "c3" { print $2 }' /tmp/libs.txt)
+          c3tag=$(git ls-remote --tags https://github.com/SEAMWARE/c3.git "v$VERSION" "v$VERSION^{}" \
+                  | awk -v t="refs/tags/v$VERSION" '$2 == t "^{}" { peeled = $1 } $2 == t { plain = $1 } END { print (peeled != "" ? peeled : plain) }')
+          if [ "$c3tag" != "$c3" ]; then
+            echo "::error::c3's v$VERSION is '${c3tag:-missing}', the campaign tested c3 at $c3 - tag that one: git -C c3 tag -a v$VERSION $c3 -m 'coraine $VERSION' && git -C c3 push origin v$VERSION"
+            exit 1
+          fi
+
+      #
       # The stack the release is built from. bootstrap.sh clones every dependency
-      # as a sibling, at the ref the build uses; stackManifest.sh then reports
+      # as a sibling, at the commit the campaign recorded (COR_LIBS_PIN, above); stackManifest.sh then reports
       # what those refs resolved to - the same script the broker compiles into
       # GET /version, so the tags below and the running image cannot disagree.
       #
@@ -348,6 +400,8 @@ jobs:
             echo '```'
             echo "quay.io/${{ vars.QUAY_NAMESPACE || 'seamware' }}/coraine:$VERSION"
             echo '```'
+            echo "Built from the libraries of the pre-release campaign, run [${{ steps.campaign.outputs.run }}](https://github.com/${{ github.repository }}/actions/runs/${{ steps.campaign.outputs.run }})."
+            echo
             echo "Cor-Libs tagged \`v$VERSION\` at:"
             echo '```'
             cat /tmp/stack.txt
