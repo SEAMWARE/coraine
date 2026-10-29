@@ -18,6 +18,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
 #include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocGeoIndex.h"    // mongocGeoIndexExists
 #include "corNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
 #include "corNgsild/LdScopeExpr.h"                    // LdScopeExpr
@@ -50,7 +51,7 @@ static void bsonInArray(bson_t* filterP, const char* field, char** valV)
   bson_t array;
 
   bson_append_document_begin(filterP, field, -1, &in);
-  bson_append_array_begin(&in, "$in", 3, &array);
+  mongocArrayBegin(&in, "$in", 3, &array);
 
   for (int ix = 0; valV[ix] != NULL; ix++)
   {
@@ -95,7 +96,7 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
   if (scopeExpr->isSimple)
   {
     bson_t orArray;
-    bson_append_array_begin(filterP, "$or", 3, &orArray);
+    mongocArrayBegin(filterP, "$or", 3, &orArray);
 
     for (int gix = 0; gix < scopeExpr->groupCount; gix++)
     {
@@ -123,7 +124,7 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
   // Complex case: OR of AND groups
   //
   bson_t orArray;
-  bson_append_array_begin(filterP, "$or", 3, &orArray);
+  mongocArrayBegin(filterP, "$or", 3, &orArray);
 
   for (int gix = 0; gix < scopeExpr->groupCount; gix++)
   {
@@ -155,7 +156,7 @@ static void bsonAppendScopeFilter(bson_t* filterP, LdScopeExpr* scopeExpr)
       //
       bson_t andArray;
 
-      bson_append_array_begin(&orElem, "$and", 4, &andArray);
+      mongocArrayBegin(&orElem, "$and", 4, &andArray);
 
       for (int six = 0; six < grp->count; six++)
       {
@@ -334,9 +335,9 @@ static void bsonAppendInstancePrefilter(bson_t* docP, const char* attrPath, LdQT
 
   bson_t andArray, andElem, orArray, orElem, opDoc, inArray;
 
-  bson_append_array_begin(docP, "$and", 4, &andArray);
+  mongocArrayBegin(docP, "$and", 4, &andArray);
   bson_append_document_begin(&andArray, "0", 1, &andElem);
-  bson_append_array_begin(&andElem, "$or", 3, &orArray);
+  mongocArrayBegin(&andElem, "$or", 3, &orArray);
   bson_append_document_begin(&orArray, "0", 1, &orElem);
 
   if (term->valueType == LdQString)
@@ -379,7 +380,7 @@ static void bsonAppendInstancePrefilter(bson_t* docP, const char* attrPath, LdQT
   else if (term->valueType == LdQValueList)
   {
     bson_append_document_begin(&orElem, path, -1, &opDoc);
-    bson_append_array_begin(&opDoc, "$in", 3, &inArray);
+    mongocArrayBegin(&opDoc, "$in", 3, &inArray);
 
     for (int i = 0; i < term->value.list.count; i++)
     {
@@ -831,9 +832,9 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
 
         bson_t andArray, andElem, orArray, orElem;
 
-        bson_append_array_begin(docP, "$and", 4, &andArray);
+        mongocArrayBegin(docP, "$and", 4, &andArray);
         bson_append_document_begin(&andArray, "0", 1, &andElem);
-        bson_append_array_begin(&andElem, "$or", 3, &orArray);
+        mongocArrayBegin(&andElem, "$or", 3, &orArray);
 
         bson_append_document_begin(&orArray, "0", 1, &orElem);
         timeCompareAppend(&orElem, tsPath, term->op, term->value.ns);
@@ -1125,7 +1126,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
     bson_t inDoc;
     bson_t array;
     bson_append_document_begin(docP, path, -1, &inDoc);
-    bson_append_array_begin(&inDoc, mongoOp, mongoOpLen, &array);
+    mongocArrayBegin(&inDoc, mongoOp, mongoOpLen, &array);
 
     for (int i = 0; i < term->value.list.count; i++)
     {
@@ -1172,7 +1173,7 @@ static void bsonAppendQNode(bson_t* docP, LdQNode* nodeP)
   else if (nodeP->type == LdQAndNode)
   {
     bson_t andArray;
-    bson_append_array_begin(docP, "$and", 4, &andArray);
+    mongocArrayBegin(docP, "$and", 4, &andArray);
 
     for (int i = 0; i < nodeP->group.count; i++)
     {
@@ -1190,7 +1191,7 @@ static void bsonAppendQNode(bson_t* docP, LdQNode* nodeP)
   else if (nodeP->type == LdQOrNode)
   {
     bson_t orArray;
-    bson_append_array_begin(docP, "$or", 3, &orArray);
+    mongocArrayBegin(docP, "$or", 3, &orArray);
 
     for (int i = 0; i < nodeP->group.count; i++)
     {
@@ -1229,7 +1230,7 @@ static const char* bsonAppendCoordValue(bson_t* arrayP, int* indexP, const char*
 static const char* bsonAppendCoordArray(bson_t* parentP, const char* key, int keyLen, const char* p)
 {
   bson_t array;
-  bson_append_array_begin(parentP, key, keyLen, &array);
+  mongocArrayBegin(parentP, key, keyLen, &array);
 
   int index = 0;
 
@@ -1386,7 +1387,7 @@ static void bsonAppendGeoFilter(bson_t* filterP, DbQueryFilter* f)
     bson_t norElem;
     bson_t norField;
     bson_t withinDoc;
-    bson_append_array_begin(filterP, "$nor", 4, &norArray);
+    mongocArrayBegin(filterP, "$nor", 4, &norArray);
     bson_append_document_begin(&norArray, "0", 1, &norElem);
     bson_append_document_begin(&norElem, fieldPath, -1, &norField);
     bson_append_document_begin(&norField, "$geoWithin", 10, &withinDoc);
@@ -1482,7 +1483,7 @@ static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
   if (filterP->typeExpr != NULL && !filterP->typeExpr->isSimple)
   {
     bson_t orArray;
-    bson_append_array_begin(matchFilter, "$or", 3, &orArray);
+    mongocArrayBegin(matchFilter, "$or", 3, &orArray);
     for (int gix = 0; gix < filterP->typeExpr->groupCount; gix++)
     {
       char key2[16];
@@ -1496,7 +1497,7 @@ static void bsonAppendNonGeoMatch(bson_t* matchFilter, DbQueryFilter* filterP)
       {
         bson_t allDoc, allArray;
         bson_append_document_begin(&orElem, "type", 4, &allDoc);
-        bson_append_array_begin(&allDoc, "$all", 4, &allArray);
+        mongocArrayBegin(&allDoc, "$all", 4, &allArray);
         for (int tix = 0; tix < grp->count; tix++)
         {
           char tkey[16];
@@ -1585,7 +1586,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
     if (filterP->typeExpr != NULL && !filterP->typeExpr->isSimple)
     {
       bson_t orArray;
-      bson_append_array_begin(&filter, "$or", 3, &orArray);
+      mongocArrayBegin(&filter, "$or", 3, &orArray);
 
       for (int gix = 0; gix < filterP->typeExpr->groupCount; gix++)
       {
@@ -1606,7 +1607,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
           bson_t allArray;
 
           bson_append_document_begin(&orElem, "type", 4, &allDoc);
-          bson_append_array_begin(&allDoc, "$all", 4, &allArray);
+          mongocArrayBegin(&allDoc, "$all", 4, &allArray);
 
           for (int tix = 0; tix < grp->count; tix++)
           {
@@ -1715,7 +1716,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
       bson_init(&pipeline);
 
       bson_t stages;
-      bson_append_array_begin(&pipeline, "pipeline", 8, &stages);
+      mongocArrayBegin(&pipeline, "pipeline", 8, &stages);
       int stageIx = 0;
 
       // $geoNear stage — mirrors the body pipeline below, sans
@@ -1839,7 +1840,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
     bson_init(&pipeline);
 
     bson_t stages;
-    bson_append_array_begin(&pipeline, "pipeline", 8, &stages);
+    mongocArrayBegin(&pipeline, "pipeline", 8, &stages);
     int stageIx = 0;
 
     // --- $geoNear stage ---
@@ -1930,7 +1931,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
         bson_append_document_begin(&stages, key, keyLen, &stageDoc);
         bson_append_document_begin(&stageDoc, "$unionWith", 10, &unionDoc);
         bson_append_utf8(&unionDoc, "coll", 4, "entities", 8);
-        bson_append_array_begin(&unionDoc, "pipeline", 8, &subPipe);
+        mongocArrayBegin(&unionDoc, "pipeline", 8, &subPipe);
         bson_append_document_begin(&subPipe, "0", 1, &subStage);
         bson_append_document_begin(&subStage, "$match", 6, &subMatch);
 
@@ -2004,7 +2005,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
     bson_t seekFilter, andArray, filterDoc, posDoc, rangeDoc, norArray, norDoc, idDoc;
 
     bson_init(&seekFilter);
-    bson_append_array_begin(&seekFilter, "$and", 4, &andArray);
+    mongocArrayBegin(&seekFilter, "$and", 4, &andArray);
 
     bson_append_document_begin(&andArray, "0", 1, &filterDoc);
     bson_concat(&filterDoc, &filter);
@@ -2015,7 +2016,7 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
     BSON_APPEND_INT64(&rangeDoc, filterP->seekBefore ? "$lte" : "$gte", filterP->seekCreatedAt);
     bson_append_document_end(&posDoc, &rangeDoc);
 
-    bson_append_array_begin(&posDoc, "$nor", 4, &norArray);
+    mongocArrayBegin(&posDoc, "$nor", 4, &norArray);
     bson_append_document_begin(&norArray, "0", 1, &norDoc);
     BSON_APPEND_INT64(&norDoc, "createdAt", filterP->seekCreatedAt);
     bson_append_document_begin(&norDoc, "_id", 3, &idDoc);

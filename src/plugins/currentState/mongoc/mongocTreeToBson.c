@@ -15,6 +15,7 @@
 
 #include "corTree/CorNode.h"                         // CorNode, CorValueType
 
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
 #include "corNgsild/ldTermId.h"                                   // ldTermId, CorTerm*
 #include "corNgsild/ldTypes.h"                                    // ldAttrTypeFromString, LdAttrNone
@@ -221,7 +222,7 @@ static void nodeToBson(CorNode* nodeP, bson_t* bsonP, bool inArray, int arrayInd
   case CorArray:
     {
       bson_t child;
-      bson_append_array_begin(bsonP, key, -1, &child);
+      mongocArrayBegin(bsonP, key, -1, &child);
 
       int ix = 0;
       for (CorNode* childP = nodeP->value.head; childP != NULL; childP = childP->next)

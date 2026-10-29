@@ -32,6 +32,7 @@
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocTreeToBson.h"        // mongocEntityToBson
 #include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
 #include "currentState/mongoc/mongocGeoIndex.h"          // mongocGeoIndexEnsure
@@ -186,7 +187,7 @@ int mongocEntityBulkUpdate(Tenant* tenantP, CorNode* entitiesArr, int* resultsV)
     BSON_APPEND_DOCUMENT_BEGIN(&filter, "_id", &inDoc);
 
     bson_t idArr;
-    BSON_APPEND_ARRAY_BEGIN(&inDoc, "$in", &idArr);
+    mongocArrayBegin(&inDoc, "$in", -1, &idArr);
 
     for (int i = 0; i < n; i++)
     {

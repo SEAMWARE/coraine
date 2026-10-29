@@ -223,7 +223,7 @@ Content-Length: REGEX(\d+)
   "corRest": "0.1.0",
   "corTree": "0.1.0",
   "coraine version": "REGEX(\d+\.\d+\.\d+(\+dev)?)",
-  "mongoc driver": "2.2.2",
+  "mongoc driver": "REGEX(\d+\.\d+\.\d+)",
   "mongoc plugin": "0.1.0",
   "mongodb server": "REGEX(\d+\.\d+\.\d+)"
 }

@@ -2256,6 +2256,66 @@ Each run, off / on / on / off, history rows/s: `PATCH` of `speed` 97 444 / 95 37
 the fastest in all three scenarios, and the `PATCH` of `temp`, whose rows the indexes do not hold, loses more than
 the `PATCH` of `speed`: a difference of this size is within what the runs vary.
 
+### mongo-c-driver 2.5.7 against 2.2.2
+
+The same release build of coraine (`4ac22e50`), the driver swapped under the mongoc plugin (`LD_LIBRARY_PATH`;
+2.5.7 built from source with zstd and SASL, as the image builds it), MongoDB 8.2.12 in a container,
+`perfRun.sh mongoc` with the broker on one physical core (`PERF_BROKER_CORES=1`), AMD Ryzen 9 8940HX;
+2026-10-29 18:54-20:00, ABBA order (2.2.2, 2.5.7, 2.5.7, 2.2.2). Requests/s, the mean of the two runs of each:
+
+| requests/s | 2.2.2 | 2.5.7 | |
+|---|---:|---:|---:|
+| `query_c50` | 6 548 | 6 462 | -1.3 % |
+| `query_c200` | 6 622 | 6 529 | -1.4 % |
+| `query_l1_c50` | 18 058 | 18 478 | +2.3 % |
+| `query_l100_c50` | 1 406 | 1 398 | -0.5 % |
+| `retrieve_c50` | 23 892 | 23 457 | -1.8 % |
+| `patch_c50` | 12 360 | 11 833 | -4.3 % |
+| `patch_c1` | 3 131 | 3 052 | -2.5 % |
+| `batch20_c50` | 1 806 | 1 759 | -2.6 % |
+| `create_c50` | 23 032 | 22 670 | -1.6 % |
+| `create_c1` | 6 902 | 6 760 | -2.1 % |
+| `batch20create_c50` | 6 296 | 6 242 | -0.9 % |
+| `merge_c50` | 15 526 | 15 256 | -1.7 % |
+| `delete_c50` | 18 074 | 17 634 | -2.4 % |
+| `batch20delete_c50` | 3 706 | 3 956 | +6.8 % |
+| `patch_subs_c50` | 7 722 | 7 620 | -1.3 % |
+| `patch_manysubs_c50` | 7 266 | 7 304 | +0.5 % |
+| `patch_10subs_c50` | 3 454 | 3 540 | +2.5 % |
+| `rare_l20_c50` | 6 780 | 6 698 | -1.2 % |
+| `rare_l100_c50` | 1 736 | 1 716 | -1.2 % |
+| `rare_l20_o500_c50` | 4 518 | 4 478 | -0.9 % |
+| `big_r1_l20_c50` | 6 870 | 6 644 | -3.3 % |
+| `big_r1_l20_o1000_c50` | 2 008 | 1 990 | -0.9 % |
+| `big_r01_l20_c50` | 6 562 | 6 622 | +0.9 % |
+| `big_r01_l20_o200_c50` | 6 418 | 6 349 | -1.1 % |
+| `big_retrieve_c50` | 22 401 | 21 833 | -2.5 % |
+| `big_patch_c50` | 11 798 | 11 474 | -2.7 % |
+| `big_create_c50` | 20 956 | 20 148 | -3.9 % |
+
+The larger store (300 000 entities) fills in 72 s with both; broker RSS 129 / 130 MB, data, storage and indexes
+the same. Each run, 2.2.2 / 2.5.7 / 2.5.7 / 2.2.2: `patch_c50` 12 409 / 11 671 / 11 995 / 12 311;
+`big_create_c50` 20 882 / 20 169 / 20 128 / 21 029; `batch20delete_c50` 3 707 / 3 882 / 4 031 / 3 704.
+
+Instructions per request in the broker (`perf stat -e instructions:u,instructions:k`, 5 s of `wrk -t8 -c50`,
+100 entities, broker on one core; the same ABBA order, one broker start each, 2026-10-29 20:20):
+
+| per request | 2.2.2 | 2.5.7 | |
+|---|---|---|---:|
+| query, `limit=20`, user | 841 257 / 841 181 | 841 983 / 842 192 | +870 (+0.1 %) |
+| retrieve, user | 90 166 / 89 360 | 91 372 / 91 039 | +1 440 (+1.6 %) |
+| `PATCH` of `speed`, user | 175 261 / 175 629 | 180 497 / 179 756 | +4 680 (+2.7 %) |
+| create, user | 139 964 / 139 608 | 141 463 / 141 008 | +1 450 (+1.0 %) |
+| kernel, all four | 75 983-137 940 | 79 339-139 644 | within the starts' spread |
+
+- **2.5.7 runs ~1 400 more user instructions per database operation**: a retrieve (one find) and a create (one
+  insert) +1 440 / +1 450, a `PATCH` - more than one operation - +4 680. The kernel's share is unchanged.
+- That is +2.7 % of a `PATCH`'s instructions and 1-2 % of a retrieve's and a create's; `patch_c50` -4.3 %,
+  `big_create_c50` -3.9 % in requests/s, both 2.5.7 runs below both 2.2.2 runs.
+- `batch20delete_c50` +6.8 %, both 2.5.7 runs above both 2.2.2 runs.
+- 2.5.7 is what the fixes of 2.3-2.5 are in (JSON and BSON parsing, SCRAM and SASL, OCSP, name validation), and
+  2.5 is the driver MongoDB names for server 9.0.
+
 ## The HTTP server
 
 ### libmicrohttpd 1.0.10 against 1.0.2

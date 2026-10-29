@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     # pinned - see the note in ci.yml
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-29-6dba3e1
     services:
       #
       # A REPLICA SET - the HA cache sync watches a change stream, a change stream
@@ -270,7 +270,7 @@ jobs:
     runs-on: ubuntu-latest
     # pinned - see the note in ci.yml
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-29-6dba3e1
     steps:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
@@ -395,7 +395,7 @@ jobs:
           - { name: '471-696', from: 471, to: 696 }
           - { name: '697-end', from: 697, to: 0 }
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-29-6dba3e1
     services:
       #
       # A REPLICA SET - the HA cache sync watches a change stream, a change stream
@@ -523,7 +523,7 @@ jobs:
         include:
           - { httpServer: mhd, db: corDB }
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-29-6dba3e1
     services:
       #
       # Standalone: the TP suite has no HA test, so there is nothing here that needs
@@ -737,7 +737,7 @@ jobs:
     permissions:
       contents: write
     container:
-      image: quay.io/seamware/coraine-ci-nightly:2026-10-13-f4804c2
+      image: quay.io/seamware/coraine-ci-nightly:2026-10-29-6dba3e1
     services:
       #
       # STANDALONE on purpose, unlike the coverage and valgrind jobs above. This job

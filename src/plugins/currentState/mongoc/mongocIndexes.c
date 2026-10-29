@@ -52,6 +52,7 @@
 
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR, DB_NOT_FOUND, DB_ALREADY_EXISTS, DB_BAD_INPUT
 #include "db/Tenant.h"                               // Tenant, tenant0, tenantList, tenantApiName
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocGlobals.h"       // mongocDbIndexes, mongocDbName
 #include "currentState/mongoc/mongocDotEscape.h"     // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocIndexes.h"       // Own interface
@@ -278,7 +279,7 @@ static bool declsSave(char* errorText, int errorTextLen)
 
   bson_init(&update);
   BSON_APPEND_DOCUMENT_BEGIN(&update, "$set", &set);
-  BSON_APPEND_ARRAY_BEGIN(&set, "declarations", &array);
+  mongocArrayBegin(&set, "declarations", -1, &array);
 
   for (int ix = 0; ix < declN; ix++)
   {
