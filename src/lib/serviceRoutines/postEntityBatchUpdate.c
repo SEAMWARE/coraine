@@ -82,6 +82,7 @@
 #include "bridge/channelCheck.h"                     // channelChecksBeforeWrite, channelChecksActive
 #endif
 
+#include "troe/troeDispatch.h"                       // troeFromWrites
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 
@@ -176,6 +177,29 @@ static int noOverwriteChopLocal(CorNode* fragment, CorNode* existing)
 //
 // addBatchError - append a BatchEntityError (§ 5.2.17) to errors[].
 //
+// -----------------------------------------------------------------------------
+//
+// dbErrorFirst - is this the first write of Entity 'eid' the store refused? An Entity written once per
+// state (eachState) fails its later states as it failed its first - one error for it, not one per state
+//
+static bool dbErrorFirst(const char** allIdV, bool* dbErrorV, int gN, const char* eid)
+{
+  for (int gi = 0; gi < gN; gi++)
+  {
+    if (strcmp(allIdV[gi], eid) == 0)
+    {
+      bool first = (dbErrorV[gi] == false);
+
+      dbErrorV[gi] = true;
+      return first;
+    }
+  }
+
+  return true;
+}
+
+
+
 static void addBatchError(CorNode* errorsP, const char* entityId, int statusCode,
                           const char* errType, const char* title,
                           const char* detail, const char* regId)
@@ -807,10 +831,24 @@ bool postEntityBatchUpdate(void)
   int          csrAccumsN   = 0;
   int          csrAccumsCap = 0;
 
+  //
+  // A write slot per Entity - or, when the store records the history from its own writes, one per
+  // fragment: an Entity the batch names more than once is then written once per fragment (eachState)
+  //
+  bool fromWrites = troeFromWrites();
+  int  slotMax    = gN;
+
+  if (fromWrites == true)
+  {
+    slotMax = 0;
+    for (int gi = 0; gi < gN; gi++)
+      slotMax += groups[gi].count;
+  }
+
   CorNode*     finals   = corTreeArray(corRest.kallocP, NULL);
-  const char** finalIdV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * gN);
-  CorNode**    finalEntityV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * gN);
-  LdMergeReport* finalReportV = (LdMergeReport*) corAlloc(&corRest.kalloc, sizeof(LdMergeReport) * gN);   // what changed, for the store (dbChanges.h)
+  const char** finalIdV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * slotMax);
+  CorNode**    finalEntityV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * slotMax);
+  LdMergeReport* finalReportV = (LdMergeReport*) corAlloc(&corRest.kalloc, sizeof(LdMergeReport) * slotMax);   // what changed, for the store (dbChanges.h)
 
   //
   // Requests to the DDS side go FIRST, per fragment, before the bulk write -
@@ -835,7 +873,10 @@ bool postEntityBatchUpdate(void)
   }
   bool*        anySuccessV = (bool*) corAlloc(&corRest.kalloc, sizeof(bool) * gN);
   const char** allIdV   = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * gN);
+  bool*        dbErrorV = (bool*)        corAlloc(&corRest.kalloc, sizeof(bool) * gN);   // the store refused a write of it (dbErrorFirst)
   int          finalN   = 0;
+
+  memset(dbErrorV, 0, sizeof(bool) * gN);
 
   //
   // ⭐ TWO LOOPS, split where the DDS step waits. Loop 1 chops each fragment and
@@ -1126,6 +1167,16 @@ bool postEntityBatchUpdate(void)
     bool          anyMerge           = false;
     LdMergeReport dbReport           = { NULL };
 
+    //
+    // The store records the history from its own writes, and the batch names this Entity more than once:
+    // the store is given each fragment's state, in order, with what that fragment changed - written only
+    // as the last, the history holds the last state alone (§ 10.3.4.3: each fragment its own)
+    //
+    bool           eachState = fromWrites && (g->count > 1);
+    CorNode**      stateV    = eachState ? (CorNode**)      corAlloc(&corRest.kalloc, sizeof(CorNode*)      * g->count) : NULL;
+    LdMergeReport* stateRepV = eachState ? (LdMergeReport*) corAlloc(&corRest.kalloc, sizeof(LdMergeReport) * g->count) : NULL;
+    int            stateN    = 0;
+
     for (int fi = 0; fi < g->count; fi++)
     {
       if (readyV[fragBaseV[gi] + fi] == false)
@@ -1168,21 +1219,58 @@ bool postEntityBatchUpdate(void)
       // TRoE: per-fragment attr events. Optimistic — fires regardless
       // of the later bulk_update outcome (matches the notification
       // dispatch's pre-existing optimism).
+      //
+      // The events are written after the batch, and a later fragment of the
+      // same Entity merges into existingDb in place - so a fragment with another
+      // one after it hands over a copy of its state, or every instance it made
+      // records the last fragment's values (§ 10.3.4.3: the fragments are
+      // processed in chronological order, each one its own).
+      //
+      CorNode* stateP = (fi < g->count - 1) ? corTreeClone(corRest.kallocP, existingDb) : existingDb;
+
       {
-        CorNode* tn = corTreeLookup(existingDb, "type");
-        const char* etype = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
-        troeDeferAttrEventsFromMerge(tenantP, g->id, etype, existingDb, &report,
+        CorNode*    tn     = corTreeLookup(stateP, "type");
+        const char* etype  = (tn != NULL && tn->type == CorString) ? tn->value.s : NULL;
+        troeDeferAttrEventsFromMerge(tenantP, g->id, etype, stateP, &report,
                                      corRest.requestStartTime);
+      }
+
+      if (eachState == true)
+      {
+        LdMergeReport stateRep = { NULL };
+
+        dbChangesAdd(&stateRep, &report);
+        dbChangesFinish(&stateRep, stateP);
+
+        stateV[stateN]    = stateP;
+        stateRepV[stateN] = stateRep;
+        stateN++;
       }
     }
 
     if (anyMerge)
     {
-      dbChangesFinish(&dbReport, existingDb);
-      finalReportV[finalN]  = dbReport;
-      finalEntityV[finalN]  = existingDb;
-      finalIdV[finalN++]    = g->id;
-      corTreeChildAdd(finals, existingDb);
+      if ((eachState == true) && (stateN > 1))
+      {
+        //
+        // Each state its own write, in order - which the store keeps
+        //
+        for (int si = 0; si < stateN; si++)
+        {
+          finalReportV[finalN]  = stateRepV[si];
+          finalEntityV[finalN]  = stateV[si];
+          finalIdV[finalN++]    = g->id;
+          corTreeChildAdd(finals, stateV[si]);
+        }
+      }
+      else
+      {
+        dbChangesFinish(&dbReport, existingDb);
+        finalReportV[finalN]  = dbReport;
+        finalEntityV[finalN]  = existingDb;
+        finalIdV[finalN++]    = g->id;
+        corTreeChildAdd(finals, existingDb);
+      }
 
       // Mixed outcome: some attrs were merged, some were skipped by
       // noOverwrite. § 5.6.18: per-entity partial success is reported
@@ -1350,6 +1438,10 @@ bool postEntityBatchUpdate(void)
     for (int k = 0; k < finalN; k++)
     {
       const char* eid = finalIdV[k];
+
+      if ((resultsV[k] != DB_OK) && (dbErrorFirst(allIdV, dbErrorV, gN, eid) == false))
+        continue;
+
       switch (resultsV[k])
       {
         case DB_OK:
