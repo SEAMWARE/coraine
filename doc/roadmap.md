@@ -140,6 +140,11 @@ Recently built, and documented where it lives:
     beat of its run in the shared database every 10 s; the WebSocket subscriptions of a run with no beat for
     60 s are deleted by the instances alive, also when a killed pod never comes back
     ([High Availability](high-availability.md#websocket-subscriptions-of-an-instance-gone)).
+-   **The release is built from the libraries the pre-release campaign tested** - the campaign records
+    the commit of every library (corLibs and c³ too) once, every part builds from that record, and
+    `release.yml` builds and tags the release from the newest green campaign of the tag's tree; none,
+    and nothing is released. c³'s tag, made by hand, must be the commit in the record
+    ([Testing](testing.md#the-pre-release-campaign)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: anything normative from ETSI TC DATA
 will realistically follow in 2027. coraine implements its own objects now and adapts to whatever TC DATA
@@ -147,11 +152,7 @@ settles on.
 
 ## Short term
 
--   **The release builds the libraries the pre-release campaign tested** - the campaign records the commit of
-    every library it built; `release.yml` builds and tags from that record, and stops when a library's
-    `main` has moved since. 0.6.0 was built with the libraries' `main` at tag time, one commit newer than
-    the campaign's in the NGSI-LD library, and 0.6.1 followed the same day.
-    ([Testing](testing.md#the-pre-release-campaign))
+Nothing at the moment - the next release ships what is under Available now.
 
 ## Medium term
 

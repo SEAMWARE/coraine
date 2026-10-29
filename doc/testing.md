@@ -261,7 +261,19 @@ or Actions → Pre-release → Run workflow.
 | `soak` | `test/soak/soak.py`, `soakMinutes` per database, mongoc and corDB | 2 |
 | `summary` | every job of the run, green or red, in the run summary; red if any part is | 1 |
 
-- Every part tests the sha `ref` names when the run starts; the Cor-Libs are at `main`.
+- Every part tests the sha `ref` names when the run starts, and the Cor-Libs at the commit their `main`
+  had then: the `resolve` job records every library's commit, corLibs' and c³'s
+  (`RESOLVE=1 bootstrap.sh`), and every part builds from that record (`COR_LIBS_PIN`), however much
+  later it starts.
+- The record is kept, as the run's artifact `campaign` (90 days), with coraine's commit and tree and the
+  part that ran. **The release is built from it**: `release.yml` takes the newest green run of all parts
+  (`only=all`) whose tree is the tag's - the tree, as the campaign runs on the release branch and the tag
+  goes on its merge - builds the image and the packages from those library commits and tags them there.
+  No such run, and the release stops before anything is published: run the campaign on the release
+  commit first. A part that went red is re-run with *Re-run failed jobs*, which keeps the run and its
+  record; a run with `only` records one part and is never taken.
+- c³ is tagged by hand. The release checks c³'s `v<version>` against the record before it builds,
+  and stops with the `git tag` to run when it is missing or another commit.
 - The campaign's tools - `test/sanitizer/`, `test/soak/`, `test/upgrade/` - come from the commit
   the workflow runs from (the branch it is dispatched on), the code and its suite from `ref`.
 - Nothing is published: `nightly.yml` and `packages.yml` are called with `publish: false` -

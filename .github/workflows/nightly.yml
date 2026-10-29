@@ -44,6 +44,10 @@ on:
         description: 'Publish the coverage site and record the performance run in perf-history'
         type: boolean
         default: false
+      libs:
+        description: "The Cor-Libs' commits, '<repo> <sha>' per line (bootstrap.sh's COR_LIBS_PIN) - empty: main"
+        type: string
+        default: ''
 
 defaults:
   run:
@@ -58,9 +62,14 @@ defaults:
 # TimescaleDB checks passwords (POSTGRES_PASSWORD, scram-sha-256), as ci.yml's: libpq reads PGPASSWORD - psql,
 # and a broker started without --troePwd
 #
+#
+# The pre-release campaign's record of the Cor-Libs (input libs): every bootstrap.sh below clones them at
+# those commits. Empty - the schedule, a run by hand - each lib's main.
+#
 env:
   COR_DDS_ROS2_IMAGE: quay.io/seamware/coraine-ci:mirror-vulcanexus-jazzy-desktop
   PGPASSWORD: password
+  COR_LIBS_PIN: ${{ inputs.libs }}
 
 jobs:
   gate:

@@ -57,6 +57,13 @@ on:
       libs_ref:
         type: string
         default: main
+      #
+      # The pre-release campaign's record: every Cor-Lib at its commit, '<repo> <sha>' per line
+      # (bootstrap.sh's COR_LIBS_PIN) - empty: at libs_ref
+      #
+      libs:
+        type: string
+        default: ''
       c3_ref:
         type: string
         default: ''
@@ -99,6 +106,8 @@ jobs:
 
       - name: Clone the Cor-Libs
         working-directory: stack/corLibs
+        env:
+          COR_LIBS_PIN: ${{ inputs.libs }}
         run: NOBUILD=1 ./bootstrap.sh
 
       # c³, the control center: in the coraine package, built on the same libs
