@@ -102,6 +102,12 @@ jobs:
           own=${full%%+*}
           if [[ "$full" == *+* ]]; then
             previous=$(git tag -l "v$own" | sed 's/^v//')
+          elif [ -n "$(git tag -l "v$own")" ] && [ "$(git rev-parse "v$own^{tree}")" != "$(git rev-parse 'HEAD^{tree}')" ]; then
+            #
+            # A plain version already released, on another tree: the step back to "+dev" after the release
+            # was missed (main said 0.6.1 after 0.6.1 - and was checked for an upgrade from 0.6.0)
+            #
+            echo "::error::coraineVersion.h says $full, released already (v$own) - after a release main says $own+dev"; exit 1
           else
             previous=$( { git tag -l 'v[0-9]*' | sed 's/^v//'; echo "$own"; } | sort -uV \
                         | awk -v own="$own" '$0 == own { print prev; exit } { prev = $0 }')
