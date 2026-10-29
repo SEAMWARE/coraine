@@ -156,31 +156,31 @@ static CorNode* makeValueNode(CorJson* corJsonP, const char* vfn,
 
 // -----------------------------------------------------------------------------
 //
-// stripZeroMs - trim an all-zero fractional part so a clean second renders
-// without the artificial sub-second padding (matches the canonical fixtures used
-// by ETSI's temporal tests). The buffer is in-place rewritable: postgres'
-// to_char output lives in PQgetvalue's libpq-owned storage, so we corAllocStrdup
-// first, then trim. Caller passes in the strdup'd copy.
+// isoTrim - the fraction's trailing zeros dropped, and the '.' with them when nothing is left: the
+// rendering of the core API (corTimeIso with trim), so a time reads the same in /entities and in
+// /temporal - '.290' was '.29' in one and '.290' in the other. Every time is rendered with microseconds
+// (.US, postgres' precision) and trimmed here. The buffer is in-place rewritable: postgres' to_char
+// output lives in PQgetvalue's libpq-owned storage, so the caller passes in a corAllocStrdup'd copy.
 //
-// Both widths are handled: created_at/modified_at render with microseconds (.US)
-// to match what the core API returns for the same entity, observed_at still with
-// milliseconds (.MS), so ".000000Z" and ".000Z" both reach here.
-//
-static char* stripZeroMs(char* s)
+static char* isoTrim(char* s)
 {
   if (s == NULL) return NULL;
-  size_t n = strlen(s);
 
-  if (n >= 8 && memcmp(s + n - 8, ".000000Z", 8) == 0)
-  {
-    s[n - 8] = 'Z';
-    s[n - 7] = '\0';
-  }
-  else if (n >= 5 && memcmp(s + n - 5, ".000Z", 5) == 0)
-  {
-    s[n - 5] = 'Z';
-    s[n - 4] = '\0';
-  }
+  char* dotP = strrchr(s, '.');
+  if ((dotP == NULL) || (strchr(dotP, 'Z') == NULL))
+    return s;
+
+  char* endP = strchr(dotP, 'Z');                    // the first character after the fraction
+  char* lastP = endP - 1;
+
+  while ((lastP > dotP) && (*lastP == '0'))
+    --lastP;
+
+  if (lastP == dotP)                                 // nothing left of the fraction: the '.' goes too
+    lastP = dotP - 1;
+
+  lastP[1] = 'Z';
+  lastP[2] = '\0';
 
   return s;
 }
@@ -534,7 +534,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
   const char* selectCols =
     "attr_name, attr_kind, dataset_id, "
     "to_char(modified_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS modified_at_iso, "
-    "to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS observed_at_iso, "
+    "to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS observed_at_iso, "
     "op, v_text, v_number, v_bool, v_compound, sub_attrs, "
     "modified_at, observed_at, instance_id, "
     "to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS created_at_iso";
@@ -724,10 +724,10 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     {
       if (!PQgetisnull(tRes, 0, 0))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "createdAt",
-                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
+                                   isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 0)))));
       if (!PQgetisnull(tRes, 0, 3))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "modifiedAt",
-                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 3)))));
+                                   isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 3)))));
 
       //
       // § 5.2.6.2: an Entity's deletedAt is used "in the temporal
@@ -737,7 +737,7 @@ static int buildEntityTemporalDocLocked(const char* entityId,
       //
       if ((!PQgetisnull(tRes, 0, 1)) && (!PQgetisnull(tRes, 0, 2)) && (strcmp(PQgetvalue(tRes, 0, 2), "deleted") == 0))
         corTreeChildAdd(root, corTreeString(corRest.kallocP, "deletedAt",
-                                   stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
+                                   isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, 0, 1)))));
     }
     PQclear(tRes);
   }
@@ -829,13 +829,13 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     // a regular one (§ 4.5.4) — it travels with the deleted row regardless
     // of sysAttrs (it's not in the strip list).
     if (crAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "createdAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, crAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "createdAt", isoTrim(corAllocStrdup(&corRest.kalloc, crAtIso))));
     if (modAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "modifiedAt", isoTrim(corAllocStrdup(&corRest.kalloc, modAtIso))));
     if (isDeleted && modAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "deletedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, modAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "deletedAt", isoTrim(corAllocStrdup(&corRest.kalloc, modAtIso))));
     if (obsAtIso != NULL)
-      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "observedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, obsAtIso))));
+      corTreeChildAdd(inst, corTreeString(corRest.kallocP, "observedAt", isoTrim(corAllocStrdup(&corRest.kalloc, obsAtIso))));
     if (dsId != NULL && dsId[0] != 0)
       corTreeChildAdd(inst, corTreeString(corRest.kallocP, "datasetId", corAllocStrdup(&corRest.kalloc, dsId)));
     if (instId != NULL)
@@ -874,12 +874,12 @@ static int buildEntityTemporalDocLocked(const char* entityId,
     if (minIso != NULL)
     {
       if (rangeOut->rangeStartIso == NULL || strcmp(minIso, rangeOut->rangeStartIso) < 0)
-        rangeOut->rangeStartIso = stripZeroMs(corAllocStrdup(&corRest.kalloc, minIso));
+        rangeOut->rangeStartIso = isoTrim(corAllocStrdup(&corRest.kalloc, minIso));
     }
     if (maxIso != NULL)
     {
       if (rangeOut->rangeEndIso == NULL || strcmp(maxIso, rangeOut->rangeEndIso) > 0)
-        rangeOut->rangeEndIso = stripZeroMs(corAllocStrdup(&corRest.kalloc, maxIso));
+        rangeOut->rangeEndIso = isoTrim(corAllocStrdup(&corRest.kalloc, maxIso));
     }
 
     if ((rangeOut->size == 0) || budgetCut)            // cut: the page is the entity's K instances per attribute
@@ -1611,11 +1611,11 @@ static int aggregatedDocsLocked(PGresult*        pageRes,
       continue;
 
     if (!PQgetisnull(tRes, r, 1))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "createdAt", isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 1)))));
     if (!PQgetisnull(tRes, r, 4))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 4)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "modifiedAt", isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 4)))));
     if (!PQgetisnull(tRes, r, 2) && !PQgetisnull(tRes, r, 3) && (strcmp(PQgetvalue(tRes, r, 3), "deleted") == 0))
-      corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", stripZeroMs(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
+      corTreeChildAdd(docV[i], corTreeString(allocP, "deletedAt", isoTrim(corAllocStrdup(&corRest.kalloc, PQgetvalue(tRes, r, 2)))));
   }
   PQclear(tRes);
 
